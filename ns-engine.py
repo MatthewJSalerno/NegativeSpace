@@ -3336,16 +3336,25 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             log_operation(conn, run_id, record_id, dup_src_str, pointer, OPERATION_SKIPPED, reason,
                           commit=False)
 
-        # A photo an earlier run already delivered is not a copy candidate and
-        # is not a duplicate either, so a selection naming it finished with no
-        # record at all — the same silence §5.3 objects to for duplicate-only
-        # selections. The reason states what the catalog holds: this run read
-        # and verified nothing, so it must not be shown as confirmation that
-        # the destination file is still present and intact.
+        # A photo an EARLIER run delivered is not a copy candidate and is not a
+        # duplicate either, so a selection naming it finished with no record at
+        # all — the same silence §5.3 objects to for duplicate-only selections.
+        # The reason states what the catalog holds: this run read and verified
+        # nothing, so it must not be shown as confirmation that the destination
+        # file is still present and intact.
+        #
+        # Excluding what this run already recorded is what keeps "earlier" true.
+        # This runs after the copy loop, by which point the rows it just wrote
+        # are themselves 'Copied', and without the exclusion every delivered
+        # photo ended its own job with two contradictory outcomes. Keying on
+        # this run's operations rather than a list of copied ids also covers
+        # the files it failed or cancelled: one outcome per photo per run.
         cursor.execute(
             f"SELECT id, source_path, dest_path FROM photos WHERE status = '{PhotoStatus.COPIED}'"
-            + predicate,
-            predicate_params
+            + predicate
+            + " AND id NOT IN (SELECT photo_id FROM operations "
+              "WHERE run_id = ? AND photo_id IS NOT NULL)",
+            tuple(predicate_params) + (run_id,)
         )
         for record_id, copied_src, copied_dst in cursor.fetchall():
             log_operation(
