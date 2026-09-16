@@ -1516,6 +1516,77 @@ def a_large_log_is_rotated_at_startup():
           "the new log does not hold this run")
 
 
+# ----------------------------------------------------------- preflight space
+
+@test
+def delivered_files_do_not_inflate_the_space_estimate():
+    """
+    Copy-then-Move writes nothing: the content is already at the destination,
+    so the move only deletes sources. Budgeting for those bytes aborts the
+    documented Copy→Move workflow on a destination with ample room for what
+    the run will actually write.
+    """
+    case = new_case("preflight_delivered")
+    # Incompressible and genuinely large: with KB-sized fixtures the reported
+    # figure rounds to 0.00 MB whether or not the estimate is fixed, and the
+    # assertion below would pass without measuring anything.
+    for name in ("a.jpg", "b.jpg", "c.jpg"):
+        make_photo(case / "src" / name, name, size=(900, 600), noise=True)
+    payload = sum(p.stat().st_size for p in (case / "src").rglob("*.jpg"))
+    check(payload > 1024 * 1024,
+          f"fixture payload is only {payload:,} bytes; too small for this test to mean anything")
+
+    run_engine(case)
+    run_engine(case, "--copy")
+
+    out = engine_output(run_engine(case, "--move"))
+    line = next((l for l in out.splitlines() if "items (" in l), "(no pre-flight line logged)")
+    check("(0.00 MB)" in line,
+          f"the move budgeted for files already at the destination: {line.strip()}")
+    check("already at the destination" in out,
+          "the log does not explain which files were left out of the estimate")
+
+    # The move itself must still happen — the estimate is the only change.
+    check(src_files(case) == [], f"the move left sources behind: {src_files(case)}")
+    check(len(dest_files(case)) == 3, f"expected all three photos delivered: {dest_files(case)}")
+
+
+@test
+def a_space_shortfall_is_recorded_not_just_logged():
+    """
+    A pre-flight abort is a run-level failure and must leave a row: the Error
+    Center reads `operations`, so a shortfall that only logs is invisible
+    there, and the run reports Failed with nothing saying why.
+    """
+    engine = _load_engine()
+    case = new_case("preflight_shortfall")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case)
+
+    class TinyVolume:
+        total, used, free = 1 << 30, 1 << 30, 4096
+
+    original = engine.shutil.disk_usage
+    engine.shutil.disk_usage = lambda _path: TinyVolume()
+    try:
+        args = argparse.Namespace(move=False, copy=True, source=str(case / "src"),
+                                  source_subdir=None, file_ids=None)
+        outcome = engine._run_move_or_copy(args, case / "appdata" / "db" / "ns_sqlite.db",
+                                           case / "dest", 999)
+    finally:
+        engine.shutil.disk_usage = original
+
+    check(outcome == "Failed", f"a destination with 4 KB free returned {outcome}")
+    check(dest_files(case) == [], f"files were written despite the shortfall: {dest_files(case)}")
+
+    recorded = rows(case, "SELECT source_path, error_message FROM operations "
+                          "WHERE run_id = 999 AND status = 'Failed' AND photo_id IS NULL")
+    check(len(recorded) == 1, f"the shortfall left no run-level failure record: {recorded}")
+    message = recorded[0]["error_message"] or ""
+    check("space" in message.lower() and "GB" in message,
+          f"the record does not say how much space was needed or free: {message}")
+
+
 # ---------------------------------------------------------------------- main
 
 def main():
