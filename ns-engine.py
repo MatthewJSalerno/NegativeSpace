@@ -1671,10 +1671,42 @@ def _fsync_directory(directory):
     try:
         os.fsync(fd)
     except OSError as e:
-        if e.errno not in _DIR_FSYNC_UNSUPPORTED_ERRNOS:
-            raise
+        if e.errno in _DIR_FSYNC_UNSUPPORTED_ERRNOS:
+            return
+        # Says what could not be established, rather than surfacing a bare
+        # "[Errno 5] Input/output error" that a user cannot act on. The errno
+        # is preserved for anything matching on it.
+        raise OSError(e.errno, f"{directory} could not be made durable: "
+                               f"{e.strerror or e}") from e
     finally:
         os.close(fd)
+
+
+def _mkdir_durable(directory: Path):
+    """
+    Creates `directory`, then makes durable every directory ENTRY it created.
+
+    fsync on a file does not persist the entry naming it in its parent — that
+    is why publishing fsyncs the destination directory — and the same is true
+    of each folder created on the way down. Syncing only the deepest one
+    leaves the first photo of a new day durable inside a day folder whose own
+    entry in the month folder never reached disk: after a power loss the copy
+    is unreachable, and in --move the source is already gone.
+
+    Each new entry is persisted in the parent that now holds it, shallowest
+    first. Costs one fsync per folder actually created — once per new date
+    folder, not per file.
+    """
+    created = []
+    probe = directory
+    while not probe.exists():
+        created.append(probe)
+        if probe.parent == probe:
+            break
+        probe = probe.parent
+    directory.mkdir(parents=True, exist_ok=True)
+    for new_directory in reversed(created):
+        _fsync_directory(new_directory.parent)
 
 
 def _remove_verified_source(source: Path, verified_copy: Path, source_identity: tuple,
@@ -1832,7 +1864,7 @@ def copy_verify_delete(source_str: str, dest_str: str, delete_source: bool = Tru
     partial_dest = None
 
     try:
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        _mkdir_durable(dest.parent)
         # Taken BEFORE the copy, so any edit from here on — during the copy,
         # during verification, after publishing — is visible at deletion time.
         source_identity = _file_identity(source)
@@ -3303,6 +3335,35 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             reason, pointer = _duplicate_skip_reason(cursor, sha1_hash, copying=True)
             log_operation(conn, run_id, record_id, dup_src_str, pointer, OPERATION_SKIPPED, reason,
                           commit=False)
+
+        # A photo an EARLIER run delivered is not a copy candidate and is not a
+        # duplicate either, so a selection naming it finished with no record at
+        # all — the same silence §5.3 objects to for duplicate-only selections.
+        # The reason states what the catalog holds: this run read and verified
+        # nothing, so it must not be shown as confirmation that the destination
+        # file is still present and intact.
+        #
+        # Excluding what this run already recorded is what keeps "earlier" true.
+        # This runs after the copy loop, by which point the rows it just wrote
+        # are themselves 'Copied', and without the exclusion every delivered
+        # photo ended its own job with two contradictory outcomes. Keying on
+        # this run's operations rather than a list of copied ids also covers
+        # the files it failed or cancelled: one outcome per photo per run.
+        cursor.execute(
+            f"SELECT id, source_path, dest_path FROM photos WHERE status = '{PhotoStatus.COPIED}'"
+            + predicate
+            + " AND id NOT IN (SELECT photo_id FROM operations "
+              "WHERE run_id = ? AND photo_id IS NOT NULL)",
+            tuple(predicate_params) + (run_id,)
+        )
+        for record_id, copied_src, copied_dst in cursor.fetchall():
+            log_operation(
+                conn, run_id, record_id, copied_src, copied_dst, OPERATION_SKIPPED,
+                f"Already copied to {copied_dst} by an earlier run, so there is nothing to copy; "
+                f"this run re-verified nothing. Use --move to finish moving it, or re-index if "
+                f"the destination file may have changed.",
+                commit=False
+            )
         conn.commit()
 
     # Point every duplicate at the copy that actually exists.
