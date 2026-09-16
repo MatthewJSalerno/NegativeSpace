@@ -1201,9 +1201,15 @@ def _nearest_existing_dir(path: Path) -> Path:
     return Path(path.anchor or '.')
 
 
-def verify_sufficient_disk_space(dest_path: Path, required_bytes: int, safety_margin_mb: int = 500) -> bool:
+def verify_sufficient_disk_space(dest_path: Path, required_bytes: int,
+                                 safety_margin_mb: int = 500) -> tuple:
     """
     Checks whether the destination volume has room for `required_bytes`.
+
+    Returns (ok, free_bytes, needed_bytes) rather than a bare bool, so a
+    caller can record what was required against what was available — a
+    shortfall is a run-level failure, and "not enough space" with no figures
+    is not something a user can act on.
 
     Strictly read-only: this used to mkdir(parents=True) the destination as a
     side effect of "verifying", so merely asking the question left directory
@@ -1226,8 +1232,8 @@ def verify_sufficient_disk_space(dest_path: Path, required_bytes: int, safety_ma
             f"Required: {required_gb:.2f} GB (+{safety_margin_mb}MB safety buffer), "
             f"Available: {free_gb:.2f} GB."
         )
-        return False
-    return True
+        return False, stat.free, total_needed
+    return True, stat.free, total_needed
 
 
 # --- Helper Functions ---
@@ -2932,22 +2938,59 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     # its failure IS the "missing" case.
     total_bytes_needed = 0
     missing = 0
+    already_delivered = 0
+    delivered_bytes = 0
     sizes = {}
-    for candidate_id, candidate_src, _, _ in pending_records:
+    for candidate_id, candidate_src, candidate_dst, _ in pending_records:
         try:
             sizes[candidate_id] = os.stat(candidate_src).st_size
-            total_bytes_needed += sizes[candidate_id]
         except OSError:
             missing += 1
+            continue
+        # A row whose recorded destination already holds a file of the same
+        # size is not written again: the loop re-verifies both sides live and,
+        # for --move, finishes by deleting the source. Budgeting for those
+        # bytes aborted Copy-then-Move on a destination with ample room for
+        # what the run actually writes. This is only the estimate — the live
+        # hash comparison still decides, and a row that does turn out to need
+        # writing is caught per file by the copy itself, which fails that one
+        # file with a recorded reason and leaves its source intact.
+        if candidate_dst:
+            try:
+                if os.stat(candidate_dst).st_size == sizes[candidate_id]:
+                    already_delivered += 1
+                    delivered_bytes += sizes[candidate_id]
+                    continue
+            except OSError:
+                pass
+        total_bytes_needed += sizes[candidate_id]
     if missing:
         logger.warning(
             f"{missing:,} of {len(pending_records):,} pending file(s) could not be stat'd and are "
             f"excluded from the space estimate. Each will be recorded with its own reason when "
             f"the loop reaches it."
         )
+    if already_delivered:
+        logger.info(
+            f"{already_delivered:,} file(s) are already at the destination "
+            f"({delivered_bytes / (1024 ** 2):.2f} MB) and need no new space; each is still "
+            f"verified live before anything is deleted."
+        )
 
-    if not verify_sufficient_disk_space(dest_path, total_bytes_needed):
-        logger.error("Aborting due to insufficient space on destination drive.")
+    space_ok, free_bytes, needed_bytes = verify_sufficient_disk_space(dest_path, total_bytes_needed)
+    if not space_ok:
+        # A pre-flight abort is a run-level failure and must leave a row: the
+        # Error Center reads operations, so a shortfall that only logged was
+        # invisible there — the run reported Failed with nothing saying why.
+        shortfall = (
+            f"Insufficient space at the destination: {needed_bytes / (1024 ** 3):.2f} GB required "
+            f"(including the safety margin), {free_bytes / (1024 ** 3):.2f} GB free. Nothing was "
+            f"copied, moved or deleted."
+        )
+        logger.error(f"Aborting: {shortfall}")
+        log_operation(conn, run_id, None, str(dest_path), None, PhotoStatus.FAILED, shortfall,
+                      commit=False)
+        conn.commit()
         conn.close()
         return RunStatus.FAILED
 
