@@ -1667,6 +1667,33 @@ def directory_sync_errors_are_tolerated_only_when_unsupported():
 
 
 @test
+def a_photo_this_run_delivered_is_not_also_reported_skipped():
+    """
+    The already-copied outcome reports what EARLIER runs delivered. The query
+    runs after the copy loop, when the rows it just wrote are already
+    `Copied`, so it must exclude what this run itself recorded — otherwise
+    every delivered photo ends its own job with two contradictory outcomes.
+    """
+    case = new_case("copy_no_double_outcome")
+    make_photo(case / "src" / "a.jpg", "a")
+    make_photo(case / "src" / "b.jpg", "b")
+    make_photo(case / "src" / "dup.jpg", "a")  # same content as a.jpg
+    run_engine(case)
+    run_engine(case, "--copy")
+
+    ops = rows(case, "SELECT photo_id, status FROM operations "
+                     "WHERE run_id = (SELECT MAX(id) FROM runs)")
+    by_photo = {}
+    for op in ops:
+        by_photo.setdefault(op["photo_id"], []).append(op["status"])
+    doubled = {photo: statuses for photo, statuses in by_photo.items() if len(statuses) > 1}
+    check(not doubled, f"photos recorded with two outcomes in one run: {doubled}")
+    check(sorted(op["status"] for op in ops) == ["Copied", "Copied", "Skipped"],
+          f"expected two deliveries and one skipped duplicate, got "
+          f"{sorted(op['status'] for op in ops)}")
+
+
+@test
 def a_second_copy_of_a_delivered_photo_records_the_outcome():
     """
     Selecting an already-copied photo for Copy again must end with a recorded
