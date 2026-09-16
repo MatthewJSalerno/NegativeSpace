@@ -219,6 +219,42 @@ def index_excludes_hidden_and_appledouble():
 
 
 @test
+def an_index_alone_deletes_nothing():
+    """
+    Index classifies duplicates; it never removes one. Deletion lives inside
+    the move/copy phase, which a bare Index does not enter at all — this pins
+    that guarantee rather than leaving it implied by the Move tests.
+    """
+    case = new_case("index_keeps_duplicates")
+    make_photo(case / "src" / "original.jpg", "SAME")
+    make_photo(case / "src" / "nested" / "copy.jpg", "SAME")
+    make_photo(case / "src" / "other.jpg", "DIFFERENT")
+    before = src_files(case)
+
+    run_engine(case)
+    # A second Index acts on the classification the first one wrote, which is
+    # where a cleanup pass would be tempting to run.
+    run_engine(case)
+
+    check(src_files(case) == before,
+          f"an Index removed source files: {before} -> {src_files(case)}")
+    check(not (case / "dest").exists(), "an Index wrote to the destination")
+
+    statuses = sorted(r["status"] for r in rows(case, "SELECT status FROM photos"))
+    check(statuses == ["Duplicate", "Pending", "Pending"],
+          f"expected one duplicate classified and nothing removed, got {statuses}")
+
+    removals = rows(case, "SELECT COUNT(*) c FROM photos WHERE status = 'Removed_Duplicate'")[0]["c"]
+    check(removals == 0, "an Index marked a row Removed_Duplicate")
+    op_statuses = {r["status"] for r in rows(case, "SELECT DISTINCT status FROM operations")}
+    check("Removed_Duplicate" not in op_statuses,
+          f"an Index recorded a removal operation: {sorted(op_statuses)}")
+
+    modes = [r["mode"] for r in rows(case, "SELECT mode FROM runs ORDER BY id")]
+    check(modes == ["INDEX", "INDEX"], f"expected two INDEX runs, got {modes}")
+
+
+@test
 def exts_accepts_bare_and_dotted():
     """--exts: 'jpg' and '.jpg' behave identically."""
     case = new_case("exts")
