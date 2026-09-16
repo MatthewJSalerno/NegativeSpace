@@ -1587,6 +1587,113 @@ def a_space_shortfall_is_recorded_not_just_logged():
           f"the record does not say how much space was needed or free: {message}")
 
 
+# ------------------------------------------------------ directory durability
+
+@test
+def new_date_folders_are_made_durable_before_a_source_is_deleted():
+    """
+    fsync on a file does not persist its directory entry — hence the parent
+    fsync at publish — and the same holds for every folder created on the way
+    to it. Without syncing those ancestors, the first photo of a new day can
+    be durable inside a day folder whose own entry in the month folder never
+    reached disk: the copy unreachable after a power loss, the source already
+    deleted.
+    """
+    engine = _load_engine()
+    case = new_case("durable_chain")
+    make_photo(case / "src" / "a.jpg", "a")
+    dest = case / "dest" / "2026" / "02" / "14" / "a.jpg"
+
+    synced = []
+    real_sync = engine._fsync_directory
+
+    def recording_sync(directory):
+        synced.append(str(directory))
+        return real_sync(directory)
+
+    engine._fsync_directory = recording_sync
+    try:
+        ok, err = engine.copy_verify_delete(str(case / "src" / "a.jpg"), str(dest),
+                                            delete_source=True)
+    finally:
+        engine._fsync_directory = real_sync
+
+    check(ok, f"the move failed: {err}")
+    for required in (case / "dest", case / "dest" / "2026", case / "dest" / "2026" / "02",
+                     case / "dest" / "2026" / "02" / "14"):
+        check(str(required) in synced,
+              f"{required} was never fsynced, so its entry may not survive a power loss; "
+              f"synced: {synced}")
+
+
+@test
+def directory_sync_errors_are_tolerated_only_when_unsupported():
+    """
+    EINVAL/ENOTSUP report directory fsync as ABSENT, not as a failure to
+    persist, so a move proceeds on filesystems that lack it. A real error
+    means durability could not be established, and the source must be kept.
+    """
+    import errno
+    import stat as stat_module
+    engine = _load_engine()
+    real_fsync = engine.os.fsync
+
+    def move_with_directory_sync_error(code, label):
+        case = new_case(f"dir_sync_{label}")
+        make_photo(case / "src" / "a.jpg", "a")
+
+        def failing_fsync(fd):
+            # Files still sync normally; only directory syncs report the error.
+            if stat_module.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError(code, os.strerror(code))
+            return real_fsync(fd)
+
+        engine.os.fsync = failing_fsync
+        try:
+            result = engine.copy_verify_delete(str(case / "src" / "a.jpg"),
+                                               str(case / "dest" / "a.jpg"), delete_source=True)
+        finally:
+            engine.os.fsync = real_fsync
+        return result, case
+
+    (ok, err), case = move_with_directory_sync_error(errno.EINVAL, "unsupported")
+    check(ok, f"a filesystem without directory fsync refused the move: {err}")
+    check(src_files(case) == [], "the source was kept although the sync was merely unsupported")
+
+    (ok, err), case = move_with_directory_sync_error(errno.EIO, "failing")
+    check(not ok, "a failing directory sync still deleted the source")
+    check(src_files(case) == ["a.jpg"], f"the source was not kept: {src_files(case)}")
+    check("durable" in (err or "").lower(), f"the refusal does not name durability: {err}")
+
+
+@test
+def a_second_copy_of_a_delivered_photo_records_the_outcome():
+    """
+    Selecting an already-copied photo for Copy again must end with a recorded
+    outcome, as §5.3 requires of every selected photo. It reports what the
+    catalog holds — an earlier run's result — not a fresh verification.
+    """
+    case = new_case("recopy_outcome")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case)
+    run_engine(case, "--copy")
+    photo_id = rows(case, "SELECT id FROM photos")[0]["id"]
+
+    run_engine(case, "--copy", "--file-ids", photo_id)
+    ops = rows(case, "SELECT status, error_message, dest_path, photo_id FROM operations "
+                     "WHERE run_id = (SELECT MAX(id) FROM runs)")
+    check(len(ops) == 1, f"expected exactly one recorded outcome, got {ops}")
+    check(ops[0]["status"] == "Skipped", f"expected a Skipped outcome, got {ops[0]['status']}")
+    check(ops[0]["photo_id"] == photo_id, "the outcome is not attached to the selected photo")
+    message = (ops[0]["error_message"] or "").lower()
+    check("already" in message and "earlier run" in message,
+          f"the reason does not say this is a recorded prior result: {ops[0]['error_message']}")
+    check(ops[0]["dest_path"] and Path(ops[0]["dest_path"]).exists(),
+          f"the outcome does not point at the delivered file: {ops[0]['dest_path']}")
+    check(status_of(case, "a.jpg") == "Copied", "the photo's own status was changed")
+    check(len(dest_files(case)) == 1, f"a second copy was written: {dest_files(case)}")
+
+
 # ---------------------------------------------------------------------- main
 
 def main():
