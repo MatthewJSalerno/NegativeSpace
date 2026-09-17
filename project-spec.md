@@ -4,6 +4,13 @@
 **Objective:** A web-based application designed to automate the organization of large, complex photo collections.
 **Core Problem:** Users struggle with redundant files, non-standardized directory structures, and inconsistent metadata across multiple devices/exports.
 
+**Scope boundary — this organizes a library, it does not present one.** The deliverable is a structured, de-duplicated collection on disk, curated by its owner and self-describing enough to stand alone: ready to be imported by a multi-user gallery application such as Immich, which will organize, index and display it by its own rules. Galleries, sharing, browsing for pleasure and multi-user access are somebody else's job.
+
+Two consequences follow, and both shape design decisions elsewhere in this document:
+
+*   **The `YYYY/MM/DD` tree is for the human browsing the filesystem, not a contract with any consuming application.** A gallery app re-organizes on import; it reads paths and embedded metadata, not this project's directory conventions. So folder-layout questions are usability questions, not correctness ones.
+*   **Metadata correctness is a deliverable.** The consuming application reads EXIF from the files themselves, never from this project's SQLite catalog — which is local, disposable and rebuildable. A date this project knows but the file does not is a date the gallery will get wrong. That is what eventually forces metadata corrections out of the catalog and into the files (or sidecars beside them); see `phase3-spec.md` §3.4.
+
 **Development Roadmap:**
 *   **Phase 1 (Core Engine - MVP) — Implemented:** Backend "heavy lifting," delivered as a standalone Python CLI engine.
     *   Automated organization into structured `YYYY/MM/DD` directories, based on EXIF "Date Taken."
@@ -200,6 +207,9 @@ It matters most for Phase 2, which adds a second codebase reading and writing th
 *   **Thread Safety:** SQLite is written to by exactly one dedicated consumer thread; all other work happens in separate processes that communicate results back through an in-memory queue, never by opening the database themselves.
 *   **Durability:** The engine can recover from both a graceful interruption and a hard crash — orphaned partial files are cleaned up, interrupted `Processing` file-records are reconciled to their correct state, and orphaned `Running` run-records are marked `Crashed`, all on the next startup.
 *   **Safety:** No file is deleted from source until a byte-for-byte verified copy exists at the destination. This holds for both direct moves and duplicate-source cleanup, and is never bypassed by cancellation — a cancelled run simply stops starting new work, it never skips verification on work already in flight.
+*   **Nothing at the destination changes on the engine's own initiative.** Every modification or removal of an existing file under `--dest` is the direct result of the user explicitly requesting that specific change. This has two layers, and both matter:
+    *   **Automatic operations only add.** Index, Copy and Move never modify or remove a file that already exists at the destination. A bug in those paths can at worst leave a redundant file, never destroy one — which is why `--copy` is trivially safe and why a failed move leaves the source intact.
+    *   **User-initiated changes are recorded and recoverable.** Curation (`phase3-spec.md` §3.4) does modify the destination: a rename records both the old and new path; a superseded file is *relocated* to a quarantine area rather than unlinked. Destroying anything requires a further, separate act — emptying that quarantine — which is never a side effect of a curation decision. By the time curation happens the sources are typically gone, so a destination file may be the only copy in existence.
 
 ## 8. Known Limitations and Deferred Work
 
