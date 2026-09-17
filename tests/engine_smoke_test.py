@@ -1631,6 +1631,88 @@ def new_date_folders_are_made_durable_before_a_source_is_deleted():
 
 
 @test
+def the_documented_recovery_redelivers_a_removed_destination_file():
+    """
+    The `Skipped` reason and phase2-spec §5.3 tell the user to re-index with
+    --force-rehash and copy again when a destination file has gone missing.
+
+    That advice replaced worse advice — a plain re-index, which inspects
+    nothing at the destination and skips unchanged sources — so it has to be
+    true rather than merely plausible. Both halves are asserted here: a plain
+    Index leaves the row settled and delivers nothing, while --force-rehash
+    re-reads the source, resets the row, and lets the next Copy restore the
+    file.
+    """
+    case = new_case("documented_recovery")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case)
+    run_engine(case, "--copy")
+    check(status_of(case, "a.jpg") == "Copied", "the photo was not delivered")
+    check(len(dest_files(case)) == 1, f"expected one delivered file, got {dest_files(case)}")
+
+    for path in (case / "dest").rglob("*"):
+        if path.is_file():
+            path.unlink()
+    check(dest_files(case) == [], "the destination file was not removed by the test itself")
+
+    # A plain Index walks the source and skips a file whose row is settled, so
+    # it cannot notice — and must not claim to notice — a missing destination.
+    run_engine(case)
+    check(status_of(case, "a.jpg") == "Copied",
+          "a plain re-Index reset the row; the advice against relying on it is now stale")
+    run_engine(case, "--copy")
+    check(dest_files(case) == [], f"a plain re-Index re-delivered the file: {dest_files(case)}")
+
+    # The documented repair.
+    run_engine(case, "--force-rehash")
+    check(status_of(case, "a.jpg") == "Pending",
+          "--force-rehash did not reset the delivered row, so the documented repair cannot work")
+    run_engine(case, "--copy")
+    check(status_of(case, "a.jpg") == "Copied", "the re-copy did not complete")
+    check(len(dest_files(case)) == 1, f"the file was not re-delivered: {dest_files(case)}")
+
+
+@test
+def the_durability_chain_never_reaches_above_the_destination():
+    """
+    The chain walk stops at --dest.
+
+    A destination outside the root is not hypothetical: _destination_for falls
+    back to the catalog's stored path when a row has no usable recorded date,
+    and that stored path was computed against whatever --dest was current when
+    the row was written — the very case that function exists to handle. If the
+    walk cannot find its root it must not climb toward /, fsyncing directories
+    the engine has no business touching: outside the destination a sync can
+    fail on permissions and refuse a legitimate move, or quietly persist
+    directories belonging to someone else.
+    """
+    engine = _load_engine()
+    case = new_case("chain_bounds")
+    make_photo(case / "src" / "a.jpg", "a")
+    outside = case / "elsewhere" / "2026" / "02" / "14"
+    # The file is deliberately NOT under this root.
+    engine._destination_root = case / "dest"
+
+    synced = []
+    real_sync = engine._fsync_directory
+
+    def recording_sync(directory):
+        synced.append(str(directory))
+        return real_sync(directory)
+
+    engine._fsync_directory = recording_sync
+    try:
+        ok, err = engine.copy_verify_delete(str(case / "src" / "a.jpg"),
+                                            str(outside / "a.jpg"), delete_source=True)
+    finally:
+        engine._fsync_directory = real_sync
+
+    check(ok, f"the move failed: {err}")
+    stray = [d for d in synced if not d.startswith(str(case / "elsewhere"))]
+    check(not stray, f"directories outside the destination were fsynced: {stray}")
+
+
+@test
 def a_failed_ancestor_sync_is_retried_not_forgotten():
     """
     A refused barrier must stay refused until it succeeds.

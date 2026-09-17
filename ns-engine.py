@@ -578,8 +578,9 @@ def get_db_connection(db_path: str) -> sqlite3.Connection:
 
     That bound covers the CATALOG only; it does nothing for the photo files,
     which is why the file protocol carries its own ordering. A source is
-    deleted only after its verified copy and the copy's directory entry have
-    been fsynced (see _remove_verified_source). With both in place, a power
+    deleted only after its verified copy, the copy's directory entry, and
+    every directory entry from --dest down to it have been fsynced (see
+    _remove_verified_source and _mkdir_durable). With those in place, a power
     loss can leave a stale row, or a photo present at both ends — recoverable
     by re-indexing — but not a deleted original without a copy on storage
     that honours fsync.
@@ -702,15 +703,10 @@ def _assert_schema_compatible(conn: sqlite3.Connection, db_path: str):
     """
     Refuses to open a catalog written by a different schema version.
 
-    There is deliberately NO migration machinery. This engine is pre-release,
-    the catalog is a derived artifact — every value in it is recomputable from
-    the source files by re-running an Index — and migration code is the worst
-    kind of complexity to carry: it runs rarely, on real user data, along a
-    path that is almost never exercised. The previous version of this file
-    carried three migration branches, and one of them had a latent bug that
-    survived until someone read it closely: an index created only inside a
-    migration step, and therefore unrecoverable on any database that had
-    already passed that version.
+    There is deliberately NO migration machinery. The catalog is a derived
+    artifact — every value in it is recomputable by re-running an Index — and
+    migration code is the worst kind of complexity to carry: it runs rarely,
+    on real user data, along a path that is almost never exercised.
 
     Rebuilding costs one Index run. Silently operating on a catalog whose
     shape the code no longer matches costs correctness, and does so without
@@ -907,8 +903,8 @@ def db_writer_worker(db_path: str):
         try/except, so an exception here would kill the writer thread — and a
         dead writer means task_done() is never called again, so the main
         thread blocks on the queue forever with nothing logged. That exact
-        failure mode is why the per-row body is wrapped (see below); these two
-        call sites reintroduced it when commit batching was added.
+        failure mode is why the per-row body is wrapped (see below), and why
+        neither of these call sites may raise either.
         """
         nonlocal pending_writes, last_flush
         try:
@@ -1211,12 +1207,10 @@ def verify_sufficient_disk_space(dest_path: Path, required_bytes: int,
     shortfall is a run-level failure, and "not enough space" with no figures
     is not something a user can act on.
 
-    Strictly read-only: this used to mkdir(parents=True) the destination as a
-    side effect of "verifying", so merely asking the question left directory
-    trees behind — including on a run that then aborted for insufficient
-    space, or a --copy against a source that turned out to be empty. Free
-    space is a property of the VOLUME, so querying the nearest existing
-    ancestor answers the same question without writing anything. The real
+    Strictly read-only: asking whether there is room must not create anything,
+    or a run that then aborts for insufficient space leaves directory trees
+    behind. Free space is a property of the VOLUME, so querying the nearest
+    existing ancestor answers the same question without writing. The real
     destination directories are created when a file is actually written
     (copy_verify_delete).
     """
@@ -1388,21 +1382,18 @@ def get_full_exif_via_exiftool(file_path: Path) -> Optional[dict]:
 
 def get_exif_via_pil(file_path: Path) -> Optional[dict]:
     """
-    Fallback full-metadata capture when ExifTool isn't installed. Converts
-    PIL's raw numeric-tag-id EXIF dict into a named-tag dict using PIL's own
-    tag name table, so the stored JSON is human-readable either way this
-    function is reached. Only works for formats PIL can open (not RAW).
+    Per-file fallback for when ExifTool is running but yields nothing usable
+    for this particular file. Converts PIL's raw numeric-tag-id EXIF dict into
+    a named-tag dict using PIL's own tag name table, so the stored JSON is
+    human-readable either way this function is reached. Only works for formats
+    PIL can open (not RAW).
 
-    FIX: img.getexif() alone only returns the top-level "0th" IFD (Make,
-    Model, and similar basic tags) — it does NOT automatically expand the
-    "Exif" sub-IFD (pointed to by tag 0x8769 / "ExifOffset"), which is where
-    DateTimeOriginal, ISO, FNumber, and ExposureTime actually live. Without
-    explicitly fetching that sub-IFD via get_ifd(0x8769), date resolution
-    and camera-settings capture silently fail on this fallback path even
-    when the file genuinely has that data embedded — confirmed via a test
-    JPEG with real embedded EXIF: only Make/Model/ExifOffset came through
-    before this fix, with DateTimeOriginal/ISO/FNumber/ExposureTime missing
-    entirely and the date silently falling back to file mtime instead.
+    img.getexif() returns only the top-level "0th" IFD (Make, Model and
+    similar); it does NOT expand the "Exif" sub-IFD at tag 0x8769 /
+    "ExifOffset", which is where DateTimeOriginal, ISO, FNumber and
+    ExposureTime actually live. That sub-IFD must be fetched explicitly via
+    get_ifd(0x8769), or date resolution and camera-settings capture fail here
+    even when the file carries the data, and the date falls back to mtime.
     """
     if not PIL_SUPPORTED:
         return None
@@ -1439,13 +1430,13 @@ def get_metadata_and_date(file_path: Path) -> tuple:
     """
     Metadata Extraction Fallback Chain (see module docstring for the full
     rationale): ExifTool -> PIL -> file mtime. Returns (datetime, metadata
-    dict) together, since both are now sourced from the same underlying
-    capture rather than two separate passes.
+    dict) together, both sourced from one underlying capture rather than two
+    separate passes.
 
-    ExifTool is now a hard requirement for the engine to even start (see
-    module docstring), so the PIL/mtime steps below are no longer covering
-    for "ExifTool isn't installed" — that case can't happen anymore. They
-    remain as a defensive per-FILE fallback for the narrower case where
+    ExifTool is a hard requirement for the engine to start at all (see module
+    docstring), so the PIL/mtime steps do not cover for it being missing —
+    that cannot happen. They are a defensive per-FILE fallback for the
+    narrower case where
     ExifTool is genuinely running but fails on one specific file (corrupted
     data, an unusual format edge case) — the persistent process itself
     already self-heals from that in get_full_exif_via_exiftool(); this is
@@ -1567,15 +1558,15 @@ def resolve_destination(target_path: Path, expected_sha1: Optional[str]) -> tupl
     photo — already delivered by an earlier run — and it is returned with
     already_present=True so the caller can skip rewriting it.
 
-    That content check is what makes re-runs idempotent. Without it, an
-    Index -> Copy -> Index -> Copy cycle multiplied identical files: the
-    re-index reset the row to Pending, the destination name was now taken by
-    the copy the previous cycle made, so the next copy wrote IMG_0001_1.jpg
-    beside it, then IMG_0001_2.jpg, and so on every cycle.
+    That content check is what makes re-runs idempotent. Without it an
+    Index -> Copy -> Index -> Copy cycle multiplies identical files: the
+    re-index resets the row to Pending, the destination name is already taken
+    by the copy the previous cycle delivered, so the next copy writes
+    IMG_0001_1.jpg beside it, then IMG_0001_2.jpg, and so on every cycle.
 
-    Suffixes are always built from the ORIGINAL stem. The previous
-    implementation re-suffixed its own output, producing names that grew a
-    segment per collision (IMG_0001_1_2_3.jpg) instead of IMG_0001_3.jpg.
+    Suffixes are always built from the ORIGINAL stem, so a collision yields
+    IMG_0001_3.jpg rather than a name that grows a segment each time
+    (IMG_0001_1_2_3.jpg).
     """
     candidate = target_path
     counter = 1
@@ -1726,9 +1717,24 @@ def _mkdir_durable(directory: Path):
 
     chain = []
     probe = directory
-    while probe != root and probe.parent != probe:
+    reached_root = False
+    while probe.parent != probe:
+        if probe == root:
+            reached_root = True
+            break
         chain.append(probe)
         probe = probe.parent
+
+    if not reached_root:
+        # This destination is not under the run's --dest. _destination_for
+        # falls back to a row's stored path when it has no usable recorded
+        # date, and that path was computed against whatever --dest was current
+        # when the row was written. Persist the immediate entry and nothing
+        # above it: walking on would fsync directories outside the destination
+        # the engine was given, which can fail on permissions and refuse a
+        # legitimate move, or quietly persist someone else's directories.
+        _fsync_directory(directory.parent)
+        return
 
     for child in reversed(chain):  # shallowest first: each entry in the parent that holds it
         if str(child) in _verified_directories:
@@ -1757,7 +1763,8 @@ def _remove_verified_source(source: Path, verified_copy: Path, source_identity: 
        cache. On a network source the server commits the delete as soon as
        the call returns, so a local power loss before the copy reached disk
        would leave no copy anywhere. The copy and its directory entry are
-       fsynced first.
+       fsynced first; the entries above it, up to --dest, were made durable
+       when those directories were created (see _mkdir_durable).
     3. The source is still the file that was verified. An edit or replacement
        after its hash was taken means the copy holds OLD content, and
        deleting the source would destroy the new content.
@@ -1874,9 +1881,11 @@ def copy_verify_delete(source_str: str, dest_str: str, delete_source: bool = Tru
     """
     Copies source to dest via a staged, verified, no-overwrite publish.
 
-    Stage into a unique partial beside the destination and fsync it; verify
-    its SHA-1 against the source's; publish it with a no-overwrite link and
-    fsync the directory. delete_source=True (the --move behavior) then hands
+    Create the destination folder with every directory entry from --dest down
+    made durable (_mkdir_durable); stage into a unique partial beside the
+    destination and fsync it; verify its SHA-1 against the source's; publish
+    it with a no-overwrite link and fsync the directory.
+    delete_source=True (the --move behavior) then hands
     the source to _remove_verified_source(), which deletes it only if the
     copy is a separate, durable file and the source is unchanged since the
     copy began. delete_source=False (the --copy behavior) stops after
@@ -1992,9 +2001,8 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int) -> P
     Scans one file: SHA-1, pHash, metadata/date, and its projected destination.
 
     NEVER raises. Any per-file failure comes back as a Failed result carrying
-    a human-readable reason. Previously this function had no error handling at
-    all, so a single unreadable or vanished file propagated its exception out
-    through future.result() in main() and aborted the ENTIRE run — discarding
+    a human-readable reason, because an exception escaping here propagates
+    through future.result() in main() and aborts the ENTIRE run — discarding
     every other file's completed work and leaving no record of which file was
     responsible.
     """
@@ -2234,12 +2242,12 @@ def partition_unchanged(db_path: str, candidates: List[str], force: bool = False
     Splits discovered files into (to_scan, unchanged), returning paths whose
     size and mtime still match what the catalog recorded as `unchanged`.
 
-    Re-indexing previously read EVERY file in full — SHA-1 over the whole file,
-    a complete pixel decode for the perceptual hash, and an ExifTool pass —
-    because nothing consulted the catalog before doing the work, and SHA-1
-    cannot be used to skip: it is the RESULT of reading the file, not something
-    knowable beforehand. Two consecutive indexes of one 29,047-file library
-    took 24m57s and 25m27s; the second gained nothing from the first.
+    Without this check every Index reads EVERY file in full — SHA-1 over the
+    whole file, a complete pixel decode for the perceptual hash, and an
+    ExifTool pass — because SHA-1 cannot serve as the skip test: it is the
+    RESULT of reading the file, not something knowable beforehand. Measured on
+    one 29,047-file library, two consecutive indexes took 24m57s and 25m27s,
+    the second gaining nothing from the first.
 
     Comparing size and mtime costs one stat per file instead of reading it —
     roughly 21 MB of network traffic replaced by a single metadata round trip
@@ -2298,11 +2306,10 @@ def normalize_extensions(raw: str) -> set:
     """
     Parses --exts into the form Path.suffix actually produces.
 
-    Path.suffix ALWAYS includes the leading dot (".jpg"), and the scan
-    compares against it directly — so a user passing the perfectly reasonable
-    `--exts jpg,png` previously matched nothing at all and the run reported
-    "Discovered 0 files" with no hint why. Both spellings are now accepted,
-    along with surrounding whitespace and any casing:
+    Path.suffix ALWAYS includes the leading dot (".jpg") and the scan compares
+    against it directly, so an unnormalised `--exts jpg,png` would match
+    nothing and report "Discovered 0 files" with no hint why. Both spellings
+    are accepted, along with surrounding whitespace and any casing:
         ".jpg, PNG , .HEIC"  ->  {".jpg", ".png", ".heic"}
     """
     extensions = set()
@@ -2868,10 +2875,12 @@ def _destination_for(dest_root: Path, source_path: str, metadata_json: Optional[
 
     The catalog's dest_path was computed against whatever --dest was current
     when the file was last read, and the unchanged-file skip means that can be
-    long ago: copying to a new destination used to write into the old one,
-    after checking free space on the new one. The date that picks the folder
-    is stored separately, so recomputing costs nothing. The stored path is
-    only a fallback for a row with no recorded date.
+    long ago — so trusting it would copy into the OLD destination after
+    checking free space on the new one. The date that picks the folder is
+    stored separately, so recomputing costs nothing. The stored path remains
+    the fallback for a row with no recorded date, and is therefore the one
+    case where the result may NOT lie under the current --dest; anything
+    walking up from it has to allow for that (see _mkdir_durable).
     """
     try:
         taken = datetime.fromisoformat(json.loads(metadata_json or "{}").get("date_taken"))
