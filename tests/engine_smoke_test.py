@@ -1603,6 +1603,10 @@ def new_date_folders_are_made_durable_before_a_source_is_deleted():
     case = new_case("durable_chain")
     make_photo(case / "src" / "a.jpg", "a")
     dest = case / "dest" / "2026" / "02" / "14" / "a.jpg"
+    # What a run sets before copying anything. It bounds the chain that has to
+    # be persisted; without it a direct call can only persist the immediate
+    # entry, since it has no way to know where the destination begins.
+    engine._destination_root = case / "dest"
 
     synced = []
     real_sync = engine._fsync_directory
