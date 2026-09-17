@@ -1356,6 +1356,53 @@ def a_vanished_original_frees_its_duplicate():
 
 
 @test
+def an_index_that_finds_nothing_does_not_condemn_the_catalog():
+    """
+    A full Index that discovers no files must not conclude every catalogued
+    file is gone.
+
+    mark_vanished_sources ran unconditionally right after discovery, so an
+    Index over a mount point that exists but is empty — which is exactly what
+    an unmounted share looks like — marked every Pending/Duplicate row under
+    that root Failed, warned about that, and only afterwards printed the
+    message naming the source mount. Failed rows leave their duplicate group,
+    so a copy in another archive is silently promoted to anchor meanwhile.
+
+    Refusing is the safe direction: rows keep the state they already held, and
+    the refusal is RECORDED as a run-level operation rather than only logged,
+    because the Error Center reads operations and cannot see a log line.
+
+    Note the sibling test above deletes one file of two, so discovery still
+    finds one and this guard leaves that case alone — the guard turns on
+    finding *nothing*, not on finding less.
+    """
+    case = new_case("empty_root_sweep")
+    make_photo(case / "src" / "a.jpg", "one")
+    make_photo(case / "src" / "b.jpg", "two")
+    run_engine(case)
+    before = {r["id"]: r["status"] for r in rows(case, "SELECT id, status FROM photos")}
+    check(sorted(before.values()) == ["Pending", "Pending"],
+          f"expected two Pending rows before the empty run, got {before}")
+
+    # The directory survives; only its contents go. An unmounted share leaves
+    # precisely this shape behind.
+    for leftover in (case / "src").iterdir():
+        leftover.unlink()
+    check(src_files(case) == [], "the source should be empty for this run")
+
+    run_engine(case)
+
+    after = {r["id"]: r["status"] for r in rows(case, "SELECT id, status FROM photos")}
+    check(after == before,
+          f"an Index that found nothing changed catalogued rows: {before} -> {after}")
+
+    refused = rows(case, "SELECT error_message FROM operations "
+                         "WHERE status = 'Failed' AND photo_id IS NULL "
+                         "AND run_id = (SELECT MAX(id) FROM runs)")
+    check(refused, "the refused sweep was not recorded as a run-level operation")
+
+
+@test
 def cancelling_stops_duplicate_cleanup():
     """Cancel during duplicate cleanup lets the current file finish and leaves the rest untouched."""
     engine = _load_engine()

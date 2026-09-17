@@ -2791,6 +2791,22 @@ def mark_vanished_sources(db_path: str, run_id: int, root: Path, discovered: Lis
     A file counts as gone only when stat() says it does not exist. Anything
     else — a permission error, an I/O fault, an --exts filter that simply did
     not list it — leaves the row alone: unreadable is not absent.
+
+    A walk that found NOTHING is refused outright while the catalog still holds
+    rows here. An unmounted share leaves exactly that shape — a directory that
+    exists and is empty — and every stat() beneath it then says "not found", so
+    the sweep would condemn the entire catalogue under this root in one pass.
+    Failed rows leave their duplicate group, so a copy in another archive is
+    silently promoted to anchor meanwhile.
+
+    The check lives here rather than at the call site deliberately: the same
+    reasoning as the durability barrier at the deletion gate, where being each
+    caller's responsibility is exactly how two callers came to forget it.
+
+    The cost is accepted knowingly. A root whose files really were all deleted
+    keeps its rows, and nothing promotes their duplicates until a supported
+    file is present here again. That is recoverable and visible; a catalogue
+    marked Failed wholesale is neither. Returns 0 when it refuses.
     """
     seen = set(discovered)
     clause, params = _path_prefix_clause(root)
@@ -2801,6 +2817,25 @@ def mark_vanished_sources(db_path: str, run_id: int, root: Path, discovered: Lis
             f"WHERE status IN ({sql_values((PhotoStatus.PENDING, PhotoStatus.DUPLICATE))})" + clause,
             params
         ).fetchall()
+
+        if not discovered and rows:
+            reason = (
+                f"Refused to reconcile {root}: the scan found no supported files there while the "
+                f"catalog still holds {len(rows):,}. That is what a detached or unmounted source "
+                f"looks like, so no row was changed."
+            )
+            logger.warning(
+                f"{reason} If the storage is missing, restore it and run Index again. If every "
+                f"file under this root really was removed, those rows stay as they are — nothing "
+                f"will promote their duplicates until a supported file is present here again."
+            )
+            # Recorded, not merely logged: the Error Center reads operations,
+            # and a warning in the log is invisible to it.
+            log_operation(conn, run_id, None, str(root), None, PhotoStatus.FAILED,
+                          reason, commit=False)
+            conn.commit()
+            return 0
+
         gone = []
         for row_id, path, dest in rows:
             if path in seen:
