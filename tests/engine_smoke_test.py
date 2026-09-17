@@ -22,7 +22,8 @@ Options:
     -v              show engine stdout for each run
 
 Environment:
-    NS_TEST_RAW_DIR  Folder of genuine RAW files (.cr2/.nef/.arw/.raf/.dng) to
+    NS_TEST_RAW_DIR  Folder of genuine RAW files (any extension in the engine's
+                     RAW_EXTENSIONS — .dng/.cr2/.cr3/.nef/.arw/.raf and the rest) to
                      exercise the rawpy decode path for real. That path cannot
                      be covered with synthetic fixtures — LibRaw rejects
                      fabricated files — so the test skips unless you point this
@@ -741,8 +742,15 @@ def real_raw_files_decode_when_supplied():
     raw_dir = os.environ.get("NS_TEST_RAW_DIR")
     if not raw_dir or not Path(raw_dir).is_dir():
         raise Fail("SKIP: set NS_TEST_RAW_DIR to a folder of real RAW files to run this")
+    # Kept in step with RAW_EXTENSIONS in ns-engine.py. A filter narrower than
+    # the engine's advertised set silently skips the very fixtures it is given
+    # — .cr3 was missing here, so a Canon fixture would have looked like "no
+    # RAW files found" rather than a decode failure.
     sources = [p for p in Path(raw_dir).iterdir()
-               if p.suffix.lower() in {".cr2", ".nef", ".arw", ".raf", ".dng", ".raw"}]
+               if p.suffix.lower() in {".raw", ".dng", ".cr2", ".cr3", ".crw", ".nef", ".nrw",
+                                       ".arw", ".srf", ".sr2", ".raf", ".orf", ".rw2", ".pef",
+                                       ".ptx", ".srw", ".erf", ".3fr", ".fff", ".iiq", ".mos",
+                                       ".mrw", ".x3f"}]
     if not sources:
         raise Fail(f"SKIP: no RAW files found in {raw_dir}")
 
