@@ -3360,8 +3360,9 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             log_operation(
                 conn, run_id, record_id, copied_src, copied_dst, OPERATION_SKIPPED,
                 f"Already copied to {copied_dst} by an earlier run, so there is nothing to copy; "
-                f"this run re-verified nothing. Use --move to finish moving it, or re-index if "
-                f"the destination file may have changed.",
+                f"this run re-verified nothing. Index reads sources, never the destination — if "
+                f"that file is missing, re-index with --force-rehash and copy again. Use --move "
+                f"to finish moving it.",
                 commit=False
             )
         conn.commit()
