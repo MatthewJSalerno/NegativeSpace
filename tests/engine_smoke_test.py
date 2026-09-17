@@ -1788,6 +1788,125 @@ def a_failed_ancestor_sync_is_retried_not_forgotten():
         engine.os.fsync = real_fsync
 
 
+def _failing_root_fsync(root_stat, real_fsync):
+    """
+    An fsync that fails ONLY for the destination root directory.
+
+    Every deeper directory and every file syncs normally, so the chain is left
+    half established exactly where the walk is supposed to notice — a failure
+    at the top, with everything below it already durable.
+    """
+    import errno
+    import stat as stat_module
+
+    def fsync(fd):
+        info = os.fstat(fd)
+        if stat_module.S_ISDIR(info.st_mode) and os.path.samestat(info, root_stat):
+            raise OSError(errno.EIO, os.strerror(errno.EIO))
+        return real_fsync(fd)
+    return fsync
+
+
+# _run_move_or_copy is handed a run id directly, and no matching row is ever
+# inserted into `runs`. Anything asserting on the operations this run records
+# must therefore scope to THIS id — _last_run_failures filters on
+# MAX(id) FROM runs, which is the Index run, and would find nothing.
+_IN_PROCESS_RUN_ID = 999
+
+
+def _move_in_process(engine, case):
+    """
+    Runs the move loop inside this process, since os.fsync injection cannot
+    cross a subprocess boundary. _run_move_or_copy sets _destination_root and
+    clears the verified-directory set itself, so the cache starts cold exactly
+    as it would in a real run.
+    """
+    args = argparse.Namespace(move=True, copy=False, source=str(case / "src"),
+                              source_subdir=None, file_ids=None)
+    return engine._run_move_or_copy(args, case / "appdata" / "db" / "ns_sqlite.db",
+                                    case / "dest", _IN_PROCESS_RUN_ID)
+
+
+@test
+def the_already_present_deletion_establishes_the_ancestor_barrier():
+    """
+    A source deleted against a copy an EARLIER run delivered must still have
+    the destination chain persisted first.
+
+    _mkdir_durable had a single caller — copy_verify_delete — so only a file
+    the run copied itself got the entries above it persisted. This path
+    deletes against a copy that already existed, reaching
+    _remove_verified_source directly, which syncs the copy and the directory
+    holding it and nothing above that.
+
+    An earlier run's mkdir is not evidence. A directory exists the moment
+    mkdir returns, which is before its entry is durable in its parent — which
+    is exactly why _run_move_or_copy clears the verified set at the start of
+    every run.
+    """
+    case = new_case("present_barrier")
+    src = case / "src" / "a.jpg"
+    make_photo(src, "present")
+    run_engine(case)
+    dest = Path(rows(case, "SELECT dest_path FROM photos")[0]["dest_path"])
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dest)  # identical bytes, separate file — not a hard link
+
+    engine = _load_engine()
+    real_fsync = engine.os.fsync
+    engine.os.fsync = _failing_root_fsync(os.stat(case / "dest"), real_fsync)
+    try:
+        _move_in_process(engine, case)
+    finally:
+        engine.os.fsync = real_fsync
+
+    check(src.exists(),
+          "the already-present branch deleted a source although the destination root's "
+          "barrier was failing")
+    # The refusal must be RECORDED, not merely logged — the Error Center reads
+    # operations, and a warning in the log is invisible to it.
+    refusals = rows(case, "SELECT error_message FROM operations "
+                          "WHERE status = 'Failed' AND run_id = ?", (_IN_PROCESS_RUN_ID,))
+    check(refusals and "Source kept" in (refusals[0]["error_message"] or ""),
+          f"the refusal was not recorded as a failed operation: {refusals}")
+
+
+@test
+def duplicate_cleanup_establishes_the_ancestor_barrier():
+    """
+    Duplicate cleanup deletes a duplicate's source against the anchor's
+    delivered copy — which this run may not have written either.
+
+    Separate from the already-present case above because it is a separate
+    caller of _remove_verified_source, and the defect was that each caller
+    established the barrier for itself or not at all. A test per caller says
+    which one regressed.
+    """
+    case = new_case("dup_barrier")
+    make_photo(case / "src" / "a.jpg", "twin")
+    make_photo(case / "src" / "b.jpg", "twin")
+    run_engine(case)
+    anchor = rows(case, "SELECT id FROM photos WHERE status = 'Pending'")[0]["id"]
+    duplicate = rows(case, "SELECT id, source_path FROM photos WHERE status = 'Duplicate'")[0]
+    run_engine(case, "--move", "--file-ids", anchor)
+    dup_src = Path(duplicate["source_path"])
+
+    engine = _load_engine()
+    real_fsync = engine.os.fsync
+    engine.os.fsync = _failing_root_fsync(os.stat(case / "dest"), real_fsync)
+    try:
+        _move_in_process(engine, case)
+    finally:
+        engine.os.fsync = real_fsync
+
+    check(dup_src.exists(),
+          "duplicate cleanup deleted a source although the destination root's barrier "
+          "was failing")
+    final = rows(case, "SELECT status FROM photos WHERE id = ?", (duplicate["id"],))[0]["status"]
+    check(final == "Duplicate",
+          f"the duplicate row did not return to Duplicate after the refusal, got {final}")
+
+
 @test
 def directory_sync_errors_are_tolerated_only_when_unsupported():
     """

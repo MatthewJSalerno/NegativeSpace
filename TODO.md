@@ -10,7 +10,7 @@ The rule: if a claim cannot be enforced, weaken the claim. Do not leave prose as
 | :--- | :--- | :--- | :--- |
 | 1 | A source is deleted only after its copy's **bytes** are fsynced | `project-spec.md` §4.2, §7 | **Enforced**, tested (`durability barriers precede source deletion`) |
 | 2 | …and after the copy's **own directory entry** is fsynced | `project-spec.md` §4.2 | **Enforced**, tested |
-| 3 | …and after **every ancestor entry from `--dest` down**, retried until it succeeds | `project-spec.md` §4.2 | **Enforced**, tested (`a failed ancestor sync is retried not forgotten`) |
+| 3 | …and after **every ancestor entry from `--dest` down**, retried until it succeeds | `project-spec.md` §4.2 | **Enforced at the deletion gate**, tested (`a failed ancestor sync is retried not forgotten`, `the already present deletion establishes the ancestor barrier`, `duplicate cleanup establishes the ancestor barrier`). Was enforced only on the staged-copy path until 2026-09-17 — the other two deletion callers reached `_remove_verified_source` without it. |
 | 4 | The chain walk never touches anything **above** `--dest` | this file | **Enforced**, tested (`the durability chain never reaches above the destination`) |
 | 5 | The source is unchanged since it was verified | `project-spec.md` §4.2 | **Enforced**, tested (`a source edited after verification is kept`) |
 | 6 | The copy is a different file from the source | `project-spec.md` §4.2 | **Enforced**, tested (`a source is never deleted as its own copy`) |
