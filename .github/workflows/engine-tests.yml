@@ -43,6 +43,16 @@ jobs:
         # mounts, which the suite (running after the entrypoint) cannot see.
         run: sh tests/entrypoint_test.sh
 
+      - name: Sampler path safety
+        # Also on the host, and for the same reason: the sampler is a host-side
+        # tool whose whole promise is that it never writes into the library it
+        # samples. The checks turn on symlinks and physical path resolution, so
+        # they need a real filesystem rather than the container's.
+        #
+        # Nothing ran this script until now, which is how it shipped able to
+        # build a sample inside the library through a symlinked root.
+        run: sh tests/sampler_test.sh
+
       - name: Smoke suite
         # PUID/PGID drop privileges, which is what lets the permission test run
         # at all — as root it skips, and a test that always skips is
