@@ -1603,6 +1603,10 @@ def new_date_folders_are_made_durable_before_a_source_is_deleted():
     case = new_case("durable_chain")
     make_photo(case / "src" / "a.jpg", "a")
     dest = case / "dest" / "2026" / "02" / "14" / "a.jpg"
+    # What a run sets before copying anything. It bounds the chain that has to
+    # be persisted; without it a direct call can only persist the immediate
+    # entry, since it has no way to know where the destination begins.
+    engine._destination_root = case / "dest"
 
     synced = []
     real_sync = engine._fsync_directory
@@ -1624,6 +1628,77 @@ def new_date_folders_are_made_durable_before_a_source_is_deleted():
         check(str(required) in synced,
               f"{required} was never fsynced, so its entry may not survive a power loss; "
               f"synced: {synced}")
+
+
+@test
+def a_failed_ancestor_sync_is_retried_not_forgotten():
+    """
+    A refused barrier must stay refused until it succeeds.
+
+    _mkdir_durable creates the whole date chain before syncing it, so a failed
+    ancestor sync leaves those directories on disk. If a later move reads their
+    existence as proof of durability it deletes that file's source with the
+    barrier still unestablished — the guarantee lapses one file after the
+    failure instead of holding. Directory existence is not durability: a
+    directory exists the moment mkdir returns, which is before its entry is
+    durable in its parent.
+    """
+    import errno
+    import stat as stat_module
+    engine = _load_engine()
+    case = new_case("ancestor_retry")
+    make_photo(case / "src" / "a.jpg", "a")
+    make_photo(case / "src" / "b.jpg", "b")
+    dest_root = case / "dest"
+    dest_root.mkdir(parents=True)
+    day = dest_root / "2026" / "02" / "14"
+    root_stat = os.stat(dest_root)
+    real_fsync = engine.os.fsync
+    root_sync_fails = True
+
+    def fsync_with_failing_root(fd):
+        # Only the destination root's own sync fails; every deeper directory
+        # and every file syncs normally, which is what leaves the chain half
+        # established.
+        info = os.fstat(fd)
+        if root_sync_fails and stat_module.S_ISDIR(info.st_mode) \
+                and os.path.samestat(info, root_stat):
+            raise OSError(errno.EIO, os.strerror(errno.EIO))
+        return real_fsync(fd)
+
+    def move(name, module):
+        module._destination_root = dest_root
+        return module.copy_verify_delete(str(case / "src" / name), str(day / name),
+                                         delete_source=True)
+
+    engine.os.fsync = fsync_with_failing_root
+    try:
+        ok, err = move("a.jpg", engine)
+        check(not ok, "the first move ignored a failing destination-root sync")
+
+        ok, err = move("b.jpg", engine)
+        check(not ok, f"a second file into the same folder was moved although the destination "
+                      f"root's barrier had failed: {err}")
+
+        ok, err = move("a.jpg", engine)
+        check(not ok, f"retrying the first file ignored the still-failing barrier: {err}")
+
+        # A restart must re-establish the chain rather than trust the
+        # directories the failed attempt left behind.
+        ok, err = move("b.jpg", _load_engine())
+        check(not ok, f"a restarted engine trusted directories left by a failed barrier: {err}")
+
+        check(sorted(src_files(case)) == ["a.jpg", "b.jpg"],
+              f"a source was deleted while a required barrier was still failing: {src_files(case)}")
+
+        # Once the barrier succeeds the move proceeds normally.
+        root_sync_fails = False
+        ok, err = move("a.jpg", engine)
+        check(ok, f"the move still failed after the barrier succeeded: {err}")
+        check(src_files(case) == ["b.jpg"],
+              f"the delivered file's source was not removed: {src_files(case)}")
+    finally:
+        engine.os.fsync = real_fsync
 
 
 @test

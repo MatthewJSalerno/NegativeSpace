@@ -1682,9 +1682,20 @@ def _fsync_directory(directory):
         os.close(fd)
 
 
+# The run's --dest, and the directories whose entry in their parent this
+# process has already persisted. Both are per-run state: a fresh process has
+# verified nothing, so it re-establishes every barrier rather than trusting
+# directories that a failed attempt left behind. Nothing is written to the
+# destination to track this — a restart re-deriving it gives the same
+# guarantee without putting engine bookkeeping in the user's library.
+_destination_root: Optional[Path] = None
+_verified_directories: set = set()
+
+
 def _mkdir_durable(directory: Path):
     """
-    Creates `directory`, then makes durable every directory ENTRY it created.
+    Creates `directory` and persists the entry of every directory along the
+    way, from the destination root down.
 
     fsync on a file does not persist the entry naming it in its parent — that
     is why publishing fsyncs the destination directory — and the same is true
@@ -1693,20 +1704,37 @@ def _mkdir_durable(directory: Path):
     entry in the month folder never reached disk: after a power loss the copy
     is unreachable, and in --move the source is already gone.
 
-    Each new entry is persisted in the parent that now holds it, shallowest
-    first. Costs one fsync per folder actually created — once per new date
-    folder, not per file.
+    Existence is not durability. A directory exists the moment mkdir returns,
+    which is before its entry is durable in its parent — so a failed sync that
+    leaves its directories behind must not let the next file treat them as
+    established. Each entry is therefore recorded as verified only when its
+    fsync SUCCEEDS; a failure leaves it outstanding, and the next call — in
+    this run or after a restart — tries again and refuses the move until it
+    holds.
+
+    Keyed on the child rather than the parent, because a parent that was
+    verified when one month folder appeared is dirty again when the next one
+    does. Costs one fsync per folder whose entry is not yet known durable:
+    once per new date folder in a run, not once per file.
     """
-    created = []
-    probe = directory
-    while not probe.exists():
-        created.append(probe)
-        if probe.parent == probe:
-            break
-        probe = probe.parent
     directory.mkdir(parents=True, exist_ok=True)
-    for new_directory in reversed(created):
-        _fsync_directory(new_directory.parent)
+    root = _destination_root
+    if root is None:
+        # No run context (a direct call): persist the immediate entry only.
+        _fsync_directory(directory.parent)
+        return
+
+    chain = []
+    probe = directory
+    while probe != root and probe.parent != probe:
+        chain.append(probe)
+        probe = probe.parent
+
+    for child in reversed(chain):  # shallowest first: each entry in the parent that holds it
+        if str(child) in _verified_directories:
+            continue
+        _fsync_directory(child.parent)
+        _verified_directories.add(str(child))
 
 
 def _remove_verified_source(source: Path, verified_copy: Path, source_identity: tuple,
@@ -2949,6 +2977,12 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     """
     action_verb = "Moving" if args.move else "Copying"
     logger.info(f"{'Move' if args.move else 'Copy'} Mode enabled. Initiating Pre-flight Space Checks...")
+    # This run's durability barriers start unestablished: directories left by
+    # an earlier run prove only that mkdir returned, not that their entries
+    # reached disk (see _mkdir_durable).
+    global _destination_root
+    _destination_root = dest_path
+    _verified_directories.clear()
     conn = get_db_connection(str(db_path))
     cursor = conn.cursor()
 
