@@ -337,12 +337,6 @@ def sql_values(statuses) -> str:
     return ", ".join(f"'{v}'" for v in statuses)
 
 
-# Bumped whenever the on-disk schema or the MEANING of a stored value changes.
-# There is no in-place upgrade path: a catalog recording a different version is
-# refused with instructions to delete and re-Index, rather than migrated. See
-# _assert_schema_compatible() for why.
-SCHEMA_VERSION = 4
-
 # --- Dependency Check ---
 try:
     import imagehash
@@ -609,7 +603,6 @@ def init_database(db_path: str):
       without losing history the way overwriting a column on `photos` would.
     """
     conn = get_db_connection(db_path)
-    _assert_schema_compatible(conn, db_path)
     cursor = conn.cursor()
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS photos (
@@ -690,51 +683,8 @@ def init_database(db_path: str):
     # Unindexed, each of those is a full scan of the whole library.
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_photos_phash ON photos(phash)")
 
-    conn.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)};")
     conn.commit()
     conn.close()
-
-
-class SchemaVersionError(Exception):
-    """Raised when the catalog on disk was written by a different schema version."""
-
-
-def _assert_schema_compatible(conn: sqlite3.Connection, db_path: str):
-    """
-    Refuses to open a catalog written by a different schema version.
-
-    There is deliberately NO migration machinery. The catalog is a derived
-    artifact — every value in it is recomputable by re-running an Index — and
-    migration code is the worst kind of complexity to carry: it runs rarely,
-    on real user data, along a path that is almost never exercised.
-
-    Rebuilding costs one Index run. Silently operating on a catalog whose
-    shape the code no longer matches costs correctness, and does so without
-    any symptom until something downstream reads a column that is not there
-    or a status the constraint would have rejected.
-
-    A fresh database (no tables yet) is fine at any recorded version — that is
-    just an empty file. Anything else must match exactly.
-    """
-    has_tables = conn.execute(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('photos','runs','operations')"
-    ).fetchone()[0] > 0
-    if not has_tables:
-        return
-
-    found = conn.execute("PRAGMA user_version;").fetchone()[0]
-    if found == SCHEMA_VERSION:
-        return
-
-    conn.close()
-    raise SchemaVersionError(
-        f"The catalog at {db_path} was written by schema version {found}, but this engine "
-        f"expects version {SCHEMA_VERSION}. There is no in-place upgrade: the catalog is "
-        f"rebuildable from your source files, so delete it and run an Index to recreate it. "
-        f"Nothing in --source or --dest is touched by deleting the catalog, but any record of "
-        f"which files a previous --move already migrated is lost with it — so if a --move has "
-        f"run against this catalog, move the old file aside rather than deleting it."
-    )
 
 
 def start_run(
@@ -2542,15 +2492,7 @@ def main():
         logger.info(f"Targeted source subdirectory: {subdir_filter_path}")
 
     # 3. Schema + Startup Recovery
-    try:
-        init_database(str(db_path))
-    except SchemaVersionError as e:
-        # The catalog predates this engine's schema. The message names the
-        # remedy; surface it the way the other fatal startup conditions are
-        # surfaced rather than as a traceback.
-        logger.error(f"FATAL: {e}")
-        release_single_instance_lock(lock_fd)
-        sys.exit(1)
+    init_database(str(db_path))
 
     # 4. Register cancellation handlers and open the run record. Everything
     # from here down is wrapped in try/except/finally so the `runs` row is

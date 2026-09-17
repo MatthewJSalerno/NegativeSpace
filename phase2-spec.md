@@ -391,7 +391,9 @@ The Inspector's `duplicates` array (§6.2, `GET /api/v1/photos/{id}/inspect`) sh
 
 ### 6.1 SQLite Schema
 
-Schema changes are versioned with SQLite's built-in `PRAGMA user_version`, but **there is no in-place upgrade path and none should be added**. A catalog recording a different version is refused at startup with instructions to delete and rebuild, rather than migrated. Migration code runs rarely, on real user data, along a path that is almost never exercised; the engine previously carried three migration branches and one had a latent bug that survived until someone read it closely.
+**There is no in-place upgrade path and none should be added.** Migration code runs rarely, on real user data, along a path that is almost never exercised. When the schema changes, the catalog is deleted and rebuilt by an Index — every value in it is derived from the source files.
+
+While the schema is still changing pre-release, that is a convention rather than an enforced rule: the engine does not stamp `PRAGMA user_version` and does not refuse a catalog written by older code, since a stamp nobody reliably bumps misleads rather than protects. Before the first release, a stamp and a startup refusal should be added together, against catalogs created fresh at that point. Phase 2 should not assume either exists today.
 
 **Only `photos` is derived. `runs` and `operations` are not, and rebuilding discards them.** Every value in `photos` is recomputable by re-running an Index over the same sources — verified by rebuilding a ~29,000-file catalog from scratch and getting identical per-status counts. Nothing recomputes the audit log: it records what the engine *did*, and re-scanning the filesystem cannot reconstruct it. The sharpest case is `Removed_Duplicate`, where after a `--move` that row is the only evidence the file ever existed — its source was deleted by design and its content survives only under the anchor's name.
 
@@ -399,7 +401,7 @@ The practical consequence for the UI: rebuilding is cheap and safe for a catalog
 
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
-**The API layer should not create or alter the schema.** It opens a database the engine owns. It should read `PRAGMA user_version` on startup and refuse to serve if it does not match the version it was built against, surfacing "run a Scan to rebuild the catalog" rather than querying a shape it does not understand. Two writers disagreeing about schema on the same file is exactly what the single-instance lock exists to prevent.
+**The API layer should not create or alter the schema.** It opens a database the engine owns. There is no schema version to check against pre-release (see §6.1), so it cannot verify the shape it is about to query; it should fail clearly on the first query that does not match what it expects, surfacing "run a Scan to rebuild the catalog" rather than half-rendering a catalog it does not understand. Once the engine stamps a version again, this becomes a startup check instead. Two writers disagreeing about schema on the same file is exactly what the single-instance lock exists to prevent.
 
 Note the asymmetry this creates for the UI: deleting the catalog is cheap for Index state, but it discards the record of which files a previous Move already migrated. Where the UI offers a rebuild, it should say so.
 

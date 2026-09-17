@@ -29,6 +29,10 @@ The rule: if a claim cannot be enforced, weaken the claim. Do not leave prose as
 
 - [ ] **Re-audit these claims whenever the write path changes.** Both defects found so far were introduced *by a fix to this very path*: the ancestor chain was added, then forgotten after the first failure. A change to `copy_verify_delete`, `_mkdir_durable`, `_finalize_partial` or `_remove_verified_source` should end with this table re-checked rather than assumed.
 
+## Before the first release
+
+- [ ] **Re-introduce schema versioning.** The engine deliberately does not stamp `PRAGMA user_version` or refuse a catalog written by older code. While the schema changes often and every catalog is synthetic and rebuilt on demand, the check's only practical effect is to force a delete-and-rebuild that happens anyway — and a version constant nobody remembers to bump gives false confidence rather than protection. That calculus inverts the moment real users hold catalogs they cannot casually discard. Add the stamp and the startup refusal together, against catalogs created fresh at that point; an unstamped development catalog reads as version 0 and is refused naturally, which is the correct outcome.
+
 ## Other
 
 Deferred performance and robustness work — a stalled worker having no deadline, the unchanged-file check loading every settled row, batch barriers at submission tails — lives in `project-spec.md` §8 with the condition that should bring each one back. This file tracks claims that need enforcing; §8 tracks work deliberately postponed.
