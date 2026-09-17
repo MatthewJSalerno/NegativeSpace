@@ -15,6 +15,7 @@ The rule: if a claim cannot be enforced, weaken the claim. Do not leave prose as
 | 5 | The source is unchanged since it was verified | `project-spec.md` §4.2 | **Enforced**, tested (`a source edited after verification is kept`) |
 | 6 | The copy is a different file from the source | `project-spec.md` §4.2 | **Enforced**, tested (`a source is never deleted as its own copy`) |
 | 7 | `mtime` is preserved by a copy | `phase3-spec.md` §3.1 | **Verified** empirically during the run01 fixes |
+| 8 | The documented repair for a destination file removed outside the engine — re-index with `--force-rehash`, then Copy — actually re-delivers it | `Skipped` reason string, `phase2-spec.md` §5.3 | **Enforced**, tested (`the documented recovery redelivers a removed destination file`) |
 
 ### Outstanding
 

@@ -1631,6 +1631,48 @@ def new_date_folders_are_made_durable_before_a_source_is_deleted():
 
 
 @test
+def the_documented_recovery_redelivers_a_removed_destination_file():
+    """
+    The `Skipped` reason and phase2-spec §5.3 tell the user to re-index with
+    --force-rehash and copy again when a destination file has gone missing.
+
+    That advice replaced worse advice — a plain re-index, which inspects
+    nothing at the destination and skips unchanged sources — so it has to be
+    true rather than merely plausible. Both halves are asserted here: a plain
+    Index leaves the row settled and delivers nothing, while --force-rehash
+    re-reads the source, resets the row, and lets the next Copy restore the
+    file.
+    """
+    case = new_case("documented_recovery")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case)
+    run_engine(case, "--copy")
+    check(status_of(case, "a.jpg") == "Copied", "the photo was not delivered")
+    check(len(dest_files(case)) == 1, f"expected one delivered file, got {dest_files(case)}")
+
+    for path in (case / "dest").rglob("*"):
+        if path.is_file():
+            path.unlink()
+    check(dest_files(case) == [], "the destination file was not removed by the test itself")
+
+    # A plain Index walks the source and skips a file whose row is settled, so
+    # it cannot notice — and must not claim to notice — a missing destination.
+    run_engine(case)
+    check(status_of(case, "a.jpg") == "Copied",
+          "a plain re-Index reset the row; the advice against relying on it is now stale")
+    run_engine(case, "--copy")
+    check(dest_files(case) == [], f"a plain re-Index re-delivered the file: {dest_files(case)}")
+
+    # The documented repair.
+    run_engine(case, "--force-rehash")
+    check(status_of(case, "a.jpg") == "Pending",
+          "--force-rehash did not reset the delivered row, so the documented repair cannot work")
+    run_engine(case, "--copy")
+    check(status_of(case, "a.jpg") == "Copied", "the re-copy did not complete")
+    check(len(dest_files(case)) == 1, f"the file was not re-delivered: {dest_files(case)}")
+
+
+@test
 def the_durability_chain_never_reaches_above_the_destination():
     """
     The chain walk stops at --dest.
