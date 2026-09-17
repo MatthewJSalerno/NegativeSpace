@@ -1645,6 +1645,26 @@ def _mkdir_durable(directory: Path):
     entry in the month folder never reached disk: after a power loss the copy
     is unreachable, and in --move the source is already gone.
 
+    The walk itself is _fsync_chain_to_root, which is also called at the
+    deletion gate — creating a directory is not the only moment the chain has
+    to hold.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    _fsync_chain_to_root(directory)
+
+
+def _fsync_chain_to_root(directory: Path):
+    """
+    Persists the entry of every directory from `directory` up to --dest,
+    skipping any already known durable in this run.
+
+    Separate from _mkdir_durable because a source is also deleted against a
+    copy an EARLIER run delivered, and that run's mkdir is no evidence its
+    entries reached disk. _remove_verified_source calls this at the single
+    deletion gate, so a caller cannot establish the barrier for itself or
+    forget to — which is precisely how it came to be missing on two of the
+    three deletion paths.
+
     Existence is not durability. A directory exists the moment mkdir returns,
     which is before its entry is durable in its parent — so a failed sync that
     leaves its directories behind must not let the next file treat them as
@@ -1656,9 +1676,9 @@ def _mkdir_durable(directory: Path):
     Keyed on the child rather than the parent, because a parent that was
     verified when one month folder appeared is dirty again when the next one
     does. Costs one fsync per folder whose entry is not yet known durable:
-    once per new date folder in a run, not once per file.
+    once per new date folder in a run, not once per file. A caller that has
+    already established the chain pays nothing.
     """
-    directory.mkdir(parents=True, exist_ok=True)
     root = _destination_root
     if root is None:
         # No run context (a direct call): persist the immediate entry only.
@@ -1712,9 +1732,17 @@ def _remove_verified_source(source: Path, verified_copy: Path, source_identity: 
     2. The copy is DURABLE. Verification may have read it back from page
        cache. On a network source the server commits the delete as soon as
        the call returns, so a local power loss before the copy reached disk
-       would leave no copy anywhere. The copy and its directory entry are
-       fsynced first; the entries above it, up to --dest, were made durable
-       when those directories were created (see _mkdir_durable).
+       would leave no copy anywhere. The copy and its own directory entry are
+       fsynced here, and so is every entry above it up to --dest
+       (_fsync_chain_to_root).
+
+       The chain is established HERE, at the gate, not left to the caller.
+       Only one of the three callers copies the file itself and so passes
+       through _mkdir_durable; the other two delete against a copy an earlier
+       run delivered, and that run's mkdir proves nothing — a directory exists
+       the moment mkdir returns, which is before its entry is durable in its
+       parent. A caller that already established the chain pays nothing, since
+       the verified set is consulted first.
     3. The source is still the file that was verified. An edit or replacement
        after its hash was taken means the copy holds OLD content, and
        deleting the source would destroy the new content.
@@ -1731,6 +1759,7 @@ def _remove_verified_source(source: Path, verified_copy: Path, source_identity: 
     try:
         _fsync_file(verified_copy)
         _fsync_directory(Path(verified_copy).parent)
+        _fsync_chain_to_root(Path(verified_copy).parent)
     except OSError as e:
         raise SourceRemovalRefused(
             f"the destination copy could not be made durable ({type(e).__name__}: {e})")
