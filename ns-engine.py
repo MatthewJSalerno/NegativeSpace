@@ -1607,12 +1607,35 @@ def _fsync_file(path):
 
 
 def _fsync_directory(directory):
-    """Makes a directory's entries durable, tolerating filesystems without directory fsync."""
+    """
+    Makes a directory's entries durable, tolerating filesystems without
+    directory fsync.
+
+    EINVAL/ENOTSUP mean the operation is ABSENT rather than failed, so the move
+    proceeds. But the power-loss guarantee is correspondingly weaker there, and
+    saying so only in the spec left a user on exFAT or an odd network mount to
+    infer it: the run itself was silent.
+
+    Reported once per RUN, naming the first directory that reported it. Once
+    per directory would be a line per date folder on a real library, which is
+    how a warning becomes noise and then becomes ignored.
+    """
+    global _unsupported_dir_fsync_reported
     fd = os.open(str(directory), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
     try:
         os.fsync(fd)
     except OSError as e:
         if e.errno in _DIR_FSYNC_UNSUPPORTED_ERRNOS:
+            if not _unsupported_dir_fsync_reported:
+                _unsupported_dir_fsync_reported = True
+                logger.warning(
+                    f"{directory} is on a filesystem that cannot fsync directories "
+                    f"({errno.errorcode.get(e.errno, e.errno)}). Directory entries there are "
+                    f"not made durable, so a power loss can lose a file that was written and "
+                    f"verified — a weaker guarantee than --move gives elsewhere, and the "
+                    f"reason it is tolerated rather than refused (project-spec.md §4.2). "
+                    f"Reported once per run."
+                )
             return
         # Says what could not be established, rather than surfacing a bare
         # "[Errno 5] Input/output error" that a user cannot act on. The errno
@@ -1631,6 +1654,12 @@ def _fsync_directory(directory):
 # guarantee without putting engine bookkeeping in the user's library.
 _destination_root: Optional[Path] = None
 _verified_directories: set = set()
+
+# Whether this run has already said that the filesystem cannot fsync
+# directories. Per-run for the same reason as the two above: each run should
+# tell its own user about its own storage, so a long-lived process does not
+# stay quiet for every run after the first.
+_unsupported_dir_fsync_reported: bool = False
 
 
 def _mkdir_durable(directory: Path):
@@ -2960,9 +2989,12 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     # This run's durability barriers start unestablished: directories left by
     # an earlier run prove only that mkdir returned, not that their entries
     # reached disk (see _mkdir_durable).
-    global _destination_root
+    # The unsupported-fsync notice resets with them, so each run reports its
+    # own storage rather than only the first run in a process ever doing so.
+    global _destination_root, _unsupported_dir_fsync_reported
     _destination_root = dest_path
     _verified_directories.clear()
+    _unsupported_dir_fsync_reported = False
     conn = get_db_connection(str(db_path))
     cursor = conn.cursor()
 

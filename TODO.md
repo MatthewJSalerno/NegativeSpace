@@ -16,10 +16,9 @@ The rule: if a claim cannot be enforced, weaken the claim. Do not leave prose as
 | 6 | The copy is a different file from the source | `project-spec.md` §4.2 | **Enforced**, tested (`a source is never deleted as its own copy`) |
 | 7 | `mtime` is preserved by a copy | `phase3-spec.md` §3.1 | **Verified** empirically during the run01 fixes |
 | 8 | The documented repair for a destination file removed outside the engine — re-index with `--force-rehash`, then Copy — actually re-delivers it | `Skipped` reason string, `phase2-spec.md` §5.3 | **Enforced**, tested (`the documented recovery redelivers a removed destination file`) |
+| 9 | A filesystem that cannot fsync directories **says so at runtime**, rather than leaving the weaker guarantee to be inferred from this document | `project-spec.md` §4.2 | **Enforced**, tested (`an unsupported directory fsync is reported once per run`). Once per run, naming the first such directory — once per directory would be a line per date folder. |
 
 ### Outstanding
-
-- [ ] **Filesystems without directory fsync are silently weaker.** `EINVAL`/`ENOTSUP` are tolerated by design — the operation is absent rather than failed — and `project-spec.md` §4.2 says the power-loss guarantee is correspondingly weaker there. But nothing says so *at runtime*: a user on exFAT or an odd network mount gets the weaker guarantee without ever being told. Log it once per run when a directory sync reports one of those errnos, naming the path, so the weaker guarantee is visible rather than inferred from the spec.
 
 - [ ] **The audit log is less durable than the act it records.** The catalog runs WAL with `synchronous=NORMAL`, which survives process death but not power loss (see `get_db_connection`'s docstring). So a power cut can lose the `operations` row recording a deletion *even though the deletion itself is durable* — the file is gone and the record saying why is not. Decide between `synchronous=FULL` for the audit writes (slower, measure it), accepting the window, or fsyncing the WAL at run end. Whichever is chosen, state it where the durability claims are made.
 
