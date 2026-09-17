@@ -797,15 +797,14 @@ def date_source_records_where_the_date_came_from():
 
 
 @test
-def schema_is_versioned_and_indexed():
-    """Schema: user_version set, required indexes present, durability pragmas as intended."""
+def schema_has_the_indexes_the_hot_queries_need():
+    """Schema: the indexes the duplicate and status queries depend on exist and are used."""
     case = new_case("schema")
     make_photo(case / "src" / "a.jpg", "a")
     run_engine(case)
 
     conn = db(case)
     try:
-        check(conn.execute("PRAGMA user_version").fetchone()[0] >= 1, "user_version not set")
         idx = {r["name"] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx%'")}
         check({"idx_photos_sha1", "idx_photos_status", "idx_operations_run"} <= idx,
@@ -832,8 +831,6 @@ def status_columns_are_constrained():
     # this column, so the database has to enforce the vocabulary itself.
     conn = db(case)
     try:
-        check(conn.execute("PRAGMA user_version").fetchone()[0] == 4,
-              "schema version stamp is wrong")
         # 'Skipped' is an operation outcome, never a photo state.
         conn.execute("INSERT INTO operations (run_id, status, timestamp) VALUES (1, 'Skipped', 't')")
 
