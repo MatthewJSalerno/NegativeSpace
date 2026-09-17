@@ -30,6 +30,11 @@
 #
 # POSIX sh on purpose: the NAS side runs BusyBox, which has neither
 # `cp --parents` nor `cpio -l`.
+#
+# Before sampling, the library is walked twice to prove no filename contains a
+# newline (see below). Measured at ~3.6s over 54,000 files on an NFS mount —
+# paid once, against a run that then takes minutes, and it is what stops a
+# half-built sample.
 set -eu
 
 usage() {
@@ -61,13 +66,36 @@ esac
 [ "$NTH" -ge 1 ] || { echo "every-Nth must be at least 1, got: $NTH" >&2; exit 2; }
 [ -d "$LIBRARY" ] || { echo "library is not a directory: $LIBRARY" >&2; exit 2; }
 
-LIB_ABS=$(cd "$LIBRARY" && pwd)
-mkdir -p "$SAMPLE"
-SAMPLE_ABS=$(cd "$SAMPLE" && pwd)
+# PHYSICAL paths, resolved with `pwd -P`. Plain `pwd` reports the LOGICAL path,
+# so a symlinked root compares as a different string from the real one and a
+# sample nested inside the library passes the checks below — after which the
+# link loop writes into the library itself. Symlinked mounts and aliased share
+# names are ordinary, so this is not an exotic case.
+LIB_ABS=$(cd "$LIBRARY" && pwd -P)
+
+# The sample is resolved WITHOUT being created: creating it first left a stray
+# directory inside the library even when the check below then refused. Walk up
+# to the deepest ancestor that EXISTS, resolve THAT physically, then re-attach
+# the part that does not exist yet. This keeps `mkdir -p` semantics — naming a
+# sample several directories deep still works — while resolving symlinks in
+# whatever part of the path is real.
+sample_probe=$SAMPLE
+sample_tail=
+while [ ! -e "$sample_probe" ]; do
+    sample_tail="$(basename "$sample_probe")${sample_tail:+/$sample_tail}"
+    sample_up=$(dirname "$sample_probe")
+    [ "$sample_up" != "$sample_probe" ] || break
+    sample_probe=$sample_up
+done
+sample_base=$(cd "$sample_probe" 2>/dev/null && pwd -P) || {
+    echo "refusing: the sample path is not usable: $SAMPLE" >&2
+    echo "          its nearest existing ancestor ($sample_probe) is not a directory" >&2
+    exit 2; }
+SAMPLE_ABS="$sample_base${sample_tail:+/$sample_tail}"
 
 # The sample must sit OUTSIDE the library. A sample nested inside it gets
 # indexed as part of the library on the next run, and every sampled photo
-# then looks like a duplicate of itself.
+# then looks like a duplicate of itself. Checked BEFORE anything is created.
 [ "$SAMPLE_ABS" != "$LIB_ABS" ] || {
     echo "refusing: the sample and the library are the same directory" >&2; exit 2; }
 case "$SAMPLE_ABS/" in "$LIB_ABS"/*)
@@ -79,10 +107,18 @@ case "$LIB_ABS/" in "$SAMPLE_ABS"/*)
     echo "refusing: the library sits inside the sample ($LIB_ABS)" >&2; exit 2 ;;
 esac
 
-existing=$(find "$SAMPLE_ABS" -type f | wc -l)
+mkdir -p "$SAMPLE_ABS"
+
+# ANY entry, not just regular files. `find -type f` neither counts nor descends
+# a directory symlink, so a symlink pointing into the library passed this check
+# and the mkdir/ln below then followed it and wrote there. Requiring a genuinely
+# empty directory removes the whole class: with nothing already in it, there is
+# no pre-existing link for the build to follow.
+existing=$(find "$SAMPLE_ABS" -mindepth 1 | wc -l)
 [ "$existing" -eq 0 ] || {
-    echo "refusing: $SAMPLE_ABS already holds $existing file(s)" >&2
-    echo "          a partial sample skews every count; clear it first" >&2
+    echo "refusing: $SAMPLE_ABS already holds $existing item(s)" >&2
+    echo "          a partial sample skews every count, and a symlink left in it" >&2
+    echo "          can redirect the build into the library; clear it first" >&2
     exit 2 ; }
 
 # Kept in step with RASTER_EXTENSIONS and RAW_EXTENSIONS in ns-engine.py: a
@@ -104,6 +140,20 @@ trap 'rm -f "$LIST"' EXIT
 # Relative paths, so the sample reproduces the library's folder structure.
 # Flattening instead would collide same-named photos from different albums.
 cd "$LIB_ABS"
+
+# A newline-delimited list cannot carry a name that itself contains a newline:
+# the name is split across two lines, and the link loop then works on a
+# truncated path, failing part-way and leaving a half-built sample. Detect it
+# and refuse BEFORE creating anything, rather than aborting mid-build. Counting
+# NUL-terminated records against lines is the cheap way to spot one.
+nul_count=$(find . -type f -print0 | tr -dc '\0' | wc -c | tr -d ' ')
+line_count=$(find . -type f | wc -l | tr -d ' ')
+[ "$nul_count" = "$line_count" ] || {
+    echo "refusing: a filename under $LIB_ABS contains a newline" >&2
+    echo "          this sampler uses a line-oriented list, which cannot carry one;" >&2
+    echo "          rename or exclude that file, then run again" >&2
+    exit 2 ; }
+
 find . -type f | grep -Ei "$PATTERN" | awk -v n="$NTH" '(NR - 1) % n == 0' > "$LIST" || true
 
 count=0
@@ -131,4 +181,7 @@ echo "duplicate : duplicate_of_first.$ext — a second link to the first sampled
 echo "sample    : $total file(s), $(du -sh "$SAMPLE_ABS" 2>/dev/null | cut -f1) in $SAMPLE_ABS"
 echo "library   : $(find "$LIB_ABS" -type f | wc -l) file(s), untouched"
 echo
-echo "Index and Copy should report $count delivered and 1 skipped duplicate."
+# "at least": this script plants ONE duplicate, but it cannot know how many the
+# library already holds among the files it sampled. Stating an exact number
+# invites reading a correct run as a wrong one — a real sample turned up five.
+echo "Index and Copy should report $count delivered and at least 1 skipped duplicate."
