@@ -2,20 +2,27 @@
 # Builds a small, hard-linked sample of a photo library, for validating a
 # change against real files without waiting for the whole library.
 #
-#   sh tests/make_sample_tree.sh <library> <sample> [every-Nth]
+#   sh tests/make_sample_tree.sh [--no-raw] <library> <sample> [every-Nth]
 #
 # Hard links cost no disk space and share the original's bytes, mtime and
-# EXIF, so the sample behaves like the real library at a fraction of the wall
-# clock: ~500 files run Index, Copy and Move in about 30 seconds where a
-# 12,500-file library takes ~36 minutes.
+# EXIF, so the sample behaves like the library at a fraction of the wall
+# clock: ~500 raster files run Index, Copy and Move in about 30 seconds where
+# a 12,500-file library takes ~36 minutes.
+#
+# RAW is included by default. It is the path most likely to be skipped by
+# accident — rawpy is a hard dependency and 23 RAW extensions are advertised,
+# yet nothing decoded a real RAW file in this project until a fixture was
+# built by hand. A sampler that quietly omitted them would keep it that way.
+# --no-raw trades that coverage for size and speed: RAW files run ~20-25 MB
+# against ~300 KB for a JPEG, so including them makes a sample many times
+# larger to copy.
 #
 # The sample also gets ONE DELIBERATE DUPLICATE — a second link to a file
-# already sampled. This matters more than it looks. Sampling alone can miss
-# duplicates entirely (a library holding two duplicate pairs in 12,505 files
-# yields none at every 25th file), and a sample with no duplicates silently
-# skips duplicate cleanup, which is the engine's riskiest path because it is
-# the one that deletes. A second link to an existing file IS an exact
-# duplicate by construction, so it costs nothing and is always present.
+# already sampled. Sampling alone can miss duplicates entirely (a library
+# holding two duplicate pairs in 12,505 files yields none at every 25th
+# file), and a sample with no duplicates silently skips duplicate cleanup,
+# which is the engine's riskiest path because it is the one that deletes. A
+# second link to an existing file IS an exact duplicate by construction.
 #
 # Removing files from the sample never touches the library: deleting one link
 # leaves the original and its other links intact. That is what makes it safe
@@ -26,10 +33,22 @@
 set -eu
 
 usage() {
-    echo "usage: sh tests/make_sample_tree.sh <library> <sample> [every-Nth, default 25]" >&2
+    echo "usage: sh tests/make_sample_tree.sh [--no-raw] <library> <sample> [every-Nth, default 25]" >&2
     echo "   eg: sh tests/make_sample_tree.sh /photos/library /photos/sample 25" >&2
+    echo "       --no-raw  sample only raster formats; smaller and faster, no RAW coverage" >&2
     exit 2
 }
+
+INCLUDE_RAW=1
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --no-raw) INCLUDE_RAW=0; shift ;;
+        -h|--help) usage ;;
+        --) shift; break ;;
+        -*) echo "unknown option: $1" >&2; usage ;;
+        *) break ;;
+    esac
+done
 
 [ $# -ge 2 ] || usage
 LIBRARY=$1
@@ -66,16 +85,26 @@ existing=$(find "$SAMPLE_ABS" -type f | wc -l)
     echo "          a partial sample skews every count; clear it first" >&2
     exit 2 ; }
 
+# Kept in step with RASTER_EXTENSIONS and RAW_EXTENSIONS in ns-engine.py: a
+# sampler matching less than the engine supports hides whole formats from
+# every validation run.
+RASTER='jpg|jpeg|jpe|jfif|png|gif|bmp|webp|tif|tiff|heic|heif|avif'
+RAW='raw|dng|cr2|cr3|crw|nef|nrw|arw|srf|sr2|raf|orf|rw2|pef|ptx|srw|erf|3fr|fff|iiq|mos|mrw|x3f'
+if [ "$INCLUDE_RAW" -eq 1 ]; then
+    PATTERN="\.($RASTER|$RAW)\$"
+    WHAT="raster and RAW"
+else
+    PATTERN="\.($RASTER)\$"
+    WHAT="raster only (--no-raw)"
+fi
+
 LIST=$(mktemp)
 trap 'rm -f "$LIST"' EXIT
 
 # Relative paths, so the sample reproduces the library's folder structure.
 # Flattening instead would collide same-named photos from different albums.
 cd "$LIB_ABS"
-find . -type f \
-    \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.heic' \
-       -o -iname '*.heif' -o -iname '*.tif' -o -iname '*.tiff' \) \
-    | awk -v n="$NTH" '(NR - 1) % n == 0' > "$LIST"
+find . -type f | grep -Ei "$PATTERN" | awk -v n="$NTH" '(NR - 1) % n == 0' > "$LIST" || true
 
 count=0
 while IFS= read -r rel; do
@@ -92,9 +121,14 @@ ext=${first##*.}
 ln "$SAMPLE_ABS/$first" "$SAMPLE_ABS/duplicate_of_first.$ext"
 
 total=$(find "$SAMPLE_ABS" -type f | wc -l)
+# Counted from the sampled list, not the finished directory: the duplicate
+# link would otherwise be counted too, making "N of them RAW" a fraction of a
+# different number than the one printed above it.
+raws=$(grep -Eic "\.($RAW)\$" "$LIST" || true)
 echo "sampled   : $count photo(s), 1 in $NTH matches under $LIB_ABS"
+echo "formats   : $WHAT — $raws of the $count are RAW"
 echo "duplicate : duplicate_of_first.$ext — a second link to the first sampled photo"
-echo "sample    : $total file(s) in $SAMPLE_ABS"
+echo "sample    : $total file(s), $(du -sh "$SAMPLE_ABS" 2>/dev/null | cut -f1) in $SAMPLE_ABS"
 echo "library   : $(find "$LIB_ABS" -type f | wc -l) file(s), untouched"
 echo
 echo "Index and Copy should report $count delivered and 1 skipped duplicate."
