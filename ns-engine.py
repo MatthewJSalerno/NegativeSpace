@@ -1726,9 +1726,24 @@ def _mkdir_durable(directory: Path):
 
     chain = []
     probe = directory
-    while probe != root and probe.parent != probe:
+    reached_root = False
+    while probe.parent != probe:
+        if probe == root:
+            reached_root = True
+            break
         chain.append(probe)
         probe = probe.parent
+
+    if not reached_root:
+        # This destination is not under the run's --dest. _destination_for
+        # falls back to a row's stored path when it has no usable recorded
+        # date, and that path was computed against whatever --dest was current
+        # when the row was written. Persist the immediate entry and nothing
+        # above it: walking on would fsync directories outside the destination
+        # the engine was given, which can fail on permissions and refuse a
+        # legitimate move, or quietly persist someone else's directories.
+        _fsync_directory(directory.parent)
+        return
 
     for child in reversed(chain):  # shallowest first: each entry in the parent that holds it
         if str(child) in _verified_directories:
