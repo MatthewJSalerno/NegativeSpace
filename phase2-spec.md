@@ -124,7 +124,27 @@ A dedicated Settings view provides central management of engine parameters, pers
 ```
 
 
-### 3.1 Extension EXIF Support Validation Subsystem
+### 3.1 Undated Photos: `Undated/` or Modification Time
+
+**Decided 2026-09-17. Default: `Undated/`.** A photo with no usable EXIF date goes to an `Undated/` folder rather than being filed under its file modification time. Modification-time filing remains available as the alternative setting; it is no longer the default, and it is no longer silent.
+
+The old behaviour is what the mock-up above still describes — *"filesystem creation/modification date will be used for organization"* — and it is wrong in two ways that only show up at scale. It files a photo under a date **nobody vouched for**, mixed in with photos whose dates came from the camera; and once filed, nothing marks it as a guess. Measured on a real library: **95 of 1,165 sampled files (8.2%) had no usable EXIF date**, and the run placed photos from the 2000s into `2024/` and `2025/` folders purely because their download timestamps were recent.
+
+Two reasons this is the better default, both the maintainer's:
+
+* **It stops undated files colliding with genuinely dated ones.** A date folder should mean "the camera said so."
+* **A file you can find is a file you can fix.** The catalog keeps `source_path` and the original filename, and for these files that is frequently where the real date actually is — a folder named for an event, a filename carrying `20070415`. `Undated/` is where a person can go and work through them.
+
+That second point makes `Undated/` a **review queue that needs no queue table**: the folder *is* the list, derivable by looking at it. It is the same shape the placement-drift problem wants, arrived at independently.
+
+**Two sub-questions to settle when implementing, each with a recommendation rather than an open survey:**
+
+1. **Flat, or subdivided?** At ~8%, a consolidated library could put tens of thousands of files in one directory — navigable by a tool, tedious for a person, which defeats the "easy to find" half of the rationale. **Recommend `Undated/YYYY/` by modification time.** The mtime is a real fact about the *file* even when it is not a fact about the *photograph*, so it can organise the folder without the tree ever claiming it is the date taken.
+2. **What does `date_taken` hold?** **Recommend leaving it exactly as today** — the mtime, marked `date_source = 'file_mtime'` — and changing only *placement*. That keeps the existing census query working (`date_source` already distinguishes them), keeps a value in hand for when a real date is recovered, and confines the change to one decision in the path builder rather than spreading through the metadata layer.
+
+**Consequence worth recording:** this largely dissolves the undated-duplicate tiebreak. Two byte-identical copies with different mtimes previously produced different `date_taken` values, so the arbitrary anchor — whichever the unsorted walk reached first — decided which date folder the content landed in, and a later rename could not fix it. With no date folder to choose, that leak closes. It survives only for users who keep modification-time filing, which demotes it from a design flaw to a documented consequence of choosing that setting.
+
+### 3.2 Extension EXIF Support Validation Subsystem
 When a user attempts to add or select a custom extension in the settings panel or via API, the backend/UI validates it against a metadata-support registry:
 
 1. **Standard EXIF Image Formats (Native Support):** `.jpg`, `.jpeg`, `.tiff`, `.tif`, `.heic`, `.heif`, `.webp`, and RAW formats (`.cr2`, `.cr3`, `.nef`, `.arw`, `.dng`, `.rw2`, `.orf`, `.pef`).
@@ -295,7 +315,7 @@ Because the engine's flags are now assembled by FastAPI from HTTP request bodies
 
 * **Build the command as an argument list, never a shell string.** Use `subprocess.Popen([...])` / `subprocess.run([...])` without `shell=True`. Interpolating a user-supplied `source_subdir` into a shell command would be command injection reachable directly from an HTTP request — this is the single most damaging mistake available in this layer.
 * **`--source-subdir` carries user-chosen input** from the folder picker and is the most exposed parameter. The engine already resolves it and rejects anything escaping `--source` via `..` — that check is load-bearing under Phase 2 and must not be removed as a redundant-looking sanity check. FastAPI should validate independently rather than relying solely on the engine; defense in depth is the point, and the API can return a clean `400` instead of a failed job.
-* **`--exts` is the subject of the validation feature in §3.1.** The engine normalizes the leading dot and casing but does not otherwise constrain the value, so the API owns deciding which extensions are acceptable. Scope is limited to the mounted source directory, so the risk is indexing unintended file types rather than reading outside the volume — but a user-facing field still needs a server-side allowlist, not just client-side checks.
+* **`--exts` is the subject of the validation feature in §3.2.** The engine normalizes the leading dot and casing but does not otherwise constrain the value, so the API owns deciding which extensions are acceptable. Scope is limited to the mounted source directory, so the risk is indexing unintended file types rather than reading outside the volume — but a user-facing field still needs a server-side allowlist, not just client-side checks.
 
 Note also the `--file-ids` length ceiling described in §2: the 1,000-item selection cap is a real OS command-line limit, and enforcing it is the API's responsibility. Folder selections use `--source-subdir` precisely to sidestep it.
 
@@ -396,6 +416,8 @@ The Inspector's `duplicates` array (§6.2, `GET /api/v1/photos/{id}/inspect`) sh
 While the schema is still changing pre-release, that is a convention rather than an enforced rule: the engine does not stamp `PRAGMA user_version` and does not refuse a catalog written by older code, since a stamp nobody reliably bumps misleads rather than protects. Before the first release, a stamp and a startup refusal should be added together, against catalogs created fresh at that point. Phase 2 should not assume either exists today.
 
 **Only `photos` is derived. `runs` and `operations` are not, and rebuilding discards them.** Every value in `photos` is recomputable by re-running an Index over the same sources — verified by rebuilding a ~29,000-file catalog from scratch and getting identical per-status counts. Nothing recomputes the audit log: it records what the engine *did*, and re-scanning the filesystem cannot reconstruct it. The sharpest case is `Removed_Duplicate`, where after a `--move` that row is the only evidence the file ever existed — its source was deleted by design and its content survives only under the anchor's name.
+
+**How history should be keyed is still an open question, and this section is where it bites.** `operations.photo_id` hangs off `photos.id`, so a rebuild orphans every historical row — the alternatives (keying on `sha1_hash`, or moving `runs`/`operations` into a store that is never discarded) are set out in `phase3-spec.md` §3.2 along with the three problems each has to answer. It is raised here because §5.3's Error Center and §5.4's audit log are both specified on these tables: **the question wants answering before that UI is built**, at which point it becomes a migration and a rework rather than a schema choice. It does not block writing the rest of this spec.
 
 The practical consequence for the UI: rebuilding is cheap and safe for a catalog that has only been Indexed or Copied, and lossy for one that has been Moved against. Before offering a rebuild, check whether any `Removed_Duplicate` rows exist and say what will be lost. Offer a backup first — `sqlite3 <db> ".backup '<path>'"` is atomic under WAL where a file copy is not — and treat a JSON export of `runs` and `operations` as the format for reading history outside the app or carrying it across a schema change, not as a substitute for the database backup.
 

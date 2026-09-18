@@ -46,6 +46,8 @@ Keying history on `sha1_hash` rather than `photos.id` would let it survive a reb
 
 Worth considering alongside: whether `runs` and `operations` belong in the rebuildable catalog at all, or in a separate store that is never discarded. That would remove the tension directly rather than working around it, at the cost of a second database file and cross-file joins the API layer would have to do itself.
 
+**This question has a deadline, and it is earlier than Phase 3.** `phase2-spec.md` §5.3 (Error Center) and §5.4 (Operations Audit Log) are both specified directly on `operations`, joined through `photo_id`. Once that UI exists, changing how history is keyed stops being a schema decision and becomes a migration plus a rework of two views. **Answer it before the Error Center is built, not before Phase 2 starts** — the spec work itself is unaffected, and deferring the answer costs nothing until code is written against those tables. Recorded here rather than in `phase2-spec.md` because the alternatives belong with the rest of the history design, but the timing constraint is Phase 2's.
+
 ### 3.3 Idea: Choosing a Filename from a Duplicate Group
 
 When duplicates are removed, the surviving copy keeps its own filename — which may be the least descriptive name in its group. A camera-style `20051001.JPG` can survive while the duplicate removed against it was named something like `birthday_party.jpg`. Offer a way to rename a delivered file at the destination to the name any member of its duplicate group once had.
