@@ -28,8 +28,15 @@
 # leaves the original and its other links intact. That is what makes it safe
 # to point --move at this tree.
 #
-# POSIX sh on purpose: the NAS side runs BusyBox, which has neither
-# `cp --parents` nor `cpio -l`.
+# Plain POSIX sh, but no longer for BusyBox. This once claimed to target the
+# NAS shell so a sample could be built there; the maintainer runs it from the
+# workstation over NFS instead, where `ln` creates the link server-side anyway,
+# so that path was never exercised and the claim was never tested. It is
+# dropped rather than verified — an unenforced claim is worth less than none,
+# which is the rule the durability table in TODO.md applies to itself.
+#
+# Nothing here needs bashisms, so it stays POSIX by preference rather than by
+# obligation.
 #
 # Before sampling, the library is walked twice to prove no filename contains a
 # newline (see below). Measured at ~3.6s over 54,000 files on an NFS mount —
