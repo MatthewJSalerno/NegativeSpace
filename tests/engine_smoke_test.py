@@ -2017,6 +2017,72 @@ def an_unsupported_directory_fsync_is_reported_once_per_run():
 
 
 @test
+def the_move_loop_commits_at_full_synchronous():
+    """
+    The move/copy loop runs at synchronous=FULL; the scan path stays NORMAL.
+
+    Every delete commits status=Processing with dest_path BEFORE unlinking, and
+    reconciliation finds interrupted work by exactly that marker. Under NORMAL
+    in WAL a commit is not fsynced, so a power cut can take the marker while
+    the unlink — which IS fsynced — survives. A probe built that state
+    directly: the next Index then recorded a successfully migrated photo as
+    Failed, because its source was gone and nothing said why. That is a wrong
+    row about a delivered file, not merely missing history.
+
+    Scoped rather than global. FULL measured 1.42x on this path (+1.9ms per
+    photo) against the ~4.4x quoted for the scan path, which batches commits
+    and writes no markers — so db_writer_worker keeps NORMAL and only this one
+    connection pays. The move loop opens exactly one.
+
+    The audit rows come along for free: log_operation commits immediately in
+    this loop, on this same connection.
+    """
+    engine = _load_engine()
+    case = new_case("audit_sync")
+    make_photo(case / "src" / "a.jpg", "a")
+    make_photo(case / "src" / "b.jpg", "b")
+    run_engine(case)
+    db_file = str(case / "appdata" / "db" / "ns_sqlite.db")
+
+    def level(conn):
+        # PRAGMA synchronous reports 1 for NORMAL, 2 for FULL.
+        return conn.execute("PRAGMA synchronous").fetchone()[0]
+
+    default_conn = engine.get_db_connection(db_file)
+    try:
+        check(level(default_conn) == 1,
+              f"the default connection should stay NORMAL, got {level(default_conn)}")
+    finally:
+        default_conn.close()
+
+    full_conn = engine.get_db_connection(db_file, synchronous="FULL")
+    try:
+        check(level(full_conn) == 2,
+              f"an explicitly FULL connection is not FULL, got {level(full_conn)}")
+    finally:
+        full_conn.close()
+
+    # Asking for it is not enough; the move loop has to actually do it.
+    seen = []
+    real_get = engine.get_db_connection
+
+    def recording(path, *a, **kw):
+        conn = real_get(path, *a, **kw)
+        seen.append(conn.execute("PRAGMA synchronous").fetchone()[0])
+        return conn
+
+    engine.get_db_connection = recording
+    try:
+        _move_in_process(engine, case)
+    finally:
+        engine.get_db_connection = real_get
+
+    check(2 in seen,
+          f"the move loop opened no FULL connection; levels seen were {seen}")
+    check(src_files(case) == [], f"the move did not complete: {src_files(case)}")
+
+
+@test
 def a_photo_this_run_delivered_is_not_also_reported_skipped():
     """
     The already-copied outcome reports what EARLIER runs delivered. The query
