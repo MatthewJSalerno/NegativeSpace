@@ -556,10 +556,10 @@ def retry_io_operation(action_description: str, func: Callable[..., Any], *args,
 
 
 # --- SQLite Connection Helper ---
-def get_db_connection(db_path: str) -> sqlite3.Connection:
+def get_db_connection(db_path: str, synchronous: str = "NORMAL") -> sqlite3.Connection:
     """
-    Creates a connection with WAL mode, NORMAL synchronous durability, and an
-    extended busy timeout for concurrent safety.
+    Creates a connection with WAL mode, an extended busy timeout for concurrent
+    safety, and the caller's synchronous level — NORMAL unless asked otherwise.
 
     synchronous=NORMAL (rather than SQLite's default FULL) stops the engine
     fsyncing on every single commit, which measured ~4.4x faster on its own.
@@ -578,10 +578,23 @@ def get_db_connection(db_path: str) -> sqlite3.Connection:
     loss can leave a stale row, or a photo present at both ends — recoverable
     by re-indexing — but not a deleted original without a copy on storage
     that honours fsync.
+
+    **_run_move_or_copy asks for FULL, and is the only caller that does.** That
+    loop commits status=Processing with dest_path before unlinking a source,
+    and reconciliation finds interrupted work by that marker alone; losing it
+    to a power cut leaves a delivered photo recorded Failed, which a probe
+    reproduced. FULL measured 1.42x on that path — not the ~4.4x above, which
+    is the scan path batching a hundred rows per commit and writing no markers.
+    The scan path therefore keeps NORMAL and only the move loop pays.
+
+    The level is whitelisted rather than interpolated blindly: a PRAGMA value
+    cannot be bound as a parameter, so it is checked instead.
     """
+    if synchronous not in ("NORMAL", "FULL"):
+        raise ValueError(f"unsupported synchronous level: {synchronous!r}")
     conn = sqlite3.connect(db_path, timeout=10.0)
     conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute(f"PRAGMA synchronous={synchronous};")
     conn.execute("PRAGMA busy_timeout=5000;")
     return conn
 
@@ -746,6 +759,12 @@ def log_operation(conn: sqlite3.Connection, run_id: int, photo_id: Optional[int]
     phase where many rows are committed together. The Move/Copy loop always
     uses the default: there, each audit row must be durable alongside the file
     operation it describes.
+
+    That last sentence is enforced rather than merely intended: the Move/Copy
+    loop opens its connection at synchronous=FULL (see get_db_connection), so
+    committing here fsyncs. On the scan path, which stays at NORMAL, a power
+    cut can still lose recently batched rows — they describe reading rather
+    than deleting, and a re-Index reproduces them.
     """
     conn.execute(
         """INSERT INTO operations
@@ -3030,7 +3049,20 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     _destination_root = dest_path
     _verified_directories.clear()
     _unsupported_dir_fsync_reported = False
-    conn = get_db_connection(str(db_path))
+    # FULL rather than the default NORMAL, and this is the only caller that
+    # asks. Every delete here commits status=Processing with dest_path BEFORE
+    # unlinking, and reconcile_interrupted_state finds interrupted work by that
+    # marker alone. Under NORMAL a commit is not fsynced, so a power cut can
+    # take the marker while the unlink — which IS fsynced — survives; the next
+    # Index then finds a source gone with nothing explaining it and records a
+    # successfully delivered photo as Failed. A probe reproduced exactly that.
+    #
+    # Affordable because this path is already fsync-heavy per file: measured
+    # 1.42x here (+1.9ms per photo) against the ~4.4x that NORMAL buys on the
+    # scan path, which batches a hundred rows per commit and writes no markers.
+    # db_writer_worker keeps NORMAL. The loop's audit rows ride along for free,
+    # since log_operation commits immediately here on this same connection.
+    conn = get_db_connection(str(db_path), synchronous="FULL")
     cursor = conn.cursor()
 
     predicate, predicate_params = _targeting_predicate(args)
