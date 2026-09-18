@@ -1948,6 +1948,75 @@ def directory_sync_errors_are_tolerated_only_when_unsupported():
 
 
 @test
+def an_unsupported_directory_fsync_is_reported_once_per_run():
+    """
+    A filesystem that cannot fsync directories gives a weaker power-loss
+    guarantee, and the user should hear that from the run rather than infer it
+    from the spec.
+
+    EINVAL/ENOTSUP are tolerated by design — the operation is absent rather
+    than failed — so the move proceeds and, until now, nothing said anything at
+    all. On exFAT or an odd network mount that silence was the whole problem.
+
+    Once per RUN, not once per process: the flag resets with the other per-run
+    durability bookkeeping, so a second run on the same loaded engine says it
+    again. And not once per directory, which on a real library would be a line
+    per date folder — hence two photos in different date folders below.
+    """
+    import errno
+    import logging
+    import stat as stat_module
+
+    engine = _load_engine()
+    real_fsync = engine.os.fsync
+
+    def unsupported_dir_fsync(fd):
+        # Files still sync normally; only directory syncs report the error,
+        # which is what a filesystem lacking the operation actually looks like.
+        if stat_module.S_ISDIR(os.fstat(fd).st_mode):
+            raise OSError(errno.EINVAL, os.strerror(errno.EINVAL))
+        return real_fsync(fd)
+
+    said = []
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            said.append(record.getMessage())
+
+    handler = Capture()
+    engine.logger.addHandler(handler)
+
+    def move_one(name, date):
+        case = new_case(name)
+        make_photo(case / "src" / "a.jpg", f"{name}-a", date=date)
+        make_photo(case / "src" / "b.jpg", f"{name}-b", date="2019:07:02 11:00:00")
+        run_engine(case)
+        engine.os.fsync = unsupported_dir_fsync
+        try:
+            _move_in_process(engine, case)
+        finally:
+            engine.os.fsync = real_fsync
+        return case
+
+    try:
+        case = move_one("fsync_signal_a", "2021:03:04 08:00:00")
+        first = [m for m in said if "cannot fsync directories" in m]
+        check(len(first) == 1,
+              f"expected exactly one unsupported-fsync report per run, got {len(first)}: {first}")
+        check(str(case / "dest") in first[0],
+              f"the report does not name the path it could not sync: {first[0]}")
+        # Tolerated means tolerated: the move still completes.
+        check(src_files(case) == [], f"the move was refused, not tolerated: {src_files(case)}")
+
+        move_one("fsync_signal_b", "2022:05:06 08:00:00")
+        both = [m for m in said if "cannot fsync directories" in m]
+        check(len(both) == 2,
+              f"a second run stayed silent — the flag is per process, not per run: {both}")
+    finally:
+        engine.logger.removeHandler(handler)
+
+
+@test
 def a_photo_this_run_delivered_is_not_also_reported_skipped():
     """
     The already-copied outcome reports what EARLIER runs delivered. The query
