@@ -104,8 +104,9 @@ A dedicated Settings view provides central management of engine parameters, pers
 | [ 8 ] (Auto-detected: 8 CPU cores. Controls concurrent hashing & I/O threads)   |
 |                                                                                 |
 | QUEUE & BACKPRESSURE MANAGEMENT                                                 |
-| DB Queue Size (DB_QUEUE_SIZE):                                                |
-| [ 1000 ] items (Maximum pending database write operations before backpressure)  |
+| DB Queue Size (DB_QUEUE_SIZE):    1000 items   (read-only)                      |
+| Maximum pending database write operations before backpressure. Fixed in the     |
+| engine and not settable from here — see project-spec.md §4.1.                   |
 +---------------------------------------------------------------------------------+
 | SUPPORTED FILE EXTENSIONS (SUPPORTED_EXTENSIONS)                             |
 | Selected Formats:                                                               |
@@ -462,24 +463,6 @@ CREATE TABLE photos (
 -- schema change, which means a version bump and a rebuilt catalog, not an
 -- ALTER on a live database.
 
--- Required, not optional. The engine's per-file duplicate check runs once for
--- EVERY file scanned; without idx_photos_sha1 it degrades to a full scan of a
--- table that is itself growing with every file (quadratic over library size).
--- idx_operations_run is what the per-job history view (§5.4) pages over, and
--- idx_operations_photo the per-photo panel — operations is append-only and
--- grows with files x runs. idx_photos_phash is what Phase 3's match gallery
--- groups on; idx_photos_source_stat covers the unchanged-file skip.
--- idx_operations_sha1 answers "everything that happened to this content",
--- across duplicates and catalog rebuilds.
--- The engine recreates all seven on every startup with IF NOT EXISTS.
-CREATE INDEX idx_photos_sha1 ON photos(sha1_hash);
-CREATE INDEX idx_photos_status ON photos(status);
-CREATE INDEX idx_photos_source_stat ON photos(source_path, file_size, file_mtime);
-CREATE INDEX idx_photos_phash ON photos(phash);
-CREATE INDEX idx_operations_run ON operations(run_id);
-CREATE INDEX idx_operations_photo ON operations(photo_id);
-CREATE INDEX idx_operations_sha1 ON operations(sha1_hash);
-
 -- runs: one row per engine invocation (Index, Move, or Copy). This is
 -- what "previous run information" (§5.4) is actually built from — no
 -- separate run-history table needed beyond this.
@@ -529,6 +512,32 @@ CREATE TABLE operations (
     FOREIGN KEY(run_id) REFERENCES runs(id),
     FOREIGN KEY(photo_id) REFERENCES photos(id)
 );
+
+-- Indexes last, after every table they reference exists. This block is meant
+-- to be executed as written — as an API fixture, or to diff a real catalog
+-- against — so statement order is part of what it promises. An earlier draft
+-- placed these immediately after `photos`, which put the three `operations`
+-- indexes ahead of the table they index; running it stopped at
+-- `no such table: main.operations`. The engine was never affected: it creates
+-- tables first and indexes after, which is the order reproduced here.
+--
+-- Required, not optional. The engine's per-file duplicate check runs once for
+-- EVERY file scanned; without idx_photos_sha1 it degrades to a full scan of a
+-- table that is itself growing with every file (quadratic over library size).
+-- idx_operations_run is what the per-job history view (§5.4) pages over, and
+-- idx_operations_photo the per-photo panel — operations is append-only and
+-- grows with files x runs. idx_photos_phash is what Phase 3's match gallery
+-- groups on; idx_photos_source_stat covers the unchanged-file skip.
+-- idx_operations_sha1 answers "everything that happened to this content",
+-- across duplicates and catalog rebuilds.
+-- The engine recreates all seven on every startup with IF NOT EXISTS.
+CREATE INDEX idx_photos_sha1 ON photos(sha1_hash);
+CREATE INDEX idx_photos_status ON photos(status);
+CREATE INDEX idx_photos_source_stat ON photos(source_path, file_size, file_mtime);
+CREATE INDEX idx_photos_phash ON photos(phash);
+CREATE INDEX idx_operations_run ON operations(run_id);
+CREATE INDEX idx_operations_photo ON operations(photo_id);
+CREATE INDEX idx_operations_sha1 ON operations(sha1_hash);
 ```
 
 **Design note — why a log table instead of columns on `photos`:** `photos` answers "what's the current state of this file?" A single `error_message`/`retry_count` column on that table can only ever hold the *most recent* attempt's outcome — it can't show that a file failed twice with different errors before eventually succeeding, and it can't answer "show me everything that happened in run #47." Since §5.4 explicitly requires a Timestamp column and per-run history, and §5.3's retry flow needs to reference a specific failed *attempt*, an append-only `operations` table (joined to a `runs` table for run-level context like start/end time and overall outcome) satisfies both requirements directly, where a couple of extra columns on `photos` could not.
