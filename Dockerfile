@@ -41,8 +41,19 @@ RUN chmod 644 ns-engine.py
 #
 # Mounting it is optional. Unmounted, thumbnails live in the container's
 # writable layer and are regenerated after the container is replaced.
+#
+# /backups holds catalog backups, and is deliberately NOT under /appdata for
+# the opposite reason to /cache: a backup written inside the thing it is
+# backing up dies with it. Losing the /appdata mount is precisely the failure
+# a backup exists to survive, so it must live on a separate mount the user can
+# point at different storage.
+#
+# Unlike /cache these are NOT disposable — `runs` and `operations` are the only
+# record of what the engine did, and since a catalog rebuild discards them, a
+# backup is the sole copy of a library's history. Back this up; do not prune it
+# as a cache.
 # Pre-create standard volume mount points
-RUN mkdir -p /data/source /data/dest /appdata/db /appdata/logs /cache
+RUN mkdir -p /data/source /data/dest /appdata/db /appdata/logs /cache /backups
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python3", "ns-engine.py"]
