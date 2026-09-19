@@ -32,8 +32,17 @@ RUN chmod 644 ns-engine.py
 # folders. Never mount the same folder at both paths, or nest one in the other.
 # Different container paths do not ensure separate storage (including NFS).
 # Overlapping mounts are unsupported and can cause unintended file deletion.
+# /cache holds generated thumbnails and nothing else. It is deliberately NOT
+# under /appdata: everything in /appdata is irreplaceable and wants backing up,
+# while every file here is reproducible from the photo it came from and is safe
+# to delete at any time. Keeping them apart is also what stops the entrypoint's
+# recursive chown of /appdata from walking tens of thousands of cache files on
+# every start.
+#
+# Mounting it is optional. Unmounted, thumbnails live in the container's
+# writable layer and are regenerated after the container is replaced.
 # Pre-create standard volume mount points
-RUN mkdir -p /data/source /data/dest /appdata/db /appdata/logs
+RUN mkdir -p /data/source /data/dest /appdata/db /appdata/logs /cache
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python3", "ns-engine.py"]
