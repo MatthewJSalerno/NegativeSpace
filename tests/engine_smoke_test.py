@@ -1432,6 +1432,179 @@ def cancelling_stops_duplicate_cleanup():
 
 
 @test
+def cancelling_the_primary_loop_still_accounts_for_duplicates():
+    """
+    Every photo in a selection gets an outcome, including when the cancellation
+    lands in the FIRST phase rather than the second.
+
+    A Move or Copy runs two passes over one selection: the primaries, then the
+    duplicates whose content those primaries carry. Cancelling in the primary
+    loop records `Cancelled` for the primaries it never reached — and then the
+    same `was_cancelled` flag skips the duplicate pass entirely, so the
+    duplicates in scope are never visited and nothing is written about them at
+    all. Not `Cancelled`, not anything.
+
+    `cancelling_stops_duplicate_cleanup` covers the other branch, where the
+    cancellation arrives DURING the duplicate pass and each remaining duplicate
+    is correctly recorded. That passing test is why this hole looked covered.
+
+    Nothing is at risk here — no file is deleted and no source is lost. What
+    breaks is the promise the code states in its own comment: that a selection
+    holding duplicates cannot finish having recorded nothing about them. Phase 2
+    derives a job's verdict from these rows, so a missing row is a photo the UI
+    cannot account for.
+    """
+    def cancel_after_first_primary(mode):
+        engine = _load_engine()
+        case = new_case(f"cancel_primary_{mode}")
+        # Two contents inside the folder this run is scoped to, so the
+        # selection holds two primaries and one duplicate. The fourth file
+        # sits outside that folder — catalogued but never selected — which is
+        # what proves the reconciliation honours the run's scope instead of
+        # sweeping the whole catalog into an outcome nobody asked for.
+        make_photo(case / "src" / "in" / "a.jpg", "CONTENT-ONE")
+        make_photo(case / "src" / "in" / "b.jpg", "CONTENT-ONE")
+        make_photo(case / "src" / "in" / "c.jpg", "CONTENT-TWO")
+        make_photo(case / "src" / "out" / "d.jpg", "CONTENT-THREE")
+        run_engine(case)
+
+        catalog = rows(case, "SELECT id, source_path, status FROM photos")
+        selected = [r["id"] for r in catalog if "/in/" in r["source_path"]]
+        unselected = [r["id"] for r in catalog if "/out/" in r["source_path"]]
+        duplicates = [r["id"] for r in catalog
+                      if r["status"] == "Duplicate" and "/in/" in r["source_path"]]
+        check(len(selected) == 3 and len(unselected) == 1 and len(duplicates) == 1,
+              f"{mode}: fixture wrong — selected={selected}, unselected={unselected}, "
+              f"duplicates={duplicates}")
+
+        real_copy = engine.copy_verify_delete
+
+        def copy_then_cancel(*a, **kw):
+            result = real_copy(*a, **kw)
+            engine.cancel_requested.set()
+            return result
+
+        engine.copy_verify_delete = copy_then_cancel
+        args = argparse.Namespace(move=(mode == "move"), copy=(mode == "copy"),
+                                  source=str(case / "src"), source_subdir="in", file_ids=None)
+        try:
+            outcome = engine._run_move_or_copy(
+                args, case / "appdata" / "db" / "ns_sqlite.db", case / "dest",
+                _IN_PROCESS_RUN_ID)
+        finally:
+            engine.copy_verify_delete = real_copy
+            # Module-level Event on a freshly imported module: clear it anyway,
+            # so a leak can never hand a later in-process test a cancelled run.
+            engine.cancel_requested.clear()
+
+        check(outcome == "Cancelled", f"{mode}: expected Cancelled, got {outcome}")
+
+        # Not DISTINCT: counting repeats is the point of the second check
+        # below, and DISTINCT would hide exactly what it looks for.
+        logged = [r["photo_id"] for r in rows(
+            case, "SELECT photo_id FROM operations WHERE run_id = ? AND photo_id IS NOT NULL",
+            (_IN_PROCESS_RUN_ID,))]
+        recorded = set(logged)
+
+        missing = [i for i in selected if i not in recorded]
+        check(not missing,
+              f"{mode}: {len(missing)} selected photo(s) finished the run with no recorded "
+              f"outcome at all (ids {missing}); duplicates={duplicates}, recorded={sorted(recorded)}")
+
+        # Reconciling must not invent outcomes for photos the run never
+        # selected. The net is bound by the same predicate as the loops, and
+        # this is what holds it to that.
+        strays = sorted(i for i in recorded if i not in selected)
+        check(not strays,
+              f"{mode}: recorded an outcome for {len(strays)} photo(s) outside this run's scope "
+              f"(ids {strays}); the selection was {selected}, outside it {unselected}")
+
+        # One outcome per photo per run. A net that re-recorded what a loop had
+        # already logged would leave the UI two contradictory answers for one
+        # photo and no way to tell which happened.
+        doubled = sorted({i for i in logged if logged.count(i) > 1})
+        check(not doubled,
+              f"{mode}: {len(doubled)} photo(s) ended a single run with more than one outcome "
+              f"(ids {doubled})")
+
+        # The point is accounting, not destruction: nothing may be deleted by a
+        # run that was cancelled before it reached the duplicate pass. Move
+        # transfers exactly one primary before cancelling; Copy deletes nothing
+        # at all, so three of the four files survive either way.
+        check(len(src_files(case)) >= 3,
+              f"{mode}: a cancelled run removed more sources than it should: {src_files(case)}")
+
+    cancel_after_first_primary("move")
+    cancel_after_first_primary("copy")
+
+
+@test
+def cancelling_accounts_for_a_file_an_earlier_run_delivered():
+    """
+    A --copy selection holding a file an EARLIER run already delivered still
+    records an outcome for it when this run is cancelled.
+
+    Nothing is copied for such a file — its content is already at the
+    destination — so the run reports it as `Skipped`, naming where it went.
+    That reporting sits inside the same `not was_cancelled` gate as the
+    duplicate pass, so a cancellation during the primary transfers drops it
+    too, and a photo the user explicitly selected ends the job with no row at
+    all. `a_second_copy_of_a_delivered_photo_records_the_outcome` covers the
+    same selection when the run is allowed to finish.
+
+    Two pending primaries, deliberately. The cancellation flag is only read at
+    the TOP of a loop iteration, so with a single primary the loop copies it,
+    sets the event, and exits without ever re-entering — the flag stays false,
+    the blocks below run normally, and the defect this covers never fires.
+    """
+    engine = _load_engine()
+    case = new_case("cancel_delivered")
+    make_photo(case / "src" / "a.jpg", "DELIVERED-ONE")
+    make_photo(case / "src" / "b.jpg", "DELIVERED-ONE")   # duplicate of a
+    make_photo(case / "src" / "c.jpg", "PENDING-TWO")
+    make_photo(case / "src" / "e.jpg", "PENDING-THREE")
+    run_engine(case)
+
+    anchor = rows(case, "SELECT id FROM photos WHERE status = 'Pending' ORDER BY id")[0]["id"]
+    run_engine(case, "--copy", "--file-ids", anchor)
+    delivered = rows(case, "SELECT id FROM photos WHERE status = 'Copied'")
+    check(len(delivered) == 1, f"setup: expected one delivered photo, got {delivered}")
+
+    real_copy = engine.copy_verify_delete
+
+    def copy_then_cancel(*a, **kw):
+        result = real_copy(*a, **kw)
+        engine.cancel_requested.set()
+        return result
+
+    engine.copy_verify_delete = copy_then_cancel
+    args = argparse.Namespace(move=False, copy=True, source=str(case / "src"),
+                              source_subdir=None, file_ids=None)
+    try:
+        outcome = engine._run_move_or_copy(
+            args, case / "appdata" / "db" / "ns_sqlite.db", case / "dest",
+            _IN_PROCESS_RUN_ID)
+    finally:
+        engine.copy_verify_delete = real_copy
+        engine.cancel_requested.clear()
+
+    check(outcome == "Cancelled", f"expected Cancelled, got {outcome}")
+
+    # Full scope, so every catalogued photo was selected: the delivered file,
+    # its duplicate, and the two primaries.
+    everything = [r["id"] for r in rows(case, "SELECT id FROM photos")]
+    recorded = {r["photo_id"] for r in rows(
+        case, "SELECT DISTINCT photo_id FROM operations "
+              "WHERE run_id = ? AND photo_id IS NOT NULL",
+        (_IN_PROCESS_RUN_ID,))}
+    missing = [i for i in everything if i not in recorded]
+    check(not missing,
+          f"{len(missing)} selected photo(s) ended the cancelled run with no outcome "
+          f"(ids {missing}); the already-delivered file and its duplicate are the ones "
+          f"the skipped blocks would have recorded")
+
+
+@test
 def an_interrupted_delete_is_recovered_on_the_next_run():
     """A crash between deleting a source and recording it is reconciled truthfully by the next run."""
     # The copy path marks a row Processing before touching the filesystem, but

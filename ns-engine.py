@@ -323,6 +323,18 @@ SETTLED_STATUSES = (
 # a real Completed audit state with a spurious Failed.
 SOURCE_CONSUMED_STATUSES = (PhotoStatus.COMPLETED, PhotoStatus.REMOVED_DUPLICATE)
 
+# Every status a --move or --copy selection is drawn from, which is the same
+# set for both modes: the primaries each transfers (Pending, plus Copied —
+# --move finishes those, --copy reports them as already delivered) and the
+# duplicates each cleans up or records as skipped. A cancelled run reconciles
+# the selection against this set to find the members it never reached.
+# Deliberately excludes Processing: cancellation is checked between files, so
+# no row is mid-flight by then, and recording "nothing was attempted" for a
+# half-attempted file would be a false record rather than a missing one.
+CANCELLABLE_SELECTION_STATUSES = (
+    PhotoStatus.PENDING, PhotoStatus.COPIED, PhotoStatus.DUPLICATE,
+)
+
 
 def sql_values(statuses) -> str:
     """Renders a status tuple as a SQL literal list: "'Pending', 'Failed'".
@@ -3522,6 +3534,46 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 f"for their content."
             )
         conn.commit()
+
+    if was_cancelled:
+        # Each loop above records what it abandoned — but only for the pass it
+        # was in. A cancellation during the primary transfers sets this flag,
+        # which then skips the duplicate pass (--move) and the skipped-outcome
+        # pass (--copy) outright, so every duplicate in the selection, and
+        # every already-delivered file in a --copy selection, ended the run
+        # with no row at all. Not Cancelled — nothing. That is the same
+        # silence §5.3 objects to, and it breaks the promise the block above
+        # states in its own comment: every selected photo has an outcome.
+        #
+        # Reconciling the selection against what was actually recorded keeps
+        # that promise for whatever the loops never reached, without either
+        # pass having to know what the other did. The statuses are the ones
+        # this run's selections were drawn from; anything those passes did
+        # handle already carries an operations row for THIS run and is
+        # excluded by it. Keying on the recorded rows rather than re-deriving
+        # scope from status is what makes that reliable — the loops rewrite
+        # status as they go, so by here it no longer describes the selection.
+        cursor.execute(
+            f"SELECT id, source_path FROM photos "
+            f"WHERE status IN ({sql_values(CANCELLABLE_SELECTION_STATUSES)})" + predicate
+            + " AND id NOT IN (SELECT photo_id FROM operations "
+              "WHERE run_id = ? AND photo_id IS NOT NULL)",
+            tuple(predicate_params) + (run_id,)
+        )
+        unreached = cursor.fetchall()
+        for record_id, unreached_src in unreached:
+            # No dest_path recorded: this run neither wrote nor verified
+            # anything for this file, and a Duplicate row's stored dest_path
+            # is an Index-time projection that was never written. Naming it
+            # here would point the audit record at a file that does not exist.
+            log_operation(conn, run_id, record_id, unreached_src, None, OPERATION_CANCELLED,
+                          "The run was cancelled before this file was reached. Nothing was "
+                          "attempted on it and nothing about it changed.",
+                          commit=False)
+        if unreached:
+            conn.commit()
+            logger.info(f"Cancellation: {len(unreached)} selected file(s) were never reached and "
+                        f"are recorded as Cancelled.")
 
     conn.close()
 
