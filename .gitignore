@@ -15,6 +15,10 @@ volumes/
 REVIEW_LOG.md
 ai-reviews/
 
-# Local working notes — deliberately not pushed
+# Local working notes — deliberately not pushed.
+# The pattern covers any future note too: these files quote real directory
+# names, filenames and paths from the library, which CLAUDE.md forbids putting
+# in the repository. The explicit names are kept so the intent stays readable.
+*-private.md
 todo-private.md
 pains-private.md
