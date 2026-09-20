@@ -1,8 +1,13 @@
 # NegativeSpace
 
-A photo-organizing engine. `ns-engine.py` is the engine; Phase 2 adds a web UI
-that calls it. CLI args are the internal calling convention between the two —
-they stay documented and usable, but end users interact through the web UI.
+A photo-organizing engine. `ns-engine.py` is the engine; a web UI that calls it
+is specified but not built. CLI args are the internal calling convention between
+the two — they stay documented and usable, but end users interact through the
+web UI.
+
+Specifications are organized by component, not by release phase:
+`docs/project-spec.md` (scope and status), `docs/engine-spec.md` (the engine),
+`docs/webui-spec.md` (the web interface).
 
 ## Privacy: never publish library contents
 

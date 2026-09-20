@@ -1,5 +1,5 @@
 """
-Project: NegativeSpace (Phase 1: Core Engine)
+Project: NegativeSpace (Core Engine)
 Description: A backend engine for organizing large photo collections based on spec.
 
 Runtime Arguments:
@@ -21,7 +21,7 @@ deletion and are not reliably detected by the engine.
   target, bypassing the directory scan and processing exactly these
   already-cataloged files. A file must have gone through at least one prior
   Index for its ID to exist. This is what powers selection-scoped
-  operations from the web UI (Phase 2) — e.g. "Move just these 3 photos" —
+  operations from the web UI — e.g. "Move just these 3 photos" —
   but works identically from the CLI. Mutually exclusive with
   --source-subdir.
 - --source-subdir <path> (Optional) Path, relative to --source, scoping the
@@ -167,7 +167,7 @@ DB_QUEUE_SIZE = 1000
 # metadata rows — ten times the batch buys under 20% more while risking ten
 # times the rework on a kill. The time bound matters independently of the
 # row count: at one large RAW every few seconds a pure row-count batch would
-# leave the database (and Phase 2's progress polling) frozen for a minute at
+# leave the database (and the web UI's progress polling) frozen for a minute at
 # a stretch, so whichever limit trips first wins.
 DB_COMMIT_BATCH_SIZE = 100
 DB_COMMIT_INTERVAL_SECONDS = 3.0
@@ -175,7 +175,7 @@ DB_COMMIT_INTERVAL_SECONDS = 3.0
 # How often the scan reports progress. A real 29,000-file library took ~25
 # minutes and printed nothing at all between "Discovered 29047 files" and
 # completion — no way to tell a working run from a wedged one, and no basis for
-# the progress bar Phase 2 needs. Time-based rather than every-N-files so the
+# the progress bar the web UI needs. Time-based rather than every-N-files so the
 # cadence stays readable whether a library is 200 files or 200,000.
 PROGRESS_INTERVAL_SECONDS = 15.0
 SHA1_CHUNK_SIZE = 65536
@@ -218,8 +218,9 @@ RASTER_EXTENSIONS = {
 # store "error" as the perceptual hash of every file of that type.
 SUPPORTED_EXTENSIONS = RASTER_EXTENSIONS | RAW_EXTENSIONS
 # The storage engine is named in the file so a second store can sit beside it
-# without ambiguity — Phase 3 may add a DuckDB companion for all-pairs
+# without ambiguity — a DuckDB companion may sit beside it for all-pairs
 # perceptual-hash matching, which SQLite is the wrong shape for.
+# See docs/engine-spec.md 9.3.
 DB_FILENAME = "ns_sqlite.db"
 
 PARTIAL_SUFFIX = ".organizing.partial"
@@ -268,7 +269,7 @@ UNDATED_FOLDER = "Undated"
 #
 # The CHECK constraints below are generated from these same tuples, so the
 # database enforces exactly the set the code knows about — including against
-# Phase 2's API and ad-hoc sqlite3 sessions, neither of which import this
+# the web API and ad-hoc sqlite3 sessions, neither of which import this
 # module.
 
 class PhotoStatus:
@@ -381,7 +382,7 @@ except ImportError:
     PIL_SUPPORTED = False
 
 # rawpy decodes RAW-family files (.raw/.dng/.cr2/.nef/.arw/.raf) for the
-# perceptual hash (project-spec.md §3.3). PIL cannot read real sensor data;
+# perceptual hash (docs/engine-spec.md 3.3). PIL cannot read real sensor data;
 # without rawpy every such file would store "error" as its phash.
 try:
     import rawpy
@@ -697,12 +698,12 @@ def init_database(db_path: str):
     # file scanned) degrades into a full table scan of a table that is itself
     # growing with every file — quadratic over the size of the library. The
     # status index does the same job for the Pending/Duplicate sweeps, and
-    # operations(run_id) is what Phase 2's per-job history view will page over.
+    # operations(run_id) is what the web UI's per-job history view will page over.
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_photos_sha1 ON photos(sha1_hash)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_photos_status ON photos(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_operations_run ON operations(run_id)")
     # operations is append-only and grows with every file x every run, so
-    # Phase 2's per-photo history panel would scan the whole audit log
+    # the web UI's per-photo history panel would scan the whole audit log
     # without this.
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_operations_photo ON operations(photo_id)")
     # "Everything that ever happened to this content" — across its duplicates
@@ -716,7 +717,7 @@ def init_database(db_path: str):
         "CREATE INDEX IF NOT EXISTS idx_photos_source_stat "
         "ON photos(source_path, file_size, file_mtime)"
     )
-    # Phase 3 groups photos by perceptual hash on every match-gallery view,
+    # The match gallery groups photos by perceptual hash on every view,
     # and any "does this image already exist here" question joins on phash.
     # Unindexed, each of those is a full scan of the whole library.
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_photos_phash ON photos(phash)")
@@ -921,7 +922,7 @@ def db_writer_worker(db_path: str):
             # The timeout is what lets a partial batch reach disk while the
             # scan is producing slowly (large RAWs). Blocking forever on get()
             # would hold finished rows in an open transaction indefinitely,
-            # and Phase 2 polls this database for live progress.
+            # and the web UI polls this database for live progress.
             result = result_queue.get(timeout=DB_COMMIT_INTERVAL_SECONDS)
         except queue.Empty:
             flush()
@@ -1067,7 +1068,7 @@ def db_writer_worker(db_path: str):
             logger.warning(
                 f"{phash_failures:,} file(s) produced no perceptual hash (undecodable or "
                 f"unsupported format). They are indexed and will move/copy normally, but "
-                f"cannot participate in Phase 3 similarity matching."
+                f"cannot participate in similarity matching."
             )
 
     from_exif = date_sources[DATE_SOURCE_EXIF]
@@ -1316,7 +1317,7 @@ def get_full_exif_via_exiftool(file_path: Path) -> Optional[dict]:
     Returns the COMPLETE tag set ExifTool can extract for this file, as a
     dict, or None if ExifTool isn't available / fails / returns nothing.
     This is deliberately the full tag set rather than a curated subset,
-    storing everything now means Phase 3 (EXIF inspection/editing) doesn't
+    storing everything now means EXIF inspection/editing doesn't
     need to re-scan the whole library later to get fields nobody thought to
     whitelist today.
 
@@ -1677,7 +1678,7 @@ def _fsync_directory(directory):
                     f"({errno.errorcode.get(e.errno, e.errno)}). Directory entries there are "
                     f"not made durable, so a power loss can lose a file that was written and "
                     f"verified — a weaker guarantee than --move gives elsewhere, and the "
-                    f"reason it is tolerated rather than refused (project-spec.md §4.2). "
+                    f"reason it is tolerated rather than refused (engine-spec.md 4.2). "
                     f"Reported once per run."
                 )
             return
@@ -2062,7 +2063,7 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int) -> P
 
     # Checked explicitly, before any attempt to open the file, so a stale
     # selection surfaces as a specific reason in the Error Center rather than
-    # a raw FileNotFoundError traceback (project-spec.md §4.4).
+    # a raw FileNotFoundError traceback (docs/engine-spec.md 4.2).
     if not file_path.exists():
         return _failed_result(
             file_path_str, run_id,
@@ -2133,7 +2134,7 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int) -> P
 # --- Single-Instance Enforcement ---
 def acquire_single_instance_lock(base_dir: Path):
     """
-    Acquires an exclusive, non-blocking OS-level lock (project-spec.md
+    Acquires an exclusive, non-blocking OS-level lock (docs/engine-spec.md
     §4.1/§7) so at most one engine process ever runs against a given
     --base at a time — Index, Move, and Copy alike, since a rescan racing
     a physical operation on the same database is exactly as unsafe as two
@@ -2431,7 +2432,7 @@ def _query_source_subdir(db_path: str, subdir_filter_path: Path) -> List[str]:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="NegativeSpace - Photo Collection Organizer (Phase 1 Engine)",
+        description="NegativeSpace - Photo Collection Organizer (Engine)",
         epilog="WARNING: Source and destination must map to separate, non-overlapping underlying "
                "folders, including on network shares. Never mount the same folder at both paths "
                "or nest one inside the other. Different container paths do not ensure separate "
@@ -2501,7 +2502,7 @@ def main():
     # 2. Configure Logging
     configure_logging(log_dir)
 
-    # 2a. Single-instance enforcement (project-spec.md §4.1/§7) — before
+    # 2a. Single-instance enforcement (docs/engine-spec.md 4.1/7) — before
     # touching the database or source/dest paths at all. Applies to every
     # mode, including Index, not just --move/--copy.
     lock_fd = acquire_single_instance_lock(base_dir)
@@ -2695,7 +2696,7 @@ def main():
         # the filesystem, so against a database that has never been indexed
         # they match zero rows and the run "completes successfully (0 files)"
         # — indistinguishable from a run that genuinely had nothing to do.
-        # Phase 2 derives job outcome from recorded operations, so such a job
+        # The web UI derives job outcome from recorded operations, so such a job
         # would show green having done nothing at all. Say what happened and
         # what to do about it.
         if not candidates:
@@ -2845,7 +2846,7 @@ def main():
         release_single_instance_lock(lock_fd)
 
     # A failed run is an error to whatever invoked the engine, not a success
-    # with a sad log line. Phase 2 reads the exit code as well as the record.
+    # with a sad log line. The web UI reads the exit code as well as the record.
     if run_outcome == RunStatus.FAILED:
         sys.exit(1)
 
@@ -3223,7 +3224,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         dst = _destination_for(dest_path, src, metadata_json, stored_dst)
 
         # Resolve the final filename HERE, immediately before the file is
-        # written — not back at Index time. project-spec.md §4.3 requires the
+        # written — not back at Index time. docs/engine-spec.md 4.3 requires the
         # check to happen "before writing to a computed destination path", and
         # the distinction is not academic: at Index time the destination tree
         # is normally empty, so every same-named file is told its name is free.
