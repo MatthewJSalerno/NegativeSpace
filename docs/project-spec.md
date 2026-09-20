@@ -13,7 +13,7 @@ Two consequences follow, and both shape design decisions elsewhere in this docum
 
 **Development Roadmap:**
 *   **Phase 1 (Core Engine - MVP) — Implemented:** Backend "heavy lifting," delivered as a standalone Python CLI engine.
-    *   Automated organization into structured `YYYY/MM/DD` directories, based on EXIF "Date Taken."
+    *   Automated organization into structured `YYYY/MM/DD` directories, based on EXIF "Date Taken." A photo with no usable EXIF date is filed under `Undated/<year>/` instead — by the file's modification time, which organises the folder without the tree ever claiming to know when the photograph was taken. See `phase2-spec.md` §3.1.
     *   Generation and storage of SHA1 and pHash for every supported file.
     *   Full metadata capture (not just date) — camera, ISO, aperture, shutter speed, and whatever else the source format exposes.
     *   Exact deduplication (SHA1-based), including safe removal of duplicate source files.

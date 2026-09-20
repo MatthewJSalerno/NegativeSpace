@@ -19,8 +19,8 @@ NegativeSpace has three mutually exclusive modes. `--move` and `--copy` cannot b
 | Mode | Flag | Source files | Destination |
 | --- | --- | --- | --- |
 | **Index** (default) | *(none)* | Untouched | Nothing written |
-| **Move** | `--move` | Deleted after a verified copy lands at destination; confirmed exact duplicates are also removed from source | Files organized into `YYYY/MM/DD` |
-| **Copy** | `--copy` | Never touched — fully non-destructive | Files organized into `YYYY/MM/DD` |
+| **Move** | `--move` | Deleted after a verified copy lands at destination; confirmed exact duplicates are also removed from source | Files organized into `YYYY/MM/DD`, or `Undated/<year>/` when the engine cannot date them |
+| **Copy** | `--copy` | Never touched — fully non-destructive | Files organized into `YYYY/MM/DD`, or `Undated/<year>/` when the engine cannot date them |
 
 ### Run (Index — Default)
 
@@ -68,16 +68,23 @@ docker run --rm \
 ## Configuration & Notes
 
 - **User Mapping:** `PUID`/`PGID` match the container process permissions to your host user, preventing root-owned output files. On start, the container gives that user ownership of all of `/appdata`, but only the top of `/data/dest`. Folders and files already in the destination keep their owners, so use the same `PUID`/`PGID` every time. The container refuses to start if `/appdata` is not writable by that user, and warns if `/data/dest` is not.
-- **Timezone (`TZ`):** Controls which `YYYY/MM/DD` folder a photo lands in when it has **no usable EXIF date** and the engine falls back to the file's modification time. A container does **not** inherit your workstation's timezone — it runs UTC unless told otherwise — so a file modified at 21:00 local time can be filed under the *next* day. Pass your zone to avoid that:
+- **Timezone (`TZ`):** Controls which `Undated/<year>/` folder a photo lands in when it has **no usable EXIF date** and the engine falls back to the file's modification time. A container does **not** inherit your workstation's timezone — it runs UTC unless told otherwise — so a file modified at 21:00 local time is read as the *next* day. Pass your zone to avoid that:
 
   ```bash
   -e TZ=America/New_York
   ```
 
   Photos that *do* carry an EXIF date are unaffected: those timestamps have no timezone attached and are used exactly as the camera recorded them, which is almost always what you want. The engine logs the zone it resolved at startup (`Timezone: EDT (UTC-0400)`), so you can confirm the setting took effect rather than assuming it did.
+
+  Because an undated photo is filed under `Undated/<year>/` (see below), the timezone changes its **folder** only when the mtime falls within a few hours of New Year. It still decides the day recorded as that photo's date in the catalog, which is what the 21:00 example above describes — so the setting is worth getting right either way.
+- **Undated photos:** A photo the engine cannot date does **not** enter the date tree. It goes to `Undated/<year>/`, where the year comes from the file's modification time.
+
+  This is deliberate. The modification time is a real fact about the *file* but not about the *photograph* — for an export it is the download date, which is how photos from the 2000s can end up looking like 2024 photographs. Filing them beside photos whose dates came from a camera makes a guess indistinguishable from a fact. Roughly **8%** of a real library has no usable EXIF date, so this is not a rare corner.
+
+  `Undated/` is also where you go to fix them: the folder *is* the review list, and the catalog records each photo's original path and filename, which is frequently where the real date turns out to be.
 - **Volume Layout:**
   - `/data/source`: Raw input directory containing photos.
-  - `/data/dest`: Structured target directory organized by `YYYY/MM/DD` format.
+  - `/data/dest`: Structured target directory organized by `YYYY/MM/DD`, with photos the engine could not date filed under `Undated/<year>/` instead.
   - `/appdata`: Dedicated application directory storing persistent data inside `/appdata/db` and log files inside `/appdata/logs`.
   - `/cache` *(optional)*: Thumbnail cache for the web interface. **The engine never writes here** — Index, Move and Copy ignore it entirely, so it is unused when running the engine directly as documented above. It is kept separate from `/appdata` on purpose: everything in `/appdata` is irreplaceable and should be backed up, whereas every file here is reproducible from the photo it was generated from. Deleting it costs only the time to regenerate, and it should be **excluded** from backups rather than included. Mount it to keep thumbnails when the container is replaced; leave it unmounted and they live in the container's writable layer instead.
 

@@ -768,6 +768,79 @@ def real_raw_files_decode_when_supplied():
               f"{name}: no metadata captured from the RAW file")
 
 
+# 2019-06-15 12:00:00 UTC. Deliberately mid-year and mid-day: a photo filed by
+# mtime is bucketed in local time, so a timestamp near midnight or New Year
+# would let the container's timezone decide the folder and make these tests
+# depend on where they run.
+_UNDATED_MTIME = 1560600000
+_UNDATED_YEAR = "2019"
+
+
+@test
+def a_photo_with_no_exif_date_lands_under_undated():
+    """
+    A photo the engine could not date goes to `Undated/<year>/`, not into the
+    real date tree.
+
+    Filing it by modification time puts a date on it that nobody vouched for —
+    for an export that is the download date, which is how photos from the 2000s
+    ended up in 2024/ and 2025/ folders on a real run. `Undated/` keeps those
+    files out of the dated library and gathers them where they can be reviewed;
+    the year subdivides the folder so it stays navigable at ~8% of a library,
+    without the tree ever claiming to know when the photograph was taken.
+    """
+    case = new_case("undated_lands")
+    make_photo(case / "src" / "nodate.jpg", "NO-EXIF-DATE", date=None)
+    os.utime(case / "src" / "nodate.jpg", (_UNDATED_MTIME, _UNDATED_MTIME))
+    run_engine(case)
+    run_engine(case, "--move")
+
+    landed = dest_files(case)
+    check(landed == [f"Undated/{_UNDATED_YEAR}/nodate.jpg"],
+          f"expected the undated photo under Undated/{_UNDATED_YEAR}/, destination holds {landed}")
+
+
+@test
+def a_dated_photo_still_lands_in_the_date_tree():
+    """Undated filing must not disturb photos that carry a real EXIF date."""
+    case = new_case("undated_dated_unaffected")
+    make_photo(case / "src" / "dated.jpg", "HAS-EXIF", date="2024:02:14 09:30:00")
+    os.utime(case / "src" / "dated.jpg", (_UNDATED_MTIME, _UNDATED_MTIME))
+    run_engine(case)
+    run_engine(case, "--move")
+
+    landed = dest_files(case)
+    check(landed == ["2024/02/14/dated.jpg"],
+          f"a dated photo must ignore its mtime and use its EXIF date; destination holds {landed}")
+
+
+@test
+def the_undated_projection_matches_where_the_file_lands():
+    """
+    The destination recorded at Index must agree with where Move actually puts
+    the file.
+
+    `dest_path` is written at Index as a projection and recomputed immediately
+    before the write. If only one of those two sites learned about `Undated/`,
+    the catalog would advertise a location the file never occupies — and the
+    staging screen, which projects from the catalog, would show the wrong
+    folder for every undated photo.
+    """
+    case = new_case("undated_projection")
+    make_photo(case / "src" / "nodate.jpg", "PROJECTION", date=None)
+    os.utime(case / "src" / "nodate.jpg", (_UNDATED_MTIME, _UNDATED_MTIME))
+    run_engine(case)
+
+    projected = rows(case, "SELECT dest_path FROM photos")[0]["dest_path"]
+    check(f"Undated/{_UNDATED_YEAR}" in projected,
+          f"Index projected {projected!r}, which is not under Undated/{_UNDATED_YEAR}")
+
+    run_engine(case, "--move")
+    landed = dest_files(case)
+    check(landed and projected.endswith(landed[0]),
+          f"projection {projected!r} disagrees with where the file landed: {landed}")
+
+
 @test
 def date_source_records_where_the_date_came_from():
     """
