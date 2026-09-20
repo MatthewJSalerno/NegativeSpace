@@ -293,7 +293,9 @@ Users can view exact system error strings (e.g., `PermissionError`, `ChecksumMis
 ### 5.4 Operations Audit Log (`/logs`)
 A searchable table logging every operation performed by the engine:
 * **Columns:** Timestamp, Mode (`MOVE`/`COPY`), Source Path, Destination Path, Status (`Completed`, `Copied`, `Removed_Duplicate`, `Failed`), and System Error Message.
-* **Controls:** Filter by date, status, or free-text search; CSV/JSON export.
+* **Controls:** Filter by date, status, run, or free-text search; CSV/JSON export.
+
+**Filtering by run is what two other screens link into**, so it is a first-class filter rather than a search convenience: the failure banner links here scoped to the most recent run, and the Dashboard's coverage message (§5.9) links here scoped to *every run since the last complete scan*. The filter therefore accepts a set of run ids, not only one.
 
 ### 5.5 Job Outcome Is Derived, Not Read From `runs.status`
 
@@ -401,7 +403,13 @@ No `GROUP BY`, no "subtract one per group" arithmetic, and no risk of the off-by
 * **`Removed_Duplicate` is already reclaimed**, not reclaimable. Those source files are gone, so they are the *Reclaimed* figure — history rather than an opportunity — and adding them here double-counts. They also count toward the destination saving below, which is a different volume, not a second helping of the same one.
 * **No destination deletion is implied.** The engine never deletes anything under `--dest`. Redundancy that something outside the engine put there is reported by the destination inventory (`engine-spec.md` §9.1), not resolved by it. This figure covers source files the engine can remove; what deduplication saves at the destination is the separate figure below.
 * **`Failed` rows are not duplicates.** A source that vanished outside NegativeSpace is marked `Failed` at the next full Index, which removes it from its duplicate group and lets a surviving copy be promoted to anchor. It therefore drops out of this figure automatically — correct, since deleting a file that no longer exists reclaims nothing.
-* **Sizes are as of the last scan.** `file_size` is recorded by the Index that wrote the row (§6.1), so the total is as current as the catalog. Show it alongside the last scan time, as §5.8 asks of folder counts, so a stale figure reads as stale rather than as wrong.
+* **Sizes are as of the last scan.** `file_size` is recorded by the Index that wrote the row (§6.1), so the total is as current as the catalog. Show it alongside the last scan time, as §5.8 asks of folder counts, so a stale figure reads as stale rather than as wrong — and see the coverage rule below, because "the last scan" must mean the last scan that actually established coverage.
+
+**Coverage: show the last trustworthy date, and say what happened since.** *(Decided 2026-09-20, closing audit 011's F3.)* The date beside these figures is the most recent Index that completed **and recorded no run-level failure**. An Index that was refused or could not read part of the tree keeps its own date out of this figure — but it is not hidden either. The tile reads:
+
+> *Last complete scan: 14 Feb, 10:30 — 2 later scans had issues.*
+
+The second clause is a link into Logs (§5.4), scoped to every run since that scan, so the user can see exactly what is unaccounted for rather than taking the count on trust. When no Index has ever established coverage, say "not fully scanned" and link the same way; never show a reassuring date the runs do not support.
 
 #### Space saved at the destination
 
@@ -621,7 +629,32 @@ Fetches failed attempts for the Error Center (§5.3), filtering on `operations.s
 
 GET /api/v1/stats/duplicates
 
-Backs the Dashboard's duplicate-space tiles (§5.9). Three separate figures, each naming the volume it applies to: what Move could still reclaim from the source, what past Moves already reclaimed from it, and what was never written to the destination in either mode. They overlap by design — a moved duplicate appears in both `already_reclaimed` and `saved_at_destination` — so the API returns them separately and the UI must not total them. `last_indexed_at` is the most recent completed **full Index** covering the source roots the figures span — `mode = 'INDEX'` with no targeting filter — not simply the most recent completed run. A one-file targeted Copy is a completed run, and taking its timestamp would stamp the whole catalog as freshly scanned on the strength of a run that examined one photo. Where only targeted runs have happened since the last full Index, or where the figures span roots with different coverage, report the *oldest* relevant full Index and say the coverage is partial; where a root has never been fully indexed, return `null` and let the UI say "not fully scanned" rather than showing a reassuring date. The `runs` table carries what this needs (`mode`, `source_path`, `file_ids_filter`), so no new data is required.
+Backs the Dashboard's duplicate-space tiles (§5.9). Three separate figures, each naming the volume it applies to: what Move could still reclaim from the source, what past Moves already reclaimed from it, and what was never written to the destination in either mode. They overlap by design — a moved duplicate appears in both `already_reclaimed` and `saved_at_destination` — so the API returns them separately and the UI must not total them. `last_indexed_at` is the most recent **full Index** covering the source roots the figures span — `mode = 'INDEX'` with no targeting filter — that both **completed** and **recorded no run-level failure**. Not simply the most recent completed run: a one-file targeted Copy is a completed run, and taking its timestamp would stamp the whole catalog as freshly scanned on the strength of a run that examined one photo.
+
+**Completing is not the same as covering, which is what audit 011's F3 caught.** An Index whose source was detached finds nothing, correctly refuses to condemn the catalog, records a run-level `Failed` operation — and still ends `Completed`, `mode = 'INDEX'`, untargeted. It satisfies every criterion above except the one that matters, having established no new coverage at all. An Index that could not read part of the tree has the same shape. **The safeguard works and then misreports its own freshness**, which is the defect.
+
+So a run advances the coverage date only if nothing under it recorded a failure belonging to the run rather than to a photo:
+
+```sql
+-- the coverage-establishing run
+SELECT r.id, r.ended_at FROM runs r
+WHERE r.mode = 'INDEX' AND r.file_ids_filter IS NULL
+  AND r.status = 'Completed'
+  AND NOT EXISTS (SELECT 1 FROM operations o
+                  WHERE o.run_id = r.id AND o.photo_id IS NULL
+                    AND o.status = 'Failed')
+ORDER BY r.ended_at DESC LIMIT 1;
+```
+
+`photo_id IS NULL AND status = 'Failed'` is precisely the run-level failure shape already written by the empty-scan refusal and by an unreadable folder (§5.3), so **no engine change and no new column is required** — `idx_operations_run` backs the lookup.
+
+**Return the excluded runs, not just the date.** Suppressing a scan silently would trade a wrong date for a missing one. Alongside `last_indexed_at`, report how many Index runs since then failed to establish coverage, and the run ids the UI needs to link into Logs (§5.4):
+
+* `coverage.established_by_run` — the run the date came from, or `null`
+* `coverage.scans_with_issues_since` — count of untargeted Index runs after it that recorded a run-level failure. Deliberately **Index runs only**: a failed Move says nothing about scan coverage, and the failure banner already covers that case. Conflating them would make a delivery problem read as a staleness problem.
+* `coverage.run_ids_since` — every run after that date, whatever its mode, since the user clicking through wants to see the whole gap rather than only its failures.
+
+**Accepted limitation: extension scope is not recorded.** An Index run with a narrowed `--exts` scans the full tree, succeeds completely at a smaller job, and records no failure — so it advances the coverage date while having examined only some file types. `runs` stores `mode`, `source_path`, `dest_path` and `file_ids_filter`, but not the effective extension set, so nothing downstream can detect this. F3 raised it; closing it needs an `exts` column on `runs`, which is deliberately deferred rather than overlooked. Until then the coverage date means "every supported type the run was configured to look at", not "every supported type".
 
     Response:
     JSON
@@ -640,7 +673,12 @@ Backs the Dashboard's duplicate-space tiles (§5.9). Three separate figures, eac
         "copies_not_written": 3040,
         "bytes": 6913890713
       },
-      "last_indexed_at": "2026-02-14T10:30:00Z"
+      "last_indexed_at": "2026-02-14T10:30:00Z",
+      "coverage": {
+        "established_by_run": 47,
+        "scans_with_issues_since": 2,
+        "run_ids_since": [48, 49, 51]
+      }
     }
 
 `GET /api/v1/photos?status=Failed` remains available for filtering the catalog, but it is not the Error Center's data source: it misses any failure whose photo is not currently `Failed`. "Retrying" is selecting the associated photo IDs and calling `POST /api/v1/jobs/start` again with the same mode — no separate retry endpoint, per the design note in §5.3.
