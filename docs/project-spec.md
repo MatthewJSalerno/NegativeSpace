@@ -10,13 +10,12 @@ are, and what exists today. The detail lives in two component specifications:
     management, selection, settings, logs, inspection, and the curation
     workflows.
 
-**These are organized by component, not by release phase.** An earlier draft
-split the work into Phase 1 / Phase 2 / Phase 3, which stopped describing
-reality: the "Phase 3" fuzzy-matching document contained engine work that had to
-happen first and UI work that belonged with the rest of the UI, and one of its
-open questions carried a deadline inside another phase. A seam between *the
-thing that touches files* and *the thing a person clicks* holds; a seam between
-release numbers did not.
+**These are organized by component, not by release phase.** Release phases were
+tried and abandoned: a "Phase 3" fuzzy-matching document ended up holding engine
+work that had to happen first alongside UI work that belonged with the rest of
+the UI, and one of its open questions carried a deadline inside another phase.
+A seam between *the thing that touches files* and *the thing a person clicks*
+holds; a seam between release numbers did not.
 
 ## 1. Project Overview
 

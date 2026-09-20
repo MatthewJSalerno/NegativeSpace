@@ -228,10 +228,9 @@ It matters most for the web UI, which adds a second codebase reading and writing
 This block is the authoritative definition, and is meant to be executed as
 written — as a fixture, or to diff a real catalog against. **Statement order is
 part of what it promises:** indexes come last, after every table they reference
-exists. An earlier draft placed them immediately after `photos`, which put the
-three `operations` indexes ahead of the table they index; running it stopped at
-`no such table: main.operations`. The engine was never affected — it creates
-tables first and indexes after, which is the order reproduced here.
+exists, because an `operations` index ahead of the `operations` table fails with
+`no such table`. That is the order the engine itself uses — tables first,
+indexes after.
 
 ```sql
 -- photos: CURRENT STATE only, one row per source_path (UNIQUE constraint
@@ -493,11 +492,12 @@ thumbnail versus its original — means one file leaves the library.
 is recorded.** There is no quarantine area. The user asked for that file to go;
 the engine removes it and writes an operation recording what was there.
 
-*An earlier draft specified a `.superseded/` quarantine, emptied only by a
-separate explicit act.* The argument was that a careless decision should be
-recoverable. It was rejected on two grounds. **Quarantine does not buy
-reversibility where it matters** — it defers a deletion the user already chose,
-and the person who empties it carelessly is the same person. **And the
+**Why not a quarantine instead?** A `.superseded/` area holding removed files,
+emptied only by a separate explicit act, is the obvious alternative, and the
+argument for it is real: a careless decision should be recoverable. It is
+rejected on two grounds. **Quarantine does not buy reversibility where it
+matters** — it defers a deletion the user already chose, and the person who
+empties it carelessly is the same person. **And the
 protection it offers is available upstream, with no engine complexity**: a user
 worried about losing destination files can keep the source and mount it `:ro`,
 which protects the pixels themselves rather than a copy of them.
@@ -607,9 +607,8 @@ committing to source deletion should `--copy`, curate, then deal with the
 originals themselves — same order, non-destructive.
 
 *A superseded file is outside this contract because it is outside the library:*
-§9.5 deletes it and records the deletion. An earlier draft kept superseded files
-in a `.superseded/` quarantine and carved out an exception here for them; that
-quarantine was abolished, and so is the exception.
+§9.5 deletes it and records the deletion. The contract governs the library, not
+what has been removed from it.
 
 ## 9.8. Capabilities the web interface needs
 
