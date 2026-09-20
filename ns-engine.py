@@ -243,6 +243,19 @@ LOCK_FILENAME = "engine.lock"
 DATE_SOURCE_EXIF = "exif"
 DATE_SOURCE_MTIME = "file_mtime"
 
+# Where a photo goes when the engine could not read a date from it.
+#
+# Filing by modification time puts a date on a photo that nobody vouched for —
+# for an export that is the download date, which is how photos from the 2000s
+# landed in 2024/ and 2025/ folders on a real run. Those files go here instead,
+# subdivided by year so the folder stays navigable at ~8% of a library without
+# the tree ever claiming to know when the photograph was taken.
+#
+# The year comes from the file's own modification time. That is a real fact
+# about the FILE even when it is not a fact about the PHOTOGRAPH, which is
+# exactly why it may organise the folder but must not name a date folder.
+UNDATED_FOLDER = "Undated"
+
 # --- Status vocabularies -----------------------------------------------------
 #
 # Every value any of the three tables may hold in its `status` column, named
@@ -2077,10 +2090,21 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int) -> P
         # ExifTool's exact tag-naming conventions just to find "the date."
         metadata["date_taken"] = dt.isoformat()
 
-        year_dir = dt.strftime("%Y")
-        month_dir = dt.strftime("%m")
-        day_dir = dt.strftime("%d")
-        target_folder = Path(dest_base_path) / year_dir / month_dir / day_dir
+        # A photo the engine could not date does not enter the date tree: its
+        # only date is the file's mtime, which for an export is the download
+        # time. Filing it beside photos whose dates came from a camera makes a
+        # guess indistinguishable from a fact. See UNDATED_FOLDER.
+        #
+        # This is a PROJECTION and is recomputed before the write, so both this
+        # and _destination_for() must agree about Undated/ — otherwise the
+        # catalog advertises a folder the file never occupies.
+        if metadata.get("date_source") == DATE_SOURCE_MTIME:
+            target_folder = Path(dest_base_path) / UNDATED_FOLDER / dt.strftime("%Y")
+        else:
+            year_dir = dt.strftime("%Y")
+            month_dir = dt.strftime("%m")
+            day_dir = dt.strftime("%d")
+            target_folder = Path(dest_base_path) / year_dir / month_dir / day_dir
 
         # This destination is a PROJECTION, not a reservation, and
         # has_name_collision stays False here by design. The authoritative
@@ -2949,9 +2973,19 @@ def _destination_for(dest_root: Path, source_path: str, metadata_json: Optional[
     walking up from it has to allow for that (see _mkdir_durable).
     """
     try:
-        taken = datetime.fromisoformat(json.loads(metadata_json or "{}").get("date_taken"))
+        metadata = json.loads(metadata_json or "{}")
+        taken = datetime.fromisoformat(metadata.get("date_taken"))
     except (TypeError, ValueError, AttributeError):
         return fallback
+
+    # Undated photos never enter the date tree — see UNDATED_FOLDER. This must
+    # stay in step with the projection the scan writes, or the catalog names a
+    # folder the file never occupies and the staging screen, which projects
+    # from the catalog, shows the wrong destination for every undated photo.
+    if metadata.get("date_source") == DATE_SOURCE_MTIME:
+        return str(Path(dest_root) / UNDATED_FOLDER / taken.strftime("%Y")
+                   / Path(source_path).name)
+
     return str(Path(dest_root) / taken.strftime("%Y") / taken.strftime("%m") / taken.strftime("%d")
                / Path(source_path).name)
 
