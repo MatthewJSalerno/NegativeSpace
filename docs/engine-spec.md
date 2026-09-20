@@ -170,7 +170,7 @@ Three tables, each with a distinct role — this replaced an earlier, simpler si
 | `sha1_hash` | Text | Exact content hash |
 | `phash` | Text | Perceptual hash. `"not_supported"` if the required optional library isn't installed for that format; `"error"` if hashing was attempted but failed (e.g. corrupt file). |
 | `collision_group` | Integer | Reserved for fuzzy-match clustering (§9.3). Not populated yet. |
-| `is_master` | Boolean | Reserved for collision resolution. Not populated yet — and **may never be**: the similarity design keeps the chosen primary as client state rather than a stored flag (§9.3), so this column is a candidate for removal rather than for population. |
+| `is_master` | Boolean | Reserved for collision resolution. Not populated yet, and its future is genuinely open: the similarity review keeps the user's chosen primary as client state (§9.3), which needs no column — but lineage and EXIF history need *persisted* provenance (§9.8), which may. Decide when one of those is built, not before. |
 | `status` | String | `Pending`, `Processing`, `Completed`, `Failed`, `Duplicate`, `Removed_Duplicate`, `Copied`. Constrained by `CHECK`; `NULL` permitted, since a row can exist before its scan result lands. |
 | `metadata_json` | JSON | Full captured metadata (camera, ISO, aperture, shutter, etc. — whatever the source/method exposed), always including a `date_taken` key. |
 | `has_name_collision` | Boolean | Whether the destination filename had to be suffixed (`_1`, `_2`, ...) to avoid overwriting an existing file. |
@@ -445,11 +445,12 @@ slider. The engine should compute pairs below the *loosest* threshold the UI
 offers, once, during Index, and store them; the slider then filters a table
 rather than scanning one.
 
-**This is what `collision_group` was reserved for** (§6.1). Note that
-`is_master` probably is not needed: the similarity design settles on an explicit
-primary chosen by the user and held as client state, precisely because the
-engine has no basis for picking a winner among visually similar files. Nothing
-should populate `is_master` on the engine's initiative.
+**This is what `collision_group` was reserved for** (§6.1). `is_master` is a
+separate question and still open: the similarity review holds the user's chosen
+primary as client state, which needs no column, because the engine has no basis
+for picking a winner among visually similar files and must not appear to. But
+persisted provenance for lineage and EXIF history (§9.8) might use it. Nothing
+should populate it on the engine's own initiative either way.
 
 **A photo with no usable pHash cannot participate.** Those are already counted
 and warned about in the run summary (§4.3).
@@ -545,6 +546,95 @@ property is spent.
 changes. See §10.
 
 **Not implemented.** Needs: a write path, and the sidecar question answered.
+
+## 9.7. The destination contract
+
+**Every file under `--dest` sits in the folder its own metadata implies.**
+
+This extends the invariant in §7 rather than restating it. §7 says the engine
+changes nothing at the destination *on its own initiative*. This says that
+whatever the engine **is** asked to change must leave the destination
+internally consistent afterwards. §7 governs what the engine does unbidden;
+this governs the results of what it is told to do.
+
+Two obligations follow, and between them they cover every destination-writing
+operation in §9:
+
+*   **An operation that changes a file's metadata must also place the file
+    correctly, in the same action.** Correcting an EXIF date, copying metadata
+    from a similar photo, applying one date across a batch — each changes the
+    folder the file belongs in, and leaving it where it was would make the tree
+    disagree with the data it was built from.
+*   **An operation that moves or renames must leave the property true.** A
+    rename does not change the date, so the folder stays correct by
+    construction (§9.4). A refile moves the file *because* the date changed,
+    which is the contract being honoured rather than an exception to it.
+
+**The destination is the only writable surface.** Source files are read and
+catalogued, never altered — which is exactly why `--source` can be mounted
+read-only and why Index needs no write access at all. Every editing capability
+in §9 is therefore available **only for photos already delivered**, and the
+engine already holds the test: the delivered-status set, `Completed` or
+`Copied`.
+
+*The consequence is worth stating plainly rather than leaving to be
+discovered:* **correcting metadata requires organizing first.** A photo that
+has only been indexed must be Moved or Copied before its EXIF or filename can
+be touched. It lands under its wrong date, then refiles when corrected. That
+churn is the price of the guarantee that the user's original library is never
+written to, and it is the same reasoning that defers choosing a filename at
+move time (§9.4).
+
+**The contract is absolute — there is no opt-out setting.** No supported path
+leaves a file in a folder its own metadata denies. The worry an opt-out would
+answer — losing track of a file after an edit — is met instead by the
+operations log, which records both the old and the new path for every move.
+
+**That makes the operations log load-bearing for a user need, not merely an
+audit trail**, and it raises the stakes on §10: discarding history in a catalog
+rebuild would cost the user their only means of finding where their files went,
+on top of losing the audit record.
+
+**The workflow order falls out of this contract rather than being a
+convention.** Index → Copy or Move → cleanup, in that order, because if only
+delivered files can be modified then no cleanup *can* precede delivery. The
+alternative — letting a user edit between Index and Move — means recording
+intent rather than performing it, which needs a queue that persists across
+crashes, resolves two edits to one file, and reconciles when a source changes
+before the move. That is a subsystem, and it earns nothing: everything it would
+defer can simply be done after delivery. A user who wants to curate before
+committing to source deletion should `--copy`, curate, then deal with the
+originals themselves — same order, non-destructive.
+
+*A superseded file is outside this contract because it is outside the library:*
+§9.5 deletes it and records the deletion. An earlier draft kept superseded files
+in a `.superseded/` quarantine and carved out an exception here for them; that
+quarantine was abolished, and so is the exception.
+
+## 9.8. Capabilities the web interface needs
+
+§9.1–§9.6 record five engine capabilities the curation workflows require. A
+pass over the rest of the documented web interface turns up eight more. None is
+implemented, and none is visible as engine work from the UI side — each looks
+like a screen until you ask what it reads from.
+
+| Capability | Needed by | Why it cannot be supported today |
+| :--- | :--- | :--- |
+| **Thumbnail generation** | Every photo grid, every framed picture in a review tab, the Inspector preview | The most widely blocking gap — five separate workflows. `webui-spec.md` §4.2.1 specifies it and the cache volume exists; nothing generates. Content-addressed on `sha1_hash`, generated lazily on first view and never regenerated, so byte-identical duplicates share one. Disposable, and excluded from backups |
+| **A settings store** | The Settings screen, which every other screen depends on | The engine creates `photos`, `runs` and `operations` and nothing else. Ownership is genuinely open: the web layer is forbidden from altering schema (`webui-spec.md` §6.1), so either the engine creates this table or the API owns a store of its own |
+| **Refiling after a date change** | Any metadata correction, single or bulk | This is what makes §9.7 enforceable. Within one destination it is an **atomic rename**, not a Copy-Verify-Delete: no bytes move and there is nothing to verify. The engine already computes a file's correct folder, creates date folders durably, and resolves name collisions — what is new is the destination-to-destination move and an operation recording both paths |
+| **Field-level before/after for metadata edits** | The per-photo EXIF history; undo | `sha1_hash` is an identity, not a diff — it says the file changed, never which field or from what. One record serves both readers |
+| **A batch identity** | Bulk metadata apply | So an edit and the refile it triggers read as one action rather than two unrelated ones. `runs.run_id` is the precedent for exactly this grouping |
+| **Which date field the engine filed by** | Lineage, and any review of a questionable date | The resolution chain tries several EXIF keys and keeps only the winning *value*; which key won is discarded. A user asking "why is this photo here?" cannot be answered |
+| **Catalog backup, inventory and trigger** | Bulk apply fires one automatically before writing | Needs somewhere to put them, a record of each (timestamp, size, what triggered it), and a hook before destructive work. Measured at roughly 0.2 s including compression, so cost is not the obstacle — the engine simply does not classify its own operations as destructive |
+| **Serving a file for download** | Log export; retrieving a backup | **API work rather than engine work**, recorded here because it is the same gap twice and worth building once |
+
+**Three of these want a schema change** — field-level before/after, a batch
+identity, and the winning date key — alongside the `thumbnail_path` and
+width/height columns already noted in §6.5. Schema changes cost a rebuilt
+catalog, which is cheap individually and cheaper together; they are listed
+separately here so the decision stays visible rather than being bundled by
+accident.
 
 ## 10. Open Question: Content-Addressed History
 

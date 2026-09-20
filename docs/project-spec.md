@@ -121,6 +121,25 @@ with what it needs:
 | Delete under `--dest`, with an extended record | `engine-spec.md` §9.5 | Discarding redundant copies; needs `width`/`height` too |
 | Writing EXIF into files or sidecars | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
 
+And eight more, found by auditing the documented web workflows against what the
+engine can actually answer (`engine-spec.md` §9.8):
+
+| Gap | Blocks |
+| :--- | :--- |
+| Thumbnail generation | Every grid, every review tab, the Inspector preview — five workflows |
+| A settings store | The Settings screen, which everything else depends on |
+| Refiling after a date change | Any metadata correction; it is what makes the destination contract enforceable |
+| Field-level before/after | EXIF history and undo |
+| A batch identity | Bulk apply reading as one action |
+| Which date field was used | Lineage answering "why is this photo here?" |
+| Catalog backup, inventory, trigger | The automatic backup before bulk apply |
+| Serving a file for download | Log export and backup retrieval — API work, not engine |
+
+**The destination contract** — every file under `--dest` sits in the folder its
+own metadata implies — is recorded in `engine-spec.md` §9.7. It is the
+invariant every editing feature rests on, and the reason the workflow order is
+Index → Copy or Move → cleanup rather than a matter of preference.
+
 Two further items are tracked rather than scheduled: the durability claims
 ledger in [TODO.md](../TODO.md), and the content-addressed history question in
 `engine-spec.md` §10, which needs answering *before* the Error Center is built.
