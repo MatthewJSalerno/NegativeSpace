@@ -2,9 +2,9 @@
 
 ## 1. System Overview & Architecture
 
-The NegativeSpace Web Interface provides a modern web UI for the containerized Python Phase 1 engine (`ns-engine.py`). It transforms the CLI engine into an interactive application supporting real-time operation monitoring, selective file processing, context-aware duplicate resolution, detailed metadata inspection, dedicated runtime settings management, extension validation, and audit logging.
+The NegativeSpace Web Interface provides a modern web UI for the containerized Python engine (`ns-engine.py`). It transforms the CLI engine into an interactive application supporting real-time operation monitoring, selective file processing, context-aware duplicate resolution, detailed metadata inspection, dedicated runtime settings management, extension validation, and audit logging.
 
-**The web UI is the interface.** As of Phase 2 the engine's command-line flags are an *internal* calling convention between FastAPI and the engine — not a supported end-user surface. Users interact with NegativeSpace through the web UI; nothing in the user-facing documentation should direct them to invoke `ns-engine.py` by hand.
+**The web UI is the interface.** The engine's command-line flags are an *internal* calling convention between FastAPI and the engine — not a supported end-user surface. Users interact with NegativeSpace through the web UI; nothing in the user-facing documentation should direct them to invoke `ns-engine.py` by hand.
 
 The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engine reference documentation stays in the repository. Anyone cloning the project to understand, debug, or extend it benefits from being able to run the engine directly, and hiding the flags would buy nothing — anyone who can execute the engine can read its source. The distinction is *documented for users* versus *available to developers*, not *present* versus *absent*.
 
@@ -20,7 +20,7 @@ The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engi
 +-----------------------------------------------------------------------------------+
 | SQLite (WAL) / Subprocess
 +-----------------------------------------------------------------------------------+
-|                             Phase 1 Engine Core                                   |
+|                                   Engine Core                                     |
 |   (ns-engine.py --workers N --exts ex1,ex2 --file-ids id1,id2               |
 |                        --source-subdir path)                                      |
 +-----------------------------------------------------------------------------------+
@@ -83,7 +83,7 @@ One consequence for display: after a Move, each `Duplicate` row's `dest_path` is
 Users can select individual files or multiple files across grid views to run targeted operations.
 * **Multi-Select Controls:** Checkboxes on photo cards, Shift-click range selections, and "Select all on page."
 * **Selection size limit:** Individual multi-select (including "Select all on page") is capped at a configurable maximum (default: 1,000 files) per job submission — this isn't an arbitrary UX restriction, it's because each selected file becomes an integer in the `--file-ids` command-line argument passed to the engine, and there's a real OS limit on total command-line length. Exceeding the cap shows a clear message (e.g. *"1,000 file limit for individual selection — try Folder Selection below for larger batches"*) rather than silently truncating the selection or attempting a job that might fail at spawn time.
-* **Folder Selection (for large batches):** Instead of "select all matching current filter" against individual files, users can select a source folder (recursive) and scope the operation to everything currently indexed under it. This maps directly to the engine's `--source-subdir <path>` flag (`project-spec.md` §4.1) rather than enumerating individual IDs, which sidesteps the command-line length limit entirely — there's no practical upper bound on how many files a folder selection can cover. Symlinks are excluded automatically, inherited from the original Index that populated the catalog (a symlink was never indexed as a row in the first place). If a folder hasn't been indexed yet (zero matching rows), show *"No indexed files found under this folder — run an Index first."*
+* **Folder Selection (for large batches):** Instead of "select all matching current filter" against individual files, users can select a source folder (recursive) and scope the operation to everything currently indexed under it. This maps directly to the engine's `--source-subdir <path>` flag (`engine-spec.md` §4.1) rather than enumerating individual IDs, which sidesteps the command-line length limit entirely — there's no practical upper bound on how many files a folder selection can cover. Symlinks are excluded automatically, inherited from the original Index that populated the catalog (a symlink was never indexed as a row in the first place). If a folder hasn't been indexed yet (zero matching rows), show *"No indexed files found under this folder — run an Index first."*
 * **Sticky Action Bar:** Appears when items (individual or folder) are selected, presenting **Move Selected** and **Copy Selected** actions.
 * **Targeted Execution:** Individual selections use the `--file-ids <id1,id2>` flag; folder selections use `--source-subdir <path>`. These are mutually exclusive targeting mechanisms in a single job — pick one per submission. IDs (not raw file paths) were chosen for the individual case specifically because a database primary key is unambiguous and doesn't depend on path strings staying identical between when the frontend fetched the catalog and when the operation actually runs — and it keeps one targeting implementation rather than a parallel web-only code path, which is what makes the engine directly runnable for debugging and development (see §1).
 
@@ -93,7 +93,7 @@ Users can select individual files or multiple files across grid views to run tar
 
 A dedicated Settings view provides central management of engine parameters, persisted to SQLite and passed to engine instances on startup.
 
-**Settings changes never affect an already-running operation.** Every engine invocation reads its configuration once, at spawn time, as CLI flags (`--workers`, `--exts`) — there's no live-reload path, by design (see `project-spec.md` §4.1). Saving new settings in this panel only affects jobs started *after* the save. If a user wants a change applied to work that's currently in progress, they need to cancel the running job (§4.1's Cancel Job) and start it again — at which point the new settings apply from that fresh invocation. The Settings UI should make this explicit (e.g. a note near Save: *"Changes apply to new operations only — cancel and restart an in-progress job to apply immediately"*) rather than implying a change takes effect instantly everywhere.
+**Settings changes never affect an already-running operation.** Every engine invocation reads its configuration once, at spawn time, as CLI flags (`--workers`, `--exts`) — there's no live-reload path, by design (see `engine-spec.md` §4.1). Saving new settings in this panel only affects jobs started *after* the save. If a user wants a change applied to work that's currently in progress, they need to cancel the running job (§4.1's Cancel Job) and start it again — at which point the new settings apply from that fresh invocation. The Settings UI should make this explicit (e.g. a note near Save: *"Changes apply to new operations only — cancel and restart an in-progress job to apply immediately"*) rather than implying a change takes effect instantly everywhere.
 
 ```
 +---------------------------------------------------------------------------------+
@@ -106,7 +106,7 @@ A dedicated Settings view provides central management of engine parameters, pers
 | QUEUE & BACKPRESSURE MANAGEMENT                                                 |
 | DB Queue Size (DB_QUEUE_SIZE):    1000 items   (read-only)                      |
 | Maximum pending database write operations before backpressure. Fixed in the     |
-| engine and not settable from here — see project-spec.md §4.1.                   |
+| engine and not settable from here — see engine-spec.md §4.1.                    |
 +---------------------------------------------------------------------------------+
 | SUPPORTED FILE EXTENSIONS (SUPPORTED_EXTENSIONS)                             |
 | Selected Formats:                                                               |
@@ -262,7 +262,7 @@ If operations fail, an Error Banner highlights the failures, sourced directly fr
 
 Some failures have no photo at all. A folder the scan could not read is recorded as a `Failed` operation with `photo_id` NULL and the folder as `source_path` — the photos inside it were never examined, so there is no catalog row to attach to. Left-join `photos` (an inner join drops these), and present such a row as a folder the user needs to fix permissions on, not as a file.
 
-**`Skipped` is an outcome, not a failure.** A run records `Skipped` for a selected photo it deliberately left alone — a duplicate whose original carries its content, or a photo an earlier run already delivered — with a reason naming what holds that content (`Duplicate of photo #N ...`, or `Already copied to <path> by an earlier run`). **The already-copied reason reports what the catalog records, not a fresh check:** that run read and verified nothing, so the UI must not present it as confirmation the destination file is still present and intact. **Do not offer a re-index as the way to find out.** Index walks `--source` and never inspects `--dest`; and since `Copied` is a settled status, the unchanged-file skip means a plain re-Index does not even re-read the source. The row stays `Copied`, the next Copy reports `Skipped` again, and the destination file is still missing — reproduced exactly that way during the final audit. What `--force-rehash` does is re-read sources and reset those rows to `Pending`, so a later Copy delivers the file again: a repair, not a check. The genuine answer to "is the destination still intact?" is the Phase 3 destination inventory (`phase3-spec.md` §3), which reads the destination; until that exists, the UI should not imply the question can be answered. Show these as informational, grouped apart from failures, and link the named original: a user who selected only the duplicate needs to know which photo to select instead. They exist so that every photo in a selection ends the job with a recorded outcome; a job whose selection held only duplicates used to finish green with nothing recorded at all.
+**`Skipped` is an outcome, not a failure.** A run records `Skipped` for a selected photo it deliberately left alone — a duplicate whose original carries its content, or a photo an earlier run already delivered — with a reason naming what holds that content (`Duplicate of photo #N ...`, or `Already copied to <path> by an earlier run`). **The already-copied reason reports what the catalog records, not a fresh check:** that run read and verified nothing, so the UI must not present it as confirmation the destination file is still present and intact. **Do not offer a re-index as the way to find out.** Index walks `--source` and never inspects `--dest`; and since `Copied` is a settled status, the unchanged-file skip means a plain re-Index does not even re-read the source. The row stays `Copied`, the next Copy reports `Skipped` again, and the destination file is still missing — reproduced exactly that way during the final audit. What `--force-rehash` does is re-read sources and reset those rows to `Pending`, so a later Copy delivers the file again: a repair, not a check. The genuine answer to "is the destination still intact?" is the destination inventory (`engine-spec.md` §9.1), which reads the destination; until that exists, the UI should not imply the question can be answered. Show these as informational, grouped apart from failures, and link the named original: a user who selected only the duplicate needs to know which photo to select instead. They exist so that every photo in a selection ends the job with a recorded outcome; a job whose selection held only duplicates used to finish green with nothing recorded at all.
 
 For that case specifically, the recorded `error_message` reads `Duplicate verification failed: ...`, and the underlying cause is worth distinguishing in the UI: a `ChecksumMismatch` means the two files' contents differ, while an `OSError` means one of them could not be read and the comparison never happened. Neither should be presented as "the destination is a verified backup", and neither should suggest deleting anything by hand.
 
@@ -286,7 +286,7 @@ For that case specifically, the recorded `error_message` reads `Duplicate verifi
 +-----------------------------------------------------------------------------------+
 ```
 
-Users can view exact system error strings (e.g., `PermissionError`, `ChecksumMismatch`, `Source file changed`). The distinct wording on the third case (`project-spec.md` §4.2) is intentional — it should read differently from a permissions/disk failure, since the fix is "run an Index" rather than "check destination permissions."
+Users can view exact system error strings (e.g., `PermissionError`, `ChecksumMismatch`, `Source file changed`). The distinct wording on the third case (`engine-spec.md` §4.2) is intentional — it should read differently from a permissions/disk failure, since the fix is "run an Index" rather than "check destination permissions."
 
 **No dedicated retry subsystem.** There is no "Retry Item" / "Retry All Failed" backend endpoint and no `retry_count` tracking. A failed file's `photos.status` is reset to `Pending` automatically the next time it's re-indexed (a plain re-scan, full or `--file-ids`-scoped), so retrying is just re-running the same operation — files that already succeeded are gone from `--source` and won't be touched again, so this is fast even for a large batch with only a few failures. The web UI's equivalent of "retry" is selecting the photos associated with failed attempts and re-issuing the same Move/Copy operation via `POST /api/v1/jobs/start` with their IDs in `file_ids` — no new endpoint required. Take those IDs from the failed `operations` rows rather than from `photos.status`, deduplicating when several attempts reference one photo, and do not require the photo's current status to be `Failed`: a duplicate-verification failure stays `Duplicate` and is retried by Move's duplicate cleanup on the next run. Retrying does not by itself fix a content mismatch or an unreadable file, so the UI should not promise that it will.
 
@@ -334,7 +334,7 @@ Note the engine may write more `operations` rows than the job targeted — the s
 Because the engine's flags are now assembled by FastAPI from HTTP request bodies rather than typed by someone with shell access, argument construction is a **security boundary**, not a convenience. Three rules follow:
 
 * **Build the command as an argument list, never a shell string.** Use `subprocess.Popen([...])` / `subprocess.run([...])` without `shell=True`. Interpolating a user-supplied `source_subdir` into a shell command would be command injection reachable directly from an HTTP request — this is the single most damaging mistake available in this layer.
-* **`--source-subdir` carries user-chosen input** from the folder picker and is the most exposed parameter. The engine already resolves it and rejects anything escaping `--source` via `..` — that check is load-bearing under Phase 2 and must not be removed as a redundant-looking sanity check. FastAPI should validate independently rather than relying solely on the engine; defense in depth is the point, and the API can return a clean `400` instead of a failed job.
+* **`--source-subdir` carries user-chosen input** from the folder picker and is the most exposed parameter. The engine already resolves it and rejects anything escaping `--source` via `..` — that check is load-bearing once the API constructs arguments, and must not be removed as a redundant-looking sanity check. FastAPI should validate independently rather than relying solely on the engine; defense in depth is the point, and the API can return a clean `400` instead of a failed job.
 * **`--exts` is the subject of the validation feature in §3.2.** The engine normalizes the leading dot and casing but does not otherwise constrain the value, so the API owns deciding which extensions are acceptable. Scope is limited to the mounted source directory, so the risk is indexing unintended file types rather than reading outside the volume — but a user-facing field still needs a server-side allowlist, not just client-side checks.
 
 Note also the `--file-ids` length ceiling described in §2: the 1,000-item selection cap is a real OS command-line limit, and enforcing it is the API's responsibility. Folder selections use `--source-subdir` precisely to sidestep it.
@@ -343,16 +343,16 @@ Note also the `--file-ids` length ceiling described in §2: the 1,000-item selec
 
 ### 5.7 Single Active Job Enforcement
 
-Only one engine process may run at a time — see `project-spec.md` §4.1/§7 for the engine-level guarantee (an OS-level `flock`, held for the whole process lifetime, released automatically even on a hard `SIGKILL`). This is enforced in two layers, not one:
+Only one engine process may run at a time — see `engine-spec.md` §4.1/§7 for the engine-level guarantee (an OS-level `flock`, held for the whole process lifetime, released automatically even on a hard `SIGKILL`). This is enforced in two layers, not one:
 
 * **Fast pre-check (FastAPI):** Before spawning the engine, `POST /api/v1/jobs/start` probes the engine's own lock: a non-blocking `flock` on `<base>/engine.lock`. If the lock is held, an engine is running, and it returns `409 Conflict` immediately — no subprocess is spawned, and the response includes the newest `Running` run's `id`, `mode`, and `started_at` so the frontend can show *"A Move operation is already in progress (started 2 minutes ago) — wait for it to finish or cancel it."* The Rescan/Move/Copy/Settings-Save buttons should all be disabled client-side whenever a job is known to be active, so this 409 is a backstop for races (e.g. two tabs), not the primary UX.
 
   The pre-check must not decide from `runs.status = 'Running'` alone. A row orphaned by a crash stays `Running` until the next engine run reconciles it, so a pre-check that trusted the table would refuse to start that very run: every job blocked, permanently, by a process that no longer exists. If the probe *acquires* the lock, any `Running` rows are stale; settle them as in the restart case below before releasing the probe and spawning. Two requests can still race between the probe's release and the engine's own acquisition. The engine's lock decides, and the losing engine exits non-zero with its FATAL message, which the API reports as a 409.
-* **Authoritative guarantee (engine):** The `flock` in `project-spec.md` §4.1 is what actually prevents data corruption if the fast check above is ever wrong or stale — see the FastAPI-restart case below. Even if FastAPI's own bookkeeping says "nothing running" incorrectly, a second engine process attempting to start will still be refused by the lock and exit cleanly with a logged error, never silently racing a real in-progress run.
+* **Authoritative guarantee (engine):** The `flock` in `engine-spec.md` §4.1 is what actually prevents data corruption if the fast check above is ever wrong or stale — see the FastAPI-restart case below. Even if FastAPI's own bookkeeping says "nothing running" incorrectly, a second engine process attempting to start will still be refused by the lock and exit cleanly with a logged error, never silently racing a real in-progress run.
 
 **FastAPI-restart edge case:** if FastAPI itself restarts (redeploy, crash) while a job is running, its in-memory job/WebSocket-subscriber state is lost, but the engine subprocess is *not* killed by its parent dying — it keeps running under the protection of its own lock. On startup, FastAPI should reconcile this by querying `runs` for any `status = 'Running'` row. Two cases:
 1. **The engine process is genuinely still alive** (the common case) — FastAPI should treat this as an active job for UI purposes (allow reconnecting clients to replay/stream it per §4.1) without being able to directly re-attach to the subprocess's stdout; the `operations` log is what makes this possible without that direct attachment.
-2. **The engine process crashed too, before its own next-run reconciliation ever got a chance to mark that row `Crashed`** (`project-spec.md` §4.2) — this is a double-failure case (both the engine and FastAPI went down around the same time) that would otherwise leave a phantom `Running` row until someone happens to run the engine again. FastAPI can distinguish the two cases on its own startup by attempting a **non-blocking `flock` on the same lock file as a liveness probe** — if it succeeds (nothing holds the lock), no engine process owns any `Running` row. **While still holding the probe lock**, FastAPI records the IDs of the `Running` rows it found, marks exactly those `Crashed`, and only then releases the probe, rather than waiting for a future engine invocation to notice. Releasing first would let a new engine start in between and create its own `Running` row, which a blanket `UPDATE ... WHERE status = 'Running'` would then mark `Crashed` while it runs.
+2. **The engine process crashed too, before its own next-run reconciliation ever got a chance to mark that row `Crashed`** (`engine-spec.md` §4.2) — this is a double-failure case (both the engine and FastAPI went down around the same time) that would otherwise leave a phantom `Running` row until someone happens to run the engine again. FastAPI can distinguish the two cases on its own startup by attempting a **non-blocking `flock` on the same lock file as a liveness probe** — if it succeeds (nothing holds the lock), no engine process owns any `Running` row. **While still holding the probe lock**, FastAPI records the IDs of the `Running` rows it found, marks exactly those `Crashed`, and only then releases the probe, rather than waiting for a future engine invocation to notice. Releasing first would let a new engine start in between and create its own `Running` row, which a blanket `UPDATE ... WHERE status = 'Running'` would then mark `Crashed` while it runs.
 
 ### 5.8 Index Is a Precondition for Move and Copy
 
@@ -399,7 +399,7 @@ No `GROUP BY`, no "subtract one per group" arithmetic, and no risk of the off-by
 **Four things not to fold into the figure:**
 
 * **`Removed_Duplicate` is already reclaimed**, not reclaimable. Those source files are gone, so they are the *Reclaimed* figure — history rather than an opportunity — and adding them here double-counts. They also count toward the destination saving below, which is a different volume, not a second helping of the same one.
-* **No destination deletion is implied.** The engine never deletes anything under `--dest`. Redundancy that something outside the engine put there is reported, not resolved, and only in Phase 3 (`phase3-spec.md` §3). This figure covers source files the engine can remove; what deduplication saves at the destination is the separate figure below.
+* **No destination deletion is implied.** The engine never deletes anything under `--dest`. Redundancy that something outside the engine put there is reported by the destination inventory (`engine-spec.md` §9.1), not resolved by it. This figure covers source files the engine can remove; what deduplication saves at the destination is the separate figure below.
 * **`Failed` rows are not duplicates.** A source that vanished outside NegativeSpace is marked `Failed` at the next full Index, which removes it from its duplicate group and lets a surviving copy be promoted to anchor. It therefore drops out of this figure automatically — correct, since deleting a file that no longer exists reclaims nothing.
 * **Sizes are as of the last scan.** `file_size` is recorded by the Index that wrote the row (§6.1), so the total is as current as the catalog. Show it alongside the last scan time, as §5.8 asks of folder counts, so a stale figure reads as stale rather than as wrong.
 
@@ -421,7 +421,7 @@ WHERE d.status IN ('Duplicate', 'Removed_Duplicate')
 
 Both statuses count, because neither was ever written to the destination: a `Duplicate` still sits in the source, a `Removed_Duplicate` has been deleted from it, and in both cases the destination holds one copy rather than two. The `EXISTS` clause is what makes this *saved* rather than *savable* — a duplicate whose original has not been delivered yet has saved nothing so far, and belongs in the reclaimable figure instead.
 
-What this is not: re-running a Copy does not write files it already delivered (§2's content-aware skip), but that is idempotency, not deduplication. Those rows are the anchors themselves, and the query excludes them by construction. Redundancy that something outside the engine put in the destination is a different question again, answered by the Phase 3 inventory (`phase3-spec.md` §3), not here.
+What this is not: re-running a Copy does not write files it already delivered (§2's content-aware skip), but that is idempotency, not deduplication. Those rows are the anchors themselves, and the query excludes them by construction. Redundancy that something outside the engine put in the destination is a different question again, answered by the destination inventory (`engine-spec.md` §9.1), not here.
 
 The Inspector's `duplicates` array (§6.2, `GET /api/v1/photos/{id}/inspect`) should carry each copy's `file_size` for the same reason, so a single photo's panel can show what removing its duplicates would reclaim.
 
@@ -433,11 +433,11 @@ The Inspector's `duplicates` array (§6.2, `GET /api/v1/photos/{id}/inspect`) sh
 
 **There is no in-place upgrade path and none should be added.** Migration code runs rarely, on real user data, along a path that is almost never exercised. When the schema changes, the catalog is deleted and rebuilt by an Index — every value in it is derived from the source files.
 
-While the schema is still changing pre-release, that is a convention rather than an enforced rule: the engine does not stamp `PRAGMA user_version` and does not refuse a catalog written by older code, since a stamp nobody reliably bumps misleads rather than protects. Before the first release, a stamp and a startup refusal should be added together, against catalogs created fresh at that point. Phase 2 should not assume either exists today.
+While the schema is still changing pre-release, that is a convention rather than an enforced rule: the engine does not stamp `PRAGMA user_version` and does not refuse a catalog written by older code, since a stamp nobody reliably bumps misleads rather than protects. Before the first release, a stamp and a startup refusal should be added together, against catalogs created fresh at that point. The API layer should not assume either exists today.
 
 **Only `photos` is derived. `runs` and `operations` are not, and rebuilding discards them.** Every value in `photos` is recomputable by re-running an Index over the same sources — verified by rebuilding a ~29,000-file catalog from scratch and getting identical per-status counts. Nothing recomputes the audit log: it records what the engine *did*, and re-scanning the filesystem cannot reconstruct it. The sharpest case is `Removed_Duplicate`, where after a `--move` that row is the only evidence the file ever existed — its source was deleted by design and its content survives only under the anchor's name.
 
-**How history should be keyed is still an open question, and this section is where it bites.** `operations.photo_id` hangs off `photos.id`, so a rebuild orphans every historical row — the alternatives (keying on `sha1_hash`, or moving `runs`/`operations` into a store that is never discarded) are set out in `phase3-spec.md` §3.2 along with the three problems each has to answer. It is raised here because §5.3's Error Center and §5.4's audit log are both specified on these tables: **the question wants answering before that UI is built**, at which point it becomes a migration and a rework rather than a schema choice. It does not block writing the rest of this spec.
+**How history should be keyed is still an open question, and this section is where it bites.** `operations.photo_id` hangs off `photos.id`, so a rebuild orphans every historical row — the alternatives (keying on `sha1_hash`, or moving `runs`/`operations` into a store that is never discarded) are set out in `engine-spec.md` §10 along with the three problems each has to answer. It is raised here because §5.3's Error Center and §5.4's audit log are both specified on these tables: **the question wants answering before that UI is built**, at which point it becomes a migration and a rework rather than a schema choice. It does not block writing the rest of this spec.
 
 The practical consequence for the UI: rebuilding is cheap and safe for a catalog that has only been Indexed or Copied, and lossy for one that has been Moved against. Before offering a rebuild, check whether any `Removed_Duplicate` rows exist and say what will be lost. Offer a backup first — `sqlite3 <db> ".backup '<path>'"` is atomic under WAL where a file copy is not — and treat a JSON export of `runs` and `operations` as the format for reading history outside the app or carrying it across a schema change, not as a substitute for the database backup.
 
@@ -449,123 +449,21 @@ The practical consequence for the UI: rebuilding is cheap and safe for a catalog
 
 Note the asymmetry this creates for the UI: deleting the catalog is cheap for Index state, but it discards the record of which files a previous Move already migrated. Where the UI offers a rebuild, it should say so.
 
-The schema below reflects what's actually implemented in `ns-engine.py`, not a set of `ALTER TABLE` additions on top of the original `photos` table. Error tracking, name-collision flags, and original filenames live in a dedicated **audit log table** rather than as columns bolted onto `photos` — see the design note below for why.
+**The authoritative schema definition lives in `engine-spec.md` §6.5**, executable
+as written. It is not duplicated here: the engine owns the catalog, creates it,
+and is the only writer, so a second copy in this document would be a copy that
+drifts. What this section carries instead is what the reading layer must know in
+order to consume it safely — the rules above, and the two below.
 
-```sql
--- photos: CURRENT STATE only, one row per source_path (UNIQUE constraint
--- enforces this). Continuously overwritten in place on every re-scan —
--- this is what keeps "what's still Pending" queries fast, and is the
--- table --file-ids targets by primary key.
-CREATE TABLE photos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    source_path TEXT UNIQUE,
-    dest_path TEXT,
-    sha1_hash TEXT,
-    phash TEXT,
-    collision_group INTEGER,      -- reserved for Phase 3 fuzzy clustering
-    is_master BOOLEAN DEFAULT 0,  -- reserved for Phase 3 fuzzy clustering
-    status TEXT,                  -- Pending, Processing, Completed, Failed,
-                                   -- Duplicate, Removed_Duplicate, Copied
-    metadata_json TEXT,           -- full captured EXIF/metadata, not just date
-    has_name_collision BOOLEAN DEFAULT 0,
-    file_size INTEGER,            -- size/mtime as of the scan that wrote this
-    file_mtime REAL,              -- row; the unchanged-file skip compares
-                                   -- against these instead of re-reading
-    CHECK (status IS NULL OR status IN ('Pending', 'Processing', 'Completed',
-           'Copied', 'Failed', 'Duplicate', 'Removed_Duplicate'))
-);
--- NOT YET PRESENT: thumbnail_path TEXT. Phase 2 adds it (see §4.2.1); the
--- block above is the schema as the engine creates it today. Adding it is a
--- schema change, which means a version bump and a rebuilt catalog, not an
--- ALTER on a live database.
+**The `settings` table is the API layer's own**, not the engine's. The engine
+never reads it; the API persists UI-managed configuration there and passes the
+values as CLI flags at spawn time (§3). Its definition is in `engine-spec.md`
+§6.5 alongside the rest, so one file describes everything in the database file.
 
--- runs: one row per engine invocation (Index, Move, or Copy). This is
--- what "previous run information" (§5.4) is actually built from — no
--- separate run-history table needed beyond this.
-CREATE TABLE runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mode TEXT NOT NULL,
-    source_path TEXT,
-    dest_path TEXT,
-    file_ids_filter TEXT,   -- Self-describing JSON object naming which
-                            -- targeting mechanism scoped the run:
-                            --   {"file_ids": [101, 102]}
-                            --   {"source_subdir": "sd_card/day1"}
-                            -- NULL for a full directory scan. Always the
-                            -- object form; the column name predates
-                            -- --source-subdir and is kept as-is.
-    started_at TEXT NOT NULL,
-    ended_at TEXT,
-    status TEXT NOT NULL,   -- Running, Completed, Cancelled, Failed, Crashed
-    CHECK (status IN ('Running', 'Completed', 'Cancelled', 'Failed', 'Crashed'))
-);
+**`thumbnail_path` does not exist yet.** The Gallery and Inspector need it
+(§4.2.1), and adding it is a schema change — a rebuilt catalog, not an `ALTER`
+on a live database.
 
--- operations: the audit LOG. Append-only — one row per file per run, so
--- the same file can appear multiple times across different attempts
--- without losing history the way overwriting a column on `photos` would.
--- This is what backs §5.3 (Error Center) and §5.4 (Audit Log) directly.
-CREATE TABLE operations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id INTEGER NOT NULL,
-    photo_id INTEGER,
-    original_filename TEXT,
-    source_path TEXT,
-    dest_path TEXT,
-    status TEXT NOT NULL,
-    error_message TEXT,
-    has_name_collision BOOLEAN DEFAULT 0,
-    timestamp TEXT NOT NULL,
-    sha1_hash TEXT,         -- the photo's content hash, read when the row is
-                            -- written; NULL if the file could not be read.
-                            -- photo_id is valid in one catalog only; this
-                            -- links the same content across rebuilds.
-    -- Same vocabulary as photos.status, plus Cancelled (reached but never
-    -- started; the photo stays Pending) and Skipped (reached and deliberately
-    -- left alone — a duplicate whose original carries its content — with the
-    -- reason, naming that original, in error_message).
-    CHECK (status IN ('Pending', 'Processing', 'Completed', 'Copied', 'Failed',
-           'Duplicate', 'Removed_Duplicate', 'Cancelled', 'Skipped')),
-    FOREIGN KEY(run_id) REFERENCES runs(id),
-    FOREIGN KEY(photo_id) REFERENCES photos(id)
-);
-
--- Indexes last, after every table they reference exists. This block is meant
--- to be executed as written — as an API fixture, or to diff a real catalog
--- against — so statement order is part of what it promises. An earlier draft
--- placed these immediately after `photos`, which put the three `operations`
--- indexes ahead of the table they index; running it stopped at
--- `no such table: main.operations`. The engine was never affected: it creates
--- tables first and indexes after, which is the order reproduced here.
---
--- Required, not optional. The engine's per-file duplicate check runs once for
--- EVERY file scanned; without idx_photos_sha1 it degrades to a full scan of a
--- table that is itself growing with every file (quadratic over library size).
--- idx_operations_run is what the per-job history view (§5.4) pages over, and
--- idx_operations_photo the per-photo panel — operations is append-only and
--- grows with files x runs. idx_photos_phash is what Phase 3's match gallery
--- groups on; idx_photos_source_stat covers the unchanged-file skip.
--- idx_operations_sha1 answers "everything that happened to this content",
--- across duplicates and catalog rebuilds.
--- The engine recreates all seven on every startup with IF NOT EXISTS.
-CREATE INDEX idx_photos_sha1 ON photos(sha1_hash);
-CREATE INDEX idx_photos_status ON photos(status);
-CREATE INDEX idx_photos_source_stat ON photos(source_path, file_size, file_mtime);
-CREATE INDEX idx_photos_phash ON photos(phash);
-CREATE INDEX idx_operations_run ON operations(run_id);
-CREATE INDEX idx_operations_photo ON operations(photo_id);
-CREATE INDEX idx_operations_sha1 ON operations(sha1_hash);
-```
-
-**Design note — why a log table instead of columns on `photos`:** `photos` answers "what's the current state of this file?" A single `error_message`/`retry_count` column on that table can only ever hold the *most recent* attempt's outcome — it can't show that a file failed twice with different errors before eventually succeeding, and it can't answer "show me everything that happened in run #47." Since §5.4 explicitly requires a Timestamp column and per-run history, and §5.3's retry flow needs to reference a specific failed *attempt*, an append-only `operations` table (joined to a `runs` table for run-level context like start/end time and overall outcome) satisfies both requirements directly, where a couple of extra columns on `photos` could not.
-
-**No `retry_count` column.** There is no retry subsystem — see the note on §5.3 above.
-
-```sql
-CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-```
 
 ### 6.2 Key REST API Endpoints
 POST /api/v1/settings/validate-extension
@@ -749,7 +647,231 @@ Backs the Dashboard's duplicate-space tiles (§5.9). Three separate figures, eac
 
 ---
 
-## 7. Explicitly Out of Scope
+## 7. Destination Curation & Similar-Photo Review
 
-* **Fuzzy-match clustering, similarity grouping, EXIF editing/synchronization** — Phase 3 scope, see `phase3-spec.md`.
+Everything above is about getting files *in*. This section is about curating
+what is already there — a different activity, with a different safety story.
+
+**Every workflow here depends on engine capabilities that do not exist yet**
+(`engine-spec.md` §9): the destination inventory, the perceptual pair table,
+renaming a delivered file, deleting under `--dest`, and writing EXIF. This
+section specifies what the user does; that one specifies what the engine must be
+able to do first.
+
+### 7.1 The shape every review screen shares
+
+Building the second and third screen of this shape should be nearly free, so the
+shape is stated once.
+
+* **A review queue is framed as "photos that *have* X", never "photos that
+  *need* X".** Leaving a row untouched records nothing and is not a pending
+  action, and no badge implies a backlog. The engine does not know which choice
+  is right and must not imply that it does.
+* **Clicking a picture expands it** into a detail panel — larger image, detail
+  box beside it — with the list still navigable behind.
+* **Two controls on every list: a sort selector and a search box**, behaving
+  identically wherever they appear. Each screen sets its own *default* sort;
+  the options and the interaction are shared.
+* **Actions take effect when confirmed.** No staged batches, no apply step, no
+  pending-changes indicator. Each action is independently reversible from the
+  `operations` row that recorded it. Bulk metadata apply (§7.5) is the one
+  deliberate exception, because there the batch *is* the feature.
+* **A failed action leaves its row in place with the reason attached, and the
+  file untouched.** Failures are `operations` rows, which is what the Logs page
+  (§5.4) reads when filtered to failures.
+* **Edit controls sit with the value they edit** — beside displayed EXIF, beside
+  a displayed filename or path — so the user never leaves to find the same field
+  elsewhere.
+* **Controls appear only on delivered photos.** A photo that has merely been
+  indexed shows the same values with *no controls at all* — absent rather than
+  greyed out, since a disabled button invites a hunt for the permission that
+  would enable it when the real answer is "organize this photo first". The test
+  is the engine's delivered-status set.
+* **Navigation preserves your place.** Following a link into the Similar tab or
+  a detail view and coming back returns the user where they were, not to the
+  top. This is what makes "just check this one thing" cheap on a list of
+  thousands rather than a punishment for curiosity.
+* **Expand all and collapse all act on every level of nesting**, not merely the
+  outermost. Half-collapsing a nested structure leaves the user clicking through
+  the rest by hand, which is the state the control existed to avoid.
+
+**Tab or filter?** A population that comes with its own job to do gets a tab; a
+population that is merely a subset of an existing view, with no action that view
+lacks, gets a filter. The Rename, Similar and Undated tabs each have a distinct
+task — choose a better name, resolve a near-duplicate group, recover a missing
+date — so each is a tab. A "failed operations" screen is *not* a tab: it is Logs
+filtered to failures and introduces no action Logs lacks.
+
+### 7.2 Exact duplicates and similar photos are different things
+
+A match-mode control distinguishes them, and the UI must not blur them:
+
+* **Exact (SHA-1).** Byte-for-byte identical. Available as soon as an Index has
+  run, with no new engine work.
+* **Similar (perceptual).** Visually alike but different bytes — the same
+  photograph as RAW and JPEG, or full-size and thumbnail. Requires the pair
+  table in `engine-spec.md` §9.3, which does not exist.
+
+**Every photo's info box states its exact-duplicate count and carries a "find
+similar photos" link** scoped to it.
+
+**The count must say whether they have been dealt with.** On a catalog that has
+only been indexed, the duplicates are flagged but still on disk; a bare number
+reads as "handled" when nothing has been. After a Move they are gone from the
+source and the count is history rather than a pending task. Say which.
+
+### 7.3 The Rename tab
+
+When duplicates collapse to one file, the survivor may carry the least useful
+name in its group — a camera-style serial name can survive while the copy
+removed against it carried the descriptive name a person actually chose. The
+name held the information. This is a presentation problem, not an engine one:
+the alternatives are already catalogued on the `Duplicate`/`Removed_Duplicate`
+rows and on every `operations` row, groupable by `sha1_hash`.
+
+* Lists delivered photos whose duplicate group holds a different filename stem.
+* Default sort **most duplicates first**; also sortable by date taken, filename,
+  destination folder, file size, and most recently moved.
+* Each row shows a framed picture with the group's full paths and filenames
+  beside or beneath it, whichever reads better at width.
+* A **Rename destination file** control sits in the path list.
+
+**Workflow.** Pick any filename from the group **or type one**. A typed name
+validates live against the destination folder, so a collision is caught before
+the control becomes available rather than after committing — note this is a
+*filesystem* read, not a catalog query, since the catalog does not know about
+files it never wrote. Confirm immediately. The write is no-overwrite with the
+`_N` suffix rule, `photos.dest_path` is updated, and an `operations` row records
+**both** old and new path — which is what makes undo simply the same write in
+reverse.
+
+**Choosing the name at move time is a different feature, and is deferred.** It
+would decide the name as the file is written, but it is an engine change and it
+asks for naming decisions before the library is organized.
+
+### 7.4 The Similar tab
+
+The same shape as the Rename tab, with four differences:
+
+* **A match % slider at the top**, so the user sets what counts as similar.
+* **Moving the slider clears the current selection, after warning that it
+  will.** The division of labour is the point: *the slider filters what is
+  offered; the selection is what is acted on.* Clearing on movement makes it
+  impossible for an action to reach a photo the user has stopped looking at.
+* **The photo with the most matches is listed first.**
+* **Each member shows its dimensions, and the largest in the group is marked —
+  as information only.** Nothing is pre-selected on that basis; we do not assume
+  the user wants to keep the highest resolution.
+
+**One explicit primary per group drives both actions.** The group has a single
+designated primary, chosen deliberately rather than inferred from what was
+clicked last, and that one designation serves both verbs: **copy EXIF** from the
+primary onto the selected targets, and **discard** — keep the primary, delete
+the selected targets. One concept, two actions, rather than two mental models.
+No action is armed until a primary exists, and the primary is visually distinct
+— a border and a label, not merely focus.
+
+**The primary is swappable via "Make Primary".** Any photo in the group can be
+promoted; the previous primary demotes back into the group. In practice you do
+not know which photo should win until you have compared several, and a primary
+fixed at the moment you opened the group would make an accident of navigation
+feel like a decision. Its real consequence: **the photo you originally clicked
+becomes deletable**, losing a protection nobody chose to give it.
+
+**Select all exists, and is always guarded.** Deleting twenty-nine of thirty by
+hand is not a workflow. But a select-all never acts directly — it raises a
+cancellable confirmation that **states the number of files and names the
+consequence**:
+
+> *Delete 400 photos? This cannot be undone. If you do not have a backup of
+> these photos, this will lead to data loss.*
+
+The count carries the warning. "Are you sure?" is noise a user learns to
+dismiss; "400 photos" is what stops someone who meant to select four.
+
+**Discarding deletes.** It does not quarantine — see `engine-spec.md` §9.5 for
+the reasoning and for the unusually complete record that deletion writes. Where
+the catalog knows whether a source copy still survives, say so: that is what
+lets the warning give a real number instead of a generic caution.
+
+### 7.5 Editing metadata
+
+**This is the feature that makes the engine modify a photo file.** Everything
+else copies, verifies and deletes *sources*; nothing has ever altered content.
+
+Three shapes of one operation, differing only in where the value comes from and
+how many targets it lands on: a date the user types for a single photo with no
+EXIF; a donor photo's metadata applied across a similar group; one correct date
+applied to hundreds of scans that all carry a scanner's wrong date.
+
+* **Single-photo mode is a plain form** — no columns, no donor selection, no
+  comparison furniture. A photo with nothing to compare against must not be made
+  to feel like it does. Comparison is what the screen does when there *is*
+  something to compare; it is not the premise of editing.
+* **Comparison mode** gives each photo a column with fields aligned in rows,
+  differences and gaps marked. Each column also shows its preview, filename,
+  current location, and recorded original names and paths — historical paths
+  labelled as such, never implying a file still exists there.
+* **Copy chosen fields from another column** via a checkbox per field with
+  Select All, offering only the fields that donor actually holds. Clearing a
+  field is a separate action from copying. Donor and targets must be visually
+  distinct.
+* **Bulk acts on the explicit selection only**, never on "everything currently
+  visible".
+* **A preview before committing** states the count plainly — *"apply to 47
+  photos"* — and which fields change from what to what.
+
+**Workflow.** Select, enter a value or pick a donor and fields, review the
+preview, confirm. Then, before anything is written, **the catalog is backed up**
+automatically — silent, fast, no confirmation asked. Each file is written
+atomically, verified, and the per-file safety copy discarded.
+
+**Verify means two checks:** read the written metadata back to confirm it took,
+then decode the file and compare its perceptual hash against the one recorded at
+Index. The decode succeeding proves the file still opens; the hash matching
+proves the image survived. A pHash is invariant under metadata editing, so the
+stored value stays valid as the before-value however many edits occur — which is
+what makes this one decode rather than two.
+
+**A changed date refiles the photo** to the folder its new date implies,
+automatically and with no setting to disable it. Correcting the date *is* the
+decision; moving the file is only that decision applied consistently, so a
+prompt would ask the user to confirm the same choice twice. It is not a guess —
+the correct folder is computed, not judged. And sorting photos into date folders
+is what this tool does: if its own output disagrees with the metadata it used to
+build that output, the product contradicts itself. Finding the file afterwards
+is the log's job, since a refile records both old and new path.
+
+**Recovery, since there is no undo stack.** A **narrow undo** of the last
+operation is available only while *every* file in the batch still has it as its
+most recent change — all-or-nothing, because a batch reversed for 299 of 300 is
+a worse state than one not reversed. **Otherwise the log is the route**: it
+reopens the operation with its files and their previous values, and restoring is
+expressed as one more forward apply, per-file rather than one shared value. That
+is what recovers the case where hundreds of photos each held a *different*
+correct date before one apply flattened them.
+
+### 7.6 Re-processing a disordered destination
+
+When a destination has been reorganized or polluted from outside, the repair
+needs no new engine capability — point the source at the old destination, the
+destination at a fresh location, and run a Move (`engine-spec.md` §9.2).
+
+**Three costs must be stated before offering it**, because each is invisible
+until it bites:
+
+* **Free space for the entire de-duplicated library**, up front. Deleting from
+  the old destination frees space only on its own filesystem.
+* **Photo IDs and run history do not survive it** (`engine-spec.md` §10).
+* **Photos dated from modification time can move.** Show the count — directly
+  available as `date_source = 'file_mtime'` — and the timezone in effect. Files
+  carrying a real EXIF date are unaffected.
+
+**Prefer reporting over re-processing on a library that is already organized.**
+The destination inventory (`engine-spec.md` §9.1) costs nothing and moves
+nothing.
+
+## 8. Explicitly Out of Scope
+
+* **The engine-side capabilities these workflows depend on** — the destination inventory, the perceptual pair table, destination deletion, and EXIF writing — are specified in `engine-spec.md` §9, not here. This document covers what the user sees and does; that one covers what the engine must be able to do first. None of them is implemented.
 * **Multi-user auth/sessions** — not addressed in this spec. Add as a separate concern if the web UI needs to be exposed beyond a single trusted user on a local/private network.

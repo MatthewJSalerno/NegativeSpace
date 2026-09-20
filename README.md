@@ -2,6 +2,17 @@
 
 A backend engine for organizing large photo collections based on EXIF metadata, hash verification, and transactional file moves.
 
+## Documentation
+
+Specifications are organized by component, not by release phase:
+
+| Document | Covers |
+| --- | --- |
+| [project-spec.md](docs/project-spec.md) | Scope boundary, architecture, and what exists today — start here |
+| [engine-spec.md](docs/engine-spec.md) | `ns-engine.py`: hashing, metadata, placement, Copy-Verify-Delete, and the SQLite catalog it owns |
+| [webui-spec.md](docs/webui-spec.md) | The browser-facing half: jobs, selection, settings, logs, inspection, curation |
+| [TODO.md](TODO.md) | Durability claims that need enforcing, and work deliberately postponed |
+
 ## Docker Usage
 
 > **Never mount source and destination to the same underlying folder, or place either folder inside the other.** Different container paths (`/data/source` and `/data/dest`) do not make the storage separate. Check the host folders or network-share mappings, including NFS. Overlapping locations can cause unintended processing or deletion of your photos. This configuration is unsupported. The engine refuses to start when it can see the overlap (the same folder, one inside the other, or one folder mounted at both paths) and never deletes a source that turns out to be the same file as its copy — but it cannot see every alias, such as two separate network mounts of one share.
