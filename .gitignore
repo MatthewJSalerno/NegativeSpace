@@ -15,6 +15,11 @@ volumes/
 REVIEW_LOG.md
 ai-reviews/
 
+# Assistant memory — kept in the repo so any model reviewing this code can
+# read the standing decisions, but never pushed: these notes quote real
+# library paths and maintainer machine details, which CLAUDE.md forbids.
+ai-memory/
+
 # Local working notes — deliberately not pushed.
 # The pattern covers any future note too: these files quote real directory
 # names, filenames and paths from the library, which CLAUDE.md forbids putting

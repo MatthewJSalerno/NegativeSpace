@@ -12,6 +12,18 @@ A backend engine for organizing large photo collections based on EXIF metadata, 
 docker build -t negativespace .
 ```
 
+### Tests
+
+The engine has an end-to-end smoke suite. It drives the real engine as a subprocess against real image files rather than importing it and stubbing things out, so it needs ExifTool, Pillow, imagehash and rawpy — which the image already has. **Run it in the container**, mounting your checkout over `/app` so it tests the code you have rather than the code baked into the image:
+
+```bash
+docker run --rm -v "$PWD":/app -w /app negativespace python3 tests/engine_smoke_test.py
+```
+
+A green run reports `N passed, 0 failed, 1 skipped`. The expected skip is the RAW decode path, which no synthetic fixture can reach — LibRaw rejects fabricated files — so it runs only when `NS_TEST_RAW_DIR` points at a folder of genuine camera output. Worth doing at least once.
+
+Useful flags: `--filter NAME` to run a subset, `--keep` to leave the workspace on disk, `-v` to show engine output. `tests/engine_smoke_test.py --help` and the file's module docstring are the authoritative reference.
+
 ### Operations Summary
 
 NegativeSpace has three mutually exclusive modes. `--move` and `--copy` cannot be combined — pick at most one:

@@ -65,7 +65,19 @@ Choosing which copy of a photo survives is not one feature. It is three, and the
 
 **2. Supersede a delivered file.** Choosing between files that differ — a JPEG versus the DNG it came from, a thumbnail versus its original — means one file leaves the library. This is where the original invariant ("nothing under `--dest` is ever deleted") stops being literally true, and it must not simply become false.
 
-**The rule: the engine never destroys anything under `--dest`.** A superseded file is *relocated* to a quarantine area within the destination — `.superseded/`, mirroring its original path — with an operation recording where it came from and why. Emptying that area is a separate, explicit act by the user, never a side effect of a curation decision. The outcome the user wants (one file per image in the library proper) is achieved by moving, not unlinking, so a decision made carelessly at 2am is recoverable. This matters more than it sounds: by the time curation happens the sources are typically gone, so the destination copy may be the only copy in existence.
+**The rule, decided 2026-09-20: a superseded file is deleted, and the deletion is recorded.** No quarantine area. The user asked for that file to go; the engine removes it and writes an operation carrying its path, size, hash and the reason, so the record of what was there survives even though the bytes do not.
+
+*An earlier draft specified a `.superseded/` quarantine mirroring the original path, emptied only by a separate explicit act.* The argument for it was that a decision made carelessly at 2am should be recoverable. That was rejected on two grounds, both the maintainer's. **Quarantine does not buy reversibility where it matters** — it defers a deletion the user already chose, and the user who empties it carelessly at 2am is the same user. **And the protection it offers is available upstream, with no engine complexity**: a user worried about losing destination files can mount the source `:ro` and keep it, which protects the pixels themselves rather than a copy of them.
+
+What the engine owes the user is not a second chance at the same decision but **the information to make it well and to understand it afterwards**: what the file was, where it came from, what replaced it, and what else shared its content. A deletion that is fully recorded is a deletion the user can reason about. One that is merely deferred is a decision made twice.
+
+**Say plainly what this costs.** By the time curation happens the sources are typically gone, so the destination copy may be the only copy in existence — and this capability can therefore destroy the last copy of a photograph. That is why it sits second in this list rather than first, and why it must require explicit consent. We cannot recover pixels; we can refuse to remove them quietly.
+
+**Bulk selection needs its own confirmation, and the count is the point.** The UI should offer a select-all over a group — reviewing several hundred near-identical files one at a time is the kind of tedium that makes people stop reviewing — but a select-all must never act directly. It raises a confirmation that **states the number of files and what will happen to them**, and it must be cancellable:
+
+> *Delete 400 photos? This cannot be undone. If you do not have a backup of these photos, this will lead to data loss.*
+
+The count carries the warning. "Are you sure?" is noise a user learns to dismiss; "400 photos" is the thing that stops someone who meant to select four. State the number, name the consequence, and let Cancel be the easy path.
 
 **3. Write metadata into files.** Correcting or merging EXIF — persisting the good copy's date onto the survivor, or filling in a date the file never had. This is the only capability that mutates file *contents*, and the scope boundary in `project-spec.md` §1 is what makes it eventually unavoidable: a consuming gallery reads EXIF from the file, so a correction that lives only in this project's catalog is a correction the gallery never sees.
 
