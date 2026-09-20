@@ -437,7 +437,7 @@ def source_subdir_with_wildcard_chars_is_literal():
     # character" and '%' means "any sequence". Unescaped, targeting My_Photos
     # would also sweep in MyXPhotos — copying files the user never selected,
     # or under --move deleting their sources. Folder names with underscores
-    # are ordinary, and Phase 2 lets users pick arbitrary folders.
+    # are ordinary, and the web UI lets users pick arbitrary folders.
     make_photo(case / "src" / "My_Photos" / "a.jpg", "A")
     make_photo(case / "src" / "My_Photos" / "nested" / "b.jpg", "B")
     make_photo(case / "src" / "MyXPhotos" / "c.jpg", "C")
@@ -532,7 +532,7 @@ def stale_selection_records_a_specific_failure():
     # Must be a TARGETED run. A full directory scan never *discovers* a deleted
     # file, so it is simply not processed and keeps its previous status — that
     # is correct. The stale-selection case this checks is specific to
-    # --file-ids / --source-subdir, per project-spec.md 4.4.
+    # --file-ids / --source-subdir, per docs/engine-spec.md 4.2.
     run_engine(case, "--file-ids", f"{ids['vanishing.jpg']},{ids['staying.jpg']}")
 
     check(status_of(case, "vanishing.jpg") == "Failed",
@@ -851,7 +851,7 @@ def date_source_records_where_the_date_came_from():
     wrote them, while an mtime is interpreted in the container's timezone — so
     a file modified late in the evening can land in the next day's folder under
     a different TZ. Recording the source per photo is what lets the count be
-    reported per run, and what the Phase 2 inspector reads to tell a user their
+    reported per run, and what the inspector reads to tell a user their
     date came from the filesystem rather than the camera.
     """
     case = new_case("datesource")
@@ -908,7 +908,7 @@ def status_columns_are_constrained():
     # The valid statuses used to exist only as scattered string literals with
     # nothing constraining the column, so a typo matched zero rows instead of
     # raising — silent in exactly the places it matters (crash recovery, the
-    # duplicate-cleanup anchor check). Phase 2 adds a second codebase writing
+    # duplicate-cleanup anchor check). The web API adds a second codebase writing
     # this column, so the database has to enforce the vocabulary itself.
     conn = db(case)
     try:
@@ -1261,7 +1261,7 @@ def a_duplicate_selected_alone_gets_an_outcome():
     """Selecting only a duplicate records why nothing was written, instead of succeeding silently."""
     # Duplicates are never written — their original carries the content — so a
     # selection holding only the duplicate did nothing, exited 0 and recorded
-    # no operation at all. Phase 2 would have shown that job as a success.
+    # no operation at all. The web UI would have shown that job as a success.
     case = new_case("dup_alone")
     make_photo(case / "src" / "a.jpg", "TWIN")
     make_photo(case / "src" / "b.jpg", "TWIN")
@@ -1523,7 +1523,7 @@ def cancelling_the_primary_loop_still_accounts_for_duplicates():
 
     Nothing is at risk here — no file is deleted and no source is lost. What
     breaks is the promise the code states in its own comment: that a selection
-    holding duplicates cannot finish having recorded nothing about them. Phase 2
+    holding duplicates cannot finish having recorded nothing about them. The web UI
     derives a job's verdict from these rows, so a missing row is a photo the UI
     cannot account for.
     """
@@ -1931,7 +1931,7 @@ def new_date_folders_are_made_durable_before_a_source_is_deleted():
 @test
 def the_documented_recovery_redelivers_a_removed_destination_file():
     """
-    The `Skipped` reason and phase2-spec §5.3 tell the user to re-index with
+    The `Skipped` reason and webui-spec 5.3 tell the user to re-index with
     --force-rehash and copy again when a destination file has gone missing.
 
     That advice replaced worse advice — a plain re-index, which inspects

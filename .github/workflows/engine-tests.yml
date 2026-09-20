@@ -3,7 +3,7 @@ name: Engine tests
 # The engine's only coverage is tests/engine_smoke_test.py, and it requires
 # ExifTool, Pillow, rawpy and imagehash — which is exactly what the image
 # provides. Running it here rather than relying on someone remembering keeps it
-# from rotting once Phase 2 adds a second codebase to the repo.
+# from rotting once the web UI adds a second codebase to the repo.
 on:
   pull_request:
   push:
