@@ -1740,6 +1740,128 @@ def an_interrupted_delete_is_recovered_on_the_next_run():
 
 
 @test
+def an_interrupted_move_leaving_both_copies_keeps_the_source():
+    """
+    A crash AFTER the destination is published but BEFORE the source is deleted
+    leaves two copies of one photo. Recovery must establish that, keep the
+    source, record the published destination as its own identity, and mark the
+    original Move incomplete — never claim it succeeded and never delete.
+
+    The interruption has to be a BaseException: copy_verify_delete catches
+    Exception and turns it into a recorded Failed with the source kept, which
+    is a clean refusal rather than an interrupted run. Only an uncatchable
+    interruption leaves the row Processing, which is the state recovery exists
+    to settle.
+    """
+    engine = _load_engine()
+    real_remove = engine._remove_verified_source
+
+    def die_after_publish(*args, **kwargs):
+        raise KeyboardInterrupt("simulated crash after publication, before source removal")
+
+    case = new_case("interrupted_move_both_copies")
+    src = case / "src" / "a.jpg"
+    make_photo(src, "BOTHCOPIES")
+    run_engine(case)
+
+    engine._remove_verified_source = die_after_publish
+    args = argparse.Namespace(move=True, copy=False, source=str(case / "src"),
+                              source_subdir=None, file_ids=None)
+    try:
+        _run_fixture_move(engine, args, case / "appdata" / "db" / "ns_sqlite.db",
+                          case / "dest", 999)
+        raise Fail("the simulated crash did not happen")
+    except KeyboardInterrupt:
+        pass
+    finally:
+        engine._remove_verified_source = real_remove
+
+    check(src.exists(), "premise: the source must survive a crash before removal")
+    check(len(dest_files(case)) == 1, "premise: the destination must have been published")
+    check(status_of(case, "a.jpg") == "Processing", "premise: the row must be left Processing")
+
+    run_engine(case)
+
+    check(src.exists(), "recovery deleted a source it was never asked to delete")
+    check(len(dest_files(case)) == 1, "recovery removed the published destination")
+
+    incomplete = rows(case, "SELECT operation_id FROM operation_events "
+                            "WHERE step='move' AND outcome='incomplete'")
+    check(incomplete, "the interrupted Move was not recorded as incomplete")
+
+    dest_id = rows(case, "SELECT file_id FROM file_states "
+                         "WHERE location_role='destination' AND presence_state='present'")
+    src_id = rows(case, "SELECT file_id FROM file_states "
+                        "WHERE location_role='source' AND presence_state='present'")
+    check(len(dest_id) == 1 and len(src_id) == 1,
+          f"both copies must hold distinct identities, got dest={dest_id} src={src_id}")
+    check(dest_id[0]["file_id"] != src_id[0]["file_id"],
+          "the published destination was merged into the source identity")
+
+    evidence = rows(case, "SELECT location_role, result FROM operation_evidence "
+                          "WHERE operation_id = ?", (incomplete[0]["operation_id"],))
+    seen = {(e["location_role"], e["result"]) for e in evidence}
+    check(("source", "present") in seen and ("destination", "present") in seen,
+          f"recovery did not record what it observed at both locations: {seen}")
+
+
+@test
+def recovery_that_cannot_establish_an_outcome_opens_an_attention_issue():
+    """
+    Source gone and destination gone is genuinely ambiguous: the engine cannot
+    tell a completed Move whose output was later removed from a delete that
+    happened without one. It must say so rather than guess, and it must not
+    silently reset the row as though nothing had been attempted.
+    """
+    engine = _load_engine()
+    real_remove = engine._remove_verified_source
+
+    def remove_then_die(*a, **kw):
+        real_remove(*a, **kw)
+        raise KeyboardInterrupt("simulated crash after the source was deleted")
+
+    case = new_case("recovery_inconclusive")
+    make_photo(case / "src" / "a.jpg", "AMBIGUOUS")
+    run_engine(case, "--copy")
+
+    engine._remove_verified_source = remove_then_die
+    args = argparse.Namespace(move=True, copy=False, source=str(case / "src"),
+                              source_subdir=None, file_ids=None)
+    try:
+        _run_fixture_move(engine, args, case / "appdata" / "db" / "ns_sqlite.db",
+                          case / "dest", 999)
+        raise Fail("the simulated crash did not happen")
+    except KeyboardInterrupt:
+        pass
+    finally:
+        engine._remove_verified_source = real_remove
+
+    for delivered in (case / "dest").rglob("*.jpg"):
+        delivered.unlink()
+    check(not (case / "src" / "a.jpg").exists(), "premise: the source was removed")
+    check(dest_files(case) == [], "premise: the destination was removed externally")
+
+    run_engine(case)
+
+    issues = rows(case, "SELECT issue_id, category, summary, resolved_at FROM attention_issues "
+                        "WHERE resolved_at IS NULL")
+    check(issues, "an unestablished outcome opened no attention issue")
+    check(rows(case, "SELECT 1 FROM attention_evidence WHERE issue_id = ?",
+               (issues[0]["issue_id"],)),
+          "the attention issue carries no evidence")
+    check(status_of(case, "a.jpg") != "Pending",
+          "an unestablished outcome was reset to Pending as though nothing had happened")
+
+    # The engine deleted this source itself. Blaming an outside change is false,
+    # hides the interrupted operation, and sends the user to the wrong remedy
+    # ("re-index") for a file no re-index can recover.
+    blamed = [r["error_message"] for r in
+              rows(case, "SELECT error_message FROM operations WHERE photo_id IS NOT NULL")
+              if "outside NegativeSpace" in (r["error_message"] or "")]
+    check(not blamed, f"the engine's own deletion was reported as an outside change: {blamed}")
+
+
+@test
 def invalid_input_exits_non_zero():
     """A missing or non-directory --source, or a non-positive --workers, is an error — not a quiet success."""
     case = new_case("bad_input")

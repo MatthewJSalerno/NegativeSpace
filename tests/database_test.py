@@ -190,6 +190,53 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(sorted(r[1] for r in results),[False,True])
         with self.assertRaises(db.RequestConflict):self.run_record(request_id='same',overrides={'workers':4})
 
+    def test_file_under_attention_is_excluded_from_keeper_candidates(self):
+        """An unresolved outcome must not let a file authorize deleting anything."""
+        photo, run = self.photo()
+        with db.transaction(self.conn):
+            child = self.delivery(photo, run, created=True, removed=False)
+        self.assertEqual(db.keeper_candidates(self.conn, 'synthetic'), ['/destination/a.jpg'])
+        with db.transaction(self.conn):
+            op = self.conn.execute(
+                "INSERT INTO operations(run_id,photo_id,status,timestamp) "
+                "VALUES(?,?,'Failed','t')", (run, photo)).lastrowid
+            db.open_attention_issue(self.conn, operation_id=op, file_id=child,
+                                    category='unestablished_outcome',
+                                    summary='recovery could not establish the outcome')
+        self.assertEqual(db.keeper_candidates(self.conn, 'synthetic'), [])
+
+    def test_resolving_an_issue_restores_the_candidate(self):
+        photo, run = self.photo()
+        with db.transaction(self.conn):
+            child = self.delivery(photo, run, created=True, removed=False)
+            op = self.conn.execute(
+                "INSERT INTO operations(run_id,photo_id,status,timestamp) "
+                "VALUES(?,?,'Failed','t')", (run, photo)).lastrowid
+            issue = db.open_attention_issue(self.conn, operation_id=op, file_id=child,
+                                            category='unestablished_outcome', summary='x')
+        self.assertEqual(db.keeper_candidates(self.conn, 'synthetic'), [])
+        with db.transaction(self.conn):
+            db.resolve_attention_issue(self.conn, issue)
+        self.assertEqual(db.keeper_candidates(self.conn, 'synthetic'), ['/destination/a.jpg'])
+
+    def test_evidence_is_append_only_and_links_to_its_issue(self):
+        photo, run = self.photo()
+        with db.transaction(self.conn):
+            op = self.conn.execute(
+                "INSERT INTO operations(run_id,photo_id,status,timestamp) "
+                "VALUES(?,?,'Failed','t')", (run, photo)).lastrowid
+            ev = db.record_evidence(self.conn, operation_id=op, file_id=None,
+                                    location_role='destination', observed_path='/destination/a.jpg',
+                                    observation_kind='stat', result='absent')
+            issue = db.open_attention_issue(self.conn, operation_id=op, file_id=None,
+                                            category='unestablished_outcome', summary='y',
+                                            evidence_ids=[ev])
+        self.assertEqual(
+            self.conn.execute("SELECT count(*) FROM attention_evidence WHERE issue_id=?",
+                              (issue,)).fetchone()[0], 1)
+        with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
+            self.conn.execute("UPDATE operation_evidence SET result='present'")
+
     def test_no_implicit_creation_or_old_schema_conversion(self):
         missing=Path(self.tmp.name)/'missing.db'
         with self.assertRaises(sqlite3.OperationalError):db.connect(missing)

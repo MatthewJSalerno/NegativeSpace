@@ -11,7 +11,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 class PhotoStatus:
     """State of one source file in the catalog. One row per source_path."""
@@ -106,6 +106,7 @@ def _create_legacy_tables(conn):
             has_name_collision BOOLEAN DEFAULT 0,
             timestamp TEXT NOT NULL,
             sha1_hash TEXT,
+            reconciles_operation_id INTEGER REFERENCES operations(id),
             CHECK (status IN ({sql_values(OPERATION_STATUSES)})),
             FOREIGN KEY(run_id) REFERENCES runs(id),
             FOREIGN KEY(photo_id) REFERENCES photos(id)
@@ -197,8 +198,8 @@ def _json(value):
 
 
 FOUNDATION_DDL = (
-    "CREATE TABLE catalog_schema (version INTEGER NOT NULL CHECK(version=2))",
-    "INSERT INTO catalog_schema VALUES (2)",
+    "CREATE TABLE catalog_schema (version INTEGER NOT NULL CHECK(version=3))",
+    "INSERT INTO catalog_schema VALUES (3)",
     """CREATE TABLE files (
         file_id INTEGER PRIMARY KEY AUTOINCREMENT,
         created_run_id INTEGER NOT NULL REFERENCES runs(id),
@@ -245,6 +246,84 @@ FOUNDATION_DDL = (
     """CREATE TABLE job_requests (
         request_id TEXT PRIMARY KEY, run_id INTEGER NOT NULL UNIQUE REFERENCES runs(id),
         submitted_request_json TEXT NOT NULL)""",
+    # Shared content identity. Similarity pairs and the thumbnail cache both key
+    # on content rather than on a file, so identical copies are compared and
+    # rendered once. Defined now; nothing populates it until those steps land.
+    """CREATE TABLE contents (
+        content_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hash_algorithm TEXT NOT NULL, digest TEXT NOT NULL,
+        phash TEXT, phash_state TEXT, width INTEGER, height INTEGER,
+        UNIQUE(hash_algorithm, digest))""",
+    # Append-only step outcomes for one operation. A terminal event and the
+    # current-state update commit together; an interrupted operation has intent
+    # recorded with no terminal event, which is how recovery finds it.
+    """CREATE TABLE operation_events (
+        event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id INTEGER NOT NULL REFERENCES operations(id),
+        timestamp TEXT NOT NULL, step TEXT NOT NULL, outcome TEXT NOT NULL,
+        detail_json TEXT)""",
+    # What recovery OBSERVED, kept separate from what the engine DID. An
+    # unreadable location is not an absent one, and neither is a mutation.
+    """CREATE TABLE operation_evidence (
+        evidence_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id INTEGER NOT NULL REFERENCES operations(id),
+        file_id INTEGER REFERENCES files(file_id),
+        observed_at TEXT NOT NULL,
+        location_role TEXT NOT NULL CHECK(location_role IN ('source','destination','partial')),
+        observed_path TEXT NOT NULL, observation_kind TEXT NOT NULL,
+        observed_content_id INTEGER REFERENCES contents(content_id),
+        result TEXT NOT NULL CHECK(result IN ('present','absent','unreadable','match','mismatch')),
+        details_json TEXT)""",
+    # Deliberately mutable: an issue is resolved by evidence, not deleted.
+    """CREATE TABLE attention_issues (
+        issue_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        operation_id INTEGER NOT NULL REFERENCES operations(id),
+        file_id INTEGER REFERENCES files(file_id),
+        category TEXT NOT NULL, summary TEXT NOT NULL, opened_at TEXT NOT NULL,
+        resolved_at TEXT, resolution_event_id INTEGER REFERENCES operation_events(event_id))""",
+    """CREATE TABLE attention_evidence (
+        issue_id INTEGER NOT NULL REFERENCES attention_issues(issue_id),
+        evidence_id INTEGER NOT NULL REFERENCES operation_evidence(evidence_id),
+        PRIMARY KEY(issue_id, evidence_id))""",
+    """CREATE TABLE file_changes (
+        change_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL REFERENCES operation_events(event_id),
+        file_id INTEGER NOT NULL REFERENCES files(file_id),
+        before_content_id INTEGER REFERENCES contents(content_id),
+        after_content_id INTEGER REFERENCES contents(content_id),
+        before_path TEXT, after_path TEXT,
+        before_values_json TEXT, after_values_json TEXT)""",
+    # One row per unordered pair; the CHECK is what prevents a reversed duplicate.
+    """CREATE TABLE content_similarity (
+        low_content_id INTEGER NOT NULL REFERENCES contents(content_id),
+        high_content_id INTEGER NOT NULL REFERENCES contents(content_id),
+        distance INTEGER NOT NULL, computed_at TEXT NOT NULL,
+        PRIMARY KEY(low_content_id, high_content_id),
+        CHECK(low_content_id < high_content_id))""",
+    # Cache state, not lineage: a thumbnail failure is a diagnostic, and
+    # generation never modifies the photo.
+    """CREATE TABLE thumbnail_cache (
+        content_id INTEGER PRIMARY KEY REFERENCES contents(content_id),
+        cache_filename TEXT,
+        availability TEXT NOT NULL CHECK(availability IN ('present','absent','failed')),
+        attempted_file_id INTEGER REFERENCES files(file_id), observed_path TEXT,
+        failure_category TEXT, failure_detail TEXT, updated_at TEXT NOT NULL)""",
+    # An attempt is history; an artifact's availability is current observed state.
+    """CREATE TABLE backup_attempts (
+        attempt_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trigger_kind TEXT NOT NULL, related_run_id INTEGER REFERENCES runs(id),
+        started_at TEXT NOT NULL, ended_at TEXT, outcome TEXT,
+        error_category TEXT, error_detail TEXT)""",
+    """CREATE TABLE backup_artifacts (
+        artifact_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        attempt_id INTEGER NOT NULL UNIQUE REFERENCES backup_attempts(attempt_id),
+        relative_filename TEXT NOT NULL, size INTEGER NOT NULL,
+        compression_format TEXT, created_at TEXT NOT NULL,
+        availability TEXT NOT NULL CHECK(availability IN ('present','missing','unknown')),
+        last_checked_at TEXT)""",
+    "CREATE INDEX idx_evidence_operation ON operation_evidence(operation_id,evidence_id)",
+    "CREATE INDEX idx_events_operation ON operation_events(operation_id,event_id)",
+    "CREATE INDEX idx_open_attention ON attention_issues(file_id) WHERE resolved_at IS NULL",
     "CREATE INDEX idx_observations_file ON file_observations(file_id,observation_id)",
     "CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id)",
 )
@@ -266,7 +345,9 @@ def initialize(db_path):
             _create_legacy_tables(conn)
             for statement in FOUNDATION_DDL:
                 conn.execute(statement)
-            for table in ('files', 'file_origins', 'source_snapshots', 'file_observations', 'operation_files', 'run_configs', 'job_requests'):
+            for table in ('files', 'file_origins', 'source_snapshots', 'file_observations', 'operation_files',
+                          'run_configs', 'job_requests', 'operation_events', 'operation_evidence',
+                          'file_changes', 'attention_evidence'):
                 for action in ('UPDATE', 'DELETE'):
                     conn.execute(f"CREATE TRIGGER immutable_{table}_{action} BEFORE {action} ON {table} "
                                  "BEGIN SELECT RAISE(ABORT, 'immutable lineage/configuration'); END")
@@ -279,7 +360,9 @@ def require_schema(conn):
             raise SchemaError("Unsupported catalog schema version")
         required = {'photos','runs','operations','files','photo_files','source_snapshots',
                     'file_observations','operation_files','settings','run_configs','job_requests',
-                    'file_origins','file_states'}
+                    'file_origins','file_states','contents','operation_events','operation_evidence',
+                    'attention_issues','attention_evidence','file_changes','content_similarity',
+                    'thumbnail_cache','backup_attempts','backup_artifacts'}
         present = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if not required <= present:
             raise SchemaError("Incomplete catalog schema")
@@ -446,3 +529,116 @@ def record_delivery(conn, *, operation_id, photo_id, run_id, destination,
     conn.execute("INSERT INTO operation_files VALUES(?,?,?)", (operation_id,retained_id,role))
     conn.execute("UPDATE photo_files SET revision=revision+1 WHERE photo_id=?", (photo_id,))
     return retained_id
+
+
+def record_event(conn, *, operation_id, step, outcome, detail=None, timestamp=None):
+    """Append one step outcome. A terminal event commits with its state update."""
+    if not conn.in_transaction:
+        raise RuntimeError("events require the caller's outcome transaction")
+    return conn.execute(
+        "INSERT INTO operation_events(operation_id,timestamp,step,outcome,detail_json) VALUES(?,?,?,?,?)",
+        (operation_id, timestamp or utc_now(), step, outcome,
+         _json(detail) if detail is not None else None)).lastrowid
+
+
+def record_evidence(conn, *, operation_id, location_role, observed_path, observation_kind,
+                    result, file_id=None, observed_content_id=None, details=None, observed_at=None):
+    """Record what was OBSERVED, never what was done. Unreadable is not absent."""
+    if not conn.in_transaction:
+        raise RuntimeError("evidence requires the caller's outcome transaction")
+    return conn.execute(
+        "INSERT INTO operation_evidence(operation_id,file_id,observed_at,location_role,observed_path,"
+        "observation_kind,observed_content_id,result,details_json) VALUES(?,?,?,?,?,?,?,?,?)",
+        (operation_id, file_id, observed_at or utc_now(), location_role, observed_path,
+         observation_kind, observed_content_id, result,
+         _json(details) if details is not None else None)).lastrowid
+
+
+def open_attention_issue(conn, *, operation_id, category, summary, file_id=None, evidence_ids=()):
+    """Unresolved outcome: retain what is known and say so, rather than guessing."""
+    if not conn.in_transaction:
+        raise RuntimeError("attention issues require the caller's outcome transaction")
+    issue = conn.execute(
+        "INSERT INTO attention_issues(operation_id,file_id,category,summary,opened_at) VALUES(?,?,?,?,?)",
+        (operation_id, file_id, category, summary, utc_now())).lastrowid
+    for evidence_id in evidence_ids:
+        conn.execute("INSERT INTO attention_evidence VALUES(?,?)", (issue, evidence_id))
+    return issue
+
+
+def resolve_attention_issue(conn, issue_id, *, event_id=None):
+    """Cleared by established evidence only; there is no mark-resolved bypass."""
+    if not conn.in_transaction:
+        raise RuntimeError("resolving an issue requires the caller's outcome transaction")
+    cur = conn.execute(
+        "UPDATE attention_issues SET resolved_at=?,resolution_event_id=? WHERE issue_id=? AND resolved_at IS NULL",
+        (utc_now(), event_id, issue_id))
+    if cur.rowcount != 1:
+        raise RuntimeError("attention issue is unknown or already resolved")
+
+
+def keeper_candidates(conn, sha1_hash):
+    """Destination paths that may authorize deleting a duplicate source.
+
+    A file carrying an unresolved attention issue is excluded: recovery could
+    not establish what is at that path, and an unknown copy must never
+    authorize removing a known one.
+    """
+    require_schema(conn)
+    return [r[0] for r in conn.execute(
+        "SELECT DISTINCT fs.current_path FROM file_states fs "
+        "WHERE fs.location_role='destination' AND fs.presence_state='present' AND fs.sha1_hash=? "
+        "AND NOT EXISTS(SELECT 1 FROM attention_issues ai "
+        "               WHERE ai.file_id=fs.file_id AND ai.resolved_at IS NULL) "
+        "ORDER BY fs.current_path", (sha1_hash,))]
+
+
+def open_issues_for_path(conn, path):
+    """Unresolved issues touching whatever identity currently sits at `path`."""
+    return [r[0] for r in conn.execute(
+        "SELECT ai.issue_id FROM attention_issues ai JOIN file_states fs ON fs.file_id=ai.file_id "
+        "WHERE fs.current_path=? AND ai.resolved_at IS NULL", (path,))]
+
+
+def begin_operation(conn, *, run_id, photo_id, source_path, dest_path, kind, expected=None,
+                    reconciles=None):
+    """Durable intent, written and committed BEFORE the file mutation.
+
+    The operations row IS the intent; operation_events records what then
+    happened to it. An interrupted operation is therefore one carrying an
+    'intent' event and no terminal event, which is how recovery finds work
+    that was started and never settled. Without this an interruption leaves
+    no operation at all, and there is nothing for evidence to attach to.
+    """
+    operation_id = conn.execute(
+        "INSERT INTO operations(run_id,photo_id,original_filename,source_path,dest_path,status,"
+        "timestamp,reconciles_operation_id) VALUES(?,?,?,?,?,?,?,?)",
+        (run_id, photo_id, source_path.rsplit('/', 1)[-1] if source_path else None,
+         source_path, dest_path, PhotoStatus.PROCESSING, utc_now(), reconciles)).lastrowid
+    link_operation(conn, operation_id, photo_id)
+    record_event(conn, operation_id=operation_id, step='intent', outcome='recorded',
+                 detail={'kind': kind, 'expected': expected})
+    return operation_id
+
+
+def settle_operation(conn, operation_id, *, status, step, outcome, error_message=None, detail=None):
+    """Terminal event and the operation's recorded status, committed together."""
+    if not conn.in_transaction:
+        raise RuntimeError("settling an operation requires the caller's outcome transaction")
+    conn.execute("UPDATE operations SET status=?,error_message=?,timestamp=? WHERE id=?",
+                 (status, error_message, utc_now(), operation_id))
+    return record_event(conn, operation_id=operation_id, step=step, outcome=outcome, detail=detail)
+
+
+def unsettled_operations(conn, photo_id=None):
+    """Operations with recorded intent and no terminal event: started, never settled."""
+    sql = ("SELECT o.id, o.photo_id, o.source_path, o.dest_path FROM operations o "
+           "WHERE EXISTS(SELECT 1 FROM operation_events e "
+           "             WHERE e.operation_id=o.id AND e.step='intent') "
+           "  AND NOT EXISTS(SELECT 1 FROM operation_events e "
+           "                 WHERE e.operation_id=o.id AND e.step<>'intent')")
+    params = ()
+    if photo_id is not None:
+        sql += " AND o.photo_id=?"
+        params = (photo_id,)
+    return conn.execute(sql + " ORDER BY o.id", params).fetchall()
