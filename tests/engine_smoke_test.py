@@ -45,6 +45,8 @@ import tempfile
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 ENGINE = None
 WORKSPACE = None
 VERBOSE = False
@@ -963,6 +965,13 @@ def batched_scan_records_every_file():
 # one function — after verification, before the source is deleted — and a
 # subprocess offers no way to act inside them.
 
+def _run_fixture_move(engine, args, db_path, destination, run_id):
+    """Fault-injection calls still need a real parent run with FK checks enabled."""
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("INSERT OR IGNORE INTO runs(id,mode,started_at,status) VALUES(?, 'MOVE', 'test', 'Running')", (run_id,))
+    return engine._run_move_or_copy(args, db_path, destination, run_id)
+
+
 def _load_engine():
     """Imports ns-engine.py in-process, for the fault-injection tests below."""
     import importlib.util
@@ -1494,7 +1503,7 @@ def cancelling_stops_duplicate_cleanup():
     engine._remove_verified_source = remove_then_cancel
     args = argparse.Namespace(move=True, copy=False, source=str(case / "src"),
                               source_subdir=None, file_ids=None)
-    outcome = engine._run_move_or_copy(args, case / "appdata" / "db" / "ns_sqlite.db",
+    outcome = _run_fixture_move(engine, args, case / "appdata" / "db" / "ns_sqlite.db",
                                        case / "dest", 999)
     check(outcome == "Cancelled", f"cleanup ignored the cancellation and returned {outcome}")
     check(len(src_files(case)) == 1,
@@ -1561,7 +1570,7 @@ def cancelling_the_primary_loop_still_accounts_for_duplicates():
         args = argparse.Namespace(move=(mode == "move"), copy=(mode == "copy"),
                                   source=str(case / "src"), source_subdir="in", file_ids=None)
         try:
-            outcome = engine._run_move_or_copy(
+            outcome = _run_fixture_move(engine,
                 args, case / "appdata" / "db" / "ns_sqlite.db", case / "dest",
                 _IN_PROCESS_RUN_ID)
         finally:
@@ -1654,7 +1663,7 @@ def cancelling_accounts_for_a_file_an_earlier_run_delivered():
     args = argparse.Namespace(move=False, copy=True, source=str(case / "src"),
                               source_subdir=None, file_ids=None)
     try:
-        outcome = engine._run_move_or_copy(
+        outcome = _run_fixture_move(engine,
             args, case / "appdata" / "db" / "ns_sqlite.db", case / "dest",
             _IN_PROCESS_RUN_ID)
     finally:
@@ -1696,7 +1705,7 @@ def an_interrupted_delete_is_recovered_on_the_next_run():
         args = argparse.Namespace(move=True, copy=False, source=str(case / "src"),
                                   source_subdir=None, file_ids=None)
         try:
-            engine._run_move_or_copy(args, case / "appdata" / "db" / "ns_sqlite.db", case / "dest", 999)
+            _run_fixture_move(engine, args, case / "appdata" / "db" / "ns_sqlite.db", case / "dest", 999)
             raise Fail("the simulated crash did not happen")
         except KeyboardInterrupt:
             pass
@@ -1869,7 +1878,7 @@ def a_space_shortfall_is_recorded_not_just_logged():
     try:
         args = argparse.Namespace(move=False, copy=True, source=str(case / "src"),
                                   source_subdir=None, file_ids=None)
-        outcome = engine._run_move_or_copy(args, case / "appdata" / "db" / "ns_sqlite.db",
+        outcome = _run_fixture_move(engine, args, case / "appdata" / "db" / "ns_sqlite.db",
                                            case / "dest", 999)
     finally:
         engine.shutil.disk_usage = original
@@ -2116,7 +2125,7 @@ def _move_in_process(engine, case):
     """
     args = argparse.Namespace(move=True, copy=False, source=str(case / "src"),
                               source_subdir=None, file_ids=None)
-    return engine._run_move_or_copy(args, case / "appdata" / "db" / "ns_sqlite.db",
+    return _run_fixture_move(engine, args, case / "appdata" / "db" / "ns_sqlite.db",
                                     case / "dest", _IN_PROCESS_RUN_ID)
 
 
@@ -2431,6 +2440,100 @@ def a_second_copy_of_a_delivered_photo_records_the_outcome():
 
 
 # ---------------------------------------------------------------------- main
+
+@test
+def foundation_original_snapshots_include_duplicates_and_survive_rescan():
+    case = new_case("foundation_originals")
+    a = case / "src" / "a.jpg"
+    b = case / "src" / "b.jpg"
+    make_photo(a, "SAME")
+    shutil.copyfile(a, b)
+    os.utime(a, (1000000000, 1000000000))
+    os.utime(b, (1100000000, 1100000000))
+    run_engine(case)
+    original = rows(case, "SELECT file_id,source_path,file_mtime,sha1_hash FROM source_snapshots ORDER BY file_id")
+    check(len(original) == 2, "duplicate source lacks its own snapshot")
+    check({r["file_mtime"] for r in original} == {1000000000,1100000000}, "source-specific timestamps lost")
+    os.utime(a, (1200000000,1200000000))
+    run_engine(case, "--force-rehash")
+    check(rows(case, "SELECT file_id,source_path,file_mtime,sha1_hash FROM source_snapshots ORDER BY file_id") == original,
+          "rescan overwrote original evidence")
+    check(len(rows(case, "SELECT * FROM file_observations")) == 4, "later scan evidence missing")
+    check(not rows(case, "PRAGMA foreign_key_check"), "broken lineage reference")
+
+
+@test
+def foundation_reimport_after_move_keeps_old_lineage():
+    case = new_case("foundation_reimport")
+    a = case / "src" / "a.jpg"
+    make_photo(a, "REIMPORT")
+    run_engine(case, "--move")
+    before = rows(case, "SELECT * FROM source_snapshots")[0]
+    delivered = Path(rows(case, "SELECT dest_path FROM photos")[0]["dest_path"])
+    shutil.copy2(delivered, a)
+    run_engine(case)  # same path, bytes and mtime must not be stat-skipped
+    after = rows(case, "SELECT * FROM source_snapshots ORDER BY file_id")
+    check(len(after) == 2 and after[0] == before, "reimport lost or reused moved identity")
+    check(len(rows(case, "SELECT * FROM operation_files WHERE file_id=?", (before["file_id"],))) >= 2,
+          "old scan/move history link lost")
+    run_engine(case, "--move")
+    check(not a.exists() and len(dest_files(case)) == 1, "repeat Move created duplicate destination or left source")
+
+
+@test
+def foundation_settings_are_frozen_in_actual_engine_runs():
+    import ns_db
+    case = new_case("foundation_settings")
+    path = case / "appdata" / "db" / "ns_sqlite.db"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ns_db.initialize(path)
+    conn = ns_db.connect(path)
+    try:
+        ns_db.save_settings(conn, {"workers": 1, "exts": ["jpg"]}, expected_revisions={"workers":0,"exts":0})
+    finally:
+        conn.close()
+    make_photo(case / "src" / "a.jpg", "SETTINGS")
+    run_engine(case)
+    cfg = json.loads(rows(case, "SELECT effective_config_json FROM run_configs")[0]["effective_config_json"])
+    check(cfg["workers"] == 1 and cfg["exts"] == [".jpg"], "engine did not use persisted settings")
+    run_engine(case, "--workers", "2")
+    configs = rows(case, "SELECT effective_config_json FROM run_configs ORDER BY run_id")
+    check(json.loads(configs[0]["effective_config_json"]) == cfg, "old config changed")
+    check(json.loads(configs[1]["effective_config_json"])["workers"] == 2, "explicit override ignored")
+
+
+@test
+def destination_lineage_copy_then_move_preserves_both_identities():
+    case = new_case("lineage_copy_move")
+    make_photo(case / "src" / "a.jpg", "LINEAGE")
+    run_engine(case, "--copy")
+    states = rows(case, "SELECT * FROM file_states ORDER BY file_id")
+    check(len(states) == 2, "Copy must have distinct source and destination")
+    a, b = states
+    check(a['location_role'] == 'source' and b['location_role'] == 'destination', "incorrect Copy locations")
+    check(rows(case, "SELECT origin_file_id FROM file_origins WHERE file_id=?", (b['file_id'],))[0]['origin_file_id'] == a['file_id'], "Copy origin missing")
+    check(len(rows(case, "SELECT * FROM source_snapshots")) == 1, "Copy fabricated an Index snapshot")
+    run_engine(case, "--move")
+    states = rows(case, "SELECT * FROM file_states ORDER BY file_id")
+    check(len(states) == 2 and states[0]['presence_state'] == 'removed' and states[1]['presence_state'] == 'present', "Copy→Move merged identities")
+    check(rows(case, "SELECT * FROM operation_files WHERE file_id=? AND role='retained_copy'", (b['file_id'],)), "retained destination is not linked")
+    check(not rows(case, "PRAGMA foreign_key_check"), "broken lineage reference")
+
+
+@test
+def destination_lineage_move_and_duplicate_share_retained_identity():
+    case = new_case("lineage_duplicates")
+    make_photo(case / "src" / "a.jpg", "LINEAGE-DUP")
+    shutil.copy2(case / "src" / "a.jpg", case / "src" / "b.jpg")
+    run_engine(case, "--move")
+    states = rows(case, "SELECT * FROM file_states ORDER BY file_id")
+    check(len(states) == 2, "Move must not invent a Copy identity")
+    retained = [r for r in states if r['location_role'] == 'destination' and r['presence_state'] == 'present']
+    check(len(retained) == 1 and sum(r['presence_state'] == 'removed' for r in states) == 1, "duplicate source state incorrect")
+    links = rows(case, "SELECT role FROM operation_files WHERE file_id=?", (retained[0]['file_id'],))
+    check({'destination','retained_copy'} <= {r['role'] for r in links}, "Move and duplicate removal must link same retained identity")
+    check(len(rows(case, "SELECT * FROM source_snapshots")) == 2, "duplicate origin was lost")
+
 
 def main():
     global ENGINE, WORKSPACE, VERBOSE

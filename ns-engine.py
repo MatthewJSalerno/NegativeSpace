@@ -272,48 +272,9 @@ UNDATED_FOLDER = "Undated"
 # the web API and ad-hoc sqlite3 sessions, neither of which import this
 # module.
 
-class PhotoStatus:
-    """State of one source file in the catalog. One row per source_path."""
-    PENDING = "Pending"                       # catalogued, not yet acted on
-    PROCESSING = "Processing"                 # durable crash-recovery marker; see _run_move_or_copy
-    COMPLETED = "Completed"                   # --move finished: copied, verified, source deleted
-    COPIED = "Copied"                         # --copy finished: copied, verified, source kept
-    FAILED = "Failed"                          # unreadable, vanished, or the write failed
-    DUPLICATE = "Duplicate"                   # identical SHA-1 to another row holding an anchor status
-    REMOVED_DUPLICATE = "Removed_Duplicate"   # duplicate whose source was deleted against a verified copy
-
-
-class RunStatus:
-    """Outcome of one engine invocation."""
-    RUNNING = "Running"
-    COMPLETED = "Completed"
-    CANCELLED = "Cancelled"
-    FAILED = "Failed"
-    CRASHED = "Crashed"                       # left 'Running' by an unclean exit, marked at next startup
-
-
-# 'Cancelled' appears in the audit log but never on a photo: work cancelled
-# before it started leaves the photo row Pending, so the file is picked up
-# again by a re-run. The operations row records that the run reached it and
-# stopped.
-OPERATION_CANCELLED = "Cancelled"
-
-# 'Skipped' is also an outcome, never a photo state: the run reached a
-# selected photo and deliberately did nothing to it — a duplicate whose
-# original carries its content — and records why, so that every selected
-# photo ends a run with an outcome rather than silence.
-OPERATION_SKIPPED = "Skipped"
-
-PHOTO_STATUSES = (
-    PhotoStatus.PENDING, PhotoStatus.PROCESSING, PhotoStatus.COMPLETED,
-    PhotoStatus.COPIED, PhotoStatus.FAILED, PhotoStatus.DUPLICATE,
-    PhotoStatus.REMOVED_DUPLICATE,
-)
-OPERATION_STATUSES = PHOTO_STATUSES + (OPERATION_CANCELLED, OPERATION_SKIPPED)
-RUN_STATUSES = (
-    RunStatus.RUNNING, RunStatus.COMPLETED, RunStatus.CANCELLED,
-    RunStatus.FAILED, RunStatus.CRASHED,
-)
+from ns_db import (PhotoStatus, RunStatus, PHOTO_STATUSES, RUN_STATUSES,
+                   OPERATION_STATUSES, OPERATION_CANCELLED, OPERATION_SKIPPED)
+import ns_db
 
 # Statuses that mean "already delivered to the destination and verified".
 ANCHOR_DELIVERED_STATUSES = (PhotoStatus.COMPLETED, PhotoStatus.COPIED)
@@ -452,8 +413,10 @@ class ProcessingResult:
     collision_group: Optional[int] = None
     is_master: bool = False
     error_message: Optional[str] = None
-    file_size: int = 0
-    file_mtime: float = 0.0
+    file_size: Optional[int] = None
+    file_mtime: Optional[float] = None
+    birthtime: Optional[float] = None
+    observed_at: Optional[str] = None
 
 
 # --- Producer-Consumer Queue ---
@@ -616,119 +579,19 @@ def get_db_connection(db_path: str, synchronous: str = "NORMAL") -> sqlite3.Conn
     The level is whitelisted rather than interpolated blindly: a PRAGMA value
     cannot be bound as a parameter, so it is checked instead.
     """
-    if synchronous not in ("NORMAL", "FULL"):
-        raise ValueError(f"unsupported synchronous level: {synchronous!r}")
-    conn = sqlite3.connect(db_path, timeout=10.0)
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute(f"PRAGMA synchronous={synchronous};")
-    conn.execute("PRAGMA busy_timeout=5000;")
-    return conn
+    return ns_db.connect(db_path, synchronous=synchronous)
 
 
 # --- Database Schema Initialization ---
 def init_database(db_path: str):
-    """
-    Creates all three tables if they don't exist yet. Called once, early in
-    main(), before any run row is inserted or worker threads start.
-
-    Table roles:
-    - photos: CURRENT STATE only, one row per source_path (enforced UNIQUE).
-      Continuously overwritten in place by the upsert in db_writer_worker —
-      this is what keeps "what's still Pending" queries fast.
-    - runs: one row per engine invocation (Index, Move, or Copy), recording
-      what was asked for and how it ended (Completed/Cancelled/Failed).
-    - operations: the audit LOG. Append-only, one row per file per run, so
-      the same file can appear multiple times across different runs/attempts
-      without losing history the way overwriting a column on `photos` would.
-    """
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute(f"""
-        CREATE TABLE IF NOT EXISTS photos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_path TEXT UNIQUE,
-            dest_path TEXT,
-            sha1_hash TEXT,
-            phash TEXT,
-            collision_group INTEGER,
-            is_master BOOLEAN DEFAULT 0,
-            status TEXT,
-            metadata_json TEXT,
-            has_name_collision BOOLEAN DEFAULT 0,
-            file_size INTEGER,
-            file_mtime REAL,
-            CHECK (status IS NULL OR status IN ({sql_values(PHOTO_STATUSES)}))
-        )
-    """)
-    cursor.execute(f"""
-        CREATE TABLE IF NOT EXISTS runs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            mode TEXT NOT NULL,
-            source_path TEXT,
-            dest_path TEXT,
-            file_ids_filter TEXT,
-            started_at TEXT NOT NULL,
-            ended_at TEXT,
-            status TEXT NOT NULL,
-            CHECK (status IN ({sql_values(RUN_STATUSES)}))
-        )
-    """)
-    cursor.execute(f"""
-        CREATE TABLE IF NOT EXISTS operations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            run_id INTEGER NOT NULL,
-            photo_id INTEGER,
-            original_filename TEXT,
-            source_path TEXT,
-            dest_path TEXT,
-            status TEXT NOT NULL,
-            error_message TEXT,
-            has_name_collision BOOLEAN DEFAULT 0,
-            timestamp TEXT NOT NULL,
-            sha1_hash TEXT,
-            CHECK (status IN ({sql_values(OPERATION_STATUSES)})),
-            FOREIGN KEY(run_id) REFERENCES runs(id),
-            FOREIGN KEY(photo_id) REFERENCES photos(id)
-        )
-    """)
-
-    conn.commit()
-
-    # Without these, the per-file duplicate check below (one lookup for EVERY
-    # file scanned) degrades into a full table scan of a table that is itself
-    # growing with every file — quadratic over the size of the library. The
-    # status index does the same job for the Pending/Duplicate sweeps, and
-    # operations(run_id) is what the web UI's per-job history view will page over.
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_photos_sha1 ON photos(sha1_hash)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_photos_status ON photos(status)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_operations_run ON operations(run_id)")
-    # operations is append-only and grows with every file x every run, so
-    # the web UI's per-photo history panel would scan the whole audit log
-    # without this.
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_operations_photo ON operations(photo_id)")
-    # "Everything that ever happened to this content" — across its duplicates
-    # and across catalog rebuilds, where photo_id does not survive.
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_operations_sha1 ON operations(sha1_hash)")
-    # Change detection on re-index: partition_unchanged() looks up every
-    # candidate by source_path and compares the recorded size/mtime, so the
-    # index has to cover all three columns or the lookup pays a row fetch
-    # per file.
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_photos_source_stat "
-        "ON photos(source_path, file_size, file_mtime)"
-    )
-    # The match gallery groups photos by perceptual hash on every view,
-    # and any "does this image already exist here" question joins on phash.
-    # Unindexed, each of those is a full scan of the whole library.
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_photos_phash ON photos(phash)")
-
-    conn.commit()
-    conn.close()
+    """Explicitly initialize the engine-owned schema; never migrate old evidence."""
+    ns_db.initialize(db_path)
 
 
 def start_run(
     db_path: str, mode: str, source_path: str, dest_path: str,
-    file_ids: Optional[List[int]], source_subdir: Optional[str] = None
+    file_ids: Optional[List[int]], source_subdir: Optional[str] = None,
+    *, defaults=None, overrides=None
 ) -> int:
     """
     Inserts the `runs` row for this invocation and returns its id.
@@ -743,18 +606,13 @@ def start_run(
         targeting_filter = json.dumps({"source_subdir": source_subdir})
     else:
         targeting_filter = None
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO runs (mode, source_path, dest_path, file_ids_filter, started_at, status) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (mode, source_path, dest_path, targeting_filter, datetime.now().isoformat(),
-         RunStatus.RUNNING)
-    )
-    conn.commit()
-    run_id = cursor.lastrowid
-    conn.close()
-    return run_id
+    with contextlib.closing(get_db_connection(db_path, synchronous="FULL")) as conn:
+        run_id, _ = ns_db.create_run(
+            conn, mode=mode, source=source_path, destination=dest_path,
+            targeting=json.loads(targeting_filter) if targeting_filter else None,
+            defaults=defaults, overrides=overrides,
+        )
+        return run_id
 
 
 def finish_run(db_path: str, run_id: int, status: str):
@@ -770,7 +628,7 @@ def finish_run(db_path: str, run_id: int, status: str):
 
 def log_operation(conn: sqlite3.Connection, run_id: int, photo_id: Optional[int], source_path: str,
                    dest_path: Optional[str], status: str, error_message: Optional[str] = None,
-                   has_name_collision: bool = False, commit: bool = True):
+                   has_name_collision: bool = False, commit: bool = True, delivery=None):
     """
     Appends one row to the operations audit log. Never overwrites — every call
     is new history.
@@ -792,7 +650,7 @@ def log_operation(conn: sqlite3.Connection, run_id: int, photo_id: Optional[int]
     cut can still lose recently batched rows — they describe reading rather
     than deleting, and a re-Index reproduces them.
     """
-    conn.execute(
+    cur = conn.execute(
         """INSERT INTO operations
            (run_id, photo_id, original_filename, source_path, dest_path, status, error_message,
             has_name_collision, timestamp, sha1_hash)
@@ -804,6 +662,14 @@ def log_operation(conn: sqlite3.Connection, run_id: int, photo_id: Optional[int]
             photo_id
         )
     )
+    ns_db.link_operation(conn, cur.lastrowid, photo_id)
+    if delivery is not None:
+        ns_db.record_delivery(conn, operation_id=cur.lastrowid, photo_id=photo_id,
+                              run_id=run_id, destination=dest_path, **delivery)
+    if status == OPERATION_SKIPPED and dest_path:
+        # A relationship to the recorded retained file is not a fresh verification.
+        conn.execute("INSERT OR IGNORE INTO operation_files SELECT ?,file_id,'retained_copy' FROM file_states WHERE current_path=? AND location_role='destination' AND presence_state='present'",
+                     (cur.lastrowid,dest_path))
     if commit:
         conn.commit()
 
@@ -966,6 +832,11 @@ def db_writer_worker(db_path: str):
             if existing and status != PhotoStatus.FAILED:
                 status = PhotoStatus.DUPLICATE
 
+            prior_row = cursor.execute(
+                "SELECT status FROM photos WHERE source_path=?", (result.file_path,)
+            ).fetchone()
+            prior_status = prior_row[0] if prior_row else None
+
             # UPSERT on source_path: re-scanning a file already catalogued (a
             # repeated Index, or Index then Move) refreshes its row in place
             # rather than violating the UNIQUE constraint.
@@ -1007,6 +878,14 @@ def db_writer_worker(db_path: str):
             cursor.execute("SELECT id FROM photos WHERE source_path = ?", (result.file_path,))
             photo_row = cursor.fetchone()
             photo_id = photo_row[0] if photo_row else None
+            ns_db.record_source_observation(
+                conn, photo_id=photo_id, run_id=result.run_id,
+                source_path=result.file_path, sha1_hash=result.sha1_hash,
+                file_size=result.file_size, file_mtime=result.file_mtime,
+                birthtime=result.birthtime, metadata=result.metadata,
+                error=result.error_message, prior_status=prior_status,
+                observed_at=result.observed_at,
+            )
             log_operation(
                 conn, result.run_id, photo_id, result.file_path, result.dest_path, status,
                 result.error_message, result.has_name_collision, commit=False
@@ -1930,7 +1809,7 @@ def _finalize_partial(partial_dest: Path, dest: Path):
 
 
 def copy_verify_delete(source_str: str, dest_str: str, delete_source: bool = True,
-                       label: Optional[str] = None) -> tuple:
+                       label: Optional[str] = None, verified_content: Optional[dict] = None) -> tuple:
     """
     Copies source to dest via a staged, verified, no-overwrite publish.
 
@@ -1947,7 +1826,8 @@ def copy_verify_delete(source_str: str, dest_str: str, delete_source: bool = Tru
     Returns (success: bool, error_message: Optional[str]) — the message is
     None on success, and a human-readable description of what failed
     otherwise, so callers can persist the real reason to the operations
-    log instead of just a bare pass/fail.
+    log instead of just a bare pass/fail. `verified_content`, when supplied,
+    receives the verified digest without requiring another read for lineage.
     """
     source = Path(source_str)
     dest = Path(dest_str)
@@ -1969,6 +1849,8 @@ def copy_verify_delete(source_str: str, dest_str: str, delete_source: bool = Tru
             partial_dest.unlink()
             return False, error_message
 
+        if verified_content is not None:
+            verified_content["sha1_hash"] = partial_sha1
         _finalize_partial(partial_dest, dest)
         partial_dest = None  # published: nothing left to clean up
 
@@ -2071,6 +1953,8 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int) -> P
             f"renamed, or deleted outside NegativeSpace since the last Index."
         )
 
+    file_size = file_mtime = birthtime = None
+    observed_at = ns_db.utc_now()
     try:
         # Cheap next to reading the whole file, and it is what lets progress
         # report THROUGHPUT rather than only a file count — see
@@ -2078,8 +1962,9 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int) -> P
         try:
             _st = file_path.stat()
             file_size, file_mtime = _st.st_size, _st.st_mtime
+            birthtime = getattr(_st, "st_birthtime", None)
         except OSError:
-            file_size, file_mtime = 0, 0.0
+            pass
 
         sha1 = compute_sha1(str(file_path))
         phash = compute_phash(str(file_path))
@@ -2125,10 +2010,13 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int) -> P
             run_id=run_id,
             has_name_collision=False,
             file_size=file_size,
-            file_mtime=file_mtime
+            file_mtime=file_mtime, birthtime=birthtime, observed_at=observed_at
         )
     except Exception as e:
-        return _failed_result(file_path_str, run_id, f"{type(e).__name__}: {e}")
+        result = _failed_result(file_path_str, run_id, f"{type(e).__name__}: {e}")
+        result.file_size, result.file_mtime = file_size, file_mtime
+        result.birthtime, result.observed_at = birthtime, observed_at
+        return result
 
 
 # --- Single-Instance Enforcement ---
@@ -2337,7 +2225,7 @@ def partition_unchanged(db_path: str, candidates: List[str], force: bool = False
             for row in conn.execute(
                 "SELECT source_path, file_size, file_mtime FROM photos "
                 "WHERE file_size IS NOT NULL AND file_mtime IS NOT NULL "
-                f"AND status IN ({sql_values(SETTLED_STATUSES)})"
+                f"AND status IN ({sql_values(tuple(v for v in SETTLED_STATUSES if v not in SOURCE_CONSUMED_STATUSES))})"
             )
         }
     finally:
@@ -2606,7 +2494,12 @@ def main():
         logger.info(f"Targeted source subdirectory: {subdir_filter_path}")
 
     # 3. Schema + Startup Recovery
-    init_database(str(db_path))
+    try:
+        init_database(str(db_path))
+    except (ns_db.SchemaError, sqlite3.DatabaseError) as exc:
+        logger.error(f"FATAL: catalog initialization failed: {exc}. No files were processed.")
+        release_single_instance_lock(lock_fd)
+        sys.exit(1)
 
     # 4. Register cancellation handlers and open the run record. Everything
     # from here down is wrapped in try/except/finally so the `runs` row is
@@ -2616,8 +2509,16 @@ def main():
     signal.signal(signal.SIGTERM, _handle_cancel_signal)
     signal.signal(signal.SIGINT, _handle_cancel_signal)
     run_id = start_run(
-        str(db_path), mode_label, str(source_path), str(dest_path), args.file_ids, args.source_subdir
+        str(db_path), mode_label, str(source_path), str(dest_path), args.file_ids, args.source_subdir,
+        defaults={"workers": MAX_WORKER_PROCESSES, "exts": sorted(SUPPORTED_EXTENSIONS)},
+        overrides={**({"workers": args.workers} if args.workers is not None else {}),
+                   **({"exts": sorted(normalize_extensions(args.exts))} if args.exts is not None else {})},
     )
+    with contextlib.closing(get_db_connection(str(db_path))) as config_conn:
+        config = json.loads(config_conn.execute(
+            "SELECT effective_config_json FROM run_configs WHERE run_id=?", (run_id,)
+        ).fetchone()[0])
+    worker_count, active_extensions = config["workers"], set(config["exts"])
     # Reconciled AFTER the run exists, so what it concludes is recorded as
     # operations of this run rather than as silently rewritten statuses.
     reconcile_interrupted_state(db_path, run_id)
@@ -2774,7 +2675,7 @@ def main():
                 futures = [executor.submit(process_file_task, f, str(dest_path), run_id) for f in batch]
                 for future in futures:
                     result = future.result()
-                    bytes_done += result.file_size
+                    bytes_done += result.file_size or 0
                     put_result(result, db_thread)
                 scanned += len(batch)
 
@@ -3235,6 +3136,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         # already written is really on disk, so exists() answers truthfully.
         already_present = False
         source_identity = None
+        verified_sha1 = None
         resolved_path = Path(dst)
         if resolved_path.exists():
             # Only hash when the name is actually contested — the common case
@@ -3244,7 +3146,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             # identity is taken first, so an edit after hashing is caught too.
             with contextlib.suppress(OSError):
                 source_identity = _file_identity(src)
-            resolved_path, already_present = resolve_destination(Path(dst), _sha1_of(Path(src)))
+            verified_sha1 = _sha1_of(Path(src))
+            resolved_path, already_present = resolve_destination(Path(dst), verified_sha1)
         resolved_dst = str(resolved_path)
         has_collision = (resolved_dst != dst)
 
@@ -3289,7 +3192,9 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 (final_status, resolved_dst, record_id)
             )
             log_operation(conn, run_id, record_id, src, resolved_dst, final_status, skip_error,
-                          has_collision, commit=False)
+                          has_collision, commit=False,
+                          delivery=dict(source_removed=args.move, created=False,
+                                        sha1_hash=verified_sha1) if skip_error is None else None)
             conn.commit()
             continue
 
@@ -3331,8 +3236,9 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
 
         # --move deletes the verified source (delete_source=True, the
         # default); --copy leaves it untouched (delete_source=False).
+        verified_content = {}
         success, error_message = copy_verify_delete(src, resolved_dst, delete_source=args.move,
-                                                    label=label)
+                                                    label=label, verified_content=verified_content)
 
         if args.move:
             final_status = PhotoStatus.COMPLETED if success else PhotoStatus.FAILED
@@ -3340,7 +3246,9 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             final_status = PhotoStatus.COPIED if success else PhotoStatus.FAILED
         cursor.execute("UPDATE photos SET status = ? WHERE id = ?", (final_status, record_id))
         log_operation(conn, run_id, record_id, src, resolved_dst, final_status, error_message,
-                      has_collision, commit=False)
+                      has_collision, commit=False,
+                      delivery=dict(source_removed=args.move, created=True,
+                                    sha1_hash=verified_content.get("sha1_hash")) if success else None)
         conn.commit()
 
     if args.move and not was_cancelled:
@@ -3473,7 +3381,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             cursor.execute("UPDATE photos SET status = ?, dest_path = ? WHERE id = ?",
                            (PhotoStatus.REMOVED_DUPLICATE, verified, record_id))
             log_operation(conn, run_id, record_id, dup_src_str, verified,
-                          PhotoStatus.REMOVED_DUPLICATE, commit=False)
+                          PhotoStatus.REMOVED_DUPLICATE, commit=False,
+                          delivery=dict(source_removed=True, created=False, sha1_hash=source_sha1))
             conn.commit()
             removed_count += 1
             logger.info(f"Removed duplicate source file: {dup_src} (verified copy at {verified})")

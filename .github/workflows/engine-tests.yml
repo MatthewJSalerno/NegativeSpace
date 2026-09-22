@@ -1,6 +1,6 @@
 name: Engine tests
 
-# The engine's only coverage is tests/engine_smoke_test.py, and it requires
+# The engine smoke coverage requires
 # ExifTool, Pillow, rawpy and imagehash — which is exactly what the image
 # provides. Running it here rather than relying on someone remembering keeps it
 # from rotting once the web UI adds a second codebase to the repo.
@@ -52,6 +52,13 @@ jobs:
         # Nothing ran this script until now, which is how it shipped able to
         # build a sample inside the library through a symlinked root.
         run: sh tests/sampler_test.sh
+
+      - name: Database contracts
+        run: |
+          docker run --rm \
+            -e PUID=$(id -u) -e PGID=$(id -g) \
+            -v "$PWD":/app -w /app \
+            negativespace python3 -m unittest discover -s tests -p database_test.py -v
 
       - name: Smoke suite
         # PUID/PGID drop privileges, which is what lets the permission test run

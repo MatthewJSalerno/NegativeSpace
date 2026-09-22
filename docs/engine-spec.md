@@ -14,8 +14,9 @@ API layer invokes it as a child process rather than replacing it, which is why
 its flags stay documented and usable even though end users never type them
 (see `webui-spec.md` §1).
 
-**The engine is the only component that touches photo files.** It is also the
-only component that writes to the catalog. Everything else reads.
+**The engine is the only component that touches photo files.** It owns the catalog schema and writes photo state and operation history. The
+browser accesses neither SQLite nor photo files directly. The API writes settings through shared database/validation code; the web UI
+manages them without direct browser access to SQLite. See §9.8.
 
 **Two properties shape every decision below**, and both are stated in
 `project-spec.md` §1:
@@ -25,7 +26,7 @@ only component that writes to the catalog. Everything else reads.
     usability questions, not correctness ones.
 *   **Metadata correctness is a deliverable.** A consuming gallery reads EXIF
     from the files themselves, never from this project's catalog — which is
-    local, disposable and rebuildable. A date this project knows but the file
+    local and includes irreplaceable operation history. A date this project knows but the file
     does not is a date the gallery will get wrong. That is what eventually
     forces metadata corrections out of the catalog and into the files (or
     sidecars beside them); see §9.
@@ -98,6 +99,15 @@ security concern, specified in `webui-spec.md` §5.6.
 *   **Settings are fixed at process start.** `--workers`, `--exts`, and every other flag are read once at launch and never revisited — there is no live-reload concept in the engine itself. (This is already inherently true given the engine is a plain CLI process; the operational rule that a running job ignores subsequent settings changes lives at the web UI's orchestration layer — see `webui-spec.md` §3 — not here.)
 
 ### 4.2. Processing Logic
+
+**Required capture-date policy, not yet implemented:** use a usable EXIF
+`DateTimeOriginal` for dated placement. Without it, use `Undated/<year>/`, with
+the year from filesystem modification time, not creation time. Retain other date
+fields as review evidence, not automatic capture-date substitutes. The current
+implementation still falls back through `CreateDate` and `DateTime`; changing that
+selection is pending engine work. Preserve the field/value used for each placement
+in lineage. Undated review categories are defined in `webui-spec.md` §3.1.
+
 *   **Deduplication:**
     *   **Exact Match:** Files with identical SHA1 hashes (excluding the file's own row, and excluding other rows already flagged `Duplicate`/`Removed_Duplicate`, to prevent a duplicate pair from cascading into mutually flagging each other across repeated scans) are flagged `status = 'Duplicate'`.
     *   **Duplicate removal (`--move` only):** After all targeted `Pending` files are processed, the engine looks up each `Duplicate`-flagged file's matching `Completed` row. **Scoped to the same targeting as the run itself** (`--file-ids` / `--source-subdir` / whole library) — a selective operation never deletes duplicate source files outside the user's selection. Only if a verified copy is confirmed present on disk at that row's `dest_path` is the duplicate's source file deleted (status becomes `Removed_Duplicate`). If no verified copy is found, the source file is left in place and a warning is logged — this prevents data loss in the case where the "kept" copy's own migration failed. Skipped entirely if the run was cancelled (see below).
@@ -145,7 +155,27 @@ security concern, specified in `webui-spec.md` §5.6.
 *   **Per-File Warning Attribution:** library warnings raised while reading a file are captured and re-logged naming that file. Worker processes do not inherit the log handler under `forkserver`/`spawn`, so these were previously dropped entirely. Note that PIL's `"Truncated File Read"` reaches the log through `TiffImagePlugin`'s EXIF parser, which catches the underlying `OSError` and downgrades it to a warning — it means the EXIF block is malformed, **not** that pixel data is missing, and such files still produce correct SHA-1 and perceptual hashes.
 
 *   **Audit Trail:** The `runs` + `operations` tables (§6) together give a full history of every invocation and every per-file outcome within it — this is what "show previous run information" is built on, independent of the frontend.
-*   **Real-time Feedback:** WebSocket-driven status updates in the web UI — see `webui-spec.md`.
+*   **Timestamp Contract (planned):** record application events, including run start/end
+    and operation history, as timezone-aware UTC instants. Existing timezone-naive
+    timestamps must not simply be labelled `Z` without establishing their timezone.
+    Photo capture dates retain their recorded wall-clock value and any known offset;
+    an absent offset remains unknown, not assumed UTC. Capture-date folder placement
+    follows that recorded calendar date, independent of the browser timezone.
+    This contract requires implementation; UI presentation is specified in
+    `webui-spec.md` §10.
+*   **Real-time Feedback:** the planned web drawer shows aggregate progress and elapsed
+    runtime, with scan discovery counts for files found, eligible by configured file
+    type, and excluded by file type, plus excluded counts by extension. These must be
+    measured during scanning, not inferred from indexed rows. Exclusions are not
+    failures; incomplete scans report partial discovery counts. This accounting is
+    planned support for `webui-spec.md` §5.1.
+    Display aggregates rather than a live line per file (`webui-spec.md` §4.1). Required support includes
+    phase/scoped totals and classified outcomes, including unchanged-file skips;
+    operation statuses alone do not supply a reliable percentage. Keep full per-file
+    audit records while allowing the UI to refresh summaries about once per second.
+    Runtime uses the run's recorded start/end, surviving browser reconnects. This
+    complete progress contract is not implemented; no per-second database writes or
+    active-worker/queue telemetry are required merely to refresh the display.
 
 ## 5. Technical Infrastructure
 ### 5.1. Deployment (Docker)
@@ -153,6 +183,15 @@ security concern, specified in `webui-spec.md` §5.6.
 *   **Required system packages:** `libimage-exiftool-perl` (or platform equivalent) **must** be installed in the image — ExifTool is a hard requirement (§3.3/§4.2), not an optional extra. If it's missing, the container will still build and start, but every engine invocation will immediately exit with a fatal error rather than run in a degraded mode, since the old graceful-degradation-to-PIL behavior for a missing binary no longer applies. Worth an explicit check against the actual `Dockerfile` when adopting this change, since an older image built before this requirement may not have it installed.
 *   **Recommended: a proper subreaper as PID 1** (e.g. `tini`/`dumb-init`), general Docker hygiene independent of this specific change — each worker process spawns and manages its own ExifTool child process, and while it's cleaned up on normal worker shutdown, a subreaper ensures nothing is ever left orphaned regardless of how a process exits.
 *   **Volume Mapping:** `/data/source` (source photos), `/data/dest` (organized output), `/appdata` (SQLite DB + logs), all host-mapped.
+    Planned catalog backups use a separate `/backups` mount configured at deployment,
+    holding multiple database snapshots, not photos. Its underlying storage is chosen
+    through Docker, not application settings; no fallback to `/appdata` is permitted.
+    The underlying backup and application-data directories must be distinct and
+    non-overlapping (neither contains the other). Validate separation at startup,
+    accounting for mount aliases rather than merely comparing container path strings.
+    Detected overlap disables backup writes with a configuration error. Document the
+    host-directory requirement and container detection limits; this does not require
+    separate physical disks. This validation is planned, not implemented.
 *   **Database:** **SQLite**, opened in WAL mode with a 5-second busy timeout for safe concurrent access between the writer thread and any read-only inspection. **Two synchronous levels, deliberately.** The scan path runs `synchronous=NORMAL`: it survives process death — `SIGKILL`, OOM-kill, a `docker stop` timing out — but not a power cut, and it is ~4.4x faster when committing scan results a hundred rows at a time. The Move/Copy loop opens its connection at `FULL` instead, because it commits `status = Processing` with `dest_path` *before* unlinking a source and reconciliation finds interrupted work by that marker alone; losing it to a power cut leaves a successfully delivered photo recorded `Failed`. `FULL` costs 1.42x on that path, where several fsyncs per file are already being paid, so the guarantee is bought where it matters and declined where it is expensive. The audit rows that loop writes are fsynced with it.
 
     Two asymmetries follow from that split, both deliberate and both recorded in `TODO.md` rather than left to be inferred. The **scan path keeps `NORMAL`**, so a power cut can still lose recently batched discovery failures and scan results; those rows describe reading rather than deleting, and a re-Index reproduces them. And **`reconcile_interrupted_state` also keeps `NORMAL`** — it is the repair half of this same protocol, reading the marker and settling the row from what is on disk. A cut during recovery can lose the repair, but not the filesystem evidence the repair was derived from, so the next run reaches the same conclusion again. Probably benign for that reason; recorded as a decision to make rather than an asymmetry to assume.
@@ -215,7 +254,13 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_photo` | `photo_id` | Backs the per-photo history panel. `operations` is append-only and grows with files × runs, so this is the difference between a lookup and scanning the whole audit log. |
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
-**The catalog is rebuildable, and is never migrated in place.** Every value in it is derived from the source files, so schema changes do not carry an upgrade path: when the schema changes, delete the catalog and run an Index. **Pre-release, nothing enforces that.** The engine neither stamps a schema version nor refuses a catalog written by an older one, because the schema is still changing frequently and a stamp that is not reliably bumped is worse than no stamp at all. A version stamp and a startup refusal belong here before the first release, applied to catalogs created fresh at that point — until then, a schema change is a note in the commit history and a rebuild. Deleting the catalog touches nothing in `--source` or `--dest`, but it does discard the record of which files a previous `--move` already migrated — so a catalog that has been moved against should be set aside rather than deleted.
+**The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
+initializes schema version 2 and refuses incompatible catalogs before processing.
+No migration is supplied during this development increment: preserve older catalogs
+and use a fresh development catalog. Index cannot reconstruct settings, past edits,
+or deleted-file lineage. Never describe deleting a user catalog as routine repair.
+See [database-foundation.md](./database-foundation.md) for current implementation scope.
+
 
 **Status vocabularies are enforced, not merely documented.** Each of the three `status` columns carries a `CHECK` constraint listing exactly the values above (`photos.status` also permits `NULL`, since a row can exist before its scan result lands). The constraint text is generated from the same Python tuples the engine uses — `PHOTO_STATUSES`, `RUN_STATUSES`, `OPERATION_STATUSES` in `ns-engine.py` — so the database and the code cannot drift apart.
 
@@ -223,7 +268,7 @@ This exists because the failure mode is silent. SQLite accepts any string in a b
 
 It matters most for the web UI, which adds a second codebase reading and writing these columns without importing the engine's constants. A web layer that writes `'copied'` or filters on `'Complete'` now fails loudly at write time instead of quietly disagreeing with the engine about what the catalog contains. Anything writing to this database — including ad-hoc `sqlite3` sessions — is held to the same vocabulary.
 
-### 6.5. The schema as the engine creates it
+### 6.5. Legacy transfer tables and shared schema
 
 This block is the authoritative definition, and is meant to be executed as
 written — as a fixture, or to diff a real catalog against. **Statement order is
@@ -316,25 +361,37 @@ CREATE INDEX idx_operations_photo ON operations(photo_id);
 CREATE INDEX idx_operations_sha1 ON operations(sha1_hash);
 ```
 
-The settings table is owned by the API layer rather than the engine, which never
-reads it (`webui-spec.md` §6.1):
+The implemented settings table belongs in the same database as the catalog and history,
+so one consistent database backup includes all persistent application state.
+Explicit initialization is available before Index. Settings saves use narrowly scoped API writes through shared database code (`webui-spec.md` §6.1). The shared layer creates:
 
 ```sql
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
+    value_json TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK(revision > 0),
+    updated_at TEXT NOT NULL
 );
 ```
 
 **No `retry_count` column.** There is no retry subsystem — re-running the
 operation is how a failed file is retried (§4.1).
 
-**Design note — why three tables instead of columns on `photos`:** `photos` answers "what's the current state of this file?" — a single `error_message` column there could only ever hold the *most recent* attempt's outcome, and couldn't show that a file failed twice with different errors before eventually succeeding, or answer "show me everything that happened in run #47." Splitting current-state (`photos`) from historical audit log (`operations`, joined to `runs` for run-level context) answers both without overloading one table with two different jobs.
+**Settings write ownership (shared layer implemented; API pending):** the engine owns the schema
+and photo state/history; the web UI manages settings through scoped API writes using
+shared Python database and validation code. SQLite serializes short transactions;
+use bounded waits and report failed saves without changing active job configuration.
+Settings saves must remain available during processing, separate from the job-long
+file-operation lock. Engine-owned initialization routines support creation before
+Index. The browser has no direct database access. The shared layer uses atomic revision checks and bounded writer waits; API integration
+remains implementation work.
+
+**Design note — why separate state from history:** `photos` answers "what's the current state of this file?" — a single `error_message` column there could only ever hold the *most recent* attempt's outcome, and couldn't show that a file failed twice with different errors before eventually succeeding, or answer "show me everything that happened in run #47." Splitting current-state (`photos`) from historical audit log (`operations`, joined to `runs` for run-level context) answers both without overloading one table with two different jobs.
 
 ## 7. Non-Functional Requirements
 *   **Concurrency (within a run):** `ProcessPoolExecutor` parallelizes hashing/metadata-resolution across CPU cores; sized to `os.cpu_count()` or overridden via `--workers`.
 *   **Single-Instance Guarantee (across runs, implemented):** At most one engine process may run at a time, enforced by the OS-level lock in §4.1 — this is what makes the "Thread Safety" guarantee below actually hold in practice once the web UI allows multiple UI actions to attempt to trigger the engine. Without it, two concurrent processes (each internally thread-safe on its own) could still race each other at the filesystem/database level — e.g. two processes independently computing the same "available" destination filename via a check-then-write sequence with no cross-process coordination, where the second process's write can silently overwrite the first's already-verified file, since the final rename step overwrites an existing target rather than erroring. The lock closes this off entirely by making the "two processes running at once" precondition impossible, rather than trying to make that scenario itself safe.
-*   **Thread Safety:** SQLite is written to by exactly one dedicated consumer thread; all other work happens in separate processes that communicate results back through an in-memory queue, never by opening the database themselves.
+*   **Thread Safety:** Index results are written by one dedicated consumer thread; scoped settings writes may use separate connections with SQLite serializing transactions; all other work happens in separate processes that communicate results back through an in-memory queue, never by opening the database themselves.
 *   **Durability:** The engine can recover from both a graceful interruption and a hard crash — orphaned partial files are cleaned up, interrupted `Processing` file-records are reconciled to their correct state, and orphaned `Running` run-records are marked `Crashed`, all on the next startup.
 *   **Safety:** No file is deleted from source until a byte-for-byte verified copy exists at the destination. This holds for both direct moves and duplicate-source cleanup, and is never bypassed by cancellation — a cancelled run simply stops starting new work, it never skips verification on work already in flight.
 *   **Nothing at the destination changes on the engine's own initiative.** Every modification or removal of an existing file under `--dest` is the direct result of the user explicitly requesting that specific change. This has two layers, and both matter:
@@ -429,8 +486,7 @@ Three costs have to be surfaced before offering it:
     The count is directly available as `date_source = 'file_mtime'` in
     `metadata_json`.
 
-This is a strong argument for reporting (§9.1) over re-processing on a library
-that is already organized: reporting costs nothing and moves nothing.
+The inventory (§9.1) detects differences without modifying photos. When a mismatch is found, direct the user to this fresh-destination workflow; it logs new processing but cannot reconstruct external changes or recover missing pixels.
 
 ### 9.3. Similarity: Perceptual Pairs
 
@@ -454,8 +510,19 @@ should populate it on the engine's own initiative either way.
 **A photo with no usable pHash cannot participate.** Those are already counted
 and warned about in the run summary (§4.3).
 
-**Not implemented.** Needs: a pair table, an Index-time pass to populate it, and
-a decision on the loosest threshold worth storing.
+**Required comparison scope:** compare newly indexed photos against all catalogued
+photos with usable perceptual hashes, including delivered photos. Backfill existing
+catalogues when matching is introduced. When a hash changes, invalidate its old
+relationships and recompute them. Stored pairs must cover the full offered slider
+range. Missing hashes mean matching is unavailable, not that a photo is unique.
+
+Results are measured against the selected reference photo; similarity is not
+transitive. Historical records remain available for lineage but must not appear as
+actionable files without an available copy. Capture width and height during Index,
+reusing image analysis; record unknown dimensions explicitly when unavailable.
+
+**Not implemented.** Needs: pair storage, initial backfill, incremental refresh,
+dimension capture, and the comparison pass during Index.
 
 ### 9.4. Renaming a Delivered File
 
@@ -478,8 +545,14 @@ while the duplicate removed against it carried the name a person actually chose.
     `photos.dest_path`; and it must record an operation carrying both the old and
     new path, so a photo's history still leads to where it is now.
 
-Removing the old *name* does not remove content, so this is the safe capability:
-a rename destroys nothing and is reversible from the recorded operation.
+The date folder and actual extension remain unchanged. Preview the collision-resolved
+name and report the actual resulting name after execution. Update current references
+from related exact-duplicate rows to the renamed copy; historical operations retain
+the paths true at their time. A missing file or content mismatch stops the operation
+and invokes the destination-mismatch guidance in `webui-spec.md` §7.6.
+
+Record both paths for lineage and manual correction. There is no user-facing undo;
+a later rename is a new action validated against the current state.
 
 **Not implemented.** Needs: the rename operation and its audit row.
 
@@ -515,10 +588,13 @@ explicit per-file consent, and why a bulk selection must state its count and be
 confirmed before acting (`webui-spec.md` §7). We cannot recover pixels; we can
 refuse to remove them quietly.
 
-**Whether the source still holds a copy is knowable, and should be stated.**
-`photos.status` already distinguishes it: `Copied` means a source copy survives,
-`Completed` means Move deleted it. That is what lets a warning give a real
-number instead of a generic caution.
+**Recorded source information is not proof of a surviving copy.** A `Copied` row
+records that the engine left a source in place at that time; it does not establish
+that the file still exists. Only claim an available matching copy after checking it.
+Each deletion requires an irreversible-deletion warning, even when a catalog backup
+exists. Keep the extended record accessible in history and remove deleted files
+from actionable lists. Record per-file failures. Stop on a detected destination
+mismatch and present the repair guidance in `webui-spec.md` §7.6.
 
 **Not implemented.** Needs: the first engine path that removes a file under
 `--dest`, the extended deletion record above, and `width`/`height` capture,
@@ -533,21 +609,51 @@ eventually unavoidable: a consuming gallery reads EXIF from the file, so a
 correction that lives only in this catalog is a correction the gallery never
 sees.
 
-**Open: sidecars versus in-file writes.** An XMP sidecar written beside the photo
-would give portability without ever modifying the original — the file stays
-byte-identical, its hash stays stable, and the verification story in §4.2 is
-untouched. This depends on the consuming application reading sidecars, which
-needs confirming rather than assuming. If it holds, this capability becomes
-dramatically cheaper and safer. If not, in-file writes need their own protocol
-for backup, verification and undo, and the engine's "never modify a photo"
-property is spent.
+**Write changes back to the metadata source.** Embedded metadata is updated inside
+the delivered photo. Manually entered values also go into that photo. Retained
+source originals are not edited. Unsupported writes fail explicitly rather than
+silently creating a sidecar or storing the correction only in the catalog.
 
-**Editing content breaks content-addressed history**, since the file's hash
-changes. See §10.
+**Verify all requested fields before replacement (planned).** Apply a photo's
+requested metadata changes to a temporary working copy and read back every requested
+field, including explicit removals, against the validated intended values. Replace
+the original only after all requested fields and required file-integrity checks pass.
+If a field fails writing or verification, discard the failed working copy, leave
+the original unchanged and log the per-photo failure with field details. Never
+publish a subset of the requested field changes. Other photos in a batch may succeed.
+Failures during subsequent publication/refiling still require the recovery and
+accurate partial-outcome reporting below; temporary-copy validation is not a claim
+that all filesystem and database changes form a single atomic transaction.
 
-**Not implemented.** Needs: a write path, and the sidecar question answered.
+Before staging each metadata edit, check destination space for the working output
+and recovery material. Stage and finish one photo at a time in a batch; do not stage
+the entire selection. Insufficient space leaves the original unchanged and records
+required/available space for the UI. Handle space exhaustion during writing as well
+as pre-check failure; preserve material needed for incomplete recovery. This is
+planned functionality, with user-facing behavior in `webui-spec.md` §7.5.
 
-## 9.7. The destination contract
+For planned bulk metadata edits, graceful cancellation completes the current photo's
+write/verification/refiling or records its failure, then starts no further photo.
+Keep successful edits and leave unstarted files unchanged. Record per-photo outcomes
+and batch membership, preserving full lineage for manual correction. No automatic
+rollback of completed photos or resumption of the remaining batch is permitted.
+
+Preserve the provenance of metadata values so future sidecar support can distinguish
+embedded values from companion-file values. Dates inferred from filenames or file
+attributes are reference information, not embedded EXIF. Sidecar reading, writing,
+publication, precedence and synchronization remain future options, not prerequisites
+for implementing embedded edits.
+
+An edit and any required refile form one user action: preserve before/after values,
+paths and content identities; update current catalog references; do not report success
+with corrected metadata at an incorrect location. Failure handling must restore the
+prior state where possible and report any incomplete recovery. This is write-failure
+handling, not a user-facing undo feature.
+
+**Not implemented.** Needs: the embedded write and verification path, coordinated
+refiling, provenance and change records, and failure recovery.
+
+### 9.7. The destination contract
 
 **Every file under `--dest` sits in the folder its own metadata implies.**
 
@@ -610,7 +716,18 @@ originals themselves — same order, non-destructive.
 §9.5 deletes it and records the deletion. The contract governs the library, not
 what has been removed from it.
 
-## 9.8. Capabilities the web interface needs
+### 9.8. Capabilities the web interface needs
+
+Metadata edits whose resulting hash matches another catalogued file must preserve
+both files and their distinct lineage, recording the new duplicate relationship
+without automatically deleting either file. Duplicate cleanup requires a separate
+confirmed action; see `webui-spec.md` §7.5.
+
+Thumbnail cache lifecycle must follow content identity: after an embedded metadata
+edit, reuse an existing entry for the resulting hash or generate a new thumbnail.
+Remove obsolete entries only when no current catalogued file needs their hash;
+historical lineage does not retain thumbnails. Include orphan cleanup after
+interruption. See `webui-spec.md` §4.2.1; this is planned functionality.
 
 §9.1–§9.6 record five engine capabilities the curation workflows require. A
 pass over the rest of the documented web interface turns up eight more. None is
@@ -619,13 +736,13 @@ like a screen until you ask what it reads from.
 
 | Capability | Needed by | Why it cannot be supported today |
 | :--- | :--- | :--- |
-| **Thumbnail generation** | Every photo grid, every framed picture in a review tab, the Inspector preview | The most widely blocking gap — five separate workflows. `webui-spec.md` §4.2.1 specifies it and the cache volume exists; nothing generates. Content-addressed on `sha1_hash`, generated lazily on first view and never regenerated, so byte-identical duplicates share one. Disposable, and excluded from backups |
-| **A settings store** | The Settings screen, which every other screen depends on | The engine creates `photos`, `runs` and `operations` and nothing else. Ownership is genuinely open: the web layer is forbidden from altering schema (`webui-spec.md` §6.1), so either the engine creates this table or the API owns a store of its own |
+| **Thumbnail generation** | Photo grids and comparison/inspection views | Generate during source Index, reusing image decoding; cache under `/cache/thumbnails` by content hash and reuse existing entries. Keep disposable cache outside `/appdata`. Rebuild missing entries from an available catalogued source or destination copy. Never discover uncatalogued destination files through preview generation. Cache loss is not a destination mismatch. Disposable and excluded from backups; see `webui-spec.md` §4.2.1 |
+| **A settings store** | Settings before the first Index | Store settings in the same database as catalog/history. Initialize defaults without scanning, preserve preferences on restart, and snapshot configuration at job start. The engine owns schema; the API writes settings through shared code; see `webui-spec.md` §6.1 |
 | **Refiling after a date change** | Any metadata correction, single or bulk | This is what makes §9.7 enforceable. Within one destination it is an **atomic rename**, not a Copy-Verify-Delete: no bytes move and there is nothing to verify. The engine already computes a file's correct folder, creates date folders durably, and resolves name collisions — what is new is the destination-to-destination move and an operation recording both paths |
-| **Field-level before/after for metadata edits** | The per-photo EXIF history; undo | `sha1_hash` is an identity, not a diff — it says the file changed, never which field or from what. One record serves both readers |
+| **Field-level before/after for metadata edits** | Full lineage and informed manual correction | Preserve the original indexed information and each change, linking old/new identities when content hashes change. No user-facing undo; see §10 |
 | **A batch identity** | Bulk metadata apply | So an edit and the refile it triggers read as one action rather than two unrelated ones. `runs.run_id` is the precedent for exactly this grouping |
 | **Which date field the engine filed by** | Lineage, and any review of a questionable date | The resolution chain tries several EXIF keys and keeps only the winning *value*; which key won is discarded. A user asking "why is this photo here?" cannot be answered |
-| **Catalog backup, inventory and trigger** | Bulk apply fires one automatically before writing | Needs somewhere to put them, a record of each (timestamp, size, what triggered it), and a hook before destructive work. Measured at roughly 0.2 s including compression, so cost is not the obstacle — the engine simply does not classify its own operations as destructive |
+| **Catalog backup, inventory and trigger** | Before curation and after processing | Each consistent database snapshot includes catalog, history and settings, never pixels or thumbnails. Multiple snapshots reside in the dedicated `/backups` Docker mount. Triggers, retention and failure behavior are defined in `webui-spec.md` §9 |
 | **Serving a file for download** | Log export; retrieving a backup | **API work rather than engine work**, recorded here because it is the same gap twice and worth building once |
 
 **Three of these want a schema change** — field-level before/after, a batch
@@ -635,7 +752,67 @@ catalog, which is cheap individually and cheaper together; they are listed
 separately here so the decision stays visible rather than being bundled by
 accident.
 
-## 10. Open Question: Content-Addressed History
+## 10. Full Lineage and the Open Identity Design
+
+**Reimport after deletion:** a newly imported file receives a new lineage and
+original Index snapshot even when its hash matches a previously deleted file.
+Retain the deleted record and link the two as matching content; do not revive the
+deleted identity or erase its deletion event. A historical match alone must not
+classify the new import as already delivered or authorize duplicate-source deletion;
+those decisions require a current eligible copy and the normal verification checks.
+
+**Identity across content changes:** each logical file retains a stable lineage
+identity independent of its current path and content hash. For every tool action
+that changes content, record the before/after hashes linked to that same lineage
+and its original Index hash. Preserve the full chain rather than replacing the old
+hash. Separate source copies with identical hashes retain distinct lineages; a
+matching hash identifies shared content, not permission to merge their histories.
+Reusing a deleted file's path must not attach the replacement file to its history.
+The concrete schema remains to be designed; current hash/path references alone do
+not fulfill this requirement.
+
+**Deletion retains lineage.** Preserve the original source snapshot, last recorded
+file state and complete recorded action history, including per-field before/after
+values and locations. Do not cascade-delete history or invalidate references used
+by photo info screens and logs. Mark the file deleted and exclude it from actionable
+library results while retaining historical lookup. These records support manual
+reconstruction of recorded metadata and naming/location history, not image pixels.
+
+**Original filesystem snapshot (planned):** preserve each source file's original
+Index path, size and modification time, including every duplicate independently.
+Capture genuine filesystem creation time when available; otherwise record it as
+unknown, never substitute Unix ctime. This immutable snapshot is separate from
+current stat values used for change detection and must survive rescans and edits.
+When a usable capture date is absent or removed, use the originating source
+snapshot's modification year for `Undated/<year>`, not the time of an EXIF edit or
+destination-file creation. Use the same recorded value for preview and actual filing.
+Full stat snapshots after every Copy/Move are not required for this fallback; live
+safety checks and operation lineage remain required. Existing `file_mtime` is
+refreshed on rescan and does not yet implement this immutable original snapshot.
+
+**Required behavior:** each destination file must remain traceable to its original
+source Index information: filename, path, captured metadata, hashes and file
+attributes. Preserve every copy, move, rename, EXIF update and deletion, including
+before/after values and locations as applicable. Changed names or content hashes
+must not sever the chain or overwrite original indexed evidence. Bulk actions need
+both a common identity and individual file outcomes.
+
+**Recovery provenance is required for truthful job reporting.** Distinguish a
+record written while reconciling earlier interrupted work from one describing the
+current request. Preserve the relationship to the interrupted action/run when known
+and to the run that performed recovery. The exact representation is not yet chosen;
+do not require the API to parse free-text messages to distinguish them. Failures with
+NULL photo IDs remain run-level issues rather than failed-photo counts. All records
+associated with a photo must be accessible from its info page as well as global Logs
+(`webui-spec.md` §4.2 and §5.5). These are requirements, not implemented additions.
+
+History supports manual corrections, not undo operations or a rewind of the library.
+A user consults prior values and makes a new explicit edit or rename against the
+current state. Records cannot recreate deleted pixels. This is a required capability,
+not a claim that current mutable photo rows already preserve all that evidence.
+
+The following identity/storage alternatives remain design questions; development
+catalogs and destinations remain disposable and do not require migration support.
 
 `photos.id` is the engine's identity for a file, and `operations.photo_id` hangs
 off it. Rebuilding the catalog — the documented remedy for a schema change
@@ -650,29 +827,13 @@ evidence a file ever existed: the source is gone by design and the content
 survives only under the anchor's name. Delete the catalog and the knowledge that
 it existed goes with it.
 
-Keying history on `sha1_hash` rather than `photos.id` would let it survive a
-rebuild, since content identity is stable across renames, moves, re-processing
-and new catalogs. Three problems have to be answered first:
-
-*   **Failed files have no hash.** A file that could not be read produces
-    `sha1_hash = ''` — and failures are precisely the history worth keeping. A
-    content key cannot cover them; they need `source_path` as a fallback
-    identity, which is itself unstable.
-*   **Content identity is not file identity.** Two distinct files with identical
-    bytes share one hash. History keyed on content becomes "everything that
-    happened to this content," spanning several original paths. That is arguably
-    more correct, but it is a different question from "what happened to this
-    file," and the UI would have to say which one it is answering.
-*   **Editing content breaks the chain.** The metadata writing in §9.6 rewrites
-    files, changing their hashes. A content-addressed history would need to
-    record that hash *A* became hash *B*, or it loses everything before the edit
-    — a rename-tracking problem in a different costume.
-
-Worth considering alongside: whether `runs` and `operations` belong in the
-rebuildable catalog at all, or in a separate store that is never discarded. That
-would remove the tension directly rather than working around it, at the cost of
-a second database file and cross-file joins the reading layer would have to do
-itself.
+**Rejected alternatives:** hash-only identity merges distinct copies and breaks on
+metadata edits; path-only identity breaks on renames and path reuse. Use stable
+per-file lineage with linked content hashes, including records for failures without
+a hash. Keep catalog, settings and history in the same database to preserve the
+single-file backup requirement; a second history database is not the selected design.
+The remaining work is the concrete schema and operation/recovery linkage, not whether
+to preserve lineage or where to split the database.
 
 **This question has a deadline, and it arrives with the web UI.**
 `webui-spec.md` §5.3 (Error Center) and §5.4 (Operations Audit Log) are both
@@ -681,3 +842,25 @@ exists, changing how history is keyed stops being a schema decision and becomes
 a migration plus a rework of two views. **Answer it before the Error Center is
 built.** The spec work itself is unaffected, and deferring the answer costs
 nothing until code is written against those tables.
+
+
+### Destination lineage implementation contract
+
+Successful transfer outcomes update destination identity and participant links in the
+same transaction as the legacy outcome log. A new successful Move retains source A;
+Copy creates B with A's original source as its origin. Copy children do not get a
+fabricated source Index snapshot. Reusing recorded B preserves B and links it as the
+retained copy; verified removal retires A without merging IDs. Each original source,
+including duplicates, remains reachable through operation participants.
+
+`file_origins` records immutable creation provenance; `file_states` records current
+location/presence. A newly observed, previously unrecorded retained destination has
+unknown creation origin, with its verified reuse linked to the source operation.
+Hashes and paths do not substitute for file IDs. Fresh publication at a formerly
+recorded but absent destination preserves the old identity as missing.
+
+Interrupted/failed transfers do not receive fabricated successful lineage. Durable
+intent, partial publication identities, attention records and recovery links remain
+required follow-up work. Recovery must preserve an incomplete Move when both copies
+remain and must not automatically delete the source; a new explicitly requested Move
+may verify and remove it. Recovery outcomes belong separately from new job work.
