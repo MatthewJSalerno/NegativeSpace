@@ -134,7 +134,20 @@ in lineage. Undated review categories are defined in `webui-spec.md` §3.1.
     *   **Retry with backoff:** Transient IO errors (e.g., flaky network shares) during copy/rename/delete operations are retried up to 3 times with exponential backoff (1s, 2s) before the operation is considered failed. (This is unrelated to the "no retry mechanism" decision in §4.1 — that refers to re-attempting a whole failed *file* across separate runs, not this in-process backoff for transient IO errors during a single attempt.)
     *   **Pre-flight disk space check:** Before `--move`/`--copy` begins, the engine sums the size of the targeted files and confirms the destination volume has enough free space (plus a 500MB safety margin), aborting before any file operations start if not. Rows whose recorded destination already holds a file of the same size are **excluded from the sum**: they are not written again, since the loop re-verifies both sides live and a `--move` finishes by deleting the source. Counting them aborted the documented Copy-then-Move workflow on a destination with ample room for what the run would actually write — `--move` has been eligible for `Copied` rows since the selection fix, and their content is already delivered. The estimate never authorizes anything: the live hash comparison still decides, and a file that does need writing after all fails on its own with a recorded reason, source intact. A shortfall is recorded as a run-level `Failed` operation carrying the required and available figures, not only logged.
     *   **Orphan Cleanup:** On startup, leftover partial files belonging to an interrupted row (`<filename><ext>.organizing.partial.*` beside that row's destination) are removed. Only regular files are removed, never symlinks.
-    *   **Crash Recovery — file level:** Every path that deletes a source — a move, a move whose destination already holds the file, duplicate cleanup — first marks the row `Processing` and records in `dest_path` the copy the delete relies on, and commits that before deleting. On startup, after the new run is recorded, any row still `Processing` is settled from what is on disk: if the destination file exists and the source no longer does, the work finished, and the row becomes `Removed_Duplicate` when that destination belongs to another delivered row with the same hash, otherwise `Completed`; if not, it returns to `Duplicate` or `Pending` respectively, so the next run retries it. Each conclusion is recorded as an operation of the reconciling run whose message begins "Recovered after an interrupted run", so a recovered outcome is visible in history rather than a silently rewritten status. A row's final status and its operation are committed together.
+    *   **Crash Recovery — file level:** Every mutation records **durable intent before touching a file**: an `operations` row with an `intent` event, committed at `synchronous=FULL` alongside `photos.status = 'Processing'` and the `dest_path` the work relies on. An interrupted operation is therefore one carrying intent and **no terminal event**, which is how recovery finds work that was started and never settled — previously an interruption left no operation at all, so there was nothing for a conclusion to attach to.
+
+        On startup, after the new run is recorded, recovery **observes** both locations, writes an `operation_evidence` row for each, and only then concludes. Four outcomes, and the two in the middle are the point:
+
+        | Observed | Conclusion |
+        | :--- | :--- |
+        | destination present, source absent | the work finished — `Completed`, or `Removed_Duplicate` when that destination belongs to another delivered row with the same hash |
+        | destination absent, source present | nothing was published — back to `Pending` or `Duplicate` so the next run retries |
+        | **both present** | the copy landed and the source was never removed. The published file is registered as its own identity and the operation is recorded **incomplete**. Recovery never deletes the source; an explicit Move may, after verifying both sides live |
+        | **both absent, or either unreadable** | the outcome **cannot be established**. An attention issue is opened carrying the evidence, and the row is *not* reset to `Pending` — which would claim a file is waiting for work it can never receive |
+
+        **Recovery observes; it does not publish.** When it finds a destination that is already a recorded identity, it *links* to that identity rather than registering a new one. Registering implies a publication event, and the engine treats a fresh publication as proof that any previously recorded occupant is gone — correct for a genuine re-publication, and wrong for a file nothing replaced. Getting this backwards minted a second identity for the same bytes and marked the real one missing; it was found by constructing the state against real delivered files, having passed the synthetic suite.
+
+        Each row is settled in its own transaction: evidence, the settled operation and the new status commit together or not at all. The repair is recorded as an operation of the **reconciling** run, linked to the operation it repairs through `reconciles_operation_id`, so requested work and recovery of earlier work stay separable rather than both reading as this run's output. A reconciliation that fails is never swallowed: it rolls back, and the run is marked `Failed` rather than continuing against a catalog it could not settle.
     *   **Crash Recovery — run level:** On startup, any `runs` row still marked `Running` (meaning that process was killed uncatchably — `SIGKILL`, OOM-kill, power loss — bypassing the normal shutdown path) is marked `Crashed` with a real end timestamp, rather than being left showing as perpetually in-progress forever.
     *   **Re-scan safety:** Re-running the engine against a source directory that still contains previously-cataloged files (the normal Index → review → `--move` workflow) updates existing database rows in place (`INSERT ... ON CONFLICT(source_path) DO UPDATE`) rather than failing on a duplicate-key error.
     *   **Cancellation:** Checked between files, never mid-file — the in-flight file always finishes its Copy-Verify(-Delete) before the loop stops. Every remaining targeted file that never got a chance to run is logged to `operations` with `status = 'Cancelled'`, while its `photos.status` stays `Pending` (not overwritten), so a plain re-run picks it back up naturally. Duplicate-source cleanup is skipped entirely for a cancelled run, since it depends on knowing the final fate of every targeted `Pending` file first. A cancellation that arrives *during* duplicate cleanup is checked before each duplicate in the same way: the removal in progress finishes, the remaining duplicates are left in place and logged as `Cancelled`, and the run ends `Cancelled`.
@@ -255,7 +268,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 2 and refuses incompatible catalogs before processing.
+initializes schema version 3 and refuses incompatible catalogs before processing.
 No migration is supplied during this development increment: preserve older catalogs
 and use a fresh development catalog. Index cannot reconstruct settings, past edits,
 or deleted-file lineage. Never describe deleting a user catalog as routine repair.
@@ -300,9 +313,10 @@ CREATE TABLE photos (
     CHECK (status IS NULL OR status IN ('Pending', 'Processing', 'Completed',
            'Copied', 'Failed', 'Duplicate', 'Removed_Duplicate'))
 );
--- NOT YET PRESENT: thumbnail_path TEXT (webui-spec.md 4.2.1), and width/height
--- (9.5). Adding either is a schema change, which means a rebuilt catalog, not
--- an ALTER on a live database.
+-- NOT YET PRESENT: thumbnail_path TEXT (webui-spec.md 4.2.1). Width and height
+-- now live on `contents` below, alongside the perceptual hash, because they
+-- describe content rather than a particular copy of it. Adding a column is a
+-- schema change, which means a rebuilt catalog, not an ALTER on a live one.
 
 -- runs: one row per engine invocation (Index, Move, or Copy). This is what
 -- "previous run information" is built from -- no separate run-history table.
@@ -338,6 +352,12 @@ CREATE TABLE operations (
     error_message TEXT,
     has_name_collision BOOLEAN DEFAULT 0,
     timestamp TEXT NOT NULL,
+    reconciles_operation_id INTEGER REFERENCES operations(id),
+                            -- set only on a recovery record, naming the
+                            -- operation it repairs. This is what keeps
+                            -- requested work and recovery of earlier work
+                            -- separable (4.2); a run's own output is the
+                            -- rows where it is NULL.
     sha1_hash TEXT,         -- the photo's content hash, read when the row is
                             -- written; NULL if the file could not be read.
                             -- photo_id is valid in one catalog only; this
@@ -360,6 +380,216 @@ CREATE INDEX idx_operations_run ON operations(run_id);
 CREATE INDEX idx_operations_photo ON operations(photo_id);
 CREATE INDEX idx_operations_sha1 ON operations(sha1_hash);
 ```
+
+**Schema version 2 added the identity and lineage records below**, which this
+section did not previously document — an omission that made the claim above
+false from the moment the foundation landed. They are listed before the version 3
+block because everything there references `files`.
+
+```sql
+-- Stable identity, independent of path or hash. A rename, Move or metadata edit
+-- preserves file_id; deletion retains the row so history survives.
+CREATE TABLE files (
+    file_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_run_id INTEGER NOT NULL REFERENCES runs(id),
+    created_at TEXT NOT NULL
+);
+
+-- Immutable creation provenance, separate from mutable current state. A Copy
+-- child points at its source's origin; an uncatalogued destination the engine
+-- found rather than created has kind 'observed_destination' and a NULL origin,
+-- because inventing a source snapshot for it would be a fabrication.
+CREATE TABLE file_origins (
+    file_id INTEGER PRIMARY KEY REFERENCES files(file_id),
+    origin_file_id INTEGER REFERENCES files(file_id),
+    kind TEXT NOT NULL CHECK(kind IN ('indexed','copy','observed_destination'))
+);
+
+-- Current recorded state. Presence and location are deliberately separate from
+-- the last operation's result: a file may be known present and still have an
+-- unresolved outcome against it.
+CREATE TABLE file_states (
+    file_id INTEGER PRIMARY KEY REFERENCES files(file_id),
+    current_path TEXT NOT NULL,
+    location_role TEXT NOT NULL CHECK(location_role IN ('source','destination')),
+    presence_state TEXT NOT NULL CHECK(presence_state IN ('present','removed','missing')),
+    sha1_hash TEXT, revision INTEGER NOT NULL DEFAULT 0
+);
+-- Two live files at one destination path is a database error, not a lineage bug
+-- discovered later.
+CREATE UNIQUE INDEX idx_present_destination ON file_states(current_path)
+    WHERE location_role='destination' AND presence_state='present';
+
+-- Binds a legacy photos row to its current identity. Rebinds when a consumed
+-- source returns, which is a new arrival rather than a new version.
+CREATE TABLE photo_files (
+    photo_id INTEGER PRIMARY KEY REFERENCES photos(id),
+    file_id INTEGER NOT NULL UNIQUE REFERENCES files(file_id),
+    revision INTEGER NOT NULL DEFAULT 0 CHECK(revision>=0)
+);
+
+-- Immutable original Index evidence, one per source identity INCLUDING
+-- duplicates. Later scans never overwrite it; unknown values stay NULL rather
+-- than zero or epoch.
+CREATE TABLE source_snapshots (
+    file_id INTEGER PRIMARY KEY REFERENCES files(file_id),
+    run_id INTEGER NOT NULL REFERENCES runs(id), source_path TEXT NOT NULL,
+    sha1_hash TEXT, file_size INTEGER, file_mtime REAL, birthtime REAL,
+    metadata_json TEXT NOT NULL, observed_at TEXT NOT NULL,
+    error_message TEXT
+);
+
+-- Append-only: what each later scan saw, kept apart from the original snapshot
+-- so a subsequent read is never presented as original evidence.
+CREATE TABLE file_observations (
+    observation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id INTEGER NOT NULL REFERENCES files(file_id),
+    run_id INTEGER NOT NULL REFERENCES runs(id), source_path TEXT NOT NULL,
+    sha1_hash TEXT, file_size INTEGER, file_mtime REAL, birthtime REAL,
+    metadata_json TEXT NOT NULL, observed_at TEXT NOT NULL,
+    error_message TEXT
+);
+
+-- Participants in one operation, by role. Connects copies and duplicate
+-- removals without merging their histories.
+CREATE TABLE operation_files (
+    operation_id INTEGER NOT NULL REFERENCES operations(id),
+    file_id INTEGER NOT NULL REFERENCES files(file_id),
+    role TEXT NOT NULL CHECK(role IN ('source','destination','retained_copy')),
+    PRIMARY KEY(operation_id,file_id,role)
+);
+
+-- Frozen at job start: defaults, then saved settings, then CLI overrides. A
+-- later settings change cannot alter a run that already began.
+CREATE TABLE run_configs (
+    run_id INTEGER PRIMARY KEY REFERENCES runs(id),
+    effective_config_json TEXT NOT NULL
+);
+
+-- One request id binds to one run. Repeating it returns that run; reusing it
+-- with different input is a conflict, not a second execution.
+CREATE TABLE job_requests (
+    request_id TEXT PRIMARY KEY,
+    run_id INTEGER NOT NULL UNIQUE REFERENCES runs(id),
+    submitted_request_json TEXT NOT NULL
+);
+
+CREATE INDEX idx_observations_file ON file_observations(file_id,observation_id);
+CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id);
+```
+
+**Schema version 3 adds the records below.** The first five are written today by
+recovery (4.2); the rest are defined but unwritten, batched deliberately so the
+catalog stops being rebuilt once per increment. Statement order matters here too:
+`contents` precedes everything referencing it, `operation_events` precedes
+`attention_issues`, and both `operation_evidence` and `attention_issues` precede
+the link table joining them.
+
+```sql
+-- Shared content identity. Similarity and thumbnails both key on content rather
+-- than on a file, so identical copies are compared and rendered once.
+CREATE TABLE contents (
+    content_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    hash_algorithm TEXT NOT NULL, digest TEXT NOT NULL,
+    phash TEXT, phash_state TEXT, width INTEGER, height INTEGER,
+    UNIQUE(hash_algorithm, digest)
+);
+
+-- Append-only step outcomes. An operation carrying an 'intent' event and no
+-- terminal event is what recovery recognises as interrupted (4.2).
+CREATE TABLE operation_events (
+    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation_id INTEGER NOT NULL REFERENCES operations(id),
+    timestamp TEXT NOT NULL, step TEXT NOT NULL, outcome TEXT NOT NULL,
+    detail_json TEXT
+);
+
+-- What recovery OBSERVED, kept separate from what the engine DID. An
+-- unreadable location is not an absent one, and neither is a mutation.
+CREATE TABLE operation_evidence (
+    evidence_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation_id INTEGER NOT NULL REFERENCES operations(id),
+    file_id INTEGER REFERENCES files(file_id),
+    observed_at TEXT NOT NULL,
+    location_role TEXT NOT NULL CHECK(location_role IN ('source','destination','partial')),
+    observed_path TEXT NOT NULL, observation_kind TEXT NOT NULL,
+    observed_content_id INTEGER REFERENCES contents(content_id),
+    result TEXT NOT NULL CHECK(result IN ('present','absent','unreadable','match','mismatch')),
+    details_json TEXT
+);
+
+-- Deliberately mutable: an issue is resolved by evidence, never deleted.
+CREATE TABLE attention_issues (
+    issue_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation_id INTEGER NOT NULL REFERENCES operations(id),
+    file_id INTEGER REFERENCES files(file_id),
+    category TEXT NOT NULL, summary TEXT NOT NULL, opened_at TEXT NOT NULL,
+    resolved_at TEXT, resolution_event_id INTEGER REFERENCES operation_events(event_id)
+);
+
+CREATE TABLE attention_evidence (
+    issue_id INTEGER NOT NULL REFERENCES attention_issues(issue_id),
+    evidence_id INTEGER NOT NULL REFERENCES operation_evidence(evidence_id),
+    PRIMARY KEY(issue_id, evidence_id)
+);
+
+-- Defined, not yet written: the records later steps need.
+CREATE TABLE file_changes (
+    change_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL REFERENCES operation_events(event_id),
+    file_id INTEGER NOT NULL REFERENCES files(file_id),
+    before_content_id INTEGER REFERENCES contents(content_id),
+    after_content_id INTEGER REFERENCES contents(content_id),
+    before_path TEXT, after_path TEXT,
+    before_values_json TEXT, after_values_json TEXT
+);
+
+-- One row per unordered pair; the CHECK is what prevents a reversed duplicate.
+CREATE TABLE content_similarity (
+    low_content_id INTEGER NOT NULL REFERENCES contents(content_id),
+    high_content_id INTEGER NOT NULL REFERENCES contents(content_id),
+    distance INTEGER NOT NULL, computed_at TEXT NOT NULL,
+    PRIMARY KEY(low_content_id, high_content_id),
+    CHECK(low_content_id < high_content_id)
+);
+
+-- Cache state, not lineage: generation never modifies the photo.
+CREATE TABLE thumbnail_cache (
+    content_id INTEGER PRIMARY KEY REFERENCES contents(content_id),
+    cache_filename TEXT,
+    availability TEXT NOT NULL CHECK(availability IN ('present','absent','failed')),
+    attempted_file_id INTEGER REFERENCES files(file_id), observed_path TEXT,
+    failure_category TEXT, failure_detail TEXT, updated_at TEXT NOT NULL
+);
+
+-- An attempt is history; an artifact's availability is current observed state.
+CREATE TABLE backup_attempts (
+    attempt_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trigger_kind TEXT NOT NULL, related_run_id INTEGER REFERENCES runs(id),
+    started_at TEXT NOT NULL, ended_at TEXT, outcome TEXT,
+    error_category TEXT, error_detail TEXT
+);
+
+CREATE TABLE backup_artifacts (
+    artifact_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    attempt_id INTEGER NOT NULL UNIQUE REFERENCES backup_attempts(attempt_id),
+    relative_filename TEXT NOT NULL, size INTEGER NOT NULL,
+    compression_format TEXT, created_at TEXT NOT NULL,
+    availability TEXT NOT NULL CHECK(availability IN ('present','missing','unknown')),
+    last_checked_at TEXT
+);
+
+CREATE INDEX idx_evidence_operation ON operation_evidence(operation_id,evidence_id);
+CREATE INDEX idx_events_operation ON operation_events(operation_id,event_id);
+CREATE INDEX idx_open_attention ON attention_issues(file_id) WHERE resolved_at IS NULL;
+```
+
+**Immutability is enforced by triggers, not convention.** `operation_events`,
+`operation_evidence`, `file_changes` and `attention_evidence` reject `UPDATE` and
+`DELETE` alongside the version 2 tables. `attention_issues` is deliberately
+excluded — resolving an issue must update it — as are `thumbnail_cache`,
+`content_similarity` and `backup_artifacts`, whose availability is current state
+rather than history.
 
 The implemented settings table belongs in the same database as the catalog and history,
 so one consistent database backup includes all persistent application state.

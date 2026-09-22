@@ -4,7 +4,7 @@ This is the first implementation increment toward the engine readiness design.
 The engine owns schema initialization through `ns_db.py`; a future API can use
 its scoped settings functions. The web UI is not implemented.
 
-- Explicit initialization creates a versioned catalog (currently version 2). Existing unversioned
+- Explicit initialization creates a versioned catalog (currently version 3). Existing unversioned
   catalogs are rejected without migration or replacement; preserve them and use
   a fresh development catalog for this increment.
 - Connections enforce foreign keys and bounded lock waits. Shared transactions
@@ -26,10 +26,29 @@ atomically with outcomes. Copy origins are immutable, deleted sources retain his
 and previously unrecorded destination origins remain unknown. Skipped operations
 may link a catalogued retained copy without claiming new verification.
 
-This does **not** complete the normalized schema: content-version transitions,
-complete recovery provenance, and transfer-wide revision enforcement remain to
-be implemented. Failed or interrupted deliveries await the recovery-evidence step;
-they are not presented as successful destination lineage. Original Index timestamps are captured here; switching date
+**Recovery evidence landed in schema version 3.** Durable intent precedes every
+mutation, reconciliation records what it observed rather than inferring from a
+path's existence, an interrupted Move leaving two copies is recorded incomplete
+with the published file given its own identity, and an outcome that cannot be
+established opens an attention issue instead of resetting the row. A file under
+an unresolved issue cannot authorize deleting a duplicate source.
+
+**One defect worth recording, because the tests did not find it.** Recovery
+registering an already-recorded destination superseded that identity and created
+a duplicate for the same bytes. `record_delivery` reads a fresh publication as
+proof the previous occupant is absent, which holds for a re-publication and not
+for recovery, which publishes nothing. The synthetic suite stayed green
+throughout; it surfaced only by building the state against real delivered files
+and reading the identity rows rather than the summary counts. The rule is now
+pinned from both sides in the contract suite.
+
+Version 3 also defines, without yet writing to them, the tables later steps need:
+`contents`, `content_similarity`, `thumbnail_cache`, `backup_attempts`,
+`backup_artifacts` and `file_changes`. They are batched deliberately so the
+catalog stops being rebuilt once per increment.
+
+This does **not** complete the normalized schema: content-version transitions and
+transfer-wide revision enforcement remain to be implemented. Original Index timestamps are captured here; switching date
 routing to use them belongs to the transfer adaptation step. Backups, previews,
 manual edits, thumbnails, and web job control are also subsequent work.
 

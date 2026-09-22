@@ -165,7 +165,7 @@ above. No code exists yet.
 
 ### Current database and lineage increment
 
-The shared engine-owned catalog now validates schema version 2, stores immutable
+The shared engine-owned catalog now validates schema version 3, stores immutable
 source Index evidence and per-run settings, and records successful destination
 lineage. New Copy identities retain source origin; new completed Moves retain their
 identity; reuse of an existing destination preserves both identities and links the

@@ -628,7 +628,8 @@ def finish_run(db_path: str, run_id: int, status: str):
 
 def log_operation(conn: sqlite3.Connection, run_id: int, photo_id: Optional[int], source_path: str,
                    dest_path: Optional[str], status: str, error_message: Optional[str] = None,
-                   has_name_collision: bool = False, commit: bool = True, delivery=None):
+                   has_name_collision: bool = False, commit: bool = True, delivery=None,
+                   operation_id: Optional[int] = None, step: str = "transfer"):
     """
     Appends one row to the operations audit log. Never overwrites — every call
     is new history.
@@ -650,26 +651,45 @@ def log_operation(conn: sqlite3.Connection, run_id: int, photo_id: Optional[int]
     cut can still lose recently batched rows — they describe reading rather
     than deleting, and a re-Index reproduces them.
     """
-    cur = conn.execute(
-        """INSERT INTO operations
-           (run_id, photo_id, original_filename, source_path, dest_path, status, error_message,
-            has_name_collision, timestamp, sha1_hash)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
-                   (SELECT NULLIF(sha1_hash, '') FROM photos WHERE id = ?))""",
-        (
-            run_id, photo_id, Path(source_path).name if source_path else None, source_path, dest_path,
-            status, error_message, 1 if has_name_collision else 0, datetime.now().isoformat(),
-            photo_id
+    if operation_id is None:
+        cur = conn.execute(
+            """INSERT INTO operations
+               (run_id, photo_id, original_filename, source_path, dest_path, status, error_message,
+                has_name_collision, timestamp, sha1_hash)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
+                       (SELECT NULLIF(sha1_hash, '') FROM photos WHERE id = ?))""",
+            (
+                run_id, photo_id, Path(source_path).name if source_path else None, source_path, dest_path,
+                status, error_message, 1 if has_name_collision else 0, datetime.now().isoformat(),
+                photo_id
+            )
         )
-    )
-    ns_db.link_operation(conn, cur.lastrowid, photo_id)
+        record = cur.lastrowid
+        ns_db.link_operation(conn, record, photo_id)
+    else:
+        # Settling intent recorded BEFORE the mutation: update that row rather
+        # than inserting a second one, and close it with a terminal event. An
+        # operation carrying intent and no terminal event is what recovery
+        # recognises as interrupted, so this is what stops a completed transfer
+        # from looking interrupted on the next run.
+        record = operation_id
+        conn.execute(
+            """UPDATE operations SET status = ?, error_message = ?, dest_path = ?,
+                   has_name_collision = ?, timestamp = ?,
+                   sha1_hash = (SELECT NULLIF(sha1_hash, '') FROM photos WHERE id = ?)
+                 WHERE id = ?""",
+            (status, error_message, dest_path, 1 if has_name_collision else 0,
+             datetime.now().isoformat(), photo_id, record))
+        ns_db.record_event(conn, operation_id=record, step=step,
+                           outcome="completed" if delivery is not None else "failed",
+                           detail={"status": status})
     if delivery is not None:
-        ns_db.record_delivery(conn, operation_id=cur.lastrowid, photo_id=photo_id,
+        ns_db.record_delivery(conn, operation_id=record, photo_id=photo_id,
                               run_id=run_id, destination=dest_path, **delivery)
     if status == OPERATION_SKIPPED and dest_path:
         # A relationship to the recorded retained file is not a fresh verification.
         conn.execute("INSERT OR IGNORE INTO operation_files SELECT ?,file_id,'retained_copy' FROM file_states WHERE current_path=? AND location_role='destination' AND presence_state='present'",
-                     (cur.lastrowid,dest_path))
+                     (record,dest_path))
     if commit:
         conn.commit()
 
@@ -966,50 +986,71 @@ def db_writer_worker(db_path: str):
 
 
 # --- Startup Recovery & Reconciliation ---
+def _observe(path: Path):
+    """What is actually there, distinguishing unreadable from absent."""
+    try:
+        return "present" if path.is_file() else "absent"
+    except OSError:
+        return "unreadable"
+
+
 def reconcile_interrupted_state(db_path: Path, run_id: Optional[int] = None):
     """
-    Settles work a previous run left mid-flight, and records what it
-    concluded as operations of run_id — the run doing the reconciling — so a
-    recovered outcome is never just a silently rewritten status.
+    Settles work a previous run left mid-flight by OBSERVING, recording what it
+    observed, and only then concluding.
 
-    Every path that deletes a source first marks its row Processing, with
-    dest_path naming the copy the delete relies on. A row whose destination
-    belongs to ANOTHER delivered row was being removed as a duplicate;
-    otherwise it was moving its own file. That decides what it becomes.
+    Every mutation records durable intent before touching a file, so interrupted
+    work is an operation carrying intent and no terminal event. Recovery reads
+    that intent, looks at both locations, writes an evidence row per location,
+    and settles the operation against what it found.
+
+    Four outcomes, and the two that are not simply "finished" or "never started"
+    are the point of this function:
+
+      * destination present, source gone   - the move completed; settle it.
+      * destination gone, source present   - nothing was published; retry it.
+      * BOTH present                       - the copy landed and the source was
+        never removed. The published file is registered as its own identity and
+        the operation is recorded INCOMPLETE. Recovery never deletes the source;
+        an explicit Move may, after verifying both sides live.
+      * BOTH gone, or either unreadable    - the outcome cannot be established.
+        An attention issue is opened carrying the evidence, and the row is NOT
+        reset to Pending, which would claim the file is waiting for work it can
+        never receive.
+
+    Runs at synchronous=FULL. These conclusions are drawn from evidence that may
+    not be observable again - storage disappears, files are replaced - so losing
+    them to a power cut is not the benign case that NORMAL assumes elsewhere.
     """
     if not db_path.exists():
         return
 
     logger.info("Checking database for interrupted tasks from previous runs...")
-    conn = get_db_connection(str(db_path))
+    conn = get_db_connection(str(db_path), synchronous="FULL")
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='photos';")
         if not cursor.fetchone():
-            conn.close()
             return
 
         cursor.execute(
             f"SELECT id, source_path, dest_path, sha1_hash FROM photos "
             f"WHERE status = '{PhotoStatus.PROCESSING}'"
         )
-        stuck_records = cursor.fetchall()
+        for record_id, src_str, dst_str, sha1 in cursor.fetchall():
+            src, dst = Path(src_str), Path(dst_str)
 
-        for record_id, src_str, dst_str, sha1 in stuck_records:
-            src = Path(src_str)
-            dst = Path(dst_str)
-
-            # Partials carry a random suffix (see _stage_copy), so they are
-            # found by prefix rather than one fixed name. Only regular files
-            # are removed: a symlink at a partial-looking name was not created
-            # by this engine, and removing it is not ours to decide.
+            # Partials carry a random suffix (see _stage_copy), so they are found
+            # by prefix. Only regular files are removed: a symlink at a
+            # partial-looking name was not created by this engine.
             prefix = dst.name + PARTIAL_SUFFIX + "."
+            orphans = []
             try:
                 with os.scandir(dst.parent) as entries:
                     orphans = [e.path for e in entries
                                if e.name.startswith(prefix) and e.is_file(follow_symlinks=False)]
             except FileNotFoundError:
-                orphans = []
+                pass
             for orphan in orphans:
                 logger.warning(f"Found orphaned partial file: {Path(orphan).name}. Removing.")
                 os.unlink(orphan)
@@ -1020,40 +1061,127 @@ def reconcile_interrupted_state(db_path: Path, run_id: Optional[int] = None):
                 (record_id, sha1, dst_str)
             ).fetchone() is not None
 
-            if dst.exists() and not src.exists():
+            source_state, dest_state = _observe(src), _observe(dst)
+
+            # One transaction per reconciled row: evidence, the settled
+            # operation and the photo's new status commit together or not at
+            # all. Relying on an incidental write to open one left the first
+            # evidence write without a transaction whenever intent already
+            # existed, which is every interrupted row now that intent is
+            # recorded before the mutation.
+            conn.execute("BEGIN IMMEDIATE")
+            unsettled = ns_db.unsettled_operations(conn, record_id)
+            operation_id = unsettled[-1][0] if unsettled else ns_db.begin_operation(
+                conn, run_id=run_id, photo_id=record_id, source_path=src_str,
+                dest_path=dst_str, kind="recovered_without_intent")
+
+            for role, path, state in (("source", src_str, source_state),
+                                      ("destination", dst_str, dest_state)):
+                ns_db.record_evidence(conn, operation_id=operation_id, location_role=role,
+                                      observed_path=path, observation_kind="stat", result=state)
+            for orphan in orphans:
+                ns_db.record_evidence(conn, operation_id=operation_id, location_role="partial",
+                                      observed_path=orphan, observation_kind="stat",
+                                      result="present", details={"removed": True})
+
+            if "unreadable" in (source_state, dest_state) or (
+                    source_state == "absent" and dest_state == "absent"):
+                # Neither guess is honest. The source is gone or unexaminable and
+                # nothing verifiable stands at the destination, so this run cannot
+                # say whether the photo was delivered.
+                final = PhotoStatus.FAILED
+                note = (f"Recovery could not establish what happened: the source is "
+                        f"{source_state} and the destination is {dest_state}. The file's "
+                        f"recorded history is kept and this needs attention.")
+                ns_db.settle_operation(conn, operation_id, status=final, step="recovery",
+                                       outcome="unestablished", error_message=note)
+                evidence_ids = [r[0] for r in conn.execute(
+                    "SELECT evidence_id FROM operation_evidence WHERE operation_id=?",
+                    (operation_id,))]
+                ns_db.open_attention_issue(
+                    conn, operation_id=operation_id, category="unestablished_outcome",
+                    summary=note,
+                    file_id=(conn.execute("SELECT file_id FROM photo_files WHERE photo_id=?",
+                                          (record_id,)).fetchone() or [None])[0],
+                    evidence_ids=evidence_ids)
+            elif dest_state == "present" and source_state == "absent":
                 final = PhotoStatus.REMOVED_DUPLICATE if duplicate_removal else PhotoStatus.COMPLETED
                 note = (f"Recovered after an interrupted run: the source is gone and the "
                         f"destination copy is present at {dst}.")
+                ns_db.settle_operation(conn, operation_id, status=final, step="recovery",
+                                       outcome="completed", error_message=note)
+            elif dest_state == "present" and source_state == "present":
+                # The copy landed; the source was never removed. Two real files,
+                # one logical relocation. Register the published file as its own
+                # identity and leave the Move incomplete - the source stays
+                # eligible for an explicit Move that verifies both sides live.
+                final = PhotoStatus.DUPLICATE if duplicate_removal else PhotoStatus.PENDING
+                note = ("File delivered; source not removed. The destination copy is present "
+                        "and the source is still here, so the Move did not finish. Run Move "
+                        "again for this source to verify both copies and remove it.")
+                if not duplicate_removal:
+                    # created= must describe what recovery OBSERVED, not assert an
+                    # event. The crashed run published this file; whether it also
+                    # RECORDED it decides the flag. If a destination identity
+                    # already exists, passing created=True would apply the
+                    # "a fresh publication proves the previous occupant absent"
+                    # rule to a file nothing replaced - superseding a live
+                    # identity and minting a duplicate for the same bytes.
+                    already_recorded = conn.execute(
+                        "SELECT 1 FROM file_states WHERE current_path=? AND location_role='destination' "
+                        "AND presence_state='present'", (dst_str,)).fetchone() is not None
+                    with contextlib.suppress(ns_db.SchemaError):
+                        ns_db.record_delivery(conn, operation_id=operation_id, photo_id=record_id,
+                                              run_id=run_id, destination=dst_str,
+                                              source_removed=False, created=not already_recorded,
+                                              sha1_hash=sha1)
+                ns_db.settle_operation(conn, operation_id, status=final, step="move",
+                                       outcome="incomplete", error_message=note)
             else:
                 final = PhotoStatus.DUPLICATE if duplicate_removal else PhotoStatus.PENDING
-                note = ("Recovered after an interrupted run: the operation had not finished, "
-                        "so it will be retried.")
-            logger.info(f"Reconciled interrupted record {record_id} as {final}.")
-            cursor.execute("UPDATE photos SET status = ? WHERE id = ?", (final, record_id))
-            if run_id is not None:
-                log_operation(conn, run_id, record_id, src_str, dst_str, final, note, commit=False)
+                note = ("Recovered after an interrupted run: nothing was published at the "
+                        "destination, so it will be retried.")
+                ns_db.settle_operation(conn, operation_id, status=final, step="recovery",
+                                       outcome="not_started", error_message=note)
 
-        # A run killed uncatchably (SIGKILL, OOM-kill, power loss — anything
-        # that bypasses main()'s try/finally) never reaches finish_run(), so
-        # its row stays Running with no end time. This process holds the
-        # single-instance lock, so no other run can still be alive: mark
-        # them Crashed.
+            # The repair belongs to the run that performed it, linked to the
+            # operation it repairs. The interrupted operation keeps its own
+            # settled outcome and its evidence; this row is what a reader sees
+            # when asking what THIS run did, and reconciles_operation_id is what
+            # keeps requested work and recovery separable.
+            recovery_id = ns_db.begin_operation(
+                conn, run_id=run_id, photo_id=record_id, source_path=src_str,
+                dest_path=dst_str, kind="recovery", reconciles=operation_id)
+            ns_db.settle_operation(conn, recovery_id, status=final, step="recovery",
+                                   outcome="recorded", error_message=note)
+            cursor.execute("UPDATE photos SET status = ? WHERE id = ?", (final, record_id))
+            conn.commit()
+            logger.info(f"Reconciled interrupted record {record_id} as {final}.")
+
+        # A run killed uncatchably never reaches finish_run(), so its row stays
+        # Running with no end time. This process holds the single-instance lock,
+        # so no other run can still be alive: mark them Crashed.
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='runs';")
         if cursor.fetchone():
-            # The reconciling run itself is Running and must not mark itself Crashed.
+            conn.execute("BEGIN IMMEDIATE")
             cursor.execute("SELECT id FROM runs WHERE status = ? AND id != ?",
                            (RunStatus.RUNNING, run_id if run_id is not None else -1))
-            orphaned_runs = cursor.fetchall()
-            for (run_id,) in orphaned_runs:
-                logger.warning(f"Run #{run_id} was left 'Running' by an unclean shutdown — marking Crashed.")
-                cursor.execute(
-                    "UPDATE runs SET status = ?, ended_at = ? WHERE id = ?",
-                    (RunStatus.CRASHED, datetime.now().isoformat(), run_id)
-                )
-
-        conn.commit()
-    except Exception as e:
-        logger.error(f"Error during startup state reconciliation: {e}")
+            # Deliberately not `run_id`: rebinding the loop variable would destroy
+            # the reconciling run's own id, which the evidence above is written
+            # against.
+            for (crashed_run_id,) in cursor.fetchall():
+                logger.warning(f"Run #{crashed_run_id} was left 'Running' by an unclean "
+                               f"shutdown - marking Crashed.")
+                cursor.execute("UPDATE runs SET status = ?, ended_at = ? WHERE id = ?",
+                               (RunStatus.CRASHED, datetime.now().isoformat(), crashed_run_id))
+            conn.commit()
+    except BaseException:
+        # Never swallowed. A failed reconciliation leaves rows Processing, and a
+        # run that continued would treat an unsettled catalog as settled.
+        conn.rollback()
+        logger.error("Startup state reconciliation failed; the catalog was not settled.",
+                     exc_info=True)
+        raise
     finally:
         conn.close()
 
@@ -2521,7 +2649,15 @@ def main():
     worker_count, active_extensions = config["workers"], set(config["exts"])
     # Reconciled AFTER the run exists, so what it concludes is recorded as
     # operations of this run rather than as silently rewritten statuses.
-    reconcile_interrupted_state(db_path, run_id)
+    # Outside the try/finally below, so a raised failure would otherwise leave
+    # the run Running forever. Settle it here instead of swallowing the error.
+    try:
+        reconcile_interrupted_state(db_path, run_id)
+    except Exception as exc:
+        logger.error(f"FATAL: could not reconcile interrupted work: {exc}")
+        finish_run(str(db_path), run_id, RunStatus.FAILED)
+        release_single_instance_lock(lock_fd)
+        sys.exit(1)
     run_outcome = RunStatus.FAILED
 
     try:
@@ -3151,6 +3287,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         resolved_dst = str(resolved_path)
         has_collision = (resolved_dst != dst)
 
+        intent_id = None
         if already_present:
             # An identical copy is already sitting at the destination from an
             # earlier run. Re-copying would just create IMG_0001_1.jpg beside
@@ -3167,6 +3304,10 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 # reconciliation settles from what is actually on disk.
                 cursor.execute("UPDATE photos SET status = ?, dest_path = ? WHERE id = ?",
                                (PhotoStatus.PROCESSING, resolved_dst, record_id))
+                intent_id = ns_db.begin_operation(
+                    conn, run_id=run_id, photo_id=record_id, source_path=src,
+                    dest_path=resolved_dst, kind="move_already_present",
+                    expected={"sha1_hash": verified_sha1, "source_removed": True})
                 conn.commit()
                 try:
                     if source_identity is None:
@@ -3192,7 +3333,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 (final_status, resolved_dst, record_id)
             )
             log_operation(conn, run_id, record_id, src, resolved_dst, final_status, skip_error,
-                          has_collision, commit=False,
+                          has_collision, commit=False, operation_id=intent_id,
+                          step="move_already_present",
                           delivery=dict(source_removed=args.move, created=False,
                                         sha1_hash=verified_sha1) if skip_error is None else None)
             conn.commit()
@@ -3232,6 +3374,10 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         # file is actually being written, not where the catalog last put it.
         cursor.execute("UPDATE photos SET status = ?, dest_path = ? WHERE id = ?",
                        (PhotoStatus.PROCESSING, resolved_dst, record_id))
+        intent_id = ns_db.begin_operation(
+            conn, run_id=run_id, photo_id=record_id, source_path=src, dest_path=resolved_dst,
+            kind="move" if args.move else "copy",
+            expected={"source_removed": bool(args.move), "created": True})
         conn.commit()
 
         # --move deletes the verified source (delete_source=True, the
@@ -3246,7 +3392,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             final_status = PhotoStatus.COPIED if success else PhotoStatus.FAILED
         cursor.execute("UPDATE photos SET status = ? WHERE id = ?", (final_status, record_id))
         log_operation(conn, run_id, record_id, src, resolved_dst, final_status, error_message,
-                      has_collision, commit=False,
+                      has_collision, commit=False, operation_id=intent_id,
+                      step="move" if args.move else "copy",
                       delivery=dict(source_removed=args.move, created=True,
                                     sha1_hash=verified_content.get("sha1_hash")) if success else None)
         conn.commit()
@@ -3358,6 +3505,10 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             # row) from an interrupted move of a row's own file.
             cursor.execute("UPDATE photos SET status = ?, dest_path = ? WHERE id = ?",
                            (PhotoStatus.PROCESSING, verified, record_id))
+            dup_intent_id = ns_db.begin_operation(
+                conn, run_id=run_id, photo_id=record_id, source_path=dup_src_str,
+                dest_path=verified, kind="duplicate_removal",
+                expected={"sha1_hash": source_sha1, "source_removed": True})
             conn.commit()
             try:
                 _remove_verified_source(dup_src, Path(verified), source_identity,
@@ -3375,13 +3526,15 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 cursor.execute("UPDATE photos SET status = ? WHERE id = ?",
                                (PhotoStatus.DUPLICATE, record_id))
                 log_operation(conn, run_id, record_id, dup_src_str, verified,
-                              PhotoStatus.FAILED, error_message, commit=False)
+                              PhotoStatus.FAILED, error_message, commit=False,
+                              operation_id=dup_intent_id, step="duplicate_removal")
                 conn.commit()
                 continue
             cursor.execute("UPDATE photos SET status = ?, dest_path = ? WHERE id = ?",
                            (PhotoStatus.REMOVED_DUPLICATE, verified, record_id))
             log_operation(conn, run_id, record_id, dup_src_str, verified,
                           PhotoStatus.REMOVED_DUPLICATE, commit=False,
+                          operation_id=dup_intent_id, step="duplicate_removal",
                           delivery=dict(source_removed=True, created=False, sha1_hash=source_sha1))
             conn.commit()
             removed_count += 1
