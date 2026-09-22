@@ -33,6 +33,15 @@ with the published file given its own identity, and an outcome that cannot be
 established opens an attention issue instead of resetting the row. A file under
 an unresolved issue cannot authorize deleting a duplicate source.
 
+**One defect worth recording, because the tests did not find it.** Recovery
+registering an already-recorded destination superseded that identity and created
+a duplicate for the same bytes. `record_delivery` reads a fresh publication as
+proof the previous occupant is absent, which holds for a re-publication and not
+for recovery, which publishes nothing. The synthetic suite stayed green
+throughout; it surfaced only by building the state against real delivered files
+and reading the identity rows rather than the summary counts. The rule is now
+pinned from both sides in the contract suite.
+
 Version 3 also defines, without yet writing to them, the tables later steps need:
 `contents`, `content_similarity`, `thumbnail_cache`, `backup_attempts`,
 `backup_artifacts` and `file_changes`. They are batched deliberately so the

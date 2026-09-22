@@ -237,6 +237,36 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
             self.conn.execute("UPDATE operation_evidence SET result='present'")
 
+    def test_recovery_links_a_recorded_destination_instead_of_superseding_it(self):
+        """Recovery observes; it does not publish.
+
+        record_delivery treats created=True as proof that a previously recorded
+        occupant is gone - correct for a genuine re-publication, wrong for
+        recovery re-registering a file nothing replaced. Passing created=True
+        there minted a second identity for the same bytes and marked the real
+        one missing. Reproduced against real files before this test existed.
+        """
+        photo, run = self.photo()
+        with db.transaction(self.conn):
+            first = self.delivery(photo, run, created=True, removed=False)
+        # What recovery must do when a destination identity already exists.
+        with db.transaction(self.conn):
+            again = self.delivery(photo, run, created=False, removed=False)
+        self.assertEqual(again, first, "recovery minted a second identity")
+        self.assertEqual(
+            self.conn.execute("SELECT count(*) FROM file_states WHERE presence_state='missing'")
+                .fetchone()[0], 0, "recovery superseded a live identity")
+        self.assertEqual(
+            self.conn.execute("SELECT count(*) FROM file_states WHERE current_path=?",
+                              ('/destination/a.jpg',)).fetchone()[0], 1)
+        # And the failure mode it replaced, so the rule is pinned from both sides.
+        with db.transaction(self.conn):
+            superseding = self.delivery(photo, run, created=True, removed=False)
+        self.assertNotEqual(superseding, first)
+        self.assertEqual(
+            self.conn.execute("SELECT presence_state FROM file_states WHERE file_id=?",
+                              (first,)).fetchone()[0], 'missing')
+
     def test_no_implicit_creation_or_old_schema_conversion(self):
         missing=Path(self.tmp.name)/'missing.db'
         with self.assertRaises(sqlite3.OperationalError):db.connect(missing)

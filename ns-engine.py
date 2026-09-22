@@ -1120,10 +1120,21 @@ def reconcile_interrupted_state(db_path: Path, run_id: Optional[int] = None):
                         "and the source is still here, so the Move did not finish. Run Move "
                         "again for this source to verify both copies and remove it.")
                 if not duplicate_removal:
+                    # created= must describe what recovery OBSERVED, not assert an
+                    # event. The crashed run published this file; whether it also
+                    # RECORDED it decides the flag. If a destination identity
+                    # already exists, passing created=True would apply the
+                    # "a fresh publication proves the previous occupant absent"
+                    # rule to a file nothing replaced - superseding a live
+                    # identity and minting a duplicate for the same bytes.
+                    already_recorded = conn.execute(
+                        "SELECT 1 FROM file_states WHERE current_path=? AND location_role='destination' "
+                        "AND presence_state='present'", (dst_str,)).fetchone() is not None
                     with contextlib.suppress(ns_db.SchemaError):
                         ns_db.record_delivery(conn, operation_id=operation_id, photo_id=record_id,
                                               run_id=run_id, destination=dst_str,
-                                              source_removed=False, created=True, sha1_hash=sha1)
+                                              source_removed=False, created=not already_recorded,
+                                              sha1_hash=sha1)
                 ns_db.settle_operation(conn, operation_id, status=final, step="move",
                                        outcome="incomplete", error_message=note)
             else:

@@ -1798,6 +1798,16 @@ def an_interrupted_move_leaving_both_copies_keeps_the_source():
     check(dest_id[0]["file_id"] != src_id[0]["file_id"],
           "the published destination was merged into the source identity")
 
+    # Recovery observes; it does not publish. Superseding a recorded identity
+    # for bytes nothing replaced mints a duplicate and falsely marks the real
+    # one gone - invisible to a check that only counts PRESENT rows.
+    superseded = rows(case, "SELECT file_id FROM file_states WHERE presence_state='missing'")
+    check(not superseded,
+          f"recovery superseded an identity for a file nothing replaced: {superseded}")
+    per_path = rows(case, "SELECT current_path, COUNT(*) n FROM file_states "
+                          "WHERE location_role='destination' GROUP BY current_path HAVING n > 1")
+    check(not per_path, f"more than one destination identity for one path: {per_path}")
+
     evidence = rows(case, "SELECT location_role, result FROM operation_evidence "
                           "WHERE operation_id = ?", (incomplete[0]["operation_id"],))
     seen = {(e["location_role"], e["result"]) for e in evidence}
