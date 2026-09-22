@@ -41,12 +41,21 @@ Two consequences follow, and both shape decisions in each component spec:
     correctness ones.
 *   **Metadata correctness is a deliverable.** The consuming application reads
     EXIF from the files themselves, never from this project's SQLite catalog —
-    which is local, disposable and rebuildable. A date this project knows but the
+    which holds catalog information, settings and irreplaceable operation history.
+    Development catalogs may be disposable, but user history is not reconstructible
+    from photo files. A date this project knows but the
     file does not is a date the gallery will get wrong. That is what eventually
     forces metadata corrections out of the catalog and into the files, or into
     sidecars beside them; see `engine-spec.md` §9.6.
 
 ## 2. Target Audience
+
+**Photo-format scope:** this is a photo organizer, not a general-purpose image
+manager. Do not expand format support solely to edit metadata in arbitrary image
+formats. Where a selected photo cannot store requested embedded metadata, report
+that limitation and leave it unchanged; no automatic sidecar or catalog-only edit
+fallback. Existing indexing support is not a promise of metadata-write support.
+This scope decision does not remove formats from the current engine.
 
 *   **Primary:** Professional photographers and content creators managing
     thousands of assets.
@@ -109,6 +118,11 @@ Delivered and validated against a real library. In place today:
 *   Crash-safe resume, including run-history reconciliation after a hard kill.
 *   Standard images, HEIC, and RAW formats.
 
+The agreed capture-date policy is stricter than today's engine: require a usable
+`DateTimeOriginal`, otherwise file under `Undated/<year>/` and expose other date
+clues for manual review. The current `CreateDate`/`DateTime` fallbacks still need to
+be removed; see `engine-spec.md` §4.2.
+
 **Five capabilities the web UI depends on do not exist yet**, each specified
 with what it needs:
 
@@ -118,7 +132,7 @@ with what it needs:
 | Precomputed perceptual pairs | `engine-spec.md` §9.3 | Similar-photo review and its slider |
 | Rename a delivered file | `engine-spec.md` §9.4 | Recovering a better filename from a duplicate group |
 | Delete under `--dest`, with an extended record | `engine-spec.md` §9.5 | Discarding redundant copies; needs `width`/`height` too |
-| Writing EXIF into files or sidecars | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
+| Writing embedded EXIF (sidecars remain a future option) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
 
 And eight more, found by auditing the documented web workflows against what the
 engine can actually answer (`engine-spec.md` §9.8):
@@ -128,10 +142,10 @@ engine can actually answer (`engine-spec.md` §9.8):
 | Thumbnail generation | Every grid, every review tab, the Inspector preview — five workflows |
 | A settings store | The Settings screen, which everything else depends on |
 | Refiling after a date change | Any metadata correction; it is what makes the destination contract enforceable |
-| Field-level before/after | EXIF history and undo |
+| Field-level before/after | Full lineage and informed manual corrections; no undo operations |
 | A batch identity | Bulk apply reading as one action |
 | Which date field was used | Lineage answering "why is this photo here?" |
-| Catalog backup, inventory, trigger | The automatic backup before bulk apply |
+| Catalog backup, inventory, trigger | Backups before curation and after processing, with retention and failure reporting |
 | Serving a file for download | Log export and backup retrieval — API work, not engine |
 
 **The destination contract** — every file under `--dest` sits in the folder its
@@ -147,3 +161,17 @@ ledger in [TODO.md](../TODO.md), and the content-addressed history question in
 
 Specified in `webui-spec.md`, including the workflows that consume the five gaps
 above. No code exists yet.
+
+
+### Current database and lineage increment
+
+The shared engine-owned catalog now validates schema version 2, stores immutable
+source Index evidence and per-run settings, and records successful destination
+lineage. New Copy identities retain source origin; new completed Moves retain their
+identity; reuse of an existing destination preserves both identities and links the
+source removal. See [database-foundation.md](./database-foundation.md).
+
+This is a locally tested implementation increment, not a claim that the complete
+workflow contract is finished. Recovery evidence, content-version history, strict
+capture-date routing and original-date fallback adaptation remain pending. Older
+catalogs are preserved and rejected; fresh development catalogs are required.

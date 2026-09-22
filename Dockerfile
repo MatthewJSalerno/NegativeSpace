@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application script and entrypoint
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-COPY ns-engine.py .
+COPY ns-engine.py ns_db.py ./
 RUN chmod 644 ns-engine.py
 
 # Source and destination MUST map to separate, non-overlapping underlying
@@ -47,6 +47,11 @@ RUN chmod 644 ns-engine.py
 # backing up dies with it. Losing the /appdata mount is precisely the failure
 # a backup exists to survive, so it must live on a separate mount the user can
 # point at different storage.
+# /backups and /appdata MUST use distinct, non-overlapping backing directories:
+# neither may contain the other. Different container paths alone are insufficient.
+# Configure this through Docker before startup, not through application settings.
+# /backups contains multiple catalog database snapshots, never photo backups.
+# Automatic backups and startup overlap validation are planned, not implemented.
 #
 # Unlike /cache these are NOT disposable — `runs` and `operations` are the only
 # record of what the engine did, and since a catalog rebuild discards them, a

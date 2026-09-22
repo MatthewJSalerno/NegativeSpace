@@ -16,7 +16,7 @@ The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engi
 | HTTP REST / WebSockets
 +-----------------------------------------------------------------------------------+
 |                                 FastAPI Backend                                   |
-|  [ Job Queue ]  --->  [ Engine Subprocess Execution ]  --->  [ Log Parser Engine ]|
+|  [ Job Control ] ---> [ Engine Subprocess Execution ] ---> [ Log Parser Engine ]|
 +-----------------------------------------------------------------------------------+
 | SQLite (WAL) / Subprocess
 +-----------------------------------------------------------------------------------+
@@ -55,11 +55,10 @@ The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engi
    python3 ns-engine.py --move --file-ids 101,102,105  (or --copy)
    python3 ns-engine.py --move --source-subdir sd_card/day1
 
-6. Job progress streams back to the frontend via WebSocket, reusing the
-   engine's own status transitions (Pending -> Processing ->
-   Completed/Failed/Removed_Duplicate) rather than a separate progress
-   protocol. Any client connecting or reconnecting first replays
-   `GET /api/v1/runs/{run_id}/operations` before tailing live (§4.1).
+6. The frontend shows aggregate progress and elapsed runtime (§4.1), refreshed
+   about once per second. Per-file outcomes remain available through Logs.
+   Progress requires phase/scoped totals as well as recorded outcomes; statuses
+   alone are insufficient. Log replay subscribes first, then backfills (§4.1).
 
 7. Frontend updates the Gallery/Operations Drawer in real time as rows
    change status.
@@ -81,7 +80,37 @@ One consequence for display: after a Move, each `Duplicate` row's `dest_path` is
 
 ### Selective File Processing
 Users can select individual files or multiple files across grid views to run targeted operations.
-* **Multi-Select Controls:** Checkboxes on photo cards, Shift-click range selections, and "Select all on page."
+* **Multi-Select Controls:** Checkboxes on photo cards, Shift-click range selections,
+  and **Select all on this page**. This selects eligible photos on the displayed
+  page only, not all results matching the current filter. Keep the total selected
+  count visible in the action bar and repeat it in bulk-action previews, including
+  metadata edits and deletion. Do not label a page-only control simply "Select all."
+* **Selection across views:** retain explicit photo selections when changing pages
+  or filters. Show the total and the number outside the displayed view, for example
+  **“25 selected · 10 outside this view”**, with **Review selection** and **Clear
+  selection**. Review selection temporarily shows only the selected photos,
+  including those hidden by prior filters or pagination, and allows inspection and
+  deselection. **Back to results** restores the previous search, filters, sort order
+  and page while retaining the updated selection. It does not permanently replace
+  the browsing view. Bulk actions use the explicit selection and show its count
+  in the preview, not just the photos visible on the current page.
+* **Unavailable selected photos:** keep the item visible in Review selection with
+  its reason. Show counts such as **“24 available · 1 unavailable”** and require
+  removal of unavailable items before confirmation. Never silently drop them from
+  the selection. Revalidate before execution using the stale-preview policy (§7.1).
+
+**Move/Copy preview:** before confirmation, group projected destinations by folder
+with counts and expandable file details. Offer a downloadable operation plan for
+the full scope. Label it a plan, not a log: subsequent execution can fail or detect
+changed state, and its actual outcomes belong in the job log. Apply the same
+selection counts and stale-preview safeguards used by other confirmed actions.
+
+**Main-page browsing:** default to newest first by recorded photo date, clearly
+distinguishing filesystem fallback dates from capture dates; offer size sorting.
+Search matches current and original filenames, including names of related removed
+duplicates, without merging their histories. Folder paths are not filename-search
+matches. Distinguish not-yet-organized and organized photos; when a search has matches
+in the other view, show its count and a link rather than implying no matches exist.
 * **Selection size limit:** Individual multi-select (including "Select all on page") is capped at a configurable maximum (default: 1,000 files) per job submission — this isn't an arbitrary UX restriction, it's because each selected file becomes an integer in the `--file-ids` command-line argument passed to the engine, and there's a real OS limit on total command-line length. Exceeding the cap shows a clear message (e.g. *"1,000 file limit for individual selection — try Folder Selection below for larger batches"*) rather than silently truncating the selection or attempting a job that might fail at spawn time.
 * **Folder Selection (for large batches):** Instead of "select all matching current filter" against individual files, users can select a source folder (recursive) and scope the operation to everything currently indexed under it. This maps directly to the engine's `--source-subdir <path>` flag (`engine-spec.md` §4.1) rather than enumerating individual IDs, which sidesteps the command-line length limit entirely — there's no practical upper bound on how many files a folder selection can cover. Symlinks are excluded automatically, inherited from the original Index that populated the catalog (a symlink was never indexed as a row in the first place). If a folder hasn't been indexed yet (zero matching rows), show *"No indexed files found under this folder — run an Index first."*
 * **Sticky Action Bar:** Appears when items (individual or folder) are selected, presenting **Move Selected** and **Copy Selected** actions.
@@ -91,9 +120,41 @@ Users can select individual files or multiple files across grid views to run tar
 
 ## 3. Dedicated Settings Management (`/settings`)
 
-A dedicated Settings view provides central management of engine parameters, persisted to SQLite and passed to engine instances on startup.
+A dedicated Settings view provides central management of engine parameters, persisted
+in the same SQLite database as catalog/history and passed to engine instances on
+startup. Settings must work before the first Index: initialize tables and defaults
+without scanning or touching photos. Saving validates and persists values; startup
+must not reset saved preferences. The browser uses the API, never SQLite directly.
+One consistent database backup includes settings and lineage. The settings writer
+boundary is defined in §6.1; no second database is required.
 
-**Settings changes never affect an already-running operation.** Every engine invocation reads its configuration once, at spawn time, as CLI flags (`--workers`, `--exts`) — there's no live-reload path, by design (see `engine-spec.md` §4.1). Saving new settings in this panel only affects jobs started *after* the save. If a user wants a change applied to work that's currently in progress, they need to cancel the running job (§4.1's Cancel Job) and start it again — at which point the new settings apply from that fresh invocation. The Settings UI should make this explicit (e.g. a note near Save: *"Changes apply to new operations only — cancel and restart an in-progress job to apply immediately"*) rather than implying a change takes effect instantly everywhere.
+**Startup without a usable catalog:** distinguish a missing database from access
+errors and from an invalid or corrupt database. Do not silently replace an existing
+database or interpret a storage error as a fresh installation. If no database is
+found, show **“No catalog found. If this is your first time using NegativeSpace,
+create a catalog to get started. If you’ve used it before, check your appdata mount
+or recover your catalog from a backup.”** Offer **Create new catalog** explicitly;
+only after that choice initialize the database and defaults, without running Index.
+Verify application storage is accessible and writable before creation, and never
+overwrite a database that appears between the check and confirmation.
+
+In startup diagnostics and recovery guidance, show **Application data: `/appdata`**
+and **Catalog backups: `/backups`**, labelled as container paths. Their host locations
+are determined by the Docker mounts; do not claim the application knows those paths.
+For read/write errors, show the specific reason and permissions/storage guidance.
+For an invalid or corrupt database, explain the problem and point to backup recovery
+guidance without automatically restoring or creating a replacement. When catalog
+logs cannot be read, offer available application diagnostics rather than a broken
+job-log link. This diagnostic path display does not add a backup destination setting.
+
+**Settings changes never affect an already-running operation.** Users may save
+settings while a job is active; saved values apply only to jobs started after the
+save. Each job retains its starting configuration, available in its job details.
+Display a persistent notice in the job settings section, near Save:
+**“Changes apply to future jobs. Active jobs will continue with their existing settings.”**
+Repeat that clarification in the save confirmation when a job is active. Do not
+require cancelling a job to save settings. This is the required behavior; settings
+write coordination remains to be designed (§6.1).
 
 ```
 +---------------------------------------------------------------------------------+
@@ -117,54 +178,61 @@ A dedicated Settings view provides central management of engine parameters, pers
 | [ .txt                  ]  [ + Add Extension ]                                  |
 |                                                                                 |
 | (!) WARNING: Custom extension '.txt' does not natively support EXIF metadata.    |
-|     When no EXIF data is present, filesystem creation/modification date will     |
-|     be used for organization.                                                   |
+|     Without a usable capture date, files go to Undated/<year>, using mtime.      |
+|     Other metadata remains available for manual review.                         |
 +---------------------------------------------------------------------------------+
 |                                                   [ RESET ]  [ SAVE SETTINGS ]  |
 +---------------------------------------------------------------------------------+
 ```
 
 
-### 3.1 Undated Photos: `Undated/` or Modification Time
+### 3.1 Undated Photos and Capture-Date Evidence
 
-**Decided 2026-09-17. Implemented 2026-09-20.** A photo with no usable EXIF date goes to an `Undated/<year>/` folder rather than being filed under its modification time inside the date tree. This is **unconditional**: there is no setting, and modification-time filing into the date tree is no longer reachable by any configuration.
+**Required behavior, pending engine implementation:** a photo without a usable
+capture date (`DateTimeOriginal`) belongs under `Undated/<year>/`, even if other
+metadata date fields exist. The year is its filesystem modification year, not its
+creation year. Other dates are retained as clues, not silently used as capture dates.
+The current engine still accepts `CreateDate` and `DateTime` as fallbacks; removal
+of those fallbacks is an agreed change, not shipped behavior.
 
-The old behaviour is what the mock-up above still describes — *"filesystem creation/modification date will be used for organization"* — and it is wrong in two ways that only show up at scale. It files a photo under a date **nobody vouched for**, mixed in with photos whose dates came from the camera; and once filed, nothing marks it as a guess. Measured on a real library: **95 of 1,165 sampled files (8.2%) had no usable EXIF date**, and the run placed photos from the 2000s into `2024/` and `2025/` folders purely because their download timestamps were recent.
+The Undated view provides counts and filters for photos with other date clues but
+no usable capture date, photos with other metadata but no usable date fields, and
+photos with no readable metadata. Classification uses embedded metadata rather than
+engine-added bookkeeping fields. Selecting a count opens the matching photos for
+manual review in the shared editor. Show original paths/names and clearly label
+capture, digitization and modification dates. Do not automatically promote a clue
+to a capture date. Preserve original and subsequent placement decisions in lineage.
 
-Two reasons this is the better default, both the maintainer's:
 
-* **It stops undated files colliding with genuinely dated ones.** A date folder should mean "the camera said so."
-* **A file you can find is a file you can fix.** The catalog keeps `source_path` and the original filename, and for these files that is frequently where the real date actually is — a folder named for an event, a filename carrying `20070415`. `Undated/` is where a person can go and work through them.
+**Year subdivision is a filing aid, not a capture-date claim.** Use the placed
+file's own modification year to keep Undated navigable. For byte-identical copies,
+any anchor is acceptable; preserve the other copies' recorded names, paths and times
+for review rather than selecting a winner from those attributes.
 
-That second point makes `Undated/` a **review queue that needs no queue table**: the folder *is* the list, derivable by looking at it. It is the same shape the placement-drift problem wants, arrived at independently.
+**Why not choose the earliest year across a duplicate group?** The group is not
+complete when scan workers project paths, and identical bytes do not become more
+trustworthy because one copy has an earlier mtime. The extra coordination does not
+improve content selection. The user decides what date is meaningful from the evidence.
 
-**Two sub-questions to settle when implementing, each with a recommendation rather than an open survey:**
+**Stable fallback date:** use the source modification time captured at its original
+Index for `Undated/<year>`, including after capture-date removal. Preserve this
+original snapshot per source copy, including duplicates; later rescans, edits and
+transfers must not replace it. Show it as **Original source modification time (at
+Index)**, not as a capture date. Genuine creation time, if available, remains a
+separate historical clue. The snapshot requirement is planned in `engine-spec.md`
+§10 and is not supplied by the current mutable `file_mtime` alone.
 
-1. **Flat, or subdivided? `Undated/YYYY/`, with the year fixed by the content rather than by walk order.** At ~8%, a consolidated library could put tens of thousands of files in one directory — navigable by a tool, tedious for a person, which defeats the "easy to find" half of the rationale. So subdivide by year: the mtime is a real fact about the *file* even when it is not a fact about the *photograph*, so it can organise the folder without the tree ever claiming it is the date taken.
-
-   **Implemented 2026-09-20: the year is the placed file's own modification time.**
-
-   **Why not fix the year from the content group?** The appealing alternative is to use the earliest usable `file_mtime` across every row sharing the content's `sha1_hash`, so that every copy computes the same year and walk order stops deciding anything. It is not done, for two reasons, and the second is the one that settles it:
-
-   *It is not computable where the projection is made.* `dest_path` is written during the scan by a `ProcessPoolExecutor` worker, which is a separate process with no database handle — and the `sha1_hash` group is not even fully known at that moment, since other members may not have been scanned yet. Honouring the group rule would mean projecting one folder at Index and placing the file in a different one at Move, leaving the catalog advertising a location the file never occupies. The staging screen projects from the catalog, so it would show the wrong folder for every undated photo.
-
-   *And the property it would buy is worth less than it appears.* Two byte-identical undated copies form a duplicate group, so **only one file is ever delivered** — the other is flagged `Duplicate` and removed from source or skipped. The choice of anchor therefore changes which *year folder* the single surviving file sits in, never what the library contains, and the other copy's name and path remain recoverable through lineage. `Undated/YYYY/` exists to keep the folder navigable, not to assert anything: every file in it is there precisely because **no date is trusted**, and each will be reviewed regardless. The year is a filing aid, not a claim.
-
-   **Possible refinement, not implemented.** The earliest mtime in a group is a marginally better *lower bound* on a photograph's age — a file downloaded in 2005 and again in 2024 has two, and 2005 is nearer the truth. Worth revisiting only if the year subdivision ever does semantic work; it does not today, and the population it would affect (undated photos that also have duplicates whose mtimes straddle a year boundary) has never been measured.
-
-   **The `file_mtime = 0.0` sentinel does not reach placement.** A failed `stat()` records `0.0` in `photos.file_mtime` — the column is not NULL in that case — but that column feeds the unchanged-file check, not the folder. The date used for placement comes from a separate `os.path.getmtime()` call in the metadata fallback, which raises on failure rather than yielding `0.0`. So a file cannot arrive in `Undated/1970/` by that route. A file whose mtime genuinely is the epoch would still land in `Undated/1970/`, which is correct: the year is a filing aid, and 1970 is what that file says.
-
-2. **What does `date_taken` hold?** **Recommend leaving it exactly as today** — the mtime, marked `date_source = 'file_mtime'` — and changing only *placement*. That keeps the existing census query working (`date_source` already distinguishes them), keeps a value in hand for when a real date is recovered, and confines the change to one decision in the path builder rather than spreading through the metadata layer. One consequence worth stating plainly: a photo's **folder year and its own `date_taken` always agree**, because both derive from the same row's modification time. The folder answers "where do I go to find this content"; the row records what this particular file said; under the shipped rule those are the same fact, read twice.
-
-**Consequence worth recording:** the undated-duplicate tiebreak is not a problem to solve. Two byte-identical copies with different mtimes still produce different `date_taken` values, so the arbitrary anchor — whichever the unsorted walk reaches first — still decides which `Undated/YYYY/` folder the content lands in. That is acceptable, and deliberately so: **only one file of a duplicate group is ever delivered**, the delivered bytes are identical whichever copy won, and every other copy's name, path and mtime stay recoverable through lineage. An mtime is a data point to record and show, never a basis for the engine to choose between identical files.
+The current catalog retains the mtime fallback in `date_taken`, labelled with
+`date_source = 'file_mtime'`; the interface must not call it a capture date. If mtime
+cannot be read, the read failure must remain visible rather than inventing a year.
 
 ### 3.2 Extension EXIF Support Validation Subsystem
 When a user attempts to add or select a custom extension in the settings panel or via API, the backend/UI validates it against a metadata-support registry:
 
 1. **Standard EXIF Image Formats (Native Support):** `.jpg`, `.jpeg`, `.tiff`, `.tif`, `.heic`, `.heif`, `.webp`, and RAW formats (`.cr2`, `.cr3`, `.nef`, `.arw`, `.dng`, `.rw2`, `.orf`, `.pef`).
 2. **Non-EXIF Formats (Trigger Non-Blocking Warning):** Container formats or plain files (e.g., `.png`, `.bmp`, `.gif`, `.mp4`, `.mov`, `.mkv`, `.avi`, `.txt`).
-3. **UI Warning UX:** Displays an inline warning badge: *"File type `.ext` does not support EXIF data. When no EXIF data is available, file creation/modification date will be used."*
-4. **Validation Behavior:** The warning is **informative/non-blocking**. Users can still add non-EXIF file types; the backend flags `has_exif_support = false` in the config state so the engine falls back gracefully to filesystem timestamps (`mtime`/`ctime`).
+3. **UI Warning UX:** Explain that files without a usable capture date go to `Undated/<year>`, using modification time only for the year subdivision.
+4. **Validation Behavior:** The warning is **informative/non-blocking**. Users can still add file types. Extension hints do not replace inspection of actual metadata; placement follows the capture-date policy in §3.1.
 
 ---
 
@@ -175,22 +243,156 @@ When a job is active, a progress drawer expands at the bottom of the viewport.
 
 ```
 +-----------------------------------------------------------------------------------+
-| [X] Moving 3 Files...  | Progress: [========............] 66% (1 Remaining)       |
-+-----------------------------------------------------------------------------------+
-| CURRENT STEP: Verification & Checksum Comparison (Workers: 8 | Queue: 42/1000)   |
-| LOGS:                                                                             |
-| - [DONE] IMG_001.JPG -> /data/dest/2026/02/14/IMG_001.JPG (SHA1 Verified)         |
-| - [IN PROGRESS] IMG_002.CR2 -> /data/dest/2026/02/14/IMG_002.CR2                   |
+| Copying — 8,400 of 15,000 processed                 Elapsed: 00:12:34               |
+| Progress: [================............] 56%                                       |
+| 8,100 copied · 280 skipped · 20 failed                                             |
+| [ View failures ]    [ View logs ]    [ Cancel Job ]                               |
 +-----------------------------------------------------------------------------------+
 ```
 
-* **Metrics:** Active step, progress percentage, active worker count, current DB queue backpressure level, files completed vs. remaining.
-* **Live Log Stream:** Direct source-to-destination mapping display with verification status.
+* **Aggregate display:** refresh totals about once per second. Do not automatically
+  scroll through a status line for every file. Full per-file outcomes remain recorded
+  and accessible through **View logs**, **View failures**, and photo history.
+* **Phase and counts:** during Index show files indexed, exact duplicates identified
+  and files failed; during Copy show copied, skipped and failed; during Move show
+  moved, duplicate sources removed, skipped and failed. Keep earlier-work recovery
+  and run-level issues separate as defined in §5.5. Label duplicate counts as a subset
+  where appropriate rather than adding them twice.
+* **Progress bar:** measure processed items, including finished failed and skipped
+  attempts, against a known total for the same phase and scope. Do not count scan
+  and transfer records for the same photo twice, or include unrelated recovery.
+  Stat-skipped unchanged files also need accounting; raw operation-row counts are
+  insufficient. Until a reliable denominator exists, show activity and available
+  counts with an indeterminate bar. Cancellation shows recorded outcomes and cancelled
+  items without implying all work finished successfully.
+* **Elapsed runtime:** measure from the job's recorded start, not from opening the
+  browser or entering a phase. Update the display once per second; reconnecting or
+  refreshing retains elapsed time. At completion, failure or cancellation freeze at
+  the recorded final duration. A crash with no reliable end time must show duration
+  as unavailable or approximate, not treat later reconciliation as the actual end.
+  Timestamp storage and display follow §10.
+* **Data contract:** aggregate progress needs the active phase, scoped work totals
+  and properly classified outcomes. The engine does not yet expose this complete
+  contract. Active-worker counts, queue depth and fine-grained checksum steps are
+  not required by this initial drawer and must not be invented from catalog statuses.
+
 * **Job Control:** Provides a **Cancel Job** button. Sends `SIGTERM` to the engine subprocess (§6.2 `jobs/{id}/cancel`). During the **Index/scan** phase the engine stops at the next batch boundary and skips the move/copy phase entirely (everything already indexed is kept, so re-running continues where it left off) — note the UI should not expect per-file `Cancelled` rows for a scan-phase cancellation, since no physical work was scoped out yet. During **Move/Copy**, the file currently being copy-verified finishes normally, then every remaining targeted file is logged to the `operations` audit table with status `Cancelled` (not silently dropped — visible in the run's history afterward) and duplicate-source cleanup for that run is skipped entirely.
-* **WebSocket Reconnection & Replay:** On connecting (or reconnecting after a dropped connection or browser refresh — see §5.2), the frontend does **not** assume it saw every event live. It subscribes to the run's live WebSocket stream **first**, buffering events without displaying them. It then queries `GET /api/v1/runs/{run_id}/operations` (backed by `SELECT * FROM operations WHERE run_id = ? ORDER BY id`) to backfill the LOGS panel, merges the buffered events in, discarding any whose operation `id` the backfill already holds, and only then displays the live stream. The order matters: fetching history and then subscribing leaves a window in which an operation lands after the query but before the subscription, and is never shown. So every live event carries its `operations.id`, and ordering is by `id`, not `timestamp` — the single writer assigns ids in commit order, while two operations can share a timestamp. This is what makes "job continues unaffected by a browser refresh" (§5.2) actually true for the *displayed history*, not just the underlying job — without this replay step, a reconnecting client would see progress resume from wherever it currently is with an empty-looking log, even though the job had been running for a while.
+* **Cancellation feedback:** after the cancellation request is accepted, show
+  **“Cancellation requested—waiting for the current work to stop safely.”** Keep
+  progress and elapsed time visible and disable repeated Cancel clicks. Do not show
+  **Cancelled** until the engine confirms that outcome; if the job completed before
+  cancellation took effect, show its actual result. The final summary shows recorded
+  completed, failed and remaining/cancelled counts where known, without inventing a
+  remaining-photo count for an incomplete scan. Provide **View job log** both while
+  cancellation is pending and in the final summary, opening Logs filtered to that
+  job so the user can inspect what was done and any failures.
+* **Delayed cancellation:** keep **“Cancellation is still pending. The job has not
+  stopped yet.”** visible, with **View job log** and **How to force stop**. Keep
+  conflicting actions blocked until termination is confirmed. Never escalate
+  automatically. The help explains that stopping the application container also
+  disconnects the web UI and can leave partially completed work requiring reconciliation.
+  From the Docker host, `docker stop --timeout 30 <container-name>` requests shutdown
+  and escalates to a forced kill after the timeout. For an explicit immediate forced
+  stop, `docker kill <container-name>` sends SIGKILL. These are host instructions,
+  not a browser-executed command. Confirm the container stopped before starting the
+  web application again; do not promise an immediate stop if host storage is hung.
+  Restarting a container reruns its configured startup command: the current CLI-only
+  container may therefore start Index/Copy/Move again. Do not present restarting that
+  container as a recovery-only action. The future web deployment must start the UI
+  and reconcile/report interrupted work without resubmitting the job.
+  Link **Backup history** and show the last successful backup time when known (or
+  state none is available), as context rather than an instruction to restore it.
+  Restoring an older catalog does not undo file changes and may discard recent lineage;
+  ordinary interrupted-job recovery uses the current catalog. Docker behavior is
+  documented in [Stop](https://docs.docker.com/reference/cli/docker/container/stop/)
+  and [Kill](https://docs.docker.com/reference/cli/docker/container/kill/).
+* **WebSocket Reconnection & Replay:** restore the aggregate snapshot and recorded
+  start/end times on connection; a browser refresh does not restart the job or timer.
+  For detailed operation history, subscribe to the run's live stream first and buffer
+  events, then backfill through `GET /api/v1/runs/{run_id}/operations`. Merge and
+  deduplicate by `operations.id`, ordering by ID rather than timestamp. This preserves
+  complete history without forcing a fast-scrolling log into the progress drawer.
+  Aggregate snapshots are separate from per-file events and do not pretend to have
+  operation IDs; their transport and ordering still need a concrete API contract.
+
+* **Browser disconnects do not cancel jobs.** Closing the tab or losing the network
+  connection leaves the server-side job running. While disconnected, show
+  **“Connection lost. The job may still be running. Reconnecting…”** rather than a
+  failure verdict. On returning, restore the existing job's current progress or its
+  final results if it has finished. Reopening the page never starts the job again.
+  Cancellation requires the explicit **Cancel Job** action. If the container stopped,
+  show the job as interrupted only once the interruption is confirmed, with links
+  to its recorded outcomes and logs; a connection failure alone is not that evidence.
+* **Connection loss after Start:** if the response is lost, show
+  **“Connection lost. Checking job status…”** Disable repeat submission
+  until the outcome is established. On reconnect, identify whether that request
+  created a job, including jobs that already finished, and show its current status
+  or results. Checking only for an active job is insufficient. Never automatically
+  resend the Start request. If it is confirmed that no job started, re-enable Start
+  for an explicit user submission; if the outcome remains unknown, say so and offer
+  **View job history** and another status check without claiming it failed.
+  Reliable association between a Start request and its resulting job remains an
+  API design requirement; matching only by timing or mode is not sufficient.
+* **Lost response after confirming a photo action:** use **“Checking job status…”**
+  for rename, EXIF edit and deletion as well. Look up the recorded job/action,
+  including completed actions, and display its recorded outcome with **View job log**.
+  This is a status/history lookup, not a new inspection of files to infer whether
+  changes were applied. Show recorded per-file outcomes for partial completion.
+  If the submitted action cannot be identified, state that its status is unknown
+  and offer job history. Never automatically repeat the action. Request association
+  must cover curation actions as well as Index, Copy and Move.
 
 ### 4.2 Split-Screen Photo Inspector Panel
 Clicking an image opens a right-side 50% detail panel.
+
+**Deleted files retain their info screen and lineage.** Exclude deleted files from
+the normal actionable library, but keep their info screens reachable from log links
+and a **Deleted files** history filter. Show **Deleted**, the last recorded metadata
+and location (labelled historical), original source Index information, and the full
+recorded sequence of actions and before/after values. Deletion must not cascade away
+these records or break existing history links. Do not offer edit or restore controls
+for the deleted file. Preserve the information needed to reconstruct its recorded
+metadata and naming/location history manually; this does not recreate photo pixels
+or guarantee recovery of unrecorded external changes. Retained lineage does not
+require retaining an orphaned thumbnail (§4.2.1).
+
+**The photo info screen is the complete recorded history for that file.** Clearly
+separate **Current metadata**, **Original source metadata at Index**, and **History**.
+The original view includes the preserved source filename/path and filesystem
+snapshot as well as captured metadata; later edits or rescans must not overwrite it.
+History shows every recorded change across jobs: Copy, Move, rename, metadata edits,
+refiling and deletion, plus failed attempts and reconciliation outcomes. Each entry
+shows when it happened, its action and outcome, changed fields with before/after
+values, old/new locations where applicable, and a link to its job/batch log.
+Distinguish attempted changes from changes actually applied. Preserve navigation
+through filename, path and content-hash changes. This is the tool's recorded lineage,
+not a claim to reconstruct unobserved external edits; show unknown information as
+unknown. Users can consult original values directly without piecing them together
+from individual logs. No automatic undo or restore action is implied.
+
+**Hash changes remain traceable to the original.** History links follow stable file
+lineage, showing before/after hashes for content-changing actions and the original
+Index hash. Neither a new hash nor a reused filename/path starts or merges history
+implicitly. If the catalog identifies a different current file at a historical
+path, show **“This historical path is now used by a different file.”** Link the
+historical record and current file separately; do not redirect the old record to
+the new occupant. Describe catalog knowledge as recorded, not live filesystem
+verification. Distinct copies sharing a hash retain their own histories.
+
+**Reimported content has a new history.** When a newly imported photo matches a
+deleted record's hash, show **“Matches content from a previously deleted file”**
+with a link to that historical record. Keep the new import's Index information and
+subsequent actions separate from the old deletion history. Do not label the new
+import as a restoration or imply a deleted copy is still available for deduplication.
+
+**Every photo info panel provides a History / View logs action.** It opens all
+recorded operations associated with that photo across runs, not just its latest
+status or most recent job. Include the original source Index information, copies,
+moves, renames, metadata edits, failures, deletions and recovery records where
+applicable. Preserve access across changes to filename, path and content hash.
+Each entry links to its run for context; related copies' histories are identifiable
+as such rather than silently mixed with this file's own actions. Users can review
+what happened and make manual corrections; there is no undo operation.
 
 ```
 +---------------------------------------------------------------------------------+
@@ -233,11 +435,39 @@ Clicking an image opens a right-side 50% detail panel.
 
 The Gallery grid and Inspector's "Media Preview" both need something to actually render — this requires new engine-side work, not just a frontend concern, since the engine is the only thing with RAW-decode capability (`rawpy`) already loaded.
 
-* **Generation point:** During Index, alongside SHA1/pHash computation — reuses the image decode already happening for pHash rather than a second pass over the file (standard/HEIC formats via `PIL.Image`, RAW-family via `rawpy`).
-* **Storage:** Small JPEG (longest edge ~256px), written to `/appdata/thumbnails/<sha1>.jpg`, keyed by hash so identical files (including cross-directory duplicates) share one thumbnail instead of generating redundant copies.
+* **Generation point:** During source Index, alongside SHA1/pHash computation,
+  reusing image decoding. Reuse an existing cached thumbnail for the same content
+  hash, including exact duplicates.
+* **Cache recovery:** on a missing preview, generate from an available source or
+  destination copy associated with a catalog record. This supports cache clearing
+  after Move removed the source. Do not generate for uncatalogued destination files.
+  Missing cache entries alone are not evidence of destination modification.
+* **Storage:** Small JPEG (longest edge ~256px), written to `/cache/thumbnails/<sha1>.jpg`, keyed by hash so identical files (including cross-directory duplicates) share one thumbnail instead of generating redundant copies.
+* **Storage separation:** `/appdata` holds persistent application state (catalog, settings and logs), not disposable cache. Thumbnails under `/cache/thumbnails` are excluded from catalog backups and can be regenerated from available catalogued copies.
+* **Metadata edits and cache cleanup:** after a successful embedded metadata change,
+  use the resulting content hash as the thumbnail key. Reuse the thumbnail if that
+  hash already has a cached entry; otherwise generate a new thumbnail from the edited
+  file. Do not carry forward the old preview merely because image pixels may be
+  unchanged. Remove the old hash's cached thumbnail once no current catalogued file
+  references that hash; keep it if another unchanged copy still needs it. Historical
+  lineage alone does not require retaining obsolete thumbnails. Clean up orphaned
+  cache entries after interrupted operations as well, without removing shared entries
+  still needed by current files. Preview-generation failure follows the failure
+  reporting below and does not conceal a successful metadata edit. No manual cache
+  clearing is required.
 * **Schema:** New `thumbnail_path` column on `photos` (nullable) — see §6.1.
-* **Failure handling:** A thumbnail generation failure (corrupt file, unsupported variant) must not fail the overall Index for that file — log and leave `thumbnail_path` NULL; the Gallery/Inspector show a placeholder icon for those rows instead of erroring.
-* **Serving:** `GET /api/v1/photos/{id}/thumbnail` (§6.2) serves the file directly from `/appdata/thumbnails/`.
+* **Failure handling:** Thumbnail failure must not fail an otherwise successful Index. Record the failure and show a placeholder with an explanation if generation fails or no readable catalogued copy is available. Thumbnails are disposable and excluded from application backups.
+* **Explain unavailable previews:** the placeholder shows a concise reason when
+  known, such as **“Photo file unavailable”**, **“Permission denied reading photo”**,
+  **“Image could not be decoded”**, or **“Thumbnail cache could not be written”**.
+  Provide details and a link to the associated log when available. Record the
+  thumbnail attempt's failure category and diagnostic detail, and expose them through
+  the API; this support is planned. Do not infer corruption from a generic decoder
+  failure or infer thumbnail failure from a missing pHash. If the cause is unknown,
+  say **“Preview unavailable; reason not recorded.”** A cache miss awaiting generation
+  is a pending preview, not a diagnosed failure. Clear the current unavailable state
+  after successful generation while retaining recorded failure history.
+* **Serving:** `GET /api/v1/photos/{id}/thumbnail` (§6.2) serves the file directly from `/cache/thumbnails/`.
 
 ---
 
@@ -246,7 +476,42 @@ The Gallery grid and Inspector's "Media Preview" both need something to actually
 ### 5.1 Pre-Flight Disk Space Protection
 Before initiating any move or copy job, the system computes total payload size plus a 500 MB safety buffer. If destination disk space is insufficient, execution is blocked and a warning banner displays required vs. available space.
 
+**Destination unavailable or not writable:** block Copy, Move, destination rename,
+EXIF edits and destination deletion when the destination cannot be accessed or
+written. Show **“Destination unavailable or not writable”**, the specific reason,
+and guidance to check the Docker mount, storage connection or permissions. Never
+silently select another destination. Index remains available when source and
+application storage are accessible; catalog browsing and history remain available.
+Unavailable photo previews follow the placeholder behavior in §4.2.1. An access
+failure alone does not prove files were removed or changed outside the tool.
+Recheck access when the user explicitly attempts an action again; do not queue or
+automatically resume blocked work when storage returns. If access fails during an
+action, preserve and report its recorded per-file outcomes rather than claiming
+that no changes occurred.
+
+**Index file-type accounting:** when collected, show a summary such as **“15,000
+files found · 12,000 eligible by file type · 3,000 excluded by file type”**, with an
+expandable excluded-count breakdown by extension (including files without an
+extension). Eligibility uses the job's configured extension selection; it does not
+guarantee a file can be decoded or its metadata read. Excluded files are untouched
+and are not failures. Keep eligible-file processing outcomes separate from this
+discovery summary; do not add excluded files to the failed-photo count or the
+eligible-work progress denominator. Show only measured counts, scoped to the scan;
+an interrupted or incomplete scan must label discovery counts as partial. Extension
+accounting requires engine/API support and must not be inferred from catalog rows
+that omit excluded files.
+
 ### 5.2 Job Persistence & Background Execution
+
+**Unavailable source versus empty scan:** if the source cannot be accessed, show
+**“Source unavailable. Check your Docker mount and storage connection.”** Include
+the recorded reason and **View job log**. Treat this as a run-level scan problem,
+not zero failed photos or a successful empty scan. A completed scan of a readable
+source with no supported files instead shows **“0 supported files found.”** Neither
+outcome removes existing catalog history. Do not infer that a mount is healthy merely
+because its container directory exists; if it appears readable but empty, report the
+observed result without claiming the expected external storage was verified.
+
 Jobs run asynchronously in FastAPI. If a user closes or refreshes their browser, the job continues unaffected. Reopening the web UI re-establishes the WebSocket connection and replays the operations log for that run (§4.1's WebSocket Reconnection & Replay) to stream live progress with full history intact, not just progress from the reconnection point forward.
 
 ### 5.3 Error Center
@@ -282,12 +547,14 @@ For that case specifically, the recorded `error_message` reads `Duplicate verifi
 
 Users can view exact system error strings (e.g., `PermissionError`, `ChecksumMismatch`, `Source file changed`). The distinct wording on the third case (`engine-spec.md` §4.2) is intentional — it should read differently from a permissions/disk failure, since the fix is "run an Index" rather than "check destination permissions."
 
-**No dedicated retry subsystem.** There is no "Retry Item" / "Retry All Failed" backend endpoint and no `retry_count` tracking. A failed file's `photos.status` is reset to `Pending` automatically the next time it's re-indexed (a plain re-scan, full or `--file-ids`-scoped), so retrying is just re-running the same operation — files that already succeeded are gone from `--source` and won't be touched again, so this is fast even for a large batch with only a few failures. The web UI's equivalent of "retry" is selecting the photos associated with failed attempts and re-issuing the same Move/Copy operation via `POST /api/v1/jobs/start` with their IDs in `file_ids` — no new endpoint required. Take those IDs from the failed `operations` rows rather than from `photos.status`, deduplicating when several attempts reference one photo, and do not require the photo's current status to be `Failed`: a duplicate-verification failure stays `Duplicate` and is retried by Move's duplicate cleanup on the next run. Retrying does not by itself fix a content mismatch or an unreadable file, so the UI should not promise that it will.
+**No dedicated retry subsystem.** There is no "Retry Item" / "Retry All Failed" backend endpoint and no `retry_count` tracking. A failed file's `photos.status` is reset to `Pending` automatically the next time it's re-indexed (a plain re-scan, full or `--file-ids`-scoped), so retrying means explicitly submitting a new operation. Successfully copied files remain in source; successfully moved files normally do not. Do not promise that rerunning requires no scanning or verification. The web UI's equivalent of "retry" is selecting the photos associated with failed attempts and re-issuing the same Move/Copy operation via `POST /api/v1/jobs/start` with their IDs in `file_ids` — no new endpoint required. Take those IDs from the failed `operations` rows rather than from `photos.status`, deduplicating when several attempts reference one photo, and do not require the photo's current status to be `Failed`: a duplicate-verification failure stays `Duplicate` and is retried by Move's duplicate cleanup on the next run. Retrying does not by itself fix a content mismatch or an unreadable file, so the UI should not promise that it will.
 
 ### 5.4 Operations Audit Log (`/logs`)
 A searchable table logging every operation performed by the engine:
 * **Columns:** Timestamp, Mode (`MOVE`/`COPY`), Source Path, Destination Path, Status (`Completed`, `Copied`, `Removed_Duplicate`, `Failed`), and System Error Message.
-* **Controls:** Filter by date, status, run, or free-text search; CSV/JSON export.
+* **Controls:** Filter by photo lineage, date, status, run, or free-text search;
+  CSV/JSON export. The photo info page opens this view scoped to the selected
+  photo's full history, with access to the surrounding run.
 
 **Filtering by run is what two other screens link into**, so it is a first-class filter rather than a search convenience: the failure banner links here scoped to the most recent run, and the Dashboard's coverage message (§5.9) links here scoped to *every run since the last complete scan*. The filter therefore accepts a set of run ids, not only one.
 
@@ -303,13 +570,30 @@ Run #2 finished with status: Completed
 
 Surfacing that verbatim would show a green **Completed** for a job where nothing succeeded, and the user would have to open the Error Center to discover their entire operation did nothing.
 
-**The API therefore derives a job outcome from the `operations` rows rather than echoing `runs.status`:**
+**The API derives outcomes from classified operations, not just `runs.status`.**
+Present three separate groups, each linked to its detailed logs:
+
+* **Requested work:** outcomes for the current job's requested photos.
+* **Earlier work reconciled:** recovery of interrupted operations from prior jobs.
+  Do not credit these as files completed by the current request. Link the recovery
+  record to the interrupted operation/run when known and to the run that performed
+  reconciliation. Users can inspect it through Logs or the photo info page.
+* **Run-level issues:** unreadable folders and other failures without an identified
+  photo. An unreadable folder is one scan issue, not one failed photo; its unknown
+  contents must not be converted into an invented file count. These issues remain
+  visible even when every known requested photo succeeded.
+
+The current aggregate below is diagnostic only: it cannot by itself distinguish
+recovery from requested work or run-level issues from failed photos.
 
 ```sql
 SELECT status, COUNT(*) FROM operations WHERE run_id = ? GROUP BY status;
 ```
 
-The per-file truth is already recorded there — `Completed`, `Copied`, `Failed`, `Cancelled`, `Removed_Duplicate`, each with an `error_message` where applicable — so no engine change and no new status vocabulary is required. `runs.status` keeps its current meaning and remains the right thing to check for "is a job still running" (§5.7) and for crash reconciliation.
+The existing statuses and error messages remain useful, but recovery needs structured
+provenance rather than interpretation of human-readable messages. Its engine support
+is not implemented; see `engine-spec.md` §10. NULL-photo failures are already
+identifiable as run-level issues. `runs.status` retains its lifecycle meaning.
 
 Job responses should carry both: the lifecycle status **and** the derived counts, so the UI can render *"Move finished — 0 of 23 succeeded, 23 failed"* rather than a bare word. Recommended presentation rules:
 
@@ -319,7 +603,20 @@ Job responses should carry both: the lifecycle status **and** the derived counts
 | succeeded > 0, failed = 0 | success |
 | succeeded > 0, failed > 0 | partial success — surface the failed count and link the Error Center |
 | succeeded = 0, failed > 0 | **failure**, regardless of `runs.status` being `Completed` |
+| no changes, no failures or scan issues, and run completed | neutral completion with prominent counts and skip reasons; not an error |
 | `runs.status` is `Cancelled` / `Crashed` / `Failed` | that status wins; still show counts for what was done before it ended |
+
+**No-change results lead with counts.** For example, **“0 of 120 files moved ·
+120 skipped”**, followed by **“All 120 are already recorded as delivered to the
+destination.”** For Copy, use **“0 of 120 files copied · 120 skipped.”** An unchanged
+Index shows **“0 new · 0 changed · 120 unchanged”** using actual scan accounting.
+Break down mixed skip reasons rather than attributing all skips to existing files.
+Already-delivered counts describe catalog records, not fresh verification that
+destination files exist or match (§5.3). Use the scoped counts for the requested
+operation, excluding earlier-work reconciliation. Keep failures and scan issues
+prominent; zero changes must not turn a problematic run into a clean no-change
+result. Terminal cancellation, crash and failure take precedence over count-based
+completion labels.
 
 Note the engine may write more `operations` rows than the job targeted — the scan phase logs a row per file and the move phase logs another, and a `--move` additionally logs `Removed_Duplicate` cleanup rows. Count against the operation the user asked for rather than assuming one row per file.
 
@@ -339,9 +636,28 @@ Note also the `--file-ids` length ceiling described in §2: the 1,000-item selec
 
 ### 5.7 Single Active Job Enforcement
 
+**No waiting queue for user operations.** While Index, Copy, Move or another
+file-changing action is active, also disable photo selection and bulk-selection
+controls, showing **“Selection is unavailable while a job is running.”** Browsing,
+photo information and history remain accessible. After the job ends, refresh the
+view before re-enabling selection. A selection already present in another tab must
+be reviewed against refreshed file information before use; never automatically
+submit it. These restrictions apply during Preparing and Cancelling as well.
+
+While Index, Copy, Move or another
+file-changing action is active, disable new processing jobs and photo rename,
+EXIF-edit and deletion actions. Show **“Photo changes are unavailable while a job
+is running.”** Browsing, photo history and settings remain available; settings
+changes apply only to future jobs (§3). Reject conflicting submissions at the API
+as well, including races between tabs, rather than queuing them. When the active
+operation ends, controls become available again; nothing starts automatically.
+The user must initiate and confirm a new action against current state. This extends
+the existing processing lock requirement to planned curation operations; those
+operations are not implemented yet.
+
 Only one engine process may run at a time — see `engine-spec.md` §4.1/§7 for the engine-level guarantee (an OS-level `flock`, held for the whole process lifetime, released automatically even on a hard `SIGKILL`). This is enforced in two layers, not one:
 
-* **Fast pre-check (FastAPI):** Before spawning the engine, `POST /api/v1/jobs/start` probes the engine's own lock: a non-blocking `flock` on `<base>/engine.lock`. If the lock is held, an engine is running, and it returns `409 Conflict` immediately — no subprocess is spawned, and the response includes the newest `Running` run's `id`, `mode`, and `started_at` so the frontend can show *"A Move operation is already in progress (started 2 minutes ago) — wait for it to finish or cancel it."* The Rescan/Move/Copy/Settings-Save buttons should all be disabled client-side whenever a job is known to be active, so this 409 is a backstop for races (e.g. two tabs), not the primary UX.
+* **Fast pre-check (FastAPI):** Before spawning the engine, `POST /api/v1/jobs/start` probes the engine's own lock: a non-blocking `flock` on `<base>/engine.lock`. If the lock is held, an engine is running, and it returns `409 Conflict` immediately — no subprocess is spawned, and the response includes the newest `Running` run's `id`, `mode`, and `started_at` so the frontend can show *"A Move operation is already in progress (started 2 minutes ago) — wait for it to finish or cancel it."* The Rescan/Move/Copy buttons should all be disabled client-side whenever a job is known to be active, so this 409 is a backstop for races (e.g. two tabs), not the primary UX.
 
   The pre-check must not decide from `runs.status = 'Running'` alone. A row orphaned by a crash stays `Running` until the next engine run reconciles it, so a pre-check that trusted the table would refuse to start that very run: every job blocked, permanently, by a process that no longer exists. If the probe *acquires* the lock, any `Running` rows are stale; settle them as in the restart case below before releasing the probe and spawning. Two requests can still race between the probe's release and the engine's own acquisition. The engine's lock decides, and the losing engine exits non-zero with its FATAL message, which the API reports as a 409.
 * **Authoritative guarantee (engine):** The `flock` in `engine-spec.md` §4.1 is what actually prevents data corruption if the fast check above is ever wrong or stale — see the FastAPI-restart case below. Even if FastAPI's own bookkeeping says "nothing running" incorrectly, a second engine process attempting to start will still be refused by the lock and exit cleanly with a logged error, never silently racing a real in-progress run.
@@ -433,34 +749,52 @@ The Inspector's `duplicates` array (§6.2, `GET /api/v1/photos/{id}/inspect`) sh
 
 ### 6.1 SQLite Schema
 
-**There is no in-place upgrade path and none should be added.** Migration code runs rarely, on real user data, along a path that is almost never exercised. When the schema changes, the catalog is deleted and rebuilt by an Index — every value in it is derived from the source files.
+**There is no in-place upgrade path and none should be added.** Migration code runs rarely, on real user data, along a path that is almost never exercised. During development, a schema change may require a fresh catalog. This is a development convention, not a lossless user recovery workflow: Index cannot recreate settings or operation history.
 
-While the schema is still changing pre-release, that is a convention rather than an enforced rule: the engine does not stamp `PRAGMA user_version` and does not refuse a catalog written by older code, since a stamp nobody reliably bumps misleads rather than protects. Before the first release, a stamp and a startup refusal should be added together, against catalogs created fresh at that point. The API layer should not assume either exists today.
+The engine now validates its `catalog_schema` version on startup. The API must use the shared schema check and report incompatible catalogs clearly; no automatic migration is implemented.
 
 **Only `photos` is derived. `runs` and `operations` are not, and rebuilding discards them.** Every value in `photos` is recomputable by re-running an Index over the same sources — verified by rebuilding a ~29,000-file catalog from scratch and getting identical per-status counts. Nothing recomputes the audit log: it records what the engine *did*, and re-scanning the filesystem cannot reconstruct it. The sharpest case is `Removed_Duplicate`, where after a `--move` that row is the only evidence the file ever existed — its source was deleted by design and its content survives only under the anchor's name.
 
-**How history should be keyed is still an open question, and this section is where it bites.** `operations.photo_id` hangs off `photos.id`, so a rebuild orphans every historical row — the alternatives (keying on `sha1_hash`, or moving `runs`/`operations` into a store that is never discarded) are set out in `engine-spec.md` §10 along with the three problems each has to answer. It is raised here because §5.3's Error Center and §5.4's audit log are both specified on these tables: **the question wants answering before that UI is built**, at which point it becomes a migration and a rework rather than a schema choice. It does not block writing the rest of this spec.
+**The lineage requirement is settled; its schema remains open.** Use stable per-file
+identity with before/after hashes and original Index information, retaining distinct
+histories for identical copies and deleted files. Catalog, settings and history stay
+in one database. Implement the relationships required by the Error Center and photo
+history before building those views; see `engine-spec.md` §10. Current mutable rows
+and hash-only joins do not fulfill that contract.
 
-The practical consequence for the UI: rebuilding is cheap and safe for a catalog that has only been Indexed or Copied, and lossy for one that has been Moved against. Before offering a rebuild, check whether any `Removed_Duplicate` rows exist and say what will be lost. Offer a backup first — `sqlite3 <db> ".backup '<path>'"` is atomic under WAL where a file copy is not — and treat a JSON export of `runs` and `operations` as the format for reading history outside the app or carrying it across a schema change, not as a substitute for the database backup.
+The practical consequence for the UI: rebuilding loses recorded history and settings even when the library has only been Indexed or Copied. After Move, original source information may no longer be recoverable from files either. Do not describe a rebuild as lossless or use the presence of `Removed_Duplicate` rows as the only warning criterion. Offer a backup first — `sqlite3 <db> ".backup '<path>'"` is atomic under WAL where a file copy is not — and treat a JSON export of `runs` and `operations` as the format for reading history outside the app or carrying it across a schema change, not as a substitute for the database backup.
 
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
-**The API layer should not create or alter the schema.** It opens a database the engine owns. There is no schema version to check against pre-release (see §6.1 above), so it cannot verify the shape it is about to query; it should fail clearly on the first query that does not match what it expects, rather than half-rendering a catalog it does not understand.
+**The API layer must use engine-owned schema initialization and validation.**
+`ns_db.py` stamps schema version 2 and refuses incompatible catalogs. Settings saves
+use its scoped revision-checked functions; the browser never accesses SQLite.
+Preserve an incompatible catalog and explain the version mismatch. Index cannot
+repair a schema mismatch or reconstruct lost history; do not suggest deleting a
+user catalog. Development uses fresh catalogs until migration support is provided.
 
-**What it must not tell the user is "run a Scan to rebuild the catalog" — that cannot repair a wrong schema.** All three tables are created with `CREATE TABLE IF NOT EXISTS`, and the engine has no `ALTER TABLE`, no `DROP`, and no shape check anywhere: an Index over an existing catalog with the wrong columns sees the tables already present and leaves them exactly as they are. The repair is to **delete the catalog file and then Index** — that is the whole of it, and it is cheap, since every value in `photos` is derived. Once the engine stamps a version again, this becomes a startup check instead. Two writers disagreeing about schema on the same file is exactly what the single-instance lock exists to prevent.
 
 Note the asymmetry this creates for the UI: deleting the catalog is cheap for Index state, but it discards the record of which files a previous Move already migrated. Where the UI offers a rebuild, it should say so.
 
 **The authoritative schema definition lives in `engine-spec.md` §6.5**, executable
 as written. It is not duplicated here: the engine owns the catalog, creates it,
-and is the only writer, so a second copy in this document would be a copy that
-drifts. What this section carries instead is what the reading layer must know in
+and writes photo state/history, so a second copy in this document would be a copy that
+drifts. What this section carries instead is what the API layer must know in
 order to consume it safely — the rules above, and the two below.
 
-**The `settings` table is the API layer's own**, not the engine's. The engine
-never reads it; the API persists UI-managed configuration there and passes the
-values as CLI flags at spawn time (§3). Its definition is in `engine-spec.md`
-§6.5 alongside the rest, so one file describes everything in the database file.
+**Settings share the catalog database.** The engine's database definition owns the
+schema (`engine-spec.md` §6.5); initialization must be callable without Index.
+**Write ownership:** the engine owns the schema and photo state/history. The web UI
+manages settings through the API, which writes settings using shared Python database
+and validation code. The browser never accesses SQLite directly. API settings writes
+do not authorize arbitrary photo-state or history updates. Initialization uses the
+engine-owned schema routines without requiring Index; the API defines no competing
+schema. This is agreed architecture, not implemented functionality.
+
+Use short transactions with bounded lock waits and report save failure truthfully.
+Settings can be saved during processing; each job retains its starting configuration.
+Do not hold the processing lock for the duration of a settings save or queue settings
+behind a whole job. Detailed transaction coordination remains implementation work.
 
 **`thumbnail_path` does not exist yet.** The Gallery and Inspector need it
 (§4.2.1), and adding it is a schema change — a rebuilt catalog, not an `ALTER`
@@ -485,7 +819,7 @@ Validates whether a provided file extension supports EXIF metadata.
     {
       "extension": ".mp4",
       "supports_exif": false,
-      "warning": "File type '.mp4' does not support EXIF data. When no EXIF data is available, file creation/modification date will be used."
+      "warning": "Files without a usable capture date go to Undated/<year>, using their modification year."
     }
 
 GET /api/v1/settings
@@ -500,7 +834,7 @@ Retrieves persisted system settings along with EXIF support status for each conf
       "supported_extensions": [
         { "ext": ".jpg", "supports_exif": true },
         { "ext": ".cr2", "supports_exif": true },
-        { "ext": ".png", "supports_exif": false, "warning": "File type '.png' does not support EXIF data. When no EXIF data is available, file creation/modification date will be used." }
+        { "ext": ".png", "supports_exif": false, "warning": "Files without a usable capture date go to Undated/<year>, using their modification year." }
       ]
     }
 
@@ -576,11 +910,11 @@ Returns a run with its **derived** outcome (§5.5). `status` is the engine's lif
 
 POST /api/v1/jobs/{id}/cancel
 
-Sends SIGTERM to the engine subprocess for graceful job cancellation — the currently in-flight file finishes, every remaining targeted file is logged to `operations` with status `Cancelled`, and duplicate-source cleanup is skipped for that run.
+Requests graceful cancellation via SIGTERM. During Index, stop at the next batch boundary without claiming per-photo cancellation records for undiscovered or unscoped work. During transfer, finish the in-flight file and record remaining targeted files as `Cancelled`; skip duplicate-source cleanup. See §4.1.
 
 GET /api/v1/photos/{id}/thumbnail
 
-Serves the thumbnail JPEG for a photo (see §4.2.1), read from `/appdata/thumbnails/<sha1>.jpg` via the row's `thumbnail_path`. Returns a placeholder/404 if `thumbnail_path` is NULL.
+Serves the content-hash thumbnail for a catalogued photo (see §4.2.1). A missing cache entry triggers regeneration from an available catalogued copy; return an unavailable response for a placeholder when no preview can be produced. A stored path does not guarantee the cached file exists.
 
 GET /api/v1/photos/{id}/inspect
 
@@ -604,7 +938,7 @@ Returns inspector details for a specific photo.
         "modified": "2026-02-14T10:30:00Z" 
       },
       "exif": { 
-        "date_taken": "2026-02-14T10:30:00Z", 
+        "date_taken": "2026-02-14T10:30:00",
         "camera": "Canon EOS R5" 
       },
       "hashes": { 
@@ -705,12 +1039,28 @@ shape is stated once.
   identically wherever they appear. Each screen sets its own *default* sort;
   the options and the interaction are shared.
 * **Actions take effect when confirmed.** No staged batches, no apply step, no
-  pending-changes indicator. Each action is independently reversible from the
-  `operations` row that recorded it. Bulk metadata apply (§7.5) is the one
-  deliberate exception, because there the batch *is* the feature.
-* **A failed action leaves its row in place with the reason attached, and the
-  file untouched.** Failures are `operations` rows, which is what the Logs page
-  (§5.4) reads when filtered to failures.
+  pending-changes indicator. Show consequences before confirmation. There are no
+  undo operations; users consult history and make manual corrections as new actions.
+  Bulk metadata apply (§7.5) previews an explicit selection as one action.
+* **Revalidate the preview before execution.** If the relevant library state or
+  proposed outcome has changed since preview, stop before applying the action and
+  show **“The contents of the library have changed. Please refresh to see the most
+  up-to-date information.”** Provide **Refresh** to reload the affected view. The
+  user must review an updated preview and confirm again; refresh does not execute
+  the old action. Do not silently apply a changed selection, target or collision
+  filename. This also applies to changes made from another browser tab.
+* **A failed action leaves its row in place with the reason attached.** Show what
+  actually changed; do not promise that every failure left the file untouched.
+  Failures are `operations` rows, available in Logs (§5.4) and photo history.
+* **Bulk actions report per-photo outcomes.** For example, show **“97 renamed ·
+  3 failed”**, with failed items opening their reasons and links to photo history.
+  Keep successful changes; do not undo the successful portion of a batch.
+  Offer **Review failed items** to prepare a new action containing only failed
+  items, checked against their current state with a fresh preview and confirmation.
+  This is a new user-confirmed action, not an automatic retry. If a photo was
+  partially changed (such as EXIF saved but refiling failed), identify it explicitly
+  within the failures, show completed and failed steps and its current location
+  when known, and state any uncertainty. Do not present it as untouched or successful.
 * **Edit controls sit with the value they edit** — beside displayed EXIF, beside
   a displayed filename or path — so the user never leaves to find the same field
   elsewhere.
@@ -723,6 +1073,16 @@ shape is stated once.
   a detail view and coming back returns the user where they were, not to the
   top. This is what makes "just check this one thing" cheap on a list of
   thousands rather than a punishment for curiosity.
+* **Refresh preserves browsing position whenever possible.** Retain the current
+  view, search, filters, sort order, page or loaded scroll range, and visible-photo
+  anchor with its scroll offset. This applies to manual refresh, reconnection,
+  post-job refresh and stale-preview refresh. Restore by stable file identity where
+  possible so a rename or reordered results do not unnecessarily send the user to
+  the top. If that photo was deleted or no longer matches the view, use a nearby
+  surviving result or the nearest valid position. Do not restore stale photo data
+  or bypass selection revalidation merely to preserve position. Browser reload
+  should restore saved view state when available; a new browser without that state
+  cannot be assumed to know the previous position.
 * **Expand all and collapse all act on every level of nesting**, not merely the
   outermost. Half-collapsing a nested structure leaves the user clicking through
   the rest by hand, which is the state the control existed to avoid.
@@ -749,8 +1109,9 @@ similar photos" link** scoped to it.
 
 **The count must say whether they have been dealt with.** On a catalog that has
 only been indexed, the duplicates are flagged but still on disk; a bare number
-reads as "handled" when nothing has been. After a Move they are gone from the
-source and the count is history rather than a pending task. Say which.
+reads as "handled" when nothing has been. After successful duplicate removal, those copies are history. Copies left by a
+Copy operation or failed cleanup may still remain in source. Show recorded outcomes
+per copy rather than treating every duplicate as removed merely because a Move ran.
 
 ### 7.3 The Rename tab
 
@@ -774,14 +1135,25 @@ the control becomes available rather than after committing — note this is a
 *filesystem* read, not a catalog query, since the catalog does not know about
 files it never wrote. Confirm immediately. The write is no-overwrite with the
 `_N` suffix rule, `photos.dest_path` is updated, and an `operations` row records
-**both** old and new path — which is what makes undo simply the same write in
-reverse.
+**both** old and new path for lineage. There is no undo control; a later correction
+is a new rename checked against current files. Preview the resolved collision name,
+report the actual result, preserve the real extension and date folder, and update
+related current references without rewriting history. A missing or changed target
+stops the operation and shows §7.6 guidance.
 
 **Choosing the name at move time is a different feature, and is deferred.** It
 would decide the name as the file is written, but it is an engine change and it
 asks for naming decisions before the library is organized.
 
 ### 7.4 The Similar tab
+
+Matching compares against the full catalog, including delivered photos; it needs an
+initial backfill and refresh when perceptual hashes change (`engine-spec.md` §9.3).
+Find Similar results are measured against the selected reference, not chained through
+other matches. Missing hashes are labelled unavailable rather than unique; historical
+records remain accessible without being offered as actionable missing files. The
+stored comparisons must support the full slider range. Dimensions are captured during
+Index; unreadable dimensions display as unknown.
 
 The same shape as the Rename tab, with four differences:
 
@@ -815,18 +1187,51 @@ hand is not a workflow. But a select-all never acts directly — it raises a
 cancellable confirmation that **states the number of files and names the
 consequence**:
 
-> *Delete 400 photos? This cannot be undone. If you do not have a backup of
-> these photos, this will lead to data loss.*
+> **Permanently delete these 400 files?** This cannot be undone. NegativeSpace
+> cannot recover deleted files. History retains their original locations, but
+> recovery is only possible if you still have the originals or another photo backup.
 
 The count carries the warning. "Are you sure?" is noise a user learns to
 dismiss; "400 photos" is what stops someone who meant to select four.
 
 **Discarding deletes.** It does not quarantine — see `engine-spec.md` §9.5 for
-the reasoning and for the unusually complete record that deletion writes. Where
-the catalog knows whether a source copy still survives, say so: that is what
-lets the warning give a real number instead of a generic caution.
+the reasoning and the full record retained after deletion. Every user-requested
+destination deletion carries the warning, not only Select All. Show recorded original
+locations as historical information; a prior Copy does not prove the source survives.
+Only claim another matching copy is available after checking it. Catalog backups
+cannot recover pixels. Keep deleted entries in history, not actionable photo lists;
+show each outcome and stop on detected destination mismatches (§7.6).
 
 ### 7.5 Editing metadata
+
+**Leaving an editor with unsaved changes:** when in-app navigation or closing the
+editor would discard changed input, ask **“Discard your unsaved changes?”** with
+**Keep editing** and **Discard**. Keep editing preserves the input and stays in the
+editor; Discard abandons only unsubmitted edits and continues the requested navigation.
+Do not automatically save or queue an action. This prompt does not cancel an action
+already submitted. For browser tab close or reload, use the browser's supported
+unsaved-change warning where available; its wording and buttons are browser-controlled.
+
+**Validation references:** define validation for each exposed editable field using
+[CIPA's EXIF standard](https://www.cipa.jp/e/std/std-sec.html)
+(DC-008-Translation-2026, Exif 3.1) and
+[ExifTool's EXIF tag reference](https://exiftool.org/TagNames/EXIF.html).
+Record the intended tag/group, permitted representation and values, and write support
+for supported photo formats. Validate in the UI and again before writing in the
+backend; translate friendly controls to the required metadata representation.
+Editable metadata includes writable photo-descriptive EXIF fields supported by the
+writer and format; filesystem stat, structural image properties and computed catalog
+fields are read-only. Do not confuse ExifTool writability with permission to edit
+derived properties. Keep capture date/time and its
+optional timezone offset distinct, consistent with §10.
+
+**An edit can create an exact duplicate.** If the edited file's resulting content
+hash matches another catalogued photo, update the exact-duplicate relationship and
+show it in the result with a link to review the matching photos. Preserve both files
+and their individual lineage; do not automatically delete, merge away a file's
+history, or trigger duplicate cleanup as part of a metadata edit. Any deletion is
+a separate explicit action with its own preview and confirmation. A catalog hash
+match does not replace live verification required before duplicate deletion.
 
 **This is the feature that makes the engine modify a photo file.** Everything
 else copies, verifies and deletes *sources*; nothing has ever altered content.
@@ -850,20 +1255,117 @@ applied to hundreds of scans that all carry a scanner's wrong date.
   distinct.
 * **Bulk acts on the explicit selection only**, never on "everything currently
   visible".
+* **Edits that change nothing:** preview counts such as **“20 selected · 12 will
+  change · 8 already match”**, comparing the selected fields against current values.
+  Leave matching files untouched; do not rewrite them or regenerate their thumbnails.
+  If every selected photo already matches and no required refiling remains, show
+  **“No changes needed”** without executing an edit or creating an edit backup.
+  For a mixed selection, back up once before changing the actionable subset and
+  report already-matching photos separately from changes and failures. Required
+  refiling is still a change, even if the selected metadata values already match.
+* **Mixed values are not edits:** shared fields with differing values show
+  **“Multiple values”**, while comparison columns retain individual values. Fields
+  left untouched retain each photo's existing value. Only explicitly changed fields
+  are applied; **Clear this field** is a deliberate action, distinct from leaving
+  the field untouched or copying a missing donor value.
 * **A preview before committing** states the count plainly — *"apply to 47
   photos"* — and which fields change from what to what.
+  Show an explicit warning before confirmation: **“Applying these fields to the
+  selected 47 photos will overwrite any existing values in those fields. Other
+  fields will remain unchanged.”** Name the fields being applied, use the actual
+  selection count, and allow inspection of per-photo before/after values. For an
+  explicit clear, say that existing values in the named fields will be removed.
+  This warning applies to both typed values and fields copied from a donor photo.
+* **Date fields carry a notice:** "Changing the date used to organize this photo
+  may move it to another folder." Validate user-entered date/time format and calendar
+  validity before allowing confirmation or writing to a file. Show errors beside
+  the field and retain the user's input for correction. The API/engine must also
+  validate submitted values before writing; UI validation alone is not sufficient.
+  Reject invalid edits without changing metadata or moving the photo. This differs
+  from indexing existing missing/unreadable capture dates, which uses the agreed
+  `Undated/<year>` fallback. An explicit clear remains a separate valid action.
+  Preview current and resulting locations. For
+  bulk edits, show how many files move and allow inspection of destinations.
+  Explicitly clearing the capture date follows the same workflow: warn that the
+  capture date will be removed and show the resulting `Undated/<year>` path under
+  the agreed fallback policy (§3.1). Other metadata dates do not silently replace
+  the removed capture date for filing. Removal and any required refiling are part
+  of the same confirmed action, with per-photo before/after values and locations
+  retained in history.
+* **Copying capture dates defaults to the full date/time field.** Copy the donor
+  photo's recorded date and time, making it explicit in the preview that selected
+  targets receive the same value. Offer **Copy date only** only where the metadata
+  format and writer support the intended date-only change without inventing a time;
+  precise supported behavior remains to be verified. If the field requires a time
+  and cannot represent the requested date-only value, copy the donor's time as well
+  and explain that before confirmation. Never substitute midnight as an unknown-time
+  placeholder. Users may manually correct individual times afterward; batch history
+  identifies all affected photos and their before/after values. Preserve known
+  timezone information according to §10, without inventing an absent offset.
+* **Write back to the metadata source:** today edits update embedded EXIF in the
+  delivered photo, including manually entered values. Unsupported writes fail
+  clearly. Sidecar support remains a future option; see `engine-spec.md` §9.6.
+* **Preview unsupported writes:** before confirmation, identify selected photos
+  that cannot store the requested embedded fields, with counts and per-photo reasons
+  (for example, **“18 photos can be updated · 2 cannot store the selected field.”**).
+  Leave those unsupported photos unchanged and make the actionable subset explicit
+  before the user confirms. Do not silently apply only part of the requested field
+  set to an unsupported photo. Do not create sidecars or substitute catalog-only
+  edits. This is a photo organizer; supporting arbitrary image formats is outside
+  scope. Existing read/index support does not imply embedded-write support, and this
+  decision does not change the current engine's extension list. Runtime write failures
+  still follow the per-photo failure reporting rules in §7.1.
 
 **Workflow.** Select, enter a value or pick a donor and fields, review the
 preview, confirm. Then, before anything is written, **the catalog is backed up**
 automatically — silent, fast, no confirmation asked. Each file is written
-atomically, verified, and the per-file safety copy discarded.
+to a temporary working copy. Verify every requested field, including removals, and
+required file-integrity checks before replacing the original. A write/verification
+failure leaves the original unchanged and logs the failed fields; do not apply only
+the successful fields of that photo's edit. Other photos in the batch may succeed.
+Retain recovery material until publication and required refiling have completed;
+report any failure at those later stages accurately (§7.1).
 
-**Verify means two checks:** read the written metadata back to confirm it took,
-then decode the file and compare its perceptual hash against the one recorded at
-Index. The decode succeeding proves the file still opens; the hash matching
-proves the image survived. A pHash is invariant under metadata editing, so the
-stored value stays valid as the before-value however many edits occur — which is
-what makes this one decode rather than two.
+**Logs link back to the photo.** An edit's log entry provides **View photo**, opening
+the current photo info panel with its failure details/history and **Edit metadata**
+when the delivered file is available and no conflicting job is active. Resolve the
+photo through lineage even after name, path or hash changes. The user can correct
+the input and submit a new previewed, confirmed edit; following the link never retries
+the old action. For missing or deleted files, retain access to recorded information
+and explain why editing is unavailable. Failures without an identified photo do not
+offer a photo link.
+
+**Temporary space for edits:** check available space on the destination filesystem
+before creating each photo's working copy, accounting for temporary output and
+recovery material required by the write strategy. If insufficient, leave the original
+unchanged and show **“Photo could not be updated: insufficient space for a temporary
+copy.”** Include required and available space, **View photo** and **View job log**.
+Process batch working copies one photo at a time, completing its publication/refiling
+and cleanup before staging the next, so space for a second copy of the entire batch
+is not required. A pre-check cannot reserve free space: handle write-time exhaustion
+through the same safe failure path, retaining any material needed for incomplete
+recovery. Keep successful batch edits and report per-photo outcomes (§7.1).
+
+**Cancelling bulk metadata edits:** after Cancel is accepted, finish the current
+photo's write, verification and required refiling safely (or record its failure),
+then stop before starting another photo. Retain completed edits; leave unstarted
+photos unchanged. Show cancellation pending until the operation actually stops,
+then summarize updated, failed and not-started/cancelled counts with **View job log**.
+Preserve batch membership and each photo's before/after values, paths and lineage
+so users can trace changes and make manual corrections. Do not automatically roll
+back completed edits, restart the batch, or queue remaining work. History is evidence
+for manual correction, not a guarantee that deleted photo content can be recovered.
+
+**Verification:** read every requested metadata field back and decode the edited
+working copy, recomputing pHash before replacing the original. Associate the result
+with the resulting content identity and refresh similarity relationships. Rename,
+Move and Copy of unchanged content reuse existing pHash values. Identify intentional
+orientation changes from the requested, group-qualified tag and verified before/after
+values. Verification must account for that expected rendering change, not demand
+blind equality with the old pHash or disable integrity checks entirely. EXIF field
+validity does not prove decoder behavior or pixel integrity; a matching pHash is
+not proof of exact pixel equality. Define and test consistent decoding/orientation
+rules for supported formats before implementing this verification path.
 
 **A changed date refiles the photo** to the folder its new date implies,
 automatically and with no setting to disable it. Correcting the date *is* the
@@ -872,18 +1374,34 @@ prompt would ask the user to confirm the same choice twice. It is not a guess �
 the correct folder is computed, not judged. And sorting photos into date folders
 is what this tool does: if its own output disagrees with the metadata it used to
 build that output, the product contradicts itself. Finding the file afterwards
-is the log's job, since a refile records both old and new path.
+is the log's job, since a refile records both old and new path. Editing and refiling
+are one confirmed action with no second prompt. Do not report success if metadata
+changed but required placement failed; restore prior state where possible and show
+any incomplete recovery.
 
-**Recovery, since there is no undo stack.** A **narrow undo** of the last
-operation is available only while *every* file in the batch still has it as its
-most recent change — all-or-nothing, because a batch reversed for 299 of 300 is
-a worse state than one not reversed. **Otherwise the log is the route**: it
-reopens the operation with its files and their previous values, and restoring is
-expressed as one more forward apply, per-file rather than one shared value. That
-is what recovers the case where hundreds of photos each held a *different*
-correct date before one apply flattened them.
+**Correction is manual; there are no undo operations.** History shows original
+indexed information and all subsequent changes, including per-file previous values
+for bulk edits. The user consults that evidence and explicitly makes a new edit or
+rename against the current state. Later actions may have reused a name or changed
+placement, so reversing an old operation is not a supported recovery mechanism.
+Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
 
 ### 7.6 Re-processing a disordered destination
+
+A read-only destination check may detect missing expected files, unrecorded files,
+changed content, possible external moves/renames, or additional exact copies.
+Describe these as differences from the catalog, not proof of user interference;
+restoring an older database can also explain them. Cache loss is not such a mismatch.
+
+Every destination-mismatch warning directs the user to the same repair workflow:
+
+> **The destination differs from the catalog.** Mount the old destination as your
+> source and a new, empty location as your destination. Run Index, then Copy or Move
+> to create a newly organized collection with recorded operations.
+
+New processing is logged; it neither reconstructs unrecorded external actions nor
+recovers missing photos. Retain the existing catalog as evidence of earlier work.
+
 
 When a destination has been reorganized or polluted from outside, the repair
 needs no new engine capability — point the source at the old destination, the
@@ -899,11 +1417,128 @@ until it bites:
   available as `date_source = 'file_mtime'` — and the timezone in effect. Files
   carrying a real EXIF date are unaffected.
 
-**Prefer reporting over re-processing on a library that is already organized.**
-The destination inventory (`engine-spec.md` §9.1) costs nothing and moves
-nothing.
+The destination inventory (`engine-spec.md` §9.1) reads files without modifying them; when it detects a mismatch, present the fresh-destination workflow above.
 
 ## 8. Explicitly Out of Scope
 
 * **The engine-side capabilities these workflows depend on** — the destination inventory, the perceptual pair table, destination deletion, and EXIF writing — are specified in `engine-spec.md` §9, not here. This document covers what the user sees and does; that one covers what the engine must be able to do first. None of them is implemented.
 * **Multi-user auth/sessions** — not addressed in this spec. Add as a separate concern if the web UI needs to be exposed beyond a single trusted user on a local/private network.
+
+## 9. Catalog Backups
+
+Settings provides **Back up now**, a backup list with timestamp, size and
+manual/automatic trigger, and **Download** for keeping a copy outside application
+storage. A backup is one consistent SQLite file containing catalog, lineage and
+settings. Use a SQLite-supported snapshot, not an ordinary copy of a live WAL database.
+
+**Backup storage is configured through Docker before startup.** A dedicated volume
+mount exposes the fixed container path `/backups`, containing multiple catalog
+database snapshots, never photo backups. The deployer chooses the underlying storage
+independently of `/appdata`. Settings provides backup history and downloads, not a
+destination-path display or selector: the application only sees `/backups`. Report
+missing or unwritable backup storage using the failure behavior below; do not silently
+fall back to storing backups alongside the live database.
+
+The backing directories for `/backups` and `/appdata` must be distinct and must not
+contain one another. Different container path names alone do not satisfy this
+requirement: two mounts can expose the same underlying directory. Validate this
+separation at startup; a detected overlap is a backup configuration error, shown
+with instructions to correct the Docker mounts. Do not write backups to an overlapping
+location. Container checks have visibility limits, so deployment documentation must
+also require non-overlapping host directories; a separate physical disk is optional.
+
+**State prominently:** catalog backups preserve recorded file information, metadata
+and operation history, not photos. They cannot recreate pixels or recover deleted
+photos. Keep separate photo backups; a catalog backup does not make deletion reversible.
+
+| Trigger | Behavior |
+| :--- | :--- |
+| Before a confirmed EXIF edit, rename or destination deletion | One automatic backup per user action, including a bulk selection; refiling is part of the edit, not another trigger |
+| After Index, Copy or Move records changes | One backup after the job ends, including failed or cancelled jobs with recorded changes |
+| Browsing, searching, comparing or thumbnail generation | No automatic backup |
+| Edit preview finds no metadata changes or required refiling | No edit execution and no automatic edit backup |
+| Back up now | A manual backup |
+
+If a pre-action backup fails, stop the curation action before changing any files.
+Show **“No files were changed because the catalog backup failed.”** Explain the
+reason, such as insufficient space or an unwritable backup location, and offer
+**Retry** and **Cancel**, with no option to continue without a backup. Retry must
+attempt the backup again and revalidate the proposed file changes before proceeding.
+If the preview has changed, require the user to review and confirm it again. Cancel
+abandons the pending action without changing files.
+
+If a post-job
+backup fails, preserve the job's actual result, show a separate backup warning and
+offer **Retry backup**. Do not describe completed file work as failed merely because
+its backup failed.
+
+**Missed backups after interruption:** on startup, reconcile and report the
+interrupted job without restarting its file operations. If its required post-job
+backup failed or never completed, report that separately and offer **Back up now**
+in the warning. Do not automatically create or retry that backup on startup.
+Explain that catalog changes since the last successful backup are not yet backed
+up; if there is no successful backup, say so. The user may create a manual backup
+or let the next normally required backup occur. A new backup captures the current
+catalog, not a reconstruction of its state at interruption. A failed or incomplete
+snapshot must not be offered as a usable backup. Subsequent successful backups can
+resolve the outstanding warning without erasing the historical failure record.
+
+Keep the **latest 20 automatic backups by default**, configurable in Settings.
+Prune the oldest only after a new backup succeeds. Manual backups remain until the
+user removes them directly from the mounted backup storage. Backup deletion controls
+are out of scope for the UI: users manage files directly, while the application
+enforces the configured automatic-backup retention limit. Show count and storage usage; before applying a lower
+limit, explain how many automatic backups will be removed.
+
+**Missing backup files:** retain the historical record when a previously recorded
+backup is no longer present in accessible backup storage. Show **“Backup file no
+longer available”** and disable its download. This does not change the recorded
+outcome of the original backup operation. If `/backups` itself cannot be accessed,
+report the storage-access problem instead of claiming individual files were deleted.
+An unavailable file must not be presented as an available recovery copy.
+
+**Manual restoration only:** provide instructions, not an in-app restore action.
+Stop the application container and preserve the current database and any associated
+SQLite `-wal`/`-shm` files separately before replacement. Extract the selected backup
+if compressed, place its database at the application's expected database path and
+filename under `/appdata`, and verify ownership and permissions. Do not leave old
+SQLite companion files beside the restored database. Start the application after
+replacement; restoring catalog records does not reverse photo changes or recreate
+photos, and the restored catalog may differ from the current destination.
+
+**Compression choice — non-blocking follow-up:** evaluate the backup compression
+format and library before finalizing backup packaging. Zstandard is a candidate,
+not a selected requirement or a verified benchmark winner. Compare compression
+size, compression/decompression time, resource use and ease of manual extraction.
+Keep the restoration instructions aligned with the selected format. This open
+choice does not block workflow design or other implementation work.
+
+## 10. Timestamp Display
+
+* **Application history:** job, operation and backup timestamps represent instants
+  stored as timezone-aware UTC. Display them in the user's local timezone with a
+  clear timezone label. Existing naive engine timestamps require timezone handling
+  before the API can truthfully expose them as UTC; this support is not implemented.
+* **Photo capture dates:** show the recorded wall-clock date/time and its offset when
+  known. If no offset was recorded, indicate that the timezone is unknown; do not
+  assume UTC or shift the capture date to the browser's timezone. The offset-free
+  `date_taken` example illustrates an unknown timezone, not a UTC instant.
+* **Folder placement:** use the photo's recorded capture calendar date, so changing
+  the browser timezone does not move it across days, months or years. This does not
+  change the separate modification-time fallback policy for Undated photos (§3.1).
+
+
+### Destination history presentation contract
+
+The photo information page follows file IDs and operation participants. A Copy
+shows its source origin; a completed new Move shows the same file's location change.
+A Move reusing an existing destination shows removal of the source and a link to the
+retained destination, preserving both histories. The destination page can list all
+contributing source snapshots, including removed duplicates. Unknown creation origin
+for a previously unrecorded destination must be labelled unknown, not inferred from
+matching bytes. Interrupted Move with both copies remaining is shown as **File
+delivered; source not removed**, with the original incomplete operation and a link
+to the log. An explicitly requested subsequent Move is separate work.
+
+Current engine delivery relationships are implemented in the shared catalog layer;
+the web presentation and full interrupted-operation evidence remain pending.
