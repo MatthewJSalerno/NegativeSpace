@@ -635,6 +635,28 @@ def record_thumbnail(conn, *, content_id, size, availability, cache_filename=Non
          observed_path, failure_category, failure_detail, utc_now()))
 
 
+def thumbnail_cache_totals(conn):
+    """Per-size cache totals: photos cached at each size, and bytes on disk.
+
+    A SUM over the recorded `bytes` rather than a walk of the cache tree - which is the
+    reason thumbnail_cache records that column at all, and why it is keyed on
+    (content_id, size). The existing idx_thumbnail_size(size, availability) covers
+    exactly this query.
+
+    Counts `present` entries ONLY. A failed or absent row names no cache file and
+    carries a NULL `bytes`, so including it would overstate both the size on disk and
+    the number of photos the gallery can actually render.
+
+    Returns (size, photos, bytes) smallest size first. The sizes are reported
+    separately because they are managed separately: clearing detail previews must not
+    touch grid thumbnails, and the two have different economics (webui-spec.md 4.2.1).
+    """
+    require_schema(conn)
+    return [tuple(row) for row in conn.execute(
+        "SELECT size, COUNT(*), COALESCE(SUM(bytes),0) FROM thumbnail_cache "
+        "WHERE availability='present' GROUP BY size ORDER BY size")]
+
+
 def keeper_candidates(conn, sha1_hash):
     """Destination paths that may authorize deleting a duplicate source.
 
