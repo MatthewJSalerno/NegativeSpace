@@ -556,6 +556,16 @@ def watch_for_cancellation(db_path: str, run_id: int):
         logger.warning(f"Could not record run #{run_id} as Cancelling: {exc}")
 
 
+def await_cancelling_record(watcher: threading.Thread):
+    """Before a cancelled run settles, lets the watcher's Cancelling write land.
+    Without this the two race: a run whose current file finished quickly could
+    settle first, and its history would skip Cancelling. Bounded, because the
+    write itself is bounded by the busy timeout; a watcher still stuck after
+    that only loses the interim state, never the terminal one."""
+    if cancel_requested.is_set():
+        watcher.join(timeout=10)
+
+
 # --- Resilient Network IO Wrapper ---
 # Conditions that are a property of the path or the filesystem, not a hiccup.
 # Retrying these cannot possibly succeed, and sleeping through the backoff
@@ -3073,8 +3083,9 @@ def main():
             "SELECT effective_config_json FROM run_configs WHERE run_id=?", (run_id,)
         ).fetchone()[0])
     worker_count, active_extensions = config["workers"], set(config["exts"])
-    threading.Thread(target=watch_for_cancellation, args=(str(db_path), run_id),
-                     daemon=True).start()
+    cancel_watcher = threading.Thread(target=watch_for_cancellation,
+                                      args=(str(db_path), run_id), daemon=True)
+    cancel_watcher.start()
     # Reconciled AFTER the run exists, so what it concludes is recorded as
     # operations of this run rather than as silently rewritten statuses.
     # Outside the try/finally below, so a raised failure would otherwise leave
@@ -3083,6 +3094,7 @@ def main():
         reconcile_interrupted_state(db_path, run_id)
     except Exception as exc:
         logger.error(f"FATAL: could not reconcile interrupted work: {exc}")
+        await_cancelling_record(cancel_watcher)
         finish_run(str(db_path), run_id, RunStatus.FAILED)
         release_single_instance_lock(lock_fd)
         sys.exit(1)
@@ -3334,6 +3346,7 @@ def main():
         # Cancelled when a cancel stopped work it had left; a cancel landing
         # after the work finished leaves the real outcome, so a job that
         # completed reads Completed and a job-level failure still exits 1.
+        await_cancelling_record(cancel_watcher)
         finish_run(str(db_path), run_id, run_outcome)
         logger.info(f"Run #{run_id} finished with status: {run_outcome}")
         release_single_instance_lock(lock_fd)
