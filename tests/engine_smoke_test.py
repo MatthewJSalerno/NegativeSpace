@@ -1871,6 +1871,123 @@ def recovery_that_cannot_establish_an_outcome_opens_an_attention_issue():
     check(not blamed, f"the engine's own deletion was reported as an outside change: {blamed}")
 
 
+def _assert_lineage_complete(case, label):
+    """Every structural guarantee a history view depends on, for one catalog."""
+    def one(sql, params=()):
+        return rows(case, sql, params)[0]["n"]
+
+    check(one("SELECT COUNT(*) n FROM photos p WHERE NOT EXISTS("
+              "  SELECT 1 FROM photo_files pf WHERE pf.photo_id=p.id)") == 0,
+          f"[{label}] a photo row resolves to no identity")
+    check(one("SELECT COUNT(*) n FROM files f WHERE NOT EXISTS("
+              "  SELECT 1 FROM file_states s WHERE s.file_id=f.file_id)") == 0,
+          f"[{label}] an identity has no current state")
+    check(one("SELECT COUNT(*) n FROM files f WHERE NOT EXISTS("
+              "  SELECT 1 FROM file_origins o WHERE o.file_id=f.file_id)") == 0,
+          f"[{label}] an identity has no origin record")
+    check(one("SELECT COUNT(*) n FROM files f WHERE NOT EXISTS("
+              "  SELECT 1 FROM operation_files of WHERE of.file_id=f.file_id)") == 0,
+          f"[{label}] an identity participates in no operation, so it has no history")
+    check(one("SELECT COUNT(*) n FROM file_origins o WHERE o.origin_file_id IS NOT NULL "
+              "  AND NOT EXISTS(SELECT 1 FROM files f WHERE f.file_id=o.origin_file_id)") == 0,
+          f"[{label}] an origin points at an identity that does not exist")
+    check(one("SELECT COUNT(*) n FROM operation_events e WHERE NOT EXISTS("
+              "  SELECT 1 FROM operations o WHERE o.id=e.operation_id)") == 0,
+          f"[{label}] an event hangs off no operation")
+    # Traces to an Index snapshot, or is explicitly recorded as something the
+    # engine observed rather than created. Nothing else is permitted.
+    check(one("""SELECT COUNT(*) n FROM files f
+                  WHERE NOT EXISTS(SELECT 1 FROM source_snapshots s WHERE s.file_id=f.file_id)
+                    AND NOT EXISTS(SELECT 1 FROM file_origins o
+                                     JOIN source_snapshots s2 ON s2.file_id=o.origin_file_id
+                                    WHERE o.file_id=f.file_id)
+                    AND COALESCE((SELECT kind FROM file_origins WHERE file_id=f.file_id),'')
+                        <> 'observed_destination'""") == 0,
+          f"[{label}] an identity traces to neither an Index snapshot nor a recorded observation")
+    check(not rows(case, "PRAGMA foreign_key_check"), f"[{label}] broken lineage reference")
+
+    seen = set()
+    for row in rows(case, "SELECT DISTINCT status FROM photos"):
+        seen.add(row["status"])
+        missing = rows(case, """SELECT p.id FROM photos p JOIN photo_files pf ON pf.photo_id=p.id
+                                 WHERE p.status = ?
+                                   AND NOT EXISTS(SELECT 1 FROM operation_files of
+                                                   WHERE of.file_id=pf.file_id)""", (row["status"],))
+        check(not missing, f"[{label}] photos with status {row['status']} assemble no history: {missing}")
+    return seen
+
+
+@test
+def every_catalogued_file_assembles_complete_lineage():
+    """
+    Lineage must be assemblable for EVERY catalogued file in EVERY status it can
+    reach - not only the ones that succeeded.
+
+    webui-spec.md 6.3 promises a photo's full history, and that promise is only
+    as good as the weakest row in the catalog. Two catalogs are driven here
+    because one cannot hold every status at rest: a run ending in Move leaves
+    Completed/Failed/Removed_Duplicate, while a run ending in a targeted Copy
+    leaves Pending/Copied/Duplicate. Between them every status the engine can
+    settle on is checked, including the unreadable source - the row most likely
+    to be dropped and the one a user most needs explained.
+
+    The one honest exception is a destination the engine found rather than
+    created: no Index ever saw it, so it has no source snapshot and is recorded
+    as observed_destination rather than given a fabricated origin.
+    """
+    covered = set()
+
+    # 1. Delivered: Completed, Failed (unreadable), Removed_Duplicate.
+    case = new_case("lineage_delivered")
+    make_photo(case / "src" / "a.jpg", "LIN-A")
+    make_photo(case / "src" / "b.jpg", "LIN-B")
+    make_photo(case / "src" / "dup.jpg", "LIN-A")          # exact duplicate of a.jpg
+    unreadable = case / "src" / "unreadable.jpg"
+    make_photo(unreadable, "LIN-UNREADABLE")
+    os.chmod(unreadable, 0o000)                             # local disk: chmod is honoured
+    try:
+        run_engine(case)
+        run_engine(case, "--copy")
+        run_engine(case, "--move")
+    finally:
+        # Guarded: if a future change makes this file deliverable it will be
+        # gone, and an unguarded chmod would fail in cleanup rather than on an
+        # assertion - hiding the real result behind a confusing error.
+        if unreadable.exists():
+            os.chmod(unreadable, 0o644)
+
+    covered |= _assert_lineage_complete(case, "delivered")
+
+    bad = rows(case, "SELECT id, status, sha1_hash FROM photos WHERE source_path LIKE '%unreadable.jpg'")
+    check(bad, "the unreadable source was not catalogued at all")
+    check(bad[0]["status"] == "Failed",
+          f"an unreadable source should be Failed, got {bad[0]['status']}")
+    check(not bad[0]["sha1_hash"],
+          "an unreadable source recorded a hash it could not have computed")
+    fid = rows(case, "SELECT file_id FROM photo_files WHERE photo_id = ?", (bad[0]["id"],))
+    check(fid, "the unreadable source has no identity")
+    check(rows(case, "SELECT 1 FROM operation_files WHERE file_id = ?", (fid[0]["file_id"],)),
+          "the unreadable source has an identity but no recorded history")
+    check(rows(case, """SELECT 1 FROM operations o JOIN photos p ON p.id=o.photo_id
+                         WHERE p.id = ? AND o.error_message LIKE '%Permission denied%'""",
+               (bad[0]["id"],)),
+          "the unreadable source records no reason a user could act on")
+
+    # 2. At rest: Pending, Copied, Duplicate - statuses a Move would consume.
+    rest = new_case("lineage_at_rest")
+    make_photo(rest / "src" / "c.jpg", "LIN-C")
+    make_photo(rest / "src" / "d.jpg", "LIN-D")
+    make_photo(rest / "src" / "e.jpg", "LIN-C")            # duplicate of c.jpg
+    run_engine(rest)
+    keep = rows(rest, "SELECT id FROM photos WHERE status = 'Pending' ORDER BY id LIMIT 1")
+    run_engine(rest, "--copy", "--file-ids", keep[0]["id"])
+    covered |= _assert_lineage_complete(rest, "at rest")
+
+    required = {"Pending", "Copied", "Duplicate", "Completed", "Failed", "Removed_Duplicate"}
+    check(required <= covered,
+          f"lineage was not verified for every settled status; missing {sorted(required - covered)}")
+
+
 @test
 def invalid_input_exits_non_zero():
     """A missing or non-directory --source, or a non-positive --workers, is an error — not a quiet success."""

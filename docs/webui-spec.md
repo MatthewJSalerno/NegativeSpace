@@ -1013,6 +1013,54 @@ ORDER BY r.ended_at DESC LIMIT 1;
 
 ---
 
+### 6.3 Reading a photo's history across identity changes
+
+**A history view keyed on `photos.id` alone will silently drop the older half of a
+photo's past.** This is not hypothetical: it was reproduced against a real catalog
+while validating the lineage design, and it is the single most likely way a correct
+catalog gets presented incorrectly.
+
+`photos` holds one row per source *path*. Identity lives in `files`, bound to the
+photo row through `photo_files`. When a source returns after a completed Move or a
+duplicate removal, that arrival is a **new identity** — same path, same bytes, new
+`file_id` — and `photo_files` rebinds the photo row to it. The previous identity keeps
+everything: its immutable `source_snapshots` row, its observations, and every
+`operation_files` link it ever had. None of it is deleted. It is simply **no longer
+reachable from `photos.id`**.
+
+Observed on a real catalog: identity 1 retained its snapshot and three operations across
+three runs, while the photo row now bound to identity 971. A view joining
+`photos → photo_files → operations` shows only the new arrival and presents a photo with
+no history, which is false.
+
+**So traverse identities, not photo rows.** For a given photo:
+
+1. Resolve the current identity through `photo_files`.
+2. Collect every identity sharing that `source_snapshots.source_path` — these are the
+   successive arrivals at one location, each with its own snapshot and history.
+3. Walk `file_origins` in both directions: `origin_file_id` reaches the source a delivered
+   file descends from, and the reverse lookup reaches everything created from it.
+4. Union the `operation_files` links of all of them, ordered by `operations.id`.
+
+**Present them as distinct arrivals, never merged into one timeline.** Two identities at
+one path are two different files that happened to occupy the same place; showing their
+operations interleaved as a single photo's history asserts a continuity that did not
+happen. Label each arrival with its original Index time.
+
+**Separate requested work from recovery.** An operation with a non-NULL
+`reconciles_operation_id` is a repair of earlier work, not something this run was asked
+to do; counting it as the run's own output credits a job with work it never requested.
+An operation may legitimately link a *new* arrival to an *older* delivery. Observed on a
+real catalog: a Move whose source was a fresh arrival found the previous delivery already
+sitting at the destination and recorded it as a `retained_copy`. That came from the
+ordinary transfer path, not from reconciliation — both produce such links, and neither is
+an inheritance. The new arrival did not deliver that file, and the UI must not imply it
+did. **Distinguish by role, not by which code path wrote it:** `destination` means this
+operation produced the file, `retained_copy` means it found it already there.
+
+Cost is not a concern: assembling a full history measured 0.08–0.6 ms per photo against
+a 971-identity catalog, covered by `idx_lineage_file` and `idx_events_operation`.
+
 ## 7. Destination Curation & Similar-Photo Review
 
 Everything above is about getting files *in*. This section is about curating
