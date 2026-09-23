@@ -53,6 +53,19 @@ jobs:
         # build a sample inside the library through a symlinked root.
         run: sh tests/sampler_test.sh
 
+      - name: Spec cross-references
+        # Dangling references have shipped here twice. This exits non-zero, so it
+        # blocks rather than informs.
+        run: python3 tools/check-specs.py
+
+      - name: Schema drift
+        # engine-spec.md 6.5 calls itself the authoritative schema. It silently
+        # stopped being true once - nine tables missing across two merges - which
+        # is why this compares it against what the engine actually creates.
+        run: |
+          docker run --rm -v "$PWD":/app -w /app \
+            negativespace python3 tools/check-schema-drift.py
+
       - name: Database contracts
         run: |
           docker run --rm \
