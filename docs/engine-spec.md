@@ -77,11 +77,13 @@ security concern, specified in `webui-spec.md` §5.6.
 ### 4.1. Input & Configuration
 *   **Source/destination separation:** The underlying source and destination folders must be distinct and non-overlapping: neither may contain the other. Different container paths are insufficient if their host folders or network-share mappings overlap. This applies to local storage and NFS alike. Overlapping mounts are unsupported and can cause unintended processing or deletion. The engine refuses to start when it can see the overlap — the same folder, one inside the other, or one directory reachable at both paths — and refuses to delete any source that is the same file as its copy. It cannot see every alias (two separate network mounts of one share look like different storage), so document this deployment requirement; do not promise automatic detection of every mount alias.
 *   **One catalog per destination:** the single-instance lock is scoped to `--base`, so two installations with different `--base` directories are not serialised against one another. Sharing one `--dest` between them is unsupported. It is not a content-safety hazard — every deletion still requires the deleting engine's own live verification of the copy it made — but it produces unexplained failures: one catalog's crash recovery removes partials by target name and can delete a partial the other is still writing; both can resolve the same free collision name and one loses the no-overwrite publish; and duplicate detection is per-catalog, so identical content can be delivered twice under different names. Several sources feeding one destination is the supported shape of that need: one catalog, several runs.
-*   **Path Definitions:** `--source` (default `/data/source`), `--dest` (default `/data/dest`), and `--base` (default `/appdata`, holding `<base>/db/ns_sqlite.db` and `<base>/logs/organizer.log`).
+*   **Path Definitions:** `--source` (default `/data/source`), `--dest` (default `/data/dest`), `--base` (default `/appdata`, holding `<base>/db/ns_sqlite.db` and `<base>/logs/organizer.log`), and `--cache` (default `/cache`, holding generated thumbnails under `<cache>/thumbnails/`). `--cache` is deliberately outside `--base`: everything under it is reproducible from the photos themselves and is excluded from backups, while everything under `--base` is not.
 *   **Tuning:**
     *   `--workers <N>` — overrides the `ProcessPoolExecutor` worker count (default: `os.cpu_count()`).
     *   `--exts <.ext1,.ext2,...>` — overrides the default extension set for directory scanning. Has no effect on `--file-ids` targeting.
     *   `--force-rehash` — re-reads every targeted file in full even when the catalog already holds a current record for it, bypassing the unchanged-file skip described in §4.2. For the case where content changed without size or mtime moving; not something editors do in practice, but verification should not require deleting the catalog.
+    *   `--cache <path>` — where generated thumbnails are written (default `/cache`). Written by the scan phase, which every mode begins with; the transfer phase itself never touches it. A cache root that cannot be created disables generation for that run with a warning rather than failing an otherwise good Index.
+    *   `--no-thumbnails` — skips thumbnail generation entirely. Cataloguing, hashing and content identity are unaffected; only the cache writes stop. Useful when indexing purely to refresh the catalog, and for runs on storage where the cache is not mounted.
     *   The database write-queue size is intentionally **not** configurable — left as a hardcoded internal constant rather than exposed, since there was no concrete need identified for tuning it separately from `--workers`.
 *   **Targeted Processing** (mutually exclusive with each other — pick at most one, or omit both for a full directory scan):
     *   `--file-ids <id1,id2,...>` — comma-separated `photos.id` values from a prior Index. Bypasses the directory scan entirely; looks up each ID's `source_path` directly and processes exactly those files. IDs not found in the database are logged as a warning and skipped, not treated as fatal. This is what a web UI's individual/multi-select maps onto, but works identically from the CLI.
@@ -964,16 +966,19 @@ Thumbnail cache lifecycle must follow content identity: after an embedded metada
 edit, reuse an existing entry for the resulting hash or generate a new thumbnail.
 Remove obsolete entries only when no current catalogued file needs their hash;
 historical lineage does not retain thumbnails. Include orphan cleanup after
-interruption. See `webui-spec.md` §4.2.1; this is planned functionality.
+interruption. See `webui-spec.md` §4.2.1. Generation itself is implemented — the
+scan writes one 320px grid thumbnail per content identity — but this lifecycle is
+not: nothing yet removes an entry whose hash no longer belongs to any catalogued
+file, and nothing cleans up orphans after an interrupted edit.
 
 §9.1–§9.6 record five engine capabilities the curation workflows require. A
-pass over the rest of the documented web interface turns up eight more. None is
-implemented, and none is visible as engine work from the UI side — each looks
-like a screen until you ask what it reads from.
+pass over the rest of the documented web interface turned up eight more, of which
+thumbnail generation is now built; the seven below remain. None of them is
+visible as engine work from the UI side — each looks like a screen until you ask
+what it reads from.
 
 | Capability | Needed by | Why it cannot be supported today |
 | :--- | :--- | :--- |
-| **Thumbnail generation** | Photo grids and comparison/inspection views | Generate during source Index, reusing image decoding; cache under `/cache/thumbnails` by content hash and reuse existing entries. Keep disposable cache outside `/appdata`. Rebuild missing entries from an available catalogued source or destination copy. Never discover uncatalogued destination files through preview generation. Cache loss is not a destination mismatch. Disposable and excluded from backups; see `webui-spec.md` §4.2.1 |
 | **A settings store** | Settings before the first Index | Store settings in the same database as catalog/history. Initialize defaults without scanning, preserve preferences on restart, and snapshot configuration at job start. The engine owns schema; the API writes settings through shared code; see `webui-spec.md` §6.1 |
 | **Refiling after a date change** | Any metadata correction, single or bulk | This is what makes §9.7 enforceable. Within one destination it is an **atomic rename**, not a Copy-Verify-Delete: no bytes move and there is nothing to verify. The engine already computes a file's correct folder, creates date folders durably, and resolves name collisions — what is new is the destination-to-destination move and an operation recording both paths |
 | **Field-level before/after for metadata edits** | Full lineage and informed manual correction | Preserve the original indexed information and each change, linking old/new identities when content hashes change. No user-facing undo; see §10 |
@@ -983,8 +988,9 @@ like a screen until you ask what it reads from.
 | **Serving a file for download** | Log export; retrieving a backup | **API work rather than engine work**, recorded here because it is the same gap twice and worth building once |
 
 **Three of these want a schema change** — field-level before/after, a batch
-identity, and the winning date key — alongside the `thumbnail_path` and
-width/height columns already noted in §6.5. Schema changes cost a rebuilt
+identity, and the winning date key. Content width and height are no longer among
+them: they live on `contents` in the shipped schema (§6.5), and the scan now
+populates them from the same decode that produces the thumbnail. Schema changes cost a rebuilt
 catalog, which is cheap individually and cheaper together; they are listed
 separately here so the decision stays visible rather than being bundled by
 accident.

@@ -435,6 +435,17 @@ what happened and make manual corrections; there is no undo operation.
 
 The Gallery grid and Inspector's "Media Preview" both need something to actually render — this requires new engine-side work, not just a frontend concern, since the engine is the only thing with RAW-decode capability (`rawpy`) already loaded.
 
+**Status — grid generation is implemented.** The scan writes one 320px JPEG per
+content identity, records it in `thumbnail_cache`, and reuses it for
+byte-identical duplicates; `--no-thumbnails` turns it off and `--cache` relocates
+it. Still unbuilt: the 1024px detail preview generated on first view, the
+cache-size display and its two clear/rebuild controls, the rebuild job, and the
+lifecycle cleanup in `engine-spec.md` §9.8. One documented behavior is also not
+met — recorded failure history is **not** retained across a successful
+regeneration: `thumbnail_cache` holds current state per `(content_id, size)`, so
+a later success clears the failure rather than preserving it. A permanently
+undecodable file is therefore re-attempted on every scan.
+
 * **Generation point:** During source Index, alongside SHA1/pHash computation. Reuse an
   existing cached thumbnail for the same content hash, including exact duplicates.
 
@@ -485,8 +496,7 @@ The Gallery grid and Inspector's "Media Preview" both need something to actually
   still needed by current files. Preview-generation failure follows the failure
   reporting below and does not conceal a successful metadata edit. No manual cache
   clearing is required.
-* **Schema:** `thumbnail_cache`, keyed on `content_id` — see `engine-spec.md` §6.5. Deliberately *not* a column on `photos`: a thumbnail belongs to content, not to one catalogued copy of it, which is what lets byte-identical duplicates share a single entry as the storage rule above requires. An earlier draft of this line specified a `thumbnail_path` column on `photos`; that would have contradicted the same paragraph it sits beside.
-* **Failure handling:** Thumbnail failure must not fail an otherwise successful Index. Record the failure and show a placeholder with an explanation if generation fails or no readable catalogued copy is available. Thumbnails are disposable and excluded from application backups.
+* **Schema:** `thumbnail_cache`, keyed on `content_id` — see `engine-spec.md` §6.5. Deliberately *not* a column on `photos`: a thumbnail belongs to content, not to one catalogued copy of it, which is what lets byte-identical duplicates share a single entry as the storage rule above requires.* **Failure handling:** Thumbnail failure must not fail an otherwise successful Index. Record the failure and show a placeholder with an explanation if generation fails or no readable catalogued copy is available. Thumbnails are disposable and excluded from application backups.
 * **Explain unavailable previews:** the placeholder shows a concise reason when
   known, such as **“Photo file unavailable”**, **“Permission denied reading photo”**,
   **“Image could not be decoded”**, or **“Thumbnail cache could not be written”**.

@@ -50,6 +50,59 @@ class DatabaseTests(unittest.TestCase):
                                   destination=destination,source_removed=removed,
                                   created=created,sha1_hash='synthetic')
 
+    def test_content_identity_is_shared_and_never_downgraded(self):
+        with db.transaction(self.conn):
+            first = db.content_for_digest(self.conn, digest='abc', phash='p', phash_state='ok',
+                                          width=800, height=600)
+            # The same bytes seen again are the same identity, not a second row —
+            # which is what lets duplicates share one thumbnail.
+            again = db.content_for_digest(self.conn, digest='abc')
+        self.assertEqual(first, again)
+        self.assertEqual(self.conn.execute("SELECT count(*) FROM contents").fetchone()[0], 1)
+        # A later scan that learned less (a thumbnail that failed, so no
+        # dimensions) must not erase what an earlier one established.
+        row = self.conn.execute("SELECT phash,width,height FROM contents WHERE content_id=?",
+                                (first,)).fetchone()
+        self.assertEqual(tuple(row), ('p', 800, 600))
+
+    def test_content_identity_requires_a_transaction_and_a_digest(self):
+        with self.assertRaises(RuntimeError):
+            db.content_for_digest(self.conn, digest='abc')
+        with db.transaction(self.conn):
+            with self.assertRaises(ValueError):
+                db.content_for_digest(self.conn, digest='')
+
+    def test_thumbnail_state_is_current_not_history(self):
+        with db.transaction(self.conn):
+            content = db.content_for_digest(self.conn, digest='abc')
+            db.record_thumbnail(self.conn, content_id=content, size=320, availability='failed',
+                                failure_category='decode_failed',
+                                failure_detail='Image could not be decoded')
+            db.record_thumbnail(self.conn, content_id=content, size=320, availability='present',
+                                cache_filename='thumbnails/ab/abc.jpg', bytes_on_disk=742)
+        rows = self.conn.execute("SELECT availability,cache_filename,bytes,failure_category "
+                                 "FROM thumbnail_cache").fetchall()
+        # One row per (content, size): a successful regeneration clears the
+        # unavailable state rather than accumulating a second entry.
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(tuple(rows[0]), ('present', 'thumbnails/ab/abc.jpg', 742, None))
+
+    def test_the_two_sizes_are_independent_entries(self):
+        with db.transaction(self.conn):
+            content = db.content_for_digest(self.conn, digest='abc')
+            db.record_thumbnail(self.conn, content_id=content, size=320, availability='present',
+                                cache_filename='thumbnails/ab/abc.jpg', bytes_on_disk=700)
+            db.record_thumbnail(self.conn, content_id=content, size=1024, availability='present',
+                                cache_filename='thumbnails/ab/abc-1024.jpg', bytes_on_disk=9000)
+        # Clearing detail previews must not touch grid thumbnails, and the UI
+        # reports each size separately — both need per-size totals by SUM.
+        totals = dict(self.conn.execute("SELECT size,SUM(bytes) FROM thumbnail_cache GROUP BY size"))
+        self.assertEqual(totals, {320: 700, 1024: 9000})
+
+    def test_thumbnail_state_requires_a_transaction(self):
+        with self.assertRaises(RuntimeError):
+            db.record_thumbnail(self.conn, content_id=1, size=320, availability='present')
+
     def test_delivery_origin_reuse_and_rollback(self):
         photo,run = self.photo()
         source = self.conn.execute("SELECT file_id FROM photo_files").fetchone()[0]

@@ -79,10 +79,15 @@ def test(fn):
 
 def run_engine(case, *args, expect_rc=0, timeout=300):
     """Runs the engine against a case directory. Returns CompletedProcess."""
+    # Each case gets its OWN cache. The default is the shared /cache mount, and
+    # make_photo() produces byte-identical files for a given seed — so without
+    # this, one case's thumbnail would be reused as another's cache hit and any
+    # assertion about what a run generated would depend on test order.
     cmd = [sys.executable, str(ENGINE),
            "--source", str(case / "src"),
            "--dest", str(case / "dest"),
-           "--base", str(case / "appdata")] + [str(a) for a in args]
+           "--base", str(case / "appdata"),
+           "--cache", str(case / "cache")] + [str(a) for a in args]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired as e:
@@ -111,7 +116,8 @@ def spawn_engine(case, *args):
     cmd = [sys.executable, str(ENGINE),
            "--source", str(case / "src"),
            "--dest", str(case / "dest"),
-           "--base", str(case / "appdata")] + [str(a) for a in args]
+           "--base", str(case / "appdata"),
+           "--cache", str(case / "cache")] + [str(a) for a in args]
     return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
 
@@ -2782,6 +2788,196 @@ def destination_lineage_move_and_duplicate_share_retained_identity():
     links = rows(case, "SELECT role FROM operation_files WHERE file_id=?", (retained[0]['file_id'],))
     check({'destination','retained_copy'} <= {r['role'] for r in links}, "Move and duplicate removal must link same retained identity")
     check(len(rows(case, "SELECT * FROM source_snapshots")) == 2, "duplicate origin was lost")
+
+
+# --------------------------------------------------------------- thumbnails
+
+# The grid size webui-spec.md 4.2.1 promises and the web UI is built against.
+# Hardcoded rather than imported from the engine on purpose: a test that read
+# the number out of the engine would follow a regression instead of catching it.
+GRID_THUMBNAIL_SIZE = 320
+
+RAW_SUFFIXES = ('.dng', '.cr2', '.cr3', '.nef', '.arw', '.raf', '.orf', '.rw2', '.pef', '.srw')
+
+
+def cached_thumbnails(case):
+    """Every JPEG currently sitting in this case's thumbnail cache."""
+    root = case / "cache" / "thumbnails"
+    return sorted(root.rglob("*.jpg")) if root.exists() else []
+
+
+@test
+def index_generates_a_grid_thumbnail_for_every_photo():
+    """Index writes one JPEG per content, at the documented size and layout."""
+    from PIL import Image
+    case = new_case("thumbgen")
+    make_photo(case / "src" / "one.jpg", "one", size=(800, 600))
+    make_photo(case / "src" / "two.jpg", "two", size=(640, 900))
+    run_engine(case)
+
+    cached = cached_thumbnails(case)
+    check(len(cached) == 2, f"expected 2 cached thumbnails, found {len(cached)}")
+    for p in cached:
+        with Image.open(p) as img:
+            check(max(img.size) == GRID_THUMBNAIL_SIZE,
+                  f"thumbnail longest edge is {max(img.size)}, expected {GRID_THUMBNAIL_SIZE}")
+        # Fanned out by the hash's first two characters, so no directory ends up
+        # holding tens of thousands of flat entries.
+        check(p.parent.name == p.stem[:2],
+              f"thumbnail is not fanned out by hash prefix: {p.parent.name}/ holds {p.name}")
+
+    entries = rows(case, "SELECT size,availability,cache_filename,bytes FROM thumbnail_cache")
+    check(len(entries) == 2, f"expected 2 thumbnail_cache rows, got {len(entries)}")
+    for e in entries:
+        check(e["availability"] == "present", f"expected a present entry, got {e['availability']}")
+        check(e["size"] == GRID_THUMBNAIL_SIZE, f"entry recorded size {e['size']}")
+        check(e["bytes"] and e["bytes"] > 0,
+              "bytes must be recorded — per-size cache totals are a SUM of this column")
+        # Relative, because /cache is a mount whose path is not guaranteed
+        # stable across containers.
+        check(not Path(e["cache_filename"]).is_absolute(),
+              f"cache_filename must be relative to the cache root, got {e['cache_filename']}")
+        check((case / "cache" / e["cache_filename"]).is_file(),
+              f"catalog names a thumbnail that is not on disk: {e['cache_filename']}")
+
+    # Dimensions describe the CONTENT, and are the source photo's, not the
+    # thumbnail's — draft() decodes at a reduced scale, so reading them after
+    # the fact would record 320x240 for every photo in the library.
+    sizes = {(c["width"], c["height"]) for c in rows(case, "SELECT width,height FROM contents")}
+    check(sizes == {(800, 600), (640, 900)},
+          f"contents recorded the wrong source dimensions: {sorted(sizes)}")
+
+
+@test
+def byte_identical_duplicates_share_one_thumbnail():
+    """Keying on content, not path, is what makes duplicates free to render."""
+    case = new_case("thumbdup")
+    (case / "src" / "sub").mkdir(parents=True)
+    make_photo(case / "src" / "orig.jpg", "same")
+    shutil.copy2(case / "src" / "orig.jpg", case / "src" / "sub" / "copy.jpg")
+    run_engine(case)
+
+    cached = cached_thumbnails(case)
+    check(len(cached) == 1,
+          f"two byte-identical photos generated {len(cached)} thumbnails; expected them to share one")
+    check(len(rows(case, "SELECT 1 FROM contents")) == 1,
+          "byte-identical copies must resolve to a single content identity")
+    check(len(rows(case, "SELECT 1 FROM thumbnail_cache")) == 1,
+          "one content must hold one cache entry per size, not one per file")
+    check(len(rows(case, "SELECT 1 FROM photos")) == 2,
+          "both copies must still be catalogued as separate photos")
+
+
+@test
+def an_undecodable_photo_records_a_thumbnail_failure_without_failing_the_index():
+    """A thumbnail is disposable cache: losing one must not cost a catalog row."""
+    case = new_case("thumbbroken")
+    make_photo(case / "src" / "good.jpg", "good")
+    # A supported extension whose bytes are not an image at all.
+    (case / "src" / "broken.jpg").write_bytes(b"not a jpeg at all")
+    run_engine(case)  # expect_rc=0: the Index must still succeed
+
+    failed = rows(case, "SELECT failure_category,failure_detail,cache_filename FROM thumbnail_cache "
+                        "WHERE availability='failed'")
+    check(len(failed) == 1, f"expected 1 failed thumbnail entry, got {len(failed)}")
+    check(failed[0]["failure_category"] == "decode_failed",
+          f"expected decode_failed, got {failed[0]['failure_category']}")
+    # The UI shows this text in the placeholder; an unexplained blank tile is
+    # the failure mode this column exists to prevent.
+    check(failed[0]["failure_detail"], "a failed thumbnail must carry a reason the UI can show")
+    check(failed[0]["cache_filename"] is None, "a failed thumbnail must not name a cache file")
+
+    check(len(rows(case, "SELECT 1 FROM thumbnail_cache WHERE availability='present'")) == 1,
+          "the readable photo's thumbnail must still have been generated")
+    check(status_of(case, "broken.jpg") is not None,
+          "a file whose thumbnail failed must still be catalogued")
+
+
+@test
+def no_thumbnails_skips_generation_but_still_indexes():
+    """The flag turns off the cache, not the Index."""
+    case = new_case("thumboff")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case, "--no-thumbnails")
+
+    check(cached_thumbnails(case) == [], "--no-thumbnails still wrote to the cache")
+    check(rows(case, "SELECT 1 FROM thumbnail_cache") == [],
+          "--no-thumbnails still recorded cache entries")
+    check(status_of(case, "a.jpg") == "Pending", "--no-thumbnails must not affect cataloguing")
+    # Content identity is not thumbnail state, and must be recorded either way.
+    check(len(rows(case, "SELECT 1 FROM contents")) == 1,
+          "content identity must be recorded even when thumbnails are off")
+
+
+@test
+def an_existing_thumbnail_is_reused_rather_than_regenerated():
+    """The cache-hit path is what makes re-indexing a large library cheap."""
+    case = new_case("thumbreuse")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case)
+    cached = cached_thumbnails(case)
+    check(len(cached) == 1, f"expected 1 thumbnail, found {len(cached)}")
+    before = cached[0].stat().st_mtime_ns
+
+    # --force-rehash re-reads the file itself, so reaching the generator is
+    # guaranteed; only the cache hit can prevent a rewrite.
+    run_engine(case, "--force-rehash")
+    check(cached_thumbnails(case)[0].stat().st_mtime_ns == before,
+          "a re-index rewrote an existing thumbnail instead of reusing it")
+
+
+@test
+def an_unwritable_cache_does_not_fail_the_index():
+    """Thumbnails are reproducible; a bad /cache mount must not stop cataloguing."""
+    if os.geteuid() == 0:
+        raise Fail("SKIP: running as root, which ignores directory permissions")
+    case = new_case("thumbro")
+    make_photo(case / "src" / "a.jpg", "a")
+    (case / "cache").mkdir()
+    (case / "cache").chmod(0o500)
+    try:
+        out = engine_output(run_engine(case))
+        check("not writable" in out,
+              f"expected a cache-not-writable warning; last output:\n{out[-800:]}")
+        check(status_of(case, "a.jpg") == "Pending",
+              "an unwritable cache must not change the Index outcome")
+    finally:
+        (case / "cache").chmod(0o700)
+
+
+@test
+def raw_files_produce_thumbnails_through_rawpy():
+    """
+    The RAW path cannot be covered synthetically — LibRaw rejects fabricated
+    files — so this runs only against real camera output. It exercises whichever
+    branch the files call for: an embedded preview large enough to use, or a
+    demosaic when there is none.
+    """
+    raw_dir = os.environ.get("NS_TEST_RAW_DIR")
+    if not raw_dir:
+        raise Fail("SKIP: set NS_TEST_RAW_DIR to a folder of real RAW files")
+    sources = [p for p in sorted(Path(raw_dir).iterdir())
+               if p.is_file() and p.suffix.lower() in RAW_SUFFIXES][:3]
+    if not sources:
+        raise Fail(f"SKIP: no RAW files with a known extension in NS_TEST_RAW_DIR")
+
+    from PIL import Image
+    case = new_case("thumbraw")
+    # Copied under generic names: a failure message must never carry a filename
+    # from the maintainer's library.
+    for i, p in enumerate(sources):
+        shutil.copy2(p, case / "src" / f"raw_{i}{p.suffix.lower()}")
+    run_engine(case)
+
+    entries = rows(case, "SELECT availability,failure_category,cache_filename FROM thumbnail_cache")
+    check(len(entries) == len(sources),
+          f"expected {len(sources)} thumbnail entries, got {len(entries)}")
+    for e in entries:
+        check(e["availability"] == "present",
+              f"a RAW thumbnail failed: {e['failure_category']}")
+        with Image.open(case / "cache" / e["cache_filename"]) as img:
+            check(max(img.size) == GRID_THUMBNAIL_SIZE,
+                  f"RAW thumbnail longest edge is {max(img.size)}, expected {GRID_THUMBNAIL_SIZE}")
 
 
 def main():
