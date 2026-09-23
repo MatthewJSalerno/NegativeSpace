@@ -102,13 +102,22 @@ security concern, specified in `webui-spec.md` §5.6.
 
 ### 4.2. Processing Logic
 
-**Required capture-date policy, not yet implemented:** use a usable EXIF
-`DateTimeOriginal` for dated placement. Without it, use `Undated/<year>/`, with
-the year from filesystem modification time, not creation time. Retain other date
-fields as review evidence, not automatic capture-date substitutes. The current
-implementation still falls back through `CreateDate` and `DateTime`; changing that
-selection is pending engine work. Preserve the field/value used for each placement
-in lineage. Undated review categories are defined in `webui-spec.md` §3.1.
+**Capture-date policy:** dated placement uses a usable EXIF `DateTimeOriginal`
+and nothing else. Without one the file goes to `Undated/<year>/`, the year taken
+from the source's filesystem modification time as recorded at its original Index
+(§10), never its creation time.
+
+*Why not `CreateDate` or `DateTime`?* Both are real timestamps and neither is the
+moment the photograph was taken: `CreateDate` is when this file was created — a
+re-export, a format conversion, a download — and `DateTime` is when it was last
+modified. Filing by either puts a photo into the dated tree under a date nobody
+vouched for, which is the guess-indistinguishable-from-a-fact problem `Undated/`
+exists to prevent. Both remain in captured metadata as review evidence: retaining
+a clue and promoting it to a capture date are different things. Undated review
+categories are defined in `webui-spec.md` §3.1.
+
+Because exactly one key is accepted, `date_source` is sufficient to answer which
+field a placement came from — `exif` means `DateTimeOriginal` and nothing else.
 
 *   **Deduplication:**
     *   **Exact Match:** Files with identical SHA1 hashes (excluding the file's own row, and excluding other rows already flagged `Duplicate`/`Removed_Duplicate`, to prevent a duplicate pair from cascading into mutually flagging each other across repeated scans) are flagged `status = 'Duplicate'`.
@@ -972,8 +981,10 @@ not: nothing yet removes an entry whose hash no longer belongs to any catalogued
 file, and nothing cleans up orphans after an interrupted edit.
 
 §9.1–§9.6 record five engine capabilities the curation workflows require. A
-pass over the rest of the documented web interface turned up eight more, of which
-thumbnail generation is now built; the seven below remain. None of them is
+pass over the rest of the documented web interface turned up eight more. Two of
+those are settled — thumbnail generation is built, and which date field a placement
+came from is unambiguous now that only `DateTimeOriginal` is accepted (§4.2). The
+six below remain. None of them is
 visible as engine work from the UI side — each looks like a screen until you ask
 what it reads from.
 
@@ -983,14 +994,15 @@ what it reads from.
 | **Refiling after a date change** | Any metadata correction, single or bulk | This is what makes §9.7 enforceable. Within one destination it is an **atomic rename**, not a Copy-Verify-Delete: no bytes move and there is nothing to verify. The engine already computes a file's correct folder, creates date folders durably, and resolves name collisions — what is new is the destination-to-destination move and an operation recording both paths |
 | **Field-level before/after for metadata edits** | Full lineage and informed manual correction | Preserve the original indexed information and each change, linking old/new identities when content hashes change. No user-facing undo; see §10 |
 | **A batch identity** | Bulk metadata apply | So an edit and the refile it triggers read as one action rather than two unrelated ones. `runs.run_id` is the precedent for exactly this grouping |
-| **Which date field the engine filed by** | Lineage, and any review of a questionable date | The resolution chain tries several EXIF keys and keeps only the winning *value*; which key won is discarded. A user asking "why is this photo here?" cannot be answered |
 | **Catalog backup, inventory and trigger** | Before curation and after processing | Each consistent database snapshot includes catalog, history and settings, never pixels or thumbnails. Multiple snapshots reside in the dedicated `/backups` Docker mount. Triggers, retention and failure behavior are defined in `webui-spec.md` §9 |
 | **Serving a file for download** | Log export; retrieving a backup | **API work rather than engine work**, recorded here because it is the same gap twice and worth building once |
 
-**Three of these want a schema change** — field-level before/after, a batch
-identity, and the winning date key. Content width and height are no longer among
-them: they live on `contents` in the shipped schema (§6.5), and the scan now
-populates them from the same decode that produces the thumbnail. Schema changes cost a rebuilt
+**Two of these want a schema change** — field-level before/after and a batch
+identity. Content width and height need none: they live on `contents` in the shipped
+schema (§6.5), populated by the scan from the same decode that produces the
+thumbnail. The winning date key needs none either: accepting a single capture-date
+field makes `date_source` sufficient to say which field filed a photo (§4.2).
+Schema changes cost a rebuilt
 catalog, which is cheap individually and cheaper together; they are listed
 separately here so the decision stays visible rather than being bundled by
 accident.
@@ -1025,7 +1037,7 @@ by photo info screens and logs. Mark the file deleted and exclude it from action
 library results while retaining historical lookup. These records support manual
 reconstruction of recorded metadata and naming/location history, not image pixels.
 
-**Original filesystem snapshot (planned):** preserve each source file's original
+**Original filesystem snapshot:** preserve each source file's original
 Index path, size and modification time, including every duplicate independently.
 Capture genuine filesystem creation time when available; otherwise record it as
 unknown, never substitute Unix ctime. This immutable snapshot is separate from
@@ -1039,6 +1051,9 @@ this** (§6.5): one immutable row per source identity, written at first Index an
 overwritten, with later reads appended to `file_observations` instead. `photos.file_mtime`
 is a separate, mutable value refreshed on rescan for change detection, and is not the
 fallback source — using it would reintroduce exactly the drift this snapshot prevents.
+The scan reads the snapshot value and files from it: the two agree on a first Index,
+which is why filing from the mutable value looks correct until a re-index of a touched
+file silently moves that photo to a different year folder.
 
 **Required behavior:** each destination file must remain traceable to its original
 source Index information: filename, path, captured metadata, hashes and file

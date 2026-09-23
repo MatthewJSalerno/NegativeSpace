@@ -782,6 +782,9 @@ def real_raw_files_decode_when_supplied():
 # depend on where they run.
 _UNDATED_MTIME = 1560600000
 _UNDATED_YEAR = "2019"
+# A second stamp in a DIFFERENT year, for touching a file after its first Index.
+_TOUCHED_MTIME = 1690000000
+_TOUCHED_YEAR = "2023"
 
 
 @test
@@ -806,6 +809,81 @@ def a_photo_with_no_exif_date_lands_under_undated():
     landed = dest_files(case)
     check(landed == [f"Undated/{_UNDATED_YEAR}/nodate.jpg"],
           f"expected the undated photo under Undated/{_UNDATED_YEAR}/, destination holds {landed}")
+
+
+@test
+def a_photo_with_only_createdate_is_undated():
+    """
+    `CreateDate` is when this FILE was created — a re-export, a conversion, a
+    download — not when the photograph was taken. Filing by it puts a date into
+    the dated tree that nobody vouched for.
+
+    This test exists because the fixture builder writes `DateTimeOriginal` and
+    `CreateDate` together, so every other date test here passes whether or not
+    the CreateDate fallback is present. Only a file carrying CreateDate alone
+    can tell the difference.
+    """
+    case = new_case("createdate_only")
+    photo = case / "src" / "createonly.jpg"
+    make_photo(photo, "CREATE-ONLY", date=None)
+    subprocess.run(["exiftool", "-overwrite_original",
+                    "-CreateDate=2024:02:14 09:30:00", str(photo)],
+                   capture_output=True, check=True)
+    # After exiftool, which rewrites the file and so moves its mtime.
+    os.utime(photo, (_UNDATED_MTIME, _UNDATED_MTIME))
+    run_engine(case)
+
+    r = rows(case, "SELECT dest_path, metadata_json FROM photos")[0]
+    meta = json.loads(r["metadata_json"])
+    check(meta.get("date_source") == "file_mtime",
+          f"a photo carrying only CreateDate has no capture date, so it must fall "
+          f"back to mtime; date_source was {meta.get('date_source')!r}")
+    check(f"Undated/{_UNDATED_YEAR}" in r["dest_path"],
+          f"expected Undated/{_UNDATED_YEAR}, projected {r['dest_path']!r}")
+    # Retained as evidence, not promoted — the Undated screen shows it as a clue.
+    check("CreateDate" in meta,
+          "CreateDate must still reach the catalog as review evidence")
+
+
+@test
+def the_undated_year_is_pinned_to_the_original_index_mtime():
+    """
+    An undated photo is filed by the mtime recorded at its FIRST Index, not by
+    whatever its mtime happens to be now.
+
+    `photos.file_mtime` is refreshed on every rescan for change detection, so
+    filing from it lets a photo drift between year folders whenever anything
+    touches the file. The immutable value lives in `source_snapshots`.
+
+    BOTH assertions below are required, because either alone passes for the
+    wrong reason: if the second Index had skipped the file as unchanged,
+    dest_path would be identical and the test would prove nothing. file_mtime
+    moving is what shows the file was genuinely re-read.
+    """
+    case = new_case("undated_pinned")
+    photo = case / "src" / "nodate.jpg"
+    make_photo(photo, "PINNED", date=None)
+    os.utime(photo, (_UNDATED_MTIME, _UNDATED_MTIME))
+    run_engine(case)
+
+    first = rows(case, "SELECT dest_path FROM photos")[0]["dest_path"]
+    check(f"Undated/{_UNDATED_YEAR}" in first,
+          f"first Index projected {first!r}, expected Undated/{_UNDATED_YEAR}")
+
+    # Touch it into a different year. An mtime change is precisely what defeats
+    # the unchanged-file skip, so this file is re-read rather than skipped.
+    os.utime(photo, (_TOUCHED_MTIME, _TOUCHED_MTIME))
+    run_engine(case)
+
+    r = rows(case, "SELECT dest_path, file_mtime FROM photos")[0]
+    check(abs(r["file_mtime"] - _TOUCHED_MTIME) < 1e-6,
+          f"the file was not actually re-read (file_mtime {r['file_mtime']}), so the "
+          f"year assertion below would pass without proving anything")
+    check(f"Undated/{_UNDATED_YEAR}" in r["dest_path"],
+          f"the Undated year drifted to {r['dest_path']!r} after the file was touched; "
+          f"it must stay pinned to the original Index mtime, Undated/{_UNDATED_YEAR}")
+    check(f"Undated/{_TOUCHED_YEAR}" not in r["dest_path"],
+          f"filed under the touched year {_TOUCHED_YEAR} instead of the original")
 
 
 @test

@@ -188,12 +188,12 @@ write coordination remains to be designed (§6.1).
 
 ### 3.1 Undated Photos and Capture-Date Evidence
 
-**Required behavior, pending engine implementation:** a photo without a usable
-capture date (`DateTimeOriginal`) belongs under `Undated/<year>/`, even if other
-metadata date fields exist. The year is its filesystem modification year, not its
-creation year. Other dates are retained as clues, not silently used as capture dates.
-The current engine still accepts `CreateDate` and `DateTime` as fallbacks; removal
-of those fallbacks is an agreed change, not shipped behavior.
+A photo without a usable capture date (`DateTimeOriginal`) belongs under
+`Undated/<year>/`, even if other metadata date fields exist. The year is its
+filesystem modification year, not its creation year. Other dates are retained as
+clues, not silently used as capture dates. `CreateDate` and `DateTime` are not
+accepted as capture dates: both are real timestamps that describe the file rather
+than the photograph.
 
 The Undated view provides counts and filters for photos with other date clues but
 no usable capture date, photos with other metadata but no usable date fields, and
@@ -219,8 +219,9 @@ Index for `Undated/<year>`, including after capture-date removal. Preserve this
 original snapshot per source copy, including duplicates; later rescans, edits and
 transfers must not replace it. Show it as **Original source modification time (at
 Index)**, not as a capture date. Genuine creation time, if available, remains a
-separate historical clue. The snapshot requirement is planned in `engine-spec.md`
-§10 and is not supplied by the current mutable `file_mtime` alone.
+separate historical clue. The snapshot lives in `source_snapshots` (`engine-spec.md`
+§10) and the scan files from it; the mutable `photos.file_mtime` is refreshed for
+change detection and is deliberately not the filing source.
 
 The current catalog retains the mtime fallback in `date_taken`, labelled with
 `date_source = 'file_mtime'`; the interface must not call it a capture date. If mtime
