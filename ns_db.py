@@ -6,12 +6,15 @@ retains the transfer tables while original source identity is introduced separat
 """
 import contextlib
 import errno
+import hashlib
 import json
 import os
 import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+
+import zstandard
 
 SCHEMA_VERSION = 5
 
@@ -792,6 +795,14 @@ BACKUP_RETENTION_DEFAULT = 20
 BACKUP_PREFIX = "ns-catalog-"
 CONTAINER_BACKUPS = "/backups"
 _PARTIAL = ".partial"
+# Zstandard at level 10, measured on a 524 MB full-library catalog: 19.3 MB (27x)
+# in 1.2 s. Levels 9-12 land within 0.5 MB of each other; 13 changes strategy and
+# took 4.9 s for a larger file. Smaller files cost time spent holding the engine
+# lock: zstd -19 16.6 MB in 47 s, xz -6 16.1 MB in 27 s. The full comparison is in
+# webui-spec 9.
+BACKUP_COMPRESSION = "zstd"
+BACKUP_ZSTD_LEVEL = 10
+BACKUP_SUFFIX = ".db.zst"
 
 
 class BackupFailed(RuntimeError):
@@ -856,11 +867,48 @@ def settle_interrupted_backups(conn, backups_dir):
     return n
 
 
+class _Digest:
+    """A write-only sink that hashes what it is given, for streaming comparisons."""
+    def __init__(self):
+        self.hash = hashlib.sha256()
+
+    def write(self, data):
+        self.hash.update(data)
+        return len(data)
+
+
+def _file_digest(path):
+    digest = _Digest()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            digest.write(block)
+    return digest.hash.digest()
+
+
+def _compress_and_verify(raw, packed):
+    """Compresses `raw` to `packed` with a frame checksum, then decompresses the
+    result and compares it with `raw`. A backup nobody can restore is worse than
+    none, so the compressed file is proven before it is published."""
+    compressor = zstandard.ZstdCompressor(level=BACKUP_ZSTD_LEVEL, write_checksum=True)
+    with open(raw, "rb") as source, open(packed, "wb") as target:
+        compressor.copy_stream(source, target, size=raw.stat().st_size)
+        target.flush()
+        os.fsync(target.fileno())
+    restored = _Digest()
+    with open(packed, "rb") as source:
+        zstandard.ZstdDecompressor().copy_stream(source, restored)
+    if restored.hash.digest() != _file_digest(raw):
+        raise BackupFailed("verification_failed", "the compressed backup does not decompress "
+                                                   "to the verified snapshot")
+
+
 def _snapshot(conn, attempt_id, final):
-    """Copies the live catalog to `final` + .partial, verifies it, publishes it."""
-    partial = final.with_name(final.name + _PARTIAL)
+    """Copies the live catalog beside `final`, verifies it, compresses it, verifies
+    the compressed file, publishes it. Returns the published (compressed) size."""
+    raw = final.with_name(final.name[:-len(".zst")] + _PARTIAL)   # <name>.db.partial
+    packed = final.with_name(final.name + _PARTIAL)                # <name>.db.zst.partial
     try:
-        dst = sqlite3.connect(partial)
+        dst = sqlite3.connect(raw)
         try:
             conn.backup(dst)
             # Self-contained file: no -wal/-shm companions beside a backup, which
@@ -878,22 +926,21 @@ def _snapshot(conn, attempt_id, final):
             dst.close()
         if check != "ok" or version != SCHEMA_VERSION:
             raise BackupFailed("verification_failed", f"quick_check={check}, schema version={version}")
-        fd = os.open(partial, os.O_RDONLY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-        os.rename(partial, final)
+        _compress_and_verify(raw, packed)
+        os.rename(packed, final)
         _fsync_dir(final.parent)
+        raw.unlink()
         return final.stat().st_size
     except BackupFailed:
-        partial.unlink(missing_ok=True)
+        for leftover in (raw, packed):
+            leftover.unlink(missing_ok=True)
         raise
-    except (OSError, sqlite3.Error) as exc:
-        try:
-            partial.unlink(missing_ok=True)
-        except OSError:
-            pass
+    except (OSError, sqlite3.Error, zstandard.ZstdError) as exc:
+        for leftover in (raw, packed):
+            try:
+                leftover.unlink(missing_ok=True)
+            except OSError:
+                pass
         category = "insufficient_space" if getattr(exc, "errno", None) == errno.ENOSPC or \
             "full" in str(exc).lower() else "write_failed"
         raise BackupFailed(category, str(exc)) from exc
@@ -922,7 +969,7 @@ def backup_catalog(db_path, backups_dir, appdata_dir, *, trigger, related_run_id
                 "INSERT INTO backup_attempts(trigger_kind,related_run_id,started_at) VALUES(?,?,?)",
                 (trigger, related_run_id, started_at)).lastrowid
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        filename = f"{BACKUP_PREFIX}{stamp}-{attempt_id:06d}-{trigger}.db"
+        filename = f"{BACKUP_PREFIX}{stamp}-{attempt_id:06d}-{trigger}{BACKUP_SUFFIX}"
         try:
             _check_backup_storage(backups_dir, appdata_dir)
             size = _snapshot(conn, attempt_id, Path(backups_dir) / filename)
@@ -937,9 +984,9 @@ def backup_catalog(db_path, backups_dir, appdata_dir, *, trigger, related_run_id
         with transaction(conn):
             conn.execute("UPDATE backup_attempts SET outcome='succeeded', ended_at=? WHERE attempt_id=?",
                          (now, attempt_id))
-            conn.execute("INSERT INTO backup_artifacts(attempt_id,relative_filename,size,created_at,"
-                         "availability,last_checked_at) VALUES(?,?,?,?,'present',?)",
-                         (attempt_id, filename, size, now, now))
+            conn.execute("INSERT INTO backup_artifacts(attempt_id,relative_filename,size,compression_format,"
+                         "created_at,availability,last_checked_at) VALUES(?,?,?,?,?,'present',?)",
+                         (attempt_id, filename, size, BACKUP_COMPRESSION, now, now))
         # Pruned only after a new backup succeeded, so retention never leaves
         # fewer usable backups than before the attempt.
         pruned = prune_automatic_backups(conn, backups_dir)

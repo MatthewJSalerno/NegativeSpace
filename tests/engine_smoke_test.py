@@ -3388,6 +3388,16 @@ def backup_files(case):
     return sorted(p.name for p in (case / "backups").iterdir())
 
 
+def open_backup(path):
+    """Decompresses a .db.zst backup beside itself and opens the result, the way a
+    user restoring it would. Standard Zstandard frames: any zstd tool reads them."""
+    import zstandard
+    restored = path.with_name(path.name[:-len(".zst")] + ".restored")
+    with open(path, "rb") as src, open(restored, "wb") as dst:
+        zstandard.ZstdDecompressor().copy_stream(src, dst)
+    return sqlite3.connect(restored), restored
+
+
 @test
 def a_job_that_records_changes_is_backed_up_after_it_settles():
     """
@@ -3408,7 +3418,14 @@ def a_job_that_records_changes_is_backed_up_after_it_settles():
     check(backup_files(case) == [got[0]["relative_filename"]],
           f"backup storage holds more than the one backup: {backup_files(case)}")
 
-    snap = sqlite3.connect(case / "backups" / got[0]["relative_filename"])
+    check(got[0]["relative_filename"].endswith(".db.zst"),
+          f"the backup is not a Zstandard file: {got[0]['relative_filename']}")
+    fmt = rows(case, "SELECT compression_format FROM backup_artifacts")[0]["compression_format"]
+    check(fmt == "zstd", f"the backup's recorded format is {fmt!r}; the backup screen reads it")
+    packed = case / "backups" / got[0]["relative_filename"]
+    snap, restored = open_backup(packed)
+    check(packed.stat().st_size * 3 < restored.stat().st_size,
+          "the backup is barely smaller than the catalog it holds; is it compressed?")
     try:
         check(snap.execute("PRAGMA journal_mode").fetchone()[0] == "delete",
               "the backup is still in WAL mode and would grow companions when opened")
@@ -3422,6 +3439,7 @@ def a_job_that_records_changes_is_backed_up_after_it_settles():
               "a restored backup would record its own attempt as unfinished")
     finally:
         snap.close()
+        restored.unlink()
 
     run_engine(case)
     check(len(backups_of(case)) == 1, "an Index that recorded nothing was backed up")

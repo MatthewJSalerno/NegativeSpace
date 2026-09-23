@@ -432,4 +432,19 @@ class DatabaseTests(unittest.TestCase):
         db.save_settings(self.conn, {'backup_retention': 5}, expected_revisions={'backup_retention': 0})
         self.assertEqual(db.backup_retention(self.conn), 5)
 
+    def test_a_compressed_backup_that_does_not_restore_is_never_published(self):
+        store = self.backups()
+        real = db._file_digest
+        db._file_digest = lambda path: b"not the snapshot"
+        try:
+            result = db.backup_catalog(self.path, store, Path(self.tmp.name) / 'appdata', trigger='manual')
+        finally:
+            db._file_digest = real
+        self.assertEqual((result['outcome'], result['error_category']), ('failed', 'verification_failed'))
+        self.assertEqual(list(store.iterdir()), [], 'an unverified or partial file was left behind')
+        ok = db.backup_catalog(self.path, store, Path(self.tmp.name) / 'appdata', trigger='manual')
+        self.assertEqual([p.name for p in store.iterdir()], [ok['filename']],
+                         'the uncompressed snapshot was left beside the published backup')
+        self.assertTrue(ok['filename'].endswith('.db.zst'))
+
 if __name__ == '__main__':unittest.main()

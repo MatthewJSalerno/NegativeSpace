@@ -1586,7 +1586,9 @@ settings. Use a SQLite-supported snapshot, not an ordinary copy of a live WAL da
 **Say how each backup is compressed and how to open it.** A downloaded backup is only
 useful if the user can decompress it without this application, perhaps on another
 machine. The backup screen therefore carries a standing note naming the compression
-format and the library that wrote it. Each backup in the list shows its own format,
+format and the library that wrote it, **Zstandard** (https://facebook.github.io/zstd/),
+with a link to that page: it is the project's own, and it lists the command-line tool
+and the Windows archive managers that open `.zst` files. Each backup in the list shows its own format,
 read from the `compression_format` recorded with that backup (`engine-spec.md` §6.5).
 Do not use one global setting: backups written before compression existed, or before
 a format change, stay in their original format, and the list must describe each file
@@ -1596,17 +1598,15 @@ and where to get a tool, including for Windows, which ships none of these by def
 | Recorded format | Shown as | Decompress | Where to get a tool |
 | :--- | :--- | :--- | :--- |
 | none (NULL) | Not compressed: a plain SQLite database, `.db` | Nothing to do | — |
-| `zstd` | Zstandard, `.db.zst` | `zstd -d <file>` | Linux: the `zstd` package (`apt install zstd`, `dnf install zstd`). macOS: `brew install zstd`. Windows: the `win64` zip on the project's releases page, https://github.com/facebook/zstd/releases |
-| `xz` | XZ, `.db.xz` | `xz -d <file>` | Linux: the `xz-utils` / `xz` package. macOS: `brew install xz`. Windows: the `windows.zip` from https://tukaani.org/xz/ |
-| `gzip` | gzip, `.db.gz` | `gzip -d <file>` | Preinstalled on Linux and macOS. Windows: any archive tool that opens `.gz` |
+| `zstd` | Compressed with Zstandard, `.db.zst` | `zstd -d <file>` | https://facebook.github.io/zstd/ lists the tools. Linux: the `zstd` package (`apt install zstd`, `dnf install zstd`). macOS: `brew install zstd`. Windows: the `win64` zip from https://github.com/facebook/zstd/releases, or an archive manager the project page names (7-Zip with Zstandard, WinRAR) |
 
 Link the note to the manual restoration steps below, and state that the decompressed
 file is the catalog database itself, which can be placed as `ns_sqlite.db` without any
 other conversion. Name the library in plain words ("compressed with Zstandard") and
-keep the command copyable; do not require the user to know what a codec is. The table
-lists the candidate formats while the choice below is open. Once one is selected, keep
-its row and the uncompressed row: backups from before compression existed stay
-uncompressed and must still be described.
+keep the command copyable; do not require the user to know what a codec is. The
+uncompressed row stays because backups written before compression existed are
+uncompressed and must still be described. There is no compression setting: the
+application uses the format chosen below and tells the user which one it used.
 
 **Backup storage is configured through Docker before startup.** A dedicated volume
 mount exposes the fixed container path `/backups`, containing multiple catalog
@@ -1676,19 +1676,41 @@ An unavailable file must not be presented as an available recovery copy.
 
 **Manual restoration only:** provide instructions, not an in-app restore action.
 Stop the application container and preserve the current database and any associated
-SQLite `-wal`/`-shm` files separately before replacement. Extract the selected backup
-if compressed, place its database at the application's expected database path and
+SQLite `-wal`/`-shm` files separately before replacement. Decompress the selected
+backup if it is a `.db.zst` (`zstd -d <file>`), place its database at the application's expected database path and
 filename under `/appdata`, and verify ownership and permissions. Do not leave old
 SQLite companion files beside the restored database. Start the application after
 replacement; restoring catalog records does not reverse photo changes or recreate
 photos, and the restored catalog may differ from the current destination.
 
-**Compression choice — non-blocking follow-up:** evaluate the backup compression
-format and library before finalizing backup packaging. Zstandard is a candidate,
-not a selected requirement or a verified benchmark winner. Compare compression
-size, compression/decompression time, resource use and ease of manual extraction.
-Keep the restoration instructions aligned with the selected format. This open
-choice does not block workflow design or other implementation work.
+**Compression: Zstandard, level 10, with a frame checksum.** Chosen by measurement on
+the maintainer's full-library catalog (524 MB), each result round-tripped byte for
+byte, compression single-threaded:
+
+| Codec | Size | Compress | Decompress | Compress memory |
+| :--- | ---: | ---: | ---: | ---: |
+| gzip -9 | 50.6 MB | 4.3 s | 0.51 s | 19 MB |
+| lz4 -9 | 45.5 MB | 0.4 s | 0.26 s | 42 MB |
+| bzip2 -9 | 29.0 MB | 21.1 s | 4.95 s | 19 MB |
+| zstd -3 | 24.7 MB | 0.3 s | 0.11 s | 39 MB |
+| **zstd -10** | **19.3 MB** | **1.2 s** | **0.10 s** | **91 MB** |
+| zstd -19 | 16.6 MB | 47.2 s | 0.10 s | 216 MB |
+| brotli -q 9 | 16.7 MB | 4.5 s | 0.20 s | 77 MB |
+| xz -6 | 16.1 MB | 26.7 s | 0.49 s | 98 MB |
+| brotli -q 11 | 14.1 MB | 195.9 s | 0.20 s | 188 MB |
+| xz -9e | 13.7 MB | 70.0 s | 0.46 s | 677 MB |
+
+The criterion is efficiency, not the smallest file, because compression runs after
+every job that recorded changes while the engine lock is held. zstd -10 is 2.6x
+smaller than gzip, 27x smaller than the catalog, and done in about a second; twenty
+retained backups take about 390 MB instead of 10.5 GB. Levels 9 to 12 land within
+0.5 MB of one another; level 13 switches strategy and took 4.9 s for a larger file.
+**Why not a smaller format:** xz -6 saves 3.2 MB per backup for 22x the time, and xz
+-9e, brotli -q 11 and zstd -19 save 3 to 6 MB for 47 to 196 s under the lock. **Why not
+gzip, the format everything already opens:** 2.6x the size and 3.5x the time.
+Zstandard's own tools are free on every platform and linked from the backup screen
+above. The engine uses the `zstandard` Python package, pinned in `requirements.txt`
+and bundling libzstd 1.5.7; any Zstandard tool decompresses the result.
 
 ## 10. Timestamp Display
 
