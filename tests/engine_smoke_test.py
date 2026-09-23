@@ -3178,6 +3178,37 @@ def a_replayed_interrupted_request_is_reported_not_rerun():
           f"the next real run did not reconcile the interrupted one: {statuses}")
 
 
+@test
+def every_catalog_timestamp_carries_its_offset():
+    """
+    Application event times are timezone-aware UTC (engine-spec 4.3). One row
+    mixing a zoned start with a naive end cannot give a duration — Python
+    refuses to subtract them, and read as the same zone they are off by the
+    host's UTC offset. Covers each writer: run start and finish, an operation
+    settled after its intent, and a run marked Crashed by reconciliation.
+    """
+    from datetime import datetime
+    case = new_case("utc_timestamps")
+    make_photo(case / "src" / "a.jpg", "a")
+    make_photo(case / "src" / "dupe.jpg", "a")
+    run_engine(case)
+    run_engine(case, "--move")
+    conn = db(case)
+    conn.execute("UPDATE runs SET status = 'Running', ended_at = NULL WHERE id = 1")
+    conn.commit()
+    conn.close()
+    run_engine(case)
+
+    stamps = [("runs.started_at", r["started_at"]) for r in rows(case, "SELECT started_at FROM runs")]
+    stamps += [("runs.ended_at", r["ended_at"]) for r in rows(case, "SELECT ended_at FROM runs")]
+    stamps += [("operations.timestamp", r["timestamp"])
+               for r in rows(case, "SELECT timestamp FROM operations")]
+    check(any(r["status"] == "Crashed" for r in rows(case, "SELECT status FROM runs")),
+          "setup did not produce a Crashed run")
+    naive = [(col, v) for col, v in stamps if v is None or datetime.fromisoformat(v).tzinfo is None]
+    check(not naive, f"timestamps without an offset: {naive}")
+
+
 def main():
     global ENGINE, WORKSPACE, VERBOSE
     ap = argparse.ArgumentParser(description=__doc__,

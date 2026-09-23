@@ -190,14 +190,15 @@ catalogue, not the tree, so relocating them is a separate action.
 *   **Per-File Warning Attribution:** library warnings raised while reading a file are captured and re-logged naming that file. Worker processes do not inherit the log handler under `forkserver`/`spawn`, so these were previously dropped entirely. Note that PIL's `"Truncated File Read"` reaches the log through `TiffImagePlugin`'s EXIF parser, which catches the underlying `OSError` and downgrades it to a warning — it means the EXIF block is malformed, **not** that pixel data is missing, and such files still produce correct SHA-1 and perceptual hashes.
 
 *   **Audit Trail:** The `runs` + `operations` tables (§6) together give a full history of every invocation and every per-file outcome within it — this is what "show previous run information" is built on, independent of the frontend.
-*   **Timestamp Contract (planned):** record application events, including run start/end
-    and operation history, as timezone-aware UTC instants. Existing timezone-naive
-    timestamps must not simply be labelled `Z` without establishing their timezone.
-    Photo capture dates retain their recorded wall-clock value and any known offset;
+*   **Timestamp Contract:** application events, including run start/end and operation
+    history, are recorded as timezone-aware UTC instants. Every catalog timestamp the
+    engine writes carries its offset, pinned by `every_catalog_timestamp_carries_its_offset`.
+    A catalog written before that holds naive times; it is a development catalog to
+    rebuild, and its values must not simply be labelled `Z`. Photo capture dates retain
+    their recorded wall-clock value and any known offset;
     an absent offset remains unknown, not assumed UTC. Capture-date folder placement
-    follows that recorded calendar date, independent of the browser timezone.
-    This contract requires implementation; UI presentation is specified in
-    `webui-spec.md` §10.
+    follows that recorded calendar date, independent of the browser timezone. UI
+    presentation is specified in `webui-spec.md` §10.
 *   **Real-time Feedback:** the planned web drawer shows aggregate progress and elapsed
     runtime, with scan discovery counts for files found, eligible by configured file
     type, and excluded by file type, plus excluded counts by extension. These must be

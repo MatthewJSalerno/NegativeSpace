@@ -667,7 +667,7 @@ def finish_run(db_path: str, run_id: int, status: str):
     conn = get_db_connection(db_path)
     conn.execute(
         "UPDATE runs SET status = ?, ended_at = ? WHERE id = ?",
-        (status, datetime.now().isoformat(), run_id)
+        (status, ns_db.utc_now(), run_id)
     )
     conn.commit()
     conn.close()
@@ -707,7 +707,7 @@ def log_operation(conn: sqlite3.Connection, run_id: int, photo_id: Optional[int]
                        (SELECT NULLIF(sha1_hash, '') FROM photos WHERE id = ?))""",
             (
                 run_id, photo_id, Path(source_path).name if source_path else None, source_path, dest_path,
-                status, error_message, 1 if has_name_collision else 0, datetime.now().isoformat(),
+                status, error_message, 1 if has_name_collision else 0, ns_db.utc_now(),
                 photo_id
             )
         )
@@ -726,7 +726,7 @@ def log_operation(conn: sqlite3.Connection, run_id: int, photo_id: Optional[int]
                    sha1_hash = (SELECT NULLIF(sha1_hash, '') FROM photos WHERE id = ?)
                  WHERE id = ?""",
             (status, error_message, dest_path, 1 if has_name_collision else 0,
-             datetime.now().isoformat(), photo_id, record))
+             ns_db.utc_now(), photo_id, record))
         ns_db.record_event(conn, operation_id=record, step=step,
                            outcome="completed" if delivery is not None else "failed",
                            detail={"status": status})
@@ -1271,7 +1271,7 @@ def reconcile_interrupted_state(db_path: Path, run_id: Optional[int] = None):
                 logger.warning(f"Run #{crashed_run_id} was left 'Running' by an unclean "
                                f"shutdown - marking Crashed.")
                 cursor.execute("UPDATE runs SET status = ?, ended_at = ? WHERE id = ?",
-                               (RunStatus.CRASHED, datetime.now().isoformat(), crashed_run_id))
+                               (RunStatus.CRASHED, ns_db.utc_now(), crashed_run_id))
             conn.commit()
     except BaseException:
         # Never swallowed. A failed reconciliation leaves rows Processing, and a

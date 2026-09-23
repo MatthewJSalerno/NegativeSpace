@@ -1664,8 +1664,9 @@ choice does not block workflow design or other implementation work.
 
 * **Application history:** job, operation and backup timestamps represent instants
   stored as timezone-aware UTC. Display them in the user's local timezone with a
-  clear timezone label. Existing naive engine timestamps require timezone handling
-  before the API can truthfully expose them as UTC; this support is not implemented.
+  clear timezone label. The engine writes every catalog timestamp with its offset
+  (`engine-spec.md` §4.3). A value without one comes from an older development
+  catalog and must not be presented as UTC.
 * **Photo capture dates:** show the recorded wall-clock date/time and its offset when
   known. If no offset was recorded, indicate that the timezone is unknown; do not
   assume UTC or shift the capture date to the browser's timezone. The offset-free
