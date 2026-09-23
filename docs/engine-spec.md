@@ -998,8 +998,12 @@ and its original Index hash. Preserve the full chain rather than replacing the o
 hash. Separate source copies with identical hashes retain distinct lineages; a
 matching hash identifies shared content, not permission to merge their histories.
 Reusing a deleted file's path must not attach the replacement file to its history.
-The concrete schema remains to be designed; current hash/path references alone do
-not fulfill this requirement.
+
+**The identity schema is implemented.** `files` holds the stable identity,
+`file_origins` its immutable creation provenance, `file_states` its current path and
+presence, and `source_snapshots` the original Index evidence that later scans never
+overwrite (§6.5). Content-version transitions — the before/after hashes of an edit —
+remain unimplemented, because nothing yet modifies a photo's content.
 
 **Deletion retains lineage.** Preserve the original source snapshot, last recorded
 file state and complete recorded action history, including per-field before/after
@@ -1026,6 +1030,35 @@ attributes. Preserve every copy, move, rename, EXIF update and deletion, includi
 before/after values and locations as applicable. Changed names or content hashes
 must not sever the chain or overwrite original indexed evidence. Bulk actions need
 both a common identity and individual file outcomes.
+
+**Enforced and verified, not merely required.** Complete lineage is reconstructable
+for every catalogued file in every settled status — `Pending`, `Copied`, `Duplicate`,
+`Completed`, `Failed` and `Removed_Duplicate` — comprising its original Index
+snapshot, current state, creation origin, and every operation it took part in. This
+is `TODO.md` claim 11, enforced by
+`every_catalogued_file_assembles_complete_lineage`. That test drives two catalogs,
+because no single one holds every status at rest: a run ending in Move leaves
+`Completed`/`Failed`/`Removed_Duplicate`, one ending in a targeted Copy leaves
+`Pending`/`Copied`/`Duplicate`. It asserts the required set is covered, so a **new**
+status that nothing verifies fails the test rather than passing unnoticed.
+
+**An unreadable source is included.** A file the engine cannot read is catalogued
+`Failed` with no hash and the real `PermissionError` recorded, and still assembles a
+full history. It is the row most likely to be dropped and the one a user most needs
+explained.
+
+**One honest exception.** A destination the engine *found* rather than created has no
+source snapshot, because no Index ever saw it. It is recorded as
+`observed_destination` with a NULL origin rather than given a fabricated one, and the
+guarantee reads "traces to an Index snapshot **or** is recorded as observed with
+unknown origin" — not "everything traces to an Index".
+
+Measured against a real-library catalog of 971 identities: every identity traced or
+explicitly observed, zero dangling origins, zero foreign-key violations, and a full
+history assembled in 0.02–0.08 ms, covered by `idx_lineage_file` and
+`idx_events_operation`. Reading a history correctly is a separate concern — a view
+keyed on `photos.id` alone drops the pre-reimport half of a file's past; see
+`webui-spec.md` §6.3.
 
 **Recovery provenance is required for truthful job reporting.** Distinguish a
 record written while reconciling earlier interrupted work from one describing the
