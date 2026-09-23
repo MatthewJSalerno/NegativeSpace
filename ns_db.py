@@ -910,7 +910,9 @@ def backup_catalog(db_path, backups_dir, appdata_dir, *, trigger, related_run_id
     """
     if trigger not in ("manual", "post_job", "pre_action"):
         raise ValueError(f"unknown backup trigger: {trigger}")
-    conn = connect(db_path)
+    # FULL: a handful of commits per backup, and losing the outcome row to a
+    # power cut would leave a verified file recorded as an interrupted attempt.
+    conn = connect(db_path, synchronous="FULL")
     try:
         require_schema(conn)
         settle_interrupted_backups(conn, backups_dir)
