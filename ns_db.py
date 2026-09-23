@@ -302,12 +302,19 @@ FOUNDATION_DDL = (
         CHECK(low_content_id < high_content_id))""",
     # Cache state, not lineage: a thumbnail failure is a diagnostic, and
     # generation never modifies the photo.
+    # Keyed on (content_id, size): a photo has a grid thumbnail and may also have a
+    # larger detail preview, and the two are managed independently - previews are
+    # generated lazily and can be cleared without touching the grid. `bytes` is
+    # recorded so per-size totals are a SUM rather than a walk of the cache tree.
     """CREATE TABLE thumbnail_cache (
-        content_id INTEGER PRIMARY KEY REFERENCES contents(content_id),
-        cache_filename TEXT,
+        content_id INTEGER NOT NULL REFERENCES contents(content_id),
+        size INTEGER NOT NULL CHECK(size > 0),
+        cache_filename TEXT, bytes INTEGER,
         availability TEXT NOT NULL CHECK(availability IN ('present','absent','failed')),
         attempted_file_id INTEGER REFERENCES files(file_id), observed_path TEXT,
-        failure_category TEXT, failure_detail TEXT, updated_at TEXT NOT NULL)""",
+        failure_category TEXT, failure_detail TEXT, updated_at TEXT NOT NULL,
+        PRIMARY KEY(content_id, size))""",
+    "CREATE INDEX idx_thumbnail_size ON thumbnail_cache(size, availability)",
     # An attempt is history; an artifact's availability is current observed state.
     """CREATE TABLE backup_attempts (
         attempt_id INTEGER PRIMARY KEY AUTOINCREMENT,

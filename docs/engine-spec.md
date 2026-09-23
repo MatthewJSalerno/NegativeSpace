@@ -553,14 +553,21 @@ CREATE TABLE content_similarity (
     CHECK(low_content_id < high_content_id)
 );
 
--- Cache state, not lineage: generation never modifies the photo.
+-- Cache state, not lineage: generation never modifies the photo. Keyed on
+-- (content_id, size) because a photo has a grid thumbnail and may also have a
+-- larger detail preview, managed independently: previews are generated lazily
+-- and can be cleared without touching the grid. `bytes` makes a per-size total
+-- a SUM rather than a walk of the cache tree.
 CREATE TABLE thumbnail_cache (
-    content_id INTEGER PRIMARY KEY REFERENCES contents(content_id),
-    cache_filename TEXT,
+    content_id INTEGER NOT NULL REFERENCES contents(content_id),
+    size INTEGER NOT NULL CHECK(size > 0),
+    cache_filename TEXT, bytes INTEGER,
     availability TEXT NOT NULL CHECK(availability IN ('present','absent','failed')),
     attempted_file_id INTEGER REFERENCES files(file_id), observed_path TEXT,
-    failure_category TEXT, failure_detail TEXT, updated_at TEXT NOT NULL
+    failure_category TEXT, failure_detail TEXT, updated_at TEXT NOT NULL,
+    PRIMARY KEY(content_id, size)
 );
+CREATE INDEX idx_thumbnail_size ON thumbnail_cache(size, availability);
 
 -- An attempt is history; an artifact's availability is current observed state.
 CREATE TABLE backup_attempts (
@@ -1021,8 +1028,11 @@ When a usable capture date is absent or removed, use the originating source
 snapshot's modification year for `Undated/<year>`, not the time of an EXIF edit or
 destination-file creation. Use the same recorded value for preview and actual filing.
 Full stat snapshots after every Copy/Move are not required for this fallback; live
-safety checks and operation lineage remain required. Existing `file_mtime` is
-refreshed on rescan and does not yet implement this immutable original snapshot.
+safety checks and operation lineage remain required. **`source_snapshots` implements
+this** (§6.5): one immutable row per source identity, written at first Index and never
+overwritten, with later reads appended to `file_observations` instead. `photos.file_mtime`
+is a separate, mutable value refreshed on rescan for change detection, and is not the
+fallback source — using it would reintroduce exactly the drift this snapshot prevents.
 
 **Required behavior:** each destination file must remain traceable to its original
 source Index information: filename, path, captured metadata, hashes and file

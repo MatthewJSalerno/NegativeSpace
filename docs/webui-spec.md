@@ -435,14 +435,44 @@ what happened and make manual corrections; there is no undo operation.
 
 The Gallery grid and Inspector's "Media Preview" both need something to actually render — this requires new engine-side work, not just a frontend concern, since the engine is the only thing with RAW-decode capability (`rawpy`) already loaded.
 
-* **Generation point:** During source Index, alongside SHA1/pHash computation,
-  reusing image decoding. Reuse an existing cached thumbnail for the same content
-  hash, including exact duplicates.
+* **Generation point:** During source Index, alongside SHA1/pHash computation. Reuse an
+  existing cached thumbnail for the same content hash, including exact duplicates.
+
+  **Raster** uses PIL with `draft()`, which decodes at a reduced scale rather than
+  decoding fully and discarding the result: 8.2ms against 13.5ms.
+
+  **RAW cannot be opened by PIL at all** and goes through rawpy. The rule is adaptive
+  rather than tuned to any library:
+
+  > Probe the embedded preview. If its longest edge is at least the target size, use it.
+  > Otherwise generate one by demosaicing.
+
+  A camera's embedded preview is the cheap path — 17.8ms with `draft()`, against 268ms
+  to demosaic. But a preview existing is not enough: it must be large enough, or
+  upscaling it would look worse than a fresh render. **Probing and failing costs 0.4ms**,
+  0.15% of a demosaic, so the probe is effectively free and the rule self-tunes to
+  whatever library it meets — 268ms per RAW where no preview is usable, 17.8ms where all
+  are, without a threshold baked in for either case.
+
+  *One observed distribution, offered as a data point rather than a model:* in the
+  maintainer's library only 26% of a 300-file RAW sample carried a preview usable at
+  320px, and that split almost entirely by format — CR2 100%, DNG 12%, with DNG previews
+  clustering at 256x171. A library of other RAW formats could be anywhere in that range,
+  which is precisely why the rule adapts instead of assuming.
+
+  **Camera-rendered and engine-rendered thumbnails will not look identical.** An embedded
+  preview carries the camera's white balance and picture style; a demosaic is a neutral
+  render. Any library containing both paths will show both, and they may be visibly
+  different side by side in a grid.
 * **Cache recovery:** on a missing preview, generate from an available source or
   destination copy associated with a catalog record. This supports cache clearing
   after Move removed the source. Do not generate for uncatalogued destination files.
   Missing cache entries alone are not evidence of destination modification.
-* **Storage:** Small JPEG (longest edge ~256px), written to `/cache/thumbnails/<sha1>.jpg`, keyed by hash so identical files (including cross-directory duplicates) share one thumbnail instead of generating redundant copies.
+* **Storage:** Small JPEG, **longest edge 320px**, written to `/cache/thumbnails/<ab>/<sha1>.jpg` — fanned out by the hash's first two characters so no directory holds tens of thousands of flat entries, and namespaced under `thumbnails/` so a later cache of another kind has an obvious home. Keyed by content hash, so identical files including cross-directory duplicates share one thumbnail.
+
+  **Why 320px:** the rule of thumb is roughly twice the CSS size a thumbnail is displayed at, because a HiDPI screen renders two device pixels per CSS pixel. 320px stays sharp to about a 160px grid tile. Measured against the maintainer's library: 8.2ms and ~16KB per raster image, so a 150,000-image catalog costs about 3.3 minutes across 8 cores and 2.3GB of cache.
+
+* **Two sizes, one generated lazily.** The grid thumbnail (320px) is generated during Index. The Inspector's Media Preview needs more resolution than a grid tile, so a **1024px** preview is generated on first view and cached thereafter. Generating both up front measured 14 minutes and 19GB for a 150,000-image catalog against 3.3 minutes and 2.3GB — most of which would be previews nobody opens. A preview that has not been generated yet is a pending state, not a failure.
 * **Storage separation:** `/appdata` holds persistent application state (catalog, settings and logs), not disposable cache. Thumbnails under `/cache/thumbnails` are excluded from catalog backups and can be regenerated from available catalogued copies.
 * **Metadata edits and cache cleanup:** after a successful embedded metadata change,
   use the resulting content hash as the thumbnail key. Reuse the thumbnail if that
@@ -455,7 +485,7 @@ The Gallery grid and Inspector's "Media Preview" both need something to actually
   still needed by current files. Preview-generation failure follows the failure
   reporting below and does not conceal a successful metadata edit. No manual cache
   clearing is required.
-* **Schema:** New `thumbnail_path` column on `photos` (nullable) — see §6.1.
+* **Schema:** `thumbnail_cache`, keyed on `content_id` — see `engine-spec.md` §6.5. Deliberately *not* a column on `photos`: a thumbnail belongs to content, not to one catalogued copy of it, which is what lets byte-identical duplicates share a single entry as the storage rule above requires. An earlier draft of this line specified a `thumbnail_path` column on `photos`; that would have contradicted the same paragraph it sits beside.
 * **Failure handling:** Thumbnail failure must not fail an otherwise successful Index. Record the failure and show a placeholder with an explanation if generation fails or no readable catalogued copy is available. Thumbnails are disposable and excluded from application backups.
 * **Explain unavailable previews:** the placeholder shows a concise reason when
   known, such as **“Photo file unavailable”**, **“Permission denied reading photo”**,
@@ -467,6 +497,46 @@ The Gallery grid and Inspector's "Media Preview" both need something to actually
   say **“Preview unavailable; reason not recorded.”** A cache miss awaiting generation
   is a pending preview, not a diagnosed failure. Clear the current unavailable state
   after successful generation while retaining recorded failure history.
+* **Cache size is shown per size, and the two are managed separately.** They have
+  different economics and lumping them under one "clear cache" control would mislead:
+  grid thumbnails are generated in bulk at Index and their loss blanks the gallery
+  until a rebuild, while detail previews are generated one at a time on view and cost
+  nothing to lose. Previews are also the ones that need visibility, because they grow
+  silently as a user browses.
+
+  > **Thumbnail cache — 3.5 GB**
+  > Grid thumbnails · 2.3 GB · 29,048 photos
+  > Detail previews · 1.2 GB · 10,412 photos opened
+  >
+  > **Free up 1.2 GB** — removes detail previews. They are recreated automatically the
+  > next time you open a photo, so nothing is lost.
+  > **Rebuild grid thumbnails** — regenerates them from your photos. How long this takes
+  > depends on the size of your library.
+
+  Totals come from `SUM(bytes)` on `thumbnail_cache` grouped by `size`, not from walking
+  the cache tree — which is why that table is keyed on `(content_id, size)` and records
+  `bytes` (`engine-spec.md` §6.5).
+
+* **Clearing previews needs no progress display.** Measured on local storage: 10,412
+  files removed in 0.07s, 29,048 in 0.17s. Act, then report what was freed. Do not
+  promise "instant" either — a `/cache` mounted on a network share turns each unlink
+  into a round trip, and a result line reads correctly at any speed where a progress
+  bar that never fills looks broken.
+
+* **Rebuilding is a job, not a special case.** It gets a `runs` row, the drawer in §4.1,
+  cancellation and a log entry, reusing the existing status transitions rather than a
+  second progress protocol. It reports **counts** — files done of files total — which the
+  drawer already provides.
+
+  **It must not display a time estimate.** A useful one is not computable in advance: a
+  RAW file costs roughly 18ms if its embedded preview is large enough and roughly 268ms
+  if it must be demosaiced, and which applies is unknown until the file is opened. A
+  library's format mix therefore swings the total by an order of magnitude. Saying the
+  duration depends on library size is honest; a number would not be. Deriving a running
+  estimate from observed throughput, as Index does for its own progress, is *possible*
+  but deliberately deferred — this is a rarely run repair operation and the estimate is
+  well below a nice-to-have.
+
 * **Serving:** `GET /api/v1/photos/{id}/thumbnail` (§6.2) serves the file directly from `/cache/thumbnails/`.
 
 ---
@@ -591,8 +661,10 @@ SELECT status, COUNT(*) FROM operations WHERE run_id = ? GROUP BY status;
 ```
 
 The existing statuses and error messages remain useful, but recovery needs structured
-provenance rather than interpretation of human-readable messages. Its engine support
-is not implemented; see `engine-spec.md` §10. NULL-photo failures are already
+provenance rather than interpretation of human-readable messages. **The engine now
+provides it:** `operations.reconciles_operation_id` names the operation a recovery row
+repairs, so a run's own requested work is the rows where that column is NULL. See
+`engine-spec.md` §4.2. NULL-photo failures are already
 identifiable as run-level issues. `runs.status` retains its lifecycle meaning.
 
 Job responses should carry both: the lifecycle status **and** the derived counts, so the UI can render *"Move finished — 0 of 23 succeeded, 23 failed"* rather than a bare word. Recommended presentation rules:

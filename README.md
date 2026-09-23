@@ -33,6 +33,16 @@ docker run --rm -v "$PWD":/app -w /app negativespace python3 tests/engine_smoke_
 
 A green run reports `N passed, 0 failed, 1 skipped`. The expected skip is the RAW decode path, which no synthetic fixture can reach — LibRaw rejects fabricated files — so it runs only when `NS_TEST_RAW_DIR` points at a folder of genuine camera output. Worth doing at least once.
 
+There is a **second suite** covering the catalog's contracts — schema initialization, settings revisions, concurrent writers, transaction rollback and lineage invariants — which runs against synthetic catalogs and needs no image files:
+
+```bash
+docker run --rm -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p database_test.py
+```
+
+CI runs both on every push.
+
+**A catalog from an older schema is refused, not migrated.** The engine stamps a schema version and fails closed on one it does not recognise, rather than altering a database it may not understand. Preserve the old catalog and let a fresh one be created; everything in `photos` is derived from your source files and is rebuilt by an Index. `runs` and `operations` are not derived — see `/backups` below.
+
 Useful flags: `--filter NAME` to run a subset, `--keep` to leave the workspace on disk, `-v` to show engine output. `tests/engine_smoke_test.py --help` and the file's module docstring are the authoritative reference.
 
 ### Operations Summary
@@ -109,9 +119,9 @@ docker run --rm \
   - `/data/source`: Raw input directory containing photos.
   - `/data/dest`: Structured target directory organized by `YYYY/MM/DD`, with photos the engine could not date filed under `Undated/<year>/` instead.
   - `/appdata`: Dedicated application directory storing persistent data inside `/appdata/db` and log files inside `/appdata/logs`.
-  - `/cache` *(optional)*: Thumbnail cache for the web interface. **The engine never writes here** — Index, Move and Copy ignore it entirely, so it is unused when running the engine directly as documented above. It is kept separate from `/appdata` on purpose: everything in `/appdata` is irreplaceable and should be backed up, whereas every file here is reproducible from the photo it was generated from. Deleting it costs only the time to regenerate, and it should be **excluded** from backups rather than included. Mount it to keep thumbnails when the container is replaced; leave it unmounted and they live in the container's writable layer instead.
+  - `/cache` *(optional)*: Thumbnail cache. **Index writes here** when thumbnail generation is enabled — it is the only engine operation that does; Move and Copy ignore it. It is kept separate from `/appdata` on purpose: everything in `/appdata` is irreplaceable and should be backed up, whereas every file here is reproducible from the photo it was generated from. Deleting it costs only the time to regenerate, and it should be **excluded** from backups rather than included. Mount it to keep thumbnails when the container is replaced; leave it unmounted and they live in the container's writable layer instead.
 
-    Thumbnails are keyed by the photo's **content hash**, not by its catalog id or path, and stored fanned out (`/cache/ab/abcdef…`) rather than in one flat directory. Byte-identical duplicates therefore share a single thumbnail instead of generating one apiece, and the cache stays valid across a catalog rebuild, since content hashes are stable where row ids are not.
+    Thumbnails live under `/cache/thumbnails/`, keyed by the photo's **content hash** rather than its catalog id or path, and fanned out by the hash's first two characters: `/cache/thumbnails/ab/abcdef….jpg`. The `thumbnails/` segment exists so a future cache of some other kind has an obvious place to go rather than being mixed in beside these. Byte-identical duplicates share a single thumbnail instead of generating one apiece, and the cache survives a catalog rebuild, since content hashes are stable where row ids are not.
   - `/backups`: Catalog backups for the web interface. **The engine never writes here** — this is unused when running the engine directly as documented above.
 
     **Kept separate from `/appdata` on purpose, and for the opposite reason to `/cache`.** A backup written inside the directory it is backing up dies with it, and losing `/appdata` is exactly the failure a backup exists to survive. Mount it on different storage from the catalog if you can.
