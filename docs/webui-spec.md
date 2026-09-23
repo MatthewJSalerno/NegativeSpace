@@ -871,7 +871,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 4 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 5 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -1609,7 +1609,7 @@ photos. Keep separate photo backups; a catalog backup does not make deletion rev
 | After Index, Copy or Move records changes | One backup after the job ends, including failed or cancelled jobs with recorded changes |
 | Browsing, searching, comparing or thumbnail generation | No automatic backup |
 | Edit preview finds no metadata changes or required refiling | No edit execution and no automatic edit backup |
-| Back up now | A manual backup |
+| Back up now | A manual backup. Refused while a job runs, like every other action that writes to the catalog; disable it with the job-running reason (§5.7). A snapshot taken mid-job would record a catalog halfway through the job's changes, and the post-job backup captures the finished state anyway |
 
 If a pre-action backup fails, stop the curation action before changing any files.
 Show **“No files were changed because the catalog backup failed.”** Explain the

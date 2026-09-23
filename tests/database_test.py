@@ -398,4 +398,38 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
             self.conn.execute("INSERT INTO runs(mode,started_at,status) VALUES('INDEX','t','Crashed')")
 
+    def backups(self):
+        store = Path(self.tmp.name) / 'backups'
+        store.mkdir(exist_ok=True)
+        return store
+
+    def test_backup_availability_separates_missing_from_unreachable(self):
+        store = self.backups()
+        first = db.backup_catalog(self.path, store, Path(self.tmp.name) / 'appdata', trigger='manual')
+        second = db.backup_catalog(self.path, store, Path(self.tmp.name) / 'appdata', trigger='manual')
+        self.assertEqual((first['outcome'], second['outcome']), ('succeeded', 'succeeded'))
+        (store / first['filename']).unlink()
+        self.assertTrue(db.refresh_backup_availability(self.conn, store))
+        states = [r[0] for r in self.conn.execute("SELECT availability FROM backup_artifacts ORDER BY artifact_id")]
+        self.assertEqual(states, ['missing', 'present'])
+        # Storage that cannot be reached says nothing about individual files.
+        self.assertFalse(db.refresh_backup_availability(self.conn, store / 'unmounted'))
+        states = [r[0] for r in self.conn.execute("SELECT availability FROM backup_artifacts ORDER BY artifact_id")]
+        self.assertEqual(states, ['unknown', 'unknown'])
+
+    def test_lowering_retention_is_previewed_before_it_prunes(self):
+        store = self.backups()
+        for _ in range(3):
+            db.backup_catalog(self.path, store, Path(self.tmp.name) / 'appdata', trigger='post_job')
+        db.backup_catalog(self.path, store, Path(self.tmp.name) / 'appdata', trigger='manual')
+        self.assertEqual(db.automatic_backups_beyond(self.conn, 1), 2, 'manual backups must not count')
+        self.assertEqual(len(list(store.iterdir())), 4, 'previewing removed files')
+
+    def test_backup_retention_setting_is_validated(self):
+        for bad in (0, -1, '5', 2.0, True):
+            with self.assertRaises(ValueError):
+                db.save_settings(self.conn, {'backup_retention': bad}, expected_revisions={'backup_retention': 0})
+        db.save_settings(self.conn, {'backup_retention': 5}, expected_revisions={'backup_retention': 0})
+        self.assertEqual(db.backup_retention(self.conn), 5)
+
 if __name__ == '__main__':unittest.main()

@@ -89,7 +89,8 @@ def run_engine(case, *args, expect_rc=0, timeout=300):
            "--source", str(case / "src"),
            "--dest", str(case / "dest"),
            "--base", str(case / "appdata"),
-           "--cache", str(case / "cache")] + [str(a) for a in args]
+           "--cache", str(case / "cache"),
+           "--backups", str(case / "backups")] + [str(a) for a in args]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired as e:
@@ -119,7 +120,8 @@ def spawn_engine(case, *args):
            "--source", str(case / "src"),
            "--dest", str(case / "dest"),
            "--base", str(case / "appdata"),
-           "--cache", str(case / "cache")] + [str(a) for a in args]
+           "--cache", str(case / "cache"),
+           "--backups", str(case / "backups")] + [str(a) for a in args]
     return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
 
@@ -156,6 +158,9 @@ def new_case(name):
     case = WORKSPACE / name
     (case / "src").mkdir(parents=True)
     (case / "appdata").mkdir(parents=True)
+    # Its own backup storage, like its own cache: a shared /backups would let
+    # one case's retention prune another's backups.
+    (case / "backups").mkdir(parents=True)
     return case
 
 
@@ -3205,7 +3210,8 @@ def _run_main_in_process(case, move_or_copy_result, *extra):
     engine._run_move_or_copy = finished_then_cancelled
     saved = sys.argv
     sys.argv = ["ns-engine.py", "--source", str(case / "src"), "--dest", str(case / "dest"),
-                "--base", str(case / "appdata"), "--cache", str(case / "cache"), *extra]
+                "--base", str(case / "appdata"), "--cache", str(case / "cache"),
+                "--backups", str(case / "backups"), *extra]
     try:
         engine.main()
         return 0
@@ -3318,6 +3324,190 @@ def every_catalog_timestamp_carries_its_offset():
                for r in rows(case, "SELECT timestamp FROM operations")]
     naive = [(col, v) for col, v in stamps if v is None or datetime.fromisoformat(v).tzinfo is None]
     check(not naive, f"timestamps without an offset: {naive}")
+
+
+# ------------------------------------------------------------ catalog backups
+
+def backups_of(case):
+    return rows(case, "SELECT t.trigger_kind, t.related_run_id, t.outcome, t.error_category, "
+                      "a.relative_filename, a.availability FROM backup_attempts t "
+                      "LEFT JOIN backup_artifacts a USING(attempt_id) ORDER BY t.attempt_id")
+
+
+def backup_files(case):
+    return sorted(p.name for p in (case / "backups").iterdir())
+
+
+@test
+def a_job_that_records_changes_is_backed_up_after_it_settles():
+    """
+    One verified, self-contained snapshot after the job, holding the run's
+    final status. Self-contained means no -wal/-shm beside it: the manual
+    restore instructions forbid companion files travelling with a backup.
+    An unchanged re-Index records nothing and so gets no backup.
+    """
+    case = new_case("backup_post_job")
+    make_photo(case / "src" / "a.jpg", "a")
+    make_photo(case / "src" / "b.jpg", "b")
+    run_engine(case)
+
+    got = backups_of(case)
+    check(len(got) == 1 and got[0]["trigger_kind"] == "post_job" and got[0]["related_run_id"] == 1
+          and got[0]["outcome"] == "succeeded" and got[0]["availability"] == "present",
+          f"expected one successful post-job backup of run 1, got {got}")
+    check(backup_files(case) == [got[0]["relative_filename"]],
+          f"backup storage holds more than the one backup: {backup_files(case)}")
+
+    snap = sqlite3.connect(case / "backups" / got[0]["relative_filename"])
+    try:
+        check(snap.execute("PRAGMA journal_mode").fetchone()[0] == "delete",
+              "the backup is still in WAL mode and would grow companions when opened")
+        check(snap.execute("SELECT COUNT(*) FROM photos").fetchone()[0] == 2,
+              "the backup does not hold the catalogued photos")
+        check(snap.execute("SELECT status FROM runs WHERE id = 1").fetchone()[0] == "Completed",
+              "the backup was taken before the run settled")
+        # Taken while its own attempt was in flight; the copy must not come back
+        # from a restore looking like an interrupted backup.
+        check(snap.execute("SELECT outcome FROM backup_attempts").fetchone()[0] == "succeeded",
+              "a restored backup would record its own attempt as unfinished")
+    finally:
+        snap.close()
+
+    run_engine(case)
+    check(len(backups_of(case)) == 1, "an Index that recorded nothing was backed up")
+
+    # A repeated Copy records only Skipped rows. Backing that up would let
+    # no-op runs push meaningful backups out of retention.
+    run_engine(case, "--copy")
+    check(len(backups_of(case)) == 2, "a Copy that delivered files was not backed up")
+    run_engine(case, "--copy")
+    check(len(backups_of(case)) == 2, "a repeated Copy that changed nothing was backed up")
+
+
+@test
+def backup_storage_problems_are_recorded_and_never_fail_the_job():
+    """
+    Missing storage and storage overlapping the catalog both fail the backup,
+    recorded with a reason. Neither falls back to another location, and
+    neither changes the job's result.
+    """
+    case = new_case("backup_storage_missing")
+    make_photo(case / "src" / "a.jpg", "a")
+    (case / "backups").rmdir()
+    run_engine(case)
+    check(rows(case, "SELECT status FROM runs")[0]["status"] == "Completed",
+          "a failed backup changed the job's result")
+    got = backups_of(case)
+    check([(g["outcome"], g["error_category"]) for g in got] == [("failed", "storage_unavailable")],
+          f"missing backup storage was not recorded as such: {got}")
+    check(not (case / "backups").exists(), "the engine created backup storage it was not given")
+
+    case = new_case("backup_storage_overlap")
+    make_photo(case / "src" / "a.jpg", "a")
+    inside = case / "appdata" / "backups"
+    inside.mkdir()
+    run_engine(case, "--backups", inside)
+    got = backups_of(case)
+    check([(g["outcome"], g["error_category"]) for g in got] == [("failed", "storage_overlaps_appdata")],
+          f"backup storage inside the catalog's folder was not refused: {got}")
+    check(list(inside.iterdir()) == [], "a backup was written inside the thing it backs up")
+
+
+@test
+def an_unmounted_container_backups_folder_is_refused():
+    """
+    The image creates /backups as a mount point. Left unmounted, backups would
+    land in the container's own layer and disappear with it, which is the
+    silent fallback the spec forbids, so the attempt fails and says why.
+    """
+    if not Path("/backups").is_dir() or os.path.ismount("/backups"):
+        raise Fail("SKIP: needs the image's own unmounted /backups; run inside the container")
+    case = new_case("backup_not_mounted")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case, "--backups", "/backups")
+    got = backups_of(case)
+    check([(g["outcome"], g["error_category"]) for g in got] == [("failed", "storage_not_mounted")],
+          f"an unmounted /backups was used anyway: {got}")
+    check(not any(Path("/backups").glob("ns-catalog-*")), "a backup was written to the container layer")
+
+
+@test
+def backup_now_is_manual_and_refused_while_a_job_holds_the_lock():
+    """
+    --backup-now writes one manual backup and exits 0; a failure exits 1. It
+    takes the engine lock, so it is refused while a job runs and records
+    nothing, rather than snapshotting a catalog halfway through a job.
+    """
+    import fcntl
+    case = new_case("backup_now")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case, "--no-thumbnails")
+    run_engine(case, "--backup-now")
+    check([g["trigger_kind"] for g in backups_of(case)] == ["post_job", "manual"],
+          f"expected a post-job then a manual backup, got {backups_of(case)}")
+
+    with open(case / "appdata" / "engine.lock", "a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        run_engine(case, "--backup-now", expect_rc=1)
+    check(len(backups_of(case)) == 2, "a backup was attempted while another process held the lock")
+
+    shutil.rmtree(case / "backups")
+    run_engine(case, "--backup-now", expect_rc=1)
+    check(backups_of(case)[-1]["error_category"] == "storage_unavailable",
+          "a failed manual backup did not record why")
+
+
+@test
+def retention_prunes_only_automatic_backups_and_only_after_a_success():
+    """
+    With a limit of 2, the third automatic backup removes the oldest one: its
+    file goes, and its record stays, marked pruned rather than missing. The
+    manual backup is untouched however many automatic ones follow.
+    """
+    import ns_db
+    case = new_case("backup_retention")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case)
+    conn = ns_db.connect(case / "appdata" / "db" / "ns_sqlite.db")
+    ns_db.save_settings(conn, {"backup_retention": 2}, expected_revisions={"backup_retention": 0})
+    conn.close()
+    run_engine(case, "--backup-now")
+    for i in range(3):
+        make_photo(case / "src" / f"new{i}.jpg", f"new{i}")
+        run_engine(case)
+
+    got = backups_of(case)
+    states = [(g["trigger_kind"], g["availability"]) for g in got]
+    check(states == [("post_job", "pruned"), ("manual", "present"), ("post_job", "pruned"),
+                     ("post_job", "present"), ("post_job", "present")],
+          f"retention kept the wrong backups: {states}")
+    present = sorted(g["relative_filename"] for g in got if g["availability"] == "present")
+    check(backup_files(case) == present, f"files on disk {backup_files(case)} != recorded {present}")
+
+
+@test
+def an_interrupted_backup_is_settled_by_the_next_run():
+    """
+    A backup killed partway leaves an attempt with no outcome and a partial
+    file. Under the lock nothing can still be writing it, so the next run
+    records it interrupted, removes the partial, and does not retry it.
+    """
+    case = new_case("backup_interrupted")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case)
+    conn = db(case)
+    conn.execute("INSERT INTO backup_attempts(trigger_kind, related_run_id, started_at) "
+                 "VALUES ('post_job', 1, '2026-01-01T00:00:00+00:00')")
+    conn.commit()
+    conn.close()
+    partial = case / "backups" / "ns-catalog-20260101T000000Z-000002-post_job.db.partial"
+    partial.write_bytes(b"torn")
+
+    run_engine(case)
+    got = backups_of(case)
+    check(got[1]["outcome"] == "interrupted", f"the unfinished attempt was recorded {got[1]['outcome']}")
+    check(not partial.exists(), "the partial backup file was left behind")
+    check(len(got) == 2, "the interrupted backup was retried automatically")
 
 
 def main():
