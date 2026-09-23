@@ -1038,6 +1038,18 @@ def db_writer_worker(db_path: str):
             )
         if thumbnails_written or thumbnail_failures:
             logger.info(f"Thumbnails: {thumbnails_written:,} generated, {thumbnail_failures:,} failed.")
+            # Reported per size because the two are managed separately, and summed from
+            # the recorded bytes rather than walked on disk (webui-spec.md 4.2.1).
+            # Never allowed to cost the run: this is the last thing the writer does, so
+            # an exception here would kill the thread after the work is already done.
+            try:
+                for size, photos, cached_bytes in ns_db.thumbnail_cache_totals(conn):
+                    logger.info(
+                        f"Thumbnail cache: {photos:,} photo(s) at {size}px, "
+                        f"{cached_bytes / 1048576:.1f} MB."
+                    )
+            except Exception as e:
+                logger.debug(f"Could not summarize the thumbnail cache: {e}")
         if thumbnail_failures:
             logger.warning(
                 f"{thumbnail_failures:,} file(s) produced no thumbnail. They are indexed and "

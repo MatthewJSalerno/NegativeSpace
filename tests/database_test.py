@@ -99,6 +99,29 @@ class DatabaseTests(unittest.TestCase):
         totals = dict(self.conn.execute("SELECT size,SUM(bytes) FROM thumbnail_cache GROUP BY size"))
         self.assertEqual(totals, {320: 700, 1024: 9000})
 
+    def test_thumbnail_totals_are_per_size_and_present_only(self):
+        with db.transaction(self.conn):
+            a = db.content_for_digest(self.conn, digest='a')
+            b = db.content_for_digest(self.conn, digest='b')
+            c = db.content_for_digest(self.conn, digest='c')
+            db.record_thumbnail(self.conn, content_id=a, size=320, availability='present',
+                                cache_filename='t/a.jpg', bytes_on_disk=700)
+            db.record_thumbnail(self.conn, content_id=b, size=320, availability='present',
+                                cache_filename='t/b.jpg', bytes_on_disk=800)
+            db.record_thumbnail(self.conn, content_id=a, size=1024, availability='present',
+                                cache_filename='t/a-1024.jpg', bytes_on_disk=9000)
+            # A failed entry names no cache file and carries no bytes. Counting it
+            # would tell the user the gallery can render a photo it cannot.
+            db.record_thumbnail(self.conn, content_id=c, size=320, availability='failed',
+                                failure_category='decode_failed')
+        self.assertEqual(db.thumbnail_cache_totals(self.conn),
+                         [(320, 2, 1500), (1024, 1, 9000)])
+
+    def test_thumbnail_totals_are_empty_when_nothing_is_cached(self):
+        # The engine loops over this to log its summary, so an empty cache must yield
+        # no rows rather than a single zero row.
+        self.assertEqual(db.thumbnail_cache_totals(self.conn), [])
+
     def test_thumbnail_state_requires_a_transaction(self):
         with self.assertRaises(RuntimeError):
             db.record_thumbnail(self.conn, content_id=1, size=320, availability='present')
