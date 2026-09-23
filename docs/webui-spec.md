@@ -475,6 +475,17 @@ undecodable file is therefore re-attempted on every scan.
   preview carries the camera's white balance and picture style; a demosaic is a neutral
   render. Any library containing both paths will show both, and they may be visibly
   different side by side in a grid.
+
+  **Why the demosaic does not enable auto-brightness.** It renders with camera white
+  balance and no automatic exposure stretch, which lands roughly 30% darker than the
+  camera's own preview on a normally exposed frame (measured: mean luminance 69.5 against
+  the camera's 101.1, and 81.1 against 118.2). Enabling the stretch would close that gap
+  on some frames — but it also brightens genuinely dark photographs into something the
+  photograph is not. Measured on frames the camera itself renders at mean luminance 1.0,
+  4.4 and 6.4, the stretch produces 43.3, 55.4 and 56.7: a visibly lit image where the
+  camera shows black. A thumbnail that disagrees with the photograph is worse than one
+  that is slightly dark, so faithfulness wins. A near-black thumbnail here is evidence of
+  a near-black exposure, not of a generation fault.
 * **Cache recovery:** on a missing preview, generate from an available source or
   destination copy associated with a catalog record. This supports cache clearing
   after Move removed the source. Do not generate for uncatalogued destination files.
