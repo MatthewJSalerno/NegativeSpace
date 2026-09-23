@@ -1506,16 +1506,31 @@ def get_exif_via_pil(file_path: Path) -> Optional[dict]:
 
 
 def extract_date_from_metadata(metadata: dict) -> Optional[datetime]:
-    """Pulls a usable 'date taken' out of whichever metadata dict was captured."""
-    for key in ("DateTimeOriginal", "CreateDate", "DateTime"):
-        if key in metadata:
-            parsed = parse_exif_date(metadata[key])
-            if parsed:
-                return parsed
+    """The capture date, which is `DateTimeOriginal` and nothing else.
+
+    `CreateDate` and `DateTime` are deliberately NOT accepted. They are real
+    dates but they are not the moment the photograph was taken: CreateDate is
+    when this file was created (a re-export, a conversion, a download) and
+    DateTime is when it was last modified. Promoting either files a photo in
+    the dated tree under a date nobody vouched for, which is exactly the
+    guess-indistinguishable-from-a-fact problem Undated/ exists to prevent.
+
+    They stay in `metadata` and reach the catalog as review evidence — the
+    Undated screen shows them as clues, clearly labelled, so a user can decide
+    whether a date is meaningful (webui-spec.md 3.1). Retaining and promoting
+    are different things.
+
+    Measured before this narrowed: on a 29,086-file library exactly 18 photos
+    (0.1%) were being dated from CreateDate and none from DateTime, so this
+    conforms the code to the recorded contract rather than rescuing a large
+    number of misfiled photos.
+    """
+    if "DateTimeOriginal" in metadata:
+        return parse_exif_date(metadata["DateTimeOriginal"])
     return None
 
 
-def get_metadata_and_date(file_path: Path) -> tuple:
+def get_metadata_and_date(file_path: Path, original_mtime: Optional[float] = None) -> tuple:
     """
     Metadata Extraction Fallback Chain (see module docstring for the full
     rationale): ExifTool -> PIL -> file mtime. Returns (datetime, metadata
@@ -1532,8 +1547,20 @@ def get_metadata_and_date(file_path: Path) -> tuple:
     the next layer down if a file just doesn't yield usable metadata at all.
     """
     def _mtime_fallback(meta: dict) -> tuple:
+        # `original_mtime` is the modification time recorded in this file's
+        # immutable source_snapshots row, taken at its FIRST Index. It is what
+        # the Undated/<year> bucket must be built from (engine-spec.md 10):
+        # photos.file_mtime is refreshed on every rescan for change detection,
+        # so filing from it lets a photo drift between year folders whenever
+        # anything touches the file. The two agree on a first Index, which is
+        # precisely why the drift is invisible until a re-index.
+        #
+        # None means this file has no snapshot yet — a genuinely new source, or
+        # one whose previous identity was consumed by a Move — and the live
+        # mtime IS the original for the identity about to be created.
         meta["date_source"] = DATE_SOURCE_MTIME
-        return datetime.fromtimestamp(os.path.getmtime(file_path)), meta
+        stamp = original_mtime if original_mtime is not None else os.path.getmtime(file_path)
+        return datetime.fromtimestamp(stamp), meta
 
     metadata = get_full_exif_via_exiftool(file_path)
     if metadata:
@@ -2334,7 +2361,8 @@ def _failed_result(file_path_str: str, run_id: int, error_message: str) -> Proce
 
 
 def process_file_task(file_path_str: str, dest_base_path: str, run_id: int,
-                      cache_root: Optional[str] = None) -> ProcessingResult:
+                      cache_root: Optional[str] = None,
+                      original_mtime: Optional[float] = None) -> ProcessingResult:
     """
     Scans one file: SHA-1, pHash, metadata/date, and its projected destination.
 
@@ -2378,7 +2406,7 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int,
         # whether a file is catalogued (webui-spec.md 4.2.1).
         thumbnail = generate_thumbnail(file_path, sha1, cache_root) if cache_root and sha1 else None
 
-        dt, metadata = get_metadata_and_date(file_path)
+        dt, metadata = get_metadata_and_date(file_path, original_mtime)
         # Keep an explicit, guaranteed-present date_taken key regardless of which
         # capture path produced `metadata`, since downstream consumers (path
         # computation here, and the inspector UI later) shouldn't need to know
@@ -2597,6 +2625,39 @@ def discover_source_files(root: Path, extensions: set, errors: Optional[list] = 
                 errors.append((current, f"Could not read this folder during the scan, so photos "
                                         f"inside it were not examined: {type(e).__name__}: {e}"))
     return found
+
+
+def original_source_mtimes(db_path: str, candidates: List[str]) -> dict:
+    """source_path -> the modification time recorded at that file's FIRST Index.
+
+    Read here, in the main thread, because the scan workers are separate
+    processes with no database handle — and the date has to be decided in the
+    worker, alongside the destination projection it feeds, or the catalog ends
+    up advertising a folder the file never occupies.
+
+    Rows whose status is SOURCE_CONSUMED_STATUSES are excluded, and that
+    exclusion is load-bearing rather than tidiness: `record_source_observation`
+    treats a returning Completed/Removed_Duplicate source as a NEW arrival and
+    mints a fresh identity with a fresh snapshot. Pinning such a file to the
+    snapshot of the identity a Move already consumed would date a new arrival
+    by a file that is gone.
+    """
+    if not candidates:
+        return {}
+    conn = get_db_connection(db_path)
+    try:
+        return {
+            row[0]: row[1]
+            for row in conn.execute(
+                "SELECT p.source_path, ss.file_mtime FROM photos p "
+                "JOIN photo_files pf ON pf.photo_id = p.id "
+                "JOIN source_snapshots ss ON ss.file_id = pf.file_id "
+                "WHERE ss.file_mtime IS NOT NULL "
+                f"AND p.status NOT IN ({sql_values(SOURCE_CONSUMED_STATUSES)})"
+            )
+        }
+    finally:
+        conn.close()
 
 
 def partition_unchanged(db_path: str, candidates: List[str], force: bool = False) -> tuple:
@@ -3072,6 +3133,11 @@ def main():
         elif args.force_rehash:
             logger.info("--force-rehash: re-reading every file regardless of the catalog.")
 
+        # One bulk read rather than a query per file: an undated photo is filed
+        # by the mtime captured at its original Index, which only the catalog
+        # knows and which the worker processes cannot reach.
+        original_mtimes = original_source_mtimes(str(db_path), files_to_process)
+
         # Submitted in bounded batches rather than all at once. Every
         # completed future holds its ProcessingResult — including the FULL
         # ExifTool tag set for that file — until it is drained, so submitting
@@ -3121,7 +3187,8 @@ def main():
                     break
                 batch = files_to_process[batch_start:batch_start + scan_batch_size]
                 futures = [executor.submit(process_file_task, f, str(dest_path), run_id,
-                                           str(cache_root) if cache_root else None)
+                                           str(cache_root) if cache_root else None,
+                                           original_mtimes.get(f))
                            for f in batch]
                 for future in futures:
                     result = future.result()
