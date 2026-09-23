@@ -2849,6 +2849,39 @@ def index_generates_a_grid_thumbnail_for_every_photo():
 
 
 @test
+def a_rotated_photo_gets_an_upright_thumbnail():
+    """
+    EXIF orientation is a tag, not pixels. PIL's Image.open() ignores it while
+    browsers and viewers apply it, so a thumbnail generated without transposing
+    sits a quarter turn against the photo it represents — 20.1% of one real
+    library. Every other assertion in this file passes on a sideways thumbnail:
+    the dimensions, byte count and row accounting are all still correct.
+    """
+    from PIL import Image
+    case = new_case("thumbrotate")
+    photo = case / "src" / "portrait.jpg"
+    # Stored landscape, tagged to display portrait — the common camera layout.
+    make_photo(photo, "rot", size=(400, 200))
+    subprocess.run(["exiftool", "-overwrite_original", "-Orientation#=6", str(photo)],
+                   capture_output=True, check=True)
+    run_engine(case)
+
+    cached = cached_thumbnails(case)
+    check(len(cached) == 1, f"expected 1 thumbnail, found {len(cached)}")
+    with Image.open(cached[0]) as img:
+        check(img.size[1] > img.size[0],
+              f"a photo stored 400x200 with orientation=6 displays portrait, but its "
+              f"thumbnail is {img.size[0]}x{img.size[1]} — the tag was not applied")
+
+    # Dimensions describe the photograph, not the buffer it is stored in. A
+    # gallery sorting or filtering by resolution reads these.
+    dims = rows(case, "SELECT width, height FROM contents")[0]
+    check((dims["width"], dims["height"]) == (200, 400),
+          f"contents recorded {dims['width']}x{dims['height']}, expected the "
+          f"displayed 200x400 rather than the stored 400x200")
+
+
+@test
 def byte_identical_duplicates_share_one_thumbnail():
     """Keying on content, not path, is what makes duplicates free to render."""
     case = new_case("thumbdup")

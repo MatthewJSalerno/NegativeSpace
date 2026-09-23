@@ -348,7 +348,7 @@ except ImportError:
     IMAGEHASH_SUPPORTED = False
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageOps
     try:
         import pillow_heif
         pillow_heif.register_heif_opener()
@@ -1695,7 +1695,13 @@ def _raw_preview(raw, size: int):
             else:
                 preview = Image.fromarray(thumb.data)
             if max(preview.size) >= size:
-                return preview
+                # The embedded preview is stored unrotated, carrying its own
+                # orientation tag — measured landscape on a Rotate 90 CW file.
+                # The demosaic below needs NO such call: LibRaw applies the
+                # sensor flip itself, so transposing that would turn it twice.
+                # A quarter turn does not change the longest edge, so the
+                # size check above is unaffected by where this sits.
+                return ImageOps.exif_transpose(preview)
         except Exception:
             pass  # Unreadable preview is not a failure; fall through and render one.
     # half_size halves each dimension during demosaic, which is far cheaper and
@@ -1743,7 +1749,14 @@ def generate_thumbnail(file_path: Path, sha1_hash: str, cache_root: str,
                         availability="failed", failure_category="decoder_unavailable",
                         failure_detail="rawpy is not installed; RAW files cannot be decoded")
                 with rawpy.imread(str(file_path)) as raw:
+                    # sizes.width/height are PRE-flip: a portrait shot reports
+                    # landscape here, because they describe the sensor rather
+                    # than the photograph. LibRaw flip 5 and 6 are the quarter
+                    # turns, so swap for those to record the shape the photo is
+                    # actually displayed at.
                     width, height = int(raw.sizes.width), int(raw.sizes.height)
+                    if raw.sizes.flip in (5, 6):
+                        width, height = height, width
                     written = _write_thumbnail(_raw_preview(raw, size), dest, size)
             else:
                 with Image.open(file_path) as img:
@@ -1753,10 +1766,24 @@ def generate_thumbnail(file_path: Path, sha1_hash: str, cache_root: str,
                     # and these are recorded on `contents` as facts about the
                     # content.
                     width, height = img.size
+                    # A portrait photo is very often stored landscape with an
+                    # EXIF orientation tag telling the viewer to rotate it. The
+                    # dimensions that describe the CONTENT are the ones it is
+                    # displayed at, so swap them for the quarter-turn values —
+                    # otherwise every rotated photo in the library is recorded
+                    # with its width and height the wrong way round.
+                    orientation = img.getexif().get(0x0112, 1)
+                    if orientation in (5, 6, 7, 8):
+                        width, height = height, width
                     # Decodes AT a reduced scale rather than decoding fully and
                     # throwing most of it away: 8.2ms against 13.5ms.
                     img.draft("RGB", (size, size))
-                    written = _write_thumbnail(img, dest, size)
+                    # Image.open() does NOT apply the orientation tag, but
+                    # browsers and viewers do. Without this the thumbnail is
+                    # rotated a quarter turn against the photo it represents —
+                    # measured at 20.1% of a real library. Applied after draft()
+                    # so the reduced-scale decode is still what gets rotated.
+                    written = _write_thumbnail(ImageOps.exif_transpose(img), dest, size)
     except ThumbnailWriteError as e:
         return ThumbnailResult(availability="failed", failure_category="cache_write_failed",
                                failure_detail=f"Thumbnail cache could not be written: {e}",
