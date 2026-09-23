@@ -106,8 +106,8 @@ Three layers, balancing heavy data processing against a usable interface.
 
 Delivered and validated against a real library. In place today:
 
-*   Organization into `YYYY/MM/DD` from EXIF "Date Taken", with undatable photos
-    filed under `Undated/<year>/` rather than into the date tree.
+*   Organization into `YYYY/MM/DD` from EXIF `DateTimeOriginal`, with undatable
+    photos filed under `Undated/<year>/` rather than into the date tree.
 *   SHA-1 and pHash generation and storage for every supported file.
 *   Full metadata capture — camera, ISO, aperture, shutter speed, and whatever
     else the source format exposes.
@@ -117,11 +117,15 @@ Delivered and validated against a real library. In place today:
     outcome.
 *   Crash-safe resume, including run-history reconciliation after a hard kill.
 *   Standard images, HEIC, and RAW formats.
+*   One 320px grid thumbnail per content identity, written during the scan and
+    shared by byte-identical duplicates; see `webui-spec.md` §4.2.1.
+*   A settings store in the catalog database, initializable without a scan, with
+    revision-checked writes and a configuration snapshot per run.
 
-The agreed capture-date policy is stricter than today's engine: require a usable
-`DateTimeOriginal`, otherwise file under `Undated/<year>/` and expose other date
-clues for manual review. The current `CreateDate`/`DateTime` fallbacks still need to
-be removed; see `engine-spec.md` §4.2.
+Only a usable `DateTimeOriginal` places a photo in the date tree. Anything else
+files under `Undated/<year>/`, the year taken from the source's modification time
+as captured at its original Index; `CreateDate` and `DateTime` are kept as review
+evidence but never place a file. See `engine-spec.md` §4.2.
 
 **Five capabilities the web UI depends on do not exist yet**, each specified
 with what it needs:
@@ -134,17 +138,17 @@ with what it needs:
 | Delete under `--dest`, with an extended record | `engine-spec.md` §9.5 | Discarding redundant copies; needs `width`/`height` too |
 | Writing embedded EXIF (sidecars remain a future option) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
 
-And eight more, found by auditing the documented web workflows against what the
-engine can actually answer (`engine-spec.md` §9.8):
+An audit of the documented web workflows against what the engine can actually
+answer turned up eight more (`engine-spec.md` §9.8). Three are settled: grid
+thumbnail generation, the settings store, and which date field filed a photo. Five
+remain, plus the unfinished half of thumbnails:
 
 | Gap | Blocks |
 | :--- | :--- |
-| Thumbnail generation | Every grid, every review tab, the Inspector preview — five workflows |
-| A settings store | The Settings screen, which everything else depends on |
+| Thumbnail lifecycle — 1024px preview, clear/rebuild, orphan cleanup | The Inspector preview and cache management |
 | Refiling after a date change | Any metadata correction; it is what makes the destination contract enforceable |
 | Field-level before/after | Full lineage and informed manual corrections; no undo operations |
 | A batch identity | Bulk apply reading as one action |
-| Which date field was used | Lineage answering "why is this photo here?" |
 | Catalog backup, inventory, trigger | Backups before curation and after processing, with retention and failure reporting |
 | Serving a file for download | Log export and backup retrieval — API work, not engine |
 
@@ -171,7 +175,9 @@ lineage. New Copy identities retain source origin; new completed Moves retain th
 identity; reuse of an existing destination preserves both identities and links the
 source removal. See [database-foundation.md](./database-foundation.md).
 
-This is a locally tested implementation increment, not a claim that the complete
-workflow contract is finished. Recovery evidence, content-version history, strict
-capture-date routing and original-date fallback adaptation remain pending. Older
-catalogs are preserved and rejected; fresh development catalogs are required.
+Recovery records durable intent before every mutation and concludes from observed
+evidence, opening an attention issue when an outcome cannot be established. Complete
+lineage for every catalogued file in every settled status is enforced by test
+(`TODO.md` claim 11). Content-version history, request-ID wiring to the CLI and API,
+and the approved job lifecycle states remain pending. Older catalogs are preserved
+and rejected; fresh development catalogs are required.

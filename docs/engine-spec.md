@@ -991,16 +991,18 @@ not: nothing yet removes an entry whose hash no longer belongs to any catalogued
 file, and nothing cleans up orphans after an interrupted edit.
 
 §9.1–§9.6 record five engine capabilities the curation workflows require. A
-pass over the rest of the documented web interface turned up eight more. Two of
-those are settled — thumbnail generation is built, and which date field a placement
-came from is unambiguous now that only `DateTimeOriginal` is accepted (§4.2). The
-six below remain. None of them is
+pass over the rest of the documented web interface turned up eight more. Three of
+those are settled — thumbnail generation is built; which date field a placement
+came from is unambiguous now that only `DateTimeOriginal` is accepted (§4.2); and
+the settings store lives in the catalog database, where `ns_db.initialize` creates
+it without a scan and the API writes it through `ns_db.save_settings` with revision
+checks, each run snapshotting its effective configuration (`webui-spec.md` §6.1).
+The five below remain. None of them is
 visible as engine work from the UI side — each looks like a screen until you ask
 what it reads from.
 
 | Capability | Needed by | Why it cannot be supported today |
 | :--- | :--- | :--- |
-| **A settings store** | Settings before the first Index | Store settings in the same database as catalog/history. Initialize defaults without scanning, preserve preferences on restart, and snapshot configuration at job start. The engine owns schema; the API writes settings through shared code; see `webui-spec.md` §6.1 |
 | **Refiling after a date change** | Any metadata correction, single or bulk | This is what makes §9.7 enforceable. Within one destination it is an **atomic rename**, not a Copy-Verify-Delete: no bytes move and there is nothing to verify. The engine already computes a file's correct folder, creates date folders durably, and resolves name collisions — what is new is the destination-to-destination move and an operation recording both paths |
 | **Field-level before/after for metadata edits** | Full lineage and informed manual correction | Preserve the original indexed information and each change, linking old/new identities when content hashes change. No user-facing undo; see §10 |
 | **A batch identity** | Bulk metadata apply | So an edit and the refile it triggers read as one action rather than two unrelated ones. `runs.run_id` is the precedent for exactly this grouping |

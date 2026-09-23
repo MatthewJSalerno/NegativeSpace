@@ -42,20 +42,21 @@ throughout; it surfaced only by building the state against real delivered files
 and reading the identity rows rather than the summary counts. The rule is now
 pinned from both sides in the contract suite.
 
-Version 3 also defines, without yet writing to them, the tables later steps need:
-`contents`, `content_similarity`, `thumbnail_cache`, `backup_attempts`,
-`backup_artifacts` and `file_changes`. They are batched deliberately so the
-catalog stops being rebuilt once per increment.
+Version 3 also defines the tables later steps need, batched deliberately so the
+catalog stops being rebuilt once per increment. The scan writes `contents` and
+`thumbnail_cache`; `content_similarity`, `backup_attempts`, `backup_artifacts` and
+`file_changes` are defined but not yet written.
+
+The `Undated/<year>` fallback reads the original Index modification time recorded
+here, not the file's current one.
 
 This does **not** complete the normalized schema: content-version transitions and
-transfer-wide revision enforcement remain to be implemented. Original Index timestamps are captured here; switching date
-routing to use them belongs to the transfer adaptation step. Backups, previews,
-manual edits, thumbnails, and web job control are also subsequent work.
+transfer-wide revision enforcement remain to be implemented. Backups, detail
+previews, manual edits and web job control are also subsequent work.
 
-Validation: 15 database contract tests passed, covering concurrent settings saves,
+Validation: the database contract suite covers concurrent settings saves,
 duplicate request acceptance, rollback, stale revisions, configuration snapshots,
-and immutable source evidence. The container engine suite passed 72 tests with
-one genuine-RAW fixture skip. New integration tests cover duplicate snapshots,
-rescans, reimport after Move, and actual CLI configuration snapshots. Tests use
-synthetic temporary libraries; user-library validation is still required before
-merge.
+and immutable source evidence. Engine integration tests cover duplicate snapshots,
+rescans, reimport after Move, and actual CLI configuration snapshots. Both use
+synthetic temporary libraries; each increment is also validated against the
+maintainer's real library before merge.
