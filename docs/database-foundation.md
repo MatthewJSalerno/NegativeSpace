@@ -13,7 +13,8 @@ its scoped settings functions. The web UI is not implemented.
   its effective configuration: defaults, then saved settings, then CLI overrides.
   Later settings changes do not alter that snapshot.
 - The database acceptance helper associates a request ID with one run and rejects
-  reuse with different input. CLI/API request-ID wiring remains future work.
+  reuse with different input. The engine exposes it as `--request-id`
+  (`engine-spec.md` §4.1); the API side is not built.
 - Index records an immutable source snapshot for each file identity, including
   duplicates, with subsequent observations stored separately. Unknown filesystem
   dates remain null; Unix ctime is not presented as creation time.

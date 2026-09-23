@@ -178,6 +178,7 @@ source removal. See [database-foundation.md](./database-foundation.md).
 Recovery records durable intent before every mutation and concludes from observed
 evidence, opening an attention issue when an outcome cannot be established. Complete
 lineage for every catalogued file in every settled status is enforced by test
-(`TODO.md` claim 11). Content-version history, request-ID wiring to the CLI and API,
-and the approved job lifecycle states remain pending. Older catalogs are preserved
+(`TODO.md` claim 11). A caller-supplied request ID binds each submission to one run
+(`--request-id`). Content-version history and the approved job lifecycle states
+remain pending. Older catalogs are preserved
 and rejected; fresh development catalogs are required.

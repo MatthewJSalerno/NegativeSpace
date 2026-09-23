@@ -3091,6 +3091,124 @@ def raw_files_produce_thumbnails_through_rawpy():
                   f"RAW thumbnail longest edge is {max(img.size)}, expected {GRID_THUMBNAIL_SIZE}")
 
 
+# ------------------------------------------------------------ request IDs
+
+EXIT_REQUEST_CONFLICT = 3
+EXIT_REQUEST_ALREADY_ACCEPTED = 4
+
+
+@test
+def a_repeated_request_id_starts_nothing():
+    """
+    Duplicate delivery of one submission must not execute twice. The replay
+    answers with the run the first delivery created and does no file work —
+    proven by a photo added between the two deliveries staying unindexed,
+    which a replay that quietly rescanned would have catalogued.
+    """
+    case = new_case("request_replay")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case, "--request-id", "req-1")
+    make_photo(case / "src" / "b.jpg", "b")
+
+    proc = run_engine(case, "--request-id", "req-1", expect_rc=EXIT_REQUEST_ALREADY_ACCEPTED)
+
+    runs = rows(case, "SELECT id FROM runs")
+    check(len(runs) == 1, f"a replayed request created another run: {len(runs)} runs")
+    indexed = sorted(Path(r["source_path"]).name for r in rows(case, "SELECT source_path FROM photos"))
+    check(indexed == ["a.jpg"], f"a replayed request did file work: indexed {indexed}")
+    bound = rows(case, "SELECT request_id, run_id FROM job_requests")
+    check(bound == [{"request_id": "req-1", "run_id": runs[0]["id"]}],
+          f"request not bound to the run it created: {bound}")
+    check(f"run #{runs[0]['id']}" in engine_output(proc),
+          "the replay did not name the run the request already created")
+
+
+@test
+def a_reused_request_id_with_different_input_is_refused():
+    """
+    An ID reused for a different submission is a conflict, not a replay and
+    not a new run. The Move case is the one that matters: accepted as a
+    replay, it would report the earlier Index as though the Move had run;
+    accepted as new, it would execute under an ID bound to other work. The
+    --force-rehash case pins that flags outside the settings store are part
+    of what a request means.
+    """
+    case = new_case("request_conflict")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case, "--request-id", "req-1")
+    before = src_files(case)
+
+    proc = run_engine(case, "--move", "--request-id", "req-1", expect_rc=EXIT_REQUEST_CONFLICT)
+    check("different submission" in engine_output(proc), "the conflict was not reported as one")
+    check(src_files(case) == before, f"a conflicting request moved files: {src_files(case)}")
+    check(not (case / "dest").exists(), "a conflicting request wrote to the destination")
+
+    run_engine(case, "--force-rehash", "--request-id", "req-1", expect_rc=EXIT_REQUEST_CONFLICT)
+
+    runs = rows(case, "SELECT mode FROM runs")
+    check(runs == [{"mode": "INDEX"}], f"a conflicting request created a run: {runs}")
+
+
+@test
+def a_replayed_interrupted_request_is_reported_not_rerun():
+    """
+    The lost-response case: a request's run was killed, and the same request
+    arrives again. It must not restart — resubmission is always explicit — and
+    it must not claim the run is still going. Settling the dead run belongs to
+    the next run that does real work, so the replay leaves the row alone.
+    """
+    case = new_case("request_interrupted")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case, "--request-id", "req-1")
+    # The state an uncatchable kill leaves: the run row never finalized.
+    conn = db(case)
+    conn.execute("UPDATE runs SET status = 'Running', ended_at = NULL")
+    conn.commit()
+    conn.close()
+
+    proc = run_engine(case, "--request-id", "req-1", expect_rc=EXIT_REQUEST_ALREADY_ACCEPTED)
+    check("did not finish" in engine_output(proc),
+          "a replay of a dead run did not say it was interrupted")
+    check(rows(case, "SELECT status FROM runs") == [{"status": "Running"}],
+          "the replay settled the dead run itself instead of leaving it to reconciliation")
+
+    run_engine(case)
+    statuses = [r["status"] for r in rows(case, "SELECT status FROM runs ORDER BY id")]
+    check(statuses == ["Crashed", "Completed"],
+          f"the next real run did not reconcile the interrupted one: {statuses}")
+
+
+@test
+def every_catalog_timestamp_carries_its_offset():
+    """
+    Application event times are timezone-aware UTC (engine-spec 4.3). One row
+    mixing a zoned start with a naive end cannot give a duration — Python
+    refuses to subtract them, and read as the same zone they are off by the
+    host's UTC offset. Covers each writer: run start and finish, an operation
+    settled after its intent, and a run marked Crashed by reconciliation.
+    """
+    from datetime import datetime
+    case = new_case("utc_timestamps")
+    make_photo(case / "src" / "a.jpg", "a")
+    make_photo(case / "src" / "dupe.jpg", "a")
+    run_engine(case)
+    run_engine(case, "--move")
+    conn = db(case)
+    conn.execute("UPDATE runs SET status = 'Running', ended_at = NULL WHERE id = 1")
+    conn.commit()
+    conn.close()
+    run_engine(case)
+
+    stamps = [("runs.started_at", r["started_at"]) for r in rows(case, "SELECT started_at FROM runs")]
+    stamps += [("runs.ended_at", r["ended_at"]) for r in rows(case, "SELECT ended_at FROM runs")]
+    stamps += [("operations.timestamp", r["timestamp"])
+               for r in rows(case, "SELECT timestamp FROM operations")]
+    check(any(r["status"] == "Crashed" for r in rows(case, "SELECT status FROM runs")),
+          "setup did not produce a Crashed run")
+    naive = [(col, v) for col, v in stamps if v is None or datetime.fromisoformat(v).tzinfo is None]
+    check(not naive, f"timestamps without an offset: {naive}")
+
+
 def main():
     global ENGINE, WORKSPACE, VERBOSE
     ap = argparse.ArgumentParser(description=__doc__,
