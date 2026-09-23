@@ -2834,12 +2834,15 @@ def _query_source_subdir(db_path: str, subdir_filter_path: Path) -> List[str]:
 
 def backup_after_job(db_path: Path, backups_dir: Path, base_dir: Path, run_id: int):
     """One automatic backup after a job that recorded changes, including a failed
-    or cancelled one. A job that recorded nothing (an unchanged Index) gets none.
+    or cancelled one. Skipped and Cancelled rows record that nothing was done, so
+    a job holding only those (a repeated Copy, an unchanged Index) gets none:
+    otherwise every no-op run would push a meaningful backup out of retention.
     A failed backup is reported beside the job's result and never changes it."""
     try:
         with contextlib.closing(get_db_connection(str(db_path))) as conn:
-            recorded = conn.execute("SELECT COUNT(*) FROM operations WHERE run_id = ?",
-                                    (run_id,)).fetchone()[0]
+            recorded = conn.execute(
+                "SELECT COUNT(*) FROM operations WHERE run_id = ? AND status NOT IN (?, ?)",
+                (run_id, OPERATION_SKIPPED, OPERATION_CANCELLED)).fetchone()[0]
         if not recorded:
             logger.info("No catalog changes recorded by this run; no backup needed.")
             return

@@ -3376,6 +3376,13 @@ def a_job_that_records_changes_is_backed_up_after_it_settles():
     run_engine(case)
     check(len(backups_of(case)) == 1, "an Index that recorded nothing was backed up")
 
+    # A repeated Copy records only Skipped rows. Backing that up would let
+    # no-op runs push meaningful backups out of retention.
+    run_engine(case, "--copy")
+    check(len(backups_of(case)) == 2, "a Copy that delivered files was not backed up")
+    run_engine(case, "--copy")
+    check(len(backups_of(case)) == 2, "a repeated Copy that changed nothing was backed up")
+
 
 @test
 def backup_storage_problems_are_recorded_and_never_fail_the_job():
