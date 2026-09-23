@@ -55,9 +55,11 @@ NegativeSpace has three mutually exclusive modes. `--move` and `--copy` cannot b
 | **Move** | `--move` | Deleted after a verified copy lands at destination; confirmed exact duplicates are also removed from source | Files organized into `YYYY/MM/DD`, or `Undated/<year>/` when the engine cannot date them |
 | **Copy** | `--copy` | Never touched — fully non-destructive | Files organized into `YYYY/MM/DD`, or `Undated/<year>/` when the engine cannot date them |
 
+The Destination column describes `/data/dest` only. Every mode begins with a scan, and the scan generates thumbnails into `/cache` (see Volume Layout) unless `--no-thumbnails` is passed — so "nothing written" above means nothing written *to the destination tree*, not that Index writes nothing at all.
+
 ### Run (Index — Default)
 
-Scan, extract metadata, hash every file (SHA1 + pHash), and catalog everything into SQLite — including flagging exact duplicates — without moving, copying, or deleting anything. Mount `/data/source` as read-only (`:ro`) for safety; Index never needs write access to it.
+Scan, extract metadata, hash every file (SHA1 + pHash), generate grid thumbnails, and catalog everything into SQLite — including flagging exact duplicates — without moving, copying, or deleting anything. Mount `/data/source` as read-only (`:ro`) for safety; Index never needs write access to it.
 
 ```bash
 docker run --rm \
@@ -65,8 +67,18 @@ docker run --rm \
   -v /path/to/your/photos:/data/source:ro \
   -v /path/to/organized:/data/dest \
   -v /path/to/appdata:/appdata \
+  -v /path/to/cache:/cache \
   negativespace
 ```
+
+Mounting `/cache` is optional — left unmounted, thumbnails live in the container's writable layer and are regenerated after the container is replaced. Two flags control this:
+
+| Flag | Default | Effect |
+| --- | --- | --- |
+| `--cache` | `/cache` | Directory holding generated thumbnails. Written only by the scan phase. |
+| `--no-thumbnails` | *(off)* | Skip generation entirely. Cataloguing is unchanged; the gallery shows placeholders until a later run generates them. |
+
+A thumbnail is disposable cache and never decides whether a file is catalogued: an unreadable photo, a full disk or an unwritable `/cache` records the reason and lets the Index finish normally.
 
 ### Run (Move — Copy-Verify-Delete)
 
@@ -119,7 +131,7 @@ docker run --rm \
   - `/data/source`: Raw input directory containing photos.
   - `/data/dest`: Structured target directory organized by `YYYY/MM/DD`, with photos the engine could not date filed under `Undated/<year>/` instead.
   - `/appdata`: Dedicated application directory storing persistent data inside `/appdata/db` and log files inside `/appdata/logs`.
-  - `/cache` *(optional)*: Thumbnail cache. **Index writes here** when thumbnail generation is enabled — it is the only engine operation that does; Move and Copy ignore it. It is kept separate from `/appdata` on purpose: everything in `/appdata` is irreplaceable and should be backed up, whereas every file here is reproducible from the photo it was generated from. Deleting it costs only the time to regenerate, and it should be **excluded** from backups rather than included. Mount it to keep thumbnails when the container is replaced; leave it unmounted and they live in the container's writable layer instead.
+  - `/cache` *(optional)*: Thumbnail cache. **The scan phase writes here** unless `--no-thumbnails` is passed. Every mode begins with a scan, so a `--move` or `--copy` run generates thumbnails too; what never touches the cache is the transfer phase itself — copying, verifying and deleting ignore it entirely. It is kept separate from `/appdata` on purpose: everything in `/appdata` is irreplaceable and should be backed up, whereas every file here is reproducible from the photo it was generated from. Deleting it costs only the time to regenerate, and it should be **excluded** from backups rather than included. Mount it to keep thumbnails when the container is replaced; leave it unmounted and they live in the container's writable layer instead.
 
     Thumbnails live under `/cache/thumbnails/`, keyed by the photo's **content hash** rather than its catalog id or path, and fanned out by the hash's first two characters: `/cache/thumbnails/ab/abcdef….jpg`. The `thumbnails/` segment exists so a future cache of some other kind has an obvious place to go rather than being mixed in beside these. Byte-identical duplicates share a single thumbnail instead of generating one apiece, and the cache survives a catalog rebuild, since content hashes are stable where row ids are not.
   - `/backups`: Catalog backups for the web interface. **The engine never writes here** — this is unused when running the engine directly as documented above.

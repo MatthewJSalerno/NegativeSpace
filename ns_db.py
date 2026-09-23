@@ -584,6 +584,57 @@ def resolve_attention_issue(conn, issue_id, *, event_id=None):
         raise RuntimeError("attention issue is unknown or already resolved")
 
 
+def content_for_digest(conn, *, digest, algorithm='sha1', phash=None, phash_state=None,
+                       width=None, height=None):
+    """Content identity for one digest, created on first sight and returned thereafter.
+
+    Thumbnails and similarity key on content rather than on a particular
+    catalogued copy, so byte-identical files share one row — which is what lets
+    duplicates reuse a single thumbnail. COALESCE on update so a later scan that
+    learned less (a thumbnail that failed, so no dimensions) never erases what an
+    earlier one established.
+    """
+    if not conn.in_transaction:
+        raise RuntimeError("content identity requires the caller's transaction")
+    if not digest:
+        raise ValueError("content identity requires a digest")
+    conn.execute(
+        "INSERT INTO contents(hash_algorithm,digest,phash,phash_state,width,height) "
+        "VALUES(?,?,?,?,?,?) ON CONFLICT(hash_algorithm,digest) DO UPDATE SET "
+        "phash=COALESCE(excluded.phash,contents.phash), "
+        "phash_state=COALESCE(excluded.phash_state,contents.phash_state), "
+        "width=COALESCE(excluded.width,contents.width), "
+        "height=COALESCE(excluded.height,contents.height)",
+        (algorithm, digest, phash, phash_state, width, height))
+    return conn.execute("SELECT content_id FROM contents WHERE hash_algorithm=? AND digest=?",
+                        (algorithm, digest)).fetchone()[0]
+
+
+def record_thumbnail(conn, *, content_id, size, availability, cache_filename=None,
+                     bytes_on_disk=None, attempted_file_id=None, observed_path=None,
+                     failure_category=None, failure_detail=None):
+    """Current cache state for one content at one size.
+
+    Deliberately mutable, and deliberately not lineage: a thumbnail is a
+    disposable artifact whose availability is current observed state, so a
+    regenerated or cleared entry overwrites rather than appending history.
+    `bytes` is recorded so a per-size total is a SUM instead of a walk of the
+    cache tree (webui-spec.md 4.2.1).
+    """
+    if not conn.in_transaction:
+        raise RuntimeError("thumbnail cache state requires the caller's transaction")
+    conn.execute(
+        "INSERT INTO thumbnail_cache(content_id,size,cache_filename,bytes,availability,"
+        "attempted_file_id,observed_path,failure_category,failure_detail,updated_at) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(content_id,size) DO UPDATE SET "
+        "cache_filename=excluded.cache_filename,bytes=excluded.bytes,"
+        "availability=excluded.availability,attempted_file_id=excluded.attempted_file_id,"
+        "observed_path=excluded.observed_path,failure_category=excluded.failure_category,"
+        "failure_detail=excluded.failure_detail,updated_at=excluded.updated_at",
+        (content_id, size, cache_filename, bytes_on_disk, availability, attempted_file_id,
+         observed_path, failure_category, failure_detail, utc_now()))
+
+
 def keeper_candidates(conn, sha1_hash):
     """Destination paths that may authorize deleting a duplicate source.
 

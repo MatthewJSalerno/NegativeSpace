@@ -136,6 +136,7 @@ import contextlib
 import errno
 import fcntl
 import hashlib
+import io
 import json
 import logging
 import logging.handlers
@@ -224,6 +225,21 @@ SUPPORTED_EXTENSIONS = RASTER_EXTENSIONS | RAW_EXTENSIONS
 DB_FILENAME = "ns_sqlite.db"
 
 PARTIAL_SUFFIX = ".organizing.partial"
+
+# Longest edge of the grid thumbnail, in pixels. The rule of thumb is roughly
+# twice the CSS size a tile is displayed at, because a HiDPI screen renders two
+# device pixels per CSS pixel — 320px stays sharp to about a 160px tile. The
+# 1024px detail preview (webui-spec.md 4.2.1) is generated lazily on first view
+# and is deliberately NOT produced here: generating both up front measured 14
+# minutes and 19GB for a 150,000-image catalog against 3.3 minutes and 2.3GB,
+# most of it previews nobody opens.
+THUMBNAIL_SIZE = 320
+THUMBNAIL_DIR_NAME = "thumbnails"
+THUMBNAIL_JPEG_QUALITY = 85
+# Distinct from PARTIAL_SUFFIX: that one marks a half-written PHOTO at the
+# destination and is what recovery looks for. A half-written thumbnail is
+# disposable and must never be mistaken for one.
+THUMBNAIL_PARTIAL_SUFFIX = ".thumb.partial"
 
 # os.link() failures that mean "this filesystem cannot hard-link at all"
 # (FAT/exFAT, some network shares). Only these may fall back to rename(), which
@@ -332,7 +348,7 @@ except ImportError:
     IMAGEHASH_SUPPORTED = False
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageOps
     try:
         import pillow_heif
         pillow_heif.register_heif_opener()
@@ -417,6 +433,26 @@ class ProcessingResult:
     file_mtime: Optional[float] = None
     birthtime: Optional[float] = None
     observed_at: Optional[str] = None
+    thumbnail: Optional["ThumbnailResult"] = None
+
+
+@dataclass
+class ThumbnailResult:
+    """What one thumbnail attempt produced, carried back from the worker process.
+
+    `width`/`height` are the SOURCE photo's dimensions, not the thumbnail's:
+    they describe content and are recorded on `contents`. They are populated
+    even on some failures, since the header can be readable when the pixel data
+    is not.
+    """
+    availability: str                       # 'present' or 'failed'
+    cache_filename: Optional[str] = None    # relative to the cache root
+    bytes: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    failure_category: Optional[str] = None
+    failure_detail: Optional[str] = None
+    reused: bool = False                    # an existing cache entry, not a new render
 
 
 # --- Producer-Consumer Queue ---
@@ -776,6 +812,8 @@ def db_writer_worker(db_path: str):
     date_sources = {DATE_SOURCE_EXIF: 0, DATE_SOURCE_MTIME: 0}
     status_counts = {}
     phash_failures = 0
+    thumbnails_written = 0
+    thumbnail_failures = 0
 
     def flush():
         """
@@ -898,7 +936,7 @@ def db_writer_worker(db_path: str):
             cursor.execute("SELECT id FROM photos WHERE source_path = ?", (result.file_path,))
             photo_row = cursor.fetchone()
             photo_id = photo_row[0] if photo_row else None
-            ns_db.record_source_observation(
+            file_id = ns_db.record_source_observation(
                 conn, photo_id=photo_id, run_id=result.run_id,
                 source_path=result.file_path, sha1_hash=result.sha1_hash,
                 file_size=result.file_size, file_mtime=result.file_mtime,
@@ -906,6 +944,35 @@ def db_writer_worker(db_path: str):
                 error=result.error_message, prior_status=prior_status,
                 observed_at=result.observed_at,
             )
+
+            # Content identity, which thumbnails and similarity both key on so
+            # that byte-identical copies share one row. Written here rather than
+            # in the worker because only this thread touches SQLite during a
+            # scan, and it joins this file's savepoint so identity and thumbnail
+            # state land with the catalog row or not at all.
+            if result.sha1_hash:
+                decoded = result.phash not in ("", "error", "not_supported", None)
+                content_id = ns_db.content_for_digest(
+                    conn, digest=result.sha1_hash,
+                    phash=result.phash if decoded else None,
+                    phash_state="ok" if decoded else (result.phash or "error"),
+                    width=result.thumbnail.width if result.thumbnail else None,
+                    height=result.thumbnail.height if result.thumbnail else None,
+                )
+                if result.thumbnail is not None:
+                    ns_db.record_thumbnail(
+                        conn, content_id=content_id, size=THUMBNAIL_SIZE,
+                        availability=result.thumbnail.availability,
+                        cache_filename=result.thumbnail.cache_filename,
+                        bytes_on_disk=result.thumbnail.bytes,
+                        attempted_file_id=file_id, observed_path=result.file_path,
+                        failure_category=result.thumbnail.failure_category,
+                        failure_detail=result.thumbnail.failure_detail,
+                    )
+                    if result.thumbnail.availability == "failed":
+                        thumbnail_failures += 1
+                    elif not result.thumbnail.reused:
+                        thumbnails_written += 1
             log_operation(
                 conn, result.run_id, photo_id, result.file_path, result.dest_path, status,
                 result.error_message, result.has_name_collision, commit=False
@@ -968,6 +1035,14 @@ def db_writer_worker(db_path: str):
                 f"{phash_failures:,} file(s) produced no perceptual hash (undecodable or "
                 f"unsupported format). They are indexed and will move/copy normally, but "
                 f"cannot participate in similarity matching."
+            )
+        if thumbnails_written or thumbnail_failures:
+            logger.info(f"Thumbnails: {thumbnails_written:,} generated, {thumbnail_failures:,} failed.")
+        if thumbnail_failures:
+            logger.warning(
+                f"{thumbnail_failures:,} file(s) produced no thumbnail. They are indexed and "
+                f"will move/copy normally; the gallery shows a placeholder with the recorded "
+                f"reason. A thumbnail is disposable cache and never fails an Index."
             )
 
     from_exif = date_sources[DATE_SOURCE_EXIF]
@@ -1543,6 +1618,193 @@ def compute_phash(file_path: str) -> str:
         return "error"
 
 
+class ThumbnailWriteError(Exception):
+    """The cache could not be written — distinct from the photo failing to decode.
+
+    Both surface as OSError, and they mean opposite things to a user: one is a
+    full or read-only /cache, the other is a damaged photo. The UI shows
+    different placeholder text for each (webui-spec.md 4.2.1), so the engine has
+    to tell them apart rather than recording a generic failure.
+    """
+
+
+def thumbnail_cache_path(cache_root, sha1_hash: str, size: int = THUMBNAIL_SIZE) -> Path:
+    """
+    Where one content's thumbnail lives: <cache>/thumbnails/<ab>/<sha1>.jpg.
+
+    Fanned out by the hash's first two characters so no directory holds tens of
+    thousands of flat entries, and keyed by content hash rather than catalog id
+    or path — so byte-identical duplicates share one file, and the cache
+    survives a catalog rebuild where row ids would not.
+
+    The grid size keeps the bare `<sha1>.jpg` name the README documents; any
+    other size is suffixed. Without that, the 320px grid thumbnail and the
+    1024px detail preview — separate rows, since thumbnail_cache is keyed on
+    (content_id, size) — would collide on a single filename.
+    """
+    name = f"{sha1_hash}.jpg" if size == THUMBNAIL_SIZE else f"{sha1_hash}-{size}.jpg"
+    return Path(cache_root) / THUMBNAIL_DIR_NAME / sha1_hash[:2] / name
+
+
+def _write_thumbnail(img, dest: Path, size: int) -> int:
+    """Downscale and write one JPEG atomically; returns its size in bytes.
+
+    Written under a temporary name and renamed into place, so a killed engine
+    never leaves a truncated JPEG that a later run would find and reuse as a
+    cache hit — the reuse check trusts existence, and a half-written file would
+    be silently wrong forever.
+    """
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+    # The real decode happens here, not at open(): a truncated or damaged photo
+    # raises from this call, which is why it sits OUTSIDE the write guard below.
+    img.thumbnail((size, size), Image.LANCZOS)
+    tmp = dest.with_name(dest.name + THUMBNAIL_PARTIAL_SUFFIX)
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        img.save(tmp, "JPEG", quality=THUMBNAIL_JPEG_QUALITY, optimize=True)
+        os.replace(tmp, dest)
+        return dest.stat().st_size
+    except OSError as e:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        raise ThumbnailWriteError(str(e)) from e
+
+
+def _raw_preview(raw, size: int):
+    """
+    The adaptive RAW rule: probe the embedded preview, use it when its longest
+    edge is at least the target, otherwise demosaic.
+
+    A camera's embedded preview is the cheap path — about 17.8ms against 268ms
+    to demosaic — but a preview existing is not enough: it must be large enough,
+    or upscaling it would look worse than a fresh render. Probing and failing
+    costs about 0.4ms, 0.15% of a demosaic, so the probe is effectively free and
+    the rule self-tunes to whatever library it meets instead of baking in a
+    threshold. In one 300-file sample only 26% of RAWs carried a usable preview
+    at 320px, split almost entirely by format — so both paths are live.
+    """
+    try:
+        thumb = raw.extract_thumb()
+    except Exception:
+        thumb = None
+    if thumb is not None:
+        try:
+            if thumb.format == rawpy.ThumbFormat.JPEG:
+                preview = Image.open(io.BytesIO(thumb.data))
+            else:
+                preview = Image.fromarray(thumb.data)
+            if max(preview.size) >= size:
+                # The embedded preview is stored unrotated, carrying its own
+                # orientation tag — measured landscape on a Rotate 90 CW file.
+                # The demosaic below needs NO such call: LibRaw applies the
+                # sensor flip itself, so transposing that would turn it twice.
+                # A quarter turn does not change the longest edge, so the
+                # size check above is unaffected by where this sits.
+                return ImageOps.exif_transpose(preview)
+        except Exception:
+            pass  # Unreadable preview is not a failure; fall through and render one.
+    # half_size halves each dimension during demosaic, which is far cheaper and
+    # still far larger than any thumbnail target. compute_phash() does the same.
+    rgb = raw.postprocess(use_camera_wb=True, half_size=True, no_auto_bright=True, output_bps=8)
+    return Image.fromarray(rgb)
+
+
+def generate_thumbnail(file_path: Path, sha1_hash: str, cache_root: str,
+                       size: int = THUMBNAIL_SIZE) -> ThumbnailResult:
+    """
+    Produce the grid thumbnail for one file. READS the photo and NEVER raises.
+
+    A thumbnail is disposable cache, so nothing here may fail an otherwise
+    successful Index (webui-spec.md 4.2.1). Every failure comes back as a
+    recorded category and detail, which the UI turns into placeholder text —
+    "Photo file unavailable", "Image could not be decoded" — rather than a
+    blank tile with no explanation. A generic decoder failure is NOT evidence
+    of corruption and is not reported as such.
+    """
+    dest = thumbnail_cache_path(cache_root, sha1_hash, size)
+    relative = str(dest.relative_to(Path(cache_root)))
+
+    # A cache hit is the point of keying on content: exact duplicates, including
+    # copies in unrelated directories, reuse one render instead of each doing
+    # their own. This is also what makes a re-Index nearly free.
+    try:
+        existing = dest.stat()
+        if existing.st_size > 0:
+            return ThumbnailResult(availability="present", cache_filename=relative,
+                                   bytes=existing.st_size, reused=True)
+    except OSError:
+        pass
+
+    if not PIL_SUPPORTED:
+        return ThumbnailResult(availability="failed", failure_category="decoder_unavailable",
+                               failure_detail="Pillow is not installed")
+
+    width = height = None
+    try:
+        with warnings_attributed_to(str(file_path)):
+            if file_path.suffix.lower() in RAW_EXTENSIONS:
+                if not RAWPY_SUPPORTED:
+                    return ThumbnailResult(
+                        availability="failed", failure_category="decoder_unavailable",
+                        failure_detail="rawpy is not installed; RAW files cannot be decoded")
+                with rawpy.imread(str(file_path)) as raw:
+                    # sizes.width/height are PRE-flip: a portrait shot reports
+                    # landscape here, because they describe the sensor rather
+                    # than the photograph. LibRaw flip 5 and 6 are the quarter
+                    # turns, so swap for those to record the shape the photo is
+                    # actually displayed at.
+                    width, height = int(raw.sizes.width), int(raw.sizes.height)
+                    if raw.sizes.flip in (5, 6):
+                        width, height = height, width
+                    written = _write_thumbnail(_raw_preview(raw, size), dest, size)
+            else:
+                with Image.open(file_path) as img:
+                    # Read the dimensions BEFORE draft(): draft() replaces the
+                    # image with a reduced-scale decode, so img.size afterwards
+                    # is the decode size, not the photograph's real dimensions —
+                    # and these are recorded on `contents` as facts about the
+                    # content.
+                    width, height = img.size
+                    # A portrait photo is very often stored landscape with an
+                    # EXIF orientation tag telling the viewer to rotate it. The
+                    # dimensions that describe the CONTENT are the ones it is
+                    # displayed at, so swap them for the quarter-turn values —
+                    # otherwise every rotated photo in the library is recorded
+                    # with its width and height the wrong way round.
+                    orientation = img.getexif().get(0x0112, 1)
+                    if orientation in (5, 6, 7, 8):
+                        width, height = height, width
+                    # Decodes AT a reduced scale rather than decoding fully and
+                    # throwing most of it away: 8.2ms against 13.5ms.
+                    img.draft("RGB", (size, size))
+                    # Image.open() does NOT apply the orientation tag, but
+                    # browsers and viewers do. Without this the thumbnail is
+                    # rotated a quarter turn against the photo it represents —
+                    # measured at 20.1% of a real library. Applied after draft()
+                    # so the reduced-scale decode is still what gets rotated.
+                    written = _write_thumbnail(ImageOps.exif_transpose(img), dest, size)
+    except ThumbnailWriteError as e:
+        return ThumbnailResult(availability="failed", failure_category="cache_write_failed",
+                               failure_detail=f"Thumbnail cache could not be written: {e}",
+                               width=width, height=height)
+    except FileNotFoundError:
+        return ThumbnailResult(availability="failed", failure_category="file_unavailable",
+                               failure_detail="Photo file unavailable", width=width, height=height)
+    except PermissionError:
+        return ThumbnailResult(availability="failed", failure_category="permission_denied",
+                               failure_detail="Permission denied reading photo",
+                               width=width, height=height)
+    except Exception as e:
+        logger.debug(f"Thumbnail generation failed for {file_path}: {e}")
+        return ThumbnailResult(availability="failed", failure_category="decode_failed",
+                               failure_detail=f"Image could not be decoded ({type(e).__name__})",
+                               width=width, height=height)
+
+    return ThumbnailResult(availability="present", cache_filename=relative, bytes=written,
+                           width=width, height=height)
+
+
 def get_unique_dest_path(target_path: Path) -> Path:
     """Thin wrapper kept for callers that only want a free name, no content check."""
     resolved, _ = resolve_destination(target_path, None)
@@ -2059,7 +2321,8 @@ def _failed_result(file_path_str: str, run_id: int, error_message: str) -> Proce
     )
 
 
-def process_file_task(file_path_str: str, dest_base_path: str, run_id: int) -> ProcessingResult:
+def process_file_task(file_path_str: str, dest_base_path: str, run_id: int,
+                      cache_root: Optional[str] = None) -> ProcessingResult:
     """
     Scans one file: SHA-1, pHash, metadata/date, and its projected destination.
 
@@ -2096,6 +2359,12 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int) -> P
 
         sha1 = compute_sha1(str(file_path))
         phash = compute_phash(str(file_path))
+
+        # Generated here, in the worker, because this process has already paid
+        # to open and decode the file. It only ever READS the photo, and it
+        # never raises — a thumbnail is disposable cache and must not decide
+        # whether a file is catalogued (webui-spec.md 4.2.1).
+        thumbnail = generate_thumbnail(file_path, sha1, cache_root) if cache_root and sha1 else None
 
         dt, metadata = get_metadata_and_date(file_path)
         # Keep an explicit, guaranteed-present date_taken key regardless of which
@@ -2138,7 +2407,8 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int) -> P
             run_id=run_id,
             has_name_collision=False,
             file_size=file_size,
-            file_mtime=file_mtime, birthtime=birthtime, observed_at=observed_at
+            file_mtime=file_mtime, birthtime=birthtime, observed_at=observed_at,
+            thumbnail=thumbnail
         )
     except Exception as e:
         result = _failed_result(file_path_str, run_id, f"{type(e).__name__}: {e}")
@@ -2468,6 +2738,18 @@ def main():
              "Only affects directory scanning, not --file-ids targeting."
     )
     parser.add_argument(
+        "--cache", default="/cache",
+        help="Directory holding generated thumbnails (default: /cache). Written by the scan "
+             "phase, which every mode begins with; the transfer phase itself — copy, verify, "
+             "delete — never touches it. Everything under it is reproducible from the photo "
+             "it came from, so it is safe to delete and should be excluded from backups."
+    )
+    parser.add_argument(
+        "--no-thumbnails", action="store_true",
+        help="Skip thumbnail generation during the scan. Indexing is otherwise unchanged; "
+             "the gallery shows placeholders until a later run generates them."
+    )
+    parser.add_argument(
         "--force-rehash", action="store_true",
         help="Re-read every file even if its size and modification time are unchanged since the "
              "last Index. Normally unchanged files are skipped without being read at all, which "
@@ -2787,6 +3069,24 @@ def main():
         # checkpoint between batches; without one, Cancel Job (and `docker
         # stop`, which escalates to SIGKILL after ~10s) could not stop a long
         # Index.
+        # Thumbnails are written by the scan phase only — the Move/Copy phase
+        # never touches the cache. A cache root that cannot be created disables
+        # generation for this run rather than failing an Index that is otherwise
+        # fine: everything under it is reproducible from the photos themselves.
+        cache_root = None if args.no_thumbnails else Path(args.cache)
+        if cache_root is not None:
+            try:
+                (cache_root / THUMBNAIL_DIR_NAME).mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                logger.warning(
+                    f"Thumbnail cache at {cache_root} is not writable ({e}) — continuing without "
+                    f"thumbnails. Indexing is unaffected; the gallery will show placeholders "
+                    f"until a run with a writable cache generates them."
+                )
+                cache_root = None
+        elif args.no_thumbnails:
+            logger.info("--no-thumbnails: skipping thumbnail generation for this run.")
+
         scan_batch_size = max(worker_count * 4, 16)
         scanned = 0
         scan_started_at = time.monotonic()
@@ -2808,7 +3108,9 @@ def main():
                     )
                     break
                 batch = files_to_process[batch_start:batch_start + scan_batch_size]
-                futures = [executor.submit(process_file_task, f, str(dest_path), run_id) for f in batch]
+                futures = [executor.submit(process_file_task, f, str(dest_path), run_id,
+                                           str(cache_root) if cache_root else None)
+                           for f in batch]
                 for future in futures:
                     result = future.result()
                     bytes_done += result.file_size or 0
