@@ -689,8 +689,15 @@ def start_run(
 
 
 def finish_run(db_path: str, run_id: int, status: str):
-    """Finalizes the `runs` row — called on normal completion, cancellation, or failure."""
-    conn = get_db_connection(db_path)
+    """Finalizes the `runs` row — called on normal completion, cancellation, or failure.
+
+    At synchronous=FULL, which makes this commit fsync the WAL. That is one fsync
+    of the whole file, so it also makes durable every earlier NORMAL commit in it:
+    the scan path's batched results and audit rows. A settled run's history is
+    therefore durable for the price of one fsync per run, where FULL on the scan
+    path itself would cost the ~4.4x it was measured at.
+    """
+    conn = get_db_connection(db_path, synchronous="FULL")
     if not ns_db.transition_run(conn, run_id, status):
         # Only another run's reconciliation settles a run, and it cannot while
         # this process holds the lock — so this is a defect, not a race.

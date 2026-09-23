@@ -2734,6 +2734,56 @@ def the_move_loop_commits_at_full_synchronous():
 
 
 @test
+def a_settled_run_fsyncs_the_history_its_scan_committed_at_normal():
+    """
+    The scan path commits at NORMAL for its ~4.4x, so a power cut can take its
+    most recent rows. Settling the run at FULL closes that for every run that
+    settles: in WAL mode a FULL commit fsyncs the WAL file, and one fsync of
+    the file covers every earlier NORMAL commit in it. The backup's outcome row
+    is written at FULL for the same reason.
+
+    What this pins is the mechanism, not a survived power cut, which cannot be
+    caused here (TODO.md, power-loss item).
+    """
+    engine = _load_engine()
+    case = new_case("settle_full")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case)
+    db_file = str(case / "appdata" / "db" / "ns_sqlite.db")
+    conn = db(case)
+    conn.execute("INSERT INTO runs(mode, started_at, status) VALUES ('INDEX', ?, 'Running')",
+                 ("2026-01-01T00:00:00+00:00",))
+    conn.commit()
+    run_id = conn.execute("SELECT MAX(id) FROM runs").fetchone()[0]
+    conn.close()
+
+    def recording(real, seen):
+        def wrapped(*a, **kw):
+            c = real(*a, **kw)
+            seen.append(c.execute("PRAGMA synchronous").fetchone()[0])  # 2 is FULL
+            return c
+        return wrapped
+
+    # Recorded separately: get_db_connection itself goes through ns_db.connect,
+    # so one shared recorder would credit the settle's FULL to the backup.
+    settle_levels, backup_levels = [], []
+    real_get, real_connect = engine.get_db_connection, engine.ns_db.connect
+    engine.get_db_connection = recording(real_get, settle_levels)
+    try:
+        engine.finish_run(db_file, run_id, "Completed")
+    finally:
+        engine.get_db_connection = real_get
+    engine.ns_db.connect = recording(real_connect, backup_levels)
+    try:
+        engine.ns_db.backup_catalog(db_file, case / "backups", case / "appdata", trigger="manual")
+    finally:
+        engine.ns_db.connect = real_connect
+    check(settle_levels == [2], f"the run settled on connections at levels {settle_levels}, not FULL")
+    check(backup_levels and set(backup_levels) == {2},
+          f"the backup recorded its outcome at levels {backup_levels}, not FULL")
+
+
+@test
 def a_photo_this_run_delivered_is_not_also_reported_skipped():
     """
     The already-copied outcome reports what EARLIER runs delivered. The query
