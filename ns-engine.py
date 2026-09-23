@@ -2832,6 +2832,55 @@ def _query_source_subdir(db_path: str, subdir_filter_path: Path) -> List[str]:
     return [r[0] for r in rows]
 
 
+def backup_after_job(db_path: Path, backups_dir: Path, base_dir: Path, run_id: int):
+    """One automatic backup after a job that recorded changes, including a failed
+    or cancelled one. A job that recorded nothing (an unchanged Index) gets none.
+    A failed backup is reported beside the job's result and never changes it."""
+    try:
+        with contextlib.closing(get_db_connection(str(db_path))) as conn:
+            recorded = conn.execute("SELECT COUNT(*) FROM operations WHERE run_id = ?",
+                                    (run_id,)).fetchone()[0]
+        if not recorded:
+            logger.info("No catalog changes recorded by this run; no backup needed.")
+            return
+        result = ns_db.backup_catalog(db_path, backups_dir, base_dir,
+                                      trigger="post_job", related_run_id=run_id)
+    except Exception as exc:
+        logger.warning(f"Catalog backup after run #{run_id} could not be attempted: {exc}. "
+                       f"The run's own result is unaffected.")
+        return
+    _log_backup(result, f"after run #{run_id}")
+
+
+def run_manual_backup(db_path: Path, backups_dir: Path, base_dir: Path, lock_fd) -> int:
+    """--backup-now. Exit 0 when a verified backup was written, 1 otherwise."""
+    try:
+        if not db_path.exists():
+            logger.error(f"FATAL: there is no catalog at {db_path} to back up.")
+            return 1
+        try:
+            result = ns_db.backup_catalog(db_path, backups_dir, base_dir, trigger="manual")
+        except (ns_db.SchemaError, sqlite3.DatabaseError) as exc:
+            logger.error(f"FATAL: the catalog cannot be backed up: {exc}")
+            return 1
+        _log_backup(result, "requested manually")
+        return 0 if result["outcome"] == "succeeded" else 1
+    finally:
+        release_single_instance_lock(lock_fd)
+
+
+def _log_backup(result: dict, context: str):
+    if result["outcome"] == "succeeded":
+        logger.info(f"Catalog backup {context}: {result['filename']} "
+                    f"({result['size'] / 1e6:.1f} MB), verified.")
+        if result["pruned"]:
+            logger.info(f"Retention removed {len(result['pruned'])} older automatic backup(s).")
+    else:
+        logger.warning(f"Catalog backup {context} FAILED ({result['error_category']}): "
+                       f"{result['error_detail']}. Catalog changes since the last successful "
+                       f"backup are not backed up. No photo was affected.")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="NegativeSpace - Photo Collection Organizer (Engine)",
@@ -2859,6 +2908,12 @@ def main():
              "phase, which every mode begins with; the transfer phase itself — copy, verify, "
              "delete — never touches it. Everything under it is reproducible from the photo "
              "it came from, so it is safe to delete and should be excluded from backups."
+    )
+    parser.add_argument(
+        "--backups", default="/backups",
+        help="Directory holding catalog backups (default: /backups). Must be separate storage "
+             "from --base: a backup inside the thing it backs up dies with it. Never created "
+             "or substituted: missing or unwritable storage is recorded as a failed backup."
     )
     parser.add_argument(
         "--no-thumbnails", action="store_true",
@@ -2907,6 +2962,11 @@ def main():
         "--copy", action="store_true",
         help="Non-destructive: copy source files to destination, verified, but never delete or modify the source."
     )
+    mode_group.add_argument(
+        "--backup-now", action="store_true",
+        help="Write one manual catalog backup to --backups and exit. Takes the engine lock, so it "
+             "is refused while a job runs. Touches no photo and needs no --source."
+    )
     args = parser.parse_args()
 
     start_method = configure_multiprocessing_start_method()
@@ -2939,6 +2999,9 @@ def main():
             f"Wait for it to finish, or cancel it, then retry."
         )
         sys.exit(1)
+
+    if args.backup_now:
+        sys.exit(run_manual_backup(db_path, Path(args.backups), base_dir, lock_fd))
 
     # 2b. ExifTool is a hard requirement (module docstring) — fail fast and
     # clearly, before touching source/dest/the database at all, rather than
@@ -3101,6 +3164,10 @@ def main():
     # Preparing ends here: earlier work is settled and the requested work starts.
     # A no-op if a cancel already moved the run to Cancelling.
     with contextlib.closing(get_db_connection(str(db_path))) as conn:
+        settled = ns_db.settle_interrupted_backups(conn, args.backups)
+        if settled:
+            logger.warning(f"{settled} catalog backup attempt(s) were interrupted before finishing; "
+                           f"recorded as interrupted. Nothing retries them automatically.")
         ns_db.transition_run(conn, run_id, RunStatus.RUNNING)
     run_outcome = RunStatus.FAILED
 
@@ -3349,6 +3416,9 @@ def main():
         await_cancelling_record(cancel_watcher)
         finish_run(str(db_path), run_id, run_outcome)
         logger.info(f"Run #{run_id} finished with status: {run_outcome}")
+        # After the run settles, so the backup holds its final status, and
+        # before the lock is released, so nothing can start in between.
+        backup_after_job(db_path, Path(args.backups), base_dir, run_id)
         release_single_instance_lock(lock_fd)
 
     # A failed run is an error to whatever invoked the engine, not a success

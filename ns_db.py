@@ -5,13 +5,15 @@ is explicit, and settings access never silently creates a catalog. This foundati
 retains the transfer tables while original source identity is introduced separately.
 """
 import contextlib
+import errno
 import json
+import os
 import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 class PhotoStatus:
     """State of one source file in the catalog. One row per source_path."""
@@ -260,7 +262,7 @@ FOUNDATION_DDL = (
         file_id INTEGER NOT NULL REFERENCES files(file_id),
         role TEXT NOT NULL CHECK(role IN ('source','destination','retained_copy')), PRIMARY KEY(operation_id,file_id,role))""",
     """CREATE TABLE settings (
-        key TEXT PRIMARY KEY CHECK(key IN ('workers','exts')),
+        key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention')),
         value_json TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0),
         updated_at TEXT NOT NULL)""",
     """CREATE TABLE run_configs (
@@ -339,18 +341,24 @@ FOUNDATION_DDL = (
         PRIMARY KEY(content_id, size))""",
     "CREATE INDEX idx_thumbnail_size ON thumbnail_cache(size, availability)",
     # An attempt is history; an artifact's availability is current observed state.
+    # outcome is NULL only while an attempt runs; one found NULL under the
+    # engine lock was interrupted.
     """CREATE TABLE backup_attempts (
         attempt_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        trigger_kind TEXT NOT NULL, related_run_id INTEGER REFERENCES runs(id),
-        started_at TEXT NOT NULL, ended_at TEXT, outcome TEXT,
+        trigger_kind TEXT NOT NULL CHECK(trigger_kind IN ('manual','post_job','pre_action')),
+        related_run_id INTEGER REFERENCES runs(id),
+        started_at TEXT NOT NULL, ended_at TEXT,
+        outcome TEXT CHECK(outcome IN ('succeeded','failed','interrupted')),
         error_category TEXT, error_detail TEXT)""",
+    # 'pruned' is the retention limit removing the file; 'missing' is the file
+    # gone for a reason the application did not record.
     """CREATE TABLE backup_artifacts (
         artifact_id INTEGER PRIMARY KEY AUTOINCREMENT,
         attempt_id INTEGER NOT NULL UNIQUE REFERENCES backup_attempts(attempt_id),
         relative_filename TEXT NOT NULL, size INTEGER NOT NULL,
         compression_format TEXT, created_at TEXT NOT NULL,
-        availability TEXT NOT NULL CHECK(availability IN ('present','missing','unknown')),
-        last_checked_at TEXT)""",
+        availability TEXT NOT NULL CHECK(availability IN ('present','missing','unknown','pruned')),
+        last_checked_at TEXT, pruned_at TEXT)""",
     "CREATE INDEX idx_evidence_operation ON operation_evidence(operation_id,evidence_id)",
     "CREATE INDEX idx_events_operation ON operation_events(operation_id,event_id)",
     "CREATE INDEX idx_open_attention ON attention_issues(file_id) WHERE resolved_at IS NULL",
@@ -408,6 +416,9 @@ def validate_settings(values):
         if key == 'workers':
             if type(value) is not int or value < 1:
                 raise ValueError("workers must be a positive integer")
+        elif key == 'backup_retention':
+            if type(value) is not int or value < 1:
+                raise ValueError("backup_retention must be a positive integer")
         elif key == 'exts':
             if not isinstance(value, list) or not value or any(
                 not isinstance(v, str) or not re.fullmatch(r'\.?[A-Za-z0-9]+', v) for v in value
@@ -767,3 +778,221 @@ def unsettled_operations(conn, photo_id=None):
         sql += " AND o.photo_id=?"
         params = (photo_id,)
     return conn.execute(sql + " ORDER BY o.id", params).fetchall()
+
+
+# --- Catalog backups -------------------------------------------------------
+#
+# One consistent SQLite file per backup, taken with SQLite's online backup API
+# (an ordinary copy of a live WAL database can capture a torn state). Catalog
+# information only, never photos or thumbnails. Callers hold the engine lock:
+# a backup is refused while a job runs, which is also what lets an attempt
+# found without an outcome be settled as interrupted.
+
+BACKUP_RETENTION_DEFAULT = 20
+BACKUP_PREFIX = "ns-catalog-"
+CONTAINER_BACKUPS = "/backups"
+_PARTIAL = ".partial"
+
+
+class BackupFailed(RuntimeError):
+    def __init__(self, category, detail):
+        super().__init__(f"{category}: {detail}")
+        self.category, self.detail = category, detail
+
+
+def _overlap(appdata, backups):
+    appdata, backups = Path(appdata).resolve(), Path(backups).resolve()
+    if appdata == backups or backups.is_relative_to(appdata) or appdata.is_relative_to(backups):
+        return f"{backups} and {appdata} overlap"
+    try:
+        if os.path.samefile(appdata, backups):
+            return f"{backups} and {appdata} are one directory reached by two paths"
+    except OSError:
+        pass
+    return None
+
+
+def _check_backup_storage(backups_dir, appdata_dir):
+    backups = Path(backups_dir)
+    if not backups.is_dir():
+        raise BackupFailed("storage_unavailable", f"{backups} does not exist or is not a folder")
+    # The image creates /backups so the mount has somewhere to land. Unmounted,
+    # a backup would live in the container's own layer and vanish with it: the
+    # silent fallback webui-spec 9 forbids. Another path passed explicitly
+    # (development, tests) is the operator's own choice and taken as given.
+    if backups.resolve() == Path(CONTAINER_BACKUPS) and not os.path.ismount(backups):
+        raise BackupFailed("storage_not_mounted",
+                           f"{backups} is not a mounted volume; a backup written there would be "
+                           f"lost when the container is replaced")
+    overlap = _overlap(appdata_dir, backups)
+    if overlap:
+        # A backup inside the thing it backs up dies with it.
+        raise BackupFailed("storage_overlaps_appdata", overlap)
+    if not os.access(backups, os.W_OK | os.X_OK):
+        raise BackupFailed("storage_unwritable", f"{backups} is not writable")
+
+
+def _fsync_dir(path):
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    except OSError as exc:
+        if exc.errno not in (errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP):
+            raise
+    finally:
+        os.close(fd)
+
+
+def settle_interrupted_backups(conn, backups_dir):
+    """Marks attempts left without an outcome as interrupted and removes their
+    partial files. Only safe under the engine lock, which proves no attempt is live."""
+    with transaction(conn):
+        n = conn.execute("UPDATE backup_attempts SET outcome='interrupted' WHERE outcome IS NULL").rowcount
+    try:
+        for leftover in Path(backups_dir).glob(BACKUP_PREFIX + "*" + _PARTIAL):
+            leftover.unlink(missing_ok=True)
+    except OSError:
+        pass  # storage unreachable: the next attempt reports it
+    return n
+
+
+def _snapshot(conn, attempt_id, final):
+    """Copies the live catalog to `final` + .partial, verifies it, publishes it."""
+    partial = final.with_name(final.name + _PARTIAL)
+    try:
+        dst = sqlite3.connect(partial)
+        try:
+            conn.backup(dst)
+            # Self-contained file: no -wal/-shm companions beside a backup, which
+            # the manual restore instructions say must never travel with it.
+            dst.execute("PRAGMA journal_mode=DELETE")
+            # The snapshot was taken while this attempt was in flight. Recording
+            # its success inside the copy stops a restored catalog from settling
+            # the very backup it came from as interrupted.
+            dst.execute("UPDATE backup_attempts SET outcome='succeeded', ended_at=? WHERE attempt_id=?",
+                        (utc_now(), attempt_id))
+            dst.commit()
+            check = dst.execute("PRAGMA quick_check").fetchone()[0]
+            version = dst.execute("SELECT version FROM catalog_schema").fetchone()[0]
+        finally:
+            dst.close()
+        if check != "ok" or version != SCHEMA_VERSION:
+            raise BackupFailed("verification_failed", f"quick_check={check}, schema version={version}")
+        fd = os.open(partial, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.rename(partial, final)
+        _fsync_dir(final.parent)
+        return final.stat().st_size
+    except BackupFailed:
+        partial.unlink(missing_ok=True)
+        raise
+    except (OSError, sqlite3.Error) as exc:
+        try:
+            partial.unlink(missing_ok=True)
+        except OSError:
+            pass
+        category = "insufficient_space" if getattr(exc, "errno", None) == errno.ENOSPC or \
+            "full" in str(exc).lower() else "write_failed"
+        raise BackupFailed(category, str(exc)) from exc
+
+
+def backup_catalog(db_path, backups_dir, appdata_dir, *, trigger, related_run_id=None):
+    """Records an attempt, writes one verified snapshot, then applies retention.
+    The caller holds the engine lock (see settle_interrupted_backups).
+
+    Returns {'attempt_id', 'outcome', 'filename', 'size', 'pruned', 'error_category',
+    'error_detail'}. A failure is recorded and returned, never raised: whether it
+    stops anything is the caller's decision (a pre-action backup must; a post-job
+    backup must not turn completed work into a failure).
+    """
+    if trigger not in ("manual", "post_job", "pre_action"):
+        raise ValueError(f"unknown backup trigger: {trigger}")
+    conn = connect(db_path)
+    try:
+        require_schema(conn)
+        settle_interrupted_backups(conn, backups_dir)
+        started_at = utc_now()
+        with transaction(conn):
+            attempt_id = conn.execute(
+                "INSERT INTO backup_attempts(trigger_kind,related_run_id,started_at) VALUES(?,?,?)",
+                (trigger, related_run_id, started_at)).lastrowid
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        filename = f"{BACKUP_PREFIX}{stamp}-{attempt_id:06d}-{trigger}.db"
+        try:
+            _check_backup_storage(backups_dir, appdata_dir)
+            size = _snapshot(conn, attempt_id, Path(backups_dir) / filename)
+        except BackupFailed as exc:
+            with transaction(conn):
+                conn.execute("UPDATE backup_attempts SET outcome='failed', ended_at=?, "
+                             "error_category=?, error_detail=? WHERE attempt_id=?",
+                             (utc_now(), exc.category, exc.detail, attempt_id))
+            return {'attempt_id': attempt_id, 'outcome': 'failed', 'filename': None, 'size': None,
+                    'pruned': [], 'error_category': exc.category, 'error_detail': exc.detail}
+        now = utc_now()
+        with transaction(conn):
+            conn.execute("UPDATE backup_attempts SET outcome='succeeded', ended_at=? WHERE attempt_id=?",
+                         (now, attempt_id))
+            conn.execute("INSERT INTO backup_artifacts(attempt_id,relative_filename,size,created_at,"
+                         "availability,last_checked_at) VALUES(?,?,?,?,'present',?)",
+                         (attempt_id, filename, size, now, now))
+        # Pruned only after a new backup succeeded, so retention never leaves
+        # fewer usable backups than before the attempt.
+        pruned = prune_automatic_backups(conn, backups_dir)
+        return {'attempt_id': attempt_id, 'outcome': 'succeeded', 'filename': filename, 'size': size,
+                'pruned': pruned, 'error_category': None, 'error_detail': None}
+    finally:
+        conn.close()
+
+
+def backup_retention(conn):
+    setting = read_settings(conn).get('backup_retention')
+    return setting['value'] if setting else BACKUP_RETENTION_DEFAULT
+
+
+def _retained_automatic(conn):
+    return conn.execute(
+        "SELECT a.artifact_id, a.relative_filename FROM backup_artifacts a "
+        "JOIN backup_attempts t USING(attempt_id) "
+        "WHERE t.trigger_kind != 'manual' AND a.availability = 'present' "
+        "ORDER BY a.created_at DESC, a.artifact_id DESC").fetchall()
+
+
+def automatic_backups_beyond(conn, limit):
+    """How many automatic backups a retention limit of `limit` would remove now:
+    what Settings shows before a lower limit is applied."""
+    return max(0, len(_retained_automatic(conn)) - limit)
+
+
+def prune_automatic_backups(conn, backups_dir):
+    """Removes the oldest automatic backups beyond the retention limit. Manual
+    backups are never pruned. A file that cannot be removed stays recorded
+    present and is retried at the next prune."""
+    pruned = []
+    for artifact_id, name in _retained_automatic(conn)[backup_retention(conn):]:
+        try:
+            (Path(backups_dir) / name).unlink(missing_ok=True)
+        except OSError:
+            continue
+        with transaction(conn):
+            conn.execute("UPDATE backup_artifacts SET availability='pruned', pruned_at=? "
+                         "WHERE artifact_id=?", (utc_now(), artifact_id))
+        pruned.append(name)
+    return pruned
+
+
+def refresh_backup_availability(conn, backups_dir):
+    """Re-observes every unpruned artifact. An unreachable /backups makes each one
+    'unknown' rather than 'missing': storage trouble is not evidence of deletion."""
+    reachable = Path(backups_dir).is_dir() and os.access(backups_dir, os.R_OK | os.X_OK)
+    now = utc_now()
+    rows = conn.execute("SELECT artifact_id, relative_filename FROM backup_artifacts "
+                        "WHERE availability != 'pruned'").fetchall()
+    with transaction(conn):
+        for artifact_id, name in rows:
+            state = ('present' if (Path(backups_dir) / name).is_file() else 'missing') if reachable else 'unknown'
+            conn.execute("UPDATE backup_artifacts SET availability=?, last_checked_at=? WHERE artifact_id=?",
+                         (state, now, artifact_id))
+    return reachable

@@ -149,7 +149,7 @@ remain, plus the unfinished half of thumbnails:
 | Refiling after a date change | Any metadata correction; it is what makes the destination contract enforceable |
 | Field-level before/after | Full lineage and informed manual corrections; no undo operations |
 | A batch identity | Bulk apply reading as one action |
-| Catalog backup, inventory, trigger | Backups before curation and after processing, with retention and failure reporting |
+| Pre-action catalog backup | Curation actions; post-job and manual backups, retention and availability are built |
 | Serving a file for download | Log export and backup retrieval — API work, not engine |
 
 **The destination contract** — every file under `--dest` sits in the folder its
@@ -169,7 +169,7 @@ above. No code exists yet.
 
 ### Current database and lineage increment
 
-The shared engine-owned catalog now validates schema version 4, stores immutable
+The shared engine-owned catalog now validates schema version 5, stores immutable
 source Index evidence and per-run settings, and records successful destination
 lineage. New Copy identities retain source origin; new completed Moves retain their
 identity; reuse of an existing destination preserves both identities and links the

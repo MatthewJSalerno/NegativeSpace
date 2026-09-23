@@ -77,7 +77,7 @@ security concern, specified in `webui-spec.md` §5.6.
 ### 4.1. Input & Configuration
 *   **Source/destination separation:** The underlying source and destination folders must be distinct and non-overlapping: neither may contain the other. Different container paths are insufficient if their host folders or network-share mappings overlap. This applies to local storage and NFS alike. Overlapping mounts are unsupported and can cause unintended processing or deletion. The engine refuses to start when it can see the overlap — the same folder, one inside the other, or one directory reachable at both paths — and refuses to delete any source that is the same file as its copy. It cannot see every alias (two separate network mounts of one share look like different storage), so document this deployment requirement; do not promise automatic detection of every mount alias.
 *   **One catalog per destination:** the single-instance lock is scoped to `--base`, so two installations with different `--base` directories are not serialised against one another. Sharing one `--dest` between them is unsupported. It is not a content-safety hazard — every deletion still requires the deleting engine's own live verification of the copy it made — but it produces unexplained failures: one catalog's crash recovery removes partials by target name and can delete a partial the other is still writing; both can resolve the same free collision name and one loses the no-overwrite publish; and duplicate detection is per-catalog, so identical content can be delivered twice under different names. Several sources feeding one destination is the supported shape of that need: one catalog, several runs.
-*   **Path Definitions:** `--source` (default `/data/source`), `--dest` (default `/data/dest`), `--base` (default `/appdata`, holding `<base>/db/ns_sqlite.db` and `<base>/logs/organizer.log`), and `--cache` (default `/cache`, holding generated thumbnails under `<cache>/thumbnails/`). `--cache` is deliberately outside `--base`: everything under it is reproducible from the photos themselves and is excluded from backups, while everything under `--base` is not.
+*   **Path Definitions:** `--source` (default `/data/source`), `--dest` (default `/data/dest`), `--base` (default `/appdata`, holding `<base>/db/ns_sqlite.db` and `<base>/logs/organizer.log`), `--cache` (default `/cache`, holding generated thumbnails under `<cache>/thumbnails/`), and `--backups` (default `/backups`, holding catalog backups; see Catalog backups below). `--cache` is deliberately outside `--base`: everything under it is reproducible from the photos themselves and is excluded from backups, while everything under `--base` is not.
 *   **Tuning:**
     *   `--workers <N>` — overrides the `ProcessPoolExecutor` worker count (default: `os.cpu_count()`).
     *   `--exts <.ext1,.ext2,...>` — overrides the default extension set for directory scanning. Has no effect on `--file-ids` targeting.
@@ -97,6 +97,12 @@ security concern, specified in `webui-spec.md` §5.6.
 *   **Cancellation:** Sending `SIGTERM` or `SIGINT` during a `--move`/`--copy` run lets the file currently being copy-verified finish, then stops before starting the next one. See §4.2 for what happens to the rest of the batch. The run is recorded `Cancelling` as soon as the signal arrives and settles `Cancelled` only if cancellation stopped work that remained. A signal landing after the work finished leaves the real outcome: a finished job reads `Completed`, and a job-level failure stays `Failed` and exits `1`.
 *   **Retries:** No dedicated retry mechanism or `retry_count` tracking. Re-running the same command retries whatever's still `Pending` (including previously `Failed` files, which are reset to `Pending` by the next Index) — already-successful files are gone from `--source` and won't be reprocessed, so this is cheap even for a large batch with only a few failures.
 *   **Single-Instance Enforcement (implemented):** At startup, before touching the database, the engine acquires an exclusive OS-level lock (`fcntl.flock`, non-blocking) on a fixed lock file (`<base>/engine.lock`). If the lock is already held, the process logs a clear error and exits immediately without modifying anything — **this applies to every mode**, including Index, not just `--move`/`--copy`, since a rescan racing a physical operation on the same database is exactly as unsafe as two physical operations racing each other (see §4.2). The lock is held for the entire process lifetime and released automatically by the OS on any exit path — normal completion, an unhandled exception, or an uncatchable `SIGKILL` — so there is no manual "is the lock stale" reconciliation step needed, unlike the `runs`-table crash recovery in §4.2, which exists for a different purpose (historical accuracy of run records, not mutual exclusion). Verified directly: a lock-holding process was hard-killed (`SIGKILL`) mid-run, its lock file confirmed still present on disk with the dead process's PID in it, and a fresh invocation against the same `--base` immediately succeeded with no delay and no manual cleanup — a container being force-stopped (`docker stop` timing out into `SIGKILL`) cannot leave this lock in a state requiring intervention. Also verified: two different `--base` directories are independent locks and can run concurrently without interfering with each other.
+*   **Catalog backups:** one verified snapshot of the whole catalog (photos, lineage, history, settings; never photos or thumbnails) is written to `--backups` after every Index, Copy or Move that recorded changes — including a failed or cancelled one — once the run has settled and before the lock is released, so the snapshot holds the run's final status. An unchanged Index records nothing and is not backed up. `--backup-now` writes one manual backup and exits `0`, or `1` when it fails. It takes the engine lock like any other action and is therefore refused while a job runs. **Why not allow it during a job:** a mid-job snapshot records a catalog halfway through changes the job is still making, the post-job backup captures the finished state moments later, and a backup outside the lock could not safely settle an attempt left unfinished by a kill. Mechanics (`ns_db.backup_catalog`):
+    *   SQLite's online backup API into `<name>.partial` beside the destination, switched to `journal_mode=DELETE` so no `-wal`/`-shm` companion ever sits beside a backup, checked with `quick_check` and the schema version, fsynced, then renamed into place and the directory fsynced. The copy records its own attempt as succeeded, so a restored catalog does not settle the backup it came from as interrupted.
+    *   Storage is never created or substituted. A missing folder (`storage_unavailable`), one overlapping `--base` (`storage_overlaps_appdata`), an unwritable one (`storage_unwritable`) or the image's own `/backups` left unmounted (`storage_not_mounted`: a backup there would vanish with the container) fails the attempt with that category. Write errors are `insufficient_space` or `write_failed`; the partial file is removed.
+    *   A failed post-job backup is logged beside the job's result and never changes it, and nothing retries it automatically. An attempt found without an outcome at startup was interrupted: it is recorded so and its partial file removed.
+    *   Retention: the `backup_retention` setting (default 20) limits automatic backups. After a new backup succeeds, the oldest automatic ones beyond the limit are deleted and marked `pruned`; manual backups are never pruned. `automatic_backups_beyond(conn, n)` answers how many a lower limit would remove, before it is applied. `refresh_backup_availability` re-observes each unpruned file as `present` or `missing`, or `unknown` when `--backups` itself cannot be reached.
+    *   Files are uncompressed (`compression_format` NULL) until the compression choice in `webui-spec.md` §9 is made.
 *   **Request association:** `--request-id <id>` (1–256 characters) binds one submission to the run it creates, in the same transaction that creates it (`job_requests`, §6.5), after the single-instance lock is held and before any file work or reconciliation. Delivering the same ID again with identical input starts nothing: no run, no scan, no reconciliation. The engine logs the run the ID already created and its recorded status, and exits `4`. The same ID with different input is a conflict: nothing starts and the engine exits `3`. "Input" is what the caller submitted — mode, paths, targeting, `--workers`/`--exts` overrides, `--force-rehash`, `--no-thumbnails` and `--cache` — never the saved settings a new run would resolve today, so a settings change between two deliveries does not turn a replay into a conflict. A replayed run still in an active state is reported as not finished, not settled: marking it `Interrupted` is reconciliation, and the next run that does real work records that under itself. A run refused before acceptance (lock held, missing `--source`, overlap) records nothing, so the same ID may be used again once the cause is fixed. Without `--request-id` every invocation is a new run.
 *   **NFS caveat:** `flock` reliability is weaker over NFS, depending on the NFS server/client's `lockd`/`statd` configuration — locks that work reliably on local disk or a standard Docker volume can behave inconsistently if `--base` is ever backed by an NFS mount. Not a concern for the deployment described in §5.1 (a plain host-directory volume mount), but worth re-checking if that assumption ever changes.
 *   **Settings are fixed at process start.** `--workers`, `--exts`, and every other flag are read once at launch and never revisited — there is no live-reload concept in the engine itself. (This is already inherently true given the engine is a plain CLI process; the operational rule that a running job ignores subsequent settings changes lives at the web UI's orchestration layer — see `webui-spec.md` §3 — not here.)
@@ -178,7 +184,7 @@ catalogue, not the tree, so relocating them is a separate action.
 
         **A walk that finds nothing is refused rather than believed.** If the scan discovers no supported files at all while the catalog still holds rows under that root, no row is touched: an unmounted or detached source leaves a directory that exists and is empty, every `stat()` beneath it then reports "not found", and the sweep would otherwise condemn the whole catalogue under that root in a single pass — promoting duplicates in other archives to anchor on the strength of storage being absent. The refusal is recorded as a run-level `Failed` operation naming the root and the row count, not merely logged, and the check lives inside the sweep rather than at its call site so a future caller cannot skip it. The accepted cost: a root whose files genuinely were all removed keeps its rows, and nothing promotes their duplicates until a supported file is present there again — recoverable and visible, which a wholesale `Failed` catalogue is not. Finding *fewer* files is untouched by this; only finding *none* triggers it.
     *   **Nothing unreadable is only logged:** A folder that cannot be listed, or a file that cannot be inspected, during discovery is recorded as a `Failed` operation of the run, with `photo_id` NULL and the folder or file path as `source_path`. A scan result the database writer cannot store is rolled back on its own (each result's row and operation are one unit), and the run is then marked `Failed` without moving or copying anything, since the catalog no longer reflects what was scanned.
-    *   **Exit status:** The engine exits `0` only when the run did not fail. A `Failed` run, a missing `--source`, or a `--source` that is not a folder exits `1`; invalid arguments such as `--workers 0` exit `2`. A request ID reused for different input exits `3`, and one already accepted exits `4`; neither starts anything (§4.1). A cancelled run exits `0` — it did what was asked.
+    *   **Exit status:** The engine exits `0` only when the run did not fail. A `Failed` run, a missing `--source`, or a `--source` that is not a folder exits `1`; invalid arguments such as `--workers 0` exit `2`. `--backup-now` exits `1` when no verified backup was written. A request ID reused for different input exits `3`, and one already accepted exits `4`; neither starts anything (§4.1). A cancelled run exits `0` — it did what was asked.
     *   **ExifTool startup check:** Before touching the database or source/dest paths at all, the engine verifies both the `exiftool` binary and the `PyExifTool` package are available and exits immediately with a clear fatal error if either is missing (§3.3) — tested directly (binary hidden from `PATH`) and confirmed it fails cleanly with no directories or database files created.
 
 ### 4.3. Reporting & Feedback
@@ -219,15 +225,15 @@ catalogue, not the tree, so relocating them is a separate action.
 *   **Required system packages:** `libimage-exiftool-perl` (or platform equivalent) **must** be installed in the image — ExifTool is a hard requirement (§3.3/§4.2), not an optional extra. If it's missing, the container will still build and start, but every engine invocation will immediately exit with a fatal error rather than run in a degraded mode, since the old graceful-degradation-to-PIL behavior for a missing binary no longer applies. Worth an explicit check against the actual `Dockerfile` when adopting this change, since an older image built before this requirement may not have it installed.
 *   **Recommended: a proper subreaper as PID 1** (e.g. `tini`/`dumb-init`), general Docker hygiene independent of this specific change — each worker process spawns and manages its own ExifTool child process, and while it's cleaned up on normal worker shutdown, a subreaper ensures nothing is ever left orphaned regardless of how a process exits.
 *   **Volume Mapping:** `/data/source` (source photos), `/data/dest` (organized output), `/appdata` (SQLite DB + logs), all host-mapped.
-    Planned catalog backups use a separate `/backups` mount configured at deployment,
-    holding multiple database snapshots, not photos. Its underlying storage is chosen
-    through Docker, not application settings; no fallback to `/appdata` is permitted.
-    The underlying backup and application-data directories must be distinct and
-    non-overlapping (neither contains the other). Validate separation at startup,
-    accounting for mount aliases rather than merely comparing container path strings.
-    Detected overlap disables backup writes with a configuration error. Document the
-    host-directory requirement and container detection limits; this does not require
-    separate physical disks. This validation is planned, not implemented.
+    Catalog backups go to a separate `/backups` mount configured at deployment,
+    holding multiple database snapshots, not photos (§4.1). Its underlying storage is
+    chosen through Docker, not application settings; no fallback to `/appdata` or to
+    the container's own layer is permitted. The underlying backup and application-data
+    directories must be distinct and non-overlapping (neither contains the other).
+    Every backup attempt checks this, including one directory reached by two paths,
+    and records a detected overlap as a failed backup. Two separate network mounts of
+    one export look like different storage and are not detected, which is why the
+    host-directory requirement stays documented. Separate physical disks are not required.
 *   **Database:** **SQLite**, opened in WAL mode with a 5-second busy timeout for safe concurrent access between the writer thread and any read-only inspection. **Two synchronous levels, deliberately.** The scan path runs `synchronous=NORMAL`: it survives process death — `SIGKILL`, OOM-kill, a `docker stop` timing out — but not a power cut, and it is ~4.4x faster when committing scan results a hundred rows at a time. The Move/Copy loop opens its connection at `FULL` instead, because it commits `status = Processing` with `dest_path` *before* unlinking a source and reconciliation finds interrupted work by that marker alone; losing it to a power cut leaves a successfully delivered photo recorded `Failed`. `FULL` costs 1.42x on that path, where several fsyncs per file are already being paid, so the guarantee is bought where it matters and declined where it is expensive. The audit rows that loop writes are fsynced with it.
 
     Two asymmetries follow from that split, both deliberate and both recorded in `TODO.md` rather than left to be inferred. The **scan path keeps `NORMAL`**, so a power cut can still lose recently batched discovery failures and scan results; those rows describe reading rather than deleting, and a re-Index reproduces them. And **`reconcile_interrupted_state` also keeps `NORMAL`** — it is the repair half of this same protocol, reading the marker and settling the row from what is on disk. A cut during recovery can lose the repair, but not the filesystem evidence the repair was derived from, so the next run reaches the same conclusion again. Probably benign for that reason; recorded as a decision to make rather than an asymmetry to assume.
@@ -292,7 +298,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 4 and refuses incompatible catalogs before processing.
+initializes schema version 5 and refuses incompatible catalogs before processing.
 No migration is supplied during this development increment: preserve older catalogs
 and use a fresh development catalog. Index cannot reconstruct settings, past edits,
 or deleted-file lineage. Never describe deleting a user catalog as routine repair.
@@ -597,20 +603,26 @@ CREATE TABLE thumbnail_cache (
 CREATE INDEX idx_thumbnail_size ON thumbnail_cache(size, availability);
 
 -- An attempt is history; an artifact's availability is current observed state.
+-- outcome is NULL only while an attempt runs; one found NULL under the engine
+-- lock was interrupted.
 CREATE TABLE backup_attempts (
     attempt_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    trigger_kind TEXT NOT NULL, related_run_id INTEGER REFERENCES runs(id),
-    started_at TEXT NOT NULL, ended_at TEXT, outcome TEXT,
+    trigger_kind TEXT NOT NULL CHECK(trigger_kind IN ('manual','post_job','pre_action')),
+    related_run_id INTEGER REFERENCES runs(id),
+    started_at TEXT NOT NULL, ended_at TEXT,
+    outcome TEXT CHECK(outcome IN ('succeeded','failed','interrupted')),
     error_category TEXT, error_detail TEXT
 );
 
+-- 'pruned': retention removed the file. 'missing': gone for a reason the
+-- application did not record. 'unknown': backup storage could not be reached.
 CREATE TABLE backup_artifacts (
     artifact_id INTEGER PRIMARY KEY AUTOINCREMENT,
     attempt_id INTEGER NOT NULL UNIQUE REFERENCES backup_attempts(attempt_id),
     relative_filename TEXT NOT NULL, size INTEGER NOT NULL,
     compression_format TEXT, created_at TEXT NOT NULL,
-    availability TEXT NOT NULL CHECK(availability IN ('present','missing','unknown')),
-    last_checked_at TEXT
+    availability TEXT NOT NULL CHECK(availability IN ('present','missing','unknown','pruned')),
+    last_checked_at TEXT, pruned_at TEXT
 );
 
 CREATE INDEX idx_evidence_operation ON operation_evidence(operation_id,evidence_id);
@@ -631,7 +643,7 @@ Explicit initialization is available before Index. Settings saves use narrowly s
 
 ```sql
 CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
+    key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention')),
     value_json TEXT NOT NULL,
     revision INTEGER NOT NULL CHECK(revision > 0),
     updated_at TEXT NOT NULL
@@ -1012,7 +1024,7 @@ what it reads from.
 | **Refiling after a date change** | Any metadata correction, single or bulk | This is what makes §9.7 enforceable. Within one destination it is an **atomic rename**, not a Copy-Verify-Delete: no bytes move and there is nothing to verify. The engine already computes a file's correct folder, creates date folders durably, and resolves name collisions — what is new is the destination-to-destination move and an operation recording both paths |
 | **Field-level before/after for metadata edits** | Full lineage and informed manual correction | Preserve the original indexed information and each change, linking old/new identities when content hashes change. No user-facing undo; see §10 |
 | **A batch identity** | Bulk metadata apply | So an edit and the refile it triggers read as one action rather than two unrelated ones. `runs.run_id` is the precedent for exactly this grouping |
-| **Catalog backup, inventory and trigger** | Before curation and after processing | Each consistent database snapshot includes catalog, history and settings, never pixels or thumbnails. Multiple snapshots reside in the dedicated `/backups` Docker mount. Triggers, retention and failure behavior are defined in `webui-spec.md` §9 |
+| **Pre-action catalog backup** | Before a confirmed rename, EXIF edit or destination deletion | The engine half of backups is built (§4.1): post-job and manual snapshots, retention, availability. The `pre_action` trigger exists in the schema and `ns_db.backup_catalog` accepts it, but nothing calls it until the curation actions it guards exist. It must stop the action when it fails (`webui-spec.md` §9) |
 | **Serving a file for download** | Log export; retrieving a backup | **API work rather than engine work**, recorded here because it is the same gap twice and worth building once |
 
 **Two of these want a schema change** — field-level before/after and a batch

@@ -4,7 +4,7 @@ This is the first implementation increment toward the engine readiness design.
 The engine owns schema initialization through `ns_db.py`; a future API can use
 its scoped settings functions. The web UI is not implemented.
 
-- Explicit initialization creates a versioned catalog (currently version 4). Existing unversioned
+- Explicit initialization creates a versioned catalog (currently version 5). Existing unversioned
   catalogs are rejected without migration or replacement; preserve them and use
   a fresh development catalog for this increment.
 - Connections enforce foreign keys and bounded lock waits. Shared transactions

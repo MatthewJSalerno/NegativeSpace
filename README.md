@@ -67,6 +67,7 @@ docker run --rm \
   -v /path/to/your/photos:/data/source:ro \
   -v /path/to/organized:/data/dest \
   -v /path/to/appdata:/appdata \
+  -v /path/to/backups:/backups \
   -v /path/to/cache:/cache \
   negativespace
 ```
@@ -90,6 +91,7 @@ docker run --rm \
   -v /path/to/your/photos:/data/source \
   -v /path/to/organized:/data/dest \
   -v /path/to/appdata:/appdata \
+  -v /path/to/backups:/backups \
   negativespace python3 ns-engine.py --move
 ```
 
@@ -103,6 +105,7 @@ docker run --rm \
   -v /path/to/your/photos:/data/source:ro \
   -v /path/to/organized:/data/dest \
   -v /path/to/appdata:/appdata \
+  -v /path/to/backups:/backups \
   negativespace python3 ns-engine.py --copy
 ```
 
@@ -134,11 +137,13 @@ docker run --rm \
   - `/cache` *(optional)*: Thumbnail cache. **The scan phase writes here** unless `--no-thumbnails` is passed. Every mode begins with a scan, so a `--move` or `--copy` run generates thumbnails too; what never touches the cache is the transfer phase itself — copying, verifying and deleting ignore it entirely. It is kept separate from `/appdata` on purpose: everything in `/appdata` is irreplaceable and should be backed up, whereas every file here is reproducible from the photo it was generated from. Deleting it costs only the time to regenerate, and it should be **excluded** from backups rather than included. Mount it to keep thumbnails when the container is replaced; leave it unmounted and they live in the container's writable layer instead.
 
     Thumbnails live under `/cache/thumbnails/`, keyed by the photo's **content hash** rather than its catalog id or path, and fanned out by the hash's first two characters: `/cache/thumbnails/ab/abcdef….jpg`. The `thumbnails/` segment exists so a future cache of some other kind has an obvious place to go rather than being mixed in beside these. Byte-identical duplicates share a single thumbnail instead of generating one apiece, and the cache survives a catalog rebuild, since content hashes are stable where row ids are not.
-  - `/backups`: Catalog backups for the web interface. **The engine never writes here** — this is unused when running the engine directly as documented above.
+  - `/backups`: Catalog backups. After every Index, Copy or Move that recorded changes, the engine writes one verified, self-contained snapshot of the catalog here (`ns-catalog-<UTC time>-<attempt>-<trigger>.db`, no `-wal`/`-shm` companions). `--backup-now` writes a manual one; it takes the engine lock, so it is refused while a job runs. **This must be a mounted volume.** Left unmounted, `/backups` is just a folder inside the container, and a backup there would disappear with it, so the engine records the backup as failed instead of writing it. A failed backup is logged beside the job's result and never changes it.
+
+    The latest 20 automatic backups are kept (the `backup_retention` setting). The oldest beyond that are removed only after a newer one succeeds. Manual backups are never removed by the engine. To restore, stop the container, set the current `ns_sqlite.db` and any `-wal`/`-shm` files aside, copy the chosen backup into `/appdata/db/` as `ns_sqlite.db`, and start it again. A restored catalog does not undo anything done to photos.
 
     **Kept separate from `/appdata` on purpose, and for the opposite reason to `/cache`.** A backup written inside the directory it is backing up dies with it, and losing `/appdata` is exactly the failure a backup exists to survive. Mount it on different storage from the catalog if you can.
 
-    **Unlike `/cache`, these are not disposable.** `photos` can be rebuilt by re-running an Index, but `runs` and `operations` cannot — nothing recomputes what the engine *did*. After a `--move`, a `Removed_Duplicate` row is the only remaining evidence a file ever existed. So this directory holds the only copy of your library's history: include it in your own backups, and do not prune it the way you would a cache.
+    **Unlike `/cache`, these are not disposable.** `photos` can be rebuilt by re-running an Index, but `runs` and `operations` cannot — nothing recomputes what the engine *did*. After a `--move`, a `Removed_Duplicate` row is the only remaining evidence a file ever existed. So this directory holds the only copy of your library's history outside `/appdata`: include it in your own backups. The engine prunes only its own automatic backups beyond the retention limit; nothing else here should be treated as disposable.
 - **Persistence:** SQLite database (`ns_sqlite.db`) stores SHA1 checksums, perceptual hashes, and status to prevent re-processing across multiple runs. The storage engine is named in the file so a second store can sit beside it later without ambiguity.
 - **Date & Metadata Resolution:** ExifTool is a **hard requirement** — the engine won't start without it (both the `exiftool` binary and the `PyExifTool` Python package). It runs as a persistent process per worker rather than spawning a subprocess per file, cutting ExifTool overhead roughly 30x. PIL and file-modification-time remain as defensive per-file fallbacks for the rare case ExifTool itself fails on one specific file — see `ns-engine.py`'s module docstring for the full breakdown.
 - **Single-Instance Lock:** Only one engine process may run against a given `--base` (i.e., a given `/appdata` mount) at a time — enforced via an OS-level `flock` on `/appdata/engine.lock`.
