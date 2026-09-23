@@ -3330,12 +3330,10 @@ def main():
                 )
 
     finally:
-        if cancel_requested.is_set() and run_outcome != RunStatus.CANCELLED:
-            # Cancellation arrived during the scan phase itself (before the
-            # move/copy loop even started) — nothing file-level to log as
-            # Cancelled yet since no per-file work was scoped out, but the
-            # run itself still needs to be marked accordingly.
-            run_outcome = RunStatus.CANCELLED
+        # No relabelling on cancel_requested here. Each phase already returns
+        # Cancelled when a cancel stopped work it had left; a cancel landing
+        # after the work finished leaves the real outcome, so a job that
+        # completed reads Completed and a job-level failure still exits 1.
         finish_run(str(db_path), run_id, run_outcome)
         logger.info(f"Run #{run_id} finished with status: {run_outcome}")
         release_single_instance_lock(lock_fd)

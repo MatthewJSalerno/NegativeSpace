@@ -3191,6 +3191,85 @@ def a_replayed_interrupted_request_is_reported_not_rerun():
 
 # ------------------------------------------------------------ run lifecycle
 
+def _run_main_in_process(case, move_or_copy_result, *extra):
+    """Drives main() in-process with the transfer phase replaced by a stand-in
+    that finishes its work and THEN receives a cancel — the window a subprocess
+    cannot hit on purpose, between the last file and the run settling. The
+    source is empty, so the scan's pool never starts a worker."""
+    engine = _load_engine()
+
+    def finished_then_cancelled(*_):
+        engine.cancel_requested.set()
+        return move_or_copy_result
+
+    engine._run_move_or_copy = finished_then_cancelled
+    saved = sys.argv
+    sys.argv = ["ns-engine.py", "--source", str(case / "src"), "--dest", str(case / "dest"),
+                "--base", str(case / "appdata"), "--cache", str(case / "cache"), *extra]
+    try:
+        engine.main()
+        return 0
+    except SystemExit as exc:
+        return exc.code or 0
+    finally:
+        sys.argv = saved
+        # main() registered these; the harness's own Ctrl-C must work again.
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+
+
+@test
+def a_cancel_during_the_scan_ends_cancelled():
+    """
+    The scan phase settles its own cancellation. Pinned because a blanket
+    end-of-run relabel used to claim this job, and removing it must not leave
+    a cancelled scan reading Completed.
+    """
+    case = new_case("scan_cancel")
+    total = 240
+    for i in range(total):
+        make_photo(case / "src" / f"IMG_{i:04d}.jpg", f"scan-{i}", date=None)
+    proc = spawn_engine(case, "--workers", "1")
+    deadline = time.time() + 60
+    db_file = case / "appdata" / "db" / "ns_sqlite.db"
+    while time.time() < deadline:
+        try:
+            if db_file.exists() and rows(case, "SELECT COUNT(*) c FROM photos")[0]["c"] > 0:
+                break
+        except sqlite3.OperationalError:
+            pass  # schema not created yet
+        time.sleep(0.05)
+    proc.send_signal(signal.SIGTERM)
+    proc.communicate(timeout=180)
+
+    indexed = rows(case, "SELECT COUNT(*) c FROM photos")[0]["c"]
+    if indexed == total:
+        raise Fail("SKIP: the scan finished before SIGTERM landed — raise the file count")
+    status = rows(case, "SELECT status FROM runs")[0]["status"]
+    check((proc.returncode, status) == (0, "Cancelled"),
+          f"a scan cancelled after {indexed} of {total} files ended {status}, exit {proc.returncode}")
+
+
+@test
+def a_cancel_after_the_work_finished_does_not_relabel_the_outcome():
+    """
+    A cancel landing after the last file does not make the job Cancelled: the
+    user sees what actually happened (webui-spec 4.1). Worse, a job-level
+    failure relabelled Cancelled exits 0 and disappears as an error.
+    """
+    case = new_case("late_cancel_completed")
+    rc = _run_main_in_process(case, "Completed", "--copy")
+    statuses = [r["status"] for r in rows(case, "SELECT status FROM runs")]
+    check((rc, statuses) == (0, ["Completed"]),
+          f"a job that finished before the cancel landed was recorded {statuses}, exit {rc}")
+
+    case = new_case("late_cancel_failed")
+    rc = _run_main_in_process(case, "Failed", "--copy")
+    statuses = [r["status"] for r in rows(case, "SELECT status FROM runs")]
+    check((rc, statuses) == (1, ["Failed"]),
+          f"a failed job hit by a late cancel was recorded {statuses}, exit {rc}")
+
+
 @test
 def a_cancel_is_recorded_as_cancelling_before_the_run_settles():
     """
