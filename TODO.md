@@ -35,7 +35,7 @@ The rule: if a claim cannot be enforced, weaken the claim. Do not leave prose as
 
 ## Before the first release
 
-- [ ] **Re-introduce schema versioning.** The engine deliberately does not stamp `PRAGMA user_version` or refuse a catalog written by older code. While the schema changes often and every catalog is synthetic and rebuilt on demand, the check's only practical effect is to force a delete-and-rebuild that happens anyway — and a version constant nobody remembers to bump gives false confidence rather than protection. That calculus inverts the moment real users hold catalogs they cannot casually discard. Add the stamp and the startup refusal together, against catalogs created fresh at that point; an unstamped development catalog reads as version 0 and is refused naturally, which is the correct outcome.
+- [x] ~~**Re-introduce schema versioning.**~~ **Done with the database foundation (PR #39).** `ns_db.py` stamps `catalog_schema.version` and refuses any catalog whose version it does not recognise, rather than migrating it. The remaining pre-release decision is migration, not versioning: while every catalog is a development catalog, refusal plus a fresh Index is the whole story, and that stops being acceptable once a user holds history that cannot be recreated.
 
 ## Other
 
