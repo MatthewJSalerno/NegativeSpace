@@ -1583,6 +1583,31 @@ manual/automatic trigger, and **Download** for keeping a copy outside applicatio
 storage. A backup is one consistent SQLite file containing catalog, lineage and
 settings. Use a SQLite-supported snapshot, not an ordinary copy of a live WAL database.
 
+**Say how each backup is compressed and how to open it.** A downloaded backup is only
+useful if the user can decompress it without this application, perhaps on another
+machine. The backup screen therefore carries a standing note naming the compression
+format and the library that wrote it. Each backup in the list shows its own format,
+read from the `compression_format` recorded with that backup (`engine-spec.md` §6.5).
+Do not use one global setting: backups written before compression existed, or before
+a format change, stay in their original format, and the list must describe each file
+as it actually is. The note gives the file extension, a one-line decompress command,
+and where to get a tool, including for Windows, which ships none of these by default:
+
+| Recorded format | Shown as | Decompress | Where to get a tool |
+| :--- | :--- | :--- | :--- |
+| none (NULL) | Not compressed: a plain SQLite database, `.db` | Nothing to do | — |
+| `zstd` | Zstandard, `.db.zst` | `zstd -d <file>` | Linux: the `zstd` package (`apt install zstd`, `dnf install zstd`). macOS: `brew install zstd`. Windows: the `win64` zip on the project's releases page, https://github.com/facebook/zstd/releases |
+| `xz` | XZ, `.db.xz` | `xz -d <file>` | Linux: the `xz-utils` / `xz` package. macOS: `brew install xz`. Windows: the `windows.zip` from https://tukaani.org/xz/ |
+| `gzip` | gzip, `.db.gz` | `gzip -d <file>` | Preinstalled on Linux and macOS. Windows: any archive tool that opens `.gz` |
+
+Link the note to the manual restoration steps below, and state that the decompressed
+file is the catalog database itself, which can be placed as `ns_sqlite.db` without any
+other conversion. Name the library in plain words ("compressed with Zstandard") and
+keep the command copyable; do not require the user to know what a codec is. The table
+lists the candidate formats while the choice below is open. Once one is selected, keep
+its row and the uncompressed row: backups from before compression existed stay
+uncompressed and must still be described.
+
 **Backup storage is configured through Docker before startup.** A dedicated volume
 mount exposes the fixed container path `/backups`, containing multiple catalog
 database snapshots, never photo backups. The deployer chooses the underlying storage
