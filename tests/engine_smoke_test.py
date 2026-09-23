@@ -34,6 +34,7 @@ Exit code is non-zero if any test fails.
 """
 
 import argparse
+import contextlib
 import json
 import os
 import shutil
@@ -42,6 +43,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -619,7 +621,9 @@ def sigterm_during_move_cancels_cleanly():
     proc = spawn_engine(case, "--move")
     check(wait_for_move_to_start(case), "move never started")
     proc.send_signal(signal.SIGTERM)
-    proc.wait(timeout=180)
+    # communicate, not wait: the engine logs to a pipe, and a full pipe would
+    # block it forever against a wait() that never reads.
+    output, _ = proc.communicate(timeout=180)
 
     run_row = rows(case, "SELECT status FROM runs ORDER BY id DESC LIMIT 1")[0]
     if run_row["status"] == "Completed":
@@ -628,6 +632,10 @@ def sigterm_during_move_cancels_cleanly():
         raise Fail("SKIP: move completed before SIGTERM landed — raise the file "
                    "count or size in this test to exercise cancellation")
     check(run_row["status"] == "Cancelled", f"run should be Cancelled, got {run_row['status']}")
+    # The watcher is what makes Cancelling visible while the current file
+    # finishes; the in-process test proves the watcher, this proves main()
+    # actually starts it.
+    check("is Cancelling." in output, "the run never recorded Cancelling before it settled")
     cancelled = rows(case, "SELECT COUNT(*) c FROM operations WHERE status = 'Cancelled'")[0]["c"]
     check(cancelled > 0, "expected some files logged as Cancelled")
     stuck = rows(case, "SELECT COUNT(*) c FROM photos WHERE status = 'Processing'")[0]["c"]
@@ -679,8 +687,11 @@ def sigkill_during_move_is_reconciled_and_loses_nothing():
     run_engine(case)
     stuck = rows(case, "SELECT COUNT(*) c FROM photos WHERE status = 'Processing'")[0]["c"]
     check(stuck == 0, "reconciliation left rows stuck in Processing")
-    crashed = rows(case, "SELECT COUNT(*) c FROM runs WHERE status = 'Crashed'")[0]["c"]
-    check(crashed >= 1, "the killed run should have been marked Crashed on the next startup")
+    killed = rows(case, "SELECT ended_at, reconciled_by_run_id FROM runs WHERE status = 'Interrupted'")
+    check(len(killed) == 1, f"the killed run should have been marked Interrupted, got {len(killed)}")
+    reconciler = rows(case, "SELECT MAX(id) m FROM runs")[0]["m"]
+    check(killed[0] == {"ended_at": None, "reconciled_by_run_id": reconciler},
+          f"an Interrupted run must name its reconciler and claim no end time: {killed[0]}")
     leftover = list((case / "dest").rglob("*.organizing.partial*"))
     check(not leftover, f"orphaned partial files were not cleaned up: {leftover}")
 
@@ -3174,8 +3185,114 @@ def a_replayed_interrupted_request_is_reported_not_rerun():
 
     run_engine(case)
     statuses = [r["status"] for r in rows(case, "SELECT status FROM runs ORDER BY id")]
-    check(statuses == ["Crashed", "Completed"],
+    check(statuses == ["Interrupted", "Completed"],
           f"the next real run did not reconcile the interrupted one: {statuses}")
+
+
+# ------------------------------------------------------------ run lifecycle
+
+def _run_main_in_process(case, move_or_copy_result, *extra):
+    """Drives main() in-process with the transfer phase replaced by a stand-in
+    that finishes its work and THEN receives a cancel — the window a subprocess
+    cannot hit on purpose, between the last file and the run settling. The
+    source is empty, so the scan's pool never starts a worker."""
+    engine = _load_engine()
+
+    def finished_then_cancelled(*_):
+        engine.cancel_requested.set()
+        return move_or_copy_result
+
+    engine._run_move_or_copy = finished_then_cancelled
+    saved = sys.argv
+    sys.argv = ["ns-engine.py", "--source", str(case / "src"), "--dest", str(case / "dest"),
+                "--base", str(case / "appdata"), "--cache", str(case / "cache"), *extra]
+    try:
+        engine.main()
+        return 0
+    except SystemExit as exc:
+        return exc.code or 0
+    finally:
+        sys.argv = saved
+        # main() registered these; the harness's own Ctrl-C must work again.
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGINT, signal.default_int_handler)
+
+
+@test
+def a_cancel_during_the_scan_ends_cancelled():
+    """
+    The scan phase settles its own cancellation. Pinned because a blanket
+    end-of-run relabel used to claim this job, and removing it must not leave
+    a cancelled scan reading Completed.
+    """
+    case = new_case("scan_cancel")
+    total = 240
+    for i in range(total):
+        make_photo(case / "src" / f"IMG_{i:04d}.jpg", f"scan-{i}", date=None)
+    proc = spawn_engine(case, "--workers", "1")
+    deadline = time.time() + 60
+    db_file = case / "appdata" / "db" / "ns_sqlite.db"
+    while time.time() < deadline:
+        try:
+            if db_file.exists() and rows(case, "SELECT COUNT(*) c FROM photos")[0]["c"] > 0:
+                break
+        except sqlite3.OperationalError:
+            pass  # schema not created yet
+        time.sleep(0.05)
+    proc.send_signal(signal.SIGTERM)
+    proc.communicate(timeout=180)
+
+    indexed = rows(case, "SELECT COUNT(*) c FROM photos")[0]["c"]
+    if indexed == total:
+        raise Fail("SKIP: the scan finished before SIGTERM landed — raise the file count")
+    status = rows(case, "SELECT status FROM runs")[0]["status"]
+    check((proc.returncode, status) == (0, "Cancelled"),
+          f"a scan cancelled after {indexed} of {total} files ended {status}, exit {proc.returncode}")
+
+
+@test
+def a_cancel_after_the_work_finished_does_not_relabel_the_outcome():
+    """
+    A cancel landing after the last file does not make the job Cancelled: the
+    user sees what actually happened (webui-spec 4.1). Worse, a job-level
+    failure relabelled Cancelled exits 0 and disappears as an error.
+    """
+    case = new_case("late_cancel_completed")
+    rc = _run_main_in_process(case, "Completed", "--copy")
+    statuses = [r["status"] for r in rows(case, "SELECT status FROM runs")]
+    check((rc, statuses) == (0, ["Completed"]),
+          f"a job that finished before the cancel landed was recorded {statuses}, exit {rc}")
+
+    case = new_case("late_cancel_failed")
+    rc = _run_main_in_process(case, "Failed", "--copy")
+    statuses = [r["status"] for r in rows(case, "SELECT status FROM runs")]
+    check((rc, statuses) == (1, ["Failed"]),
+          f"a failed job hit by a late cancel was recorded {statuses}, exit {rc}")
+
+
+@test
+def a_cancel_is_recorded_as_cancelling_before_the_run_settles():
+    """
+    Cancelling is visible while the current file finishes, so the UI can say the
+    request was accepted without claiming it took effect. Written by a watcher
+    thread, since a signal handler may interrupt the main thread mid-transaction.
+    """
+    case = new_case("cancelling_state")
+    engine = _load_engine()
+    db_path = case / "appdata" / "ns.db"
+    engine.init_database(str(db_path))
+    run_id, _ = engine.start_run(str(db_path), "MOVE", "/s", "/d", None)
+    with contextlib.closing(engine.get_db_connection(str(db_path))) as conn:
+        engine.ns_db.transition_run(conn, run_id, "Running")
+    watcher = threading.Thread(target=engine.watch_for_cancellation, args=(str(db_path), run_id))
+    watcher.start()
+    engine.cancel_requested.set()
+    watcher.join(timeout=10)
+    check(not watcher.is_alive(), "the cancellation watcher did not finish")
+    status = lambda: sqlite3.connect(db_path).execute("SELECT status FROM runs").fetchone()[0]
+    check(status() == "Cancelling", f"a received cancel was recorded as {status()}")
+    engine.finish_run(str(db_path), run_id, "Cancelled")
+    check(status() == "Cancelled", f"a cancelling run settled as {status()}")
 
 
 @test
@@ -3184,8 +3301,9 @@ def every_catalog_timestamp_carries_its_offset():
     Application event times are timezone-aware UTC (engine-spec 4.3). One row
     mixing a zoned start with a naive end cannot give a duration — Python
     refuses to subtract them, and read as the same zone they are off by the
-    host's UTC offset. Covers each writer: run start and finish, an operation
-    settled after its intent, and a run marked Crashed by reconciliation.
+    host's UTC offset. Covers each writer: run start and finish, and an
+    operation settled after its intent. An Interrupted run has no end time to
+    check; see sigkill_during_move_is_reconciled_and_loses_nothing.
     """
     from datetime import datetime
     case = new_case("utc_timestamps")
@@ -3193,18 +3311,11 @@ def every_catalog_timestamp_carries_its_offset():
     make_photo(case / "src" / "dupe.jpg", "a")
     run_engine(case)
     run_engine(case, "--move")
-    conn = db(case)
-    conn.execute("UPDATE runs SET status = 'Running', ended_at = NULL WHERE id = 1")
-    conn.commit()
-    conn.close()
-    run_engine(case)
 
     stamps = [("runs.started_at", r["started_at"]) for r in rows(case, "SELECT started_at FROM runs")]
     stamps += [("runs.ended_at", r["ended_at"]) for r in rows(case, "SELECT ended_at FROM runs")]
     stamps += [("operations.timestamp", r["timestamp"])
                for r in rows(case, "SELECT timestamp FROM operations")]
-    check(any(r["status"] == "Crashed" for r in rows(case, "SELECT status FROM runs")),
-          "setup did not produce a Crashed run")
     naive = [(col, v) for col, v in stamps if v is None or datetime.fromisoformat(v).tzinfo is None]
     check(not naive, f"timestamps without an offset: {naive}")
 

@@ -280,7 +280,9 @@ When a job is active, a progress drawer expands at the bottom of the viewport.
 * **Job Control:** Provides a **Cancel Job** button. Sends `SIGTERM` to the engine subprocess (§6.2 `jobs/{id}/cancel`). During the **Index/scan** phase the engine stops at the next batch boundary and skips the move/copy phase entirely (everything already indexed is kept, so re-running continues where it left off) — note the UI should not expect per-file `Cancelled` rows for a scan-phase cancellation, since no physical work was scoped out yet. During **Move/Copy**, the file currently being copy-verified finishes normally, then every remaining targeted file is logged to the `operations` audit table with status `Cancelled` (not silently dropped — visible in the run's history afterward) and duplicate-source cleanup for that run is skipped entirely.
 * **Cancellation feedback:** after the cancellation request is accepted, show
   **“Cancellation requested—waiting for the current work to stop safely.”** Keep
-  progress and elapsed time visible and disable repeated Cancel clicks. Do not show
+  progress and elapsed time visible and disable repeated Cancel clicks. The engine
+  records `Cancelling` as soon as the signal arrives. That confirms the request
+  arrived, not that work has stopped. Do not show
   **Cancelled** until the engine confirms that outcome; if the job completed before
   cancellation took effect, show its actual result. The final summary shows recorded
   completed, failed and remaining/cancelled counts where known, without inventing a
@@ -698,12 +700,13 @@ Job responses should carry both: the lifecycle status **and** the derived counts
 
 | condition | display |
 |---|---|
-| `runs.status` is `Running` | in progress, with live counts |
+| `runs.status` is `Preparing` / `Running` | in progress, with live counts |
+| `runs.status` is `Cancelling` | cancellation requested, still stopping (§4.1); keep counts live |
 | succeeded > 0, failed = 0 | success |
 | succeeded > 0, failed > 0 | partial success — surface the failed count and link the Error Center |
 | succeeded = 0, failed > 0 | **failure**, regardless of `runs.status` being `Completed` |
 | no changes, no failures or scan issues, and run completed | neutral completion with prominent counts and skip reasons; not an error |
-| `runs.status` is `Cancelled` / `Crashed` / `Failed` | that status wins; still show counts for what was done before it ended |
+| `runs.status` is `Cancelled` / `Interrupted` / `Failed` | that status wins; still show counts for what was done before it ended. `Interrupted` has no end time; show its duration as unavailable (§4.1) |
 
 **No-change results lead with counts.** For example, **“0 of 120 files moved ·
 120 skipped”**, followed by **“All 120 are already recorded as delivered to the
@@ -756,14 +759,16 @@ operations are not implemented yet.
 
 Only one engine process may run at a time — see `engine-spec.md` §4.1/§7 for the engine-level guarantee (an OS-level `flock`, held for the whole process lifetime, released automatically even on a hard `SIGKILL`). This is enforced in two layers, not one:
 
-* **Fast pre-check (FastAPI):** Before spawning the engine, `POST /api/v1/jobs/start` probes the engine's own lock: a non-blocking `flock` on `<base>/engine.lock`. If the lock is held, an engine is running, and it returns `409 Conflict` immediately — no subprocess is spawned, and the response includes the newest `Running` run's `id`, `mode`, and `started_at` so the frontend can show *"A Move operation is already in progress (started 2 minutes ago) — wait for it to finish or cancel it."* The Rescan/Move/Copy buttons should all be disabled client-side whenever a job is known to be active, so this 409 is a backstop for races (e.g. two tabs), not the primary UX.
+* **Fast pre-check (FastAPI):** Before spawning the engine, `POST /api/v1/jobs/start` probes the engine's own lock: a non-blocking `flock` on `<base>/engine.lock`. If the lock is held, an engine is running, and it returns `409 Conflict` immediately — no subprocess is spawned, and the response includes the newest active run's (`Preparing`, `Running` or `Cancelling`) `id`, `mode`, and `started_at` so the frontend can show *"A Move operation is already in progress (started 2 minutes ago) — wait for it to finish or cancel it."* The Rescan/Move/Copy buttons should all be disabled client-side whenever a job is known to be active, so this 409 is a backstop for races (e.g. two tabs), not the primary UX.
 
-  The pre-check must not decide from `runs.status = 'Running'` alone. A row orphaned by a crash stays `Running` until the next engine run reconciles it, so a pre-check that trusted the table would refuse to start that very run: every job blocked, permanently, by a process that no longer exists. If the probe *acquires* the lock, any `Running` rows are stale; settle them as in the restart case below before releasing the probe and spawning. Two requests can still race between the probe's release and the engine's own acquisition. The engine's lock decides, and the losing engine exits non-zero with its FATAL message, which the API reports as a 409.
+  The pre-check must not decide from an active `runs.status` alone. A row orphaned by a crash stays active until the next engine run reconciles it, so a pre-check that trusted the table would refuse to start that very run: every job blocked, permanently, by a process that no longer exists. If the probe *acquires* the lock, any active rows are stale, and the engine about to be spawned marks them `Interrupted` during its own startup. Two requests can still race between the probe's release and the engine's own acquisition. The engine's lock decides, and the losing engine exits non-zero with its FATAL message, which the API reports as a 409.
 * **Authoritative guarantee (engine):** The `flock` in `engine-spec.md` §4.1 is what actually prevents data corruption if the fast check above is ever wrong or stale — see the FastAPI-restart case below. Even if FastAPI's own bookkeeping says "nothing running" incorrectly, a second engine process attempting to start will still be refused by the lock and exit cleanly with a logged error, never silently racing a real in-progress run.
 
-**FastAPI-restart edge case:** if FastAPI itself restarts (redeploy, crash) while a job is running, its in-memory job/WebSocket-subscriber state is lost, but the engine subprocess is *not* killed by its parent dying — it keeps running under the protection of its own lock. On startup, FastAPI should reconcile this by querying `runs` for any `status = 'Running'` row. Two cases:
+**FastAPI-restart edge case:** if FastAPI itself restarts (redeploy, crash) while a job is running, its in-memory job/WebSocket-subscriber state is lost, but the engine subprocess is *not* killed by its parent dying — it keeps running under the protection of its own lock. On startup, FastAPI finds such a job by querying `runs` for any row in an active state (`Preparing`, `Running`, `Cancelling`). Two cases:
 1. **The engine process is genuinely still alive** (the common case) — FastAPI should treat this as an active job for UI purposes (allow reconnecting clients to replay/stream it per §4.1) without being able to directly re-attach to the subprocess's stdout; the `operations` log is what makes this possible without that direct attachment.
-2. **The engine process crashed too, before its own next-run reconciliation ever got a chance to mark that row `Crashed`** (`engine-spec.md` §4.2) — this is a double-failure case (both the engine and FastAPI went down around the same time) that would otherwise leave a phantom `Running` row until someone happens to run the engine again. FastAPI can distinguish the two cases on its own startup by attempting a **non-blocking `flock` on the same lock file as a liveness probe** — if it succeeds (nothing holds the lock), no engine process owns any `Running` row. **While still holding the probe lock**, FastAPI records the IDs of the `Running` rows it found, marks exactly those `Crashed`, and only then releases the probe, rather than waiting for a future engine invocation to notice. Releasing first would let a new engine start in between and create its own `Running` row, which a blanket `UPDATE ... WHERE status = 'Running'` would then mark `Crashed` while it runs.
+2. **The engine process died too, before a later engine run could mark that row `Interrupted`** (`engine-spec.md` §4.2) — a double failure that leaves an active row with nothing behind it. FastAPI tells the two cases apart with a **non-blocking `flock` on the same lock file as a liveness probe**: if the probe acquires it, no engine owns any active row. FastAPI then **presents** those rows as interrupted, awaiting reconciliation, with duration unavailable. It does not write them. The next engine run records them `Interrupted` and names itself as the run that found them.
+
+   **Why the API does not mark them itself:** run lifecycle and history are engine-owned; the API's write scope is settings. An `Interrupted` row names the run that reconciled it, and the API is not a run. Settling the run record alone would also leave its files unsettled: rows still `Processing`, partials on disk, operations with intent and no outcome. Only engine startup reconciliation settles those, and it does both together.
 
 ### 5.8 Index Is a Precondition for Move and Copy
 
@@ -866,7 +871,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 3 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 4 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
