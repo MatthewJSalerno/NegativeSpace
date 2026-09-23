@@ -119,6 +119,16 @@ categories are defined in `webui-spec.md` §3.1.
 Because exactly one key is accepted, `date_source` is sufficient to answer which
 field a placement came from — `exif` means `DateTimeOriginal` and nothing else.
 
+**A catalogue written under a looser rule does not correct itself.** The
+unchanged-file skip (§4.2) compares size and mtime and never re-reads a file that
+matches, so a photo already recorded with a placement from some other date field
+keeps it indefinitely: a plain re-Index changes nothing. `--force-rehash` re-reads
+the sources and re-applies the current rule. Verified by constructing exactly that
+state — a file catalogued under a looser rule stayed in the dated tree across a
+re-Index and moved to `Undated/<year>` only under `--force-rehash`. Files already
+delivered to a destination are a further step: re-reading a source updates the
+catalogue, not the tree, so relocating them is a separate action.
+
 *   **Deduplication:**
     *   **Exact Match:** Files with identical SHA1 hashes (excluding the file's own row, and excluding other rows already flagged `Duplicate`/`Removed_Duplicate`, to prevent a duplicate pair from cascading into mutually flagging each other across repeated scans) are flagged `status = 'Duplicate'`.
     *   **Duplicate removal (`--move` only):** After all targeted `Pending` files are processed, the engine looks up each `Duplicate`-flagged file's matching `Completed` row. **Scoped to the same targeting as the run itself** (`--file-ids` / `--source-subdir` / whole library) — a selective operation never deletes duplicate source files outside the user's selection. Only if a verified copy is confirmed present on disk at that row's `dest_path` is the duplicate's source file deleted (status becomes `Removed_Duplicate`). If no verified copy is found, the source file is left in place and a warning is logged — this prevents data loss in the case where the "kept" copy's own migration failed. Skipped entirely if the run was cancelled (see below).
