@@ -11,7 +11,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 class PhotoStatus:
     """State of one source file in the catalog. One row per source_path."""
@@ -25,12 +25,15 @@ class PhotoStatus:
 
 
 class RunStatus:
-    """Outcome of one engine invocation."""
-    RUNNING = "Running"
-    COMPLETED = "Completed"
-    CANCELLED = "Cancelled"
-    FAILED = "Failed"
-    CRASHED = "Crashed"                       # left 'Running' by an unclean exit, marked at next startup
+    """Lifecycle of one engine invocation. Says whether the process ran to its end,
+    not whether the work succeeded: a Completed run can hold every file Failed."""
+    PREPARING = "Preparing"                   # accepted; reconciling earlier work before any file work
+    RUNNING = "Running"                       # doing the requested file work
+    CANCELLING = "Cancelling"                 # cancel received; current work is stopping safely
+    COMPLETED = "Completed"                   # ran to its end
+    CANCELLED = "Cancelled"                   # cancellation stopped work that remained
+    FAILED = "Failed"                         # a job-level error prevented normal completion
+    INTERRUPTED = "Interrupted"               # died without settling; marked by the next run's startup
 
 
 # 'Cancelled' appears in the audit log but never on a photo: work cancelled
@@ -52,9 +55,25 @@ PHOTO_STATUSES = (
 )
 OPERATION_STATUSES = PHOTO_STATUSES + (OPERATION_CANCELLED, OPERATION_SKIPPED)
 RUN_STATUSES = (
-    RunStatus.RUNNING, RunStatus.COMPLETED, RunStatus.CANCELLED,
-    RunStatus.FAILED, RunStatus.CRASHED,
+    RunStatus.PREPARING, RunStatus.RUNNING, RunStatus.CANCELLING, RunStatus.COMPLETED,
+    RunStatus.CANCELLED, RunStatus.FAILED, RunStatus.INTERRUPTED,
 )
+# A run in one of these may still own the active-operation slot. Only a process
+# holding the engine lock can tell a live one from a dead one.
+ACTIVE_RUN_STATUSES = (RunStatus.PREPARING, RunStatus.RUNNING, RunStatus.CANCELLING)
+# Allowed moves, keyed by the state being left. Terminal states have none.
+# Cancelling may still end Completed: a job that finished before cancellation
+# took effect reports what actually happened. Preparing never ends Completed,
+# because no requested work has run. Interrupted is written only by another
+# run's reconciliation, never by the run itself.
+RUN_TRANSITIONS = {
+    RunStatus.PREPARING: {RunStatus.RUNNING, RunStatus.CANCELLING, RunStatus.CANCELLED,
+                          RunStatus.FAILED, RunStatus.INTERRUPTED},
+    RunStatus.RUNNING: {RunStatus.CANCELLING, RunStatus.COMPLETED, RunStatus.CANCELLED,
+                        RunStatus.FAILED, RunStatus.INTERRUPTED},
+    RunStatus.CANCELLING: {RunStatus.COMPLETED, RunStatus.CANCELLED, RunStatus.FAILED,
+                           RunStatus.INTERRUPTED},
+}
 
 
 def sql_values(values):
@@ -90,6 +109,10 @@ def _create_legacy_tables(conn):
             started_at TEXT NOT NULL,
             ended_at TEXT,
             status TEXT NOT NULL,
+            -- The run whose startup found this one dead. ended_at stays NULL
+            -- then: the moment of death is unknown, and the reconciler's
+            -- start is when it was noticed, not when it ended.
+            reconciled_by_run_id INTEGER REFERENCES runs(id),
             CHECK (status IN ({sql_values(RUN_STATUSES)}))
         )
     """)
@@ -198,8 +221,8 @@ def _json(value):
 
 
 FOUNDATION_DDL = (
-    "CREATE TABLE catalog_schema (version INTEGER NOT NULL CHECK(version=3))",
-    "INSERT INTO catalog_schema VALUES (3)",
+    f"CREATE TABLE catalog_schema (version INTEGER NOT NULL CHECK(version={SCHEMA_VERSION}))",
+    f"INSERT INTO catalog_schema VALUES ({SCHEMA_VERSION})",
     """CREATE TABLE files (
         file_id INTEGER PRIMARY KEY AUTOINCREMENT,
         created_run_id INTEGER NOT NULL REFERENCES runs(id),
@@ -444,12 +467,34 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
         config.update({k: v['value'] for k,v in read_settings(conn).items()})
         config.update(overrides or {})
         cur = conn.execute("INSERT INTO runs(mode,source_path,dest_path,file_ids_filter,started_at,status) VALUES(?,?,?,?,?,?)",
-                           (mode, source, destination, _json(targeting) if targeting else None, utc_now(), RunStatus.RUNNING))
+                           (mode, source, destination, _json(targeting) if targeting else None, utc_now(), RunStatus.PREPARING))
         run_id = cur.lastrowid
         conn.execute("INSERT INTO run_configs VALUES(?,?)", (run_id, _json(config)))
         if request_id is not None:
             conn.execute("INSERT INTO job_requests VALUES(?,?,?)", (request_id, run_id, payload))
         return run_id, True
+
+
+def transition_run(conn, run_id, to, *, reconciled_by=None):
+    """Moves a run to `to` if RUN_TRANSITIONS allows it from its current state.
+
+    Returns False, changing nothing, when the run has already left every state `to`
+    may follow: a cancellation arriving after the run settled is a no-op, not an
+    error. Callers that require the move (the run settling itself) check the result.
+    A terminal state stamps ended_at, except Interrupted, whose end is unknown.
+    """
+    if to == RunStatus.INTERRUPTED and reconciled_by is None:
+        raise ValueError("Interrupted is recorded by the run that found it")
+    sources = [s for s, targets in RUN_TRANSITIONS.items() if to in targets]
+    # Every state reachable here except these three ends the run.
+    ended_at = None if to in (RunStatus.RUNNING, RunStatus.CANCELLING, RunStatus.INTERRUPTED) else utc_now()
+    with transaction(conn):
+        cur = conn.execute(
+            f"UPDATE runs SET status=?, ended_at=COALESCE(?, ended_at), "
+            f"reconciled_by_run_id=COALESCE(?, reconciled_by_run_id) "
+            f"WHERE id=? AND status IN ({','.join('?' * len(sources))})",
+            (to, ended_at, reconciled_by, run_id, *sources))
+        return cur.rowcount == 1
 
 
 def record_source_observation(conn, *, photo_id, run_id, source_path, sha1_hash,

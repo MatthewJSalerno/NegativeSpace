@@ -361,4 +361,41 @@ class DatabaseTests(unittest.TestCase):
         db.initialize(self.path)
         self.assertEqual(db.read_settings(self.conn)['exts']['value'],['.jpg','.png'])
 
+    def run_row(self, run):
+        return self.conn.execute("SELECT status,ended_at,reconciled_by_run_id FROM runs WHERE id=?",
+                                 (run,)).fetchone()
+
+    def test_run_lifecycle_follows_the_approved_transitions(self):
+        run = self.run_record()
+        self.assertEqual(self.run_row(run), ('Preparing', None, None))
+        self.assertFalse(db.transition_run(self.conn, run, 'Completed'),
+                         'a run that never started its work cannot end Completed')
+        self.assertTrue(db.transition_run(self.conn, run, 'Running'))
+        self.assertTrue(db.transition_run(self.conn, run, 'Cancelling'))
+        self.assertIsNone(self.run_row(run)[1], 'an active state must not stamp an end time')
+        # A job that finished before its cancellation took effect reports what happened.
+        self.assertTrue(db.transition_run(self.conn, run, 'Completed'))
+        status, ended, _ = self.run_row(run)
+        self.assertEqual(status, 'Completed')
+        self.assertIsNotNone(ended)
+        for later in ('Cancelling', 'Running', 'Failed', 'Cancelled'):
+            self.assertFalse(db.transition_run(self.conn, run, later), f'terminal run moved to {later}')
+        self.assertEqual(self.run_row(run)[:2], ('Completed', ended))
+
+    def test_interrupted_names_its_reconciler_and_claims_no_end_time(self):
+        dead, reconciler = self.run_record(), self.run_record()
+        with self.assertRaises(ValueError):
+            db.transition_run(self.conn, dead, 'Interrupted')
+        self.assertTrue(db.transition_run(self.conn, dead, 'Interrupted', reconciled_by=reconciler))
+        self.assertEqual(self.run_row(dead), ('Interrupted', None, reconciler))
+
+    def test_every_run_status_is_accepted_by_the_schema(self):
+        self.assertEqual(set(db.RUN_STATUSES),
+                         set(db.RUN_TRANSITIONS) | set().union(*db.RUN_TRANSITIONS.values()))
+        for status in db.RUN_STATUSES:
+            with db.transaction(self.conn):
+                self.conn.execute("INSERT INTO runs(mode,started_at,status) VALUES('INDEX','t',?)", (status,))
+        with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
+            self.conn.execute("INSERT INTO runs(mode,started_at,status) VALUES('INDEX','t','Crashed')")
+
 if __name__ == '__main__':unittest.main()

@@ -71,9 +71,10 @@ needs to be redone.
 
 No result is ever silently lost across crashes either: a run interrupted by
 something uncatchable (SIGKILL, OOM-kill, power loss) leaves its `runs` row
-at status='Running' with no end time — the next invocation's startup
-reconciliation detects this and marks it 'Crashed' with a real end
-timestamp, rather than leaving a phantom "still running" entry forever.
+in an active state (Preparing, Running or Cancelling) — the next invocation's
+startup reconciliation marks it 'Interrupted' and records itself as the run
+that found it, rather than leaving a phantom "still running" entry forever.
+The end time stays unknown: reconciliation is when the death was noticed.
 
 System & Python Dependencies:
 - System Binary (HARD REQUIREMENT — the engine refuses to start without
@@ -540,6 +541,21 @@ def _handle_cancel_signal(signum, frame):
     cancel_requested.set()
 
 
+def watch_for_cancellation(db_path: str, run_id: int):
+    """Records Cancelling as soon as a cancel arrives, so a reader sees the request
+    was accepted while the current file finishes. A thread rather than the signal
+    handler: a handler runs between arbitrary bytecodes of the main thread, possibly
+    inside one of its transactions. Losing this write loses only the interim state;
+    the terminal status is written by the run itself either way."""
+    cancel_requested.wait()
+    try:
+        with contextlib.closing(get_db_connection(db_path)) as conn:
+            if ns_db.transition_run(conn, run_id, RunStatus.CANCELLING):
+                logger.info(f"Run #{run_id} is Cancelling.")
+    except Exception as exc:
+        logger.warning(f"Could not record run #{run_id} as Cancelling: {exc}")
+
+
 # --- Resilient Network IO Wrapper ---
 # Conditions that are a property of the path or the filesystem, not a hiccup.
 # Retrying these cannot possibly succeed, and sleeping through the backoff
@@ -663,12 +679,12 @@ def start_run(
 
 
 def finish_run(db_path: str, run_id: int, status: str):
-    """Finalizes the `runs` row — called on normal completion, cancellation, or crash."""
+    """Finalizes the `runs` row — called on normal completion, cancellation, or failure."""
     conn = get_db_connection(db_path)
-    conn.execute(
-        "UPDATE runs SET status = ?, ended_at = ? WHERE id = ?",
-        (status, ns_db.utc_now(), run_id)
-    )
+    if not ns_db.transition_run(conn, run_id, status):
+        # Only another run's reconciliation settles a run, and it cannot while
+        # this process holds the lock — so this is a defect, not a race.
+        raise RuntimeError(f"run #{run_id} could not move to {status}: it had already settled")
     conn.commit()
     conn.close()
 
@@ -1092,7 +1108,7 @@ def _observe(path: Path):
         return "unreadable"
 
 
-def reconcile_interrupted_state(db_path: Path, run_id: Optional[int] = None):
+def reconcile_interrupted_state(db_path: Path, run_id: int):
     """
     Settles work a previous run left mid-flight by OBSERVING, recording what it
     observed, and only then concluding.
@@ -1257,22 +1273,20 @@ def reconcile_interrupted_state(db_path: Path, run_id: Optional[int] = None):
             logger.info(f"Reconciled interrupted record {record_id} as {final}.")
 
         # A run killed uncatchably never reaches finish_run(), so its row stays
-        # Running with no end time. This process holds the single-instance lock,
-        # so no other run can still be alive: mark them Crashed.
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='runs';")
-        if cursor.fetchone():
-            conn.execute("BEGIN IMMEDIATE")
-            cursor.execute("SELECT id FROM runs WHERE status = ? AND id != ?",
-                           (RunStatus.RUNNING, run_id if run_id is not None else -1))
-            # Deliberately not `run_id`: rebinding the loop variable would destroy
-            # the reconciling run's own id, which the evidence above is written
-            # against.
-            for (crashed_run_id,) in cursor.fetchall():
-                logger.warning(f"Run #{crashed_run_id} was left 'Running' by an unclean "
-                               f"shutdown - marking Crashed.")
-                cursor.execute("UPDATE runs SET status = ?, ended_at = ? WHERE id = ?",
-                               (RunStatus.CRASHED, ns_db.utc_now(), crashed_run_id))
-            conn.commit()
+        # in an active state with no end time. This process holds the
+        # single-instance lock, so no other run can still be alive: mark them
+        # Interrupted, naming this run as the one that found them. The end time
+        # stays unknown — now is when the death was noticed, not when it happened.
+        placeholders = ','.join('?' * len(ns_db.ACTIVE_RUN_STATUSES))
+        dead = conn.execute(
+            f"SELECT id, status FROM runs WHERE status IN ({placeholders}) AND id != ?",
+            (*ns_db.ACTIVE_RUN_STATUSES, run_id)).fetchall()
+        # Deliberately not `run_id`: rebinding it would destroy the reconciling
+        # run's own id, which the evidence above is written against.
+        for dead_run_id, was in dead:
+            logger.warning(f"Run #{dead_run_id} was left '{was}' by an unclean shutdown - "
+                           f"marking Interrupted.")
+            ns_db.transition_run(conn, dead_run_id, RunStatus.INTERRUPTED, reconciled_by=run_id)
     except BaseException:
         # Never swallowed. A failed reconciliation leaves rows Processing, and a
         # run that continued would treat an unsettled catalog as settled.
@@ -3047,7 +3061,7 @@ def main():
         with contextlib.closing(get_db_connection(str(db_path))) as conn:
             status = conn.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()[0]
         note = (" It did not finish; the next run will reconcile it."
-                if status == RunStatus.RUNNING else "")
+                if status in ns_db.ACTIVE_RUN_STATUSES else "")
         logger.warning(
             f"Request ID {args.request_id!r} was already accepted as run #{run_id} "
             f"(recorded status: {status}). Nothing was started.{note}"
@@ -3059,10 +3073,12 @@ def main():
             "SELECT effective_config_json FROM run_configs WHERE run_id=?", (run_id,)
         ).fetchone()[0])
     worker_count, active_extensions = config["workers"], set(config["exts"])
+    threading.Thread(target=watch_for_cancellation, args=(str(db_path), run_id),
+                     daemon=True).start()
     # Reconciled AFTER the run exists, so what it concludes is recorded as
     # operations of this run rather than as silently rewritten statuses.
     # Outside the try/finally below, so a raised failure would otherwise leave
-    # the run Running forever. Settle it here instead of swallowing the error.
+    # the run Preparing forever. Settle it here instead of swallowing the error.
     try:
         reconcile_interrupted_state(db_path, run_id)
     except Exception as exc:
@@ -3070,6 +3086,10 @@ def main():
         finish_run(str(db_path), run_id, RunStatus.FAILED)
         release_single_instance_lock(lock_fd)
         sys.exit(1)
+    # Preparing ends here: earlier work is settled and the requested work starts.
+    # A no-op if a cancel already moved the run to Cancelling.
+    with contextlib.closing(get_db_connection(str(db_path))) as conn:
+        ns_db.transition_run(conn, run_id, RunStatus.RUNNING)
     run_outcome = RunStatus.FAILED
 
     try:
