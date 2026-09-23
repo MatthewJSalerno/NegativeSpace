@@ -3,8 +3,9 @@
 # BACKUP_DIR and APPDATA_DIR must also be distinct and non-overlapping:
 # neither may contain the other, including through symlinks or mount aliases.
 # Different container paths do not ensure separate backing storage.
-# /backups holds multiple catalog snapshots, NOT photos. Backup generation and
-# startup overlap validation remain planned; this file only configures storage.
+# /backups holds multiple catalog snapshots, NOT photos. The engine writes one
+# after every job that recorded changes and on --backup-now, and refuses (records a
+# failed backup) when /backups is missing, unmounted, unwritable or overlaps /appdata.
 services:
   ns-engine:
     build: .
