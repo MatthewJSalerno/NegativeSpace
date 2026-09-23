@@ -332,8 +332,13 @@ When a job is active, a progress drawer expands at the bottom of the viewport.
   resend the Start request. If it is confirmed that no job started, re-enable Start
   for an explicit user submission; if the outcome remains unknown, say so and offer
   **View job history** and another status check without claiming it failed.
-  Reliable association between a Start request and its resulting job remains an
-  API design requirement; matching only by timing or mode is not sufficient.
+  Association is by request ID, never by timing or mode: the API passes each
+  submission's ID to the engine as `--request-id`, and the engine records it with
+  the run before any file work (`engine-spec.md` §4.1). A `job_requests` row for the
+  ID identifies the job. No row while the engine lock is free means no job started.
+  No row while the lock is held means the outcome is still unknown, because the
+  engine may not have accepted the request yet. Duplicate delivery of one ID never
+  runs twice.
 * **Lost response after confirming a photo action:** use **“Checking job status…”**
   for rename, EXIF edit and deletion as well. Look up the recorded job/action,
   including completed actions, and display its recorded outcome with **View job log**.

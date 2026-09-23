@@ -155,7 +155,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
-from typing import Optional, Callable, Any, List
+from typing import Optional, Callable, Any, List, Tuple
 
 # --- Configuration & Constants ---
 MAX_WORKER_PROCESSES = os.cpu_count() or 4
@@ -251,6 +251,13 @@ _NO_HARDLINK_ERRNOS = frozenset({errno.EPERM, errno.ENOTSUP, errno.EOPNOTSUPP})
 # tolerated; anything else propagates.
 _DIR_FSYNC_UNSUPPORTED_ERRNOS = frozenset({errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP})
 LOCK_FILENAME = "engine.lock"
+
+# Exit codes for a run started with --request-id that did NOT start work. Both
+# are distinct from 1 (failed) so the caller can tell "already accepted" and
+# "ID reused for different input" apart from an engine error without parsing
+# the log. Neither creates a run, touches a file or reconciles earlier work.
+EXIT_REQUEST_CONFLICT = 3
+EXIT_REQUEST_ALREADY_ACCEPTED = 4
 
 # Recorded in each photo's metadata_json as "date_source", so it is always
 # answerable after the fact where a file's date — and therefore its YYYY/MM/DD
@@ -627,14 +634,18 @@ def init_database(db_path: str):
 def start_run(
     db_path: str, mode: str, source_path: str, dest_path: str,
     file_ids: Optional[List[int]], source_subdir: Optional[str] = None,
-    *, defaults=None, overrides=None
-) -> int:
+    *, defaults=None, overrides=None, request_id=None, submitted=None
+) -> Tuple[int, bool]:
     """
-    Inserts the `runs` row for this invocation and returns its id.
+    Inserts the `runs` row for this invocation and returns (run_id, created).
     `file_ids` and `source_subdir` are mutually exclusive targeting
     mechanisms (enforced at the CLI level) — at most one is ever set.
     Persisted as a self-describing JSON object so the audit trail can tell
     which targeting mechanism (if any) scoped the run.
+
+    With a `request_id` already bound to identical input, no row is inserted:
+    created is False and run_id is the run that request produced. The same ID
+    with different input raises ns_db.RequestConflict.
     """
     if file_ids:
         targeting_filter = json.dumps({"file_ids": file_ids})
@@ -643,12 +654,12 @@ def start_run(
     else:
         targeting_filter = None
     with contextlib.closing(get_db_connection(db_path, synchronous="FULL")) as conn:
-        run_id, _ = ns_db.create_run(
+        return ns_db.create_run(
             conn, mode=mode, source=source_path, destination=dest_path,
             targeting=json.loads(targeting_filter) if targeting_filter else None,
             defaults=defaults, overrides=overrides,
+            request_id=request_id, submitted=submitted,
         )
-        return run_id
 
 
 def finish_run(db_path: str, run_id: int, status: str):
@@ -2755,6 +2766,14 @@ def positive_int(value: str) -> int:
     return number
 
 
+def request_id_arg(value: str) -> str:
+    """argparse type for --request-id: the same bounds ns_db.create_run enforces,
+    reported as a usage error instead of a traceback after the lock is taken."""
+    if not value or len(value) > 256:
+        raise argparse.ArgumentTypeError("must be 1 to 256 characters")
+    return value
+
+
 def parse_file_ids(value: str) -> List[int]:
     try:
         return [int(x.strip()) for x in value.split(',') if x.strip()]
@@ -2828,6 +2847,14 @@ def main():
              "last Index. Normally unchanged files are skipped without being read at all, which "
              "is what makes re-indexing fast; use this to verify content that changed without "
              "size or mtime moving."
+    )
+    parser.add_argument(
+        "--request-id", type=request_id_arg, default=None,
+        help="Caller-chosen ID for this submission, stored with the run before any file work. "
+             "Repeating it with identical arguments starts nothing and exits "
+             f"{EXIT_REQUEST_ALREADY_ACCEPTED}, logging the run it already created; repeating it "
+             f"with different arguments starts nothing and exits {EXIT_REQUEST_CONFLICT}. "
+             "A deliberate new attempt needs a new ID."
     )
     targeting_group = parser.add_mutually_exclusive_group()
     targeting_group.add_argument(
@@ -2991,12 +3018,42 @@ def main():
     # forever from a crash.
     signal.signal(signal.SIGTERM, _handle_cancel_signal)
     signal.signal(signal.SIGINT, _handle_cancel_signal)
-    run_id = start_run(
-        str(db_path), mode_label, str(source_path), str(dest_path), args.file_ids, args.source_subdir,
-        defaults={"workers": MAX_WORKER_PROCESSES, "exts": sorted(SUPPORTED_EXTENSIONS)},
-        overrides={**({"workers": args.workers} if args.workers is not None else {}),
-                   **({"exts": sorted(normalize_extensions(args.exts))} if args.exts is not None else {})},
-    )
+    # The flags that change what a run does but are not settings. Part of the
+    # request's identity so that repeating an ID with, say, --force-rehash added
+    # is a conflict rather than a silent replay of the run without it.
+    submitted = {"force_rehash": args.force_rehash,
+                 "thumbnails": not args.no_thumbnails,
+                 "cache": str(Path(args.cache).resolve())}
+    try:
+        run_id, created = start_run(
+            str(db_path), mode_label, str(source_path), str(dest_path), args.file_ids, args.source_subdir,
+            defaults={"workers": MAX_WORKER_PROCESSES, "exts": sorted(SUPPORTED_EXTENSIONS)},
+            overrides={**({"workers": args.workers} if args.workers is not None else {}),
+                       **({"exts": sorted(normalize_extensions(args.exts))} if args.exts is not None else {})},
+            request_id=args.request_id, submitted=submitted,
+        )
+    except ns_db.RequestConflict:
+        logger.error(
+            f"FATAL: request ID {args.request_id!r} was already used for a different submission. "
+            f"Nothing was started. A new attempt needs a new request ID."
+        )
+        release_single_instance_lock(lock_fd)
+        sys.exit(EXIT_REQUEST_CONFLICT)
+    if not created:
+        # Duplicate delivery of an accepted request: report, never re-execute.
+        # A run still recorded Running cannot be alive — this process holds the
+        # lock — but settling it is reconciliation, which the next run that does
+        # real work performs and records under itself.
+        with contextlib.closing(get_db_connection(str(db_path))) as conn:
+            status = conn.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()[0]
+        note = (" It did not finish; the next run will reconcile it."
+                if status == RunStatus.RUNNING else "")
+        logger.warning(
+            f"Request ID {args.request_id!r} was already accepted as run #{run_id} "
+            f"(recorded status: {status}). Nothing was started.{note}"
+        )
+        release_single_instance_lock(lock_fd)
+        sys.exit(EXIT_REQUEST_ALREADY_ACCEPTED)
     with contextlib.closing(get_db_connection(str(db_path))) as config_conn:
         config = json.loads(config_conn.execute(
             "SELECT effective_config_json FROM run_configs WHERE run_id=?", (run_id,)
