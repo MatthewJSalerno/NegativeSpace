@@ -801,6 +801,16 @@ def orphaned_thumbnails(conn):
         "WHERE NOT EXISTS (SELECT 1 FROM photos p WHERE p.sha1_hash = c.digest)").fetchall()
 
 
+def present_thumbnails(conn, size):
+    """Every cache entry of one size that names a file: (content_id, cache_filename).
+    Failed and absent rows are left out - they name no file, and they keep the reason
+    a photo has no preview."""
+    return conn.execute(
+        "SELECT content_id, cache_filename FROM thumbnail_cache "
+        "WHERE size = ? AND availability = 'present' AND cache_filename IS NOT NULL",
+        (size,)).fetchall()
+
+
 def forget_thumbnail(conn, content_id, size):
     """Removes one cache entry's record; the content identity it belonged to stays."""
     with transaction(conn):
