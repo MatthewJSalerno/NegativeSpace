@@ -290,6 +290,23 @@ def exts_accepts_bare_and_dotted():
 
 
 @test
+def an_unreadable_selected_extension_is_warned_about():
+    """
+    Selecting an extension is the user's call and never blocked (webui-spec 3.2),
+    but a format the engine cannot read as a photo is still catalogued and still
+    carried into the destination by Copy and Move, so every run that selects one
+    says so, naming it. A run selecting only supported formats says nothing.
+    """
+    case = new_case("exts_unreadable")
+    make_photo(case / "src" / "a.jpg", "a")
+    (case / "src" / "clip.mov").write_bytes(b"not a photo")
+    out = engine_output(run_engine(case, "--exts", "jpg,mov"))
+    check("cannot read as photos: .mov" in out, f"a selected .mov was not warned about:\n{out[-1200:]}")
+    out = engine_output(run_engine(case, "--exts", "jpg,png,dng"))
+    check("cannot read as photos" not in out, "a run selecting only supported formats warned")
+
+
+@test
 def move_preserves_distinct_photos_sharing_a_filename():
     """Move: two different photos named alike both survive; neither overwrites the other."""
     case = new_case("collision")
@@ -769,7 +786,7 @@ def real_raw_files_decode_when_supplied():
     raw_dir = os.environ.get("NS_TEST_RAW_DIR")
     if not raw_dir or not Path(raw_dir).is_dir():
         raise Fail("SKIP: set NS_TEST_RAW_DIR to a folder of real RAW files to run this")
-    # Kept in step with RAW_EXTENSIONS in ns-engine.py. A filter narrower than
+    # Kept in step with RAW_EXTENSIONS in ns_db.py. A filter narrower than
     # the engine's advertised set silently skips the very fixtures it is given
     # — a missing .cr3 would make a Canon fixture look like "no RAW files
     # found" rather than a decode failure.

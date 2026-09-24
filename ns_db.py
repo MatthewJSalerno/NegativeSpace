@@ -83,6 +83,65 @@ RUN_TRANSITIONS = {
 }
 
 
+# Extensions scanned by default. A missing entry is worse than a failure: the
+# file is not indexed, not counted, not reported — it is simply invisible, and
+# you find out when it is still sitting in the source folder after an organize
+# pass. So every spelling of a format is listed ('.tif' and '.tiff'; '.jpg',
+# '.jpeg', '.jpe' and '.jfif').
+# Formats that need rawpy/LibRaw to decode. PIL cannot open these at all, so
+# compute_phash() routes them to the RAW branch; a format that reached PIL
+# instead would always fail its perceptual hash.
+RAW_EXTENSIONS = {
+    '.raw', '.dng',           # generic / Adobe
+    '.cr2', '.cr3', '.crw',   # Canon
+    '.nef', '.nrw',           # Nikon
+    '.arw', '.srf', '.sr2',   # Sony
+    '.raf',                   # Fujifilm
+    '.orf',                   # Olympus
+    '.rw2',                   # Panasonic
+    '.pef', '.ptx',           # Pentax
+    '.srw',                   # Samsung
+    '.erf',                   # Epson
+    '.3fr', '.fff',           # Hasselblad
+    '.iiq',                   # Phase One
+    '.mos',                   # Leaf
+    '.mrw',                   # Minolta
+    '.x3f',                   # Sigma
+}
+
+# Everything PIL can open directly.
+RASTER_EXTENSIONS = {
+    '.jpg', '.jpeg', '.jpe', '.jfif', '.png', '.gif', '.bmp', '.webp',
+    '.tif', '.tiff', '.heic', '.heif', '.avif',
+}
+
+# Derived, never hand-maintained: a RAW format in SUPPORTED_EXTENSIONS but not
+# RAW_EXTENSIONS would be discovered by the scan, handed to PIL, and silently
+# store "error" as the perceptual hash of every file of that type.
+SUPPORTED_EXTENSIONS = RASTER_EXTENSIONS | RAW_EXTENSIONS
+
+
+def extension_support(extension):
+    """What the engine does with files of this extension, for Settings (the API's
+    validate-extension) and the run log. Informative, never blocking: a user may
+    select any extension (webui-spec 3.2).
+
+    Returns {'extension', 'supported', 'warning'}. `supported` means the engine reads
+    the format as a photo: it decodes it for the perceptual hash and the thumbnail, and
+    ExifTool reads its metadata. An unsupported extension still gets catalogued, and
+    Copy and Move still carry its files into the destination, so the warning says so.
+    """
+    ext = str(extension).strip().lower()
+    ext = ext if ext.startswith(".") else "." + ext
+    if ext in SUPPORTED_EXTENSIONS:
+        return {"extension": ext, "supported": True, "warning": None}
+    return {"extension": ext, "supported": False,
+            "warning": (f"NegativeSpace cannot read {ext} files as photos. They would still be "
+                        f"catalogued, and Copy and Move would carry them into the destination, "
+                        f"usually under Undated/<year> by modification time, with no thumbnail "
+                        f"and no similarity matching.")}
+
+
 def sql_values(values):
     if any(not value.replace("_", "").isalnum() for value in values):
         raise ValueError("invalid status constant")

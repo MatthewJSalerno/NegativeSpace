@@ -479,4 +479,14 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
             self.conn.execute("INSERT INTO run_discovery VALUES (?,5,3,1,'{}',0)", (other,))
 
+    def test_extension_support_names_what_the_engine_can_read(self):
+        for ext in ('.jpg', 'JPG', 'png', '.CR3', '.dng', '.heic'):
+            got = db.extension_support(ext)
+            self.assertTrue(got['supported'], ext)
+            self.assertIsNone(got['warning'], ext)
+        mov = db.extension_support('mov')
+        self.assertEqual((mov['extension'], mov['supported']), ('.mov', False))
+        self.assertIn('Copy and Move would carry them into the destination', mov['warning'])
+        self.assertEqual(db.SUPPORTED_EXTENSIONS, db.RASTER_EXTENSIONS | db.RAW_EXTENSIONS)
+
 if __name__ == '__main__':unittest.main()

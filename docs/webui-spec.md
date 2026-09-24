@@ -227,13 +227,23 @@ The current catalog retains the mtime fallback in `date_taken`, labelled with
 `date_source = 'file_mtime'`; the interface must not call it a capture date. If mtime
 cannot be read, the read failure must remain visible rather than inventing a year.
 
-### 3.2 Extension EXIF Support Validation Subsystem
-When a user attempts to add or select a custom extension in the settings panel or via API, the backend/UI validates it against a metadata-support registry:
+### 3.2 Extension Support Validation
+When a user adds or selects an extension in the settings panel or via the API, the
+backend checks it with `ns_db.extension_support`, which knows exactly which formats the
+engine reads as photos: the 13 raster and 23 RAW extensions in `engine-spec.md` §4.1.
 
-1. **Standard EXIF Image Formats (Native Support):** `.jpg`, `.jpeg`, `.tiff`, `.tif`, `.heic`, `.heif`, `.webp`, and RAW formats (`.cr2`, `.cr3`, `.nef`, `.arw`, `.dng`, `.rw2`, `.orf`, `.pef`).
-2. **Non-EXIF Formats (Trigger Non-Blocking Warning):** Container formats or plain files (e.g., `.png`, `.bmp`, `.gif`, `.mp4`, `.mov`, `.mkv`, `.avi`, `.txt`).
-3. **UI Warning UX:** Explain that files without a usable capture date go to `Undated/<year>`, using modification time only for the year subdivision.
-4. **Validation Behavior:** The warning is **informative/non-blocking**. Users can still add file types. Extension hints do not replace inspection of actual metadata; placement follows the capture-date policy in §3.1.
+1. **Supported:** no warning. Whether a particular file carries a capture date is a
+   per-file matter, handled by the Undated review (§3.1), not by its extension.
+2. **Not supported** (for example `.mov`, `.mp4`, `.xmp`, `.txt`): a non-blocking
+   warning that such files are still catalogued, and that Copy and Move still carry
+   them into the destination — usually under `Undated/<year>` by modification time —
+   with no thumbnail and no similarity matching.
+3. **Never blocking:** the user may keep the extension. Every engine run that selects
+   one repeats the warning in its log, naming the extensions.
+
+**Why not warn about PNG, GIF and BMP as "non-EXIF":** the engine reads them, and
+ExifTool reads whatever metadata they carry; a warning keyed to the extension would be
+wrong for every such file that does carry a date.
 
 ---
 
@@ -930,7 +940,7 @@ Thumbnails are not a column on `photos`: they belong to content and live in
 ### 6.2 Key REST API Endpoints
 POST /api/v1/settings/validate-extension
 
-Validates whether a provided file extension supports EXIF metadata.
+Reports whether the engine reads a file extension as a photo (`ns_db.extension_support`).
 
     Request Body:
     JSON
@@ -944,8 +954,8 @@ Validates whether a provided file extension supports EXIF metadata.
 
     {
       "extension": ".mp4",
-      "supports_exif": false,
-      "warning": "Files without a usable capture date go to Undated/<year>, using their modification year."
+      "supported": false,
+      "warning": "NegativeSpace cannot read .mp4 files as photos. They would still be catalogued, and Copy and Move would carry them into the destination, usually under Undated/<year> by modification time, with no thumbnail and no similarity matching."
     }
 
 GET /api/v1/settings

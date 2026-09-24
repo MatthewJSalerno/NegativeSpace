@@ -132,7 +132,7 @@ existing=$(find "$SAMPLE_ABS" -mindepth 1 | wc -l)
     echo "          can redirect the build into the library; clear it first" >&2
     exit 2 ; }
 
-# Kept in step with RASTER_EXTENSIONS and RAW_EXTENSIONS in ns-engine.py: a
+# Kept in step with RASTER_EXTENSIONS and RAW_EXTENSIONS in ns_db.py: a
 # sampler matching less than the engine supports hides whole formats from
 # every validation run.
 RASTER='jpg|jpeg|jpe|jfif|png|gif|bmp|webp|tif|tiff|heic|heif|avif'
