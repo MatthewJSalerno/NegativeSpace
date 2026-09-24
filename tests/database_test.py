@@ -447,4 +447,25 @@ class DatabaseTests(unittest.TestCase):
                          'the uncompressed snapshot was left beside the published backup')
         self.assertTrue(ok['filename'].endswith('.db.zst'))
 
+    def test_unbacked_changes_count_only_real_changes_after_the_last_backup(self):
+        store = self.backups()
+        early = self.run_record()
+        def op(run, status, when):
+            with db.transaction(self.conn):
+                self.conn.execute("INSERT INTO operations(run_id, status, timestamp) VALUES (?,?,?)",
+                                  (run, status, when))
+        op(early, 'Pending', '2026-01-01T00:00:00+00:00')
+        self.assertEqual(db.unbacked_changes(self.conn), (1, None, [early]))
+        db.backup_catalog(self.path, store, Path(self.tmp.name) / 'appdata', trigger='manual')
+        self.assertEqual(db.unbacked_changes(self.conn)[0], 0, 'a record older than the backup counted')
+        later = self.run_record()
+        op(later, 'Skipped', '2099-01-01T00:00:00+00:00')
+        op(later, 'Cancelled', '2099-01-01T00:00:00+00:00')
+        self.assertEqual(db.unbacked_changes(self.conn)[0], 0, 'Skipped/Cancelled rows are not changes')
+        op(later, 'Copied', '2099-01-01T00:00:00+00:00')
+        count, since, runs = db.unbacked_changes(self.conn)
+        self.assertEqual((count, runs), (1, [later]))
+        self.assertIsNotNone(since)
+        self.assertEqual(db.unbacked_changes(self.conn, exclude_run_id=later)[0], 0)
+
 if __name__ == '__main__':unittest.main()

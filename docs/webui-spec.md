@@ -1658,7 +1658,7 @@ up; if there is no successful backup, say so. The user may create a manual backu
 or let the next normally required backup occur. A new backup captures the current
 catalog, not a reconstruction of its state at interruption. A failed or incomplete
 snapshot must not be offered as a usable backup. Subsequent successful backups can
-resolve the outstanding warning without erasing the historical failure record.
+resolve the outstanding warning without erasing the historical failure record. The engine supplies this: `ns_db.unbacked_changes` counts the catalog records no successful backup holds, excluding `Skipped` and `Cancelled` rows because they record that nothing was done, and names the runs they came from and the last successful backup's time. Every engine start logs the same warning when that count is above zero. The API reads the function for the Settings warning.
 
 Keep the **latest 20 automatic backups by default**, configurable in Settings.
 Prune the oldest only after a new backup succeeds. Manual backups remain until the

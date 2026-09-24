@@ -38,3 +38,8 @@ services:
           create_host_path: false
     # Run Index by default; no automatic restart of file-processing operations.
     command: ["python3", "ns-engine.py"]
+    # docker stop sends a cancel and, by default, kills the engine 10 s later. A
+    # graceful cancel finishes the file being copied, records the rest Cancelled
+    # and takes a catalog backup; a large file over a network share can outlast
+    # 10 s, and a kill mid-cancel leaves the run Interrupted instead of Cancelled.
+    stop_grace_period: 5m

@@ -688,8 +688,11 @@ def sigkill_during_move_is_reconciled_and_loses_nothing():
             missing.append(r["source_path"])
     check(not missing, f"photos vanished from both source and destination after SIGKILL: {missing[:5]}")
 
-    # The next invocation must reconcile the interrupted state.
-    run_engine(case)
+    # The next invocation must reconcile the interrupted state, and say that the
+    # killed run's changes were never backed up (webui-spec 9).
+    recovery = run_engine(case)
+    check("are not in any backup" in engine_output(recovery),
+          "the run after a hard kill did not report the killed run's unbacked changes")
     stuck = rows(case, "SELECT COUNT(*) c FROM photos WHERE status = 'Processing'")[0]["c"]
     check(stuck == 0, "reconciliation left rows stuck in Processing")
     killed = rows(case, "SELECT ended_at, reconciled_by_run_id FROM runs WHERE status = 'Interrupted'")
@@ -2479,6 +2482,43 @@ def _move_in_process(engine, case):
 
 
 @test
+def cancelling_a_large_selection_commits_its_bookkeeping_once():
+    """
+    A cancel records every photo it did not reach as Cancelled. The move loop's
+    connection commits at FULL, so one commit per row was one fsync per row:
+    ~17 s for 24,000 photos on real disk, which outlasted docker stop's 10 s
+    grace and got a real run killed mid-cancel. The rows must go in one commit.
+    """
+    engine = _load_engine()
+    case = new_case("cancel_bookkeeping")
+    for i in range(40):
+        make_photo(case / "src" / f"p{i:02d}.jpg", f"cancel-{i}", date=None)
+    run_engine(case)
+    commits = []
+    real_get = engine.get_db_connection
+
+    def counting(path, *a, **kw):
+        conn = real_get(path, *a, **kw)
+        conn.set_trace_callback(lambda sql: commits.append(sql) if sql.strip().upper().startswith("COMMIT") else None)
+        return conn
+
+    engine.get_db_connection = counting
+    engine.cancel_requested.set()   # before the first file: all 40 are unreached
+    try:
+        outcome = _move_in_process(engine, case)
+    finally:
+        engine.get_db_connection = real_get
+        engine.cancel_requested.clear()
+    check(outcome == "Cancelled", f"the move did not report Cancelled, got {outcome}")
+    cancelled = rows(case, "SELECT COUNT(*) c FROM operations WHERE status = 'Cancelled'")[0]["c"]
+    check(cancelled == 40, f"expected 40 photos recorded Cancelled, got {cancelled}")
+    check(len(commits) < 5, f"cancelling 40 photos took {len(commits)} commits; it must not scale with them")
+    check(len(src_files(case)) == 40, "a move cancelled before its first file removed sources")
+    check(not (case / "dest").exists() or not any((case / "dest").rglob("*.jpg")),
+          "a move cancelled before its first file delivered files")
+
+
+@test
 def the_already_present_deletion_establishes_the_ancestor_barrier():
     """
     A source deleted against a copy an EARLIER run delivered must still have
@@ -3551,6 +3591,30 @@ def retention_prunes_only_automatic_backups_and_only_after_a_success():
           f"retention kept the wrong backups: {states}")
     present = sorted(g["relative_filename"] for g in got if g["availability"] == "present")
     check(backup_files(case) == present, f"files on disk {backup_files(case)} != recorded {present}")
+
+
+@test
+def changes_left_out_of_every_backup_are_reported_until_backed_up():
+    """
+    webui-spec 9: when a post-job backup fails or never happens, say so at the
+    next start - how much is unbacked and when the last good backup was - and
+    point at --backup-now. Never back up automatically at startup. Once a
+    backup succeeds, the warning is gone.
+    """
+    case = new_case("unbacked_warning")
+    make_photo(case / "src" / "a.jpg", "a")
+    (case / "backups").rmdir()
+    run_engine(case)                       # indexes, but its backup fails
+    (case / "backups").mkdir()
+
+    out = engine_output(run_engine(case))  # records nothing itself
+    check("are not in any backup" in out and "no successful backup yet" in out and "run(s) #1" in out,
+          f"the unbacked changes of run 1 were not reported:\n{out[-1500:]}")
+    check(len(backups_of(case)) == 1, "startup took a backup; it must only report")
+
+    run_engine(case, "--backup-now")
+    out = engine_output(run_engine(case))
+    check("are not in any backup" not in out, "the warning survived a successful backup")
 
 
 @test

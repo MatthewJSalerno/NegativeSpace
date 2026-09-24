@@ -3178,6 +3178,17 @@ def main():
         if settled:
             logger.warning(f"{settled} catalog backup attempt(s) were interrupted before finishing; "
                            f"recorded as interrupted. Nothing retries them automatically.")
+        # After reconciliation, before this run's work: what an interrupted run or a
+        # failed backup left outside every backup. Reported, never backed up here.
+        unbacked, since, runs = ns_db.unbacked_changes(conn, exclude_run_id=run_id)
+        if unbacked:
+            last = (f"the last successful backup was taken {since}" if since
+                    else "there is no successful backup yet")
+            logger.warning(
+                f"{unbacked:,} catalog change(s) from run(s) "
+                f"{', '.join('#' + str(r) for r in runs)} are not in any backup ({last}). "
+                f"Run --backup-now to back them up now. Nothing is backed up automatically "
+                f"at startup; this run takes a backup when it finishes if it records changes.")
         ns_db.transition_run(conn, run_id, RunStatus.RUNNING)
     run_outcome = RunStatus.FAILED
 
@@ -3787,9 +3798,16 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             was_cancelled = True
             remaining = pending_records[index:]
             logger.warning(f"Cancellation requested — logging {len(remaining)} remaining item(s) as Cancelled.")
+            # One transaction, not one per row. This connection commits at FULL, so a
+            # commit per row was an fsync per row: ~17 s for 24,000 remaining photos,
+            # longer than docker stop's default 10 s grace, which then killed the run
+            # mid-cancel. All-or-nothing is the right failure mode anyway: a kill
+            # during this commit loses only bookkeeping, the photos stay Pending, and
+            # the run is recorded Interrupted.
             for cancelled_id, cancelled_src, cancelled_dst, _ in remaining:
                 log_operation(conn, run_id, cancelled_id, cancelled_src, cancelled_dst,
-                              OPERATION_CANCELLED)
+                              OPERATION_CANCELLED, commit=False)
+            conn.commit()
             break
 
         # The same recent-rate progress the scan reports, so a long transfer

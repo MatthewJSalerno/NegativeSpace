@@ -996,6 +996,29 @@ def backup_catalog(db_path, backups_dir, appdata_dir, *, trigger, related_run_id
         conn.close()
 
 
+def unbacked_changes(conn, *, exclude_run_id=None):
+    """Catalog records no successful backup holds: operations written after the newest
+    successful backup started, other than Skipped and Cancelled rows, which record that
+    nothing was done. Returns (count, newest successful backup's start or None, sorted
+    run ids). `exclude_run_id` leaves out a run still in progress, whose own post-job
+    backup will cover it. webui-spec 9: report this after an interruption or a failed
+    backup; never take a backup automatically at startup."""
+    row = conn.execute("SELECT started_at FROM backup_attempts WHERE outcome = 'succeeded' "
+                       "ORDER BY julianday(started_at) DESC LIMIT 1").fetchone()
+    since = row[0] if row else None
+    sql = ("SELECT COUNT(*), GROUP_CONCAT(DISTINCT run_id) FROM operations "
+           "WHERE status NOT IN (?, ?)")
+    params = [OPERATION_SKIPPED, OPERATION_CANCELLED]
+    if since:
+        sql += " AND julianday(timestamp) > julianday(?)"
+        params.append(since)
+    if exclude_run_id is not None:
+        sql += " AND run_id != ?"
+        params.append(exclude_run_id)
+    count, runs = conn.execute(sql, params).fetchone()
+    return count, since, sorted(int(r) for r in runs.split(",")) if runs else []
+
+
 def backup_retention(conn):
     setting = read_settings(conn).get('backup_retention')
     return setting['value'] if setting else BACKUP_RETENTION_DEFAULT
