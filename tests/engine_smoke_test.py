@@ -2480,6 +2480,49 @@ def _move_in_process(engine, case):
 
 
 @test
+def startup_reconciliation_commits_at_full_synchronous():
+    """
+    TODO.md claim 13. Recovery records evidence and attention state:
+    conclusions from observations that may not be repeatable, because storage
+    disappears and files are replaced between runs. A power cut must not be
+    able to take the repair while leaving the next run to guess again, so the
+    reconciling connection commits at FULL. Pins the level of every connection
+    reconciliation opens, with a real interrupted row for it to settle.
+    """
+    engine = _load_engine()
+    case = new_case("reconcile_full")
+    make_photo(case / "src" / "a.jpg", "a")
+    run_engine(case)
+    db_file = str(case / "appdata" / "db" / "ns_sqlite.db")
+    conn = db(case)
+    # The state an interrupted Move leaves: a row mid-flight whose destination
+    # never appeared.
+    conn.execute("UPDATE photos SET status = 'Processing'")
+    conn.execute("INSERT INTO runs(mode, started_at, status) VALUES ('MOVE', ?, 'Running')",
+                 ("2026-01-01T00:00:00+00:00",))
+    conn.commit()
+    run_id = conn.execute("SELECT MAX(id) FROM runs").fetchone()[0]
+    conn.close()
+
+    levels = []
+    real_get = engine.get_db_connection
+
+    def recording(path, *a, **kw):
+        c = real_get(path, *a, **kw)
+        levels.append(c.execute("PRAGMA synchronous").fetchone()[0])  # 2 is FULL
+        return c
+
+    engine.get_db_connection = recording
+    try:
+        engine.reconcile_interrupted_state(Path(db_file), run_id)
+    finally:
+        engine.get_db_connection = real_get
+    check(levels and set(levels) == {2}, f"reconciliation opened connections at levels {levels}, not FULL")
+    status = rows(case, "SELECT status FROM photos")[0]["status"]
+    check(status != "Processing", "reconciliation left the interrupted row unsettled; the test exercised nothing")
+
+
+@test
 def cancelling_a_large_selection_commits_its_bookkeeping_once():
     """
     A cancel records every photo it did not reach as Cancelled. The move loop's
@@ -2819,6 +2862,31 @@ def a_settled_run_fsyncs_the_history_its_scan_committed_at_normal():
     check(settle_levels == [2], f"the run settled on connections at levels {settle_levels}, not FULL")
     check(backup_levels and set(backup_levels) == {2},
           f"the backup recorded its outcome at levels {backup_levels}, not FULL")
+
+
+@test
+def a_delivered_copy_keeps_its_source_mtime_exactly():
+    """
+    TODO.md claim 7. An undated photo is filed by its modification time, and a
+    destination re-processed later (engine-spec 9.2) files it again by the mtime
+    it finds, so a copy that drifted even by a second could move it across a
+    year boundary. Checked to the nanosecond, for Copy and for Move, with a
+    sub-second value a coarser copy would round away.
+    """
+    exact_ns = 1_234_567_890_123_456_789
+    for mode in ("--copy", "--move"):
+        case = new_case(f"mtime_preserved{mode.replace('-', '_')}")
+        make_photo(case / "src" / "undated.jpg", f"mtime{mode}", date=None)
+        make_photo(case / "src" / "dated.jpg", f"dated{mode}")
+        for name in ("undated.jpg", "dated.jpg"):
+            os.utime(case / "src" / name, ns=(exact_ns, exact_ns))
+        run_engine(case)
+        run_engine(case, mode)
+        delivered = [p for p in (case / "dest").rglob("*.jpg")]
+        check(len(delivered) == 2, f"{mode}: expected 2 delivered files, found {len(delivered)}")
+        for p in delivered:
+            got = p.stat().st_mtime_ns
+            check(got == exact_ns, f"{mode}: {p.name} mtime {got} != source {exact_ns}")
 
 
 @test

@@ -23,28 +23,6 @@ Specifications are organized by component, not by release phase:
 docker build -t negativespace .
 ```
 
-### Tests
-
-The engine has an end-to-end smoke suite. It drives the real engine as a subprocess against real image files rather than importing it and stubbing things out, so it needs ExifTool, Pillow, imagehash and rawpy — which the image already has. **Run it in the container**, mounting your checkout over `/app` so it tests the code you have rather than the code baked into the image:
-
-```bash
-docker run --rm -v "$PWD":/app -w /app negativespace python3 tests/engine_smoke_test.py
-```
-
-A green run reports `N passed, 0 failed, 2 skipped`. The expected skips are the two RAW tests (decoding and RAW thumbnails), which no synthetic fixture can reach — LibRaw rejects fabricated files — so they run only when `NS_TEST_RAW_DIR` points at a folder of genuine camera output. Worth doing at least once.
-
-There is a **second suite** covering the catalog's contracts — schema initialization, settings revisions, concurrent writers, transaction rollback and lineage invariants — which runs against synthetic catalogs and needs no image files:
-
-```bash
-docker run --rm -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p database_test.py
-```
-
-CI runs both on every push.
-
-**A catalog from an older schema is refused, not migrated.** The engine stamps a schema version and fails closed on one it does not recognise, rather than altering a database it may not understand. Preserve the old catalog and let a fresh one be created; everything in `photos` is derived from your source files and is rebuilt by an Index. `runs` and `operations` are not derived — see `/backups` below.
-
-Useful flags: `--filter NAME` to run a subset, `--keep` to leave the workspace on disk, `-v` to show engine output. `tests/engine_smoke_test.py --help` and the file's module docstring are the authoritative reference.
-
 ### Operations Summary
 
 NegativeSpace has three mutually exclusive modes. `--move` and `--copy` cannot be combined — pick at most one:
@@ -144,6 +122,7 @@ docker run --rm --stop-timeout 300 \
     **Kept separate from `/appdata` on purpose, and for the opposite reason to `/cache`.** A backup written inside the directory it is backing up dies with it, and losing `/appdata` is exactly the failure a backup exists to survive. Mount it on different storage from the catalog if you can.
 
     **Unlike `/cache`, these are not disposable.** `photos` can be rebuilt by re-running an Index, but `runs` and `operations` cannot — nothing recomputes what the engine *did*. After a `--move`, a `Removed_Duplicate` row is the only remaining evidence a file ever existed. So this directory holds the only copy of your library's history outside `/appdata`: include it in your own backups. The engine prunes only its own automatic backups beyond the retention limit; nothing else here should be treated as disposable.
+- **Catalog versions:** a catalog from an older schema is **refused, not migrated**. The engine stamps a schema version and fails closed on one it does not recognise, rather than altering a database it may not understand. Preserve the old catalog and let a fresh one be created; everything in `photos` is derived from your source files and is rebuilt by an Index. `runs` and `operations` are not derived — see `/backups` below.
 - **Persistence:** SQLite database (`ns_sqlite.db`) stores SHA1 checksums, perceptual hashes, and status to prevent re-processing across multiple runs. The storage engine is named in the file so a second store can sit beside it later without ambiguity.
 - **Date & Metadata Resolution:** ExifTool is a **hard requirement** — the engine won't start without it (both the `exiftool` binary and the `PyExifTool` Python package). It runs as a persistent process per worker rather than spawning a subprocess per file, cutting ExifTool overhead roughly 30x. PIL and file-modification-time remain as defensive per-file fallbacks for the rare case ExifTool itself fails on one specific file — see `ns-engine.py`'s module docstring for the full breakdown.
 - **Single-Instance Lock:** Only one engine process may run against a given `--base` (i.e., a given `/appdata` mount) at a time — enforced via an OS-level `flock` on `/appdata/engine.lock`.
