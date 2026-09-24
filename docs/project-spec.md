@@ -149,7 +149,7 @@ Further gaps between the documented web workflows and what the engine can answer
 
 | Gap | Blocks |
 | :--- | :--- |
-| Thumbnail remainder — 1024px preview, clear/rebuild, cleanup after an interrupted edit | The Inspector preview and cache management |
+| Thumbnail remainder — clear/rebuild, cleanup after an interrupted edit | Cache management |
 | Refiling after a date change | Any metadata correction; it is what makes the destination contract enforceable |
 | Field-level before/after | Full lineage and informed manual corrections; no undo operations |
 | A batch identity | Bulk apply reading as one action |

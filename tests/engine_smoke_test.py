@@ -3611,6 +3611,73 @@ def index_records_what_the_walk_found_by_file_type():
     check("Counts are PARTIAL" in out, "the log did not say the counts are partial")
 
 
+def _preview(case, photo_id, expect_rc=None):
+    proc = run_engine(case, "--preview", photo_id, expect_rc=expect_rc)
+    lines = [l for l in proc.stdout.splitlines() if l.strip()]
+    check(len(lines) == 1, f"--preview must print exactly one line of JSON, got:\n{proc.stdout}")
+    return json.loads(lines[0]), proc.returncode
+
+
+@test
+def the_detail_preview_is_made_on_request_from_a_catalogued_copy():
+    """
+    webui-spec 4.2.1: the 1024px preview is generated on first view, not at Index,
+    cached thereafter, and made from any catalogued copy — a destination copy once
+    the source is gone. It is keyed on content, so duplicates share it. It takes no
+    engine lock, so it works while a job runs. A file that no longer matches the
+    catalog never lends its pixels: with no unchanged copy the answer is
+    unavailable, not a wrong image.
+    """
+    import fcntl
+    from PIL import Image
+    case = new_case("detail_preview")
+    make_photo(case / "src" / "big.jpg", "preview-big", size=(1600, 1200))
+    make_photo(case / "src" / "big_twin.jpg", "preview-big", size=(1600, 1200))
+    run_engine(case)
+    check(not list((case / "cache").rglob("*-1024.jpg")), "an Index generated detail previews")
+    big, twin = [r["id"] for r in rows(case, "SELECT id FROM photos ORDER BY source_path")]
+
+    first, rc = _preview(case, big)
+    check(rc == 0 and first["availability"] == "present" and not first["reused"],
+          f"the first request did not generate a preview: {first}")
+    path = case / "cache" / first["cache_filename"]
+    with Image.open(path) as img:
+        check(max(img.size) == 1024, f"preview longest edge is {max(img.size)}, expected 1024")
+    mtime = path.stat().st_mtime_ns
+    again, _ = _preview(case, twin)
+    check(again["reused"] and again["cache_filename"] == first["cache_filename"],
+          f"the identical copy did not share the cached preview: {again}")
+    check(path.stat().st_mtime_ns == mtime, "a cached preview was regenerated")
+
+    totals = {r["size"]: r["photos"] for r in rows(case,
+              "SELECT size, COUNT(*) photos FROM thumbnail_cache WHERE availability = 'present' GROUP BY size")}
+    check(totals == {320: 1, 1024: 1}, f"cache totals should count grid and preview separately: {totals}")
+
+    # After a Move the source is gone; clear the preview and ask again.
+    run_engine(case, "--move")
+    path.unlink()
+    with open(case / "appdata" / "engine.lock", "a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)     # as if a job were running
+        moved, rc = _preview(case, big)
+    check(rc == 0 and moved["availability"] == "present" and not moved["reused"],
+          f"the preview was not regenerated from the destination copy while the lock was held: {moved}")
+
+    # The only copy edited outside the engine. A cached preview is still served — it was
+    # made from the catalogued content — but none can be made from the changed file.
+    dest = next((case / "dest").rglob("big.jpg"))
+    make_photo(dest, "someone else's pixels", size=(1600, 1200))
+    kept, rc = _preview(case, big)
+    check(rc == 0 and kept["reused"], f"a cached preview was not served once no copy was usable: {kept}")
+    path.unlink()
+    gone, rc = _preview(case, big, expect_rc=1)
+    check(gone["availability"] == "failed" and gone["failure_category"] == "file_unavailable",
+          f"a changed file was used, or the failure was not explained: {gone}")
+    check(not path.exists(), "a preview was made from a file that no longer matches the catalog")
+
+    unknown, rc = _preview(case, 999999, expect_rc=1)
+    check(unknown["failure_category"] == "unknown_photo", f"an unknown photo id was not reported: {unknown}")
+
+
 @test
 def raw_files_produce_thumbnails_through_rawpy():
     """
