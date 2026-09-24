@@ -447,8 +447,9 @@ The Gallery grid and Inspector's "Media Preview" both need something to actually
 content identity, records it in `thumbnail_cache`, and reuses it for
 byte-identical duplicates; `--no-thumbnails` turns it off and `--cache` relocates
 it. Still unbuilt: the 1024px detail preview generated on first view, the
-cache-size display and its two clear/rebuild controls, the rebuild job, and the
-lifecycle cleanup in `engine-spec.md` §9.8. One documented behavior is also not
+cache-size display and its two clear/rebuild controls, the rebuild job, and orphan
+cleanup after an interrupted edit. Removing thumbnails whose content no catalogued
+photo holds any more is implemented (`engine-spec.md` §9.8). One documented behavior is also not
 met — recorded failure history is **not** retained across a successful
 regeneration: `thumbnail_cache` holds current state per `(content_id, size)`, so
 a later success clears the failure rather than preserving it. A permanently
@@ -1010,7 +1011,7 @@ Returns a run with its **derived** outcome (§5.5). `status` is the engine's lif
       }
     }
 
-`verdict` is one of `success`, `partial`, `failed`, `cancelled`, `crashed`, `running`, resolved by the rules in §5.5. `targeting` echoes the decoded `runs.file_ids_filter` object (§6.1) so the UI can show what the job was scoped to.
+`verdict` is one of `success`, `partial`, `failed`, `cancelled`, `interrupted`, `running`, resolved by the rules in §5.5. `targeting` echoes the decoded `runs.file_ids_filter` object (§6.1) so the UI can show what the job was scoped to.
 
 POST /api/v1/jobs/{id}/cancel
 
@@ -1741,4 +1742,5 @@ delivered; source not removed**, with the original incomplete operation and a li
 to the log. An explicitly requested subsequent Move is separate work.
 
 Current engine delivery relationships are implemented in the shared catalog layer;
-the web presentation and full interrupted-operation evidence remain pending.
+interrupted-operation evidence is recorded by recovery (`engine-spec.md` §4.2). The
+web presentation remains pending.
