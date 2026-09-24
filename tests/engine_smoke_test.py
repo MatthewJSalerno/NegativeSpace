@@ -3725,6 +3725,92 @@ def clearing_previews_frees_them_and_keeps_the_grid():
           f"a cleared preview was not made again on the next view: {again}")
 
 
+def _grid_files(case):
+    return {p.name: p.stat().st_ino for p in (case / "cache").rglob("*.jpg")
+            if not p.name.endswith("-1024.jpg")}
+
+
+@test
+def a_thumbnail_rebuild_restores_the_grid_from_any_catalogued_copy():
+    """
+    webui-spec 4.2.1 "Rebuild grid thumbnails": a job that remakes the grid from any
+    catalogued copy - including a moved photo, which no re-Index can reach because its
+    source is gone. `missing` fills only what is absent; `all` remakes every one, but
+    never throws away a thumbnail it has nothing unchanged to regenerate from. It is a
+    run like any other (runs row, lock) and, being cache only, records no operation and
+    takes no backup.
+    """
+    import fcntl
+    case = new_case("rebuild_thumbnails")
+    for i in range(3):
+        make_photo(case / "src" / f"r{i}.jpg", f"rebuild-{i}", date=f"2021:01:0{i + 1} 10:00:00")
+    run_engine(case)
+    run_engine(case, "--move")
+    grid = _grid_files(case)
+    check(len(grid) == 3, f"setup: expected three grid thumbnails, got {sorted(grid)}")
+    backups = len(backups_of(case))
+
+    import shutil
+    shutil.rmtree(case / "cache" / "thumbnails")
+    run_engine(case, "--rebuild-thumbnails", "missing")
+    check(set(_grid_files(case)) == set(grid), f"the lost grid was not restored from the destination: "
+                                               f"{sorted(_grid_files(case))}")
+    run = rows(case, "SELECT id, mode, status FROM runs ORDER BY id DESC LIMIT 1")[0]
+    check((run["mode"], run["status"]) == ("REBUILD", "Completed"), f"the rebuild was not a settled run: {run}")
+    check(rows(case, "SELECT COUNT(*) n FROM operations WHERE run_id = ?", (run["id"],))[0]["n"] == 0,
+          "a cache-only rebuild recorded operations")
+    check(len(backups_of(case)) == backups, "a cache-only rebuild took a catalog backup")
+
+    restored = _grid_files(case)
+    run_engine(case, "--rebuild-thumbnails", "missing")
+    check(_grid_files(case) == restored, "`missing` regenerated thumbnails that were already there")
+
+    # One content's only copy edited outside the engine: `all` keeps its thumbnail.
+    edited = next((case / "dest").rglob("r0.jpg"))
+    make_photo(edited, "someone else's pixels")
+    edited_key = rows(case, "SELECT sha1_hash FROM photos WHERE source_path LIKE '%r0.jpg'")[0]["sha1_hash"] + ".jpg"
+    run_engine(case, "--rebuild-thumbnails", "all")
+    after = _grid_files(case)
+    check(after[edited_key] == restored[edited_key],
+          "`all` replaced a thumbnail it had no unchanged copy to regenerate from")
+    check(all(after[k] != restored[k] for k in after if k != edited_key),
+          "`all` did not regenerate thumbnails that had an unchanged copy")
+    present = rows(case, "SELECT COUNT(*) n FROM thumbnail_cache WHERE size = 320 AND availability = 'present'")
+    check(present[0]["n"] == 3, f"grid records after `all`: {present}")
+
+    # Gone from disk with nothing to regenerate from: recorded, not invented.
+    (case / "cache" / "thumbnails" / edited_key[:2] / edited_key).unlink()
+    run_engine(case, "--rebuild-thumbnails", "missing")
+    failed = rows(case, "SELECT t.availability, t.failure_category FROM thumbnail_cache t "
+                        "JOIN contents c USING(content_id) WHERE t.size = 320 AND c.digest = ?",
+                  (edited_key[:-4],))
+    check(failed == [{"availability": "failed", "failure_category": "file_unavailable"}],
+          f"a thumbnail with no usable copy was not recorded unavailable: {failed}")
+
+    with open(case / "appdata" / "engine.lock", "a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        run_engine(case, "--rebuild-thumbnails", "all", expect_rc=1)
+    run_engine(case, "--rebuild-thumbnails", "all", "--no-thumbnails", expect_rc=2)
+
+
+@test
+def a_cancelled_thumbnail_rebuild_stops_and_says_so():
+    """Cancellation is checked between batches, like the Index scan; a rebuild
+    cancelled before its first batch makes nothing and reports Cancelled."""
+    engine = _load_engine()
+    case = new_case("rebuild_cancel")
+    make_photo(case / "src" / "c.jpg", "rebuild-cancel")
+    run_engine(case, "--no-thumbnails")
+    engine.cancel_requested.set()
+    try:
+        outcome = engine.rebuild_thumbnails(case / "appdata" / "db" / "ns_sqlite.db", case / "cache",
+                                            "all", 1, case / "appdata" / "logs")
+    finally:
+        engine.cancel_requested.clear()
+    check(outcome == "Cancelled", f"a cancelled rebuild reported {outcome}")
+    check(not _grid_files(case), "a rebuild cancelled before its first batch made thumbnails")
+
+
 @test
 def raw_files_produce_thumbnails_through_rawpy():
     """

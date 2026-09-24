@@ -149,7 +149,7 @@ Further gaps between the documented web workflows and what the engine can answer
 
 | Gap | Blocks |
 | :--- | :--- |
-| Thumbnail remainder — the grid rebuild job, cleanup after an interrupted edit | Cache management |
+| Thumbnail cleanup after an interrupted edit (waits on metadata editing) | Cache tidiness after an interrupted edit; nothing user-facing |
 | Refiling after a date change | Any metadata correction; it is what makes the destination contract enforceable |
 | Field-level before/after | Full lineage and informed manual corrections; no undo operations |
 | A batch identity | Bulk apply reading as one action |
