@@ -458,9 +458,9 @@ content identity, records it in `thumbnail_cache`, and reuses it for
 byte-identical duplicates; `--no-thumbnails` turns it off and `--cache` relocates
 it. The 1024px detail preview is generated on first view by `ns-engine.py --preview
 <photo_id>` (`engine-spec.md` §4.1), and **Free up** is `ns-engine.py --clear-previews`;
-the cache-size figures are `ns_db.thumbnail_cache_totals`. Still unbuilt: the
-Rebuild grid thumbnails job, and orphan
-cleanup after an interrupted edit. Removing thumbnails whose content no catalogued
+the cache-size figures are `ns_db.thumbnail_cache_totals`, and the rebuild job is
+`ns-engine.py --rebuild-thumbnails missing|all`. Still unbuilt: orphan cleanup after an
+interrupted edit, which waits on metadata editing itself. Removing thumbnails whose content no catalogued
 photo holds any more is implemented (`engine-spec.md` §9.8). One documented behavior is also not
 met — recorded failure history is **not** retained across a successful
 regeneration: `thumbnail_cache` holds current state per `(content_id, size)`, so
@@ -552,7 +552,8 @@ undecodable file is therefore re-attempted on every scan.
   >
   > **Free up 1.2 GB** — removes detail previews. They are recreated automatically the
   > next time you open a photo, so nothing is lost.
-  > **Rebuild grid thumbnails** — regenerates them from your photos. How long this takes
+  > **Repair grid thumbnails** — makes the ones that are missing. Quick when little is missing.
+  > **Rebuild all grid thumbnails** — regenerates every one from your photos. How long this takes
   > depends on the size of your library.
 
   Totals come from `SUM(bytes)` on `thumbnail_cache` grouped by `size`, not from walking
@@ -569,6 +570,17 @@ undecodable file is therefore re-attempted on every scan.
   cancellation and a log entry, reusing the existing status transitions rather than a
   second progress protocol. It reports **counts** — files done of files total — which the
   drawer already provides.
+
+  **Two scopes, the user picks.** *Repair* (`missing`) makes only thumbnails that are not
+  on disk, retrying recorded failures; it is what a lost or partly cleared cache needs.
+  *Rebuild all* (`all`) regenerates every one, for thumbnails that exist but are wrong.
+  Both work from any catalogued copy, a delivered destination copy first, which a
+  re-Index cannot do: it skips unchanged files, and a moved photo has no source left.
+  *Rebuild all* replaces a thumbnail only when an unchanged copy can supply it and
+  generation succeeds; otherwise the existing one, made from the same content, stays.
+  Being cache only, the job records no operation and takes no backup. Measured on a
+  ~1,200-photo sample over NFS with 8 workers: 9.2s to repair an entirely deleted grid,
+  7.4s to rebuild all, 0.3s to repair a grid with nothing missing.
 
   **It must not display a time estimate.** A useful one is not computable in advance: a
   RAW file costs roughly 18ms if its embedded preview is large enough and roughly 268ms

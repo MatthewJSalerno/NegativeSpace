@@ -50,6 +50,8 @@ default Index):
 - --preview PHOTO_ID / --clear-previews: make one 1024px detail preview, or
   remove them all. Cache only; no run, no engine lock.
 - --backup-now: one manual catalog backup, under the engine lock.
+- --rebuild-thumbnails missing|all: a job that makes grid thumbnails from any
+  catalogued copy, under the engine lock.
 
 Cancellation: sending SIGTERM or SIGINT (e.g. `docker stop`, or Ctrl+C)
 during a --move/--copy run lets the file currently being copy-verified
@@ -137,6 +139,7 @@ Metadata Extraction:
 """
 
 import argparse
+import collections
 import contextlib
 import errno
 import fcntl
@@ -1788,7 +1791,7 @@ def _raw_preview(raw, size: int):
 
 
 def generate_thumbnail(file_path: Path, sha1_hash: str, cache_root: str,
-                       size: int = THUMBNAIL_SIZE) -> ThumbnailResult:
+                       size: int = THUMBNAIL_SIZE, replace: bool = False) -> ThumbnailResult:
     """
     Produce the grid thumbnail for one file. READS the photo and NEVER raises.
 
@@ -1804,8 +1807,11 @@ def generate_thumbnail(file_path: Path, sha1_hash: str, cache_root: str,
 
     # A cache hit is the point of keying on content: exact duplicates, including
     # copies in unrelated directories, reuse one render instead of each doing
-    # their own. This is also what makes a re-Index nearly free.
+    # their own. This is also what makes a re-Index nearly free. A full rebuild
+    # (`replace`) skips it on purpose: its point is to redo files that exist.
     try:
+        if replace:
+            raise FileNotFoundError
         existing = dest.stat()
         if existing.st_size > 0:
             return ThumbnailResult(availability="present", cache_filename=relative,
@@ -2841,6 +2847,42 @@ def _query_source_subdir(db_path: str, subdir_filter_path: Path) -> List[str]:
     return [r[0] for r in rows]
 
 
+def catalogued_copies(conn, sha1: str) -> list:
+    """Every catalogued copy of one content that could supply its pixels, as
+    (path, recorded size, recorded mtime, file_id): delivered destination copies
+    first, then sources not yet consumed. Nothing is checked on disk here, so the
+    list can be handed to a worker process; see pick_unchanged_copy."""
+    copies = conn.execute(
+        "SELECT p.source_path, p.dest_path, p.status, p.file_size, p.file_mtime, pf.file_id "
+        "FROM photos p LEFT JOIN photo_files pf ON pf.photo_id = p.id WHERE p.sha1_hash = ?",
+        (sha1,)).fetchall()
+    return _order_copies(copies)
+
+
+def _order_copies(copies) -> list:
+    """(source, dest, status, size, mtime, file_id) rows -> catalogued_copies order."""
+    ordered = [(dst, size, mtime, fid) for _, dst, status, size, mtime, fid in copies
+               if status in ANCHOR_DELIVERED_STATUSES and dst]
+    ordered += [(src, size, mtime, fid) for src, _, status, size, mtime, fid in copies
+                if src and status not in SOURCE_CONSUMED_STATUSES]
+    return ordered
+
+
+def pick_unchanged_copy(candidates: list):
+    """The first candidate still on disk with the size and modification time the
+    catalog recorded, as (path, file_id); None when there is none. An edited or
+    replaced file is never used: it would put other content's pixels under this
+    content's key."""
+    for path, size, mtime, fid in candidates:
+        try:
+            st = os.stat(path)
+        except OSError:
+            continue
+        if size is not None and st.st_size == size and mtime is not None and abs(st.st_mtime - mtime) < 1e-6:
+            return path, fid
+    return None
+
+
 def preview_for_photo(db_path: Path, cache_root: Path, photo_id: int) -> dict:
     """The 1024px detail preview for one catalogued photo, generated on first request.
 
@@ -2881,23 +2923,7 @@ def preview_for_photo(db_path: Path, cache_root: Path, photo_id: int) -> dict:
         if cached and (Path(cache_root) / cached[0]).is_file():
             return answer("present", cached[0], cached[1], reused=True)
 
-        copies = conn.execute(
-            "SELECT p.id, p.source_path, p.dest_path, p.status, p.file_size, p.file_mtime, pf.file_id "
-            "FROM photos p LEFT JOIN photo_files pf ON pf.photo_id = p.id WHERE p.sha1_hash = ?",
-            (sha1,)).fetchall()
-        candidates = [(dst, size, mtime, fid) for _, _, dst, status, size, mtime, fid in copies
-                      if status in ANCHOR_DELIVERED_STATUSES and dst]
-        candidates += [(src, size, mtime, fid) for _, src, _, status, size, mtime, fid in copies
-                       if src and status not in SOURCE_CONSUMED_STATUSES]
-        chosen = None
-        for path, size, mtime, fid in candidates:
-            try:
-                st = os.stat(path)
-            except OSError:
-                continue
-            if size is not None and st.st_size == size and mtime is not None and abs(st.st_mtime - mtime) < 1e-6:
-                chosen = (path, fid)
-                break
+        chosen = pick_unchanged_copy(catalogued_copies(conn, sha1))
 
         if chosen is None:
             result = ThumbnailResult(availability="failed", failure_category="file_unavailable",
@@ -2960,6 +2986,159 @@ def clear_previews(db_path: Path, cache_root: Path) -> dict:
     logger.info(f"Cleared {len(removed):,} detail preview(s), {freed / 1e6:.1f} MB"
                 + (f"; {not_removed:,} could not be removed." if not_removed else "."))
     return {"removed": len(removed), "bytes_freed": freed, "not_removed": not_removed}
+
+
+def _rebuild_thumbnail_task(sha1: str, candidates: list, cache_root: str, replace: bool):
+    """One content's grid thumbnail for the rebuild job, in a worker process.
+
+    Returns (sha1, outcome, ThumbnailResult, observed_path, file_id). Outcomes:
+    'made'; 'already' (scope `missing`, a thumbnail is on disk); 'kept' (scope `all`,
+    nothing usable to regenerate from, or regeneration failed - the existing file was
+    made from this same content, so it stays and stays recorded); 'failed'.
+    """
+    dest = thumbnail_cache_path(cache_root, sha1)
+    try:
+        on_disk = dest.stat().st_size
+    except OSError:
+        on_disk = 0
+    existing = ThumbnailResult(availability="present", cache_filename=str(dest.relative_to(Path(cache_root))),
+                               bytes=on_disk, reused=True)
+    if on_disk and not replace:
+        return sha1, "already", existing, None, None
+    chosen = pick_unchanged_copy(candidates)
+    if chosen is None:
+        if on_disk:
+            return sha1, "kept", existing, None, None
+        return sha1, "failed", ThumbnailResult(
+            availability="failed", failure_category="file_unavailable",
+            failure_detail="Photo file unavailable: no catalogued copy of this photo is present "
+                           "and unchanged."), None, None
+    path, fid = chosen
+    result = generate_thumbnail(Path(path), sha1, cache_root, replace=replace)
+    if result.availability != "present" and on_disk:
+        logger.warning(f"Could not regenerate the grid thumbnail from {path} ({result.failure_detail}); "
+                       f"the existing one is kept.")
+        return sha1, "kept", existing, path, fid
+    return sha1, ("made" if result.availability == "present" else "failed"), result, path, fid
+
+
+def rebuild_thumbnails(db_path: Path, cache_root: Path, scope: str,
+                       worker_count: int, log_dir: Path) -> str:
+    """The body of a Rebuild grid thumbnails job (webui-spec 4.2.1). Returns the run outcome.
+
+    Scope `missing` makes only the grid thumbnails that are not on disk (including
+    recorded failures, which are retried). Scope `all` regenerates every one. That is
+    for thumbnails that exist but are wrong, and it replaces a thumbnail only when an
+    unchanged catalogued copy can supply it. Every content any catalogued photo holds is
+    covered, from a delivered destination copy or a source still present - which is
+    what a re-Index cannot do: it skips unchanged files, and a moved photo has no source.
+
+    Cache only: no photo is touched and no operation is recorded, so the job takes no
+    backup. Progress is reported as counts, never as a time estimate: a RAW file costs
+    18ms or 268ms depending on its embedded preview, which is unknown until it is opened.
+    """
+    replace = scope == "all"
+    (cache_root / THUMBNAIL_DIR_NAME).mkdir(parents=True, exist_ok=True)
+    work = {}
+    with contextlib.closing(get_db_connection(str(db_path))) as conn:
+        for sha1, *row in conn.execute(
+                "SELECT p.sha1_hash, p.source_path, p.dest_path, p.status, p.file_size, p.file_mtime, "
+                "pf.file_id FROM photos p LEFT JOIN photo_files pf ON pf.photo_id = p.id "
+                "WHERE p.sha1_hash IS NOT NULL ORDER BY p.id"):
+            work.setdefault(sha1, []).append(tuple(row))
+        recorded = {d for (d,) in conn.execute(
+            "SELECT c.digest FROM thumbnail_cache t JOIN contents c USING(content_id) "
+            "WHERE t.size = ? AND t.availability = 'present'", (THUMBNAIL_SIZE,))}
+    total = len(work)
+    logger.info(f"Rebuilding grid thumbnails ({'every one' if replace else 'missing ones only'}) "
+                f"for {total:,} catalogued photo content(s).")
+    counts = collections.Counter()
+    done, last_progress_at = 0, time.monotonic()
+    batch_size = max(worker_count * 4, 16)
+    items = list(work.items())
+    outcome = RunStatus.COMPLETED
+    with ProcessPoolExecutor(max_workers=worker_count, initializer=_init_worker_process,
+                             initargs=(False, str(log_dir))) as executor, \
+            contextlib.closing(get_db_connection(str(db_path))) as conn:
+        for start in range(0, total, batch_size):
+            if cancel_requested.is_set():
+                logger.warning(f"Cancellation requested - stopping the rebuild after {done:,} of {total:,}. "
+                               f"Thumbnails already made are kept.")
+                outcome = RunStatus.CANCELLED
+                break
+            futures = [executor.submit(_rebuild_thumbnail_task, sha1, _order_copies(copies),
+                                       str(cache_root), replace)
+                       for sha1, copies in items[start:start + batch_size]]
+            results = [f.result() for f in futures]
+            with ns_db.transaction(conn):
+                for sha1, kind, result, observed, fid in results:
+                    counts[kind] += 1
+                    if kind in ("already", "kept") and sha1 in recorded:
+                        continue
+                    ns_db.record_thumbnail(
+                        conn, content_id=ns_db.content_for_digest(conn, digest=sha1), size=THUMBNAIL_SIZE,
+                        availability=result.availability, cache_filename=result.cache_filename,
+                        bytes_on_disk=result.bytes, attempted_file_id=fid, observed_path=observed,
+                        failure_category=result.failure_category, failure_detail=result.failure_detail)
+            done += len(results)
+            if time.monotonic() - last_progress_at >= PROGRESS_INTERVAL_SECONDS:
+                logger.info(f"Rebuilding grid thumbnails: {done:,} of {total:,}.")
+                last_progress_at = time.monotonic()
+    logger.info(f"Grid thumbnail rebuild: {done:,} of {total:,} checked - {counts['made']:,} made, "
+                f"{counts['already']:,} already present, {counts['kept']:,} kept (no unchanged copy to "
+                f"regenerate from, or regeneration failed), {counts['failed']:,} unavailable.")
+    return outcome
+
+
+def run_thumbnail_rebuild(args, db_path: Path, base_dir: Path, log_dir: Path, lock_fd) -> int:
+    """--rebuild-thumbnails. A job like any other: a runs row, reconciliation first,
+    cancellation, and a settled status. Exits 0 unless the run Failed."""
+    try:
+        try:
+            init_database(str(db_path))
+        except (ns_db.SchemaError, sqlite3.DatabaseError) as exc:
+            logger.error(f"FATAL: catalog initialization failed: {exc}. Nothing was rebuilt.")
+            return 1
+        signal.signal(signal.SIGTERM, _handle_cancel_signal)
+        signal.signal(signal.SIGINT, _handle_cancel_signal)
+        cache_root = Path(args.cache).resolve()
+        try:
+            run_id, created = start_run(
+                str(db_path), "REBUILD", None, None, None,
+                defaults={"workers": MAX_WORKER_PROCESSES},
+                overrides={"workers": args.workers} if args.workers is not None else {},
+                request_id=args.request_id,
+                submitted={"scope": args.rebuild_thumbnails, "cache": str(cache_root)})
+        except ns_db.RequestConflict:
+            logger.error(f"FATAL: request ID {args.request_id!r} was already used for a different "
+                         f"submission. Nothing was started. A new attempt needs a new request ID.")
+            return EXIT_REQUEST_CONFLICT
+        if not created:
+            logger.warning(f"Request ID {args.request_id!r} was already accepted as run #{run_id}. "
+                           f"Nothing was started.")
+            return EXIT_REQUEST_ALREADY_ACCEPTED
+        with contextlib.closing(get_db_connection(str(db_path))) as conn:
+            workers = json.loads(conn.execute(
+                "SELECT effective_config_json FROM run_configs WHERE run_id=?", (run_id,)).fetchone()[0])["workers"]
+        cancel_watcher = threading.Thread(target=watch_for_cancellation, args=(str(db_path), run_id), daemon=True)
+        cancel_watcher.start()
+        outcome = RunStatus.FAILED
+        try:
+            reconcile_interrupted_state(db_path, run_id)
+            with contextlib.closing(get_db_connection(str(db_path))) as conn:
+                ns_db.transition_run(conn, run_id, RunStatus.RUNNING)
+            outcome = rebuild_thumbnails(db_path, cache_root, args.rebuild_thumbnails, workers, log_dir)
+        except Exception as exc:
+            logger.error(f"Thumbnail rebuild failed: {exc}", exc_info=True)
+        finally:
+            if cancel_requested.is_set() and outcome == RunStatus.COMPLETED:
+                outcome = RunStatus.CANCELLED
+            await_cancelling_record(cancel_watcher)
+            finish_run(str(db_path), run_id, outcome)
+            logger.info(f"Run #{run_id} finished with status: {outcome}")
+        return 1 if outcome == RunStatus.FAILED else 0
+    finally:
+        release_single_instance_lock(lock_fd)
 
 
 def backup_after_job(db_path: Path, backups_dir: Path, base_dir: Path, run_id: int):
@@ -3120,11 +3299,18 @@ def main():
              "JSON. Grid thumbnails are kept. Takes no engine lock, like --preview."
     )
     mode_group.add_argument(
+        "--rebuild-thumbnails", choices=("missing", "all"), default=None, metavar="{missing,all}",
+        help="Run a job that makes grid thumbnails from any catalogued copy: 'missing' only those "
+             "not on disk, 'all' every one. Takes the engine lock; needs no --source."
+    )
+    mode_group.add_argument(
         "--backup-now", action="store_true",
         help="Write one manual catalog backup to --backups and exit. Takes the engine lock, so it "
              "is refused while a job runs. Touches no photo and needs no --source."
     )
     args = parser.parse_args()
+    if args.rebuild_thumbnails and args.no_thumbnails:
+        parser.error("--rebuild-thumbnails makes thumbnails; it cannot be combined with --no-thumbnails.")
 
     start_method = configure_multiprocessing_start_method()
     worker_count = args.workers if args.workers else MAX_WORKER_PROCESSES
@@ -3169,6 +3355,8 @@ def main():
 
     if args.backup_now:
         sys.exit(run_manual_backup(db_path, Path(args.backups), base_dir, lock_fd))
+    if args.rebuild_thumbnails:
+        sys.exit(run_thumbnail_rebuild(args, db_path, base_dir, log_dir, lock_fd))
 
     # 2b. ExifTool is a hard requirement (module docstring) — fail fast and
     # clearly, before touching source/dest/the database at all, rather than
