@@ -3921,7 +3921,8 @@ def a_cancelled_transfer_counts_what_it_did_not_reach():
 @test
 def progress_is_written_while_a_job_runs():
     """About once a second while work happens, not only at the end: a reader polling
-    the catalog mid-scan and mid-copy sees a partial count."""
+    the catalog mid-scan sees a partial count. The transfer loop's writes are proven
+    in-process below, since a small Copy can finish inside one second."""
     case = new_case("progress_live")
     for i in range(400):
         make_photo(case / "src" / f"p{i:03d}.jpg", f"progress-live-{i}", size=(1200, 900), date=None)
@@ -3931,7 +3932,7 @@ def progress_is_written_while_a_job_runs():
     proc = subprocess.Popen([sys.executable, str(ENGINE), "--source", str(case / "src"),
                              "--dest", str(case / "dest"), "--base", str(case / "appdata"),
                              "--cache", str(case / "cache"), "--backups", str(case / "backups"),
-                             "--workers", "1", "--copy"], stdout=log, stderr=subprocess.STDOUT)
+                             "--workers", "1"], stdout=log, stderr=subprocess.STDOUT)
     seen = set()
     db_path = case / "appdata" / "db" / "ns_sqlite.db"
     while proc.poll() is None:
@@ -3944,9 +3945,42 @@ def progress_is_written_while_a_job_runs():
         time.sleep(0.1)
     log.close()
     check(proc.returncode == 0, f"the run failed: {proc.returncode}")
-    for phase in ("scanning", "transferring"):
-        check(any(r[0] == phase and 0 < r[2] < r[1] for r in seen),
-              f"no snapshot was observed mid-{phase}; saw {sorted(seen)}")
+    check(any(r[0] == "scanning" and 0 < r[2] < r[1] for r in seen),
+          f"no snapshot was observed mid-scan; saw {sorted(seen)}")
+
+
+@test
+def the_transfer_loop_writes_progress_between_files():
+    """With the interval at zero, every file's outcome reaches run_progress before
+    the next file starts - so at the real interval the drawer is at most about a
+    second behind the transfer, whatever the storage speed."""
+    engine = _load_engine()
+    case = new_case("progress_transfer_ticks")
+    for i in range(5):
+        make_photo(case / "src" / f"p{i}.jpg", f"progress-tick-{i}", date=None)
+    run_engine(case)
+    db_path = case / "appdata" / "db" / "ns_sqlite.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("INSERT OR IGNORE INTO runs(id,mode,started_at,status) VALUES(?, 'MOVE', 'test', 'Running')",
+                     (_IN_PROCESS_RUN_ID,))
+    written = []
+    real_write = engine.ns_db.write_progress
+
+    def spy(conn, run_id, **kw):
+        written.append((kw["phase"], kw["total"], sum(kw["counts"].values())))
+        return real_write(conn, run_id, **kw)
+
+    engine.ns_db.write_progress = spy
+    engine.PROGRESS_SNAPSHOT_SECONDS = 0
+    engine.run_progress.bind(str(db_path), _IN_PROCESS_RUN_ID)
+    try:
+        check(_move_in_process(engine, case) == "Completed", "setup: the move did not complete")
+    finally:
+        engine.ns_db.write_progress = real_write
+        engine.run_progress.bind(None, None)
+    dones = [d for phase, total, d in written if phase == "transferring"]
+    check(all(d in dones for d in range(5 + 1)),
+          f"the transfer loop did not write progress between files: {dones}")
 
 
 @test
