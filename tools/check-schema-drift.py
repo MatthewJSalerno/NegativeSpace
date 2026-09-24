@@ -2,9 +2,8 @@
 """Verify engine-spec.md 6.5 executes and matches what the engine actually creates.
 
 That section calls itself the authoritative schema, "meant to be executed as
-written". It silently stopped being true once before - nine tables were missing
-from it for two merges - which is why this check exists rather than trusting the
-block. Compares in BOTH directions: a table in the engine and not the spec is
+written". Nothing else keeps that true as the schema grows, so this check
+executes it rather than trusting it. Compares in BOTH directions: a table in the engine and not the spec is
 undocumented, and one in the spec and not the engine is fiction.
 
 Exits non-zero on any difference, so it can gate a commit.

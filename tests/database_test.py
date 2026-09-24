@@ -319,8 +319,8 @@ class DatabaseTests(unittest.TestCase):
         record_delivery treats created=True as proof that a previously recorded
         occupant is gone - correct for a genuine re-publication, wrong for
         recovery re-registering a file nothing replaced. Passing created=True
-        there minted a second identity for the same bytes and marked the real
-        one missing. Reproduced against real files before this test existed.
+        there would mint a second identity for the same bytes and mark the real
+        one missing.
         """
         photo, run = self.photo()
         with db.transaction(self.conn):

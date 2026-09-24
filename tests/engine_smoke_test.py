@@ -291,7 +291,7 @@ def exts_accepts_bare_and_dotted():
 
 @test
 def move_preserves_distinct_photos_sharing_a_filename():
-    """Move: two different photos named alike both survive (the data-loss regression)."""
+    """Move: two different photos named alike both survive; neither overwrites the other."""
     case = new_case("collision")
     make_photo(case / "src" / "cardA" / "IMG_0001.jpg", "PHOTO-A")
     make_photo(case / "src" / "cardB" / "IMG_0001.jpg", "PHOTO-B")
@@ -484,9 +484,9 @@ def targeted_runs_skip_unchanged_files():
     run_engine(case)  # full index; everything now has size+mtime recorded
 
     # A scoped re-run must not re-read files the catalog already matches.
-    # partition_unchanged() used to be applied only to the full-scan branch,
-    # so targeted runs re-hashed and re-decoded every file — the expensive
-    # path, on exactly the runs the web UI issues.
+    # Without the skip on the scoped branches, targeted runs would re-hash and
+    # re-decode every file — the expensive path, on exactly the runs the web
+    # UI issues.
     out = engine_output(run_engine(case, "--source-subdir", "day1"))
     check("Skipping 2 unchanged file(s)" in out,
           f"scoped re-run did not skip unchanged files; log said:\n{out}")
@@ -771,8 +771,8 @@ def real_raw_files_decode_when_supplied():
         raise Fail("SKIP: set NS_TEST_RAW_DIR to a folder of real RAW files to run this")
     # Kept in step with RAW_EXTENSIONS in ns-engine.py. A filter narrower than
     # the engine's advertised set silently skips the very fixtures it is given
-    # — .cr3 was missing here, so a Canon fixture would have looked like "no
-    # RAW files found" rather than a decode failure.
+    # — a missing .cr3 would make a Canon fixture look like "no RAW files
+    # found" rather than a decode failure.
     sources = [p for p in Path(raw_dir).iterdir()
                if p.suffix.lower() in {".raw", ".dng", ".cr2", ".cr3", ".crw", ".nef", ".nrw",
                                        ".arw", ".srf", ".sr2", ".raf", ".orf", ".rw2", ".pef",
@@ -813,8 +813,8 @@ def a_photo_with_no_exif_date_lands_under_undated():
     real date tree.
 
     Filing it by modification time puts a date on it that nobody vouched for —
-    for an export that is the download date, which is how photos from the 2000s
-    ended up in 2024/ and 2025/ folders on a real run. `Undated/` keeps those
+    for an export that is the download date, so photos from the 2000s would
+    land in 2024/ and 2025/ folders. `Undated/` keeps those
     files out of the dated library and gathers them where they can be reviewed;
     the year subdivides the folder so it stays navigable at ~8% of a library,
     without the tree ever claiming to know when the photograph was taken.
@@ -1010,9 +1010,8 @@ def status_columns_are_constrained():
     make_photo(case / "src" / "a.jpg", "a")
     run_engine(case)
 
-    # The valid statuses used to exist only as scattered string literals with
-    # nothing constraining the column, so a typo matched zero rows instead of
-    # raising — silent in exactly the places it matters (crash recovery, the
+    # Without a constraint on the column, a typo in a status would match zero
+    # rows instead of raising — silent in exactly the places it matters (crash recovery, the
     # duplicate-cleanup anchor check). The web API adds a second codebase writing
     # this column, so the database has to enforce the vocabulary itself.
     conn = db(case)
@@ -1308,8 +1307,8 @@ def durability_barriers_precede_source_deletion():
 @test
 def source_subdir_is_case_sensitive():
     """--source-subdir: 'Album' does not also select 'album' on case-sensitive storage."""
-    # SQLite's LIKE ignores ASCII case, so escaping wildcards fixed only half
-    # of the prefix match: Album and album were still treated as one folder.
+    # SQLite's LIKE ignores ASCII case, so escaping wildcards alone would still
+    # treat Album and album as one folder.
     case = new_case("subdircase")
     make_photo(case / "src" / "Album" / "a.jpg", "A")
     make_photo(case / "src" / "album" / "b.jpg", "B")
@@ -1339,10 +1338,10 @@ def full_runs_stay_inside_the_source_root():
 @test
 def destination_follows_the_current_dest():
     """A destination given at Move/Copy time wins over the one the file was indexed against."""
-    # The unchanged-file skip reuses a file's catalog row, which carried a
-    # destination computed against the --dest current at Index time. Copying
-    # to a new destination wrote into the OLD one, after checking free space
-    # on the new one.
+    # The unchanged-file skip reuses a file's catalog row, which carries a
+    # destination computed against the --dest current at Index time. Trusting
+    # it would copy into the OLD destination after checking free space on the
+    # new one.
     case = new_case("dest_changed")
     make_photo(case / "src" / "a.jpg", "A")
     run_engine(case)
@@ -1395,9 +1394,9 @@ def a_duplicate_selected_alone_gets_an_outcome():
 @test
 def an_edited_original_frees_its_duplicate():
     """When a duplicate's original changes content, the duplicate is delivered in its own right."""
-    # The unchanged-file skip left the twin frozen as Duplicate while its
-    # original's content changed underneath it. The twin then had no original
-    # anywhere, so it was never delivered — only warned about.
+    # The unchanged-file skip would leave the twin frozen as Duplicate while its
+    # original's content changed underneath it, with no original anywhere, so
+    # it would never be delivered — only warned about.
     case = new_case("edited_anchor")
     make_photo(case / "src" / "a.jpg", "TWIN")
     make_photo(case / "src" / "b.jpg", "TWIN")
@@ -1477,9 +1476,9 @@ def transfer_lines_name_the_source_path():
 @test
 def a_lost_catalog_write_fails_the_run():
     """If scan results cannot be recorded, the run fails and no file is moved or copied."""
-    # The writer logged a rejected row and carried on, so a run whose catalog
-    # writes were refused still reported Completed, exited 0 — and then moved
-    # or copied files against a catalog it had failed to update.
+    # A writer that logged a rejected row and carried on would report
+    # Completed, exit 0 — and then move or copy files against a catalog it had
+    # failed to update.
     case = new_case("writer_failure")
     make_photo(case / "src" / "one.jpg", "ONE")
     run_engine(case)
@@ -1522,11 +1521,10 @@ def an_unreadable_folder_is_recorded_not_just_logged():
 @test
 def a_vanished_original_frees_its_duplicate():
     """A full Index notices a catalogued file that is gone and stops treating it as an original."""
-    # A photo deleted outside the engine kept its row Pending forever, because
-    # a full Index only updates the files it finds. That row went on standing
-    # as the original of its duplicate group, so the duplicate was never
-    # delivered — exactly what a misplaced, later-deleted test copy did to a
-    # real library.
+    # A full Index only updates the files it finds, so a photo deleted outside
+    # the engine would keep its row Pending forever and go on standing as the
+    # original of its duplicate group, and the duplicate would never be
+    # delivered.
     case = new_case("vanished_anchor")
     make_photo(case / "src" / "a.jpg", "TWIN")
     make_photo(case / "src" / "b.jpg", "TWIN")
@@ -2114,7 +2112,7 @@ def an_empty_test_filter_fails():
 @test
 def the_mtime_fallback_says_files_are_not_changed():
     """The note about undated photos says plainly that only folder placement uses the mtime."""
-    # "Filed by modification time" read to a real user as if the engine were
+    # "Filed by modification time" reads to a user as if the engine were
     # rewriting dates. It never modifies a file; the mtime only picks the
     # YYYY/MM/DD folder.
     case = new_case("mtime_wording")
@@ -2485,9 +2483,10 @@ def _move_in_process(engine, case):
 def cancelling_a_large_selection_commits_its_bookkeeping_once():
     """
     A cancel records every photo it did not reach as Cancelled. The move loop's
-    connection commits at FULL, so one commit per row was one fsync per row:
-    ~17 s for 24,000 photos on real disk, which outlasted docker stop's 10 s
-    grace and got a real run killed mid-cancel. The rows must go in one commit.
+    connection commits at FULL, so one commit per row would be one fsync per
+    row: ~17 s for 24,000 photos on real disk, longer than docker stop's 10 s
+    grace, after which Docker kills the run mid-cancel. The rows must go in one
+    commit.
     """
     engine = _load_engine()
     case = new_case("cancel_bookkeeping")
@@ -2569,9 +2568,8 @@ def duplicate_cleanup_establishes_the_ancestor_barrier():
     delivered copy — which this run may not have written either.
 
     Separate from the already-present case above because it is a separate
-    caller of _remove_verified_source, and the defect was that each caller
-    established the barrier for itself or not at all. A test per caller says
-    which one regressed.
+    caller of _remove_verified_source, and a barrier established by each caller
+    for itself can be missing from one of them. A test per caller says which.
     """
     case = new_case("dup_barrier")
     make_photo(case / "src" / "a.jpg", "twin")
@@ -2646,12 +2644,12 @@ def an_unsupported_directory_fsync_is_reported_once_per_run():
     from the spec.
 
     EINVAL/ENOTSUP are tolerated by design — the operation is absent rather
-    than failed — so the move proceeds and, until now, nothing said anything at
-    all. On exFAT or an odd network mount that silence was the whole problem.
+    than failed — so the move proceeds, and without the report nothing would
+    say so on exFAT or an odd network mount.
 
     Once per RUN, not once per process: the flag resets with the other per-run
     durability bookkeeping, so a second run on the same loaded engine says it
-    again. And not once per directory, which on a real library would be a line
+    again. And not once per directory, which would be a line
     per date folder — hence two photos in different date folders below.
     """
     import errno
@@ -3430,9 +3428,8 @@ def _run_main_in_process(case, move_or_copy_result, *extra):
 @test
 def a_cancel_during_the_scan_ends_cancelled():
     """
-    The scan phase settles its own cancellation. Pinned because a blanket
-    end-of-run relabel used to claim this job, and removing it must not leave
-    a cancelled scan reading Completed.
+    The scan phase settles its own cancellation; nothing at the end of the run
+    relabels outcomes, so a cancelled scan must not read Completed.
     """
     case = new_case("scan_cancel")
     total = 240
@@ -3787,7 +3784,7 @@ def main():
 
     selected = [t for t in RESULTS if args.filter in t.__name__]
     if not selected:
-        # A typo'd filter used to print "0 passed, 0 failed" and exit 0 —
+        # Otherwise a typo'd filter would print "0 passed, 0 failed" and exit 0 —
         # indistinguishable from success to anything reading the exit code.
         print(f"no test name contains {args.filter!r}", file=sys.stderr)
         shutil.rmtree(WORKSPACE, ignore_errors=True)

@@ -1,8 +1,8 @@
 """Engine-owned catalog schema and shared persistence primitives.
 
 No photo filesystem operations live here. Callers own/close connections; initialization
-is explicit, and settings access never silently creates a catalog. This foundation
-retains the transfer tables while original source identity is introduced separately.
+is explicit, and settings access never silently creates a catalog. The transfer tables
+(photos, runs, operations) sit alongside the file-identity and lineage records.
 """
 import contextlib
 import errno

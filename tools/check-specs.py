@@ -2,13 +2,11 @@
 """Verify spec cross-references resolve, code fences balance, and no blank line
 splits a markdown table.
 
-Kept in the repo rather than /tmp, which has been cleared twice mid-task.
 Exits non-zero on any failure, so it can gate a commit rather than merely inform.
 
 A naive checker that looks backwards N characters for a filename produces false
 positives on local range references such as "9.1-9.6" when a different spec is
-named in the preceding sentence. That mistake was made and nearly filed as a
-defect; the sentence-break reset below is what prevents it.
+named in the preceding sentence; the sentence-break reset below prevents that.
 """
 from pathlib import Path
 import re

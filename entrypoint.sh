@@ -16,8 +16,8 @@ fi
 # /appdata is the engine's own small tree (catalog, logs, lock), so all of it
 # goes to the mapped user. /data/dest is the user's library: only its top
 # level is taken, so new date folders can be created, and everything already
-# inside keeps its owner. Walking the whole library on every start was slow
-# and rewrote the ownership of the user's files.
+# inside keeps its owner. Walking the whole library on every start would be
+# slow and would rewrite the ownership of the user's files.
 #
 # chown is expected to fail on root-squashed network shares, so a failure is
 # not fatal here; the writability checks below decide what matters.

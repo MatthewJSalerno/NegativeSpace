@@ -103,15 +103,16 @@ Metadata Extraction:
     through only if the previous step fails or finds nothing at all:
 
     1. ExifTool (persistent per-worker process, full tag set, not a
-       curated subset) — the primary and now-guaranteed-available source.
+       curated subset) — the primary source, always available because the
+       engine refuses to start without it.
        The only method that can read metadata from RAW-family files
        (.cr2, .nef, .arw, .raf, .raw, .dng), since neither PIL nor rawpy
        expose EXIF/metadata fields for those formats (rawpy only decodes
        pixel data, for pHash generation — it has no metadata-reading API
        at all).
     2. PIL (Image.getexif(), PLUS the "Exif" sub-IFD via get_ifd(0x8769))
-       — a defensive per-FILE fallback, not a "ExifTool isn't installed"
-       fallback anymore (that case can no longer happen — see above). Used
+       — a defensive per-FILE fallback, not an "ExifTool is missing"
+       fallback, which cannot happen (see above). Used
        only if ExifTool genuinely ran but returned nothing usable for a
        specific file. Works for standard formats (JPEG, PNG, TIFF, HEIC
        with pillow-heif); cannot open RAW-family formats at all.
@@ -186,8 +187,8 @@ INITIAL_RETRY_DELAY = 1.0  # Seconds
 # Extensions scanned by default. A missing entry is worse than a failure: the
 # file is not indexed, not counted, not reported — it is simply invisible, and
 # you find out when it is still sitting in the source folder after an organize
-# pass. '.tif' was absent while '.tiff' was present, which silently skipped
-# every TIFF written by the more common spelling.
+# pass. So every spelling of a format is listed ('.tif' and '.tiff'; '.jpg',
+# '.jpeg', '.jpe' and '.jfif').
 # Formats that need rawpy/LibRaw to decode. PIL cannot open these at all, so
 # compute_phash() routes them to the RAW branch; a format that reached PIL
 # instead would always fail its perceptual hash.
@@ -271,8 +272,8 @@ DATE_SOURCE_MTIME = "file_mtime"
 # Where a photo goes when the engine could not read a date from it.
 #
 # Filing by modification time puts a date on a photo that nobody vouched for —
-# for an export that is the download date, which is how photos from the 2000s
-# landed in 2024/ and 2025/ folders on a real run. Those files go here instead,
+# for an export that is the download date, so photos from the 2000s would land
+# in 2024/ and 2025/ folders. Those files go here instead,
 # subdivided by year so the folder stays navigable at ~8% of a library without
 # the tree ever claiming to know when the photograph was taken.
 #
@@ -507,11 +508,11 @@ def configure_logging(log_dir: Path):
     log_file = log_dir / "organizer.log"
 
     # Route warnings.warn() through logging so they reach organizer.log.
-    # Without this they go straight to stderr and never touch a handler, so a
-    # real library scan showed "Truncated File Read" and rawpy's OpenMP warning
-    # on the console while the log file recorded nothing — the log looked clean
-    # precisely where something was wrong. These matter: a truncated TIFF names
-    # a file worth investigating.
+    # Without this they go straight to stderr and never touch a handler, so
+    # "Truncated File Read" and rawpy's OpenMP warning would reach the console
+    # while the log file recorded nothing — the log would look clean precisely
+    # where something was wrong. These matter: a truncated TIFF names a file
+    # worth investigating.
     logging.captureWarnings(True)
     logging.basicConfig(
         level=logging.INFO,
@@ -569,11 +570,10 @@ def await_cancelling_record(watcher: threading.Thread):
 # --- Resilient Network IO Wrapper ---
 # Conditions that are a property of the path or the filesystem, not a hiccup.
 # Retrying these cannot possibly succeed, and sleeping through the backoff
-# first turns a fast, clear failure into a slow one. The case that exposed
-# this: --move against a source mounted :ro raises EROFS on every delete, so
-# each file burned the full 1s + 2s backoff before failing — three seconds per
-# file, guaranteed, which on a 10,000-photo library is over eight hours of
-# sleeping to arrive at "nothing worked". Genuinely transient conditions
+# first turns a fast, clear failure into a slow one: --move against a source
+# mounted :ro raises EROFS on every delete, and the full 1s + 2s backoff per
+# file would spend over eight hours on a 10,000-photo library to arrive at
+# "nothing worked". Genuinely transient conditions
 # (below, the reason this wrapper exists at all) still get the full backoff.
 PERMANENT_IO_ERRNOS = frozenset({
     errno.EROFS,          # read-only filesystem — e.g. a :ro volume mount
@@ -781,9 +781,7 @@ def drain_result_queue(db_thread: threading.Thread):
     Queue.join() blocks until task_done() has been called for each item, which
     can only happen while the writer is alive. If it has died the queue can
     never drain and join() hangs until something external kills the process:
-    no error, no log line, just a run that never ends. Observed exactly once in
-    CI as a 300-second timeout with a clean log above it, which is precisely
-    what an unobservable hang looks like.
+    no error, no log line, just a run that never ends.
 
     Checking liveness between bounded waits turns that into an immediate,
     named failure.
@@ -1196,10 +1194,8 @@ def reconcile_interrupted_state(db_path: Path, run_id: int):
 
             # One transaction per reconciled row: evidence, the settled
             # operation and the photo's new status commit together or not at
-            # all. Relying on an incidental write to open one left the first
-            # evidence write without a transaction whenever intent already
-            # existed, which is every interrupted row now that intent is
-            # recorded before the mutation.
+            # all. Opened explicitly: no earlier write in this loop opens one,
+            # so the first evidence write would otherwise run outside it.
             conn.execute("BEGIN IMMEDIATE")
             unsettled = ns_db.unsettled_operations(conn, record_id)
             operation_id = unsettled[-1][0] if unsettled else ns_db.begin_operation(
@@ -1384,10 +1380,8 @@ _worker_exiftool: Optional["pyexiftool.ExifToolHelper"] = None
 # Consecutive ExifTool failures in this worker. The self-healing respawn below
 # is worth doing for a one-off bad file, but repeating it forever is not: if
 # ExifTool is broken in this process rather than confused by one image, every
-# subsequent file pays a terminate-and-respawn — silently, since the failure
-# was logged at DEBUG. That cost a real library run 4.75 seconds PER FILE with
-# the CPU almost idle (112% of 2400% available) and not one line in the log to
-# explain it. After this many consecutive failures the worker stops trying and
+# subsequent file pays a terminate-and-respawn: measured at 4.75 seconds PER
+# FILE with the CPU almost idle (112% of 2400% available). After this many consecutive failures the worker stops trying and
 # falls through to the PIL path, which is the documented fallback anyway.
 _worker_exiftool_failures = 0
 MAX_CONSECUTIVE_EXIFTOOL_FAILURES = 3
@@ -1473,8 +1467,7 @@ def get_full_exif_via_exiftool(file_path: Path) -> Optional[dict]:
 
         # WARNING, not DEBUG. This path costs a process teardown and respawn
         # per file; a run that silently spends seconds per file on it looks
-        # like a mysteriously slow scan with a clean log, which is exactly how
-        # it presented on a real library.
+        # like a mysteriously slow scan with a clean log.
         logger.warning(
             f"ExifTool extraction failed for {file_path.name} "
             f"(failure {_worker_exiftool_failures} of {MAX_CONSECUTIVE_EXIFTOOL_FAILURES} "
@@ -1561,11 +1554,6 @@ def extract_date_from_metadata(metadata: dict) -> Optional[datetime]:
     Undated screen shows them as clues, clearly labelled, so a user can decide
     whether a date is meaningful (webui-spec.md 3.1). Retaining and promoting
     are different things.
-
-    Measured before this narrowed: on a 29,086-file library exactly 18 photos
-    (0.1%) were being dated from CreateDate and none from DateTime, so this
-    conforms the code to the recorded contract rather than rescuing a large
-    number of misfiled photos.
     """
     if "DateTimeOriginal" in metadata:
         return parse_exif_date(metadata["DateTimeOriginal"])
@@ -2041,12 +2029,12 @@ def _fsync_directory(directory):
     directory fsync.
 
     EINVAL/ENOTSUP mean the operation is ABSENT rather than failed, so the move
-    proceeds. But the power-loss guarantee is correspondingly weaker there, and
-    saying so only in the spec left a user on exFAT or an odd network mount to
-    infer it: the run itself was silent.
+    proceeds. But the power-loss guarantee is correspondingly weaker there, so
+    the run says so rather than leaving a user on exFAT or an odd network mount
+    to infer it from the spec.
 
     Reported once per RUN, naming the first directory that reported it. Once
-    per directory would be a line per date folder on a real library, which is
+    per directory would be a line per date folder, which is
     how a warning becomes noise and then becomes ignored.
     """
     global _unsupported_dir_fsync_reported
@@ -2397,19 +2385,17 @@ def log_scan_progress(scanned: int, total: int, started_at: float,
     """
     Reports progress as RECENT rate plus THROUGHPUT, not a cumulative file count.
 
-    Both distinctions were learned the hard way on a real library. Files differ
-    enormously in cost — RAW was 13% of that library's files but 50% of its
-    bytes, roughly 21 MB against 3 MB — so:
+    Files differ enormously in cost — in one measured library RAW was 13% of
+    the files but 50% of the bytes, roughly 21 MB against 3 MB — so:
 
-    - A cumulative average decays misleadingly. Indexing RAW first showed
-      "34 files/sec" falling to "7 files/sec" over five minutes while the true
-      rate was flat at 5.05 the entire time. That looks like something
-      degrading. Nothing was.
+    - A cumulative average decays misleadingly. Indexing RAW first, it fell
+      from "34 files/sec" to "7 files/sec" over five minutes while the true
+      rate was flat at 5.05 the entire time: it looks like degradation and
+      is not.
     - A file count cannot distinguish "saturated link" from "broken". At 5.05
       files/sec the engine was moving ~101 MB/s, which is 1GbE at line rate —
-      instantly recognisable as physics rather than a bug, but only if
-      throughput is on screen. Without it an hour went into diagnosing a
-      correctly-working scan.
+      recognisable as physics rather than a bug only if throughput is on
+      screen.
 
     The ETA uses the recent rate rather than the average, so it responds when
     the workload changes character instead of averaging RAW and JPEG together.
@@ -2508,11 +2494,11 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int,
         # This destination is a PROJECTION, not a reservation, and
         # has_name_collision stays False here by design. The authoritative
         # unique-name resolution happens immediately before the file is
-        # actually written (see _run_move_or_copy). Resolving it here instead
-        # was silent data loss: at Index time the destination tree is normally
-        # still empty, so two different photos sharing a filename were both
-        # told the name was free, and whichever got written second overwrote
-        # the first — with both runs reporting success.
+        # actually written (see _run_move_or_copy). Resolving it here would be
+        # silent data loss: at Index time the destination tree is normally
+        # still empty, so two different photos sharing a filename would both
+        # be told the name was free, and whichever got written second would
+        # overwrite the first — with both runs reporting success.
         return ProcessingResult(
             file_path=str(file_path),
             sha1_hash=sha1,
@@ -2606,15 +2592,13 @@ def is_hidden_path(path: Path, root: Path) -> bool:
     whole junk trees (.Trashes/, .Spotlight-V100/, .thumbnails/) and not just
     individual dotfiles.
 
-    The case that actually motivated this: macOS writes an AppleDouble
-    sidecar named "._IMG_0001.jpg" beside every real file on non-HFS volumes
-    (SD cards, USB drives, network shares). Those carry a real photo
-    extension, so the scan happily indexed each one as a photograph —
-    hashing it, failing to find EXIF, filing it by mtime, and on --move
-    dutifully migrating a few KB of resource-fork metadata into the library
-    as if it were a picture. Every SD card import brought a shadow copy of
-    itself. .DS_Store never matched an extension so it was harmless; these
-    were not.
+    macOS writes an AppleDouble sidecar named "._IMG_0001.jpg" beside every
+    real file on non-HFS volumes (SD cards, USB drives, network shares). It
+    carries a real photo extension, so without this check each would be
+    indexed as a photograph — hashed, found to have no EXIF, filed by mtime,
+    and migrated by --move into the library as a few KB of resource-fork
+    metadata posing as a picture. .DS_Store never matches an extension; these
+    do.
     """
     try:
         relative = path.relative_to(root)
@@ -2656,8 +2640,8 @@ def discover_source_files(root: Path, extensions: set, errors: Optional[list] = 
     Uses os.scandir rather than Path.rglob because of what each costs on a
     NETWORK share. rglob yields bare paths, so the caller must then ask
     p.is_file() and p.is_symlink() — two stat() calls per entry, and over NFS a
-    stat() is a round trip rather than a page-cache hit. A real library spent
-    28-40 seconds merely enumerating 29,047 files, which is almost exactly
+    stat() is a round trip rather than a page-cache hit. Measured: 28-40
+    seconds merely to enumerate 29,047 files, which is almost exactly
     29,047 x 2 x ~0.5ms of round trips. os.scandir's DirEntry carries the type
     from readdir(), so the same walk usually needs no extra syscall at all;
     measured 8x faster even on a local filesystem, where there is no network
@@ -3375,9 +3359,9 @@ def main():
         # Submitted in bounded batches rather than all at once. Every
         # completed future holds its ProcessingResult — including the FULL
         # ExifTool tag set for that file — until it is drained, so submitting
-        # an entire library up front made peak memory scale with the number of
-        # photos (hundreds of MB to GBs on a large collection) no matter how
-        # small the queue's maxsize was. Batching also gives cancellation a
+        # an entire library up front would make peak memory scale with the
+        # number of photos (hundreds of MB to GBs on a large collection)
+        # however small the queue's maxsize. Batching also gives cancellation a
         # checkpoint between batches; without one, Cancel Job (and `docker
         # stop`, which escalates to SIGKILL after ~10s) could not stop a long
         # Index.
@@ -3828,8 +3812,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     space_ok, free_bytes, needed_bytes = verify_sufficient_disk_space(dest_path, total_bytes_needed)
     if not space_ok:
         # A pre-flight abort is a run-level failure and must leave a row: the
-        # Error Center reads operations, so a shortfall that only logged was
-        # invisible there — the run reported Failed with nothing saying why.
+        # Error Center reads operations, so a shortfall that is only logged is
+        # invisible there — the run would read Failed with nothing saying why.
         shortfall = (
             f"Insufficient space at the destination: {needed_bytes / (1024 ** 3):.2f} GB required "
             f"(including the safety margin), {free_bytes / (1024 ** 3):.2f} GB free. Nothing was "
@@ -3858,9 +3842,9 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             remaining = pending_records[index:]
             logger.warning(f"Cancellation requested — logging {len(remaining)} remaining item(s) as Cancelled.")
             # One transaction, not one per row. This connection commits at FULL, so a
-            # commit per row was an fsync per row: ~17 s for 24,000 remaining photos,
-            # longer than docker stop's default 10 s grace, which then killed the run
-            # mid-cancel. All-or-nothing is the right failure mode anyway: a kill
+            # commit per row would be an fsync per row: ~17 s for 24,000 remaining
+            # photos, longer than docker stop's default 10 s grace, after which
+            # Docker kills the run mid-cancel. All-or-nothing is the right failure mode anyway: a kill
             # during this commit loses only bookkeeping, the photos stay Pending, and
             # the run is recorded Interrupted.
             for cancelled_id, cancelled_src, cancelled_dst, _ in remaining:
@@ -4088,10 +4072,10 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             # files still match. Either side can have changed since the Index
             # that recorded them — the source edited in place, or the
             # destination copy modified or truncated by something outside this
-            # engine — and the previous code checked only that the destination
-            # path existed. A file that exists is not a file that matches, so
-            # an edited destination was enough to authorize deleting the last
-            # remaining copy of a photo.
+            # engine. Checking only that the destination path exists is not
+            # enough: a file that exists is not a file that matches, and an
+            # edited destination would authorize deleting the last remaining
+            # copy of a photo.
             #
             # An unreadable candidate must never count as a match either: a
             # permission error or an I/O fault is an absence of evidence, not
