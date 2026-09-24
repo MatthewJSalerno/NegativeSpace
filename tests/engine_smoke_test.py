@@ -34,6 +34,7 @@ Exit code is non-zero if any test fails.
 """
 
 import argparse
+import collections
 import contextlib
 import json
 import os
@@ -2806,7 +2807,17 @@ def a_move_to_a_network_share_asks_before_anything_is_deleted():
         return _run_fixture_move(engine, args, case / "appdata" / "db" / "ns_sqlite.db",
                                  case / "dest", _IN_PROCESS_RUN_ID)
 
-    check(run(move=True) == "Completed", "the unconfirmed Move did not end cleanly")
+    with sqlite3.connect(case / "appdata" / "db" / "ns_sqlite.db") as conn:
+        conn.execute("INSERT INTO runs(id,mode,started_at,status) VALUES(?, 'MOVE', 'test', 'Running')",
+                     (_IN_PROCESS_RUN_ID,))
+    engine.run_progress.bind(str(case / "appdata" / "db" / "ns_sqlite.db"), _IN_PROCESS_RUN_ID)
+    try:
+        check(run(move=True) == "Completed", "the unconfirmed Move did not end cleanly")
+    finally:
+        engine.run_progress.bind(None, None)
+    progress = [(r["phase"], r["total"], r["counts"]) for r in _progress(case, _IN_PROCESS_RUN_ID)]
+    check(progress == [("transferring", 3, {"Skipped": 3})],
+          f"the drawer must show every selected photo not attempted: {progress}")
     check(src_files(case) == before, f"an unconfirmed Move to a network share removed sources: {src_files(case)}")
     check(not (case / "dest").exists() or not any((case / "dest").rglob("*.jpg")),
           "an unconfirmed Move to a network share wrote to the destination")
@@ -3760,6 +3771,8 @@ def a_thumbnail_rebuild_restores_the_grid_from_any_catalogued_copy():
     check(rows(case, "SELECT COUNT(*) n FROM operations WHERE run_id = ?", (run["id"],))[0]["n"] == 0,
           "a cache-only rebuild recorded operations")
     check(len(backups_of(case)) == backups, "a cache-only rebuild took a catalog backup")
+    progress = [(r["phase"], r["total"], r["counts"]) for r in _progress(case)]
+    check(progress == [("rebuilding_thumbnails", 3, {"made": 3})], f"rebuild progress: {progress}")
 
     restored = _grid_files(case)
     run_engine(case, "--rebuild-thumbnails", "missing")
@@ -3809,6 +3822,131 @@ def a_cancelled_thumbnail_rebuild_stops_and_says_so():
         engine.cancel_requested.clear()
     check(outcome == "Cancelled", f"a cancelled rebuild reported {outcome}")
     check(not _grid_files(case), "a rebuild cancelled before its first batch made thumbnails")
+
+
+def _progress(case, run_id=None):
+    run_id = run_id or rows(case, "SELECT MAX(id) m FROM runs")[0]["m"]
+    return [dict(r, counts=json.loads(r["counts_json"])) for r in rows(
+        case, "SELECT phase, seq, total, done, counts_json FROM run_progress WHERE run_id = ? ORDER BY seq",
+        (run_id,))]
+
+
+def _transfer_outcomes(case, run_id=None):
+    """This run's recorded outcomes past the scan: scan rows are Pending or Duplicate."""
+    run_id = run_id or rows(case, "SELECT MAX(id) m FROM runs")[0]["m"]
+    return {r["status"]: r["n"] for r in rows(
+        case, "SELECT status, COUNT(*) n FROM operations WHERE run_id = ? "
+              "AND status NOT IN ('Pending', 'Duplicate') GROUP BY status", (run_id,))}
+
+
+@test
+def every_job_phase_reports_progress_that_agrees_with_the_record():
+    """
+    webui-spec 4.1: the drawer reads one progress row per phase - a total for the
+    phase's whole scope, a done count, and outcomes that sum to it. Unchanged files
+    count as done (raw operation rows cannot say so), discovery has no total yet,
+    and when a phase ends its counts are exactly the outcomes the operations log
+    recorded - so the drawer and View failures never disagree.
+    """
+    case = new_case("run_progress")
+    make_photo(case / "src" / "a.jpg", "progress-a", date="2020:01:01 10:00:00")
+    make_photo(case / "src" / "a_copy.jpg", "progress-a", date="2020:01:01 10:00:00")
+    make_photo(case / "src" / "sub" / "b.jpg", "progress-b", date="2020:01:02 10:00:00")
+    make_photo(case / "src" / "c.jpg", "progress-c", date="2020:01:03 10:00:00")
+    (case / "src" / "notes.txt").write_text("not a photo")
+
+    def phases(p):
+        return [r["phase"] for r in p]
+
+    run_engine(case)
+    p = _progress(case)
+    check(phases(p) == ["discovering", "scanning"], f"Index phases: {phases(p)}")
+    check(p[0]["total"] is None and p[0]["counts"] == {"eligible": 4, "excluded": 1},
+          f"discovery must count what it walked, with no total: {p[0]}")
+    check(p[1]["total"] == 4 and p[1]["counts"] == {"indexed": 3, "duplicates": 1},
+          f"first scan: {p[1]}")
+
+    run_engine(case)
+    p = _progress(case)
+    check(p[1]["total"] == 4 and p[1]["counts"] == {"unchanged": 4},
+          f"a re-Index must count unchanged files as done: {p[1]}")
+
+    run_engine(case, "--copy")
+    p = _progress(case)
+    check(phases(p) == ["discovering", "scanning", "transferring"], f"Copy phases: {phases(p)}")
+    check(p[2]["counts"] == _transfer_outcomes(case) == {"Copied": 3, "Skipped": 1},
+          f"Copy progress {p[2]['counts']} disagrees with the record {_transfer_outcomes(case)}")
+
+    run_engine(case, "--move")
+    p = _progress(case)
+    check(phases(p) == ["discovering", "scanning", "transferring", "removing_duplicates"],
+          f"Move phases: {phases(p)}")
+    combined = collections.Counter(p[2]["counts"]) + collections.Counter(p[3]["counts"])
+    check(dict(combined) == _transfer_outcomes(case) == {"Completed": 3, "Removed_Duplicate": 1},
+          f"Move progress {dict(combined)} disagrees with the record {_transfer_outcomes(case)}")
+
+    for r in rows(case, "SELECT run_id, phase, total, done, counts_json FROM run_progress"):
+        check(r["done"] == sum(json.loads(r["counts_json"]).values()),
+              f"done is not the sum of the counts: {r}")
+        check(r["phase"] == "discovering" or r["total"] == r["done"],
+              f"a finished phase did not reach its total: {r}")
+
+
+@test
+def a_cancelled_transfer_counts_what_it_did_not_reach():
+    """Cancellation shows recorded outcomes and cancelled items (webui-spec 4.1): the
+    bar reaches its total, with the unreached photos counted Cancelled."""
+    engine = _load_engine()
+    case = new_case("progress_cancel")
+    for i in range(6):
+        make_photo(case / "src" / f"p{i}.jpg", f"progress-cancel-{i}", date=None)
+    run_engine(case)
+    db_path = case / "appdata" / "db" / "ns_sqlite.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("INSERT OR IGNORE INTO runs(id,mode,started_at,status) VALUES(?, 'MOVE', 'test', 'Running')",
+                     (_IN_PROCESS_RUN_ID,))
+    engine.run_progress.bind(str(db_path), _IN_PROCESS_RUN_ID)
+    engine.cancel_requested.set()
+    try:
+        outcome = _move_in_process(engine, case)
+    finally:
+        engine.cancel_requested.clear()
+        engine.run_progress.bind(None, None)
+    check(outcome == "Cancelled", f"setup: the move reported {outcome}")
+    p = _progress(case, _IN_PROCESS_RUN_ID)
+    check([(r["phase"], r["total"], r["counts"]) for r in p] == [("transferring", 6, {"Cancelled": 6})],
+          f"a cancelled transfer's progress: {p}")
+
+
+@test
+def progress_is_written_while_a_job_runs():
+    """About once a second while work happens, not only at the end: a reader polling
+    the catalog mid-scan and mid-copy sees a partial count."""
+    case = new_case("progress_live")
+    for i in range(400):
+        make_photo(case / "src" / f"p{i:03d}.jpg", f"progress-live-{i}", size=(1200, 900), date=None)
+    # Output to a file, not a pipe nobody reads until the end: a full pipe would
+    # block the engine and the loop below would wait forever.
+    log = open(case / "engine-output.txt", "w")
+    proc = subprocess.Popen([sys.executable, str(ENGINE), "--source", str(case / "src"),
+                             "--dest", str(case / "dest"), "--base", str(case / "appdata"),
+                             "--cache", str(case / "cache"), "--backups", str(case / "backups"),
+                             "--workers", "1", "--copy"], stdout=log, stderr=subprocess.STDOUT)
+    seen = set()
+    db_path = case / "appdata" / "db" / "ns_sqlite.db"
+    while proc.poll() is None:
+        with contextlib.suppress(sqlite3.Error):
+            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=1)
+            try:
+                seen.update(conn.execute("SELECT phase, total, done FROM run_progress").fetchall())
+            finally:
+                conn.close()
+        time.sleep(0.1)
+    log.close()
+    check(proc.returncode == 0, f"the run failed: {proc.returncode}")
+    for phase in ("scanning", "transferring"):
+        check(any(r[0] == phase and 0 < r[2] < r[1] for r in seen),
+              f"no snapshot was observed mid-{phase}; saw {sorted(seen)}")
 
 
 @test

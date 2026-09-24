@@ -187,6 +187,8 @@ DB_COMMIT_INTERVAL_SECONDS = 3.0
 # the progress bar the web UI needs. Time-based rather than every-N-files so the
 # cadence stays readable whether a library is 200 files or 200,000.
 PROGRESS_INTERVAL_SECONDS = 15.0
+# How often the drawer's progress snapshot is written (webui-spec 4.1: about once a second).
+PROGRESS_SNAPSHOT_SECONDS = 1.0
 SHA1_CHUNK_SIZE = 65536
 MAX_RETRIES = 3
 INITIAL_RETRY_DELAY = 1.0  # Seconds
@@ -519,6 +521,91 @@ def _handle_cancel_signal(signum, frame):
     cancel_requested.set()
 
 
+class RunProgress:
+    """The drawer's live progress for the current run (webui-spec 4.1), kept in memory
+    and written to run_progress about once a second.
+
+    Counts are added where each outcome is decided, not re-derived from the operations
+    log: unchanged files write no operation, and recovery rows written during a scan
+    are run-level issues the drawer keeps separate (webui-spec 5.5). `done` is the sum
+    of the counts. Unbound (no run), every call is a no-op, so in-process callers and
+    tests need no setup. Thread-safe: the scan's writer thread adds, the main thread
+    starts phases.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.bind(None, None)
+
+    def bind(self, db_path, run_id):
+        with self._lock:
+            self.db_path, self.run_id = db_path, run_id
+            self.phase, self.seq, self.total, self.counts = None, 0, None, collections.Counter()
+            self.started_at, self._dirty, self._written_at = None, False, 0.0
+
+    def start(self, phase: str, total: Optional[int]):
+        """Enters a phase and records it at once, so the drawer names it before any
+        file finishes."""
+        if self.run_id is None:
+            return
+        with self._lock:
+            self.seq += 1
+            self.phase, self.total, self.counts = phase, total, collections.Counter()
+            self.started_at, self._dirty = ns_db.utc_now(), True
+        self.write_now()
+
+    def set_total(self, total: int):
+        with self._lock:
+            self.total, self._dirty = total, True
+
+    def add(self, outcome: str, n: int = 1):
+        if self.run_id is None or self.phase is None or n <= 0:
+            return
+        with self._lock:
+            self.counts[outcome] += n
+            self._dirty = True
+
+    def set_count(self, outcome: str, n: int):
+        """For a running tally owned elsewhere, such as files found by the walk."""
+        if self.run_id is None or self.phase is None:
+            return
+        with self._lock:
+            self.counts[outcome] = n
+            self._dirty = True
+
+    def due(self) -> bool:
+        return (self.run_id is not None and self._dirty
+                and time.monotonic() - self._written_at >= PROGRESS_SNAPSHOT_SECONDS)
+
+    def write(self, conn):
+        """Writes the snapshot into the caller's open transaction; the caller commits."""
+        if self.run_id is None or self.phase is None:
+            return
+        with self._lock:
+            snapshot = dict(phase=self.phase, seq=self.seq, total=self.total,
+                            counts=dict(self.counts), started_at=self.started_at)
+            self._dirty, self._written_at = False, time.monotonic()
+        ns_db.write_progress(conn, self.run_id, **snapshot)
+
+    def write_now(self):
+        """On its own connection. Never raises: progress is a display, and failing to
+        show it must not fail the job."""
+        if self.run_id is None or self.phase is None:
+            return
+        try:
+            with contextlib.closing(get_db_connection(self.db_path)) as conn, ns_db.transaction(conn):
+                self.write(conn)
+        except Exception as exc:
+            logger.warning(f"Could not record job progress: {exc}")
+
+    def maybe_write_now(self):
+        if self.due():
+            self.write_now()
+
+
+run_progress = RunProgress()
+
+
 def watch_for_cancellation(db_path: str, run_id: int):
     """Records Cancelling as soon as a cancel arrives, so a reader sees the request
     was accepted while the current file finishes. A thread rather than the signal
@@ -847,6 +934,9 @@ def db_writer_worker(db_path: str):
         nonlocal pending_writes, last_flush
         try:
             if pending_writes:
+                # The drawer's snapshot rides in the same commit as the rows it
+                # counts, so it never shows more than the catalog holds.
+                run_progress.write(conn)
                 conn.commit()
                 pending_writes = 0
         except Exception as e:
@@ -1005,9 +1095,14 @@ def db_writer_worker(db_path: str):
             status_counts[status] = status_counts.get(status, 0) + 1
             if result.phash in ("error", "not_supported"):
                 phash_failures += 1
+            run_progress.add("failed" if status == PhotoStatus.FAILED else
+                             "duplicates" if status == PhotoStatus.DUPLICATE else "indexed")
 
             pending_writes += 1
-            if pending_writes >= DB_COMMIT_BATCH_SIZE or (
+            # A commit at least once a second while progress changes, rather than
+            # every DB_COMMIT_INTERVAL_SECONDS: the drawer refreshes about once a
+            # second, and a commit here does not fsync (synchronous=NORMAL).
+            if pending_writes >= DB_COMMIT_BATCH_SIZE or run_progress.due() or (
                 time.monotonic() - last_flush >= DB_COMMIT_INTERVAL_SECONDS
             ):
                 flush()
@@ -1021,6 +1116,7 @@ def db_writer_worker(db_path: str):
                 conn.execute("RELEASE scan_row")
             writer_failures.append((result.file_path, f"{type(e).__name__}: {e}"))
             logger.error(f"DB writer failed to record {result.file_path}: {e}")
+            run_progress.add("failed")
         finally:
             result_queue.task_done()
 
@@ -2613,7 +2709,8 @@ def describe_root_overlap(source: Path, dest: Path) -> Optional[str]:
 
 
 def discover_source_files(root: Path, extensions: set, errors: Optional[list] = None,
-                          excluded: Optional[dict] = None) -> List[str]:
+                          excluded: Optional[dict] = None,
+                          on_directory: Optional[Callable[[int, int], None]] = None) -> List[str]:
     """
     Walks `root` and returns the files worth scanning.
 
@@ -2636,6 +2733,9 @@ def discover_source_files(root: Path, extensions: set, errors: Optional[list] = 
     5.1). Hidden entries are skipped before any counting, as they always were.
     DirEntry.is_file reads the type readdir already returned, so counting them
     adds no round trip on a network share.
+
+    `on_directory(eligible, excluded)`, when given, is called after each folder with
+    the running totals, for live progress while the total is still unknown.
     """
     found: List[str] = []
     stack = [str(root)]
@@ -2674,6 +2774,8 @@ def discover_source_files(root: Path, extensions: set, errors: Optional[list] = 
             if errors is not None:
                 errors.append((current, f"Could not read this folder during the scan, so photos "
                                         f"inside it were not examined: {type(e).__name__}: {e}"))
+        if on_directory is not None:
+            on_directory(len(found), sum(excluded.values()) if excluded is not None else 0)
     return found
 
 
@@ -3053,6 +3155,7 @@ def rebuild_thumbnails(db_path: Path, cache_root: Path, scope: str,
     logger.info(f"Rebuilding grid thumbnails ({'every one' if replace else 'missing ones only'}) "
                 f"for {total:,} catalogued photo content(s).")
     counts = collections.Counter()
+    run_progress.start("rebuilding_thumbnails", total)
     done, last_progress_at = 0, time.monotonic()
     batch_size = max(worker_count * 4, 16)
     items = list(work.items())
@@ -3073,6 +3176,7 @@ def rebuild_thumbnails(db_path: Path, cache_root: Path, scope: str,
             with ns_db.transaction(conn):
                 for sha1, kind, result, observed, fid in results:
                     counts[kind] += 1
+                    run_progress.add(kind)
                     if kind in ("already", "kept") and sha1 in recorded:
                         continue
                     ns_db.record_thumbnail(
@@ -3080,6 +3184,7 @@ def rebuild_thumbnails(db_path: Path, cache_root: Path, scope: str,
                         availability=result.availability, cache_filename=result.cache_filename,
                         bytes_on_disk=result.bytes, attempted_file_id=fid, observed_path=observed,
                         failure_category=result.failure_category, failure_detail=result.failure_detail)
+                run_progress.write(conn)
             done += len(results)
             if time.monotonic() - last_progress_at >= PROGRESS_INTERVAL_SECONDS:
                 logger.info(f"Rebuilding grid thumbnails: {done:,} of {total:,}.")
@@ -3120,6 +3225,7 @@ def run_thumbnail_rebuild(args, db_path: Path, base_dir: Path, log_dir: Path, lo
         with contextlib.closing(get_db_connection(str(db_path))) as conn:
             workers = json.loads(conn.execute(
                 "SELECT effective_config_json FROM run_configs WHERE run_id=?", (run_id,)).fetchone()[0])["workers"]
+        run_progress.bind(str(db_path), run_id)
         cancel_watcher = threading.Thread(target=watch_for_cancellation, args=(str(db_path), run_id), daemon=True)
         cancel_watcher.start()
         outcome = RunStatus.FAILED
@@ -3511,6 +3617,7 @@ def main():
             f"Those files are still catalogued, and Copy and Move carry them into the "
             f"destination, usually under Undated/<year> by modification time, with no "
             f"thumbnail and no similarity matching.")
+    run_progress.bind(str(db_path), run_id)
     cancel_watcher = threading.Thread(target=watch_for_cancellation,
                                       args=(str(db_path), run_id), daemon=True)
     cancel_watcher.start()
@@ -3597,8 +3704,15 @@ def main():
         else:
             discovery_errors: List[tuple] = []
             excluded_by_ext: dict = {}
+            run_progress.start("discovering", None)
+
+            def discovered(eligible, excluded):
+                run_progress.set_count("eligible", eligible)
+                run_progress.set_count("excluded", excluded)
+                run_progress.maybe_write_now()
             candidates = discover_source_files(source_path, active_extensions, errors=discovery_errors,
-                                               excluded=excluded_by_ext)
+                                               excluded=excluded_by_ext, on_directory=discovered)
+            run_progress.write_now()
             with contextlib.closing(get_db_connection(str(db_path))) as conn:
                 ns_db.record_discovery(conn, run_id, eligible=len(candidates),
                                        excluded_by_extension=excluded_by_ext,
@@ -3679,6 +3793,11 @@ def main():
             )
         elif args.force_rehash:
             logger.info("--force-rehash: re-reading every file regardless of the catalog.")
+        # The scan's denominator is the whole scope: unchanged files are done the
+        # moment they are skipped, which is why raw operation counts cannot supply it.
+        run_progress.start("scanning", len(files_to_process) + len(unchanged))
+        run_progress.add("unchanged", len(unchanged))
+        run_progress.write_now()
 
         # One bulk read rather than a query per file: an undated photo is filed
         # by the mtime captured at its original Index, which only the catalog
@@ -3761,6 +3880,7 @@ def main():
         if db_thread.is_alive():
             logger.error("Database writer did not shut down within 60s — continuing without it.")
             writer_failures.append(("(database writer)", "did not shut down within 60s"))
+        run_progress.write_now()
 
         if cancel_requested.is_set():
             logger.info(
@@ -3806,6 +3926,7 @@ def main():
         # Cancelled when a cancel stopped work it had left; a cancel landing
         # after the work finished leaves the real outcome, so a job that
         # completed reads Completed and a job-level failure still exits 1.
+        run_progress.write_now()
         await_cancelling_record(cancel_watcher)
         finish_run(str(db_path), run_id, run_outcome)
         logger.info(f"Run #{run_id} finished with status: {run_outcome}")
@@ -4256,6 +4377,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                    f"exported 'sync' and run the Move with --confirm-network-destination.")
         already = conn.execute("SELECT 1 FROM attention_issues WHERE category = ? AND resolved_at IS NULL",
                                (NETWORK_DESTINATION_ISSUE,)).fetchone()
+        run_progress.start("transferring", len(selected))
         with ns_db.transaction(conn):
             if not already:
                 operation_id = ns_db.begin_operation(conn, run_id=run_id, photo_id=None,
@@ -4270,6 +4392,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                               "Not attempted: the destination is a network share and the Move "
                               "was not confirmed. See the needs-attention note. Nothing was "
                               "changed.", commit=False)
+            run_progress.add(OPERATION_SKIPPED, len(selected))
+            run_progress.write(conn)
         logger.warning(summary)
         conn.close()
         return RunStatus.COMPLETED
@@ -4346,6 +4470,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     )
 
     source_root = Path(args.source).resolve()
+    run_progress.start("transferring", len(pending_records))
     # Every selected source gone is what an unplugged share looks like — and also a
     # Move that took everything and then lost its records. The same test the scan
     # applies (nothing found), per selection, so targeted runs are covered too. Stops
@@ -4363,6 +4488,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                           "Not attempted: the source folder is empty. Unplugged, or really "
                           "empty? See the needs-attention note. Nothing was changed.",
                           commit=False)
+        run_progress.add(OPERATION_SKIPPED, len(pending_records))
+        run_progress.write(conn)
         conn.commit()
         pending_records = []
     transfer_started = time.monotonic()
@@ -4383,8 +4510,15 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             for cancelled_id, cancelled_src, cancelled_dst, _ in remaining:
                 log_operation(conn, run_id, cancelled_id, cancelled_src, cancelled_dst,
                               OPERATION_CANCELLED, commit=False)
+            run_progress.add(OPERATION_CANCELLED, len(remaining))
+            run_progress.write(conn)
             conn.commit()
             break
+        if run_progress.due():
+            # Its own commit, at most once a second: one extra fsync per second on a
+            # loop that already fsyncs several times per file.
+            run_progress.write(conn)
+            conn.commit()
 
         # The same recent-rate progress the scan reports, so a long transfer
         # shows its throughput.
@@ -4413,6 +4547,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             found = find_delivered_copy(dst, recorded_sha1)
             if found is not None:
                 record_found_at_destination(conn, run_id, record_id, src, found, recorded_sha1)
+                run_progress.add(PhotoStatus.FOUND_AT_DESTINATION)
                 continue
 
         # Resolve the final filename HERE, immediately before the file is
@@ -4493,6 +4628,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                           delivery=dict(source_removed=args.move, created=False,
                                         sha1_hash=verified_sha1) if skip_error is None else None)
             conn.commit()
+            run_progress.add(final_status)
             continue
 
         if has_collision:
@@ -4549,6 +4685,9 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                       delivery=dict(source_removed=args.move, created=True,
                                     sha1_hash=verified_content.get("sha1_hash")) if success else None)
         conn.commit()
+        run_progress.add(final_status)
+    run_progress.write(conn)
+    conn.commit()
 
     if args.move and not was_cancelled:
         # Duplicate source-file removal is a --move-only step. It's
@@ -4571,7 +4710,12 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         )
         duplicate_records = cursor.fetchall()
         removed_count = 0
+        if duplicate_records:
+            run_progress.start("removing_duplicates", len(duplicate_records))
         for index, (record_id, dup_src_str, sha1_hash) in enumerate(duplicate_records):
+            if run_progress.due():
+                run_progress.write(conn)
+                conn.commit()
             # Checked before each duplicate, as the copy loop checks before
             # each file: the one in progress finishes, nothing further starts.
             if cancel_requested.is_set():
@@ -4582,6 +4726,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 for cancelled_id, cancelled_src, _ in remaining:
                     log_operation(conn, run_id, cancelled_id, cancelled_src, None,
                                   OPERATION_CANCELLED, commit=False)
+                run_progress.add(OPERATION_CANCELLED, len(remaining))
+                run_progress.write(conn)
                 conn.commit()
                 break
 
@@ -4592,6 +4738,10 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 found = None if ask_about_empty_source else find_content_on_destination(conn, sha1_hash)
                 if found is not None:
                     record_found_at_destination(conn, run_id, record_id, dup_src_str, found, sha1_hash)
+                    run_progress.add(PhotoStatus.FOUND_AT_DESTINATION)
+                else:
+                    # Nothing to remove and nothing found, so nothing is recorded.
+                    run_progress.add("Already_Gone")
                 continue
 
             # Every row recording a delivered copy of this content, not just
@@ -4612,6 +4762,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 reason, pointer = _duplicate_skip_reason(cursor, sha1_hash, copying=False)
                 logger.info(f"Kept duplicate source {_display_path(dup_src_str, source_root)}: {reason}")
                 log_operation(conn, run_id, record_id, dup_src_str, pointer, OPERATION_SKIPPED, reason)
+                run_progress.add(OPERATION_SKIPPED)
                 continue
 
             # Verify LIVE BYTES on both sides before deleting anything.
@@ -4655,6 +4806,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 logger.warning(f"{error_message} — leaving source file in place: {dup_src}")
                 log_operation(conn, run_id, record_id, dup_src_str, candidates[0],
                               PhotoStatus.FAILED, error_message)
+                run_progress.add(PhotoStatus.FAILED)
                 continue
 
             # Intent before the delete, with dest_path naming the copy that
@@ -4687,6 +4839,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                               PhotoStatus.FAILED, error_message, commit=False,
                               operation_id=dup_intent_id, step="duplicate_removal")
                 conn.commit()
+                run_progress.add(PhotoStatus.FAILED)
                 continue
             cursor.execute("UPDATE photos SET status = ?, dest_path = ? WHERE id = ?",
                            (PhotoStatus.REMOVED_DUPLICATE, verified, record_id))
@@ -4695,9 +4848,12 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                           operation_id=dup_intent_id, step="duplicate_removal",
                           delivery=dict(source_removed=True, created=False, sha1_hash=source_sha1))
             conn.commit()
+            run_progress.add(PhotoStatus.REMOVED_DUPLICATE)
             removed_count += 1
             logger.info(f"Removed duplicate source file: {dup_src} (verified copy at {verified})")
 
+        run_progress.write(conn)
+        conn.commit()
         if duplicate_records:
             logger.info(f"Duplicate cleanup: removed {removed_count} of {len(duplicate_records)} flagged duplicates.")
 
@@ -4711,10 +4867,14 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             + predicate,
             predicate_params
         )
+        # Part of the Copy's scope, so they join its denominator and its counts
+        # in the one commit that records them.
+        copy_skips = 0
         for record_id, dup_src_str, sha1_hash in cursor.fetchall():
             reason, pointer = _duplicate_skip_reason(cursor, sha1_hash, copying=True)
             log_operation(conn, run_id, record_id, dup_src_str, pointer, OPERATION_SKIPPED, reason,
                           commit=False)
+            copy_skips += 1
 
         # A photo an EARLIER run delivered is not a copy candidate and is not a
         # duplicate either, so a selection naming it finished with no record at
@@ -4745,6 +4905,10 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 f"to finish moving it.",
                 commit=False
             )
+            copy_skips += 1
+        run_progress.set_total((run_progress.total or 0) + copy_skips)
+        run_progress.add(OPERATION_SKIPPED, copy_skips)
+        run_progress.write(conn)
         conn.commit()
 
     # Point every duplicate at the copy that actually exists.

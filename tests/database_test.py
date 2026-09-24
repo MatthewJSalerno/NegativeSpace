@@ -479,6 +479,24 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
             self.conn.execute("INSERT INTO run_discovery VALUES (?,5,3,1,'{}',0)", (other,))
 
+    def test_progress_is_one_row_per_phase_in_order_and_done_is_the_sum_of_counts(self):
+        run = self.run_record()
+        self.assertEqual(db.read_progress(self.conn, run), [], 'a run that started no work has no progress')
+        with db.transaction(self.conn):
+            db.write_progress(self.conn, run, phase='discovering', seq=1, total=None,
+                              counts={'eligible': 7, 'excluded': 2}, started_at='t1')
+            db.write_progress(self.conn, run, phase='scanning', seq=2, total=7,
+                              counts={'unchanged': 4}, started_at='t2')
+        with db.transaction(self.conn):
+            db.write_progress(self.conn, run, phase='scanning', seq=2, total=7,
+                              counts={'unchanged': 4, 'indexed': 3}, started_at='t2')
+        got = [(p['phase'], p['total'], p['done'], p['counts'], p['started_at'])
+               for p in db.read_progress(self.conn, run)]
+        self.assertEqual(got, [('discovering', None, 9, {'eligible': 7, 'excluded': 2}, 't1'),
+                               ('scanning', 7, 7, {'indexed': 3, 'unchanged': 4}, 't2')])
+        with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
+            db.write_progress(self.conn, run, phase='sorting', seq=3, total=1, counts={}, started_at='t3')
+
     def test_extension_support_names_what_the_engine_can_read(self):
         for ext in ('.jpg', 'JPG', 'png', '.CR3', '.dng', '.heic'):
             got = db.extension_support(ext)
