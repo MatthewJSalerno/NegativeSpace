@@ -3294,7 +3294,8 @@ def main():
                     f"each is recorded as a failure of this run."
                 )
             # Only a full walk can say what is no longer there.
-            vanished = mark_vanished_sources(str(db_path), run_id, source_path, candidates)
+            vanished = mark_vanished_sources(str(db_path), run_id, source_path, candidates,
+                                             dest_root=dest_path)
             if vanished:
                 logger.warning(
                     f"{vanished:,} catalogued file(s) under {source_path} no longer exist; recorded as "
@@ -3502,7 +3503,62 @@ def record_run_failures(db_path: str, run_id: int, failures: List[tuple]):
         conn.close()
 
 
-def mark_vanished_sources(db_path: str, run_id: int, root: Path, discovered: List[str]) -> int:
+def find_delivered_copy(destination: str, recorded_sha1: Optional[str]) -> Optional[Path]:
+    """The file at `destination`, or at one of its numbered variants, that holds exactly
+    `recorded_sha1`, or None. Read-only: it hashes occupied candidates and changes nothing."""
+    if not recorded_sha1:
+        return None
+    path, present = resolve_destination(Path(destination), recorded_sha1)
+    return path if present else None
+
+
+def record_found_delivery(conn, run_id: int, record_id: int, source: str, found: Path,
+                          sha1: str):
+    """Records a photo whose source is gone as delivered, because its exact content is
+    at the destination it was meant for.
+
+    This is the state a power cut leaves when a Move's catalog commits are lost and its
+    file operations survive: the source deleted, the copy in place, the row still
+    Pending. Recording it Failed would lose track of a delivered photo. The record
+    states what was observed, not that a Move happened: the source is absent, the
+    destination holds the recorded content, and that file is registered as an observed
+    destination (origin unknown) or linked if already recorded. Nothing is deleted.
+    Evidence, lineage, the settled operation and the new status commit together.
+    """
+    note = (f"The source is gone and its exact content is at {found}, so the photo is "
+            f"recorded as delivered. Nothing was copied or deleted by this run.")
+    with ns_db.transaction(conn):
+        operation_id = ns_db.begin_operation(
+            conn, run_id=run_id, photo_id=record_id, source_path=source,
+            dest_path=str(found), kind="found_delivered", expected={"sha1_hash": sha1})
+        ns_db.record_evidence(conn, operation_id=operation_id, location_role="source",
+                              observed_path=source, observation_kind="stat", result="absent")
+        ns_db.record_evidence(conn, operation_id=operation_id, location_role="destination",
+                              observed_path=str(found), observation_kind="sha1", result="match",
+                              details={"sha1_hash": sha1})
+        ns_db.record_delivery(conn, operation_id=operation_id, photo_id=record_id,
+                              run_id=run_id, destination=str(found), source_removed=True,
+                              created=False, sha1_hash=sha1)
+        ns_db.settle_operation(conn, operation_id, status=PhotoStatus.COMPLETED,
+                               step="found_delivered", outcome="completed", error_message=note)
+        conn.execute("UPDATE photos SET status = ?, dest_path = ? WHERE id = ?",
+                     (PhotoStatus.COMPLETED, str(found), record_id))
+    logger.info(f"Source gone, content already delivered: recorded as delivered -> {found}")
+
+
+def _source_missing(path: str) -> bool:
+    """True only when stat() says the file does not exist; unreadable is not absent."""
+    try:
+        os.stat(path)
+    except (FileNotFoundError, NotADirectoryError):
+        return True
+    except OSError:
+        return False
+    return False
+
+
+def mark_vanished_sources(db_path: str, run_id: int, root: Path, discovered: List[str],
+                          dest_root: Optional[Path] = None) -> int:
     """
     After a full walk of `root`, marks catalogued Pending/Duplicate files that
     no longer exist as Failed, with a recorded reason. Returns how many.
@@ -3512,6 +3568,13 @@ def mark_vanished_sources(db_path: str, run_id: int, root: Path, discovered: Lis
     go on standing as the original of its duplicate group, so the duplicate
     would never be delivered. Failed rows take no part in duplicate grouping, which lets the
     reclassification that follows promote a surviving duplicate.
+
+    Before marking anything Failed, a Pending or Failed row whose source is gone is
+    checked against `dest_root`: if its exact content is at the destination it was meant
+    for, it is recorded as delivered instead (record_found_delivery). That covers a Move
+    whose catalog commits were lost, and a row an earlier targeted Index already marked
+    Failed. It runs after the empty-walk refusal below, so a detached source never
+    records anything.
 
     A file counts as gone only when stat() says it does not exist. Anything
     else — a permission error, an I/O fault, an --exts filter that simply did
@@ -3538,8 +3601,9 @@ def mark_vanished_sources(db_path: str, run_id: int, root: Path, discovered: Lis
     conn = get_db_connection(db_path)
     try:
         rows = conn.execute(
-            f"SELECT id, source_path, dest_path FROM photos "
-            f"WHERE status IN ({sql_values((PhotoStatus.PENDING, PhotoStatus.DUPLICATE))})" + clause,
+            f"SELECT id, source_path, dest_path, status, sha1_hash, metadata_json FROM photos "
+            f"WHERE status IN ({sql_values((PhotoStatus.PENDING, PhotoStatus.DUPLICATE, PhotoStatus.FAILED))})"
+            + clause,
             params
         ).fetchall()
 
@@ -3562,15 +3626,17 @@ def mark_vanished_sources(db_path: str, run_id: int, root: Path, discovered: Lis
             return 0
 
         gone = []
-        for row_id, path, dest in rows:
-            if path in seen:
+        for row_id, path, dest, status, sha1, metadata_json in rows:
+            if path in seen or not _source_missing(path):
                 continue
-            try:
-                os.stat(path)
-            except (FileNotFoundError, NotADirectoryError):
+            if dest_root is not None and status in (PhotoStatus.PENDING, PhotoStatus.FAILED):
+                found = find_delivered_copy(_destination_for(dest_root, path, metadata_json, dest),
+                                            sha1)
+                if found is not None:
+                    record_found_delivery(conn, run_id, row_id, path, found, sha1)
+                    continue
+            if status != PhotoStatus.FAILED:
                 gone.append((row_id, path, dest))
-            except OSError:
-                continue
         for row_id, path, dest in gone:
             conn.execute("UPDATE photos SET status = ? WHERE id = ?", (PhotoStatus.FAILED, row_id))
             log_operation(
@@ -3832,6 +3898,13 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     )
 
     source_root = Path(args.source).resolve()
+    # An empty source root is what a detached share looks like; every source would
+    # then read as gone, so no missing source is taken as evidence of delivery.
+    try:
+        with os.scandir(source_root) as entries:
+            source_root_detached = next(entries, None) is None
+    except OSError:
+        source_root_detached = True
     transfer_started = time.monotonic()
     last_progress_at, last_progress_done, last_progress_bytes = transfer_started, 0, 0
     bytes_done = 0
@@ -3869,6 +3942,18 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
 
         label = _display_path(src, source_root)
         dst = _destination_for(dest_path, src, metadata_json, stored_dst)
+
+        # A source that is gone may already be delivered: the state a power cut
+        # leaves when this loop's catalog commits are lost and its file work is
+        # not. Recorded from what is found, never inferred; skipped entirely when
+        # the whole source root is empty, which is what a detached share looks like.
+        if not source_root_detached and _source_missing(src):
+            recorded_sha1 = cursor.execute("SELECT sha1_hash FROM photos WHERE id = ?",
+                                           (record_id,)).fetchone()[0]
+            found = find_delivered_copy(dst, recorded_sha1)
+            if found is not None:
+                record_found_delivery(conn, run_id, record_id, src, found, recorded_sha1)
+                continue
 
         # Resolve the final filename HERE, immediately before the file is
         # written — not back at Index time. docs/engine-spec.md 4.3 requires the
@@ -3970,14 +4055,11 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         #
         # Defer this commit and a kill mid-copy leaves the row reading
         # 'Pending' for a file that has already been moved and deleted from
-        # source. Reconciliation never examines it, the next run tries to move
-        # a source that no longer exists and records Failed — while the photo
-        # sits safely at the destination, unrecorded. That is the one way this
-        # engine can genuinely lose track of a file it migrated successfully.
-        #
-        # The fsync cost this would otherwise pay is addressed instead by
-        # synchronous=NORMAL (see get_db_connection), which keeps the ordering
-        # guarantees intact against process death.
+        # source, which reconciliation never examines. The next run would then
+        # find the source missing; the found-delivery check above records such
+        # a photo from its content at the destination, but that is the fallback,
+        # not the protocol. This connection commits at FULL (see the note where
+        # it is opened), so the marker is fsynced before the source is touched.
         #
         # dest_path is written WITH the marker: reconciliation reads it to find
         # the partial and decide what happened, so it must name where this

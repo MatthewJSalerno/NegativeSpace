@@ -2522,6 +2522,135 @@ def startup_reconciliation_commits_at_full_synchronous():
     check(status != "Processing", "reconciliation left the interrupted row unsettled; the test exercised nothing")
 
 
+def _snapshot_catalog(case):
+    """A consistent copy of the catalog as it is now (SQLite's backup API, WAL included)."""
+    snap = case / "catalog_snapshot.db"
+    src = sqlite3.connect(case / "appdata" / "db" / "ns_sqlite.db")
+    dst = sqlite3.connect(snap)
+    src.backup(dst)
+    dst.close()
+    src.close()
+    return snap
+
+
+def _lose_catalog_commits_since(case, snap):
+    """The state a power cut leaves when the catalog loses its recent commits and the
+    filesystem keeps what was done: the catalog goes back to `snap`, files stay."""
+    db_file = case / "appdata" / "db" / "ns_sqlite.db"
+    for suffix in ("", "-wal", "-shm"):
+        Path(str(db_file) + suffix).unlink(missing_ok=True)
+    shutil.copy(snap, db_file)
+
+
+@test
+def a_move_whose_catalog_commits_were_lost_is_recorded_as_delivered():
+    """
+    TODO.md claim 10's consequence half. If storage loses a Move's catalog commits
+    but keeps its file operations, the photo's source is gone, its copy is at the
+    destination, and its row reads Pending again. The next Move must record it as
+    delivered, on the evidence of its content at the destination — not Failed, and
+    not copied again under a new name. The record is what was observed: the source
+    absent, the destination matching, the found file an observed identity.
+    """
+    case = new_case("lost_move_commits")
+    make_photo(case / "src" / "a.jpg", "lost-a")
+    make_photo(case / "src" / "b.jpg", "lost-b")
+    (case / "src" / "notes.txt").write_text("a non-photo file a Move leaves behind")
+    run_engine(case)
+    snap = _snapshot_catalog(case)
+    run_engine(case, "--move")
+    delivered = sorted(p.name for p in (case / "dest").rglob("*.jpg"))
+    check(delivered == ["a.jpg", "b.jpg"] and not list((case / "src").glob("*.jpg")),
+          f"setup: the Move did not deliver both photos: {delivered}")
+
+    _lose_catalog_commits_since(case, snap)
+    check([r["status"] for r in rows(case, "SELECT status FROM photos")] == ["Pending", "Pending"],
+          "setup: the rewound catalog should read Pending")
+    run_engine(case, "--move")
+
+    statuses = sorted(r["status"] for r in rows(case, "SELECT status FROM photos"))
+    check(statuses == ["Completed", "Completed"], f"lost-commit photos were recorded {statuses}")
+    after = sorted(p.name for p in (case / "dest").rglob("*.jpg"))
+    check(after == ["a.jpg", "b.jpg"], f"the photos were copied again under new names: {after}")
+    evidence = sorted((r["location_role"], r["result"]) for r in rows(case,
+                      "SELECT location_role, result FROM operation_evidence"))
+    check(evidence == [("destination", "match"), ("destination", "match"),
+                       ("source", "absent"), ("source", "absent")],
+          f"the delivery was not recorded from evidence: {evidence}")
+    origins = sorted(r["kind"] for r in rows(case, "SELECT kind FROM file_origins"))
+    check(origins.count("observed_destination") == 2,
+          f"the found files were not registered as observed destinations: {origins}")
+
+
+@test
+def a_full_index_records_a_delivered_photo_whose_source_vanished():
+    """
+    The Index side of the same state: a full walk that finds a catalogued source
+    gone checks the destination before marking it Failed. A missing source whose
+    destination holds different content stays Failed, and a detached (empty)
+    source root records nothing as delivered.
+    """
+    case = new_case("vanished_delivered")
+    make_photo(case / "src" / "a.jpg", "vanish-a")
+    run_engine(case)
+    snap = _snapshot_catalog(case)
+    run_engine(case, "--move")
+    _lose_catalog_commits_since(case, snap)
+    make_photo(case / "src" / "new.jpg", "vanish-new")   # the walk finds something
+    run_engine(case)
+    status = rows(case, "SELECT status FROM photos WHERE source_path LIKE '%/a.jpg'")[0]["status"]
+    check(status == "Completed", f"a vanished source whose content is delivered was recorded {status}")
+
+    # Different content at the destination is not a delivery.
+    case = new_case("vanished_mismatch")
+    make_photo(case / "src" / "a.jpg", "mismatch-a")
+    make_photo(case / "src" / "keep.jpg", "mismatch-keep")
+    run_engine(case)
+    dest = Path(rows(case, "SELECT dest_path FROM photos WHERE source_path LIKE '%/a.jpg'")[0]["dest_path"])
+    make_photo(dest, "something else entirely")
+    (case / "src" / "a.jpg").unlink()
+    run_engine(case)
+    status = rows(case, "SELECT status FROM photos WHERE source_path LIKE '%/a.jpg'")[0]["status"]
+    check(status == "Failed", f"a missing source with different content at its destination was recorded {status}")
+
+    # A detached source root: every source reads as gone, so nothing may count as delivered.
+    case = new_case("detached_root")
+    make_photo(case / "src" / "a.jpg", "detached-a")
+    run_engine(case)
+    snap = _snapshot_catalog(case)
+    run_engine(case, "--move")
+    _lose_catalog_commits_since(case, snap)
+    run_engine(case, "--move")
+    status = rows(case, "SELECT status FROM photos")[0]["status"]
+    check(status != "Completed", "an empty source root was taken as evidence of delivery")
+
+
+@test
+def scan_rows_lost_with_their_commits_are_recreated_by_the_next_index():
+    """
+    TODO.md claim 12's consequence half. The scan commits at NORMAL, so a power cut
+    before the run settles can take its most recent rows while the files are
+    untouched. The next Index must catalogue those files again, identically: same
+    paths, hashes and dated placement, nothing missing and nothing duplicated.
+    """
+    case = new_case("lost_scan_rows")
+    make_photo(case / "src" / "a.jpg", "scan-a")
+    run_engine(case)
+    snap = _snapshot_catalog(case)
+    make_photo(case / "src" / "b.jpg", "scan-b")
+    make_photo(case / "src" / "c.jpg", "scan-c", date=None)
+    run_engine(case)
+    want = sorted((Path(r["source_path"]).name, r["sha1_hash"], r["dest_path"].split("/dest/", 1)[1])
+                  for r in rows(case, "SELECT source_path, sha1_hash, dest_path FROM photos"))
+
+    _lose_catalog_commits_since(case, snap)
+    check(len(rows(case, "SELECT id FROM photos")) == 1, "setup: the rewound catalog should hold one photo")
+    run_engine(case)
+    got = sorted((Path(r["source_path"]).name, r["sha1_hash"], r["dest_path"].split("/dest/", 1)[1])
+                 for r in rows(case, "SELECT source_path, sha1_hash, dest_path FROM photos"))
+    check(got == want, f"the next Index did not reproduce the lost scan rows:\n  want {want}\n  got  {got}")
+
+
 @test
 def cancelling_a_large_selection_commits_its_bookkeeping_once():
     """
