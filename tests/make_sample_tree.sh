@@ -2,7 +2,12 @@
 # Builds a small, hard-linked sample of a photo library, for validating a
 # change against real files without waiting for the whole library.
 #
-#   sh tests/make_sample_tree.sh [--no-raw] <library> <sample> [every-Nth]
+#   sh tests/make_sample_tree.sh [--no-raw | --all-types] <library> <sample> [every-Nth]
+#
+# --all-types samples every file, not only photos: sidecars, videos, previews,
+# files with no extension. That is what exercises the Index's file-type
+# accounting, which counts what a walk EXCLUDES; a photos-only sample reports
+# zero excluded files and so proves nothing about it.
 #
 # Hard links cost no disk space and share the original's bytes, mtime and
 # EXIF, so the sample behaves like the library at a fraction of the wall
@@ -45,16 +50,19 @@
 set -eu
 
 usage() {
-    echo "usage: sh tests/make_sample_tree.sh [--no-raw] <library> <sample> [every-Nth, default 25]" >&2
+    echo "usage: sh tests/make_sample_tree.sh [--no-raw | --all-types] <library> <sample> [every-Nth, default 25]" >&2
     echo "   eg: sh tests/make_sample_tree.sh /photos/library /photos/sample 25" >&2
-    echo "       --no-raw  sample only raster formats; smaller and faster, no RAW coverage" >&2
+    echo "       --no-raw     sample only raster formats; smaller and faster, no RAW coverage" >&2
+    echo "       --all-types  sample every file, not only photos (exercises file-type accounting)" >&2
     exit 2
 }
 
 INCLUDE_RAW=1
+ALL_TYPES=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --no-raw) INCLUDE_RAW=0; shift ;;
+        --all-types) ALL_TYPES=1; shift ;;
         -h|--help) usage ;;
         --) shift; break ;;
         -*) echo "unknown option: $1" >&2; usage ;;
@@ -63,6 +71,8 @@ while [ $# -gt 0 ]; do
 done
 
 [ $# -ge 2 ] || usage
+[ "$ALL_TYPES" -eq 0 ] || [ "$INCLUDE_RAW" -eq 1 ] || {
+    echo "--all-types and --no-raw contradict each other: pick one" >&2; exit 2; }
 LIBRARY=$1
 SAMPLE=$2
 NTH=${3:-25}
@@ -133,8 +143,12 @@ existing=$(find "$SAMPLE_ABS" -mindepth 1 | wc -l)
 # every validation run.
 RASTER='jpg|jpeg|jpe|jfif|png|gif|bmp|webp|tif|tiff|heic|heif|avif'
 RAW='raw|dng|cr2|cr3|crw|nef|nrw|arw|srf|sr2|raf|orf|rw2|pef|ptx|srw|erf|3fr|fff|iiq|mos|mrw|x3f'
-if [ "$INCLUDE_RAW" -eq 1 ]; then
-    PATTERN="\.($RASTER|$RAW)\$"
+PHOTO="\.($RASTER|$RAW)\$"
+if [ "$ALL_TYPES" -eq 1 ]; then
+    PATTERN="."
+    WHAT="every file type (--all-types)"
+elif [ "$INCLUDE_RAW" -eq 1 ]; then
+    PATTERN="$PHOTO"
     WHAT="raster and RAW"
 else
     PATTERN="\.($RASTER)\$"
@@ -171,9 +185,12 @@ while IFS= read -r rel; do
 done < "$LIST"
 
 [ "$count" -gt 0 ] || {
-    echo "no photos matched under $LIB_ABS — nothing sampled" >&2; exit 1; }
+    echo "no files matched under $LIB_ABS — nothing sampled" >&2; exit 1; }
 
-first=$(head -n 1 "$LIST")
+# The deliberate duplicate is always of a PHOTO: a duplicate sidecar is excluded
+# by file type and would exercise nothing.
+first=$(grep -Ei "$PHOTO" "$LIST" | head -n 1 || true)
+[ -n "$first" ] || { echo "no photos among the sampled files — nothing to duplicate" >&2; exit 1; }
 ext=${first##*.}
 ln "$SAMPLE_ABS/$first" "$SAMPLE_ABS/duplicate_of_first.$ext"
 
@@ -182,8 +199,9 @@ total=$(find "$SAMPLE_ABS" -type f | wc -l)
 # link would otherwise be counted too, making "N of them RAW" a fraction of a
 # different number than the one printed above it.
 raws=$(grep -Eic "\.($RAW)\$" "$LIST" || true)
-echo "sampled   : $count photo(s), 1 in $NTH matches under $LIB_ABS"
-echo "formats   : $WHAT — $raws of the $count are RAW"
+photos=$(grep -Eic "$PHOTO" "$LIST" || true)
+echo "sampled   : $count file(s), $photos of them photos, 1 in $NTH matches under $LIB_ABS"
+echo "formats   : $WHAT — $raws of the $photos photos are RAW"
 echo "duplicate : duplicate_of_first.$ext — a second link to the first sampled photo"
 echo "sample    : $total file(s), $(du -sh "$SAMPLE_ABS" 2>/dev/null | cut -f1) in $SAMPLE_ABS"
 echo "library   : $(find "$LIB_ABS" -type f | wc -l) file(s), untouched"
@@ -191,4 +209,5 @@ echo
 # "at least": this script plants ONE duplicate, but it cannot know how many the
 # library already holds among the files it sampled. Stating an exact number
 # invites reading a correct run as a wrong one — a real sample turned up five.
-echo "Index and Copy should report $count delivered and at least 1 skipped duplicate."
+echo "Index and Copy should report $photos delivered and at least 1 skipped duplicate."
+[ "$ALL_TYPES" -eq 0 ] || echo "Index should report $((count - photos)) file(s) excluded by file type, before hidden files are skipped."

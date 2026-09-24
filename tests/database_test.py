@@ -468,4 +468,15 @@ class DatabaseTests(unittest.TestCase):
         self.assertIsNotNone(since)
         self.assertEqual(db.unbacked_changes(self.conn, exclude_run_id=later)[0], 0)
 
+    def test_discovery_is_stored_per_run_and_found_is_eligible_plus_excluded(self):
+        run = self.run_record()
+        self.assertIsNone(db.read_discovery(self.conn, run), 'a run that walked nothing has no summary')
+        db.record_discovery(self.conn, run, eligible=10, excluded_by_extension={'.mov': 3, '': 1}, unreadable=0)
+        self.assertEqual(db.read_discovery(self.conn, run),
+                         {'files_found': 14, 'eligible': 10, 'excluded': 4,
+                          'excluded_by_extension': {'': 1, '.mov': 3}, 'unreadable': 0, 'partial': False})
+        other = self.run_record()
+        with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
+            self.conn.execute("INSERT INTO run_discovery VALUES (?,5,3,1,'{}',0)", (other,))
+
 if __name__ == '__main__':unittest.main()

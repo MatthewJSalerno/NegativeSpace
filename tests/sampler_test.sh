@@ -151,4 +151,28 @@ else
     fail "the sampler refused an ordinary library: $(cat "$WORK/out")"
 fi
 
+# --- 7. --all-types samples non-photo files too ----------------------------
+# File-type accounting counts what the Index EXCLUDES, so a sample for it must
+# contain excluded files. The deliberate duplicate must still be of a photo.
+lib="$WORK/t7/lib"; sample="$WORK/t7/sample"
+mkdir -p "$lib/album"
+: > "$lib/album/notes.txt"
+: > "$lib/album/photo.jpg"
+: > "$lib/album/README"
+if run_sampler --all-types "$lib" "$sample" 1; then
+    [ "$(files "$sample")" = "4" ] \
+        && ok "--all-types samples every file plus the deliberate duplicate" \
+        || fail "--all-types: expected 4 files in the sample, found $(files "$sample")"
+    [ -f "$sample/duplicate_of_first.jpg" ] \
+        && ok "--all-types still duplicates a photo, not a sidecar" \
+        || fail "--all-types duplicated something other than the photo"
+else
+    fail "--all-types refused a normal library: $(cat "$WORK/out")"
+fi
+if run_sampler --all-types --no-raw "$lib" "$WORK/t7/other" 1; then
+    fail "--all-types with --no-raw was accepted; they contradict each other"
+else
+    ok "--all-types with --no-raw is refused"
+fi
+
 exit $FAILED
