@@ -766,8 +766,7 @@ Three costs have to be surfaced before offering it:
 *   **Photo IDs and run history do not survive it.** See §10.
 *   **Files dated from modification time depend on that time surviving.** A photo
     with no usable EXIF date is filed under its mtime (§2). **The engine
-    preserves mtime when it copies** — verified: destination and source mtimes
-    are identical — so re-indexing a destination the engine wrote files those
+    preserves mtime when it copies**, to the nanosecond (`TODO.md` claim 7), so re-indexing a destination the engine wrote files those
     photos in the same place again, provided nothing touched them in between and
     the timezone is the same. Two things break that: a tool that rewrote or
     re-copied the old destination without preserving times, which leaves the date
