@@ -3162,6 +3162,60 @@ def an_unwritable_cache_does_not_fail_the_index():
         (case / "cache").chmod(0o700)
 
 
+def _rewrite(path, seed):
+    """New content at the same path, with an mtime the unchanged-file skip cannot miss."""
+    make_photo(path, seed)
+    st = path.stat()
+    os.utime(path, (st.st_atime, st.st_mtime + 3600))
+
+
+@test
+def a_thumbnail_goes_when_no_catalogued_photo_holds_its_content():
+    """
+    Editing a photo outside the app gives it a new hash, and the next Index a new
+    thumbnail; the old one then belongs to nothing (webui-spec 4.2.1). It is
+    removed, file and record, while the content identity it was keyed on stays:
+    that is lineage, the thumbnail is cache. A thumbnail another identical copy
+    still needs is kept, --no-thumbnails deletes nothing, and a cache file the
+    catalog never recorded is left alone.
+    """
+    case = new_case("thumb_orphans")
+    make_photo(case / "src" / "edited.jpg", "before")
+    make_photo(case / "src" / "shared_a.jpg", "shared")
+    make_photo(case / "src" / "shared_b.jpg", "shared")
+    run_engine(case)
+
+    def entries():
+        return {r["digest"]: r["cache_filename"] for r in rows(case,
+                "SELECT c.digest, t.cache_filename FROM thumbnail_cache t JOIN contents c USING(content_id)")}
+    before = entries()
+    check(len(before) == 2 and all((case / "cache" / f).exists() for f in before.values()),
+          f"a fresh Index should leave two thumbnails (one shared by the duplicates), got {len(before)}")
+    digest = lambda name: rows(case, "SELECT sha1_hash FROM photos WHERE source_path LIKE ?", (f"%/{name}",))[0]["sha1_hash"]
+    old_edited, shared = digest("edited.jpg"), digest("shared_a.jpg")
+    stray = case / "cache" / "thumbnails" / "zz" / ("z" * 40 + ".jpg")
+    stray.parent.mkdir(parents=True, exist_ok=True)
+    stray.write_bytes(b"not recorded by this catalog")
+
+    _rewrite(case / "src" / "edited.jpg", "after")
+    _rewrite(case / "src" / "shared_a.jpg", "diverged")
+    run_engine(case, "--no-thumbnails")
+    check(old_edited in entries() and (case / "cache" / before[old_edited]).exists(),
+          "--no-thumbnails removed a cached thumbnail; with thumbnails off the cache is not written")
+
+    out = engine_output(run_engine(case, "--force-rehash"))
+    after = entries()
+    check(old_edited not in after, "the edited photo's old thumbnail is still recorded")
+    check(not (case / "cache" / before[old_edited]).exists(), "the edited photo's old thumbnail file is still on disk")
+    check(digest("edited.jpg") in after, "the edited photo has no thumbnail for its new content")
+    check(shared in after and (case / "cache" / before[shared]).exists(),
+          "a thumbnail another identical copy still needs was removed")
+    check(rows(case, "SELECT COUNT(*) c FROM contents WHERE digest = ?", (old_edited,))[0]["c"] == 1,
+          "the old content identity was deleted with its thumbnail; lineage keeps it")
+    check(stray.exists(), "a cache file this catalog never recorded was deleted")
+    check("Removed 1 thumbnail(s)" in out, "the sweep did not report what it removed")
+
+
 @test
 def raw_files_produce_thumbnails_through_rawpy():
     """

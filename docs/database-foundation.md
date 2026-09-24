@@ -45,8 +45,9 @@ pinned from both sides in the contract suite.
 
 Version 3 also defines the tables later steps need, batched deliberately so the
 catalog stops being rebuilt once per increment. The scan writes `contents` and
-`thumbnail_cache`; `content_similarity`, `backup_attempts`, `backup_artifacts` and
-`file_changes` are defined but not yet written.
+`thumbnail_cache`, and catalog backups write `backup_attempts` and `backup_artifacts`
+(`engine-spec.md` §4.1). `content_similarity` and `file_changes` are defined but not
+yet written.
 
 The `Undated/<year>` fallback reads the original Index modification time recorded
 here, not the file's current one.

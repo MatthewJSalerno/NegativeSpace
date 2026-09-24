@@ -51,7 +51,9 @@ RUN chmod 644 ns-engine.py
 # neither may contain the other. Different container paths alone are insufficient.
 # Configure this through Docker before startup, not through application settings.
 # /backups contains multiple catalog database snapshots, never photo backups.
-# Automatic backups and startup overlap validation are planned, not implemented.
+# The engine writes a verified, Zstandard-compressed backup here after every job that
+# recorded changes, and refuses (records a failed backup) when this folder is missing,
+# unmounted, unwritable or overlaps /appdata.
 #
 # Unlike /cache these are NOT disposable — `runs` and `operations` are the only
 # record of what the engine did, and since a catalog rebuild discards them, a
