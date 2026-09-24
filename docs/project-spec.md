@@ -145,7 +145,7 @@ remain, plus the unfinished half of thumbnails:
 
 | Gap | Blocks |
 | :--- | :--- |
-| Thumbnail lifecycle — 1024px preview, clear/rebuild, orphan cleanup | The Inspector preview and cache management |
+| Thumbnail remainder — 1024px preview, clear/rebuild, cleanup after an interrupted edit | The Inspector preview and cache management |
 | Refiling after a date change | Any metadata correction; it is what makes the destination contract enforceable |
 | Field-level before/after | Full lineage and informed manual corrections; no undo operations |
 | A batch identity | Bulk apply reading as one action |
@@ -179,6 +179,7 @@ Recovery records durable intent before every mutation and concludes from observe
 evidence, opening an attention issue when an outcome cannot be established. Complete
 lineage for every catalogued file in every settled status is enforced by test
 (`TODO.md` claim 11). A caller-supplied request ID binds each submission to one run
-(`--request-id`). Content-version history and the approved job lifecycle states
-remain pending. Older catalogs are preserved
+(`--request-id`), and runs follow the approved lifecycle (Preparing, Running,
+Cancelling, then Completed, Cancelled, Failed or Interrupted). Content-version history
+remains pending. Older catalogs are preserved
 and rejected; fresh development catalogs are required.

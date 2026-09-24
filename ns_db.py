@@ -728,6 +728,24 @@ def read_discovery(conn, run_id):
             'partial': unreadable > 0}
 
 
+def orphaned_thumbnails(conn):
+    """Cache entries whose content no catalogued photo holds: (content_id, size,
+    cache_filename). Every photo row counts whatever its status - a moved or delivered
+    copy keeps its hash - so an entry turns orphan only when content itself went away,
+    as when a re-Index records an edited file under a new hash. webui-spec 4.2.1:
+    lineage alone does not keep a thumbnail."""
+    return conn.execute(
+        "SELECT t.content_id, t.size, t.cache_filename FROM thumbnail_cache t "
+        "JOIN contents c USING(content_id) "
+        "WHERE NOT EXISTS (SELECT 1 FROM photos p WHERE p.sha1_hash = c.digest)").fetchall()
+
+
+def forget_thumbnail(conn, content_id, size):
+    """Removes one cache entry's record; the content identity it belonged to stays."""
+    with transaction(conn):
+        conn.execute("DELETE FROM thumbnail_cache WHERE content_id = ? AND size = ?", (content_id, size))
+
+
 def thumbnail_cache_totals(conn):
     """Per-size cache totals: photos cached at each size, and bytes on disk.
 

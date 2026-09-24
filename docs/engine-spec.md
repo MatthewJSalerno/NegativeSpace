@@ -512,9 +512,12 @@ CREATE INDEX idx_observations_file ON file_observations(file_id,observation_id);
 CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id);
 ```
 
-**Schema version 3 adds the records below.** The first five are written today by
-recovery (4.2); the rest are defined but unwritten, batched deliberately so the
-catalog stops being rebuilt once per increment. Statement order matters here too:
+**Schema version 3 adds the records below**, batched deliberately so the catalog
+stops being rebuilt once per increment. The first five are written by recovery (4.2),
+`contents` and `thumbnail_cache` by the scan, and the backup records by catalog
+backups (§4.1); `file_changes` and `content_similarity` are defined but not yet
+written. Versions 4 and 5 changed constraints within these tables (the run lifecycle
+and the backup records); version 6 added `run_discovery`, listed with them below. Statement order matters here too:
 `contents` precedes everything referencing it, `operation_events` precedes
 `attention_issues`, and both `operation_evidence` and `attention_issues` precede
 the link table joining them.
@@ -567,7 +570,8 @@ CREATE TABLE attention_evidence (
     PRIMARY KEY(issue_id, evidence_id)
 );
 
--- Defined, not yet written: the records later steps need.
+-- file_changes and content_similarity: defined, not yet written. thumbnail_cache
+-- is written by the scan and the backup records by catalog backups (4.1).
 CREATE TABLE file_changes (
     change_id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id INTEGER NOT NULL REFERENCES operation_events(event_id),
@@ -1017,8 +1021,11 @@ Remove obsolete entries only when no current catalogued file needs their hash;
 historical lineage does not retain thumbnails. Include orphan cleanup after
 interruption. See `webui-spec.md` §4.2.1. Generation itself is implemented — the
 scan writes one 320px grid thumbnail per content identity — but this lifecycle is
-not: nothing yet removes an entry whose hash no longer belongs to any catalogued
-file, and nothing cleans up orphans after an interrupted edit.
+partly: after every scan that completes cleanly, with thumbnails enabled, the engine
+removes each cache entry (file first, then record) whose content no catalogued photo
+holds in any status, keeping the `contents` identity it was keyed on. Cache files the
+catalog never recorded are left alone, because the cache survives a catalog rebuild
+on purpose. Orphan cleanup after an interrupted *edit* waits for edits to exist.
 
 §9.1–§9.6 record five engine capabilities the curation workflows require. A
 pass over the rest of the documented web interface turned up eight more. Three of
@@ -1136,8 +1143,10 @@ keyed on `photos.id` alone drops the pre-reimport half of a file's past; see
 **Recovery provenance is required for truthful job reporting.** Distinguish a
 record written while reconciling earlier interrupted work from one describing the
 current request. Preserve the relationship to the interrupted action/run when known
-and to the run that performed recovery. The exact representation is not yet chosen;
-do not require the API to parse free-text messages to distinguish them. Failures with
+and to the run that performed recovery. The representation is
+`operations.reconciles_operation_id` (§4.2): a recovery row names the operation it
+repairs and belongs to the run that performed it, so the API never parses free-text
+messages to tell recovery from requested work. Failures with
 NULL photo IDs remain run-level issues rather than failed-photo counts. All records
 associated with a photo must be accessible from its info page as well as global Logs
 (`webui-spec.md` §4.2 and §5.5). These are requirements, not implemented additions.

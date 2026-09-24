@@ -1709,6 +1709,40 @@ class ThumbnailWriteError(Exception):
     """
 
 
+def sweep_orphan_thumbnails(db_path: str, cache_root: Path) -> int:
+    """Deletes cached thumbnails whose content no catalogued photo holds any more.
+
+    Runs after a scan that completed cleanly, and never with thumbnails disabled:
+    deleting from the cache is a cache write. Catalog-wide rather than scoped to the
+    run, because an entry is orphaned by the catalog as a whole. The file goes first
+    and the record second, so a file that cannot be removed keeps its record and is
+    retried next time; a record never outlives its file the other way round. Files in
+    the cache with no record at all are left alone: the cache survives a catalog
+    rebuild on purpose, and a fresh catalog has not yet claimed what it will reuse.
+    """
+    with contextlib.closing(get_db_connection(db_path)) as conn:
+        orphans = ns_db.orphaned_thumbnails(conn)
+        removed = freed = 0
+        for content_id, size, name in orphans:
+            if name:
+                path = Path(cache_root) / name
+                try:
+                    freed += path.stat().st_size
+                    path.unlink()
+                except FileNotFoundError:
+                    pass
+                except OSError as exc:
+                    logger.warning(f"Could not remove an orphaned thumbnail ({exc}); it will be retried.")
+                    continue
+            ns_db.forget_thumbnail(conn, content_id, size)
+            removed += 1
+    if removed:
+        size = f"{freed / 1e6:.1f} MB" if freed >= 1e6 else f"{freed / 1e3:.0f} KB"
+        logger.info(f"Removed {removed:,} thumbnail(s) whose content no catalogued photo holds any "
+                    f"more ({size}).")
+    return removed
+
+
 def thumbnail_cache_path(cache_root, sha1_hash: str, size: int = THUMBNAIL_SIZE) -> Path:
     """
     Where one content's thumbnail lives: <cache>/thumbnails/<ab>/<sha1>.jpg.
@@ -3437,6 +3471,8 @@ def main():
                 f"in {format_duration(elapsed)} — {bytes_done/elapsed/1e6:.0f} MB/s average). "
                 f"Database updated."
             )
+            if cache_root is not None:
+                sweep_orphan_thumbnails(str(db_path), cache_root)
             promoted, demoted = normalize_duplicate_groups(str(db_path))
             if promoted or demoted:
                 logger.info(
