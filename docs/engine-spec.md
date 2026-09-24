@@ -221,11 +221,13 @@ catalogue, not the tree, so relocating them is a separate action.
     an absent offset remains unknown, not assumed UTC. Capture-date folder placement
     follows that recorded calendar date, independent of the browser timezone. UI
     presentation is specified in `webui-spec.md` §10.
-*   **Real-time Feedback:** the planned web drawer shows aggregate progress and elapsed
-    runtime, and the discovery counts recorded above. Display aggregates rather than a live line per file (`webui-spec.md` §4.1). Required support includes
-    phase/scoped totals and classified outcomes, including unchanged-file skips;
-    operation statuses alone do not supply a reliable percentage. Keep full per-file
-    audit records while allowing the UI to refresh summaries about once per second.
+*   **Real-time Feedback:** the web drawer (`webui-spec.md` §4.1) reads `run_progress`, which every job writes about once a second (`PROGRESS_SNAPSHOT_SECONDS`), through `ns_db.read_progress`. There is one row per phase the run entered, ordered by `seq`; the last is the current one:
+    *   `discovering`, a full Index's walk: `total` is NULL, which the drawer shows as an indeterminate bar. Counts are `eligible` and `excluded`.
+    *   `scanning`: the total is the whole scope, and counts are `indexed`, `duplicates`, `unchanged` and `failed`. Unchanged files count as done the moment they are skipped. They write no operation row, which is why operation counts alone cannot supply a percentage.
+    *   `transferring` for Copy and Move, and `removing_duplicates` for Move: counts are keyed by the outcome recorded for each photo (`Copied`, `Completed`, `Found_At_Destination`, `Skipped`, `Failed`, `Cancelled`, `Removed_Duplicate`, and `Already_Gone` for a duplicate whose source was already gone, which records nothing). A Copy's skipped duplicates and already-copied photos join its total when they are recorded, in the same commit.
+    *   `rebuilding_thumbnails`: `made`, `already`, `kept` and `failed`.
+
+    `done` is always the sum of the counts. Counts are added where each outcome is decided rather than re-derived from `operations`, because recovery rows written during a scan are run-level issues the drawer keeps separate (`webui-spec.md` §5.5). When a phase ends, its counts equal the outcomes `operations` recorded for it, and a test proves that for Copy and Move. The scan's snapshot rides in the writer thread's commit, so it never shows more than the catalog holds. The writer commits when a result arrives and a second has passed. Results arrive in batches, so a batch of slow files holds the count still for a moment: the longest gap measured on a ~1,200-file sample was 2.7s, and the median 1.2s. The transfer loop writes it in its own commit at most once a second: one extra fsync per second on a loop that fsyncs several times per file. A cancelled transfer counts every photo it did not reach as `Cancelled`, so its bar still reaches the total; a cancelled scan stops short of it. Elapsed time comes from `runs.started_at`.
     Runtime uses the run's recorded start/end, surviving browser reconnects. This
     complete progress contract is not implemented; no per-second database writes or
     active-worker/queue telemetry are required merely to refresh the display.
@@ -309,7 +311,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 7 and refuses incompatible catalogs before processing.
+initializes schema version 8 and refuses incompatible catalogs before processing.
 No migration exists: preserve an older catalog and use a fresh one. Index cannot
 reconstruct settings, past edits, or deleted-file lineage. Never describe deleting a
 user catalog as routine repair.
@@ -530,7 +532,7 @@ CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id);
 
 **Recovery, content, cache, discovery and backup records.** The first five are
 written by recovery (4.2), `contents` and `thumbnail_cache` by the scan,
-`run_discovery` by a full Index (4.3), and the backup records by catalog backups
+`run_discovery` by a full Index (4.3), `run_progress` by every job (4.3), and the backup records by catalog backups
 (4.1); `file_changes` and `content_similarity` are defined but not yet written.
 Statement order matters here too:
 `contents` precedes everything referencing it, `operation_events` precedes
@@ -631,6 +633,19 @@ CREATE TABLE run_discovery (
     files_found INTEGER NOT NULL, eligible INTEGER NOT NULL, excluded INTEGER NOT NULL,
     excluded_by_extension_json TEXT NOT NULL, unreadable INTEGER NOT NULL,
     CHECK(files_found = eligible + excluded)
+);
+
+-- Live job progress for the drawer (webui-spec 4.1): one row per phase a run
+-- entered, about once a second. seq orders the phases; the highest is current.
+-- total is NULL while unknown (discovery). done is the sum of counts_json.
+CREATE TABLE run_progress (
+    run_id INTEGER NOT NULL REFERENCES runs(id),
+    phase TEXT NOT NULL CHECK(phase IN ('discovering','scanning','transferring',
+                                        'removing_duplicates','rebuilding_thumbnails')),
+    seq INTEGER NOT NULL, total INTEGER CHECK(total IS NULL OR total >= 0),
+    done INTEGER NOT NULL CHECK(done >= 0), counts_json TEXT NOT NULL,
+    started_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    PRIMARY KEY(run_id, phase), UNIQUE(run_id, seq)
 );
 
 -- An attempt is history; an artifact's availability is current observed state.

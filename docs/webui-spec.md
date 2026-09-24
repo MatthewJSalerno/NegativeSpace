@@ -272,9 +272,9 @@ When a job is active, a progress drawer expands at the bottom of the viewport.
 * **Progress bar:** measure processed items, including finished failed and skipped
   attempts, against a known total for the same phase and scope. Do not count scan
   and transfer records for the same photo twice, or include unrelated recovery.
-  Stat-skipped unchanged files also need accounting; raw operation-row counts are
-  insufficient. Until a reliable denominator exists, show activity and available
-  counts with an indeterminate bar. Cancellation shows recorded outcomes and cancelled
+  Stat-skipped unchanged files are counted as done (`unchanged`); raw operation-row
+  counts would miss them. While a phase's total is unknown (the discovery walk), show
+  activity and available counts with an indeterminate bar. Cancellation shows recorded outcomes and cancelled
   items without implying all work finished successfully.
 * **Elapsed runtime:** measure from the job's recorded start, not from opening the
   browser or entering a phase. Update the display once per second; reconnecting or
@@ -282,10 +282,21 @@ When a job is active, a progress drawer expands at the bottom of the viewport.
   the recorded final duration. A crash with no reliable end time must show duration
   as unavailable or approximate, not treat later reconciliation as the actual end.
   Timestamp storage and display follow §10.
-* **Data contract:** aggregate progress needs the active phase, scoped work totals
-  and properly classified outcomes. The engine does not yet expose this complete
-  contract. Active-worker counts, queue depth and fine-grained checksum steps are
-  not required by this initial drawer and must not be invented from catalog statuses.
+* **Data contract:** the API reads `ns_db.read_progress(run_id)`, which the engine writes
+  about once a second (`engine-spec.md` §4.3, table `run_progress`). It holds one entry
+  per phase the run entered, in order, and the last is the current one. Each entry
+  has `phase`, `total` (None while unknown: show an indeterminate bar), `done` (always
+  the sum of the counts), and `counts` by outcome. Map phases and outcome keys to the
+  labels above:
+  * `scanning`: `indexed` plus `duplicates` is "files indexed", with duplicates as
+    a subset; `unchanged` is "unchanged, not re-read".
+  * `transferring`: `Copied`, `Completed` (moved), `Skipped`, `Failed`,
+    `Cancelled`, `Found_At_Destination`.
+  * `removing_duplicates`: `Removed_Duplicate`.
+
+  The final entries stay as the job's summary. Active-worker counts, queue depth and
+  fine-grained checksum steps are not required by this drawer and must not be
+  invented from catalog statuses.
 
 * **Job Control:** Provides a **Cancel Job** button. Sends `SIGTERM` to the engine subprocess (§6.2 `jobs/{id}/cancel`). During the **Index/scan** phase the engine stops at the next batch boundary and skips the move/copy phase entirely (everything already indexed is kept, so re-running continues where it left off) — note the UI should not expect per-file `Cancelled` rows for a scan-phase cancellation, since no physical work was scoped out yet. During **Move/Copy**, the file currently being copy-verified finishes normally, then every remaining targeted file is logged to the `operations` audit table with status `Cancelled` (not silently dropped — visible in the run's history afterward) and duplicate-source cleanup for that run is skipped entirely.
 * **Cancellation feedback:** after the cancellation request is accepted, show
@@ -934,7 +945,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 7 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 8 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a

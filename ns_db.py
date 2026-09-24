@@ -16,7 +16,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 class PhotoStatus:
     """State of one source file in the catalog. One row per source_path."""
@@ -414,6 +414,19 @@ FOUNDATION_DDL = (
         files_found INTEGER NOT NULL, eligible INTEGER NOT NULL, excluded INTEGER NOT NULL,
         excluded_by_extension_json TEXT NOT NULL, unreadable INTEGER NOT NULL,
         CHECK(files_found = eligible + excluded))""",
+    # Live job progress for the web UI's drawer (webui-spec 4.1): one row per phase a
+    # run entered, written by the engine about once a second, read by the API. `seq`
+    # orders the phases; the highest is the current one. `total` is NULL while it is
+    # unknown (discovery), which the drawer shows as an indeterminate bar. `done` is
+    # always the sum of `counts_json`, so the counts never disagree with the bar.
+    """CREATE TABLE run_progress (
+        run_id INTEGER NOT NULL REFERENCES runs(id),
+        phase TEXT NOT NULL CHECK(phase IN ('discovering','scanning','transferring',
+                                            'removing_duplicates','rebuilding_thumbnails')),
+        seq INTEGER NOT NULL, total INTEGER CHECK(total IS NULL OR total >= 0),
+        done INTEGER NOT NULL CHECK(done >= 0), counts_json TEXT NOT NULL,
+        started_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+        PRIMARY KEY(run_id, phase), UNIQUE(run_id, seq))""",
     # outcome is NULL only while an attempt runs; one found NULL under the
     # engine lock was interrupted.
     """CREATE TABLE backup_attempts (
@@ -787,6 +800,28 @@ def read_discovery(conn, run_id):
     return {'files_found': found, 'eligible': eligible, 'excluded': excluded,
             'excluded_by_extension': json.loads(by_ext), 'unreadable': unreadable,
             'partial': unreadable > 0}
+
+
+def write_progress(conn, run_id, *, phase, seq, total, counts, started_at):
+    """Stores one phase's progress snapshot. Joins the caller's transaction and does
+    not commit: the engine writes it in the same commit as the results it counts."""
+    conn.execute(
+        "INSERT INTO run_progress VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(run_id, phase) DO UPDATE SET "
+        "total = excluded.total, done = excluded.done, counts_json = excluded.counts_json, "
+        "updated_at = excluded.updated_at",
+        (run_id, phase, seq, total, sum(counts.values()), _json(dict(sorted(counts.items()))),
+         started_at, utc_now()))
+
+
+def read_progress(conn, run_id):
+    """A run's phases in the order it entered them; the last is the current one.
+    Each is {'phase', 'total' (None = unknown), 'done', 'counts', 'started_at',
+    'updated_at'}. Empty for a run that has not started work, or predates tracking."""
+    return [{'phase': phase, 'total': total, 'done': done, 'counts': json.loads(counts),
+             'started_at': started, 'updated_at': updated}
+            for phase, total, done, counts, started, updated in conn.execute(
+                "SELECT phase, total, done, counts_json, started_at, updated_at FROM run_progress "
+                "WHERE run_id = ? ORDER BY seq", (run_id,))]
 
 
 def orphaned_thumbnails(conn):
