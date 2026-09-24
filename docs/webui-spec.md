@@ -602,13 +602,36 @@ records these per full Index (`engine-spec.md` §4.3, `ns_db.read_discovery`), a
 scoped run records none, so never infer them from catalog rows, which omit excluded
 files.
 
+**Empty source folder — ask, never guess.** When the source folder exists but holds no
+supported files while the catalog holds photos from it, the engine changes nothing and
+opens a needs-attention issue (`source_root_empty`, `engine-spec.md` §4.2): an
+unplugged drive and a Move that took every photo look identical. Show it prominently,
+not only in Logs:
+
+> **The source folder is empty.** NegativeSpace holds N photos from it. Is the drive
+> unplugged, or is the folder really empty?
+> **[Check the connection and run again]** · **[It really is empty]**
+
+**It really is empty** re-runs the job with the engine's confirmation
+(`--confirm-source-empty`): photos whose exact content is on the destination are then
+recorded **Found at destination**, and the rest as missing. Never offer a default or
+pre-select an answer, and never answer on the user's behalf after a timeout.
+
+**Found at destination** (`Found_At_Destination`) means the photo's source is gone and
+its exact content was observed on the destination, with no action taken by NegativeSpace
+in that run — typically after a Move whose catalog records were lost to a power cut.
+Present it as delivered, but label it as found rather than moved, and show its evidence
+(source absent, destination content match) in the photo's history.
+
 ### 5.2 Job Persistence & Background Execution
 
 **Unavailable source versus empty scan:** if the source cannot be accessed, show
 **“Source unavailable. Check your Docker mount and storage connection.”** Include
 the recorded reason and **View job log**. Treat this as a run-level scan problem,
 not zero failed photos or a successful empty scan. A completed scan of a readable
-source with no supported files instead shows **“0 supported files found.”** Neither
+source with no supported files, and no catalogued photos from it, shows **“0 supported
+files found.”** If the catalog does hold photos from it, the engine asks instead (the
+empty-source question in §5.1). Neither
 outcome removes existing catalog history. Do not infer that a mount is healthy merely
 because its container directory exists; if it appears readable but empty, report the
 observed result without claiming the expected external storage was verified.
@@ -652,7 +675,7 @@ Users can view exact system error strings (e.g., `PermissionError`, `ChecksumMis
 
 ### 5.4 Operations Audit Log (`/logs`)
 A searchable table logging every operation performed by the engine:
-* **Columns:** Timestamp, Mode (`MOVE`/`COPY`), Source Path, Destination Path, Status (`Completed`, `Copied`, `Removed_Duplicate`, `Failed`), and System Error Message.
+* **Columns:** Timestamp, Mode (`MOVE`/`COPY`), Source Path, Destination Path, Status (`Completed`, `Copied`, `Removed_Duplicate`, `Found_At_Destination`, `Failed`), and System Error Message.
 * **Controls:** Filter by photo lineage, date, status, run, or free-text search;
   CSV/JSON export. The photo info page opens this view scoped to the selected
   photo's full history, with access to the surrounding run.
@@ -871,7 +894,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 6 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 7 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a

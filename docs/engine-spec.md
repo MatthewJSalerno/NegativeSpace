@@ -182,7 +182,19 @@ catalogue, not the tree, so relocating them is a separate action.
     *   **Source file changed since Index:** If a targeted file's `source_path` no longer exists on disk when the engine actually tries to process it (moved, renamed, or deleted outside NegativeSpace since the last Index — most likely with `--file-ids`/`--source-subdir` targeting a stale selection), this is detected explicitly *before* attempting to open the file, rather than surfacing as a raw `FileNotFoundError` traceback. Recorded as `status = 'Failed'` with a specific, human-readable `error_message`: `"Source file changed: no longer found at <path>. It may have been moved, renamed, or deleted outside NegativeSpace since the last Index."` The distinct wording matters for the Error Center (`webui-spec.md` §5.3) — a user seeing this should understand to re-index, not assume a permissions or disk problem.
         A full (untargeted) run also detects this at Index time: after walking the source root, any `Pending` or `Duplicate` row under it that was not found is checked with `stat()`, and only a file that definitely does not exist is marked `Failed` with the same message. Otherwise a photo deleted outside the engine would stay `Pending` indefinitely and keep standing as the original of its duplicate group, so its duplicate would never be delivered; as a `Failed` row it leaves the group and a surviving duplicate is promoted. A permission or I/O error is never treated as absence.
 
-        **A walk that finds nothing is refused rather than believed.** If the scan discovers no supported files at all while the catalog still holds rows under that root, no row is touched: an unmounted or detached source leaves a directory that exists and is empty, every `stat()` beneath it then reports "not found", and the sweep would otherwise condemn the whole catalogue under that root in a single pass — promoting duplicates in other archives to anchor on the strength of storage being absent. The refusal is recorded as a run-level `Failed` operation naming the root and the row count, not merely logged, and the check lives inside the sweep rather than at its call site so a future caller cannot skip it. The accepted cost: a root whose files genuinely were all removed keeps its rows, and nothing promotes their duplicates until a supported file is present there again — recoverable and visible, which a wholesale `Failed` catalogue is not. Finding *fewer* files is untouched by this; only finding *none* triggers it.
+        **A missing source whose content is on the destination is recorded `Found_At_Destination`, not `Failed`.** Before the Move/Copy loop, duplicate cleanup or a full Index records a missing source as `Failed`, it looks for the photo's exact content on the destination:
+        *   for a photo, at the destination it was meant for, and that name's numbered variants;
+        *   for a duplicate, at any delivered copy of its content, each hashed live.
+
+        If a file holding the recorded SHA-1 is there, the row is recorded `Found_At_Destination`. **Why not `Completed` or `Removed_Duplicate`:** those describe an action — a Move delivered it, a duplicate source was deleted — and this run took none. The engine cannot tell a lost Move from a source deleted by hand, so the record states only what was observed, in one transaction:
+        *   evidence rows: source `absent`, destination `match`;
+        *   the found file registered as an `observed_destination` identity, or linked if already recorded;
+        *   the source identity marked `missing`, not `removed`;
+        *   the operation settled as `Found_At_Destination`.
+
+        Nothing is copied or deleted. This is the state a power cut leaves when a Move's catalog commits are lost and its file operations survive (`TODO.md` claim 10). A full Index also applies it to a row an earlier targeted Index already marked `Failed`. `Found_At_Destination` counts as delivered wherever that matters — as a duplicate group's anchor, as a copy duplicate cleanup verifies against, and as a source a later run must not re-scan.
+
+        **An empty source folder raises a question instead of a guess.** An unplugged share and a Move that took every photo look identical: an existing, empty directory. When a full walk finds no supported files under the source root while the catalog holds `Pending` or `Duplicate` rows there — or when *none* of a Move/Copy selection's sources exist — the engine changes no status and opens one needs-attention issue (`source_root_empty`) asking which it is. Unsupported files left in the folder do not count: a Move leaves them behind by design. A Move/Copy records each selected photo `Skipped` with a reason pointing at the question. The answer is `--confirm-source-empty` (a button in the web UI): the folder really is empty, so the checks above run, rows found on the destination are recorded `Found_At_Destination`, the rest are marked missing, and the issue is closed. Files reappearing in the folder close it too. **Why not decide automatically:** a guess either way writes a false record — photos still on an unplugged drive recorded as found elsewhere, or delivered photos recorded as lost.
     *   **Nothing unreadable is only logged:** A folder that cannot be listed, or a file that cannot be inspected, during discovery is recorded as a `Failed` operation of the run, with `photo_id` NULL and the folder or file path as `source_path`. A scan result the database writer cannot store is rolled back on its own (each result's row and operation are one unit), and the run is then marked `Failed` without moving or copying anything, since the catalog no longer reflects what was scanned.
     *   **Exit status:** The engine exits `0` only when the run did not fail. A `Failed` run, a missing `--source`, or a `--source` that is not a folder exits `1`; invalid arguments such as `--workers 0` exit `2`. `--backup-now` exits `1` when no verified backup was written. A request ID reused for different input exits `3`, and one already accepted exits `4`; neither starts anything (§4.1). A cancelled run exits `0` — it did what was asked.
     *   **ExifTool startup check:** Before touching the database or source/dest paths at all, the engine verifies both the `exiftool` binary and the `PyExifTool` package are available and exits immediately with a clear fatal error if either is missing (§3.3) — tested with the binary hidden from `PATH`: it fails cleanly and creates no directories or database files.
@@ -247,7 +259,7 @@ The three transfer tables below — current state, runs, and the audit log — e
 | `phash` | Text | Perceptual hash. `"not_supported"` if the required optional library isn't installed for that format; `"error"` if hashing was attempted but failed (e.g. corrupt file). |
 | `collision_group` | Integer | Reserved for fuzzy-match clustering (§9.3). Not populated yet. |
 | `is_master` | Boolean | Reserved for collision resolution. Not populated yet, and its future is genuinely open: the similarity review keeps the user's chosen primary as client state (§9.3), which needs no column — but lineage and EXIF history need *persisted* provenance (§9.8), which may. Decide when one of those is built, not before. |
-| `status` | String | `Pending`, `Processing`, `Completed`, `Failed`, `Duplicate`, `Removed_Duplicate`, `Copied`. Constrained by `CHECK`; `NULL` permitted, since a row can exist before its scan result lands. |
+| `status` | String | `Pending`, `Processing`, `Completed`, `Failed`, `Duplicate`, `Removed_Duplicate`, `Copied`, `Found_At_Destination` (source gone, exact content observed on the destination; §4.2). Constrained by `CHECK`; `NULL` permitted, since a row can exist before its scan result lands. |
 | `metadata_json` | JSON | Full captured metadata (camera, ISO, aperture, shutter, etc. — whatever the source/method exposed), always including a `date_taken` key. |
 | `has_name_collision` | Boolean | Whether the destination filename had to be suffixed (`_1`, `_2`, ...) to avoid overwriting an existing file. |
 | `file_size` | Integer | Size in bytes as of the scan that wrote this row. With `file_mtime`, this is what lets a re-index skip an unchanged file without reading it (§4.2). NULL means "unknown" and forces a full re-read. |
@@ -293,7 +305,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 6 and refuses incompatible catalogs before processing.
+initializes schema version 7 and refuses incompatible catalogs before processing.
 No migration exists: preserve an older catalog and use a fresh one. Index cannot
 reconstruct settings, past edits, or deleted-file lineage. Never describe deleting a
 user catalog as routine repair.
@@ -338,14 +350,15 @@ CREATE TABLE photos (
     collision_group INTEGER,      -- reserved for fuzzy clustering (9.3)
     is_master BOOLEAN DEFAULT 0,  -- reserved; likely unnecessary, see 9.3
     status TEXT,                  -- Pending, Processing, Completed, Failed,
-                                  -- Duplicate, Removed_Duplicate, Copied
+                                  -- Duplicate, Removed_Duplicate, Copied,
+                                  -- Found_At_Destination
     metadata_json TEXT,           -- full captured EXIF/metadata, not just date
     has_name_collision BOOLEAN DEFAULT 0,
     file_size INTEGER,            -- size/mtime as of the scan that wrote this
     file_mtime REAL,              -- row; the unchanged-file skip compares
                                   -- against these instead of re-reading
     CHECK (status IS NULL OR status IN ('Pending', 'Processing', 'Completed',
-           'Copied', 'Failed', 'Duplicate', 'Removed_Duplicate'))
+           'Copied', 'Failed', 'Duplicate', 'Removed_Duplicate', 'Found_At_Destination'))
 );
 -- Thumbnails and width/height belong to content, not to one copy of it: they
 -- live in thumbnail_cache and contents below, so photos carries neither.
@@ -402,7 +415,7 @@ CREATE TABLE operations (
     -- left alone -- a duplicate whose original carries its content -- with the
     -- reason, naming that original, in error_message).
     CHECK (status IN ('Pending', 'Processing', 'Completed', 'Copied', 'Failed',
-           'Duplicate', 'Removed_Duplicate', 'Cancelled', 'Skipped')),
+           'Duplicate', 'Removed_Duplicate', 'Found_At_Destination', 'Cancelled', 'Skipped')),
     FOREIGN KEY(run_id) REFERENCES runs(id),
     FOREIGN KEY(photo_id) REFERENCES photos(id)
 );
