@@ -3679,6 +3679,53 @@ def the_detail_preview_is_made_on_request_from_a_catalogued_copy():
 
 
 @test
+def clearing_previews_frees_them_and_keeps_the_grid():
+    """
+    webui-spec 4.2.1 "Free up": every recorded detail preview goes, and what is freed
+    matches the per-size total the page showed. Grid thumbnails stay, and so does a
+    recorded failure - it names no file and keeps the reason a photo has no preview.
+    A cleared preview is made again on the next view. No engine lock is taken.
+    """
+    import fcntl
+    case = new_case("clear_previews")
+    for i in range(3):
+        make_photo(case / "src" / f"p{i}.jpg", f"clear-{i}", size=(1600, 1200))
+    run_engine(case)
+    ids = [r["id"] for r in rows(case, "SELECT id FROM photos ORDER BY source_path")]
+    for i in ids[:2]:
+        _preview(case, i)
+    (case / "src" / "p2.jpg").unlink()
+    failed, _ = _preview(case, ids[2], expect_rc=1)
+    check(failed["availability"] == "failed", f"setup: expected a recorded failure, got {failed}")
+
+    def totals():
+        return {r["size"]: (r["n"], r["b"]) for r in rows(case,
+                "SELECT size, COUNT(*) n, SUM(bytes) b FROM thumbnail_cache "
+                "WHERE availability = 'present' GROUP BY size")}
+    before = totals()
+    grid = sorted(p for p in (case / "cache").rglob("*.jpg") if not p.name.endswith("-1024.jpg"))
+
+    with open(case / "appdata" / "engine.lock", "a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        proc = run_engine(case, "--clear-previews")
+    lines = [l for l in proc.stdout.splitlines() if l.strip()]
+    check(len(lines) == 1, f"--clear-previews must print exactly one line of JSON, got:\n{proc.stdout}")
+    out = json.loads(lines[0])
+    check(out == {"removed": 2, "bytes_freed": before[1024][1], "not_removed": 0},
+          f"freed {out}, but the page showed {before[1024]}")
+    check(not list((case / "cache").rglob("*-1024.jpg")), "a detail preview file was left behind")
+    check(totals() == {320: before[320]}, f"grid entries changed or preview entries remain: {totals()}")
+    check(sorted(p for p in (case / "cache").rglob("*.jpg")) == grid, "a grid thumbnail file was removed")
+    kept = rows(case, "SELECT failure_category FROM thumbnail_cache WHERE size = 1024")
+    check([r["failure_category"] for r in kept] == ["file_unavailable"],
+          f"the recorded preview failure was not kept: {kept}")
+
+    again, rc = _preview(case, ids[0])
+    check(rc == 0 and not again["reused"] and (case / "cache" / again["cache_filename"]).is_file(),
+          f"a cleared preview was not made again on the next view: {again}")
+
+
+@test
 def raw_files_produce_thumbnails_through_rawpy():
     """
     The RAW path cannot be covered synthetically — LibRaw rejects fabricated

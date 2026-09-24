@@ -457,8 +457,9 @@ The Gallery grid and Inspector's "Media Preview" both need something to actually
 content identity, records it in `thumbnail_cache`, and reuses it for
 byte-identical duplicates; `--no-thumbnails` turns it off and `--cache` relocates
 it. The 1024px detail preview is generated on first view by `ns-engine.py --preview
-<photo_id>` (`engine-spec.md` §4.1). Still unbuilt: the
-cache-size display and its two clear/rebuild controls, the rebuild job, and orphan
+<photo_id>` (`engine-spec.md` §4.1), and **Free up** is `ns-engine.py --clear-previews`;
+the cache-size figures are `ns_db.thumbnail_cache_totals`. Still unbuilt: the
+Rebuild grid thumbnails job, and orphan
 cleanup after an interrupted edit. Removing thumbnails whose content no catalogued
 photo holds any more is implemented (`engine-spec.md` §9.8). One documented behavior is also not
 met — recorded failure history is **not** retained across a successful

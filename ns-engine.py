@@ -35,7 +35,7 @@ Per-file failures never abort a run: an unreadable, vanished, or otherwise
 unprocessable file is recorded as status='Failed' with a human-readable
 reason in operations.error_message, and the scan carries on with the rest.
 
-Mode flags (mutually exclusive — pick at most one; omitting both runs the
+Mode flags (mutually exclusive — pick at most one; omitting all runs the
 default Index):
 - --move: Execute physical migration (Copy-Verify-Delete). Source files are
   moved: deleted after a verified copy lands at the destination. Confirmed
@@ -44,9 +44,12 @@ default Index):
 - --copy: Non-destructive. Same verified Copy-Verify step as --move, but the
   source file is never deleted or modified afterward. Duplicate source files
   are also left untouched in this mode — nothing is ever removed from source.
-- (neither of the above): Index — full scan, hashing, and destination-path
+- (none of these): Index — full scan, hashing, and destination-path
   resolution, exactly like --move/--copy would compute, but no physical
   action is taken. This is the safe default described in spec §4.1.
+- --preview PHOTO_ID / --clear-previews: make one 1024px detail preview, or
+  remove them all. Cache only; no run, no engine lock.
+- --backup-now: one manual catalog backup, under the engine lock.
 
 Cancellation: sending SIGTERM or SIGINT (e.g. `docker stop`, or Ctrl+C)
 during a --move/--copy run lets the file currently being copy-verified
@@ -2919,6 +2922,46 @@ def preview_for_photo(db_path: Path, cache_root: Path, photo_id: int) -> dict:
     return answer("failed", category=result.failure_category, detail=result.failure_detail)
 
 
+def clear_previews(db_path: Path, cache_root: Path) -> dict:
+    """Removes every recorded detail preview, leaving grid thumbnails alone.
+
+    webui-spec 4.2.1 "Free up": previews are recreated on the next view, so nothing is
+    lost. Takes no engine lock, for the same reason --preview takes none. Racing a
+    --preview is harmless: the worst case is a record whose file has gone, and a
+    preview request checks the file and regenerates it.
+
+    Only recorded files are removed, so what is freed matches the total the page
+    showed (thumbnail_cache_totals). As in sweep_orphan_thumbnails, the file goes
+    before its record, and a file that cannot be removed keeps its record. The
+    records are deleted together at the end: one transaction instead of one per file.
+
+    Returns {'removed', 'bytes_freed', 'not_removed'}.
+    """
+    removed, freed, not_removed = [], 0, 0
+    if not Path(db_path).exists():
+        return {"removed": 0, "bytes_freed": 0, "not_removed": 0}
+    with contextlib.closing(get_db_connection(str(db_path))) as conn:
+        ns_db.require_schema(conn)
+        for content_id, name in ns_db.present_thumbnails(conn, PREVIEW_SIZE):
+            path = Path(cache_root) / name
+            try:
+                freed += path.stat().st_size
+                path.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                logger.warning(f"Could not remove a detail preview ({exc}); its record is kept.")
+                not_removed += 1
+                continue
+            removed.append(content_id)
+        with ns_db.transaction(conn):
+            conn.executemany("DELETE FROM thumbnail_cache WHERE content_id = ? AND size = ?",
+                             [(cid, PREVIEW_SIZE) for cid in removed])
+    logger.info(f"Cleared {len(removed):,} detail preview(s), {freed / 1e6:.1f} MB"
+                + (f"; {not_removed:,} could not be removed." if not_removed else "."))
+    return {"removed": len(removed), "bytes_freed": freed, "not_removed": not_removed}
+
+
 def backup_after_job(db_path: Path, backups_dir: Path, base_dir: Path, run_id: int):
     """One automatic backup after a job that recorded changes, including a failed
     or cancelled one. Skipped and Cancelled rows record that nothing was done, so
@@ -3072,6 +3115,11 @@ def main():
              "so it works while a job runs. The preview path in the JSON is relative to --cache."
     )
     mode_group.add_argument(
+        "--clear-previews", action="store_true",
+        help="Remove every cached 1024px detail preview and print what was freed as one line of "
+             "JSON. Grid thumbnails are kept. Takes no engine lock, like --preview."
+    )
+    mode_group.add_argument(
         "--backup-now", action="store_true",
         help="Write one manual catalog backup to --backups and exit. Takes the engine lock, so it "
              "is refused while a job runs. Touches no photo and needs no --source."
@@ -3092,12 +3140,16 @@ def main():
 
     # 2. Configure Logging
     # --preview answers on stdout in JSON for the API, so its log goes to the file only.
-    configure_logging(log_dir, console=args.preview is None)
+    configure_logging(log_dir, console=args.preview is None and not args.clear_previews)
     if args.preview is not None:
         # Before the lock on purpose: a preview changes no photo file (see preview_for_photo).
         result = preview_for_photo(db_path, Path(args.cache).resolve(), args.preview)
         print(json.dumps(result, sort_keys=True))
         sys.exit(0 if result["availability"] == "present" else 1)
+    if args.clear_previews:
+        result = clear_previews(db_path, Path(args.cache).resolve())
+        print(json.dumps(result, sort_keys=True))
+        sys.exit(1 if result["not_removed"] else 0)
 
     # 2a. Single-instance enforcement (docs/engine-spec.md 4.1/7) — before
     # touching the database or source/dest paths at all. Applies to every
