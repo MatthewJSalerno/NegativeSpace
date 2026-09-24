@@ -2,7 +2,7 @@
 
 ## Durability claims: stated vs enforced
 
-Every durability claim resolves to either **enforced and tested** or **a documented limitation** — never something the prose asserts and the code only usually does. If a claim cannot be enforced, weaken the claim.
+Every durability claim resolves to either **enforced and tested** or **a documented limitation** — never something the prose asserts and the code only usually does. **A claim that cannot be enforced is raised with the maintainer before it is weakened:** weakening a guarantee is his decision, not an editorial fix. Until he decides, mark it **Unresolved** here with what fails and why.
 
 | # | Claim | Stated in | Status |
 | :--- | :--- | :--- | :--- |
