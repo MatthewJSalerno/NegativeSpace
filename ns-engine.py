@@ -2935,6 +2935,13 @@ def main():
              "size or mtime moving."
     )
     parser.add_argument(
+        "--confirm-network-destination", action="store_true",
+        help="Move to a network-share destination anyway. Without it a Move there stops before "
+             "copying or deleting anything and asks, because a share can report a copy saved "
+             "before it is on the server's disk. Confirm only for a share exported 'sync'; "
+             "otherwise use --copy, which never deletes a source."
+    )
+    parser.add_argument(
         "--confirm-source-empty", action="store_true",
         help="Answer the needs-attention question an empty --source raises: the folder really "
              "is empty, not unplugged. Photos whose exact content is on the destination are "
@@ -3123,6 +3130,7 @@ def main():
     # is a conflict rather than a silent replay of the run without it.
     submitted = {"force_rehash": args.force_rehash,
                  "confirm_source_empty": args.confirm_source_empty,
+                 "confirm_network_destination": args.confirm_network_destination,
                  "thumbnails": not args.no_thumbnails,
                  "cache": str(Path(args.cache).resolve())}
     try:
@@ -3814,6 +3822,38 @@ def normalize_duplicate_groups(db_path: str) -> tuple:
     return len(promote), len(demote)
 
 
+# Filesystems reached over a network. On these an fsync can be acknowledged before the
+# data is on the server's disk (an NFS export marked async, for one), and the client
+# cannot see how the share is exported. A Move's deletion is only as safe as that
+# acknowledgement, so a Move to one of these is asked about first.
+NETWORK_FILESYSTEMS = frozenset({
+    "nfs", "nfs4", "cifs", "smb3", "smbfs", "fuse.sshfs", "sshfs", "ceph",
+    "glusterfs", "fuse.glusterfs", "9p", "afs", "fuse.rclone", "davfs", "fuse.davfs2",
+})
+NETWORK_DESTINATION_ISSUE = "network_destination_unconfirmed"
+
+
+def filesystem_type(path: Path, mountinfo: str = "/proc/self/mountinfo") -> Optional[str]:
+    """The filesystem type `path` lives on, from the mount whose mount point is the
+    longest prefix of it, or None when the mount table cannot be read. Inside a
+    container a bind mount reports the type of the storage behind it (nfs4, ext4)."""
+    try:
+        target = str(Path(path).resolve())
+        best, best_type = "", None
+        with open(mountinfo) as f:
+            for line in f:
+                fields = line.split()
+                if "-" not in fields:
+                    continue
+                point = fields[4].encode().decode("unicode_escape")
+                fstype = fields[fields.index("-") + 1]
+                if (target == point or target.startswith(point.rstrip("/") + "/")) and len(point) >= len(best):
+                    best, best_type = point, fstype
+        return best_type
+    except OSError:
+        return None
+
+
 def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     """
     Runs the Pre-flight space check, then the Move/Copy loop, then (Move
@@ -3836,9 +3876,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     # asks. Every delete here commits status=Processing with dest_path BEFORE
     # unlinking, and reconcile_interrupted_state finds interrupted work by that
     # marker alone. Under NORMAL a commit is not fsynced, so a power cut can
-    # take the marker while the unlink — which IS fsynced — survives; the next
-    # Index then finds a source gone with nothing explaining it and records a
-    # successfully delivered photo as Failed. A probe reproduced exactly that.
+    # take the marker while the unlink — which IS fsynced — survives, and the
+    # next run finds the source gone with nothing explaining it.
     #
     # Affordable because this path is already fsync-heavy per file: measured
     # 1.42x here (+1.9ms per photo) against the ~4.4x that NORMAL buys on the
@@ -3861,6 +3900,50 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     )
     pending_records = cursor.fetchall()
 
+    # A Move to a network share deletes sources on the strength of an fsync the
+    # server may acknowledge before the data is on its disk, and the engine cannot
+    # see how the share is exported. So it asks first: nothing is copied or
+    # deleted, Copy is recommended (the only way to guarantee no loss), and the
+    # user answers Copy instead, Move anyway (--confirm-network-destination), or
+    # nothing. Copy never deletes, so it is never asked.
+    fstype = filesystem_type(dest_path) if args.move else None
+    confirmed = getattr(args, "confirm_network_destination", False)
+    if fstype in NETWORK_FILESYSTEMS and not confirmed:
+        cursor.execute(f"SELECT id, source_path FROM photos WHERE status IN "
+                       f"({sql_values(eligible + (PhotoStatus.DUPLICATE,))})" + predicate,
+                       predicate_params)
+        selected = cursor.fetchall()
+        summary = (f"The destination {dest_path} is on a network share ({fstype}). A Move deletes "
+                   f"each source once the share says its copy is saved, and a share can say so "
+                   f"before the data is really on its disk; NegativeSpace cannot check how the "
+                   f"share is set up. Nothing was copied or deleted. Recommended: run Copy "
+                   f"instead, which never deletes a source. To Move anyway, confirm the share is "
+                   f"exported 'sync' and run the Move with --confirm-network-destination.")
+        already = conn.execute("SELECT 1 FROM attention_issues WHERE category = ? AND resolved_at IS NULL",
+                               (NETWORK_DESTINATION_ISSUE,)).fetchone()
+        with ns_db.transaction(conn):
+            if not already:
+                operation_id = ns_db.begin_operation(conn, run_id=run_id, photo_id=None,
+                                                     source_path=None, dest_path=str(dest_path),
+                                                     kind="network_destination")
+                ns_db.settle_operation(conn, operation_id, status=PhotoStatus.FAILED, step="preflight",
+                                       outcome="needs_attention", error_message=summary)
+                ns_db.open_attention_issue(conn, operation_id=operation_id,
+                                           category=NETWORK_DESTINATION_ISSUE, summary=summary)
+            for skipped_id, skipped_src in selected:
+                log_operation(conn, run_id, skipped_id, skipped_src, None, OPERATION_SKIPPED,
+                              "Not attempted: the destination is a network share and the Move "
+                              "was not confirmed. See the needs-attention note. Nothing was "
+                              "changed.", commit=False)
+        logger.warning(summary)
+        conn.close()
+        return RunStatus.COMPLETED
+    if confirmed or not args.move:
+        # Answered: a confirmed Move, or a Copy chosen instead. Either closes it.
+        with ns_db.transaction(conn):
+            conn.execute("UPDATE attention_issues SET resolved_at = ? WHERE category = ? "
+                         "AND resolved_at IS NULL", (ns_db.utc_now(), NETWORK_DESTINATION_ISSUE))
+
     # One stat per file, not exists() then stat(): on a network share each is a
     # round trip, all before any data moves. stat() answers both questions, and
     # its failure IS the "missing" case.
@@ -3878,7 +3961,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         # A row whose recorded destination already holds a file of the same
         # size is not written again: the loop re-verifies both sides live and,
         # for --move, finishes by deleting the source. Budgeting for those
-        # bytes aborted Copy-then-Move on a destination with ample room for
+        # bytes would abort Copy-then-Move on a destination with ample room for
         # what the run actually writes. This is only the estimate — the live
         # hash comparison still decides, and a row that does turn out to need
         # writing is caught per file by the copy itself, which fails that one
@@ -3934,7 +4017,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     # at the first source that exists, so a normal run pays one stat.
     all_sources_missing = bool(pending_records) and not any(
         not _source_missing(src) for _, src, _, _ in pending_records)
-    ask_about_empty_source = all_sources_missing and not args.confirm_source_empty
+    ask_about_empty_source = all_sources_missing and not getattr(args, "confirm_source_empty", False)
     if ask_about_empty_source and pending_records:
         # Ask, don't guess: a detached share and a Move that took everything look
         # the same. Nothing is attempted; every selected photo gets an outcome

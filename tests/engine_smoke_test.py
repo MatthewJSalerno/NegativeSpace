@@ -2758,6 +2758,79 @@ def cancelling_a_large_selection_commits_its_bookkeeping_once():
 
 
 @test
+def the_destination_filesystem_is_read_from_the_mount_table():
+    """
+    filesystem_type picks the most specific mount containing the path, decodes an
+    escaped space in a mount point, and says None — unknown, not local — when the
+    table cannot be read.
+    """
+    engine = _load_engine()
+    table = WORKSPACE / "mountinfo"
+    table.write_text(
+        "22 1 0:21 / / rw,relatime - overlay overlay rw\n"
+        "40 22 0:52 /share /data/dest rw,relatime - nfs4 server:/share rw\n"
+        "41 40 8:1 /x /data/dest/local rw - ext4 /dev/sda1 rw\n"
+        "42 22 0:53 /s /data/my\\040photos rw - cifs //host/s rw\n")
+    check(engine.filesystem_type(Path("/data/dest/2024/01"), str(table)) == "nfs4", "nested path on nfs4")
+    check(engine.filesystem_type(Path("/data/dest/local/a"), str(table)) == "ext4", "more specific mount wins")
+    check(engine.filesystem_type(Path("/data/my photos"), str(table)) == "cifs", "escaped space in mount point")
+    check(engine.filesystem_type(Path("/appdata"), str(table)) == "overlay", "falls back to /")
+    check(engine.filesystem_type(Path("/data/dest"), str(WORKSPACE / "no-such-table")) is None,
+          "an unreadable mount table must read as unknown")
+
+
+@test
+def a_move_to_a_network_share_asks_before_anything_is_deleted():
+    """
+    A Move to a network share would delete sources on the strength of an fsync the
+    server may acknowledge before the data is on its disk. Unconfirmed, it copies
+    and deletes nothing: sources and the duplicate stay, the destination stays
+    empty, one needs-attention issue recommends Copy, and every selected photo —
+    the duplicate too — is recorded as not attempted. A repeat does not ask twice.
+    Copy is never asked, and answers the question; a confirmed Move proceeds.
+    """
+    import argparse
+    engine = _load_engine()
+    case = new_case("network_destination")
+    make_photo(case / "src" / "a.jpg", "net-a")
+    make_photo(case / "src" / "b.jpg", "net-b")
+    make_photo(case / "src" / "a_twin.jpg", "net-a")
+    run_engine(case)
+    before = src_files(case)
+    engine.filesystem_type = lambda path, *a, **kw: "nfs4"
+
+    def run(move, confirm=False):
+        args = argparse.Namespace(move=move, copy=not move, source=str(case / "src"),
+                                  source_subdir=None, file_ids=None,
+                                  confirm_network_destination=confirm)
+        return _run_fixture_move(engine, args, case / "appdata" / "db" / "ns_sqlite.db",
+                                 case / "dest", _IN_PROCESS_RUN_ID)
+
+    check(run(move=True) == "Completed", "the unconfirmed Move did not end cleanly")
+    check(src_files(case) == before, f"an unconfirmed Move to a network share removed sources: {src_files(case)}")
+    check(not (case / "dest").exists() or not any((case / "dest").rglob("*.jpg")),
+          "an unconfirmed Move to a network share wrote to the destination")
+    issues = rows(case, "SELECT category, summary, resolved_at FROM attention_issues")
+    check(len(issues) == 1 and issues[0]["category"] == "network_destination_unconfirmed"
+          and "Recommended: run Copy" in issues[0]["summary"] and issues[0]["resolved_at"] is None,
+          f"expected one open question recommending Copy, got {issues}")
+    skipped = rows(case, "SELECT COUNT(*) c FROM operations WHERE status = 'Skipped' "
+                         "AND error_message LIKE 'Not attempted: the destination is a network share%'")[0]["c"]
+    check(skipped == 3, f"expected all 3 selected photos (duplicate included) not attempted, got {skipped}")
+    run(move=True)
+    check(len(rows(case, "SELECT 1 FROM attention_issues")) == 1, "a repeat Move asked a second time")
+
+    run(move=False)
+    check(src_files(case) == before, "Copy removed a source")
+    check(len(list((case / "dest").rglob("*.jpg"))) == 2, "Copy to a network share was held back")
+    check(rows(case, "SELECT resolved_at FROM attention_issues")[0]["resolved_at"] is not None,
+          "choosing Copy did not answer the question")
+
+    run(move=True, confirm=True)
+    check(src_files(case) == [], f"a confirmed Move did not complete: {src_files(case)}")
+
+
+@test
 def the_already_present_deletion_establishes_the_ancestor_barrier():
     """
     A source deleted against a copy an EARLIER run delivered must still have
