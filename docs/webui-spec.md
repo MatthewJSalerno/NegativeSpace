@@ -627,6 +627,22 @@ not only in Logs:
 recorded **Found at destination**, and the rest as missing. Never offer a default or
 pre-select an answer, and never answer on the user's behalf after a timeout.
 
+**Move to a network share — warn, recommend Copy, ask.** When a Move's destination is a
+network share, the engine stops before copying or deleting anything and opens a
+needs-attention issue (`network_destination_unconfirmed`, `engine-spec.md` §4.1): a share
+can report a copy saved before it is on the server's disk, and NegativeSpace cannot see
+how the share is set up. Show it prominently when the Move is started:
+
+> **Your destination is a network share.** A Move deletes each original once the share
+> says the copy is saved, and some shares say so too early. **Copy is recommended:** it
+> never deletes an original, so nothing can be lost.
+> **[Copy instead (recommended)]** · **[Move anyway — this share is set to save
+> immediately]** · **[Cancel]**
+
+**Copy instead** starts a Copy of the same selection; **Move anyway** re-runs the Move with
+`--confirm-network-destination`. Pre-select nothing and never answer on the user's behalf.
+Copy to a network share is never interrupted by this question.
+
 **Found at destination** (`Found_At_Destination`) means the photo's source is gone and
 its exact content was observed on the destination, with no action taken by NegativeSpace
 in that run — typically after a Move whose catalog records were lost to a power cut.
