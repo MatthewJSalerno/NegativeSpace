@@ -456,7 +456,8 @@ The Gallery grid and Inspector's "Media Preview" both need something to actually
 **Status — grid generation is implemented.** The scan writes one 320px JPEG per
 content identity, records it in `thumbnail_cache`, and reuses it for
 byte-identical duplicates; `--no-thumbnails` turns it off and `--cache` relocates
-it. Still unbuilt: the 1024px detail preview generated on first view, the
+it. The 1024px detail preview is generated on first view by `ns-engine.py --preview
+<photo_id>` (`engine-spec.md` §4.1). Still unbuilt: the
 cache-size display and its two clear/rebuild controls, the rebuild job, and orphan
 cleanup after an interrupted edit. Removing thumbnails whose content no catalogued
 photo holds any more is implemented (`engine-spec.md` §9.8). One documented behavior is also not
@@ -1066,7 +1067,7 @@ Requests graceful cancellation via SIGTERM. During Index, stop at the next batch
 
 GET /api/v1/photos/{id}/thumbnail
 
-Serves the content-hash thumbnail for a catalogued photo (see §4.2.1). A missing cache entry triggers regeneration from an available catalogued copy; return an unavailable response for a placeholder when no preview can be produced. A stored path does not guarantee the cached file exists.
+Serves the content-hash thumbnail for a catalogued photo (see §4.2.1). The 1024px detail preview is obtained by running `ns-engine.py --preview <id>` and serving the `cache_filename` it prints; the API never decodes images or writes `thumbnail_cache` itself. Show the 320px grid thumbnail while that runs — a first view costs roughly 0.1–0.2s and a cached one under 0.1s. A missing cache entry triggers regeneration from an available catalogued copy; return an unavailable response for a placeholder when no preview can be produced. A stored path does not guarantee the cached file exists.
 
 GET /api/v1/photos/{id}/inspect
 

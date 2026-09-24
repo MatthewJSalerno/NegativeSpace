@@ -202,6 +202,9 @@ PARTIAL_SUFFIX = ".organizing.partial"
 # minutes and 19GB for a 150,000-image catalog against 3.3 minutes and 2.3GB,
 # most of it previews nobody opens.
 THUMBNAIL_SIZE = 320
+# The Inspector's detail preview: generated on first view, never at Index
+# (webui-spec 4.2.1), so only photos someone opens pay for it.
+PREVIEW_SIZE = 1024
 THUMBNAIL_DIR_NAME = "thumbnails"
 THUMBNAIL_JPEG_QUALITY = 85
 # Distinct from PARTIAL_SUFFIX: that one marks a half-written PHOTO at the
@@ -458,7 +461,7 @@ def rotate_log_if_large():
                 logger.warning(f"Could not rotate {handler.baseFilename}: {e}")
 
 
-def configure_logging(log_dir: Path):
+def configure_logging(log_dir: Path, console: bool = True):
     """
     Points logging at the console and <base>/logs/organizer.log.
 
@@ -486,8 +489,7 @@ def configure_logging(log_dir: Path):
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s [%(levelname)s] (pid:%(process)d/%(threadName)s) %(message)s',
-        handlers=[
-            logging.StreamHandler(sys.stdout),
+        handlers=([logging.StreamHandler(sys.stdout)] if console else []) + [
             # maxBytes=0: never rotates on write; see rotate_log_if_large.
             logging.handlers.RotatingFileHandler(
                 log_file, mode="a", maxBytes=0, backupCount=LOG_BACKUP_COUNT, encoding="utf-8"
@@ -2836,6 +2838,87 @@ def _query_source_subdir(db_path: str, subdir_filter_path: Path) -> List[str]:
     return [r[0] for r in rows]
 
 
+def preview_for_photo(db_path: Path, cache_root: Path, photo_id: int) -> dict:
+    """The 1024px detail preview for one catalogued photo, generated on first request.
+
+    The web API calls this through `--preview` when a photo is opened, so every image
+    decode and every non-settings catalog write stays in the engine. It takes no engine
+    lock: it changes no photo file, only a disposable cache image and its cache row,
+    written in one short transaction, so it works while a job is running.
+
+    Content-keyed, like the grid thumbnail: identical copies share one preview. It is made
+    from any catalogued copy of the content — a delivered destination copy first, then a
+    source that still exists — and only from a file whose size and modification time still
+    match what the catalog recorded, so an edited or replaced file never lends its pixels to
+    another content's preview. Uncatalogued files are never used.
+
+    Returns {'photo_id', 'availability' ('present'|'failed'|'unavailable'), 'cache_filename',
+    'bytes', 'reused', 'failure_category', 'failure_detail'}; the cache filename is relative
+    to the cache root.
+    """
+    def answer(availability, cache_filename=None, size=None, reused=False, category=None, detail=None):
+        return {"photo_id": photo_id, "availability": availability, "cache_filename": cache_filename,
+                "bytes": size, "reused": reused, "failure_category": category, "failure_detail": detail}
+
+    if not Path(db_path).exists():
+        return answer("unavailable", category="no_catalog", detail="There is no catalog yet.")
+    with contextlib.closing(get_db_connection(str(db_path))) as conn:
+        ns_db.require_schema(conn)
+        row = conn.execute("SELECT sha1_hash FROM photos WHERE id = ?", (photo_id,)).fetchone()
+        if row is None:
+            return answer("unavailable", category="unknown_photo", detail="No catalogued photo has this id.")
+        sha1 = row[0]
+        if not sha1:
+            return answer("unavailable", category="no_content",
+                          detail="This photo could not be read when it was catalogued, so there is "
+                                 "nothing to preview.")
+        cached = conn.execute(
+            "SELECT t.cache_filename, t.bytes FROM thumbnail_cache t JOIN contents c USING(content_id) "
+            "WHERE c.digest = ? AND t.size = ? AND t.availability = 'present'", (sha1, PREVIEW_SIZE)).fetchone()
+        if cached and (Path(cache_root) / cached[0]).is_file():
+            return answer("present", cached[0], cached[1], reused=True)
+
+        copies = conn.execute(
+            "SELECT p.id, p.source_path, p.dest_path, p.status, p.file_size, p.file_mtime, pf.file_id "
+            "FROM photos p LEFT JOIN photo_files pf ON pf.photo_id = p.id WHERE p.sha1_hash = ?",
+            (sha1,)).fetchall()
+        candidates = [(dst, size, mtime, fid) for _, _, dst, status, size, mtime, fid in copies
+                      if status in ANCHOR_DELIVERED_STATUSES and dst]
+        candidates += [(src, size, mtime, fid) for _, src, _, status, size, mtime, fid in copies
+                       if src and status not in SOURCE_CONSUMED_STATUSES]
+        chosen = None
+        for path, size, mtime, fid in candidates:
+            try:
+                st = os.stat(path)
+            except OSError:
+                continue
+            if size is not None and st.st_size == size and mtime is not None and abs(st.st_mtime - mtime) < 1e-6:
+                chosen = (path, fid)
+                break
+
+        if chosen is None:
+            result = ThumbnailResult(availability="failed", failure_category="file_unavailable",
+                                     failure_detail="Photo file unavailable: no catalogued copy of this "
+                                                    "photo is present and unchanged.")
+            observed, fid = None, None
+        else:
+            observed, fid = chosen
+            result = generate_thumbnail(Path(observed), sha1, str(cache_root), size=PREVIEW_SIZE)
+        with ns_db.transaction(conn):
+            content_id = ns_db.content_for_digest(conn, digest=sha1)
+            ns_db.record_thumbnail(conn, content_id=content_id, size=PREVIEW_SIZE,
+                                   availability=result.availability,
+                                   cache_filename=result.cache_filename, bytes_on_disk=result.bytes,
+                                   attempted_file_id=fid, observed_path=observed,
+                                   failure_category=result.failure_category,
+                                   failure_detail=result.failure_detail)
+    if result.availability == "present":
+        logger.info(f"Detail preview for photo #{photo_id} generated from {observed}.")
+        return answer("present", result.cache_filename, result.bytes, reused=bool(result.reused))
+    logger.warning(f"Detail preview for photo #{photo_id} unavailable: {result.failure_detail}")
+    return answer("failed", category=result.failure_category, detail=result.failure_detail)
+
+
 def backup_after_job(db_path: Path, backups_dir: Path, base_dir: Path, run_id: int):
     """One automatic backup after a job that recorded changes, including a failed
     or cancelled one. Skipped and Cancelled rows record that nothing was done, so
@@ -2972,7 +3055,7 @@ def main():
 
     # Only one mode may be active per run — default (no flag) is the existing
     # Index: full scan + hash + date/dest-path resolution, no physical
-    # action. The two flags below are mutually exclusive with each other.
+    # action. The flags below are mutually exclusive with each other.
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
         "--move", action="store_true",
@@ -2981,6 +3064,12 @@ def main():
     mode_group.add_argument(
         "--copy", action="store_true",
         help="Non-destructive: copy source files to destination, verified, but never delete or modify the source."
+    )
+    mode_group.add_argument(
+        "--preview", type=int, metavar="PHOTO_ID", default=None,
+        help="Print, as one line of JSON, the 1024px detail preview for this catalogued photo, "
+             "generating it on first request. Takes no engine lock and changes no photo file, "
+             "so it works while a job runs. The preview path in the JSON is relative to --cache."
     )
     mode_group.add_argument(
         "--backup-now", action="store_true",
@@ -3002,7 +3091,13 @@ def main():
     db_path = db_dir / DB_FILENAME
 
     # 2. Configure Logging
-    configure_logging(log_dir)
+    # --preview answers on stdout in JSON for the API, so its log goes to the file only.
+    configure_logging(log_dir, console=args.preview is None)
+    if args.preview is not None:
+        # Before the lock on purpose: a preview changes no photo file (see preview_for_photo).
+        result = preview_for_photo(db_path, Path(args.cache).resolve(), args.preview)
+        print(json.dumps(result, sort_keys=True))
+        sys.exit(0 if result["availability"] == "present" else 1)
 
     # 2a. Single-instance enforcement (docs/engine-spec.md 4.1/7) — before
     # touching the database or source/dest paths at all. Applies to every
