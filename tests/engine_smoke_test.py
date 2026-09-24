@@ -2084,7 +2084,21 @@ def every_catalogued_file_assembles_complete_lineage():
     run_engine(rest, "--copy", "--file-ids", keep[0]["id"])
     covered |= _assert_lineage_complete(rest, "at rest")
 
-    required = {"Pending", "Copied", "Duplicate", "Completed", "Failed", "Removed_Duplicate"}
+    # 3. Found at the destination: a Move whose catalog commits were lost, then
+    #    the next Move, leaves a photo and its duplicate Found_At_Destination.
+    found = new_case("lineage_found")
+    make_photo(found / "src" / "f.jpg", "LIN-F")
+    make_photo(found / "src" / "f_twin.jpg", "LIN-F")
+    run_engine(found)
+    snap = _snapshot_catalog(found)
+    run_engine(found, "--move")
+    _lose_catalog_commits_since(found, snap)
+    make_photo(found / "src" / "later.jpg", "LIN-LATER")   # a photo remains: nothing to ask
+    run_engine(found, "--move")
+    covered |= _assert_lineage_complete(found, "found")
+
+    required = {"Pending", "Copied", "Duplicate", "Completed", "Failed", "Removed_Duplicate",
+                "Found_At_Destination"}
     check(required <= covered,
           f"lineage was not verified for every settled status; missing {sorted(required - covered)}")
 
@@ -2543,54 +2557,64 @@ def _lose_catalog_commits_since(case, snap):
 
 
 @test
-def a_move_whose_catalog_commits_were_lost_is_recorded_as_delivered():
+def a_move_whose_catalog_commits_were_lost_is_recorded_as_found():
     """
     TODO.md claim 10's consequence half. If storage loses a Move's catalog commits
-    but keeps its file operations, the photo's source is gone, its copy is at the
-    destination, and its row reads Pending again. The next Move must record it as
-    delivered, on the evidence of its content at the destination — not Failed, and
-    not copied again under a new name. The record is what was observed: the source
-    absent, the destination matching, the found file an observed identity.
+    but keeps its file operations, a photo's source is gone, its copy is at the
+    destination, and its row reads Pending again; a duplicate's source is gone too
+    and its row reads Duplicate. The next Move must record both as
+    Found_At_Destination from evidence — not Failed, not copied again, and not
+    Completed or Removed_Duplicate, which would claim this run acted. The source
+    identity is missing (not seen removed); the found file is an observed identity.
     """
     case = new_case("lost_move_commits")
     make_photo(case / "src" / "a.jpg", "lost-a")
     make_photo(case / "src" / "b.jpg", "lost-b")
-    (case / "src" / "notes.txt").write_text("a non-photo file a Move leaves behind")
+    make_photo(case / "src" / "a_twin.jpg", "lost-a")          # exact duplicate of a.jpg
     run_engine(case)
     snap = _snapshot_catalog(case)
     run_engine(case, "--move")
     delivered = sorted(p.name for p in (case / "dest").rglob("*.jpg"))
-    check(delivered == ["a.jpg", "b.jpg"] and not list((case / "src").glob("*.jpg")),
-          f"setup: the Move did not deliver both photos: {delivered}")
+    check(len(delivered) == 2 and not list((case / "src").glob("*.jpg")),
+          f"setup: the Move did not deliver both photos and remove all sources: {delivered}")
 
     _lose_catalog_commits_since(case, snap)
-    check([r["status"] for r in rows(case, "SELECT status FROM photos")] == ["Pending", "Pending"],
-          "setup: the rewound catalog should read Pending")
+    check(sorted(r["status"] for r in rows(case, "SELECT status FROM photos")) == ["Duplicate", "Pending", "Pending"],
+          "setup: the rewound catalog should read Pending, Pending, Duplicate")
+    # A photo still in the source: with every photo gone the engine asks instead
+    # (an_empty_source_asks_before_anything_is_recorded covers that path).
+    make_photo(case / "src" / "arrived_later.jpg", "lost-later")
     run_engine(case, "--move")
 
-    statuses = sorted(r["status"] for r in rows(case, "SELECT status FROM photos"))
-    check(statuses == ["Completed", "Completed"], f"lost-commit photos were recorded {statuses}")
+    statuses = sorted(r["status"] for r in rows(case,
+                      "SELECT status FROM photos WHERE source_path NOT LIKE '%arrived_later.jpg'"))
+    check(statuses == ["Found_At_Destination"] * 3, f"lost-commit rows were recorded {statuses}")
     after = sorted(p.name for p in (case / "dest").rglob("*.jpg"))
-    check(after == ["a.jpg", "b.jpg"], f"the photos were copied again under new names: {after}")
+    check(after == sorted(delivered + ["arrived_later.jpg"]),
+          f"files were copied again: {delivered} -> {after}")
     evidence = sorted((r["location_role"], r["result"]) for r in rows(case,
                       "SELECT location_role, result FROM operation_evidence"))
-    check(evidence == [("destination", "match"), ("destination", "match"),
-                       ("source", "absent"), ("source", "absent")],
-          f"the delivery was not recorded from evidence: {evidence}")
-    origins = sorted(r["kind"] for r in rows(case, "SELECT kind FROM file_origins"))
-    check(origins.count("observed_destination") == 2,
-          f"the found files were not registered as observed destinations: {origins}")
+    check(evidence == [("destination", "match")] * 3 + [("source", "absent")] * 3,
+          f"the finding was not recorded from evidence: {evidence}")
+    op_statuses = sorted(r["status"] for r in rows(case, "SELECT DISTINCT o.id, o.status FROM operations o "
+                         "JOIN operation_evidence e ON e.operation_id = o.id"))
+    check(op_statuses == ["Found_At_Destination"] * 3,
+          f"the operations must record an observation, not an action: {op_statuses}")
+    presence = sorted(r["presence_state"] for r in rows(case,
+                      "SELECT presence_state FROM file_states WHERE location_role = 'source'"))
+    check(presence == ["missing"] * 3, f"source identities should be missing, not removed: {presence}")
+    check(len(rows(case, "SELECT 1 FROM file_origins WHERE kind = 'observed_destination'")) == 2,
+          "the two found files were not registered once each as observed destinations")
 
 
 @test
-def a_full_index_records_a_delivered_photo_whose_source_vanished():
+def a_full_index_records_a_vanished_source_found_at_the_destination():
     """
     The Index side of the same state: a full walk that finds a catalogued source
     gone checks the destination before marking it Failed. A missing source whose
-    destination holds different content stays Failed, and a detached (empty)
-    source root records nothing as delivered.
+    destination holds different content stays Failed.
     """
-    case = new_case("vanished_delivered")
+    case = new_case("vanished_found")
     make_photo(case / "src" / "a.jpg", "vanish-a")
     run_engine(case)
     snap = _snapshot_catalog(case)
@@ -2599,9 +2623,8 @@ def a_full_index_records_a_delivered_photo_whose_source_vanished():
     make_photo(case / "src" / "new.jpg", "vanish-new")   # the walk finds something
     run_engine(case)
     status = rows(case, "SELECT status FROM photos WHERE source_path LIKE '%/a.jpg'")[0]["status"]
-    check(status == "Completed", f"a vanished source whose content is delivered was recorded {status}")
+    check(status == "Found_At_Destination", f"a vanished source whose content is on the destination was recorded {status}")
 
-    # Different content at the destination is not a delivery.
     case = new_case("vanished_mismatch")
     make_photo(case / "src" / "a.jpg", "mismatch-a")
     make_photo(case / "src" / "keep.jpg", "mismatch-keep")
@@ -2613,16 +2636,44 @@ def a_full_index_records_a_delivered_photo_whose_source_vanished():
     status = rows(case, "SELECT status FROM photos WHERE source_path LIKE '%/a.jpg'")[0]["status"]
     check(status == "Failed", f"a missing source with different content at its destination was recorded {status}")
 
-    # A detached source root: every source reads as gone, so nothing may count as delivered.
-    case = new_case("detached_root")
-    make_photo(case / "src" / "a.jpg", "detached-a")
+
+@test
+def an_empty_source_asks_before_anything_is_recorded():
+    """
+    An empty source root looks the same whether the share is unplugged or a Move
+    took everything, so the engine asks instead of guessing: it opens one
+    needs-attention issue, changes no status, and records each selected photo as
+    not attempted. --confirm-source-empty is the answer "really empty": photos
+    whose content is on the destination are then found there, and the question
+    is closed. A repeat run without the answer does not open a second issue.
+    """
+    case = new_case("empty_source")
+    # In a subfolder: the folder that remains after a Move is not itself empty, so
+    # "no photo left" must be the test, not "no directory entry left".
+    make_photo(case / "src" / "album" / "a.jpg", "empty-a")
     run_engine(case)
     snap = _snapshot_catalog(case)
     run_engine(case, "--move")
     _lose_catalog_commits_since(case, snap)
+
+    out = engine_output(run_engine(case, "--move"))
+    check("--confirm-source-empty" in out, "the empty-source question was not put to the user")
+    check(rows(case, "SELECT status FROM photos")[0]["status"] == "Pending",
+          "an unanswered empty-source question changed a status")
+    issues = rows(case, "SELECT category, resolved_at FROM attention_issues")
+    check(issues == [{"category": "source_root_empty", "resolved_at": None}],
+          f"expected one open empty-source issue, got {issues}")
+    check(rows(case, "SELECT COUNT(*) c FROM operations WHERE status = 'Skipped' "
+                     "AND error_message LIKE 'Not attempted: the source folder is empty%'")[0]["c"] == 1,
+          "the selected photo has no outcome pointing at the question")
     run_engine(case, "--move")
-    status = rows(case, "SELECT status FROM photos")[0]["status"]
-    check(status != "Completed", "an empty source root was taken as evidence of delivery")
+    check(len(rows(case, "SELECT 1 FROM attention_issues")) == 1, "a repeat run opened a second issue")
+
+    run_engine(case, "--move", "--confirm-source-empty")
+    check(rows(case, "SELECT status FROM photos")[0]["status"] == "Found_At_Destination",
+          "the confirmed run did not record the photo as found")
+    check(rows(case, "SELECT resolved_at FROM attention_issues")[0]["resolved_at"] is not None,
+          "answering the question did not close it")
 
 
 @test

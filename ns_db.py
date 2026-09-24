@@ -16,7 +16,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 class PhotoStatus:
     """State of one source file in the catalog. One row per source_path."""
@@ -27,6 +27,8 @@ class PhotoStatus:
     FAILED = "Failed"                          # unreadable, vanished, or the write failed
     DUPLICATE = "Duplicate"                   # identical SHA-1 to another row holding an anchor status
     REMOVED_DUPLICATE = "Removed_Duplicate"   # duplicate whose source was deleted against a verified copy
+    FOUND_AT_DESTINATION = "Found_At_Destination"  # source gone, exact content observed on the
+                                              # destination; recorded from observation, no action taken
 
 
 class RunStatus:
@@ -56,7 +58,7 @@ OPERATION_SKIPPED = "Skipped"
 PHOTO_STATUSES = (
     PhotoStatus.PENDING, PhotoStatus.PROCESSING, PhotoStatus.COMPLETED,
     PhotoStatus.COPIED, PhotoStatus.FAILED, PhotoStatus.DUPLICATE,
-    PhotoStatus.REMOVED_DUPLICATE,
+    PhotoStatus.REMOVED_DUPLICATE, PhotoStatus.FOUND_AT_DESTINATION,
 )
 OPERATION_STATUSES = PHOTO_STATUSES + (OPERATION_CANCELLED, OPERATION_SKIPPED)
 RUN_STATUSES = (
