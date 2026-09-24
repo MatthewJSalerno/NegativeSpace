@@ -10,12 +10,11 @@ are, and what exists today. The detail lives in two component specifications:
     management, selection, settings, logs, inspection, and the curation
     workflows.
 
-**These are organized by component, not by release phase.** Release phases were
-tried and abandoned: a "Phase 3" fuzzy-matching document ended up holding engine
-work that had to happen first alongside UI work that belonged with the rest of
-the UI, and one of its open questions carried a deadline inside another phase.
-A seam between *the thing that touches files* and *the thing a person clicks*
-holds; a seam between release numbers did not.
+**These are organized by component, not by release phase.** Why not phases: a
+phase document mixes engine work that must happen first with UI work that belongs
+with the rest of the UI, and its open questions end up with deadlines inside other
+phases. A seam between *the thing that touches files* and *the thing a person
+clicks* stays stable; a seam between release numbers does not.
 
 ## 1. Project Overview
 
@@ -121,6 +120,13 @@ Delivered and validated against a real library. In place today:
     shared by byte-identical duplicates; see `webui-spec.md` §4.2.1.
 *   A settings store in the catalog database, initializable without a scan, with
     revision-checked writes and a configuration snapshot per run.
+*   Request IDs binding one submission to one run, and the run lifecycle
+    Preparing / Running / Cancelling / Completed / Cancelled / Failed / Interrupted.
+*   Verified, Zstandard-compressed catalog backups after every job that records
+    changes and on demand, with retention and a startup warning for changes no
+    backup holds.
+*   Discovery accounting per full Index: files found, eligible and excluded by type.
+*   Removal of thumbnails whose content no catalogued photo holds.
 
 Only a usable `DateTimeOriginal` places a photo in the date tree. Anything else
 files under `Undated/<year>/`, the year taken from the source's modification time
@@ -138,10 +144,8 @@ with what it needs:
 | Delete under `--dest`, with an extended record | `engine-spec.md` §9.5 | Discarding redundant copies; needs `width`/`height` too |
 | Writing embedded EXIF (sidecars remain a future option) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
 
-An audit of the documented web workflows against what the engine can actually
-answer turned up eight more (`engine-spec.md` §9.8). Three are settled: grid
-thumbnail generation, the settings store, and which date field filed a photo. Five
-remain, plus the unfinished half of thumbnails:
+Further gaps between the documented web workflows and what the engine can answer
+(`engine-spec.md` §9.8):
 
 | Gap | Blocks |
 | :--- | :--- |
@@ -157,9 +161,8 @@ own metadata implies — is recorded in `engine-spec.md` §9.7. It is the
 invariant every editing feature rests on, and the reason the workflow order is
 Index → Copy or Move → cleanup rather than a matter of preference.
 
-Two further items are tracked rather than scheduled: the durability claims
-ledger in [TODO.md](../TODO.md), and the content-addressed history question in
-`engine-spec.md` §10, which needs answering *before* the Error Center is built.
+The durability claims ledger in [TODO.md](../TODO.md) is tracked rather than
+scheduled.
 
 ### The web interface — in design, not started
 
@@ -167,19 +170,15 @@ Specified in `webui-spec.md`, including the workflows that consume the five gaps
 above. No code exists yet.
 
 
-### Current database and lineage increment
+### The catalog
 
-The shared engine-owned catalog now validates schema version 6, stores immutable
-source Index evidence and per-run settings, and records successful destination
-lineage. New Copy identities retain source origin; new completed Moves retain their
-identity; reuse of an existing destination preserves both identities and links the
-source removal. See [database-foundation.md](./database-foundation.md).
-
-Recovery records durable intent before every mutation and concludes from observed
-evidence, opening an attention issue when an outcome cannot be established. Complete
-lineage for every catalogued file in every settled status is enforced by test
-(`TODO.md` claim 11). A caller-supplied request ID binds each submission to one run
-(`--request-id`), and runs follow the approved lifecycle (Preparing, Running,
-Cancelling, then Completed, Cancelled, Failed or Interrupted). Content-version history
-remains pending. Older catalogs are preserved
-and rejected; fresh development catalogs are required.
+One engine-owned SQLite database holds the catalog, settings and operation history,
+at schema version 6; older catalogs are refused, never migrated. It stores immutable
+source Index evidence and per-run settings, and records destination lineage: a Copy
+creates a new identity tied to its source's origin, a completed Move keeps its
+identity, and reuse of an existing destination keeps both identities and links the
+source removal. Recovery records durable intent before every mutation and concludes
+from observed evidence, opening an attention issue when an outcome cannot be
+established. Complete lineage for every catalogued file in every settled status is
+enforced by test (`TODO.md` claim 11). Content-version history is not yet built. See
+`engine-spec.md` §6.5 and §10.

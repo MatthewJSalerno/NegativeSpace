@@ -59,9 +59,8 @@ jobs:
         run: python3 tools/check-specs.py
 
       - name: Schema drift
-        # engine-spec.md 6.5 calls itself the authoritative schema. It silently
-        # stopped being true once - nine tables missing across two merges - which
-        # is why this compares it against what the engine actually creates.
+        # engine-spec.md 6.5 calls itself the authoritative schema; nothing else
+        # keeps that true, so this compares it against what the engine creates.
         run: |
           docker run --rm -v "$PWD":/app -w /app \
             negativespace python3 tools/check-schema-drift.py

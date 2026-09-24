@@ -87,17 +87,17 @@ security concern, specified in `webui-spec.md` §5.6.
     *   The database write-queue size is intentionally **not** configurable — left as a hardcoded internal constant rather than exposed, since there was no concrete need identified for tuning it separately from `--workers`.
 *   **Targeted Processing** (mutually exclusive with each other — pick at most one, or omit both for a full directory scan):
     *   `--file-ids <id1,id2,...>` — comma-separated `photos.id` values from a prior Index. Bypasses the directory scan entirely; looks up each ID's `source_path` directly and processes exactly those files. IDs not found in the database are logged as a warning and skipped, not treated as fatal. This is what a web UI's individual/multi-select maps onto, but works identically from the CLI.
-    *   `--source-subdir <path>` — scopes the operation to every already-indexed file whose `source_path` falls under this directory, recursively. Queries the existing `photos` catalog by prefix rather than re-walking the filesystem, which means it inherently excludes symlinks (they were already excluded at the original Index that populated those rows) and — critically — avoids passing a large ID list as a command-line argument at all. This is the mechanism behind the web UI's "select a folder" option, and the recommended path for large selections instead of enumerating thousands of individual `--file-ids` (see `webui-spec.md` §2 for the UI-side selection-size limit this replaces for bulk operations). Only reflects files known as of the last Index over that path — newly added files need a rescan first, same as the whole-library case. The prefix match is a literal, case-sensitive range comparison on the path, not SQL `LIKE`: `LIKE` treats `%` and `_` as wildcards (so `My_Photos` matched `MyXPhotos`) and ignores letter case (so `Album` matched `album`), and under `--move` either one deletes sources the user never selected. Both the Index-mode rescan and the Move/Copy targeting share one builder so they cannot disagree about which files a subdirectory contains.
-    *   **Every run is bounded by its own `--source` root** — full, `--file-ids` or `--source-subdir` alike. One catalog can hold rows from several source roots, and an unbounded full run acted on every `Pending` row in the catalog, so moving one root also moved another's photos. `--file-ids` recorded under a different root are left out with a warning.
+    *   `--source-subdir <path>` — scopes the operation to every already-indexed file whose `source_path` falls under this directory, recursively. Queries the existing `photos` catalog by prefix rather than re-walking the filesystem, which means it inherently excludes symlinks (they were already excluded at the original Index that populated those rows) and — critically — avoids passing a large ID list as a command-line argument at all. This is the mechanism behind the web UI's "select a folder" option, and the recommended path for large selections instead of enumerating thousands of individual `--file-ids` (see `webui-spec.md` §2 for the UI-side selection-size limit this replaces for bulk operations). Only reflects files known as of the last Index over that path — newly added files need a rescan first, same as the whole-library case. The prefix match is a literal, case-sensitive range comparison on the path, not SQL `LIKE`: `LIKE` treats `%` and `_` as wildcards (`My_Photos` would match `MyXPhotos`) and ignores letter case (`Album` would match `album`), and under `--move` either one would delete sources the user never selected. Both the Index-mode rescan and the Move/Copy targeting share one builder so they cannot disagree about which files a subdirectory contains.
+    *   **Every run is bounded by its own `--source` root** — full, `--file-ids` or `--source-subdir` alike. One catalog can hold rows from several source roots; an unbounded run would act on every `Pending` row in the catalog and move another root's photos. `--file-ids` recorded under a different root are left out with a warning.
 *   **Operational Modes** (mutually exclusive — at most one flag; the engine will refuse to start if more than one is given):
     *   **Index (default, no flag):** Full scan (or `--file-ids`/`--source-subdir`-scoped lookup), hashing, metadata resolution, and destination-path computation. Every result is written to the database (including duplicate flagging), but no file is copied, moved, or deleted.
     *   **`--move`:** Runs the Copy-Verify-Delete protocol (§4.2) for every targeted `Pending` file. Source files are deleted only after a verified copy lands at the destination. Confirmed exact duplicates are also removed from source once a verified copy of their content exists elsewhere at the destination.
     *   **`--copy`:** Runs the same verified Copy-Verify step as `--move`, but the source file is never deleted or modified — including duplicate source files, which are left untouched. Fully non-destructive; safe to run against a read-only-mounted source.
 *   **Format Support:** 36 extensions — 13 raster (`.jpg`, `.jpeg`, `.jpe`, `.jfif`, `.png`, `.gif`, `.bmp`, `.webp`, `.tif`, `.tiff`, `.heic`, `.heif`, `.avif`) and 23 RAW (`.raw`, `.dng`, `.cr2`, `.cr3`, `.crw`, `.nef`, `.nrw`, `.arw`, `.srf`, `.sr2`, `.raf`, `.orf`, `.rw2`, `.pef`, `.ptx`, `.srw`, `.erf`, `.3fr`, `.fff`, `.iiq`, `.mos`, `.mrw`, `.x3f`). RAW decoding goes through rawpy/LibRaw, which PIL cannot do at all. The supported set is **derived** as the union of `RASTER_EXTENSIONS` and `RAW_EXTENSIONS` rather than maintained as a third list: a RAW format present in one list and missing from the other would be discovered by the scan, handed to PIL, and store `"error"` as its perceptual hash for every file of that type. `--exts` accepts values with or without a leading dot.
-*   **Cancellation:** Sending `SIGTERM` or `SIGINT` during a `--move`/`--copy` run lets the file currently being copy-verified finish, then stops before starting the next one. See §4.2 for what happens to the rest of the batch. The run is recorded `Cancelling` as soon as the signal arrives and settles `Cancelled` only if cancellation stopped work that remained. A signal landing after the work finished leaves the real outcome: a finished job reads `Completed`, and a job-level failure stays `Failed` and exits `1`. The photos it did not reach are recorded `Cancelled` in **one transaction**. The move loop's connection commits at `FULL`, so a commit per row would be an fsync per row: measured at ~17 s for 24,000 photos on the catalog's disk, which outlasted `docker stop`'s default 10 s grace and got a real run killed mid-cancel. The documented `docker run` commands pass `--stop-timeout 300`, and compose sets `stop_grace_period: 5m`, because the file being copied can still take longer than 10 s over a network share.
+*   **Cancellation:** Sending `SIGTERM` or `SIGINT` during a `--move`/`--copy` run lets the file currently being copy-verified finish, then stops before starting the next one. See §4.2 for what happens to the rest of the batch. The run is recorded `Cancelling` as soon as the signal arrives and settles `Cancelled` only if cancellation stopped work that remained. A signal landing after the work finished leaves the real outcome: a finished job reads `Completed`, and a job-level failure stays `Failed` and exits `1`. The photos it did not reach are recorded `Cancelled` in **one transaction**. The move loop's connection commits at `FULL`, so a commit per row would be an fsync per row: measured at ~17 s for 24,000 photos on the catalog's disk, longer than `docker stop`'s default 10 s grace, after which Docker kills the run mid-cancel. The documented `docker run` commands pass `--stop-timeout 300`, and compose sets `stop_grace_period: 5m`, because the file being copied can still take longer than 10 s over a network share.
 *   **Retries:** No dedicated retry mechanism or `retry_count` tracking. Re-running the same command retries whatever's still `Pending` (including previously `Failed` files, which are reset to `Pending` by the next Index) — already-successful files are gone from `--source` and won't be reprocessed, so this is cheap even for a large batch with only a few failures.
-*   **Single-Instance Enforcement (implemented):** At startup, before touching the database, the engine acquires an exclusive OS-level lock (`fcntl.flock`, non-blocking) on a fixed lock file (`<base>/engine.lock`). If the lock is already held, the process logs a clear error and exits immediately without modifying anything — **this applies to every mode**, including Index, not just `--move`/`--copy`, since a rescan racing a physical operation on the same database is exactly as unsafe as two physical operations racing each other (see §4.2). The lock is held for the entire process lifetime and released automatically by the OS on any exit path — normal completion, an unhandled exception, or an uncatchable `SIGKILL` — so there is no manual "is the lock stale" reconciliation step needed, unlike the `runs`-table crash recovery in §4.2, which exists for a different purpose (historical accuracy of run records, not mutual exclusion). Verified directly: a lock-holding process was hard-killed (`SIGKILL`) mid-run, its lock file confirmed still present on disk with the dead process's PID in it, and a fresh invocation against the same `--base` immediately succeeded with no delay and no manual cleanup — a container being force-stopped (`docker stop` timing out into `SIGKILL`) cannot leave this lock in a state requiring intervention. Also verified: two different `--base` directories are independent locks and can run concurrently without interfering with each other.
-*   **Catalog backups:** one verified snapshot of the whole catalog (photos, lineage, history, settings; never photos or thumbnails) is written to `--backups` after every Index, Copy or Move that recorded changes — including a failed or cancelled one — once the run has settled and before the lock is released, so the snapshot holds the run's final status. A job whose only records are `Skipped` or `Cancelled`, such as an unchanged Index or a repeated Copy, changed nothing and is not backed up. **Why not back up every job:** each no-op run would push a meaningful automatic backup out of the retention limit and replace it with a near-identical one. `--backup-now` writes one manual backup and exits `0`, or `1` when it fails. It takes the engine lock like any other action and is therefore refused while a job runs. **Why not allow it during a job:** a mid-job snapshot records a catalog halfway through changes the job is still making, the post-job backup captures the finished state moments later, and a backup outside the lock could not safely settle an attempt left unfinished by a kill. Mechanics (`ns_db.backup_catalog`):
+*   **Single-Instance Enforcement:** At startup, before touching the database, the engine acquires an exclusive OS-level lock (`fcntl.flock`, non-blocking) on a fixed lock file (`<base>/engine.lock`). If the lock is already held, the process logs a clear error and exits immediately without modifying anything — **this applies to every mode**, including Index, not just `--move`/`--copy`, since a rescan racing a physical operation on the same database is exactly as unsafe as two physical operations racing each other (see §4.2). The lock is held for the entire process lifetime and released automatically by the OS on any exit path — normal completion, an unhandled exception, or an uncatchable `SIGKILL` — so there is no manual "is the lock stale" reconciliation step needed, unlike the `runs`-table crash recovery in §4.2, which exists for a different purpose (historical accuracy of run records, not mutual exclusion). Verified: after a lock holder is `SIGKILL`ed, its lock file remains on disk with the dead PID in it, and a fresh invocation against the same `--base` proceeds immediately with no cleanup, so a force-stopped container never leaves the lock needing intervention. Two different `--base` directories are independent locks and run concurrently.
+*   **Catalog backups:** one verified snapshot of the whole catalog (photo records, lineage, history, settings; never photo files or thumbnails) is written to `--backups` after every Index, Copy or Move that recorded changes — including a failed or cancelled one — once the run has settled and before the lock is released, so the snapshot holds the run's final status. A job whose only records are `Skipped` or `Cancelled`, such as an unchanged Index or a repeated Copy, changed nothing and is not backed up. **Why not back up every job:** each no-op run would push a meaningful automatic backup out of the retention limit and replace it with a near-identical one. `--backup-now` writes one manual backup and exits `0`, or `1` when it fails. It takes the engine lock like any other action and is therefore refused while a job runs. **Why not allow it during a job:** a mid-job snapshot records a catalog halfway through changes the job is still making, the post-job backup captures the finished state moments later, and a backup outside the lock could not safely settle an attempt left unfinished by a kill. Mechanics (`ns_db.backup_catalog`):
     *   SQLite's online backup API into `<name>.db.partial` beside the destination, switched to `journal_mode=DELETE` so no `-wal`/`-shm` companion ever sits beside a backup, and checked with `quick_check` and the schema version. It is then compressed and verified as described below, and the compressed file is renamed into place and the directory fsynced. The copy records its own attempt as succeeded, so a restored catalog does not settle the backup it came from as interrupted.
     *   Storage is never created or substituted. A missing folder (`storage_unavailable`), one overlapping `--base` (`storage_overlaps_appdata`), an unwritable one (`storage_unwritable`) or the image's own `/backups` left unmounted (`storage_not_mounted`: a backup there would vanish with the container) fails the attempt with that category. Write errors are `insufficient_space` or `write_failed`; the partial file is removed.
     *   A failed post-job backup is logged beside the job's result and never changes it, and nothing retries it automatically. An attempt found without an outcome at startup was interrupted: it is recorded so and its partial file removed. After reconciling, every start also reports what is **left outside every backup**. `ns_db.unbacked_changes` counts the operations written after the newest successful backup started, excluding `Skipped` and `Cancelled` rows and the current run, which backs itself up. When that count is above zero, the engine logs a warning naming the runs and the last good backup, or saying there has never been one, and pointing at `--backup-now`. It is a report, never an automatic backup (`webui-spec.md` §9).
@@ -142,16 +142,16 @@ catalogue, not the tree, so relocating them is a separate action.
     *   **Fuzzy Match:** pHash is generated and stored for every file, but no fuzzy-matching/clustering logic acts on it yet. What acts on it — the precomputed pair table, and the similarity review it backs — is specified in §9.3 and `webui-spec.md` §7.
 *   **Source Enumeration:** the directory walk uses `os.scandir` over an explicit stack rather than `Path.rglob` plus `is_file()`/`is_symlink()`. `scandir` returns an entry's type from the directory read itself, so the extension test happens before any `stat`; the `rglob` form cost two extra `stat` calls per entry, each a network round trip on a network-mounted source. Hidden files and directories (leading `.`) are skipped and hidden subtrees pruned rather than descended — this is what excludes macOS `.DS_Store`, AppleDouble `._` sidecars and `.Trashes`. A directory that cannot be read is logged and skipped rather than aborting the scan.
 
-*   **Unchanged-File Skip:** before any file is read, the engine compares each candidate's current `stat()` against the `file_size` and `file_mtime` recorded in the catalog. A file whose size and mtime both still match is not re-read — no SHA-1, no pixel decode, no ExifTool pass — because the existing row is already correct. SHA-1 cannot serve this purpose: it is the *result* of reading the file, not something knowable beforehand. This applies to **all three targeting modes**, not only the full scan; the targeted modes are the ones a web UI issues, and re-reading a scoped selection in full was measured costing about seven minutes of network transfer on a ~9,500-file selection before any file was copied. Rows in a non-settled state are always rescanned rather than trusted on the strength of a stat, and rows predating the change have no recorded size/mtime, which reads as "unknown" and forces one full pass that is self-correcting thereafter. `--force-rehash` bypasses the comparison entirely.
+*   **Unchanged-File Skip:** before any file is read, the engine compares each candidate's current `stat()` against the `file_size` and `file_mtime` recorded in the catalog. A file whose size and mtime both still match is not re-read — no SHA-1, no pixel decode, no ExifTool pass — because the existing row is already correct. SHA-1 cannot serve this purpose: it is the *result* of reading the file, not something knowable beforehand. This applies to **all three targeting modes**, not only the full scan; the targeted modes are the ones a web UI issues, and re-reading a scoped selection in full was measured costing about seven minutes of network transfer on a ~9,500-file selection before any file was copied. Rows in a non-settled state are always rescanned rather than trusted on the strength of a stat, and a row with no recorded size/mtime reads as "unknown" and is read in full. `--force-rehash` bypasses the comparison entirely.
 
 *   **Metadata Extraction:** for every file, the engine captures BOTH "date taken" (used to compute the destination folder) AND the full metadata set available (camera make/model, ISO, aperture, shutter speed, and whatever else the source exposes), from the same underlying capture:
-    1.  **ExifTool** (persistent per-worker process via `PyExifTool`'s `-stay_open` mode — one instance started per `ProcessPoolExecutor` worker and reused for every file that worker handles, not a fresh subprocess per file) — the primary and now-guaranteed-available source, since the engine is a hard-requirement (§3.3) and won't start without it. Captures the COMPLETE tag set ExifTool can extract, not a curated subset. The only method that works for RAW-family formats. Measured directly: switching from subprocess-per-file to the persistent process cut the ExifTool-call overhead specifically from ~74ms/file to ~2.5ms/file — roughly 30x — which compounds significantly across a large library.
-    2.  **PIL** (`Image.getexif()`, plus the "Exif" sub-IFD via `get_ifd(0x8769)`) — a defensive per-*file* fallback, not a "what if ExifTool isn't installed" fallback anymore (that case can no longer happen, since §3.3's startup check refuses to run without it). Used only if ExifTool genuinely ran but returned nothing usable for one specific file. Works for standard/HEIC formats; cannot open RAW-family formats at all. Note: `getexif()` alone only returns the top-level "0th" IFD (Make/Model); `DateTimeOriginal`/ISO/aperture/shutter live in the separate Exif sub-IFD and must be explicitly fetched, or they silently go missing even when present.
+    1.  **ExifTool** (persistent per-worker process via `PyExifTool`'s `-stay_open` mode — one instance started per `ProcessPoolExecutor` worker and reused for every file that worker handles, not a fresh subprocess per file) — the primary source, and always available, since the engine will not start without it (§3.3). Captures the COMPLETE tag set ExifTool can extract, not a curated subset. The only method that works for RAW-family formats. Measured: the persistent process costs ~2.5 ms/file of ExifTool-call overhead against ~74 ms/file for a subprocess per file — roughly 30x, which compounds across a large library.
+    2.  **PIL** (`Image.getexif()`, plus the "Exif" sub-IFD via `get_ifd(0x8769)`) — a defensive per-*file* fallback, not an "ExifTool is missing" fallback: that cannot happen, since §3.3's startup check refuses to run without it. Used only if ExifTool genuinely ran but returned nothing usable for one specific file. Works for standard/HEIC formats; cannot open RAW-family formats at all. Note: `getexif()` alone only returns the top-level "0th" IFD (Make/Model); `DateTimeOriginal`/ISO/aperture/shutter live in the separate Exif sub-IFD and must be explicitly fetched, or they silently go missing even when present.
     3.  **File modification time** — used only if neither of the above produces a usable date. No richer metadata is captured at this fallback level.
 
-    **ExifTool being a hard requirement does not mean Pillow, rawpy, and imagehash became optional or got removed.** They do a fundamentally different job ExifTool cannot do at all: ExifTool reads embedded metadata tags, it does not decode pixel data. pHash generation and thumbnail generation both require actually decoding the image (PIL for standard/HEIC, rawpy for RAW-family) and feeding real pixel data to `imagehash.phash()` — ExifTool's ability to extract an already-embedded camera preview (where one exists) doesn't change that, since `imagehash` still needs that extracted preview decoded through PIL to hash it. See §3.3 for the full library breakdown.
+    **ExifTool being a hard requirement does not make Pillow, rawpy and imagehash optional.** They do a fundamentally different job ExifTool cannot do at all: ExifTool reads embedded metadata tags, it does not decode pixel data. pHash generation and thumbnail generation both require actually decoding the image (PIL for standard/HEIC, rawpy for RAW-family) and feeding real pixel data to `imagehash.phash()` — ExifTool's ability to extract an already-embedded camera preview (where one exists) doesn't change that, since `imagehash` still needs that extracted preview decoded through PIL to hash it. See §3.3 for the full library breakdown.
 
-    **Self-healing:** if a worker's persistent ExifTool subprocess dies mid-batch (crash, killed externally), the next file processed by that worker detects the failure and transparently restarts it — tested directly by killing the underlying subprocess and confirming the very next query recovered successfully, without losing ExifTool capability for the rest of that worker's remaining files.
+    **Self-healing:** if a worker's persistent ExifTool subprocess dies mid-batch (crash, killed externally), the next file processed by that worker detects the failure and transparently restarts it — tested by killing the underlying subprocess: the very next query recovers, and the worker keeps ExifTool for the rest of its files.
 *   **Unique Filename Enforcement:** Resolved immediately *before* the file is written, never at Index time. This timing is load-bearing: during Index the destination tree is typically still empty, so every same-named file would be told its name is free — two distinct photos named `IMG_0001.jpg` (two camera cards, say) would be assigned the identical destination and whichever moved second would silently destroy the first. The destination recorded at Index time is therefore a **projection**, refreshed with the real value when the write happens. Recorded via `has_name_collision` (see §6).
     *   **Content-aware:** if an occupied candidate name already holds *exactly this file's content* (SHA-1 match), that file is recognized as this photo, already delivered by an earlier run. The write is skipped rather than producing another identical copy under the next free name — this is what makes repeated Index→Copy cycles idempotent instead of accumulating `_1`, `_2`, `_3`... duplicates. The source is re-hashed live at that moment rather than trusting the indexed hash, so a file edited since the last Index is never mistaken for already-delivered. In `--move` the operation still completes by removing the now-redundant source.
     *   Suffixes are always built from the original stem (`IMG_0001_3.jpg`), never by re-suffixing a previous result (`IMG_0001_1_2_3.jpg`).
@@ -160,9 +160,9 @@ catalogue, not the tree, so relocating them is a separate action.
     *   **Copy-Verify-Delete / Copy-Verify:** The file is copied into a new, uniquely named partial (`<filename><ext>.organizing.partial.<random>`) in the destination directory — created exclusively, never following a symlink — and fsynced. Its SHA1 is recomputed and compared against the source's; only on a match is it published under its final name with a no-overwrite hard link (falling back to rename only on filesystems that cannot hard-link), and the directory is fsynced. **Every directory entry from `--dest` down to the file's own folder is fsynced too**: a file's entry is durable only if the directory holding it is, and that applies to each folder in the chain in turn — syncing only the deepest one can leave the first photo of a new day inside a day folder whose own entry in the month folder never reached disk. The chain is derived from the destination root rather than from whichever folders a particular call happened to create, because **existence is not durability**: a directory exists the moment `mkdir` returns, which is before its entry has reached disk, so a sync that failed a moment earlier must not be certified by the directory it left behind. Each entry is recorded as established only when its fsync *succeeds*; a failure leaves it outstanding, and the next file — in this run or after a restart — retries it and keeps refusing the move until it holds. That costs one fsync per folder whose entry is not yet known durable: once per new date folder in a run, never per file. Filesystems that do not implement directory fsync at all (reporting `EINVAL`/`ENOTSUP`) are tolerated rather than refused, because the operation is *absent* rather than failed; on those the power-loss guarantee is correspondingly weaker, and `--move` there accepts that. **The run says so when it happens** — once per run, naming the first directory that reported it — so a user on exFAT or an odd network mount learns it from their own run rather than by inferring it from this document. Once per run rather than once per directory: a line per date folder is how a warning becomes noise and then gets ignored. Any other sync error keeps the source and is recorded with a reason naming durability. The source is deleted afterward only in `--move` mode. The real error text (not just pass/fail) is captured and returned on any failure — see §6's `operations` table.
     *   **Deleting a source:** One routine deletes every source file the engine removes — after a move, when the destination already holds it, and during duplicate cleanup. Beyond the live hash comparison each caller makes, it refuses unless the copy is a *different* file (a file reached through two mounts, or a hard link, compared with itself would "verify"), the copy, its own directory entry, **and every entry above it up to `--dest`** have been fsynced (so a power loss cannot leave the source deleted and the copy either unreachable or still in page cache), and the source is unchanged since it was verified (so an edit made mid-move is never deleted). **That chain is established here, at the single deletion gate, rather than by each caller.** Only one of the three callers copies the file itself and so passes through directory creation; the other two delete against a copy an earlier run delivered, and that run's `mkdir` is no evidence its entries reached disk — a directory exists the moment `mkdir` returns, which is before its entry is durable in its parent. A caller that already established the chain pays nothing, since entries already known durable in this run are skipped. A refusal keeps the source and is recorded as a failed operation with the reason. Sources are assumed not to be edited by other programs during a Move; the unchanged-source check narrows that window but is not a concurrency guarantee.
     *   **Retry with backoff:** Transient IO errors (e.g., flaky network shares) during copy/rename/delete operations are retried up to 3 times with exponential backoff (1s, 2s) before the operation is considered failed. (This is unrelated to the "no retry mechanism" decision in §4.1 — that refers to re-attempting a whole failed *file* across separate runs, not this in-process backoff for transient IO errors during a single attempt.)
-    *   **Pre-flight disk space check:** Before `--move`/`--copy` begins, the engine sums the size of the targeted files and confirms the destination volume has enough free space (plus a 500MB safety margin), aborting before any file operations start if not. Rows whose recorded destination already holds a file of the same size are **excluded from the sum**: they are not written again, since the loop re-verifies both sides live and a `--move` finishes by deleting the source. Counting them aborted the documented Copy-then-Move workflow on a destination with ample room for what the run would actually write — `--move` has been eligible for `Copied` rows since the selection fix, and their content is already delivered. The estimate never authorizes anything: the live hash comparison still decides, and a file that does need writing after all fails on its own with a recorded reason, source intact. A shortfall is recorded as a run-level `Failed` operation carrying the required and available figures, not only logged.
+    *   **Pre-flight disk space check:** Before `--move`/`--copy` begins, the engine sums the size of the targeted files and confirms the destination volume has enough free space (plus a 500MB safety margin), aborting before any file operations start if not. Rows whose recorded destination already holds a file of the same size are **excluded from the sum**: they are not written again, since the loop re-verifies both sides live and a `--move` finishes by deleting the source. Counting them would abort the documented Copy-then-Move workflow on a destination with ample room for what the run actually writes, since `--move` is eligible for `Copied` rows whose content is already delivered. The estimate never authorizes anything: the live hash comparison still decides, and a file that does need writing after all fails on its own with a recorded reason, source intact. A shortfall is recorded as a run-level `Failed` operation carrying the required and available figures, not only logged.
     *   **Orphan Cleanup:** On startup, leftover partial files belonging to an interrupted row (`<filename><ext>.organizing.partial.*` beside that row's destination) are removed. Only regular files are removed, never symlinks.
-    *   **Crash Recovery — file level:** Every mutation records **durable intent before touching a file**: an `operations` row with an `intent` event, committed at `synchronous=FULL` alongside `photos.status = 'Processing'` and the `dest_path` the work relies on. An interrupted operation is therefore one carrying intent and **no terminal event**, which is how recovery finds work that was started and never settled — previously an interruption left no operation at all, so there was nothing for a conclusion to attach to.
+    *   **Crash Recovery — file level:** Every mutation records **durable intent before touching a file**: an `operations` row with an `intent` event, committed at `synchronous=FULL` alongside `photos.status = 'Processing'` and the `dest_path` the work relies on. An interrupted operation is therefore one carrying intent and **no terminal event**, which is how recovery finds work that was started and never settled; without the intent row an interruption would leave nothing for a conclusion to attach to.
 
         On startup, after the new run is recorded, recovery **observes** both locations, writes an `operation_evidence` row for each, and only then concludes. Four outcomes, and the two in the middle are the point:
 
@@ -173,46 +173,40 @@ catalogue, not the tree, so relocating them is a separate action.
         | **both present** | the copy landed and the source was never removed. The published file is registered as its own identity and the operation is recorded **incomplete**. Recovery never deletes the source; an explicit Move may, after verifying both sides live |
         | **both absent, or either unreadable** | the outcome **cannot be established**. An attention issue is opened carrying the evidence, and the row is *not* reset to `Pending` — which would claim a file is waiting for work it can never receive |
 
-        **Recovery observes; it does not publish.** When it finds a destination that is already a recorded identity, it *links* to that identity rather than registering a new one. Registering implies a publication event, and the engine treats a fresh publication as proof that any previously recorded occupant is gone — correct for a genuine re-publication, and wrong for a file nothing replaced. Getting this backwards minted a second identity for the same bytes and marked the real one missing; it was found by constructing the state against real delivered files, having passed the synthetic suite.
+        **Recovery observes; it does not publish.** When it finds a destination that is already a recorded identity, it *links* to that identity rather than registering a new one. Registering implies a publication event, and the engine treats a fresh publication as proof that any previously recorded occupant is gone — correct for a genuine re-publication, and wrong for a file nothing replaced. Registering instead would mint a second identity for the same bytes and mark the real one missing — invisible to summary counts, so the contract suite pins the rule from both sides.
 
         Each row is settled in its own transaction: evidence, the settled operation and the new status commit together or not at all. The repair is recorded as an operation of the **reconciling** run, linked to the operation it repairs through `reconciles_operation_id`, so requested work and recovery of earlier work stay separable rather than both reading as this run's output. A reconciliation that fails is never swallowed: it rolls back, and the run is marked `Failed` rather than continuing against a catalog it could not settle.
     *   **Crash Recovery — run level:** On startup, any `runs` row still in an active state — `Preparing`, `Running` or `Cancelling`, meaning that process was killed uncatchably (`SIGKILL`, OOM-kill, power loss) and bypassed the normal shutdown path — is marked `Interrupted` rather than left showing as perpetually in progress. `reconciled_by_run_id` names the run that found it and `ended_at` stays NULL. **Why not stamp the reconciliation time as the end:** the next run can start days later, and a duration computed to that moment is fiction that looks like data. The run's last recorded operation bounds the death from below, and the reconciler's start bounds it from above; a reader wanting an approximation can take either and say which.
     *   **Re-scan safety:** Re-running the engine against a source directory that still contains previously-cataloged files (the normal Index → review → `--move` workflow) updates existing database rows in place (`INSERT ... ON CONFLICT(source_path) DO UPDATE`) rather than failing on a duplicate-key error.
     *   **Cancellation:** Checked between files, never mid-file — the in-flight file always finishes its Copy-Verify(-Delete) before the loop stops. Every remaining targeted file that never got a chance to run is logged to `operations` with `status = 'Cancelled'`, while its `photos.status` stays `Pending` (not overwritten), so a plain re-run picks it back up naturally. Duplicate-source cleanup is skipped entirely for a cancelled run, since it depends on knowing the final fate of every targeted `Pending` file first. A cancellation that arrives *during* duplicate cleanup is checked before each duplicate in the same way: the removal in progress finishes, the remaining duplicates are left in place and logged as `Cancelled`, and the run ends `Cancelled`.
     *   **Source file changed since Index:** If a targeted file's `source_path` no longer exists on disk when the engine actually tries to process it (moved, renamed, or deleted outside NegativeSpace since the last Index — most likely with `--file-ids`/`--source-subdir` targeting a stale selection), this is detected explicitly *before* attempting to open the file, rather than surfacing as a raw `FileNotFoundError` traceback. Recorded as `status = 'Failed'` with a specific, human-readable `error_message`: `"Source file changed: no longer found at <path>. It may have been moved, renamed, or deleted outside NegativeSpace since the last Index."` The distinct wording matters for the Error Center (`webui-spec.md` §5.3) — a user seeing this should understand to re-index, not assume a permissions or disk problem.
-        A full (untargeted) run also detects this at Index time: after walking the source root, any `Pending` or `Duplicate` row under it that was not found is checked with `stat()`, and only a file that definitely does not exist is marked `Failed` with the same message. Without this, a photo deleted outside the engine stayed `Pending` indefinitely and kept standing as the original of its duplicate group, so its duplicate was never delivered; as a `Failed` row it leaves the group and a surviving duplicate is promoted. A permission or I/O error is never treated as absence.
+        A full (untargeted) run also detects this at Index time: after walking the source root, any `Pending` or `Duplicate` row under it that was not found is checked with `stat()`, and only a file that definitely does not exist is marked `Failed` with the same message. Otherwise a photo deleted outside the engine would stay `Pending` indefinitely and keep standing as the original of its duplicate group, so its duplicate would never be delivered; as a `Failed` row it leaves the group and a surviving duplicate is promoted. A permission or I/O error is never treated as absence.
 
         **A walk that finds nothing is refused rather than believed.** If the scan discovers no supported files at all while the catalog still holds rows under that root, no row is touched: an unmounted or detached source leaves a directory that exists and is empty, every `stat()` beneath it then reports "not found", and the sweep would otherwise condemn the whole catalogue under that root in a single pass — promoting duplicates in other archives to anchor on the strength of storage being absent. The refusal is recorded as a run-level `Failed` operation naming the root and the row count, not merely logged, and the check lives inside the sweep rather than at its call site so a future caller cannot skip it. The accepted cost: a root whose files genuinely were all removed keeps its rows, and nothing promotes their duplicates until a supported file is present there again — recoverable and visible, which a wholesale `Failed` catalogue is not. Finding *fewer* files is untouched by this; only finding *none* triggers it.
     *   **Nothing unreadable is only logged:** A folder that cannot be listed, or a file that cannot be inspected, during discovery is recorded as a `Failed` operation of the run, with `photo_id` NULL and the folder or file path as `source_path`. A scan result the database writer cannot store is rolled back on its own (each result's row and operation are one unit), and the run is then marked `Failed` without moving or copying anything, since the catalog no longer reflects what was scanned.
     *   **Exit status:** The engine exits `0` only when the run did not fail. A `Failed` run, a missing `--source`, or a `--source` that is not a folder exits `1`; invalid arguments such as `--workers 0` exit `2`. `--backup-now` exits `1` when no verified backup was written. A request ID reused for different input exits `3`, and one already accepted exits `4`; neither starts anything (§4.1). A cancelled run exits `0` — it did what was asked.
-    *   **ExifTool startup check:** Before touching the database or source/dest paths at all, the engine verifies both the `exiftool` binary and the `PyExifTool` package are available and exits immediately with a clear fatal error if either is missing (§3.3) — tested directly (binary hidden from `PATH`) and confirmed it fails cleanly with no directories or database files created.
+    *   **ExifTool startup check:** Before touching the database or source/dest paths at all, the engine verifies both the `exiftool` binary and the `PyExifTool` package are available and exits immediately with a clear fatal error if either is missing (§3.3) — tested with the binary hidden from `PATH`: it fails cleanly and creates no directories or database files.
 
 ### 4.3. Reporting & Feedback
 *   **Logging:** Structured logs to both console and `<base>/logs/organizer.log`, covering every stage (scan discovery, hashing, metadata resolution, space checks, copy/verify/delete, duplicate cleanup, cancellation). At startup, once the engine holds the single-instance lock, a log over 50 MB is rotated to `organizer.log.1`, keeping five older logs. It is never rotated mid-run, because every worker process writes to the same file, so one run's log is never split.
 *   **Discovery accounting:** a full Index (no `--file-ids`, no `--source-subdir`) records what its walk found in `run_discovery`: files found, eligible by the run's extension selection, and excluded by file type, with a per-extension breakdown in which `""` means no extension. Hidden entries are skipped before counting, as the walk always skipped them, and a symlink is not counted as a file. Any folder or entry the walk could not read sets `unreadable`, and the counts are then **partial**. The log states the same summary, for example *"Discovered 7 file(s): 3 eligible by file type, 4 excluded by file type (.xmp 2, .mov 1, no extension 1)."* Scoped runs walk nothing and record nothing rather than a guess. `ns_db.read_discovery(conn, run_id)` returns the summary for the API (`webui-spec.md` §5.1). Counting excluded files reads the file type `readdir` already returned, so it adds no round trip on a network share.
 *   **Progress Reporting:** during a scan the engine reports, on a fixed interval, the *instantaneous* rate over the most recent window — both files/sec and MB/s — with an ETA derived from that recent rate rather than a cumulative average. The distinction is operational, not cosmetic: a cumulative average decays continuously while a run is healthy, which makes a saturated link look like a failing one. Reporting bytes alongside files is what separates the two cases — a RAW-heavy stretch runs at a few files/sec and a JPEG stretch at tens of files/sec while both saturate the same network link, and only the MB/s figure shows that.
 
-*   **Run Summary:** every Index ends with one line giving the total recorded and a per-status breakdown, plus warnings for files that produced no perceptual hash (they index and move normally but cannot participate in similarity matching (§9.3)) and for files dated from mtime rather than EXIF (the only files a timezone change can move between folders). A scan where hundreds of files failed previously looked identical to a clean one.
+*   **Run Summary:** every Index ends with one line giving the total recorded and a per-status breakdown, plus warnings for files that produced no perceptual hash (they index and move normally but cannot participate in similarity matching (§9.3)) and for files dated from mtime rather than EXIF (the only files a timezone change can move between folders). Without it, a scan where hundreds of files failed would look identical to a clean one.
 
-*   **Per-File Warning Attribution:** library warnings raised while reading a file are captured and re-logged naming that file. Worker processes do not inherit the log handler under `forkserver`/`spawn`, so these were previously dropped entirely. Note that PIL's `"Truncated File Read"` reaches the log through `TiffImagePlugin`'s EXIF parser, which catches the underlying `OSError` and downgrades it to a warning — it means the EXIF block is malformed, **not** that pixel data is missing, and such files still produce correct SHA-1 and perceptual hashes.
+*   **Per-File Warning Attribution:** library warnings raised while reading a file are captured and re-logged naming that file. Worker processes do not inherit the log handler under `forkserver`/`spawn`, so without this they would be dropped entirely. Note that PIL's `"Truncated File Read"` reaches the log through `TiffImagePlugin`'s EXIF parser, which catches the underlying `OSError` and downgrades it to a warning — it means the EXIF block is malformed, **not** that pixel data is missing, and such files still produce correct SHA-1 and perceptual hashes.
 
 *   **Audit Trail:** The `runs` + `operations` tables (§6) together give a full history of every invocation and every per-file outcome within it — this is what "show previous run information" is built on, independent of the frontend.
 *   **Timestamp Contract:** application events, including run start/end and operation
     history, are recorded as timezone-aware UTC instants. Every catalog timestamp the
-    engine writes carries its offset, pinned by `every_catalog_timestamp_carries_its_offset`.
-    A catalog written before that holds naive times; it is a development catalog to
-    rebuild, and its values must not simply be labelled `Z`. Photo capture dates retain
+    engine writes carries its offset, pinned by `every_catalog_timestamp_carries_its_offset`;
+    a naive timestamp is never simply relabelled `Z`. Photo capture dates retain
     their recorded wall-clock value and any known offset;
     an absent offset remains unknown, not assumed UTC. Capture-date folder placement
     follows that recorded calendar date, independent of the browser timezone. UI
     presentation is specified in `webui-spec.md` §10.
 *   **Real-time Feedback:** the planned web drawer shows aggregate progress and elapsed
-    runtime, with scan discovery counts for files found, eligible by configured file
-    type, and excluded by file type, plus excluded counts by extension. These must be
-    measured during scanning, not inferred from indexed rows. Exclusions are not
-    failures; incomplete scans report partial discovery counts. This accounting is
-    planned support for `webui-spec.md` §5.1.
-    Display aggregates rather than a live line per file (`webui-spec.md` §4.1). Required support includes
+    runtime, and the discovery counts recorded above. Display aggregates rather than a live line per file (`webui-spec.md` §4.1). Required support includes
     phase/scoped totals and classified outcomes, including unchanged-file skips;
     operation statuses alone do not supply a reliable percentage. Keep full per-file
     audit records while allowing the UI to refresh summaries about once per second.
@@ -223,8 +217,8 @@ catalogue, not the tree, so relocating them is a separate action.
 ## 5. Technical Infrastructure
 ### 5.1. Deployment (Docker)
 *   **Environment:** Containerized for consistency across dev/prod environments. `gosu`-based entrypoint maps the container process to the host user via `PUID`/`PGID`. It gives that user all of `/appdata` (the engine's own small tree) but only the top level of `/data/dest`. Files and folders already in the destination keep their owners, since walking a library-sized tree on every start is slow and rewrites the ownership of user data. It exits with an error if `/appdata` is not writable by the mapped user, and warns if `/data/dest` is not, since Index does not need it. The base image is pinned by digest and the Python dependencies to exact versions, so a rebuild reproduces the validated image.
-*   **Required system packages:** `libimage-exiftool-perl` (or platform equivalent) **must** be installed in the image — ExifTool is a hard requirement (§3.3/§4.2), not an optional extra. If it's missing, the container will still build and start, but every engine invocation will immediately exit with a fatal error rather than run in a degraded mode, since the old graceful-degradation-to-PIL behavior for a missing binary no longer applies. Worth an explicit check against the actual `Dockerfile` when adopting this change, since an older image built before this requirement may not have it installed.
-*   **Recommended: a proper subreaper as PID 1** (e.g. `tini`/`dumb-init`), general Docker hygiene independent of this specific change — each worker process spawns and manages its own ExifTool child process, and while it's cleaned up on normal worker shutdown, a subreaper ensures nothing is ever left orphaned regardless of how a process exits.
+*   **Required system packages:** `libimage-exiftool-perl` (or platform equivalent) **must** be installed in the image — ExifTool is a hard requirement (§3.3/§4.2), not an optional extra. If it is missing, the container still builds and starts, but every engine invocation exits immediately with a fatal error rather than running degraded.
+*   **Recommended: a proper subreaper as PID 1** (e.g. `tini`/`dumb-init`), general Docker hygiene — each worker process spawns and manages its own ExifTool child process, and while it's cleaned up on normal worker shutdown, a subreaper ensures nothing is ever left orphaned regardless of how a process exits.
 *   **Volume Mapping:** `/data/source` (source photos), `/data/dest` (organized output), `/appdata` (SQLite DB + logs), all host-mapped.
     Catalog backups go to a separate `/backups` mount configured at deployment,
     holding multiple database snapshots, not photos (§4.1). Its underlying storage is
@@ -237,11 +231,11 @@ catalogue, not the tree, so relocating them is a separate action.
     host-directory requirement stays documented. Separate physical disks are not required.
 *   **Database:** **SQLite**, opened in WAL mode with a 5-second busy timeout for safe concurrent access between the writer thread and any read-only inspection. **Two synchronous levels, deliberately.** The scan path runs `synchronous=NORMAL`: it survives process death — `SIGKILL`, OOM-kill, a `docker stop` timing out — but not a power cut, and it is ~4.4x faster when committing scan results a hundred rows at a time. The Move/Copy loop opens its connection at `FULL` instead, because it commits `status = Processing` with `dest_path` *before* unlinking a source and reconciliation finds interrupted work by that marker alone; losing it to a power cut leaves a successfully delivered photo recorded `Failed`. `FULL` costs 1.42x on that path, where several fsyncs per file are already being paid, so the guarantee is bought where it matters and declined where it is expensive. The audit rows that loop writes are fsynced with it. **Every run then settles at `FULL`** (`finish_run`), and in WAL mode that one commit fsyncs the whole WAL, so the scan path's `NORMAL` commits become durable too once the run settles. That costs one fsync per run, not per batch; a run killed before settling keeps the `NORMAL` exposure for its last batch (`TODO.md` claim 12). Backup attempts record their outcome at `FULL` as well.
 
-    Two asymmetries follow from that split, both deliberate and both recorded in `TODO.md` rather than left to be inferred. The **scan path keeps `NORMAL`**, so a power cut can still lose recently batched discovery failures and scan results; those rows describe reading rather than deleting, and a re-Index reproduces them. And **`reconcile_interrupted_state` also keeps `NORMAL`** — it is the repair half of this same protocol, reading the marker and settling the row from what is on disk. A cut during recovery can lose the repair, but not the filesystem evidence the repair was derived from, so the next run reaches the same conclusion again. Probably benign for that reason; recorded as a decision to make rather than an asymmetry to assume.
+    **Startup reconciliation commits at `FULL` too** (`TODO.md` claim 13): its evidence and attention records are conclusions from observations that may not be repeatable — storage disappears and files are replaced between runs — so losing one would discard the only record that an outcome could not be established.
 
 ## 6. Data Schema (SQLite)
 
-Three tables, each with a distinct role — this replaced an earlier, simpler single-table design once error tracking and run history needed somewhere to live (see the design note below).
+The three transfer tables below — current state, runs, and the audit log — each have a distinct role (the design note at the end of §6.5 says why state and history are separate). The identity, lineage, cache and backup records are defined in §6.5.
 
 ### 6.1. `photos` — current state, one row per source file
 | Field | Type | Description |
@@ -265,7 +259,7 @@ Three tables, each with a distinct role — this replaced an earlier, simpler si
 | `id` | Integer | Primary Key, autoincrement |
 | `mode` | Text | `INDEX`, `MOVE`, or `COPY` |
 | `source_path` / `dest_path` | Text | As passed to this invocation |
-| `file_ids_filter` | Text | Self-describing JSON object naming which mechanism scoped the run — `{"file_ids": [101, 102]}` or `{"source_subdir": "sd_card/day1"}` — or NULL for a full directory scan. The column name predates `--source-subdir` and is kept as-is. |
+| `file_ids_filter` | Text | Self-describing JSON object naming which mechanism scoped the run — `{"file_ids": [101, 102]}` or `{"source_subdir": "sd_card/day1"}` — or NULL for a full directory scan. Despite its name it holds either mechanism. |
 | `started_at` / `ended_at` | Text | ISO timestamps, UTC with offset (§4.3). `ended_at` is set when the run settles itself and stays NULL for `Interrupted`, whose moment of death is unknown |
 | `status` | Text | The run's lifecycle, not whether its work succeeded (`webui-spec.md` §5.5). Active: `Preparing` (accepted; reconciling earlier work before any requested file work), `Running`, `Cancelling` (cancel received; the current file is finishing). Terminal: `Completed`, `Cancelled` (cancellation stopped work that remained), `Failed` (a job-level error prevented normal completion), `Interrupted` (died without settling). `ns_db.RUN_TRANSITIONS` is the only way between them: terminal states are final, `Preparing` never ends `Completed`, and `Cancelling` may, because a job that finished before its cancellation took effect reports what actually happened |
 | `reconciled_by_run_id` | Integer | For an `Interrupted` run, the run whose startup found it dead. That run's `started_at` is when the death was noticed, not when it happened |
@@ -300,17 +294,26 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
 initializes schema version 6 and refuses incompatible catalogs before processing.
-No migration is supplied during this development increment: preserve older catalogs
-and use a fresh development catalog. Index cannot reconstruct settings, past edits,
-or deleted-file lineage. Never describe deleting a user catalog as routine repair.
-See [database-foundation.md](./database-foundation.md) for current implementation scope.
+No migration exists: preserve an older catalog and use a fresh one. Index cannot
+reconstruct settings, past edits, or deleted-file lineage. Never describe deleting a
+user catalog as routine repair.
+
+*   Connections enforce foreign keys and bounded lock waits; shared transactions roll
+    back on failure, and a settings save must match the revision it read.
+*   Settings are `workers`, `exts` and `backup_retention`. Each run stores its
+    effective configuration in `run_configs` — defaults, then saved settings, then CLI
+    overrides — and later settings changes never alter it.
+*   A source returning after a completed Move or duplicate removal receives a new
+    identity; operation links keep the previous identity and its original evidence.
+*   Not yet implemented: content-version transitions (nothing modifies content yet)
+    and revision enforcement across a whole transfer.
 
 
-**Status vocabularies are enforced, not merely documented.** Each of the three `status` columns carries a `CHECK` constraint listing exactly the values above (`photos.status` also permits `NULL`, since a row can exist before its scan result lands). The constraint text is generated from the same Python tuples the engine uses — `PHOTO_STATUSES`, `RUN_STATUSES`, `OPERATION_STATUSES` in `ns-engine.py` — so the database and the code cannot drift apart.
+**Status vocabularies are enforced, not merely documented.** Each of the three `status` columns carries a `CHECK` constraint listing exactly the values above (`photos.status` also permits `NULL`, since a row can exist before its scan result lands). The constraint text is generated from the same Python tuples the engine uses — `PHOTO_STATUSES`, `RUN_STATUSES`, `OPERATION_STATUSES` in `ns_db.py` — so the database and the code cannot drift apart.
 
 This exists because the failure mode is silent. SQLite accepts any string in a bare `TEXT` column, and a misspelled status in a `WHERE` clause matches zero rows rather than raising: a typo in the duplicate-cleanup anchor check would simply stop removing duplicate sources, and a typo in the `Processing` marker would make crash recovery blind to a file interrupted mid-move. Nothing would error and nothing would be logged.
 
-It matters most for the web UI, which adds a second codebase reading and writing these columns without importing the engine's constants. A web layer that writes `'copied'` or filters on `'Complete'` now fails loudly at write time instead of quietly disagreeing with the engine about what the catalog contains. Anything writing to this database — including ad-hoc `sqlite3` sessions — is held to the same vocabulary.
+It matters most for the web UI, which adds a second codebase reading and writing these columns without importing the engine's constants. A web layer that writes `'copied'` or filters on `'Complete'` fails loudly at write time instead of quietly disagreeing with the engine about what the catalog contains. Anything writing to this database — including ad-hoc `sqlite3` sessions — is held to the same vocabulary.
 
 ### 6.5. Legacy transfer tables and shared schema
 
@@ -344,10 +347,8 @@ CREATE TABLE photos (
     CHECK (status IS NULL OR status IN ('Pending', 'Processing', 'Completed',
            'Copied', 'Failed', 'Duplicate', 'Removed_Duplicate'))
 );
--- NOT YET PRESENT: thumbnail_path TEXT (webui-spec.md 4.2.1). Width and height
--- now live on `contents` below, alongside the perceptual hash, because they
--- describe content rather than a particular copy of it. Adding a column is a
--- schema change, which means a rebuilt catalog, not an ALTER on a live one.
+-- Thumbnails and width/height belong to content, not to one copy of it: they
+-- live in thumbnail_cache and contents below, so photos carries neither.
 
 -- runs: one row per engine invocation (Index, Move, or Copy). This is what
 -- "previous run information" is built from -- no separate run-history table.
@@ -415,10 +416,8 @@ CREATE INDEX idx_operations_photo ON operations(photo_id);
 CREATE INDEX idx_operations_sha1 ON operations(sha1_hash);
 ```
 
-**Schema version 2 added the identity and lineage records below**, which this
-section did not previously document — an omission that made the claim above
-false from the moment the foundation landed. They are listed before the version 3
-block because everything there references `files`.
+**Identity and lineage records.** Listed before the next block because everything
+there references `files`.
 
 ```sql
 -- Stable identity, independent of path or hash. A rename, Move or metadata edit
@@ -512,12 +511,11 @@ CREATE INDEX idx_observations_file ON file_observations(file_id,observation_id);
 CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id);
 ```
 
-**Schema version 3 adds the records below**, batched deliberately so the catalog
-stops being rebuilt once per increment. The first five are written by recovery (4.2),
-`contents` and `thumbnail_cache` by the scan, and the backup records by catalog
-backups (§4.1); `file_changes` and `content_similarity` are defined but not yet
-written. Versions 4 and 5 changed constraints within these tables (the run lifecycle
-and the backup records); version 6 added `run_discovery`, listed with them below. Statement order matters here too:
+**Recovery, content, cache, discovery and backup records.** The first five are
+written by recovery (4.2), `contents` and `thumbnail_cache` by the scan,
+`run_discovery` by a full Index (4.3), and the backup records by catalog backups
+(4.1); `file_changes` and `content_similarity` are defined but not yet written.
+Statement order matters here too:
 `contents` precedes everything referencing it, `operation_events` precedes
 `attention_issues`, and both `operation_evidence` and `attention_issues` precede
 the link table joining them.
@@ -607,7 +605,7 @@ CREATE TABLE thumbnail_cache (
 );
 CREATE INDEX idx_thumbnail_size ON thumbnail_cache(size, availability);
 
--- Schema version 6. What a full Index walk found, by file type (webui-spec 5.1).
+-- What a full Index walk found, by file type (webui-spec 5.1).
 -- Measured counts only: a scoped run walks nothing and has no row. Excluded files
 -- are untouched and are not failures; any unreadable folder or entry makes the
 -- counts partial.
@@ -682,7 +680,7 @@ remains implementation work.
 
 ## 7. Non-Functional Requirements
 *   **Concurrency (within a run):** `ProcessPoolExecutor` parallelizes hashing/metadata-resolution across CPU cores; sized to `os.cpu_count()` or overridden via `--workers`.
-*   **Single-Instance Guarantee (across runs, implemented):** At most one engine process may run at a time, enforced by the OS-level lock in §4.1 — this is what makes the "Thread Safety" guarantee below actually hold in practice once the web UI allows multiple UI actions to attempt to trigger the engine. Without it, two concurrent processes (each internally thread-safe on its own) could still race each other at the filesystem/database level — e.g. two processes independently computing the same "available" destination filename via a check-then-write sequence with no cross-process coordination, where the second process's write can silently overwrite the first's already-verified file, since the final rename step overwrites an existing target rather than erroring. The lock closes this off entirely by making the "two processes running at once" precondition impossible, rather than trying to make that scenario itself safe.
+*   **Single-Instance Guarantee (across runs):** At most one engine process may run at a time, enforced by the OS-level lock in §4.1 — this is what makes the "Thread Safety" guarantee below hold once the web UI can trigger the engine from several places. Without it, two processes (each thread-safe internally) could race at the filesystem and database level, for example both resolving the same free destination name, or both reconciling the same interrupted row. The lock makes the "two processes at once" precondition impossible rather than trying to make each race safe.
 *   **Thread Safety:** Index results are written by one dedicated consumer thread; scoped settings writes may use separate connections with SQLite serializing transactions; all other work happens in separate processes that communicate results back through an in-memory queue, never by opening the database themselves.
 *   **Durability:** The engine can recover from both a graceful interruption and a hard crash — orphaned partial files are cleaned up, interrupted `Processing` file-records are reconciled to their correct state, and run-records left in an active state are marked `Interrupted`, all on the next startup.
 *   **Safety:** No file is deleted from source until a byte-for-byte verified copy exists at the destination. This holds for both direct moves and duplicate-source cleanup, and is never bypassed by cancellation — a cancelled run simply stops starting new work, it never skips verification on work already in flight.
@@ -810,11 +808,12 @@ range. Missing hashes mean matching is unavailable, not that a photo is unique.
 
 Results are measured against the selected reference photo; similarity is not
 transitive. Historical records remain available for lineage but must not appear as
-actionable files without an available copy. Capture width and height during Index,
-reusing image analysis; record unknown dimensions explicitly when unavailable.
+actionable files without an available copy. Width and height are already captured
+during Index on `contents`, from the same decode that makes the thumbnail, and are
+NULL when unavailable.
 
 **Not implemented.** Needs: pair storage, initial backfill, incremental refresh,
-dimension capture, and the comparison pass during Index.
+and the comparison pass during Index.
 
 ### 9.4. Renaming a Delivered File
 
@@ -853,8 +852,7 @@ a later rename is a new action validated against the current state.
 Choosing between files that *differ* — a JPEG versus the RAW it came from, a
 thumbnail versus its original — means one file leaves the library.
 
-**The rule, decided 2026-09-20: a superseded file is deleted, and the deletion
-is recorded.** There is no quarantine area. The user asked for that file to go;
+**The rule: a superseded file is deleted, and the deletion is recorded.** There is no quarantine area. The user asked for that file to go;
 the engine removes it and writes an operation recording what was there.
 
 **Why not a quarantine instead?** A `.superseded/` area holding removed files,
@@ -889,8 +887,7 @@ from actionable lists. Record per-file failures. Stop on a detected destination
 mismatch and present the repair guidance in `webui-spec.md` §7.6.
 
 **Not implemented.** Needs: the first engine path that removes a file under
-`--dest`, the extended deletion record above, and `width`/`height` capture,
-which the catalog does not hold today.
+`--dest`, and the extended deletion record above (dimensions come from `contents`).
 
 ### 9.6. Writing Metadata Into Files
 
@@ -1019,24 +1016,16 @@ Thumbnail cache lifecycle must follow content identity: after an embedded metada
 edit, reuse an existing entry for the resulting hash or generate a new thumbnail.
 Remove obsolete entries only when no current catalogued file needs their hash;
 historical lineage does not retain thumbnails. Include orphan cleanup after
-interruption. See `webui-spec.md` §4.2.1. Generation itself is implemented — the
-scan writes one 320px grid thumbnail per content identity — but this lifecycle is
-partly: after every scan that completes cleanly, with thumbnails enabled, the engine
-removes each cache entry (file first, then record) whose content no catalogued photo
+interruption. See `webui-spec.md` §4.2.1. The scan writes one 320px grid thumbnail
+per content identity, and after every scan that completes cleanly, with thumbnails
+enabled, the engine removes each cache entry (file first, then record) whose content no catalogued photo
 holds in any status, keeping the `contents` identity it was keyed on. Cache files the
 catalog never recorded are left alone, because the cache survives a catalog rebuild
 on purpose. Orphan cleanup after an interrupted *edit* waits for edits to exist.
 
-§9.1–§9.6 record five engine capabilities the curation workflows require. A
-pass over the rest of the documented web interface turned up eight more. Three of
-those are settled — thumbnail generation is built; which date field a placement
-came from is unambiguous now that only `DateTimeOriginal` is accepted (§4.2); and
-the settings store lives in the catalog database, where `ns_db.initialize` creates
-it without a scan and the API writes it through `ns_db.save_settings` with revision
-checks, each run snapshotting its effective configuration (`webui-spec.md` §6.1).
-The five below remain. None of them is
-visible as engine work from the UI side — each looks like a screen until you ask
-what it reads from.
+§9.1–§9.6 record the engine capabilities the curation workflows require. The web
+workflows need the five below as well. None of them is visible as engine work from
+the UI side — each looks like a screen until you ask what it reads from.
 
 | Capability | Needed by | Why it cannot be supported today |
 | :--- | :--- | :--- |
@@ -1046,17 +1035,10 @@ what it reads from.
 | **Pre-action catalog backup** | Before a confirmed rename, EXIF edit or destination deletion | The engine half of backups is built (§4.1): post-job and manual snapshots, retention, availability. The `pre_action` trigger exists in the schema and `ns_db.backup_catalog` accepts it, but nothing calls it until the curation actions it guards exist. It must stop the action when it fails (`webui-spec.md` §9) |
 | **Serving a file for download** | Log export; retrieving a backup | **API work rather than engine work**, recorded here because it is the same gap twice and worth building once |
 
-**Two of these want a schema change** — field-level before/after and a batch
-identity. Content width and height need none: they live on `contents` in the shipped
-schema (§6.5), populated by the scan from the same decode that produces the
-thumbnail. The winning date key needs none either: accepting a single capture-date
-field makes `date_source` sufficient to say which field filed a photo (§4.2).
-Schema changes cost a rebuilt
-catalog, which is cheap individually and cheaper together; they are listed
-separately here so the decision stays visible rather than being bundled by
-accident.
+**Two of these want a schema change**: field-level before/after and a batch
+identity.
 
-## 10. Full Lineage and the Open Identity Design
+## 10. Full Lineage and File Identity
 
 **Reimport after deletion:** a newly imported file receives a new lineage and
 original Index snapshot even when its hash matches a previously deleted file.
@@ -1149,44 +1131,31 @@ repairs and belongs to the run that performed it, so the API never parses free-t
 messages to tell recovery from requested work. Failures with
 NULL photo IDs remain run-level issues rather than failed-photo counts. All records
 associated with a photo must be accessible from its info page as well as global Logs
-(`webui-spec.md` §4.2 and §5.5). These are requirements, not implemented additions.
+(`webui-spec.md` §4.2 and §5.5); the engine records the links, and presenting them is
+API and UI work.
 
 History supports manual corrections, not undo operations or a rewind of the library.
 A user consults prior values and makes a new explicit edit or rename against the
 current state. Records cannot recreate deleted pixels. This is a required capability,
 not a claim that current mutable photo rows already preserve all that evidence.
 
-The following identity/storage alternatives remain design questions; development
-catalogs and destinations remain disposable and do not require migration support.
+**History is keyed by file identity, not by `photos.id`.** Operations reach files
+through `operation_files`, so a history follows `file_id` across renames, moves,
+reimports and edits; reading it by `photos.id` alone drops the pre-reimport half of a
+file's past (`webui-spec.md` §6.3). The Error Center and the Operations Audit Log read
+history the same way.
 
-`photos.id` is the engine's identity for a file, and `operations.photo_id` hangs
-off it. Rebuilding the catalog — the documented remedy for a schema change
-(§6.4), and the outcome of the re-processing in §9.2 — issues new IDs, orphaning
-every historical row. This is in tension with the position that the catalog is a
-derived artifact that can be deleted and rebuilt: `photos` genuinely is derived,
-but `runs` and `operations` are not. They are the only record of what the engine
-did, and nothing recomputes them.
-
-The sharpest case is `Removed_Duplicate`. After a `--move`, that row is the only
-evidence a file ever existed: the source is gone by design and the content
-survives only under the anchor's name. Delete the catalog and the knowledge that
-it existed goes with it.
+**A catalog rebuild still discards history.** `photos` is derived and an Index
+recreates it, but `runs`, `operations` and the lineage records are the only record of
+what the engine did, and nothing recomputes them. After a `--move`, a
+`Removed_Duplicate` row is the only evidence a file ever existed. That is why catalog
+backups exist (§4.1) and why deleting a user catalog is never routine repair.
 
 **Rejected alternatives:** hash-only identity merges distinct copies and breaks on
-metadata edits; path-only identity breaks on renames and path reuse. Use stable
-per-file lineage with linked content hashes, including records for failures without
-a hash. Keep catalog, settings and history in the same database to preserve the
-single-file backup requirement; a second history database is not the selected design.
-The remaining work is the concrete schema and operation/recovery linkage, not whether
-to preserve lineage or where to split the database.
-
-**This question has a deadline, and it arrives with the web UI.**
-`webui-spec.md` §5.3 (Error Center) and §5.4 (Operations Audit Log) are both
-specified directly on `operations`, joined through `photo_id`. Once that UI
-exists, changing how history is keyed stops being a schema decision and becomes
-a migration plus a rework of two views. **Answer it before the Error Center is
-built.** The spec work itself is unaffected, and deferring the answer costs
-nothing until code is written against those tables.
+metadata edits; path-only identity breaks on renames and path reuse. Stable per-file
+lineage with linked content hashes is used instead, including records for failures
+without a hash. Catalog, settings and history share one database so one backup holds
+all of it; a second history database is not the design.
 
 
 ### Destination lineage implementation contract
@@ -1204,8 +1173,8 @@ unknown creation origin, with its verified reuse linked to the source operation.
 Hashes and paths do not substitute for file IDs. Fresh publication at a formerly
 recorded but absent destination preserves the old identity as missing.
 
-Interrupted/failed transfers do not receive fabricated successful lineage. Durable
-intent, partial publication identities, attention records and recovery links remain
-required follow-up work. Recovery must preserve an incomplete Move when both copies
+Interrupted/failed transfers do not receive fabricated successful lineage; recovery
+records durable intent, evidence, attention issues and recovery links instead (§4.2).
+Recovery must preserve an incomplete Move when both copies
 remain and must not automatically delete the source; a new explicitly requested Move
 may verify and remove it. Recovery outcomes belong separately from new job work.

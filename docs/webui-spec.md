@@ -153,8 +153,8 @@ save. Each job retains its starting configuration, available in its job details.
 Display a persistent notice in the job settings section, near Save:
 **“Changes apply to future jobs. Active jobs will continue with their existing settings.”**
 Repeat that clarification in the save confirmation when a job is active. Do not
-require cancelling a job to save settings. This is the required behavior; settings
-write coordination remains to be designed (§6.1).
+require cancelling a job to save settings. Saves go through `ns_db.save_settings`,
+which checks revisions and waits a bounded time for the writer (§6.1).
 
 ```
 +---------------------------------------------------------------------------------+
@@ -441,7 +441,7 @@ what happened and make manual corrections; there is no undo operation.
 
 #### 4.2.1 Thumbnail Generation (Media Preview backing)
 
-The Gallery grid and Inspector's "Media Preview" both need something to actually render — this requires new engine-side work, not just a frontend concern, since the engine is the only thing with RAW-decode capability (`rawpy`) already loaded.
+The Gallery grid and Inspector's "Media Preview" both need something to actually render. The engine generates it, since it is the only component with RAW decoding (`rawpy`) loaded.
 
 **Status — grid generation is implemented.** The scan writes one 320px JPEG per
 content identity, records it in `thumbnail_cache`, and reuses it for
@@ -521,8 +521,8 @@ undecodable file is therefore re-attempted on every scan.
   known, such as **“Photo file unavailable”**, **“Permission denied reading photo”**,
   **“Image could not be decoded”**, or **“Thumbnail cache could not be written”**.
   Provide details and a link to the associated log when available. Record the
-  thumbnail attempt's failure category and diagnostic detail, and expose them through
-  the API; this support is planned. Do not infer corruption from a generic decoder
+  thumbnail attempt's failure category and diagnostic detail — the engine stores them
+  in `thumbnail_cache` — and expose them through the API. Do not infer corruption from a generic decoder
   failure or infer thumbnail failure from a missing pHash. If the cause is unknown,
   say **“Preview unavailable; reason not recorded.”** A cache miss awaiting generation
   is a pending preview, not a diagnosed failure. Clear the current unavailable state
@@ -622,7 +622,7 @@ If operations fail, an Error Banner highlights the failures, sourced directly fr
 
 Some failures have no photo at all. A folder the scan could not read is recorded as a `Failed` operation with `photo_id` NULL and the folder as `source_path` — the photos inside it were never examined, so there is no catalog row to attach to. Left-join `photos` (an inner join drops these), and present such a row as a folder the user needs to fix permissions on, not as a file.
 
-**`Skipped` is an outcome, not a failure.** A run records `Skipped` for a selected photo it deliberately left alone — a duplicate whose original carries its content, or a photo an earlier run already delivered — with a reason naming what holds that content (`Duplicate of photo #N ...`, or `Already copied to <path> by an earlier run`). **The already-copied reason reports what the catalog records, not a fresh check:** that run read and verified nothing, so the UI must not present it as confirmation the destination file is still present and intact. **Do not offer a re-index as the way to find out.** Index walks `--source` and never inspects `--dest`; and since `Copied` is a settled status, the unchanged-file skip means a plain re-Index does not even re-read the source. The row stays `Copied`, the next Copy reports `Skipped` again, and the destination file is still missing — reproduced exactly that way during the final audit. What `--force-rehash` does is re-read sources and reset those rows to `Pending`, so a later Copy delivers the file again: a repair, not a check. The genuine answer to "is the destination still intact?" is the destination inventory (`engine-spec.md` §9.1), which reads the destination; until that exists, the UI should not imply the question can be answered. Show these as informational, grouped apart from failures, and link the named original: a user who selected only the duplicate needs to know which photo to select instead. They exist so that every photo in a selection ends the job with a recorded outcome; a job whose selection held only duplicates used to finish green with nothing recorded at all.
+**`Skipped` is an outcome, not a failure.** A run records `Skipped` for a selected photo it deliberately left alone — a duplicate whose original carries its content, or a photo an earlier run already delivered — with a reason naming what holds that content (`Duplicate of photo #N ...`, or `Already copied to <path> by an earlier run`). **The already-copied reason reports what the catalog records, not a fresh check:** that run read and verified nothing, so the UI must not present it as confirmation the destination file is still present and intact. **Do not offer a re-index as the way to find out.** Index walks `--source` and never inspects `--dest`; and since `Copied` is a settled status, the unchanged-file skip means a plain re-Index does not even re-read the source. The row stays `Copied`, the next Copy reports `Skipped` again, and the destination file is still missing. What `--force-rehash` does is re-read sources and reset those rows to `Pending`, so a later Copy delivers the file again: a repair, not a check. The genuine answer to "is the destination still intact?" is the destination inventory (`engine-spec.md` §9.1), which reads the destination; until that exists, the UI should not imply the question can be answered. Show these as informational, grouped apart from failures, and link the named original: a user who selected only the duplicate needs to know which photo to select instead. They exist so that every photo in a selection ends the job with a recorded outcome; a job whose selection held only duplicates used to finish green with nothing recorded at all.
 
 For that case specifically, the recorded `error_message` reads `Duplicate verification failed: ...`, and the underlying cause is worth distinguishing in the UI: a `ChecksumMismatch` means the two files' contents differ, while an `OSError` means one of them could not be read and the comparison never happened. Neither should be presented as "the destination is a verified backup", and neither should suggest deleting anything by hand.
 
@@ -663,7 +663,7 @@ A searchable table logging every operation performed by the engine:
 
 **`runs.status` describes the run's lifecycle, not whether the work succeeded.** A run that reaches the end of its file loop is recorded `Completed` even if every single file in it failed. That is accurate for what the column means — the process ran to completion rather than crashing, being cancelled, or aborting on a pre-flight check — but it is the wrong thing to put in front of a user on its own.
 
-Observed in practice: a `--move` against a source mounted `:ro` fails every file (the copy succeeds, only the source deletion fails) and still reports:
+For example, a `--move` against a source mounted `:ro` fails every file (the copy succeeds, only the source deletion fails) and still reports:
 
 ```
 Run #2 finished with status: Completed
@@ -821,7 +821,7 @@ No `GROUP BY`, no "subtract one per group" arithmetic, and no risk of the off-by
 * **`Failed` rows are not duplicates.** A source that vanished outside NegativeSpace is marked `Failed` at the next full Index, which removes it from its duplicate group and lets a surviving copy be promoted to anchor. It therefore drops out of this figure automatically — correct, since deleting a file that no longer exists reclaims nothing.
 * **Sizes are as of the last scan.** `file_size` is recorded by the Index that wrote the row (§6.1), so the total is as current as the catalog. Show it alongside the last scan time, as §5.8 asks of folder counts, so a stale figure reads as stale rather than as wrong — and see the coverage rule below, because "the last scan" must mean the last scan that actually established coverage.
 
-**Coverage: show the last trustworthy date, and say what happened since.** *(Decided 2026-09-20, closing audit 011's F3.)* The date beside these figures is the most recent Index that completed **and recorded no run-level failure**. An Index that was refused or could not read part of the tree keeps its own date out of this figure — but it is not hidden either. The tile reads:
+**Coverage: show the last trustworthy date, and say what happened since.** The date beside these figures is the most recent Index that completed **and recorded no run-level failure**. An Index that was refused or could not read part of the tree keeps its own date out of this figure — but it is not hidden either. The tile reads:
 
 > *Last complete scan: 14 Feb, 10:30 — 2 later scans had issues.*
 
@@ -857,18 +857,16 @@ The Inspector's `duplicates` array (§6.2, `GET /api/v1/photos/{id}/inspect`) sh
 
 **There is no in-place upgrade path and none should be added.** Migration code runs rarely, on real user data, along a path that is almost never exercised. During development, a schema change may require a fresh catalog. This is a development convention, not a lossless user recovery workflow: Index cannot recreate settings or operation history.
 
-The engine now validates its `catalog_schema` version on startup. The API must use the shared schema check and report incompatible catalogs clearly; no automatic migration is implemented.
+The engine validates its `catalog_schema` version on startup. The API must use the shared schema check and report incompatible catalogs clearly; no automatic migration is implemented.
 
 **Only `photos` is derived. `runs` and `operations` are not, and rebuilding discards them.** Every value in `photos` is recomputable by re-running an Index over the same sources — verified by rebuilding a ~29,000-file catalog from scratch and getting identical per-status counts. Nothing recomputes the audit log: it records what the engine *did*, and re-scanning the filesystem cannot reconstruct it. The sharpest case is `Removed_Duplicate`, where after a `--move` that row is the only evidence the file ever existed — its source was deleted by design and its content survives only under the anchor's name.
 
-**The lineage requirement is settled; its schema remains open.** Use stable per-file
-identity with before/after hashes and original Index information, retaining distinct
-histories for identical copies and deleted files. Catalog, settings and history stay
-in one database. Implement the relationships required by the Error Center and photo
-history before building those views; see `engine-spec.md` §10. Current mutable rows
-and hash-only joins do not fulfill that contract.
+**Lineage is keyed on stable per-file identity** (`engine-spec.md` §10), with original
+Index information and distinct histories for identical copies and deleted files, all
+in the one catalog database. The Error Center and photo history read it through
+`operation_files` (§6.3); `photos` rows and hash-only joins do not carry that contract.
 
-The practical consequence for the UI: rebuilding loses recorded history and settings even when the library has only been Indexed or Copied. After Move, original source information may no longer be recoverable from files either. Do not describe a rebuild as lossless or use the presence of `Removed_Duplicate` rows as the only warning criterion. Offer a backup first — `sqlite3 <db> ".backup '<path>'"` is atomic under WAL where a file copy is not — and treat a JSON export of `runs` and `operations` as the format for reading history outside the app or carrying it across a schema change, not as a substitute for the database backup.
+The practical consequence for the UI: rebuilding loses recorded history and settings even when the library has only been Indexed or Copied. After Move, original source information may no longer be recoverable from files either. Do not describe a rebuild as lossless or use the presence of `Removed_Duplicate` rows as the only warning criterion. Offer a backup first (`--backup-now`, §9) — a plain file copy of a WAL database is not a consistent backup — and treat a JSON export of `runs` and `operations` as the format for reading history outside the app or carrying it across a schema change, not as a substitute for the database backup.
 
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
@@ -895,16 +893,15 @@ manages settings through the API, which writes settings using shared Python data
 and validation code. The browser never accesses SQLite directly. API settings writes
 do not authorize arbitrary photo-state or history updates. Initialization uses the
 engine-owned schema routines without requiring Index; the API defines no competing
-schema. This is agreed architecture, not implemented functionality.
+schema. The shared functions exist in `ns_db.py`; the API that calls them is not built.
 
 Use short transactions with bounded lock waits and report save failure truthfully.
 Settings can be saved during processing; each job retains its starting configuration.
 Do not hold the processing lock for the duration of a settings save or queue settings
-behind a whole job. Detailed transaction coordination remains implementation work.
+behind a whole job.
 
-**`thumbnail_path` does not exist yet.** The Gallery and Inspector need it
-(§4.2.1), and adding it is a schema change — a rebuilt catalog, not an `ALTER`
-on a live database.
+Thumbnails are not a column on `photos`: they belong to content and live in
+`thumbnail_cache` (§4.2.1).
 
 
 ### 6.2 Key REST API Endpoints
@@ -1065,7 +1062,7 @@ GET /api/v1/stats/duplicates
 
 Backs the Dashboard's duplicate-space tiles (§5.9). Three separate figures, each naming the volume it applies to: what Move could still reclaim from the source, what past Moves already reclaimed from it, and what was never written to the destination in either mode. They overlap by design — a moved duplicate appears in both `already_reclaimed` and `saved_at_destination` — so the API returns them separately and the UI must not total them. `last_indexed_at` is the most recent **full Index** covering the source roots the figures span — `mode = 'INDEX'` with no targeting filter — that both **completed** and **recorded no run-level failure**. Not simply the most recent completed run: a one-file targeted Copy is a completed run, and taking its timestamp would stamp the whole catalog as freshly scanned on the strength of a run that examined one photo.
 
-**Completing is not the same as covering, which is what audit 011's F3 caught.** An Index whose source was detached finds nothing, correctly refuses to condemn the catalog, records a run-level `Failed` operation — and still ends `Completed`, `mode = 'INDEX'`, untargeted. It satisfies every criterion above except the one that matters, having established no new coverage at all. An Index that could not read part of the tree has the same shape. **The safeguard works and then misreports its own freshness**, which is the defect.
+**Completing is not the same as covering.** An Index whose source was detached finds nothing, correctly refuses to condemn the catalog, records a run-level `Failed` operation — and still ends `Completed`, `mode = 'INDEX'`, untargeted. It satisfies every criterion above except the one that matters, having established no new coverage at all. An Index that could not read part of the tree has the same shape. **The safeguard works and then misreports its own freshness**, which is the defect.
 
 So a run advances the coverage date only if nothing under it recorded a failure belonging to the run rather than to a photo:
 
@@ -1088,7 +1085,7 @@ ORDER BY r.ended_at DESC LIMIT 1;
 * `coverage.scans_with_issues_since` — count of untargeted Index runs after it that recorded a run-level failure. Deliberately **Index runs only**: a failed Move says nothing about scan coverage, and the failure banner already covers that case. Conflating them would make a delivery problem read as a staleness problem.
 * `coverage.run_ids_since` — every run after that date, whatever its mode, since the user clicking through wants to see the whole gap rather than only its failures.
 
-**Accepted limitation: extension scope is not recorded.** An Index run with a narrowed `--exts` scans the full tree, succeeds completely at a smaller job, and records no failure — so it advances the coverage date while having examined only some file types. `runs` stores `mode`, `source_path`, `dest_path` and `file_ids_filter`, but not the effective extension set, so nothing downstream can detect this. F3 raised it; closing it needs an `exts` column on `runs`, which is deliberately deferred rather than overlooked. Until then the coverage date means "every supported type the run was configured to look at", not "every supported type".
+**Extension scope counts too.** An Index run with a narrowed `--exts` scans the full tree, succeeds completely at a smaller job, and records no failure, having examined only some file types. Its effective extension set is recorded in `run_configs` (`engine-spec.md` §6.5), so the API can see it: an Index whose effective extensions omit a supported type does not advance the coverage date, and is listed in `run_ids_since` like any other later run.
 
     Response:
     JSON
@@ -1122,9 +1119,8 @@ ORDER BY r.ended_at DESC LIMIT 1;
 ### 6.3 Reading a photo's history across identity changes
 
 **A history view keyed on `photos.id` alone will silently drop the older half of a
-photo's past.** This is not hypothetical: it was reproduced against a real catalog
-while validating the lineage design, and it is the single most likely way a correct
-catalog gets presented incorrectly.
+photo's past.** It is the single most likely way a correct catalog gets presented
+incorrectly.
 
 `photos` holds one row per source *path*. Identity lives in `files`, bound to the
 photo row through `photo_files`. When a source returns after a completed Move or a
@@ -1134,8 +1130,8 @@ everything: its immutable `source_snapshots` row, its observations, and every
 `operation_files` link it ever had. None of it is deleted. It is simply **no longer
 reachable from `photos.id`**.
 
-Observed on a real catalog: identity 1 retained its snapshot and three operations across
-three runs, while the photo row now bound to identity 971. A view joining
+For example, identity 1 keeps its snapshot and three operations across three runs while
+the photo row is bound to identity 971. A view joining
 `photos → photo_files → operations` shows only the new arrival and presents a photo with
 no history, which is false.
 
@@ -1156,9 +1152,9 @@ happen. Label each arrival with its original Index time.
 **Separate requested work from recovery.** An operation with a non-NULL
 `reconciles_operation_id` is a repair of earlier work, not something this run was asked
 to do; counting it as the run's own output credits a job with work it never requested.
-An operation may legitimately link a *new* arrival to an *older* delivery. Observed on a
-real catalog: a Move whose source was a fresh arrival found the previous delivery already
-sitting at the destination and recorded it as a `retained_copy`. That came from the
+An operation may legitimately link a *new* arrival to an *older* delivery. For example,
+a Move whose source is a fresh arrival can find the previous delivery already sitting at
+the destination and record it as a `retained_copy`. That comes from the
 ordinary transfer path, not from reconciliation — both produce such links, and neither is
 an inheritance. The new arrival did not deliver that file, and the UI must not imply it
 did. **Distinguish by role, not by which code path wrote it:** `destination` means this
