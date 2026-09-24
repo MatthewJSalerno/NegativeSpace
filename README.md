@@ -62,7 +62,7 @@ The Destination column describes `/data/dest` only. Every mode begins with a sca
 Scan, extract metadata, hash every file (SHA1 + pHash), generate grid thumbnails, and catalog everything into SQLite — including flagging exact duplicates — without moving, copying, or deleting anything. Mount `/data/source` as read-only (`:ro`) for safety; Index never needs write access to it.
 
 ```bash
-docker run --rm \
+docker run --rm --stop-timeout 300 \
   -e PUID=$(id -u) -e PGID=$(id -g) \
   -v /path/to/your/photos:/data/source:ro \
   -v /path/to/organized:/data/dest \
@@ -86,7 +86,7 @@ A thumbnail is disposable cache and never decides whether a file is catalogued: 
 Performs pre-flight disk space validation, copies files, verifies SHA1 checksums, and only then deletes originals from the source folder. Confirmed exact duplicates are also removed from source once a verified copy of their content exists at the destination. **Drop `:ro`** — this mode deletes from source, so the container needs write access to it.
 
 ```bash
-docker run --rm \
+docker run --rm --stop-timeout 300 \
   -e PUID=$(id -u) -e PGID=$(id -g) \
   -v /path/to/your/photos:/data/source \
   -v /path/to/organized:/data/dest \
@@ -100,7 +100,7 @@ docker run --rm \
 Same verified Copy-Verify step as Move, but the source file is never deleted or modified — nothing is ever removed from source, including duplicates. Because of this, `/data/source` can safely **stay `:ro`** even in this mode, unlike `--move`.
 
 ```bash
-docker run --rm \
+docker run --rm --stop-timeout 300 \
   -e PUID=$(id -u) -e PGID=$(id -g) \
   -v /path/to/your/photos:/data/source:ro \
   -v /path/to/organized:/data/dest \
@@ -160,6 +160,7 @@ docker run --rm \
   Your photos are not at risk if you do it — a source is only ever deleted after the engine doing the deleting has verified, live, the copy it made itself. What you get instead is unexplained failures: crash recovery in one catalog can delete a partial file the other is still writing, both can pick the same free filename and one loses the race, and neither knows about the other's files, so the same photo can be delivered twice under different names. Each of those ends as a recorded failure or a redundant copy, never a lost original.
 
   Use one `/appdata` per destination. Several *sources* feeding one destination is fine — that's one catalog with several runs, which is exactly what it's built for.
+- **Cancelling a run.** `docker stop <container>` sends the engine a cancel: it finishes the file it is copying, records every photo it did not reach as `Cancelled`, takes a catalog backup, and settles the run `Cancelled`. Docker waits only **10 seconds** before killing the container by default, and one large file over a network share can take longer than that. The examples above pass `--stop-timeout 300`, which raises that wait for this container, and `docker-compose.yml` sets `stop_grace_period: 5m`. A run killed before it settles is not lost: it is recorded `Interrupted` at the next start and its files are reconciled, but it gets no backup until you run `--backup-now` or the next job that records changes.
 - **If a run appears stuck.** Cancellation is checked between files, and between batches during a scan, so a worker blocked indefinitely — an unresponsive network mount, a native decoder wedged on a malformed file — can stall a scan with no deadline. The symptom is progress lines stopping while the container stays alive.
 
   `docker stop` is the remedy, and it is safe: it escalates to `SIGKILL`, the kernel releases the lock immediately, and the next run marks the interrupted run `Interrupted` and settles any file left mid-operation. Nothing needs cleaning up by hand.

@@ -2479,6 +2479,43 @@ def _move_in_process(engine, case):
 
 
 @test
+def cancelling_a_large_selection_commits_its_bookkeeping_once():
+    """
+    A cancel records every photo it did not reach as Cancelled. The move loop's
+    connection commits at FULL, so one commit per row was one fsync per row:
+    ~17 s for 24,000 photos on real disk, which outlasted docker stop's 10 s
+    grace and got a real run killed mid-cancel. The rows must go in one commit.
+    """
+    engine = _load_engine()
+    case = new_case("cancel_bookkeeping")
+    for i in range(40):
+        make_photo(case / "src" / f"p{i:02d}.jpg", f"cancel-{i}", date=None)
+    run_engine(case)
+    commits = []
+    real_get = engine.get_db_connection
+
+    def counting(path, *a, **kw):
+        conn = real_get(path, *a, **kw)
+        conn.set_trace_callback(lambda sql: commits.append(sql) if sql.strip().upper().startswith("COMMIT") else None)
+        return conn
+
+    engine.get_db_connection = counting
+    engine.cancel_requested.set()   # before the first file: all 40 are unreached
+    try:
+        outcome = _move_in_process(engine, case)
+    finally:
+        engine.get_db_connection = real_get
+        engine.cancel_requested.clear()
+    check(outcome == "Cancelled", f"the move did not report Cancelled, got {outcome}")
+    cancelled = rows(case, "SELECT COUNT(*) c FROM operations WHERE status = 'Cancelled'")[0]["c"]
+    check(cancelled == 40, f"expected 40 photos recorded Cancelled, got {cancelled}")
+    check(len(commits) < 5, f"cancelling 40 photos took {len(commits)} commits; it must not scale with them")
+    check(len(src_files(case)) == 40, "a move cancelled before its first file removed sources")
+    check(not (case / "dest").exists() or not any((case / "dest").rglob("*.jpg")),
+          "a move cancelled before its first file delivered files")
+
+
+@test
 def the_already_present_deletion_establishes_the_ancestor_barrier():
     """
     A source deleted against a copy an EARLIER run delivered must still have
