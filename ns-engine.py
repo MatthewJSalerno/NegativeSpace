@@ -3178,6 +3178,17 @@ def main():
         if settled:
             logger.warning(f"{settled} catalog backup attempt(s) were interrupted before finishing; "
                            f"recorded as interrupted. Nothing retries them automatically.")
+        # After reconciliation, before this run's work: what an interrupted run or a
+        # failed backup left outside every backup. Reported, never backed up here.
+        unbacked, since, runs = ns_db.unbacked_changes(conn, exclude_run_id=run_id)
+        if unbacked:
+            last = (f"the last successful backup was taken {since}" if since
+                    else "there is no successful backup yet")
+            logger.warning(
+                f"{unbacked:,} catalog change(s) from run(s) "
+                f"{', '.join('#' + str(r) for r in runs)} are not in any backup ({last}). "
+                f"Run --backup-now to back them up now. Nothing is backed up automatically "
+                f"at startup; this run takes a backup when it finishes if it records changes.")
         ns_db.transition_run(conn, run_id, RunStatus.RUNNING)
     run_outcome = RunStatus.FAILED
 

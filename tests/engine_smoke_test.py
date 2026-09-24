@@ -688,8 +688,11 @@ def sigkill_during_move_is_reconciled_and_loses_nothing():
             missing.append(r["source_path"])
     check(not missing, f"photos vanished from both source and destination after SIGKILL: {missing[:5]}")
 
-    # The next invocation must reconcile the interrupted state.
-    run_engine(case)
+    # The next invocation must reconcile the interrupted state, and say that the
+    # killed run's changes were never backed up (webui-spec 9).
+    recovery = run_engine(case)
+    check("are not in any backup" in engine_output(recovery),
+          "the run after a hard kill did not report the killed run's unbacked changes")
     stuck = rows(case, "SELECT COUNT(*) c FROM photos WHERE status = 'Processing'")[0]["c"]
     check(stuck == 0, "reconciliation left rows stuck in Processing")
     killed = rows(case, "SELECT ended_at, reconciled_by_run_id FROM runs WHERE status = 'Interrupted'")
@@ -3588,6 +3591,30 @@ def retention_prunes_only_automatic_backups_and_only_after_a_success():
           f"retention kept the wrong backups: {states}")
     present = sorted(g["relative_filename"] for g in got if g["availability"] == "present")
     check(backup_files(case) == present, f"files on disk {backup_files(case)} != recorded {present}")
+
+
+@test
+def changes_left_out_of_every_backup_are_reported_until_backed_up():
+    """
+    webui-spec 9: when a post-job backup fails or never happens, say so at the
+    next start - how much is unbacked and when the last good backup was - and
+    point at --backup-now. Never back up automatically at startup. Once a
+    backup succeeds, the warning is gone.
+    """
+    case = new_case("unbacked_warning")
+    make_photo(case / "src" / "a.jpg", "a")
+    (case / "backups").rmdir()
+    run_engine(case)                       # indexes, but its backup fails
+    (case / "backups").mkdir()
+
+    out = engine_output(run_engine(case))  # records nothing itself
+    check("are not in any backup" in out and "no successful backup yet" in out and "run(s) #1" in out,
+          f"the unbacked changes of run 1 were not reported:\n{out[-1500:]}")
+    check(len(backups_of(case)) == 1, "startup took a backup; it must only report")
+
+    run_engine(case, "--backup-now")
+    out = engine_output(run_engine(case))
+    check("are not in any backup" not in out, "the warning survived a successful backup")
 
 
 @test
