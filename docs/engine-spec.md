@@ -189,6 +189,7 @@ catalogue, not the tree, so relocating them is a separate action.
 
 ### 4.3. Reporting & Feedback
 *   **Logging:** Structured logs to both console and `<base>/logs/organizer.log`, covering every stage (scan discovery, hashing, metadata resolution, space checks, copy/verify/delete, duplicate cleanup, cancellation). At startup, once the engine holds the single-instance lock, a log over 50 MB is rotated to `organizer.log.1`, keeping five older logs. It is never rotated mid-run, because every worker process writes to the same file, so one run's log is never split.
+*   **Discovery accounting:** a full Index (no `--file-ids`, no `--source-subdir`) records what its walk found in `run_discovery`: files found, eligible by the run's extension selection, and excluded by file type, with a per-extension breakdown in which `""` means no extension. Hidden entries are skipped before counting, as the walk always skipped them, and a symlink is not counted as a file. Any folder or entry the walk could not read sets `unreadable`, and the counts are then **partial**. The log states the same summary, for example *"Discovered 7 file(s): 3 eligible by file type, 4 excluded by file type (.xmp 2, .mov 1, no extension 1)."* Scoped runs walk nothing and record nothing rather than a guess. `ns_db.read_discovery(conn, run_id)` returns the summary for the API (`webui-spec.md` §5.1). Counting excluded files reads the file type `readdir` already returned, so it adds no round trip on a network share.
 *   **Progress Reporting:** during a scan the engine reports, on a fixed interval, the *instantaneous* rate over the most recent window — both files/sec and MB/s — with an ETA derived from that recent rate rather than a cumulative average. The distinction is operational, not cosmetic: a cumulative average decays continuously while a run is healthy, which makes a saturated link look like a failing one. Reporting bytes alongside files is what separates the two cases — a RAW-heavy stretch runs at a few files/sec and a JPEG stretch at tens of files/sec while both saturate the same network link, and only the MB/s figure shows that.
 
 *   **Run Summary:** every Index ends with one line giving the total recorded and a per-status breakdown, plus warnings for files that produced no perceptual hash (they index and move normally but cannot participate in similarity matching (§9.3)) and for files dated from mtime rather than EXIF (the only files a timezone change can move between folders). A scan where hundreds of files failed previously looked identical to a clean one.
@@ -298,7 +299,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 5 and refuses incompatible catalogs before processing.
+initializes schema version 6 and refuses incompatible catalogs before processing.
 No migration is supplied during this development increment: preserve older catalogs
 and use a fresh development catalog. Index cannot reconstruct settings, past edits,
 or deleted-file lineage. Never describe deleting a user catalog as routine repair.
@@ -601,6 +602,17 @@ CREATE TABLE thumbnail_cache (
     PRIMARY KEY(content_id, size)
 );
 CREATE INDEX idx_thumbnail_size ON thumbnail_cache(size, availability);
+
+-- Schema version 6. What a full Index walk found, by file type (webui-spec 5.1).
+-- Measured counts only: a scoped run walks nothing and has no row. Excluded files
+-- are untouched and are not failures; any unreadable folder or entry makes the
+-- counts partial.
+CREATE TABLE run_discovery (
+    run_id INTEGER PRIMARY KEY REFERENCES runs(id),
+    files_found INTEGER NOT NULL, eligible INTEGER NOT NULL, excluded INTEGER NOT NULL,
+    excluded_by_extension_json TEXT NOT NULL, unreadable INTEGER NOT NULL,
+    CHECK(files_found = eligible + excluded)
+);
 
 -- An attempt is history; an artifact's availability is current observed state.
 -- outcome is NULL only while an attempt runs; one found NULL under the engine

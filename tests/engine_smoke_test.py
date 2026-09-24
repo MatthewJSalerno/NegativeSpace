@@ -3163,6 +3163,65 @@ def an_unwritable_cache_does_not_fail_the_index():
 
 
 @test
+def index_records_what_the_walk_found_by_file_type():
+    """
+    webui-spec 5.1: a full Index reports files found, eligible by file type and
+    excluded by file type, with a per-extension breakdown (including files with
+    no extension). Only measured counts: a scoped run walks nothing and records
+    nothing, hidden entries are skipped before counting as they always were, a
+    symlink is not a regular file, and a folder the walk cannot read makes the
+    counts partial.
+    """
+    import ns_db
+    case = new_case("discovery_counts")
+    src = case / "src"
+    make_photo(src / "a.jpg", "a")
+    make_photo(src / "sub" / "b.jpg", "b")
+    make_photo(src / "c.png", "c", date=None)
+    for name in ("clip.mov", "sub/side.xmp", "sub/other.XMP", "README"):
+        (src / name).write_bytes(b"not a photo")
+    (src / ".hidden.mov").write_bytes(b"x")
+    (src / ".Trashes").mkdir()
+    (src / ".Trashes" / "gone.mov").write_bytes(b"x")
+    os.symlink(src / "clip.mov", src / "link.mov")
+
+    def discovery(run):
+        conn = ns_db.connect(case / "appdata" / "db" / "ns_sqlite.db")
+        try:
+            return ns_db.read_discovery(conn, run)
+        finally:
+            conn.close()
+
+    out = engine_output(run_engine(case))
+    d = discovery(1)
+    check(d == {"files_found": 7, "eligible": 3, "excluded": 4,
+                "excluded_by_extension": {"": 1, ".mov": 1, ".xmp": 2}, "unreadable": 0, "partial": False},
+          f"wrong discovery accounting for a full Index: {d}")
+    check("Discovered 7 file(s): 3 eligible by file type, 4 excluded by file type" in out,
+          "the log did not state the discovery summary")
+
+    run_engine(case, "--exts", "jpg")
+    d = discovery(2)
+    check((d["eligible"], d["excluded_by_extension"].get(".png")) == (2, 1),
+          f"--exts jpg should make the .png excluded: {d}")
+
+    run_engine(case, "--file-ids", "1")
+    check(discovery(3) is None, "a scoped run recorded discovery counts it never measured")
+
+    locked = src / "locked"
+    locked.mkdir()
+    make_photo(locked / "hidden_by_permissions.jpg", "locked")
+    locked.chmod(0)
+    try:
+        out = engine_output(run_engine(case))
+    finally:
+        locked.chmod(0o755)
+    d = discovery(4)
+    check(d["partial"] and d["unreadable"] >= 1, f"an unreadable folder did not make the counts partial: {d}")
+    check("Counts are PARTIAL" in out, "the log did not say the counts are partial")
+
+
+@test
 def raw_files_produce_thumbnails_through_rawpy():
     """
     The RAW path cannot be covered synthetically — LibRaw rejects fabricated

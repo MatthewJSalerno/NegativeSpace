@@ -2614,7 +2614,8 @@ def describe_root_overlap(source: Path, dest: Path) -> Optional[str]:
     return None
 
 
-def discover_source_files(root: Path, extensions: set, errors: Optional[list] = None) -> List[str]:
+def discover_source_files(root: Path, extensions: set, errors: Optional[list] = None,
+                          excluded: Optional[dict] = None) -> List[str]:
     """
     Walks `root` and returns the files worth scanning.
 
@@ -2631,6 +2632,12 @@ def discover_source_files(root: Path, extensions: set, errors: Optional[list] = 
     The extension test is also checked BEFORE the filesystem questions, so a
     directory full of video or sidecar files costs string comparisons instead
     of syscalls.
+
+    `excluded`, when given, counts regular files left out by extension, keyed by
+    lower-case extension ("" for none), for the discovery summary (webui-spec
+    5.1). Hidden entries are skipped before any counting, as they always were.
+    DirEntry.is_file reads the type readdir already returned, so counting them
+    adds no round trip on a network share.
     """
     found: List[str] = []
     stack = [str(root)]
@@ -2649,7 +2656,10 @@ def discover_source_files(root: Path, extensions: set, errors: Optional[list] = 
                         if entry.is_dir(follow_symlinks=False):
                             stack.append(entry.path)
                             continue
-                        if os.path.splitext(entry.name)[1].lower() not in extensions:
+                        ext = os.path.splitext(entry.name)[1].lower()
+                        if ext not in extensions:
+                            if excluded is not None and entry.is_file(follow_symlinks=False):
+                                excluded[ext] = excluded.get(ext, 0) + 1
                             continue
                         if entry.is_file(follow_symlinks=False):
                             found.append(entry.path)
@@ -3241,10 +3251,23 @@ def main():
             logger.info(f"Targeting {len(candidates)} already-indexed file(s) under source subdirectory.")
         else:
             discovery_errors: List[tuple] = []
-            candidates = discover_source_files(source_path, active_extensions, errors=discovery_errors)
+            excluded_by_ext: dict = {}
+            candidates = discover_source_files(source_path, active_extensions, errors=discovery_errors,
+                                               excluded=excluded_by_ext)
+            with contextlib.closing(get_db_connection(str(db_path))) as conn:
+                ns_db.record_discovery(conn, run_id, eligible=len(candidates),
+                                       excluded_by_extension=excluded_by_ext,
+                                       unreadable=len(discovery_errors))
+            excluded_total = sum(excluded_by_ext.values())
+            top = sorted(excluded_by_ext.items(), key=lambda kv: -kv[1])[:8]
+            breakdown = ", ".join(f"{ext or 'no extension'} {n:,}" for ext, n in top)
+            more = f", {len(excluded_by_ext) - len(top)} more type(s)" if len(excluded_by_ext) > len(top) else ""
             logger.info(
-                f"Discovered {len(candidates):,} supported photo/image files "
-                f"(extensions: {', '.join(sorted(active_extensions))})."
+                f"Discovered {len(candidates) + excluded_total:,} file(s): {len(candidates):,} eligible "
+                f"by file type, {excluded_total:,} excluded by file type"
+                + (f" ({breakdown}{more})" if excluded_total else "")
+                + (". Counts are PARTIAL: some folders could not be read." if discovery_errors else ".")
+                + f" Eligible extensions: {', '.join(sorted(active_extensions))}."
             )
             if discovery_errors:
                 record_run_failures(str(db_path), run_id, discovery_errors)

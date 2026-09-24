@@ -588,7 +588,7 @@ automatically resume blocked work when storage returns. If access fails during a
 action, preserve and report its recorded per-file outcomes rather than claiming
 that no changes occurred.
 
-**Index file-type accounting:** when collected, show a summary such as **“15,000
+**Index file-type accounting:** show a summary such as **“15,000
 files found · 12,000 eligible by file type · 3,000 excluded by file type”**, with an
 expandable excluded-count breakdown by extension (including files without an
 extension). Eligibility uses the job's configured extension selection; it does not
@@ -596,9 +596,10 @@ guarantee a file can be decoded or its metadata read. Excluded files are untouch
 and are not failures. Keep eligible-file processing outcomes separate from this
 discovery summary; do not add excluded files to the failed-photo count or the
 eligible-work progress denominator. Show only measured counts, scoped to the scan;
-an interrupted or incomplete scan must label discovery counts as partial. Extension
-accounting requires engine/API support and must not be inferred from catalog rows
-that omit excluded files.
+an interrupted or incomplete scan must label discovery counts as partial. The engine
+records these per full Index (`engine-spec.md` §4.3, `ns_db.read_discovery`), and a
+scoped run records none, so never infer them from catalog rows, which omit excluded
+files.
 
 ### 5.2 Job Persistence & Background Execution
 
@@ -871,7 +872,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 5 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 6 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a

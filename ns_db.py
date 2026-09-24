@@ -16,7 +16,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 class PhotoStatus:
     """State of one source file in the catalog. One row per source_path."""
@@ -344,6 +344,15 @@ FOUNDATION_DDL = (
         PRIMARY KEY(content_id, size))""",
     "CREATE INDEX idx_thumbnail_size ON thumbnail_cache(size, availability)",
     # An attempt is history; an artifact's availability is current observed state.
+    # What a full Index walk found, by file type (webui-spec 5.1). Measured counts
+    # only: a scoped run walks nothing and has no row. Excluded files are untouched
+    # and are not failures. `unreadable` counts folders and entries the walk could
+    # not examine; any at all makes the counts partial.
+    """CREATE TABLE run_discovery (
+        run_id INTEGER PRIMARY KEY REFERENCES runs(id),
+        files_found INTEGER NOT NULL, eligible INTEGER NOT NULL, excluded INTEGER NOT NULL,
+        excluded_by_extension_json TEXT NOT NULL, unreadable INTEGER NOT NULL,
+        CHECK(files_found = eligible + excluded))""",
     # outcome is NULL only while an attempt runs; one found NULL under the
     # engine lock was interrupted.
     """CREATE TABLE backup_attempts (
@@ -403,7 +412,7 @@ def require_schema(conn):
                     'file_observations','operation_files','settings','run_configs','job_requests',
                     'file_origins','file_states','contents','operation_events','operation_evidence',
                     'attention_issues','attention_evidence','file_changes','content_similarity',
-                    'thumbnail_cache','backup_attempts','backup_artifacts'}
+                    'thumbnail_cache','backup_attempts','backup_artifacts','run_discovery'}
         present = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if not required <= present:
             raise SchemaError("Incomplete catalog schema")
@@ -692,6 +701,31 @@ def record_thumbnail(conn, *, content_id, size, availability, cache_filename=Non
         "failure_detail=excluded.failure_detail,updated_at=excluded.updated_at",
         (content_id, size, cache_filename, bytes_on_disk, availability, attempted_file_id,
          observed_path, failure_category, failure_detail, utc_now()))
+
+
+NO_EXTENSION = ""
+
+
+def record_discovery(conn, run_id, *, eligible, excluded_by_extension, unreadable):
+    """Stores one full walk's file-type accounting. `excluded_by_extension` maps a
+    lower-case extension (NO_EXTENSION for none) to a count."""
+    excluded = sum(excluded_by_extension.values())
+    with transaction(conn):
+        conn.execute("INSERT INTO run_discovery VALUES (?,?,?,?,?,?)",
+                     (run_id, eligible + excluded, eligible, excluded,
+                      _json(dict(sorted(excluded_by_extension.items()))), unreadable))
+
+
+def read_discovery(conn, run_id):
+    """A run's discovery summary, or None when the run walked nothing (scoped runs)."""
+    row = conn.execute("SELECT files_found, eligible, excluded, excluded_by_extension_json, "
+                       "unreadable FROM run_discovery WHERE run_id = ?", (run_id,)).fetchone()
+    if row is None:
+        return None
+    found, eligible, excluded, by_ext, unreadable = row
+    return {'files_found': found, 'eligible': eligible, 'excluded': excluded,
+            'excluded_by_extension': json.loads(by_ext), 'unreadable': unreadable,
+            'partial': unreadable > 0}
 
 
 def thumbnail_cache_totals(conn):
