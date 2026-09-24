@@ -184,42 +184,8 @@ PROGRESS_INTERVAL_SECONDS = 15.0
 SHA1_CHUNK_SIZE = 65536
 MAX_RETRIES = 3
 INITIAL_RETRY_DELAY = 1.0  # Seconds
-# Extensions scanned by default. A missing entry is worse than a failure: the
-# file is not indexed, not counted, not reported — it is simply invisible, and
-# you find out when it is still sitting in the source folder after an organize
-# pass. So every spelling of a format is listed ('.tif' and '.tiff'; '.jpg',
-# '.jpeg', '.jpe' and '.jfif').
-# Formats that need rawpy/LibRaw to decode. PIL cannot open these at all, so
-# compute_phash() routes them to the RAW branch; a format that reached PIL
-# instead would always fail its perceptual hash.
-RAW_EXTENSIONS = {
-    '.raw', '.dng',           # generic / Adobe
-    '.cr2', '.cr3', '.crw',   # Canon
-    '.nef', '.nrw',           # Nikon
-    '.arw', '.srf', '.sr2',   # Sony
-    '.raf',                   # Fujifilm
-    '.orf',                   # Olympus
-    '.rw2',                   # Panasonic
-    '.pef', '.ptx',           # Pentax
-    '.srw',                   # Samsung
-    '.erf',                   # Epson
-    '.3fr', '.fff',           # Hasselblad
-    '.iiq',                   # Phase One
-    '.mos',                   # Leaf
-    '.mrw',                   # Minolta
-    '.x3f',                   # Sigma
-}
-
-# Everything PIL can open directly.
-RASTER_EXTENSIONS = {
-    '.jpg', '.jpeg', '.jpe', '.jfif', '.png', '.gif', '.bmp', '.webp',
-    '.tif', '.tiff', '.heic', '.heif', '.avif',
-}
-
-# Derived, never hand-maintained: a RAW format in SUPPORTED_EXTENSIONS but not
-# RAW_EXTENSIONS would be discovered by the scan, handed to PIL, and silently
-# store "error" as the perceptual hash of every file of that type.
-SUPPORTED_EXTENSIONS = RASTER_EXTENSIONS | RAW_EXTENSIONS
+# The formats the engine reads live in ns_db (RAW_EXTENSIONS, RASTER_EXTENSIONS,
+# SUPPORTED_EXTENSIONS), shared with the API's settings validation.
 # The storage engine is named in the file so a second store can sit beside it
 # without ambiguity — a DuckDB companion may sit beside it for all-pairs
 # perceptual-hash matching, which SQLite is the wrong shape for.
@@ -298,7 +264,8 @@ UNDATED_FOLDER = "Undated"
 # module.
 
 from ns_db import (PhotoStatus, RunStatus, PHOTO_STATUSES, RUN_STATUSES,
-                   OPERATION_STATUSES, OPERATION_CANCELLED, OPERATION_SKIPPED)
+                   OPERATION_STATUSES, OPERATION_CANCELLED, OPERATION_SKIPPED,
+                   RAW_EXTENSIONS, RASTER_EXTENSIONS, SUPPORTED_EXTENSIONS)
 import ns_db
 
 # Statuses that mean "already delivered to the destination and verified".
@@ -3193,6 +3160,14 @@ def main():
             "SELECT effective_config_json FROM run_configs WHERE run_id=?", (run_id,)
         ).fetchone()[0])
     worker_count, active_extensions = config["workers"], set(config["exts"])
+    unreadable_exts = sorted(e for e in active_extensions if not ns_db.extension_support(e)["supported"])
+    if unreadable_exts:
+        # Informative, never blocking: selecting an extension is the user's call.
+        logger.warning(
+            f"Selected extension(s) NegativeSpace cannot read as photos: {', '.join(unreadable_exts)}. "
+            f"Those files are still catalogued, and Copy and Move carry them into the "
+            f"destination, usually under Undated/<year> by modification time, with no "
+            f"thumbnail and no similarity matching.")
     cancel_watcher = threading.Thread(target=watch_for_cancellation,
                                       args=(str(db_path), run_id), daemon=True)
     cancel_watcher.start()
