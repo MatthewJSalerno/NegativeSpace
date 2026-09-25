@@ -100,7 +100,7 @@ with sync_playwright() as p:
     expect(inspector.locator(".inspector-image img:not([style*='none'])")).to_be_visible(timeout=15_000)
     expect(inspector).to_contain_text("Photo EXIF information")
     expect(inspector).to_contain_text("Not in the photo's EXIF")
-    expect(inspector).to_contain_text("File created")
+    expect(inspector).not_to_contain_text("File created")
     expect(inspector).to_contain_text("File modified")
     widths = inspector.locator("table.info").evaluate_all("ts => ts.map(t => Math.round(t.getBoundingClientRect().width))")
     assert len(widths) == 3 and len(set(widths)) == 1, f"the information tables differ in width: {widths}"

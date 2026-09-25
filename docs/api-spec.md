@@ -28,8 +28,8 @@ FastAPI also serves a generated schema at `/api/openapi.json` and an explorer at
 *   **Times.** Application events (`started_at`, `ended_at`, `updated_at`) are UTC
     instants with an offset. Photo dates (`date_taken`, EXIF values) are the wall-clock
     time the camera recorded; they carry an offset only when EXIF recorded one, and are
-    never presented as UTC (`webui-spec.md` §10). File times (`file_created`,
-    `file_modified`) are epoch seconds.
+    never presented as UTC (`webui-spec.md` §10). `file_modified` is epoch
+    seconds.
 
 ## 2. Catalog
 
@@ -129,7 +129,6 @@ The Inspector's details. `404 unknown_photo` for an id the catalog does not hold
     {"id", "status", "filename", "source_path", "dest_path",
      "dest_path_is_projection": true,     // not delivered: where it would go
      "has_collision_rename", "file_size", "width", "height",
-     "file_created": null,                // epoch seconds; many storages record none
      "file_modified": 1686000000.0,       // as the first scan observed it
      "date_taken", "date_source", "date_offset",
      "exif_dates": [{"field": "taken" | "digitized" | "modified",
