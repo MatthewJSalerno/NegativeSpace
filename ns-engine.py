@@ -4691,6 +4691,10 @@ def _duplicate_skip_reason(cursor, sha1_hash: str, copying: bool) -> tuple:
     (reason, pointer) for a duplicate this run deliberately leaves alone. The
     reason names the original that carries its content; the pointer is where
     that content already sits, when it has been delivered.
+
+    The web UI groups Skipped outcomes by how these reasons begin
+    (webui/catalog.py _SKIP_REASONS): keep the openings stable, or update the
+    grouping with them.
     """
     cursor.execute(
         f"SELECT id, source_path, dest_path, status FROM photos WHERE sha1_hash = ? "

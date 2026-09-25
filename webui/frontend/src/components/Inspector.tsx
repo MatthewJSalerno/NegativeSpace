@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { api, ApiError, type PhotoDetail } from "../api";
-import { bytes, epoch, isFallbackDate, photoDate } from "../format";
+import { bytes, epoch, isFallbackDate } from "../format";
 import { Thumb } from "./Thumb";
 
 const STATUS: Record<string, string> = {
@@ -9,10 +10,13 @@ const STATUS: Record<string, string> = {
   Removed_Duplicate: "Duplicate (source removed)", Found_At_Destination: "Found at the destination",
 };
 
+const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modified: "Date modified" };
+
 // The split-screen Inspector (webui-spec 4.2): the grid thumbnail at once, the
 // 1024px preview as soon as the engine has made it, and what the catalog records.
 // When the panel is dragged wide, the details move to the right of the photo
-// (a container query in styles.css), so a large preview does not push them away.
+// (a container query in styles.css). Clicking the photo enlarges it over a blurred
+// page, with its details below; Esc or the close button returns.
 export function Inspector({ id, width, onClose, onStep }: {
   id: number;
   width: number | null;
@@ -23,6 +27,7 @@ export function Inspector({ id, width, onClose, onStep }: {
   const [error, setError] = useState<string | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
+  const [enlarged, setEnlarged] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -42,13 +47,30 @@ export function Inspector({ id, width, onClose, onStep }: {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest("input, textarea, select")) return;
-      if (e.key === "Escape") onClose();
+      // Esc closes the enlarged view first, then the Inspector.
+      if (e.key === "Escape") (enlarged ? setEnlarged(false) : onClose());
       if (e.key === "ArrowRight") onStep(1);
       if (e.key === "ArrowLeft") onStep(-1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, onStep]);
+  }, [onClose, onStep, enlarged]);
+
+  const photo = (
+    <>
+      {!previewReady && <Thumb id={id} alt={detail?.filename ?? ""} />}
+      {!previewFailed && (
+        <img
+          key={id}
+          src={api.thumbnailUrl(id, "preview")}
+          alt={detail?.filename ?? ""}
+          style={{ display: previewReady ? undefined : "none" }}
+          onLoad={() => setPreviewReady(true)}
+          onError={() => setPreviewFailed(true)}
+        />
+      )}
+    </>
+  );
 
   return (
     <section className="inspector" aria-label="Photo details" style={width ? { flexBasis: `${width}px` } : undefined}>
@@ -59,29 +81,33 @@ export function Inspector({ id, width, onClose, onStep }: {
         <button onClick={onClose} aria-label="Close">✕</button>
       </header>
       <div className="inspector-main">
-      <div className="inspector-image">
-        {!previewReady && <Thumb id={id} alt={detail?.filename ?? ""} />}
-        {!previewFailed && (
-          <img
-            key={id}
-            src={api.thumbnailUrl(id, "preview")}
-            alt={detail?.filename ?? ""}
-            style={{ display: previewReady ? undefined : "none" }}
-            onLoad={() => setPreviewReady(true)}
-            onError={() => setPreviewFailed(true)}
-          />
-        )}
+        <button className="inspector-image" onClick={() => setEnlarged(true)} aria-label="Enlarge the photo"
+                title="Click to enlarge">
+          {photo}
+        </button>
+        <div className="inspector-side">
+          {error && <p className="error">{error}</p>}
+          {detail && <Details detail={detail} />}
+        </div>
       </div>
-      <div className="inspector-side">
-        {error && <p className="error">{error}</p>}
-        {detail && <Details detail={detail} />}
-      </div>
-      </div>
+      {/* Rendered at the page's top level: inside the Inspector, a size container,
+          position: fixed would be relative to the panel and stay under the toolbar. */}
+      {enlarged && createPortal(
+        <div className="lightbox" role="dialog" aria-modal="true" aria-label={`Enlarged: ${detail?.filename ?? ""}`}
+             onMouseDown={(e) => e.target === e.currentTarget && setEnlarged(false)}>
+          <button className="lightbox-close" onClick={() => setEnlarged(false)} aria-label="Close the enlarged photo">✕</button>
+          <div className="lightbox-body">
+            <div className="lightbox-image">{photo}</div>
+            {detail && <Details detail={detail} />}
+          </div>
+        </div>,
+        document.body,
+      )}
     </section>
   );
 }
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
+function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <tr>
       <th scope="row">{label}</th>
@@ -91,10 +117,11 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 // One bordered table per section; every table has the same width and label column.
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, note, children }: { title: string; note?: ReactNode; children: ReactNode }) {
   return (
     <section className="info-section">
       <h3>{title}</h3>
+      {note && <p className="section-note">{note}</p>}
       <table className="info">
         <tbody>{children}</tbody>
       </table>
@@ -102,20 +129,36 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+function exifTime(value: string) {
+  // EXIF writes "2021:05:01 10:00:00"; show the date with dashes, the time as recorded.
+  const [date, time = ""] = value.split(" ");
+  return `${date.replace(/:/g, "-")} ${time}`.trim();
+}
+
 function Details({ detail: d }: { detail: PhotoDetail }) {
   const fallback = isFallbackDate(d.date_source);
   const exposure = [d.iso != null ? `ISO ${d.iso}` : null, d.aperture != null ? `f/${d.aperture}` : null,
                     d.shutter != null ? `${d.shutter}s` : null].filter(Boolean).join(" · ");
+  // Time zones: EXIF records one per date only when the camera wrote an offset tag.
+  // If none did, one note covers them all; if only some did, the others get an asterisk.
+  const dates = d.exif_dates ?? [];
+  const withZone = dates.filter((x) => x.offset).length;
+  const mixed = withZone > 0 && withZone < dates.length;
+  const zoneNote = dates.length === 0 ? null
+    : withZone === 0 ? "Times are as the camera recorded them; it recorded no time zone."
+    : mixed ? "* No time zone recorded for this time; it is shown as the camera recorded it."
+    : null;
+  const taken = dates.find((x) => x.field === "taken");
   return (
     <div className="inspector-body">
       <Section title="File">
         <Row label="Status">{STATUS[d.status] ?? d.status}</Row>
-        <Row label={d.dest_path_is_projection ? "Will go to" : "At destination"}>
+        <Row label={d.dest_path_is_projection ? "Proposed destination path" : "Destination path"}>
           <code>{d.dest_path ?? "—"}</code>
-          {d.dest_path_is_projection && <div className="muted">Planned location; not written yet.</div>}
+          {d.dest_path_is_projection && <div className="muted">Not written yet.</div>}
           {d.has_collision_rename && <div className="muted">Renamed: another file already had this name.</div>}
         </Row>
-        <Row label="From source"><code>{d.source_path ?? "—"}</code></Row>
+        <Row label="Source path"><code>{d.source_path ?? "—"}</code></Row>
         <Row label="Size">{bytes(d.file_size)}{d.width && d.height ? ` · ${d.width} × ${d.height}` : ""}</Row>
         <Row label="File created">
           {d.file_created != null ? epoch(d.file_created) : <span className="muted">Not reported by the storage</span>}
@@ -127,15 +170,13 @@ function Details({ detail: d }: { detail: PhotoDetail }) {
           </div>
         </Row>
       </Section>
-      <Section title="Photo EXIF information">
-        <Row label="Date taken">
-          {fallback ? <span className="muted">Not in the photo's EXIF</span> : (
-            <>
-              {photoDate(d.date_taken)}
-              {d.date_offset ? ` (UTC${d.date_offset})` : " (time zone unknown)"}
-            </>
-          )}
-        </Row>
+      <Section title="Photo EXIF information" note={zoneNote}>
+        {!taken && <Row label="Date taken"><span className="muted">Not in the photo's EXIF</span></Row>}
+        {dates.map((x) => (
+          <Row key={x.field} label={<>{EXIF_DATE_LABEL[x.field]}{mixed && !x.offset ? " *" : ""}</>}>
+            {exifTime(x.value)}{x.offset ? ` (UTC${x.offset})` : ""}
+          </Row>
+        ))}
         <Row label="Camera">{d.camera ?? <span className="muted">Not recorded</span>}</Row>
         <Row label="Exposure">{exposure || <span className="muted">Not recorded</span>}</Row>
       </Section>
@@ -144,22 +185,22 @@ function Details({ detail: d }: { detail: PhotoDetail }) {
         <p className="muted">Thumbnail unavailable: {d.thumbnail.failure_detail ?? "reason not recorded"}</p>
       )}
       <section className="info-section">
-      <h3>Exact duplicates ({d.duplicates.length})</h3>
-      {d.duplicates.length === 0 ? (
-        <p className="muted info-empty">No other catalogued file has identical content.</p>
-      ) : (
-        <ul className="copies info">
-          {d.duplicates.map((c) => (
-            <li key={c.id}>
-              <span className="badge">{STATUS[c.status] ?? c.status}</span>
-              <code>{c.source_path}</code>
-              {c.status === "Duplicate" && c.dest_path && (
-                <div className="muted">Its content is recorded at <code>{c.dest_path}</code> (from the catalog, not re-checked).</div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+        <h3>Exact duplicates ({d.duplicates.length})</h3>
+        {d.duplicates.length === 0 ? (
+          <p className="muted info-empty">No other catalogued file has identical content.</p>
+        ) : (
+          <ul className="copies info">
+            {d.duplicates.map((c) => (
+              <li key={c.id}>
+                <span className="badge">{STATUS[c.status] ?? c.status}</span>
+                <code>{c.source_path}</code>
+                {c.status === "Duplicate" && c.dest_path && (
+                  <div className="muted">Its content is recorded at <code>{c.dest_path}</code> (from the catalog, not re-checked).</div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
       <Section title="Fingerprints">
         <Row label="SHA-1"><code>{d.sha1 ?? "not recorded"}</code></Row>

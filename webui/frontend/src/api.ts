@@ -30,7 +30,7 @@ export interface PhotoPage {
   page: number;
   page_size: number;
   total: number;
-  counts: Record<View, number>;
+  counts: Record<View | "undated", number>;
 }
 
 export interface Timeline {
@@ -60,6 +60,7 @@ export interface PhotoDetail {
   date_taken: string | null;
   date_source: string | null;
   date_offset: string | null;
+  exif_dates: { field: "taken" | "digitized" | "modified"; value: string; offset: string | null }[];
   camera: string | null;
   iso: number | string | null;
   aperture: number | string | null;
@@ -91,6 +92,7 @@ export interface Outcome {
   cancelled: number;
   run_level_issues: number;
   recovered_earlier_work: number;
+  skip_reasons: Record<string, number>;
   total: number | null;
   counts: Record<string, number>;
 }
@@ -164,16 +166,18 @@ export const api = {
     request<Settings>("PUT", "/api/v1/settings", { values, revisions }),
   validateExtension: (extension: string) =>
     request<ExtensionSupport>("POST", "/api/v1/settings/validate-extension", { extension }),
-  photos: (params: { view: View; sort: Sort; q: string; page: number; page_size: number }) => {
+  photos: (params: { view: View; sort: Sort; q: string; page: number; page_size: number; undated: boolean }) => {
     const query = new URLSearchParams({
       view: params.view, sort: params.sort, page: String(params.page), page_size: String(params.page_size),
     });
     if (params.q) query.set("q", params.q);
+    if (params.undated) query.set("undated", "true");
     return request<PhotoPage>("GET", `/api/v1/photos?${query}`);
   },
-  timeline: (params: { view: View; q: string }) => {
+  timeline: (params: { view: View; q: string; undated: boolean }) => {
     const query = new URLSearchParams({ view: params.view });
     if (params.q) query.set("q", params.q);
+    if (params.undated) query.set("undated", "true");
     return request<Timeline>("GET", `/api/v1/photos/timeline?${query}`);
   },
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),

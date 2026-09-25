@@ -96,6 +96,9 @@ button.icon { font-size: 1.1rem; padding: 4px 10px; }
 .views { display: flex; gap: 4px; flex-wrap: wrap; }
 .views button { border-color: transparent; }
 .views button.active { border-color: var(--accent); color: var(--accent); }
+.views .filter { border: 1px dashed var(--border); margin-left: 6px; }
+.views .filter.active { border-style: solid; background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.views .tip::after { left: 0; right: auto; }
 .search { flex: 1 1 180px; min-width: 140px; }
 .toolbar-actions { display: flex; gap: 6px; margin-left: auto; }
 .banner { margin: 0 16px 10px; }
@@ -153,7 +156,20 @@ body.dragging { cursor: col-resize; user-select: none; }
 }
 .inspector-head { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 1; }
 .inspector-head h2 { flex: 1; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.inspector-image { background: #000; display: grid; place-items: center; min-height: 240px; max-height: 60vh; }
+.inspector-image { background: #000; display: grid; place-items: center; min-height: 240px; max-height: 60vh;
+  width: 100%; padding: 0; border: 0; border-radius: 0; cursor: zoom-in; }
+.section-note { margin: 0 0 6px; font-size: 0.8rem; color: var(--muted); }
+
+/* The enlarged photo: centred over the blurred page, its details below. */
+.lightbox {
+  position: fixed; inset: 0; z-index: 30; overflow-y: auto; padding: 24px 16px;
+  background: rgb(0 0 0 / 0.55); backdrop-filter: blur(10px);
+}
+.lightbox-body { max-width: min(1100px, 100%); margin: 0 auto; display: grid; gap: 16px; }
+.lightbox-image { display: grid; place-items: center; }
+.lightbox-image img { max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 4px; box-shadow: 0 8px 32px rgb(0 0 0 / 0.5); }
+.lightbox .inspector-body { background: var(--surface); border-radius: var(--radius); padding: 4px 16px 16px; }
+.lightbox-close { position: fixed; top: 16px; right: 16px; z-index: 31; font-size: 1.1rem; }
 .inspector-image img { max-width: 100%; max-height: 60vh; object-fit: contain; display: block; }
 .inspector-image .thumb-placeholder { min-height: 240px; }
 .inspector-body { padding: 4px 16px 16px; }

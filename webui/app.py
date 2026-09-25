@@ -111,16 +111,17 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/api/v1/photos")
     def get_photos(view: str = "all", sort: str = "newest", q: Optional[str] = None,
-                   page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=200)):
+                   page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=240), undated: bool = False):
         try:
-            return catalog.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size)
+            return catalog.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size,
+                                       undated=undated)
         except ValueError as exc:
             raise HTTPException(400, {"error": "invalid_request", "message": str(exc)})
 
     @app.get("/api/v1/photos/timeline")
-    def get_timeline(view: str = "all", q: Optional[str] = None):
+    def get_timeline(view: str = "all", q: Optional[str] = None, undated: bool = False):
         try:
-            return catalog.timeline(cfg.db_path, view=view, q=q)
+            return catalog.timeline(cfg.db_path, view=view, q=q, undated=undated)
         except ValueError as exc:
             raise HTTPException(400, {"error": "invalid_request", "message": str(exc)})
 

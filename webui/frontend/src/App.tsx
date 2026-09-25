@@ -24,6 +24,7 @@ function readUrl() {
     q: p.get("q") || "",
     page: Math.max(1, Number(p.get("page")) || 1),
     size: PAGE_SIZES.includes(Number(p.get("size"))) ? Number(p.get("size")) : PAGE_SIZES[0],
+    undated: p.get("undated") === "1",
     photo: p.get("photo") ? Number(p.get("photo")) : null,
   };
 }
@@ -117,6 +118,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [search, setSearch] = useState(initial.q);
   const [page, setPage] = useState(initial.page);
   const [pageSize, setPageSize] = useState(initial.size);
+  const [undated, setUndated] = useState(initial.undated);
   const [openId, setOpenId] = useState<number | null>(initial.photo);
   const [data, setData] = useState<PhotoPage | null>(null);
   const [timeline, setTimeline] = useState<Timeline | null>(null);
@@ -176,25 +178,26 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     if (q) p.set("q", q);
     if (page > 1) p.set("page", String(page));
     if (pageSize !== PAGE_SIZES[0]) p.set("size", String(pageSize));
+    if (undated) p.set("undated", "1");
     if (openId != null) p.set("photo", String(openId));
     const url = `${window.location.pathname}${p.size ? `?${p}` : ""}`;
     window.history.replaceState(null, "", url);
-  }, [view, sort, q, page, pageSize, openId]);
+  }, [view, sort, q, page, pageSize, undated, openId]);
 
   useEffect(() => {
     let live = true;
-    api.photos({ view, sort, q, page, page_size: pageSize }).then(
+    api.photos({ view, sort, q, page, page_size: pageSize, undated }).then(
       (d) => { if (live) { setData(d); setLoadError(null); } },
       (e) => live && setLoadError(e instanceof ApiError ? e.message : "Photos could not be loaded."),
     );
     return () => { live = false; };
-  }, [view, sort, q, page, pageSize, refreshKey]);
+  }, [view, sort, q, page, pageSize, undated, refreshKey]);
 
   useEffect(() => {
     let live = true;
-    api.timeline({ view, q }).then((t) => live && setTimeline(t), () => live && setTimeline(null));
+    api.timeline({ view, q, undated }).then((t) => live && setTimeline(t), () => live && setTimeline(null));
     return () => { live = false; };
-  }, [view, q, refreshKey]);
+  }, [view, q, undated, refreshKey]);
 
   const pages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
   const onPageIds = useMemo(() => new Set(data?.items.map((i) => i.id) ?? []), [data]);
@@ -290,6 +293,12 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                 {VIEW_LABEL[v]}{data ? ` (${count(data.counts[v])})` : ""}
               </button>
             ))}
+            <Tip text="Photos whose EXIF has no date taken. They are filed under Undated, by their file's modification date.">
+              <button className={`filter ${undated ? "active" : ""}`} aria-pressed={undated}
+                      onClick={() => { setUndated(!undated); setPage(1); }}>
+                No capture date{data ? ` (${count(data.counts.undated)})` : ""}
+              </button>
+            </Tip>
           </nav>
           <input className="search" type="search" placeholder="Search filenames" value={search}
                  onChange={(e) => setSearch(e.target.value)} aria-label="Search filenames" />

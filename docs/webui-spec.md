@@ -117,6 +117,10 @@ counts (`GET /api/v1/photos/timeline`). A month's first photo sits after every p
 sorted before it, which gives its page directly. The page, page size, sort, view,
 search and open photo live in the URL.
 
+**No capture date** is a quick filter beside the views, with its count. It shows the
+photos whose EXIF has no date taken, which are filed under Undated by their file's
+modification date. It combines with the view and the search.
+
 **Main-page browsing:** default to newest first by recorded photo date, clearly
 distinguishing filesystem fallback dates from capture dates; offer size sorting.
 Search matches current and original filenames, including names of related removed
@@ -275,6 +279,10 @@ wrong for every such file that does carry a date.
 When a job is active, its progress shows at the top of the page, under the toolbar. When
 it finishes, its result replaces it there as a banner until dismissed.
 
+A finished job's banner explains its skips, grouped by the reason each photo recorded,
+for example **"5 skipped (3 copied by an earlier job, 2 duplicates: the same content is
+copied once)"**. The API groups them from the engine's reason text (`webui/catalog.py`).
+
 The toolbar's actions are named **Index**, **Copy all** and **Move all**, matching the
 documentation, and each has a hover explanation, for example "Index your library".
 The divider between the gallery and the Inspector can be dragged or moved with the arrow
@@ -403,8 +411,17 @@ beside the photo instead of below it.
 ### 4.2 Split-Screen Photo Inspector Panel
 Clicking an image opens a right-side 50% detail panel.
 
-**Label what comes from the photo's own metadata as such.** The Inspector groups date
-taken, camera and exposure under **Photo EXIF information**. The file's own dates stay out
+**Label what comes from the photo's own metadata as such.** The Inspector groups the
+EXIF dates (taken, digitized, modified), camera and exposure under **Photo EXIF
+information**. Each date shows the offset EXIF recorded for it (`OffsetTimeOriginal`,
+`OffsetTimeDigitized`, `OffsetTime`). If none has one, a single small note under the
+heading says the camera recorded no time zone. If only some do, the others are marked
+with an asterisk that the note explains. A time without a zone is never shown as UTC or
+shifted.
+
+**Clicking the preview enlarges it** over the blurred page, with the photo's details
+below; Esc or the close button returns. It shows the 1024px preview, the largest image
+the engine makes. The file's own dates stay out
 of that section. **File created** and **File modified** sit under the file's size, as
 the first scan observed them. Creation time is shown only when the storage reports one,
 and many filesystems do not, NFS among them; otherwise it says so. A photo whose EXIF

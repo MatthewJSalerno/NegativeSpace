@@ -112,23 +112,35 @@ def _search_clause(q: Optional[str]):
             "            AND basename(d.source_path) LIKE ? ESCAPE '\\'))", (like, like, like))
 
 
-def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, page_size=60) -> dict:
+# No capture date in the photo's EXIF: dated by its file's modification time instead
+# (date_source 'file_mtime'), or not dated at all. These are the photos filed under
+# Undated (webui-spec 3.1).
+_UNDATED = ("(json_extract(p.metadata_json, '$.date_source') = 'file_mtime' "
+            "OR json_extract(p.metadata_json, '$.date_taken') IS NULL)")
+
+
+def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, page_size=60, undated=False) -> dict:
     if view not in VIEWS:
         raise ValueError(f"unknown view: {view}")
     if sort not in SORTS:
         raise ValueError(f"unknown sort: {sort}")
-    if page < 1 or not 1 <= page_size <= 200:
-        raise ValueError("page must be at least 1 and page_size between 1 and 200")
+    if page < 1 or not 1 <= page_size <= 240:
+        raise ValueError("page must be at least 1 and page_size between 1 and 240")
     search, search_params = _search_clause(q)
+    filtered = search + (f" AND {_UNDATED}" if undated else "")
     with connect(db_path) as conn:
         counts = {}
         for name, statuses in VIEWS.items():
             counts[name] = conn.execute(
-                f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(statuses)})" + search,
+                f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(statuses)})" + filtered,
                 search_params).fetchone()[0]
+        # How many in this view and search have no capture date, filter on or off, for its label.
+        counts["undated"] = conn.execute(
+            f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})"
+            + search + f" AND {_UNDATED}", search_params).fetchone()[0]
         rows = conn.execute(
             f"SELECT {_LIST_COLUMNS} FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})"
-            + search + f" ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?",
+            + filtered + f" ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?",
             search_params + (page_size, (page - 1) * page_size)).fetchall()
         items = []
         for r in rows:
@@ -141,7 +153,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
     return {"items": items, "page": page, "page_size": page_size, "total": counts[view], "counts": counts}
 
 
-def timeline(db_path: Path, *, view="all", q=None) -> dict:
+def timeline(db_path: Path, *, view="all", q=None, undated=False) -> dict:
     """Photos per month for a view and search, newest month first, for jumping to a date
     in a large library. Months are the recorded date's calendar month (a file date for an
     undated photo, as the gallery shows it); `undated` counts rows with no date at all,
@@ -149,7 +161,8 @@ def timeline(db_path: Path, *, view="all", q=None) -> dict:
     if view not in VIEWS:
         raise ValueError(f"unknown view: {view}")
     search, params = _search_clause(q)
-    base = f"FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + search
+    base = (f"FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + search
+            + (f" AND {_UNDATED}" if undated else ""))
     with connect(db_path) as conn:
         months = [{"month": r[0], "count": r[1]} for r in conn.execute(
             f"SELECT substr(json_extract(p.metadata_json, '$.date_taken'), 1, 7) AS month, COUNT(*) {base} "
@@ -173,6 +186,12 @@ def thumbnail_record(conn, photo_id: int, size: int):
 
 def photo_exists(conn, photo_id: int) -> bool:
     return conn.execute("SELECT 1 FROM photos WHERE id = ?", (photo_id,)).fetchone() is not None
+
+
+# The EXIF date fields and the offset tag each one pairs with (EXIF 2.31).
+_EXIF_DATES = (("taken", "DateTimeOriginal", "OffsetTimeOriginal"),
+               ("digitized", "CreateDate", "OffsetTimeDigitized"),
+               ("modified", "ModifyDate", "OffsetTime"))
 
 
 def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
@@ -210,6 +229,9 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         # A capture time's offset, when the camera recorded one; without it the
         # time zone is unknown and must not be shown as UTC (webui-spec 10).
         "date_offset": meta.get("OffsetTimeOriginal"),
+        # Every EXIF date the photo carries, each with the offset recorded for it, if any.
+        "exif_dates": [{"field": field, "value": meta[key], "offset": meta.get(offset_key)}
+                       for field, key, offset_key in _EXIF_DATES if meta.get(key)],
         "iso": meta.get("ISO"), "aperture": meta.get("FNumber"), "shutter": meta.get("ExposureTime"),
         "width": content["width"] if content else None, "height": content["height"] if content else None,
         "sha1": p["sha1_hash"], "phash": p["phash"],
@@ -233,6 +255,23 @@ _REQUESTED_PHASES = {"INDEX": ("scanning",), "COPY": ("scanning", "transferring"
                      "REBUILD": ("rebuilding_thumbnails",), "CHECK": ("checking_destination",)}
 _TERMINAL_WINS = {RunStatus.CANCELLED: "cancelled", RunStatus.INTERRUPTED: "interrupted",
                   RunStatus.FAILED: "failed"}
+
+
+# Why a photo was skipped, by the start of the reason the engine recorded. The engine
+# writes these sentences (ns-engine.py _duplicate_skip_reason and the Copy/Move loop);
+# tests/webui_api_test.py runs real jobs so a reworded reason fails there, not here.
+_SKIP_REASONS = (("Duplicate", "duplicate"), ("Already copied", "already_copied"),
+                 ("Not attempted: the destination is a network share", "network_share_unconfirmed"),
+                 ("Not attempted: the source folder is empty", "source_looked_empty"))
+
+
+def _skip_reason(message: Optional[str]) -> str:
+    if message and message.startswith("Duplicate") and "not part of this selection" in message:
+        return "duplicate_original_not_selected"
+    for prefix, reason in _SKIP_REASONS:
+        if message and message.startswith(prefix):
+            return reason
+    return "other"
 
 
 def _outcome(conn, run: dict, progress: list) -> dict:
@@ -260,6 +299,11 @@ def _outcome(conn, run: dict, progress: list) -> dict:
         "AND reconciles_operation_id IS NULL", (run["id"], PhotoStatus.FAILED)).fetchone()[0]
     recovered = conn.execute("SELECT COUNT(*) FROM operations WHERE run_id = ? AND "
                              "reconciles_operation_id IS NOT NULL", (run["id"],)).fetchone()[0]
+    skip_reasons = {}
+    for (message,) in conn.execute("SELECT error_message FROM operations WHERE run_id = ? AND status = ? "
+                                   "AND reconciles_operation_id IS NULL", (run["id"], OPERATION_SKIPPED)):
+        reason = _skip_reason(message)
+        skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
     if run["status"] in ns_db.ACTIVE_RUN_STATUSES:
         verdict = "running"
     elif run["status"] in _TERMINAL_WINS:
@@ -275,6 +319,7 @@ def _outcome(conn, run: dict, progress: list) -> dict:
     total = sum(p["total"] or 0 for p in main) if main and all(p["total"] is not None for p in main) else None
     return {"verdict": verdict, "succeeded": succeeded, "failed": failed, "skipped": skipped,
             "cancelled": cancelled, "run_level_issues": issues, "recovered_earlier_work": recovered,
+            "skip_reasons": skip_reasons,
             "total": total, "counts": counts}
 
 
