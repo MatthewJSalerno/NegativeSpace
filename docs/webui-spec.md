@@ -945,7 +945,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 9 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 10 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -1243,7 +1243,7 @@ Everything above is about getting files *in*. This section is about curating
 what is already there — a different activity, with a different safety story.
 
 **These workflows depend on engine capabilities in `engine-spec.md` §9.** The
-destination check is built; the perceptual pair table, renaming a delivered file,
+destination check and renaming a delivered file are built; the perceptual pair table,
 deleting under `--dest`, and writing EXIF are not. This
 section specifies what the user does; that one specifies what the engine must be
 able to do first.
@@ -1364,6 +1364,12 @@ is a new rename checked against current files. Preview the resolved collision na
 report the actual result, preserve the real extension and date folder, and update
 related current references without rewriting history. A missing or changed target
 stops the operation and shows §7.6 guidance.
+
+**Engine calls** (`engine-spec.md` §9.4): the candidate names come from
+`ns-engine.py --rename-candidates <id>`; the live check of a typed name is
+`--rename <id> --name <name> --dry-run`, which prints the resolved path, or the reason
+there is none, and takes no lock; confirming runs `--rename <id> --name <name>` as a
+job. Its outcome and the actual resulting name are its `Renamed` (or `Failed`) operation.
 
 **Choosing the name at move time is a different feature, and is deferred.** It
 would decide the name as the file is written, but it is an engine change and it
@@ -1645,7 +1651,7 @@ The destination check (`engine-spec.md` §9.1) reads files without modifying the
 
 ## 8. Explicitly Out of Scope
 
-* **The engine-side capabilities these workflows depend on** — the destination check, the perceptual pair table, destination deletion, and EXIF writing — are specified in `engine-spec.md` §9, not here. This document covers what the user sees and does; that one covers what the engine must be able to do first. Only the destination check is implemented.
+* **The engine-side capabilities these workflows depend on** — the destination check, the perceptual pair table, destination deletion, and EXIF writing — are specified in `engine-spec.md` §9, not here. This document covers what the user sees and does; that one covers what the engine must be able to do first. The destination check and renaming are implemented.
 * **Multi-user auth/sessions** — not addressed in this spec. Add as a separate concern if the web UI needs to be exposed beyond a single trusted user on a local/private network.
 
 ## 9. Catalog Backups

@@ -54,6 +54,8 @@ default Index):
   catalogued copy, under the engine lock.
 - --check-destination quick|full: a read-only job that reports what under --dest
   is missing, changed, unreadable or not put there by NegativeSpace.
+- --rename PHOTO_ID --name NAME [--dry-run] / --rename-candidates PHOTO_ID: give a
+  delivered file a new name, or list the names its duplicate group carried.
 
 Cancellation: sending SIGTERM or SIGINT (e.g. `docker stop`, or Ctrl+C)
 during a --move/--copy run lets the file currently being copy-verified
@@ -143,6 +145,7 @@ Metadata Extraction:
 import argparse
 import collections
 import contextlib
+import ctypes
 import errno
 import fcntl
 import hashlib
@@ -277,7 +280,7 @@ UNDATED_FOLDER = "Undated"
 # module.
 
 from ns_db import (PhotoStatus, RunStatus, PHOTO_STATUSES, RUN_STATUSES,
-                   OPERATION_STATUSES, OPERATION_CANCELLED, OPERATION_SKIPPED,
+                   OPERATION_STATUSES, OPERATION_CANCELLED, OPERATION_SKIPPED, OPERATION_RENAMED,
                    RAW_EXTENSIONS, RASTER_EXTENSIONS, SUPPORTED_EXTENSIONS)
 import ns_db
 
@@ -1359,6 +1362,8 @@ def reconcile_interrupted_state(db_path: Path, run_id: int):
             cursor.execute("UPDATE photos SET status = ? WHERE id = ?", (final, record_id))
             conn.commit()
             logger.info(f"Reconciled interrupted record {record_id} as {final}.")
+
+        _reconcile_interrupted_renames(conn, run_id)
 
         # A run killed uncatchably never reaches finish_run(), so its row stays
         # in an active state with no end time. This process holds the
@@ -3377,6 +3382,312 @@ def run_destination_check(args, db_path: Path, log_dir: Path, lock_fd) -> int:
                                                       config["workers"], set(config["exts"]), log_dir))
 
 
+class RenameRefused(Exception):
+    """A rename that cannot proceed, with a reason the user can act on. Nothing changed."""
+
+
+class NoReplaceUnsupported(OSError):
+    """The destination filesystem offers no way to rename without risking an overwrite."""
+
+
+_RENAME_NOREPLACE = 1
+_AT_FDCWD = -100
+
+
+def _rename_noreplace(old: str, new: str) -> str:
+    """Renames `old` to `new` only if `new` does not exist, and says how.
+
+    Linux renameat2(RENAME_NOREPLACE) first: one atomic step, so an interruption
+    leaves the file at exactly one of the two names. Filesystems without it (NFS
+    among them) get link-then-unlink, which is still no-overwrite - link() fails
+    when the name exists - but has a moment with both names on one inode, which
+    recovery completes (_reconcile_interrupted_renames). A filesystem offering
+    neither raises NoReplaceUnsupported: a plain rename() would silently replace a
+    file created at the new name in the meantime, and the no-overwrite promise is
+    not weakened to accommodate it. Raises FileExistsError when `new` is taken.
+    """
+    renameat2 = getattr(ctypes.CDLL(None, use_errno=True), "renameat2", None)
+    if renameat2 is not None:
+        if renameat2(_AT_FDCWD, os.fsencode(old), _AT_FDCWD, os.fsencode(new), _RENAME_NOREPLACE) == 0:
+            return "renameat2"
+        err = ctypes.get_errno()
+        if err == errno.EEXIST:
+            raise FileExistsError(err, os.strerror(err), new)
+        if err not in (errno.EINVAL, errno.ENOSYS, errno.ENOTSUP, errno.EOPNOTSUPP):
+            raise OSError(err, os.strerror(err), old)
+    try:
+        os.link(old, new)
+    except FileExistsError:
+        raise
+    except OSError as exc:
+        if exc.errno in (errno.EPERM, errno.ENOTSUP, errno.EOPNOTSUPP, errno.EMLINK, errno.ENOSYS):
+            raise NoReplaceUnsupported(exc.errno, f"this filesystem supports neither an atomic "
+                                                  f"no-replace rename nor hard links ({exc.strerror})")
+        raise
+    try:
+        os.unlink(old)
+    except OSError:
+        # The new name is ours and holds the same inode: take it back, so the file
+        # is left exactly as found.
+        with contextlib.suppress(OSError):
+            os.unlink(new)
+        raise
+    return "link"
+
+
+def rename_candidates(db_path: Path, photo_id: int) -> dict:
+    """The filenames a delivered photo's content has carried, for the Rename tab
+    (webui-spec 7.3): every catalogued copy's source name, current and historical,
+    across its exact-duplicate group. Read only; no lock.
+
+    Returns {'photo_id', 'current_path', 'candidates': [{'name', 'seen_at': [paths]}],
+    'error'}; the current name is not a candidate."""
+    result = {"photo_id": photo_id, "current_path": None, "candidates": [], "error": None}
+    if not Path(db_path).exists():
+        return dict(result, error="There is no catalog yet.")
+    with contextlib.closing(get_db_connection(str(db_path))) as conn:
+        ns_db.require_schema(conn)
+        row = conn.execute("SELECT sha1_hash, dest_path, status FROM photos WHERE id = ?", (photo_id,)).fetchone()
+        if row is None:
+            return dict(result, error="No catalogued photo has this id.")
+        sha1, current, status = row
+        if status not in ANCHOR_DELIVERED_STATUSES or not current or not sha1:
+            return dict(result, error="This photo has not been delivered to the destination.")
+        seen = {}
+        for (path,) in conn.execute(
+                "SELECT source_path FROM photos WHERE sha1_hash = ? AND source_path IS NOT NULL "
+                "UNION SELECT o.source_path FROM operations o JOIN photos p ON p.id = o.photo_id "
+                "WHERE p.sha1_hash = ? AND o.source_path IS NOT NULL", (sha1, sha1)):
+            stem = Path(path).stem
+            if stem != Path(current).stem:
+                seen.setdefault(stem, set()).add(path)
+    return dict(result, current_path=current,
+                candidates=[{"name": stem, "seen_at": sorted(paths)} for stem, paths in sorted(seen.items())])
+
+
+def _new_name_stem(name: str, current_suffix: str) -> str:
+    """The stem a requested name gives. The delivered file's real extension is always
+    kept, so a trailing extension the engine knows (or the current one) is dropped;
+    anything else - "Trip.2019" - is part of the name. Raises RenameRefused."""
+    name = name.strip()
+    suffix = Path(name).suffix.lower()
+    stem = name[:-len(suffix)] if suffix and (suffix in SUPPORTED_EXTENSIONS or
+                                              suffix == current_suffix.lower()) else name
+    if not stem or stem in (".", ".."):
+        raise RenameRefused("The new name is empty.")
+    if "/" in stem or "\0" in stem:
+        raise RenameRefused("A name cannot contain '/'; the date folder is kept as it is.")
+    if stem.startswith("."):
+        raise RenameRefused("A name starting with '.' would be hidden, and hidden files are skipped.")
+    if len(os.fsencode(stem + current_suffix)) > 255:
+        raise RenameRefused("The name is too long for a file name (255 bytes).")
+    return stem
+
+
+def plan_rename(conn, dest_root: Path, photo_id: int, name: str) -> dict:
+    """Where a rename would put the file, checked against the files there now: the
+    requested stem with the file's real extension, in the same date folder, with the
+    `_N` suffix on a collision (webui-spec 7.3 "a typed name validates live against
+    the destination folder"). Reads only. Raises RenameRefused.
+
+    Returns {'photo_id', 'sha1', 'current_path', 'new_path', 'collision', 'unchanged'}."""
+    row = conn.execute("SELECT sha1_hash, dest_path, status FROM photos WHERE id = ?", (photo_id,)).fetchone()
+    if row is None:
+        raise RenameRefused("No catalogued photo has this id.")
+    sha1, current, status = row
+    if status not in ANCHOR_DELIVERED_STATUSES or not current or not sha1:
+        raise RenameRefused("This photo has not been delivered to the destination.")
+    if not _is_under(current, dest_root):
+        raise RenameRefused(f"This photo was delivered outside the current destination ({dest_root}).")
+    current_path = Path(current)
+    stem = _new_name_stem(name, current_path.suffix)
+    wanted = current_path.parent / f"{stem}{current_path.suffix}"
+    candidate, counter = wanted, 1
+    while candidate != current_path and os.path.lexists(candidate):
+        candidate = current_path.parent / f"{stem}_{counter}{current_path.suffix}"
+        counter += 1
+    return {"photo_id": photo_id, "sha1": sha1, "current_path": current, "new_path": str(candidate),
+            "collision": candidate != wanted and candidate != current_path,
+            "unchanged": candidate == current_path}
+
+
+def preview_rename(db_path: Path, dest_root: Path, photo_id: int, name: str) -> dict:
+    """--rename --dry-run: the plan, or why there is none. No lock, changes nothing."""
+    if not Path(db_path).exists():
+        return {"photo_id": photo_id, "error": "There is no catalog yet."}
+    with contextlib.closing(get_db_connection(str(db_path))) as conn:
+        ns_db.require_schema(conn)
+        try:
+            plan = plan_rename(conn, dest_root, photo_id, name)
+        except RenameRefused as exc:
+            return {"photo_id": photo_id, "error": str(exc)}
+    plan.pop("sha1")
+    return dict(plan, error=None)
+
+
+def rename_delivered_file(db_path: Path, dest_root: Path, backups_dir: Path, base_dir: Path,
+                          run_id: int, photo_id: int, name: str) -> str:
+    """Gives a delivered file a new name (engine-spec 9.4). Returns the run outcome.
+
+    In order, each step stopping the rename before any file changes:
+      1. Plan it against the files there now; the same name again changes nothing.
+      2. Verify the file live: present, and its SHA-1 still the catalog's. A missing
+         or changed file is a destination mismatch (webui-spec 7.6), recorded Failed.
+      3. Back up the catalog (trigger pre_action). If that fails, nothing is renamed.
+      4. Record intent, durably, then rename without overwriting (_rename_noreplace)
+         and make the directory entry durable.
+      5. In one commit: every catalog row pointing at the old path now points at the
+         new one, the file identity's current path moves with it, and the operation
+         settles Renamed with both paths. Historical operations keep their paths.
+    """
+    conn = get_db_connection(str(db_path), synchronous="FULL")
+    try:
+        try:
+            plan = plan_rename(conn, dest_root, photo_id, name)
+        except RenameRefused as exc:
+            logger.error(f"Rename refused: {exc} Nothing was changed.")
+            return RunStatus.FAILED
+        old, new = plan["current_path"], plan["new_path"]
+        if plan["unchanged"]:
+            logger.info(f"Photo #{photo_id} is already named {Path(old).name}; nothing to change.")
+            return RunStatus.COMPLETED
+        file_id = (conn.execute("SELECT file_id FROM file_states WHERE current_path = ? AND "
+                                "location_role = 'destination' AND presence_state = 'present'",
+                                (old,)).fetchone() or [None])[0]
+
+        mismatch = None
+        try:
+            if compute_sha1(old) != plan["sha1"]:
+                mismatch = "its content no longer matches the catalog"
+        except FileNotFoundError:
+            mismatch = "it is no longer there"
+        except OSError as exc:
+            mismatch = f"it could not be read ({type(exc).__name__}: {exc})"
+        if mismatch:
+            note = (f"Not renamed: the destination file {old} differs from the catalog - {mismatch}. "
+                    f"Nothing was changed. The destination differs from the catalog; see the "
+                    f"destination check and the fresh-destination workflow.")
+            with ns_db.transaction(conn):
+                op = ns_db.begin_operation(conn, run_id=run_id, photo_id=photo_id, source_path=old,
+                                           dest_path=new, kind="rename")
+                ns_db.settle_operation(conn, op, status=PhotoStatus.FAILED, step="rename",
+                                       outcome="destination_mismatch", error_message=note)
+            logger.error(note)
+            return RunStatus.FAILED
+
+        backup = ns_db.backup_catalog(db_path, backups_dir, base_dir, trigger="pre_action",
+                                      related_run_id=run_id)
+        _log_backup(backup, "before the rename")
+        if backup["outcome"] != "succeeded":
+            logger.error("No files were changed because the catalog backup failed.")
+            return RunStatus.FAILED
+
+        with ns_db.transaction(conn):
+            op = ns_db.begin_operation(conn, run_id=run_id, photo_id=photo_id, source_path=old,
+                                       dest_path=new, kind="rename",
+                                       expected={"old_path": old, "new_path": new, "file_id": file_id,
+                                                 "sha1_hash": plan["sha1"]})
+        try:
+            method = _rename_noreplace(old, new)
+            _fsync_directory(Path(new).parent)
+        except (FileExistsError, OSError) as exc:
+            reason = ("the new name was taken a moment ago" if isinstance(exc, FileExistsError)
+                      else str(exc))
+            note = f"Not renamed: {reason}. Nothing was changed."
+            with ns_db.transaction(conn):
+                ns_db.settle_operation(conn, op, status=PhotoStatus.FAILED, step="rename",
+                                       outcome="failed", error_message=note)
+            logger.error(f"{note} ({old})")
+            return RunStatus.FAILED
+        with ns_db.transaction(conn):
+            _record_rename(conn, op, old, new, file_id, detail={"method": method})
+        logger.info(f"Renamed {Path(old).name} to {Path(new).name} in {Path(new).parent}"
+                    + (" (the name was taken, so a suffix was added)" if plan["collision"] else "") + ".")
+        return RunStatus.COMPLETED
+    finally:
+        conn.close()
+
+
+def _record_rename(conn, operation_id, old: str, new: str, file_id, detail=None, step="rename"):
+    """Points the catalog at a renamed file, in the caller's transaction."""
+    conn.execute("UPDATE photos SET dest_path = ? WHERE dest_path = ?", (new, old))
+    if file_id is not None:
+        conn.execute("UPDATE file_states SET current_path = ?, revision = revision + 1 WHERE file_id = ?",
+                     (new, file_id))
+        conn.execute("INSERT OR IGNORE INTO operation_files VALUES (?,?,'destination')", (operation_id, file_id))
+    ns_db.settle_operation(conn, operation_id, status=OPERATION_RENAMED, step=step, outcome="completed",
+                           detail=dict(detail or {}, old_path=old, new_path=new))
+
+
+def _reconcile_interrupted_renames(conn, run_id: int):
+    """Settles a rename a killed run left without an outcome, from what is on disk.
+
+    The intent names both paths. Only the new name present: the rename happened, so
+    the catalog catches up. Both present on one inode: link-then-unlink stopped
+    between its steps; removing the old name finishes it and loses nothing, since
+    both names are the same file. Only the old name present: nothing happened.
+    Anything else - both gone, two different files, unreadable - cannot be
+    established and needs attention; nothing is removed.
+    """
+    for operation_id, photo_id, old, new in ns_db.unsettled_operations(conn):
+        intent = conn.execute("SELECT detail_json FROM operation_events WHERE operation_id = ? AND "
+                              "step = 'intent'", (operation_id,)).fetchone()
+        detail = json.loads(intent[0]) if intent and intent[0] else {}
+        if detail.get("kind") != "rename":
+            continue
+        file_id = (detail.get("expected") or {}).get("file_id")
+        states = {}
+        for role, path in (("old", old), ("new", new)):
+            try:
+                states[role] = os.lstat(path)
+            except FileNotFoundError:
+                states[role] = None
+            except OSError:
+                states[role] = "unreadable"
+        conn.execute("BEGIN IMMEDIATE")
+        for role, path in (("source", old), ("destination", new)):
+            state = states["old" if role == "source" else "new"]
+            ns_db.record_evidence(conn, operation_id=operation_id, location_role=role, observed_path=path,
+                                  observation_kind="stat",
+                                  result=("unreadable" if state == "unreadable" else
+                                          "present" if state else "absent"))
+        o, n = states["old"], states["new"]
+        same_file = (o not in (None, "unreadable") and n not in (None, "unreadable")
+                     and (o.st_dev, o.st_ino) == (n.st_dev, n.st_ino))
+        if n not in (None, "unreadable") and (o is None or same_file):
+            if same_file:
+                os.unlink(old)
+                _fsync_directory(Path(old).parent)
+            _record_rename(conn, operation_id, old, new, file_id, detail={"recovered": True}, step="recovery")
+            logger.info(f"Recovered an interrupted rename: {Path(old).name} is now {Path(new).name}.")
+        elif o not in (None, "unreadable") and n is None:
+            ns_db.settle_operation(conn, operation_id, status=PhotoStatus.FAILED, step="recovery",
+                                   outcome="not_started", error_message="The rename was interrupted "
+                                   "before it happened; the file keeps its old name. Nothing was changed.")
+        else:
+            note = (f"An interrupted rename could not be settled: the old name {old} is "
+                    f"{'unreadable' if o == 'unreadable' else 'present' if o else 'absent'} and the new "
+                    f"name {new} is {'unreadable' if n == 'unreadable' else 'present' if n else 'absent'}"
+                    f"{' (a different file)' if o and n and not same_file else ''}. Nothing was removed.")
+            ns_db.settle_operation(conn, operation_id, status=PhotoStatus.FAILED, step="recovery",
+                                   outcome="unestablished", error_message=note)
+            ns_db.open_attention_issue(conn, operation_id=operation_id, category="unestablished_outcome",
+                                       summary=note, file_id=file_id)
+            logger.warning(note)
+        conn.commit()
+
+
+def run_rename(args, db_path: Path, base_dir: Path, lock_fd) -> int:
+    """--rename PHOTO_ID --name NAME, as a job (run_maintenance_job)."""
+    dest_root = Path(args.dest).resolve()
+    return run_maintenance_job(
+        args, db_path, lock_fd, mode="RENAME", label="Rename",
+        submitted={"photo_id": args.rename, "name": args.name, "dest": str(dest_root)},
+        defaults={}, overrides={},
+        body=lambda run_id, config: rename_delivered_file(db_path, dest_root, Path(args.backups), base_dir,
+                                                          run_id, args.rename, args.name))
+
+
 def run_thumbnail_rebuild(args, db_path: Path, log_dir: Path, lock_fd) -> int:
     """--rebuild-thumbnails, as a job (run_maintenance_job)."""
     cache_root = Path(args.cache).resolve()
@@ -3558,11 +3869,29 @@ def main():
              "unchanged size and date; 'full' reads every file. Takes the engine lock."
     )
     mode_group.add_argument(
+        "--rename", type=int, metavar="PHOTO_ID", default=None,
+        help="Give a delivered photo's destination file a new name (--name), keeping its date "
+             "folder and real extension; a taken name gets a _N suffix. Backs up the catalog first. "
+             "Takes the engine lock. With --dry-run, prints the resulting path as JSON instead."
+    )
+    mode_group.add_argument(
+        "--rename-candidates", type=int, metavar="PHOTO_ID", default=None,
+        help="Print, as one line of JSON, the filenames this photo's content has carried across "
+             "its duplicate group. Read only; takes no lock."
+    )
+    mode_group.add_argument(
         "--backup-now", action="store_true",
         help="Write one manual catalog backup to --backups and exit. Takes the engine lock, so it "
              "is refused while a job runs. Touches no photo and needs no --source."
     )
+    parser.add_argument("--name", default=None, help="The new name for --rename.")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="With --rename: print where the file would go, and change nothing.")
     args = parser.parse_args()
+    if args.rename is not None and not args.name:
+        parser.error("--rename needs --name.")
+    if (args.name is not None or args.dry_run) and args.rename is None:
+        parser.error("--name and --dry-run go with --rename.")
     if args.rebuild_thumbnails and args.no_thumbnails:
         parser.error("--rebuild-thumbnails makes thumbnails; it cannot be combined with --no-thumbnails.")
 
@@ -3580,7 +3909,9 @@ def main():
 
     # 2. Configure Logging
     # --preview answers on stdout in JSON for the API, so its log goes to the file only.
-    configure_logging(log_dir, console=args.preview is None and not args.clear_previews)
+    answers_in_json = (args.preview is not None or args.clear_previews or args.rename_candidates is not None
+                       or (args.rename is not None and args.dry_run))
+    configure_logging(log_dir, console=not answers_in_json)
     if args.preview is not None:
         # Before the lock on purpose: a preview changes no photo file (see preview_for_photo).
         result = preview_for_photo(db_path, Path(args.cache).resolve(), args.preview)
@@ -3590,6 +3921,14 @@ def main():
         result = clear_previews(db_path, Path(args.cache).resolve())
         print(json.dumps(result, sort_keys=True))
         sys.exit(1 if result["not_removed"] else 0)
+    if args.rename_candidates is not None:
+        result = rename_candidates(db_path, args.rename_candidates)
+        print(json.dumps(result, sort_keys=True))
+        sys.exit(1 if result["error"] else 0)
+    if args.rename is not None and args.dry_run:
+        result = preview_rename(db_path, Path(args.dest).resolve(), args.rename, args.name)
+        print(json.dumps(result, sort_keys=True))
+        sys.exit(1 if result["error"] else 0)
 
     # 2a. Single-instance enforcement (docs/engine-spec.md 4.1/7) — before
     # touching the database or source/dest paths at all. Applies to every
@@ -3613,6 +3952,8 @@ def main():
         sys.exit(run_thumbnail_rebuild(args, db_path, log_dir, lock_fd))
     if args.check_destination:
         sys.exit(run_destination_check(args, db_path, log_dir, lock_fd))
+    if args.rename is not None:
+        sys.exit(run_rename(args, db_path, base_dir, lock_fd))
 
     # 2b. ExifTool is a hard requirement (module docstring) — fail fast and
     # clearly, before touching source/dest/the database at all, rather than

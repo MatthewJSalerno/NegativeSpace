@@ -88,6 +88,7 @@ security concern, specified in `webui-spec.md` §5.6.
     *   `--clear-previews` — the web UI's **Free up** (`webui-spec.md` §4.2.1): removes every recorded detail preview and prints one line of JSON, `removed`, `bytes_freed` and `not_removed`. It exits `1` when any file could not be removed. Grid thumbnails stay, and so do recorded preview failures, which name no file and keep the reason a photo has no preview. Only files the catalog records are removed, so the space freed matches the per-size total the page showed. Each file goes before its record, and a file that cannot be removed keeps its record. Like `--preview`, it starts no run and takes no engine lock. If it races a preview request, the worst case is a record whose file is gone, and the next request regenerates it.
     *   `--rebuild-thumbnails missing|all` — the web UI's grid repair and rebuild (`webui-spec.md` §4.2.1). A job: it takes the engine lock, opens a `REBUILD` run, reconciles interrupted work first, honours cancellation between batches and settles `Completed`, `Cancelled` or `Failed`. It needs no `--source`. `missing` makes the grid thumbnails not on disk, and `all` regenerates every one. Each is made from `catalogued_copies`: a delivered destination copy first, then a live source, and only one whose size and modification time still match the catalog. Under `all`, an existing thumbnail is replaced only when a copy supplies a new one, never discarded for lack of one. It uses `--workers` like a scan, records no operation, takes no backup, and exits `1` only when the run Failed. Refused with `--no-thumbnails`.
     *   `--check-destination quick|full` — the destination check (§9.1). A read-only job under the engine lock, opening a `CHECK` run. It needs no `--source`, uses `--workers` and `--exts` like a scan, records findings in `destination_findings`, changes nothing, and exits `1` only when the run Failed.
+    *   `--rename PHOTO_ID --name NAME [--dry-run]` and `--rename-candidates PHOTO_ID` — renaming a delivered file (§9.4). The rename is a `RENAME` job under the engine lock that backs up the catalog first; `--dry-run` and `--rename-candidates` answer in one line of JSON, take no lock and change nothing.
     *   The database write-queue size is intentionally **not** configurable — left as a hardcoded internal constant rather than exposed, since there was no concrete need identified for tuning it separately from `--workers`.
 *   **Targeted Processing** (mutually exclusive with each other — pick at most one, or omit both for a full directory scan):
     *   `--file-ids <id1,id2,...>` — comma-separated `photos.id` values from a prior Index. Bypasses the directory scan entirely; looks up each ID's `source_path` directly and processes exactly those files. IDs not found in the database are logged as a warning and skipped, not treated as fatal. This is what a web UI's individual/multi-select maps onto, but works identically from the CLI.
@@ -292,7 +293,7 @@ The three transfer tables below — current state, runs, and the audit log — e
 | `photo_id` | Integer | FK to `photos.id`. NULL for a failure that belongs to the run rather than a catalogued photo, such as a folder that could not be read. |
 | `original_filename` | Text | The file's name at time of processing |
 | `source_path` / `dest_path` | Text | As of this specific operation |
-| `status` | Text | The outcome of this specific attempt — same value set as `photos.status`, plus `Cancelled` (the run reached the photo and stopped; the photo stays `Pending`) and `Skipped` (the run reached a selected photo and deliberately did nothing — a duplicate whose original carries its content — with the reason, naming that original, in `error_message`) |
+| `status` | Text | The outcome of this specific attempt — same value set as `photos.status`, plus `Renamed` (a delivered file given a new name, §9.4; `source_path` is the old path and `dest_path` the new), `Cancelled` (the run reached the photo and stopped; the photo stays `Pending`) and `Skipped` (the run reached a selected photo and deliberately did nothing — a duplicate whose original carries its content — with the reason, naming that original, in `error_message`) |
 | `error_message` | Text | The real exception text on failure, e.g. `"OSError: [Errno 30] Read-only file system: ..."` — not just a generic failure flag |
 | `has_name_collision` | Boolean | As of this specific operation |
 | `timestamp` | Text | ISO timestamp |
@@ -313,7 +314,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 9 and refuses incompatible catalogs before processing.
+initializes schema version 10 and refuses incompatible catalogs before processing.
 No migration exists: preserve an older catalog and use a fresh one. Index cannot
 reconstruct settings, past edits, or deleted-file lineage. Never describe deleting a
 user catalog as routine repair.
@@ -423,7 +424,8 @@ CREATE TABLE operations (
     -- left alone -- a duplicate whose original carries its content -- with the
     -- reason, naming that original, in error_message).
     CHECK (status IN ('Pending', 'Processing', 'Completed', 'Copied', 'Failed',
-           'Duplicate', 'Removed_Duplicate', 'Found_At_Destination', 'Cancelled', 'Skipped')),
+           'Duplicate', 'Removed_Duplicate', 'Found_At_Destination', 'Cancelled', 'Skipped',
+           'Renamed')),
     FOREIGN KEY(run_id) REFERENCES runs(id),
     FOREIGN KEY(photo_id) REFERENCES photos(id)
 );
@@ -767,8 +769,8 @@ section changes that on the user's explicit instruction for a specific file —
 never on the engine's own initiative, and never as a side effect of something
 else the user asked for.
 
-**Only the destination check (§9.1) is implemented.** Each other subsection names
-what the engine would need, so the gap is visible rather than implied. The corresponding user
+**The destination check (§9.1) and renaming (§9.4) are implemented.** Each other
+subsection names what the engine would need, so the gap is visible rather than implied. The corresponding user
 interface is specified in `webui-spec.md` §7.
 
 ### 9.1. Destination Check
@@ -892,7 +894,21 @@ and invokes the destination-mismatch guidance in `webui-spec.md` §7.6.
 Record both paths for lineage and manual correction. There is no user-facing undo;
 a later rename is a new action validated against the current state.
 
-**Not implemented.** Needs: the rename operation and its audit row.
+**How it is built.** `--rename PHOTO_ID --name NAME` is a `RENAME` job under the engine lock (`rename_delivered_file`); `--rename ... --dry-run` prints the resolved path as JSON without the lock, which is the live check a typed name needs; `--rename-candidates PHOTO_ID` prints the group's other names, from every copy's source path current and historical. Each step stops the rename before any file changes:
+
+1.  **Plan** against the files there now (`plan_rename`). The requested stem gets the file's real extension: a trailing extension the engine reads, or the current one, is dropped, so `Beach.PNG` on a JPEG becomes `Beach.jpg`, while `Trip.2019` keeps its dot. A name that is empty, holds `/`, starts with `.` (hidden files are skipped) or exceeds 255 bytes is refused. The same name again changes nothing and takes no backup.
+2.  **Verify the file live**: present, with the catalog's SHA-1. A missing or changed file is recorded `Failed` with the destination-mismatch guidance (`webui-spec.md` §7.6).
+3.  **Back up the catalog** (`pre_action`). A failed backup stops it: "No files were changed because the catalog backup failed."
+4.  **Record intent** durably, then **rename without overwriting**, then fsync the folder. `_rename_noreplace` uses Linux `renameat2(RENAME_NOREPLACE)`, one atomic step. Where the filesystem lacks it (NFS among them) it uses link-then-unlink, which is still no-overwrite, since `link()` fails on a taken name. A filesystem with neither is refused. **Why not fall back to `rename()`:** it silently replaces a file created at the new name in the meantime, and the no-overwrite promise is not weakened to accommodate it.
+5.  **In one commit:** every `photos` row naming the old path (the anchor and its `Duplicate`/`Removed_Duplicate`/`Found_At_Destination` rows) names the new one, the file identity's `file_states.current_path` moves with it, and the operation settles `Renamed`. Earlier operations keep the paths true at their time.
+
+**Recovery** (`_reconcile_interrupted_renames`) settles a rename a killed run left unsettled, from what is on disk:
+*   Only the new name exists: the rename happened, and the catalog catches up.
+*   Both names on one inode: link-then-unlink stopped between its steps. Removing the old name finishes it and loses nothing, since both names are one file.
+*   Only the old name exists: it never happened.
+*   Anything else, such as two different files or neither: it is recorded unestablished with a needs-attention note, and nothing is removed.
+
+The rename itself is recorded after its pre-action backup, so the next start reports it among changes not yet in a backup until a later backup covers it.
 
 ### 9.5. Superseding a Delivered File
 
@@ -1079,7 +1095,7 @@ the UI side — each looks like a screen until you ask what it reads from.
 | **Refiling after a date change** | Any metadata correction, single or bulk | This is what makes §9.7 enforceable. Within one destination it is an **atomic rename**, not a Copy-Verify-Delete: no bytes move and there is nothing to verify. The engine already computes a file's correct folder, creates date folders durably, and resolves name collisions — what is new is the destination-to-destination move and an operation recording both paths |
 | **Field-level before/after for metadata edits** | Full lineage and informed manual correction | Preserve the original indexed information and each change, linking old/new identities when content hashes change. No user-facing undo; see §10 |
 | **A batch identity** | Bulk metadata apply | So an edit and the refile it triggers read as one action rather than two unrelated ones. `runs.run_id` is the precedent for exactly this grouping |
-| **Pre-action catalog backup** | Before a confirmed rename, EXIF edit or destination deletion | The engine half of backups is built (§4.1): post-job and manual snapshots, retention, availability. The `pre_action` trigger exists in the schema and `ns_db.backup_catalog` accepts it, but nothing calls it until the curation actions it guards exist. It must stop the action when it fails (`webui-spec.md` §9) |
+| **Pre-action catalog backup** | Before a confirmed rename, EXIF edit or destination deletion | The engine half of backups is built (§4.1): post-job and manual snapshots, retention, availability. Rename (§9.4) takes a `pre_action` backup and stops when it fails (`webui-spec.md` §9); EXIF edits and destination deletion must do the same when they exist |
 | **Serving a file for download** | Log export; retrieving a backup | **API work rather than engine work**, recorded here because it is the same gap twice and worth building once |
 
 **Two of these want a schema change**: field-level before/after and a batch

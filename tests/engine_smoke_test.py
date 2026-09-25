@@ -4079,6 +4079,191 @@ def a_destination_check_reports_what_is_not_intact_and_changes_nothing():
         run_engine(case, "--check-destination", "quick", expect_rc=1)
 
 
+def _engine_json(case, *args, expect_rc=0):
+    proc = run_engine(case, *args, expect_rc=expect_rc)
+    lines = [l for l in proc.stdout.splitlines() if l.strip()]
+    check(len(lines) == 1, f"expected one line of JSON, got:\n{proc.stdout}")
+    return json.loads(lines[0])
+
+
+def _renamable_case(name):
+    """A delivered photo whose removed duplicate carried the better name."""
+    case = new_case(name)
+    make_photo(case / "src" / "IMG_0001.jpg", "rename-a", date="2021:05:01 10:00:00")
+    make_photo(case / "src" / "Beach Sunset.jpg", "rename-a", date="2021:05:01 10:00:00")
+    run_engine(case)
+    run_engine(case, "--move")
+    anchor = rows(case, "SELECT id, dest_path FROM photos WHERE status = 'Completed'")[0]
+    return case, anchor["id"], Path(anchor["dest_path"])
+
+
+@test
+def a_delivered_file_is_renamed_without_overwriting_and_its_history_follows():
+    """
+    engine-spec 9.4 / webui-spec 7.3: the group's names are offered, a typed name is
+    checked against the folder live, the real extension and date folder are kept, a
+    taken name gets _N and the file there is untouched. The catalog is backed up
+    first. Every current reference and the file's identity follow the file; the
+    operation records both paths; history is not rewritten.
+    """
+    case, photo, old = _renamable_case("rename_happy")
+    other = "Beach Sunset" if old.stem != "Beach Sunset" else "IMG_0001"
+    cands = _engine_json(case, "--rename-candidates", photo)
+    check([c["name"] for c in cands["candidates"]] == [other],
+          f"the group's other name was not offered: {cands}")
+
+    for bad in ("a/b", ".hidden", "  "):
+        err = _engine_json(case, "--rename", photo, "--name", bad, "--dry-run", expect_rc=1)["error"]
+        check(err, f"{bad!r} was accepted as a name")
+    (old.parent / "Taken.jpg").write_bytes(b"someone else's file")
+    plan = _engine_json(case, "--rename", photo, "--name", "Taken.PNG", "--dry-run")
+    check(Path(plan["new_path"]) == old.parent / "Taken_1.jpg" and plan["collision"],
+          f"a taken name, typed with another extension, did not resolve to Taken_1.jpg: {plan}")
+    check(old.exists(), "a dry run changed something")
+
+    inode, backups = old.stat().st_ino, len(backups_of(case))
+    run_engine(case, "--rename", photo, "--name", other)
+    new = old.parent / f"{other}.jpg"
+    check(new.exists() and not old.exists() and new.stat().st_ino == inode,
+          "the file was not renamed in place")
+    check((old.parent / "Taken.jpg").read_bytes() == b"someone else's file", "an unrelated file was touched")
+    refs = {r["dest_path"] for r in rows(case, "SELECT dest_path FROM photos")}
+    check(refs == {str(new)}, f"a current reference still points at the old name: {refs}")
+    check(rows(case, "SELECT current_path FROM file_states WHERE location_role = 'destination' "
+                     "AND presence_state = 'present'") == [{"current_path": str(new)}],
+          "the file identity did not follow the rename")
+    op = rows(case, "SELECT source_path, dest_path, status FROM operations WHERE status = 'Renamed'")
+    check(op == [{"source_path": str(old), "dest_path": str(new), "status": "Renamed"}],
+          f"the rename was not recorded with both paths: {op}")
+    check(rows(case, "SELECT COUNT(*) n FROM operations WHERE dest_path = ? AND status = 'Completed'",
+               (str(old),))[0]["n"] == 1, "the Move's history was rewritten")
+    got = backups_of(case)[backups:]
+    check([(b["trigger_kind"], b["outcome"]) for b in got] == [("pre_action", "succeeded")],
+          f"the rename was not preceded by exactly one catalog backup: {got}")
+    run = rows(case, "SELECT mode, status FROM runs ORDER BY id DESC LIMIT 1")[0]
+    check((run["mode"], run["status"]) == ("RENAME", "Completed"), f"rename run: {run}")
+    _assert_lineage_complete(case, "after a rename")
+    run_engine(case, "--check-destination", "quick")
+    check(_check_findings(case) == {("Taken.jpg", "unknown")},
+          f"the catalog and destination disagree after a rename: {_check_findings(case)}")
+
+    backups = len(backups_of(case))
+    run_engine(case, "--rename", photo, "--name", other)
+    check(len(backups_of(case)) == backups and new.exists(),
+          "renaming to the current name did something")
+    run_engine(case, "--rename", photo, "--name", "Taken")
+    check((old.parent / "Taken_1.jpg").exists() and (old.parent / "Taken.jpg").read_bytes() ==
+          b"someone else's file", "the collision suffix was not applied on execution")
+
+
+@test
+def a_rename_stops_before_changing_anything_when_it_cannot_be_safe():
+    """A changed destination file, a failed catalog backup, an undelivered photo and a
+    held lock each stop the rename with the file untouched (webui-spec 7.3, 9)."""
+    import fcntl
+    case, photo, old = _renamable_case("rename_refused")
+    data = old.read_bytes()
+
+    shutil.rmtree(case / "backups")
+    run_engine(case, "--rename", photo, "--name", "After Backup Failure", expect_rc=1)
+    check(old.read_bytes() == data and not (old.parent / "After Backup Failure.jpg").exists(),
+          "a rename went ahead after its catalog backup failed")
+    check(backups_of(case)[-1]["outcome"] == "failed", "the failed backup was not recorded")
+    check(not rows(case, "SELECT 1 FROM operations WHERE status = 'Renamed'"), "a rename was recorded")
+    (case / "backups").mkdir()
+
+    with open(old, "ab") as f:
+        f.write(b"edited elsewhere")
+    run_engine(case, "--rename", photo, "--name", "After Edit", expect_rc=1)
+    check(old.exists() and not (old.parent / "After Edit.jpg").exists(), "a changed file was renamed")
+    failed = rows(case, "SELECT error_message FROM operations WHERE status = 'Failed' ORDER BY id DESC LIMIT 1")
+    check(failed and "differs from the catalog" in failed[0]["error_message"],
+          f"the mismatch was not recorded with guidance: {failed}")
+    old.write_bytes(data)
+    os.utime(old)
+
+    pending = rows(case, "SELECT id FROM photos WHERE status != 'Completed'")[0]["id"]
+    err = _engine_json(case, "--rename", pending, "--name", "x", "--dry-run", expect_rc=1)["error"]
+    check("not been delivered" in err, f"an undelivered photo was offered a rename: {err}")
+
+    with open(case / "appdata" / "engine.lock", "a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        run_engine(case, "--rename", photo, "--name", "Locked", expect_rc=1)
+    check(old.exists(), "a rename ran while the lock was held")
+
+
+@test
+def an_interrupted_rename_is_settled_from_what_is_on_disk():
+    """
+    Recovery finishes a link-then-unlink rename stopped between its steps (both names,
+    one inode), settles one that never happened, and leaves two different files alone
+    with a needs-attention note. Nothing is ever deleted that is not the same file.
+    """
+    import argparse
+    engine = _load_engine()
+    for scenario in ("both_names", "not_started", "different_files"):
+        case, photo, old = _renamable_case(f"rename_recovery_{scenario}")
+        new = old.parent / "Recovered.jpg"
+        db_path = case / "appdata" / "db" / "ns_sqlite.db"
+        conn = engine.get_db_connection(str(db_path))
+        file_id = conn.execute("SELECT file_id FROM file_states WHERE current_path = ?", (str(old),)).fetchone()[0]
+        run_id = conn.execute("SELECT MAX(id) FROM runs").fetchone()[0]
+        with engine.ns_db.transaction(conn):
+            engine.ns_db.begin_operation(conn, run_id=run_id, photo_id=photo, source_path=str(old),
+                                         dest_path=str(new), kind="rename",
+                                         expected={"old_path": str(old), "new_path": str(new),
+                                                   "file_id": file_id})
+        conn.close()
+        if scenario == "both_names":
+            os.link(old, new)
+        elif scenario == "different_files":
+            new.write_bytes(b"a different file")
+        run_engine(case)           # any run reconciles first
+        op = rows(case, "SELECT status FROM operations WHERE dest_path = ? ORDER BY id", (str(new),))
+        issues = rows(case, "SELECT category FROM attention_issues WHERE resolved_at IS NULL")
+        if scenario == "both_names":
+            check(new.exists() and not old.exists() and op[0]["status"] == "Renamed"
+                  and rows(case, "SELECT DISTINCT dest_path FROM photos") == [{"dest_path": str(new)}],
+                  f"a half-finished rename was not completed: {op}")
+            _assert_lineage_complete(case, "after rename recovery")
+        elif scenario == "not_started":
+            check(old.exists() and not new.exists() and op[0]["status"] == "Failed" and not issues,
+                  f"a rename that never happened was not settled as such: {op}")
+        else:
+            check(old.exists() and new.read_bytes() == b"a different file" and op[0]["status"] == "Failed"
+                  and issues == [{"category": "unestablished_outcome"}],
+                  f"two different files were not left alone with a note: {op} {issues}")
+
+
+@test
+def renaming_never_overwrites_whichever_primitive_the_filesystem_has():
+    """renameat2(RENAME_NOREPLACE) where supported, link-then-unlink otherwise; both
+    refuse a taken name and leave both files as they were."""
+    engine = _load_engine()
+    work = Path(tempfile.mkdtemp(prefix="ns-rename-"))
+    real_cdll = engine.ctypes.CDLL
+    for primitive in ("native", "link"):
+        a, b = work / f"{primitive}-a", work / f"{primitive}-b"
+        a.write_text("a")
+        b.write_text("b")
+        if primitive == "link":
+            engine.ctypes.CDLL = lambda *args, **kw: object()    # no renameat2 available
+        try:
+            try:
+                engine._rename_noreplace(str(a), str(b))
+                check(False, f"{primitive}: a taken name was overwritten")
+            except FileExistsError:
+                pass
+            check(a.read_text() == "a" and b.read_text() == "b", f"{primitive}: a refused rename changed files")
+            c = work / f"{primitive}-c"
+            method = engine._rename_noreplace(str(a), str(c))
+            check(not a.exists() and c.read_text() == "a", f"{primitive}: the rename did not happen")
+            check(primitive == "native" or method == "link", f"{primitive}: used {method}")
+        finally:
+            engine.ctypes.CDLL = real_cdll
+    shutil.rmtree(work)
+
+
 @test
 def raw_files_produce_thumbnails_through_rawpy():
     """

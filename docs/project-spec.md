@@ -139,7 +139,6 @@ with what it needs:
 | Gap | Where | Blocks |
 | :--- | :--- | :--- |
 | Precomputed perceptual pairs | `engine-spec.md` §9.3 | Similar-photo review and its slider |
-| Rename a delivered file | `engine-spec.md` §9.4 | Recovering a better filename from a duplicate group |
 | Delete under `--dest`, with an extended record | `engine-spec.md` §9.5 | Discarding redundant copies; needs `width`/`height` too |
 | Writing embedded EXIF (sidecars remain a future option) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
 
@@ -152,7 +151,7 @@ Further gaps between the documented web workflows and what the engine can answer
 | Refiling after a date change | Any metadata correction; it is what makes the destination contract enforceable |
 | Field-level before/after | Full lineage and informed manual corrections; no undo operations |
 | A batch identity | Bulk apply reading as one action |
-| Pre-action catalog backup | Curation actions; post-job and manual backups, retention and availability are built |
+| Pre-action catalog backup for EXIF edits and deletion | Those actions; rename already takes one |
 | Serving a file for download | Log export and backup retrieval — API work, not engine |
 
 **The destination contract** — every file under `--dest` sits in the folder its
@@ -172,7 +171,7 @@ above. No code exists yet.
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 9; older catalogs are refused, never migrated. It stores immutable
+at schema version 10; older catalogs are refused, never migrated. It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its
 identity, and reuse of an existing destination keeps both identities and links the

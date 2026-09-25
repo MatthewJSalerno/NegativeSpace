@@ -16,7 +16,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 class PhotoStatus:
     """State of one source file in the catalog. One row per source_path."""
@@ -54,13 +54,15 @@ OPERATION_CANCELLED = "Cancelled"
 # original carries its content — and records why, so that every selected
 # photo ends a run with an outcome rather than silence.
 OPERATION_SKIPPED = "Skipped"
+# A delivered file given a new name on the user's instruction (engine-spec 9.4).
+OPERATION_RENAMED = "Renamed"
 
 PHOTO_STATUSES = (
     PhotoStatus.PENDING, PhotoStatus.PROCESSING, PhotoStatus.COMPLETED,
     PhotoStatus.COPIED, PhotoStatus.FAILED, PhotoStatus.DUPLICATE,
     PhotoStatus.REMOVED_DUPLICATE, PhotoStatus.FOUND_AT_DESTINATION,
 )
-OPERATION_STATUSES = PHOTO_STATUSES + (OPERATION_CANCELLED, OPERATION_SKIPPED)
+OPERATION_STATUSES = PHOTO_STATUSES + (OPERATION_CANCELLED, OPERATION_SKIPPED, OPERATION_RENAMED)
 RUN_STATUSES = (
     RunStatus.PREPARING, RunStatus.RUNNING, RunStatus.CANCELLING, RunStatus.COMPLETED,
     RunStatus.CANCELLED, RunStatus.FAILED, RunStatus.INTERRUPTED,
