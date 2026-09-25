@@ -164,11 +164,17 @@ The Inspector's details. `404 unknown_photo` for an id the catalog does not hold
                      "value": "2021:05:01 10:00:00", "offset": "+02:00" | null}],
      "camera", "iso", "aperture", "shutter", "sha1", "phash",
      "duplicates": [{"id", "status", "source_path", "dest_path", "file_size"}],
+     "metadata": [["Aperture", 2.8], ["DateTimeOriginal", "2021:05:01 10:00:00"], ...],
      "thumbnail": {"availability": "present" | "failed" | "pending",
                    "failure_category", "failure_detail"}}
 
 `exif_dates` lists only the dates EXIF holds, each with the offset tag that pairs with
 it (`OffsetTimeOriginal`, `OffsetTimeDigitized`, `OffsetTime`).
+
+`metadata` is every tag the Index recorded, as `[name, value]` pairs sorted by name:
+ExifTool's full set (or Pillow's when ExifTool found nothing for the file), not a curated
+subset. The engine's own `date_taken` and `date_source` are left out; they are above.
+Read from the catalog, so it shows the photo as last indexed.
 
 ### `GET /api/v1/photos/{id}/thumbnail`
 

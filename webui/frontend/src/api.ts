@@ -97,6 +97,8 @@ export interface PhotoDetail {
   sha1: string | null;
   phash: string | null;
   duplicates: Copy[];
+  // Every tag the Index recorded, [name, value], sorted by name.
+  metadata: [string, unknown][];
   thumbnail: { availability: string; failure_category: string | null; failure_detail: string | null };
 }
 

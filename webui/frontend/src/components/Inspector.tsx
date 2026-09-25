@@ -206,6 +206,38 @@ function Details({ detail: d }: { detail: PhotoDetail }) {
         <Row label="SHA-1"><code>{d.sha1 ?? "not recorded"}</code></Row>
         <Row label="Perceptual hash"><code>{d.phash ?? "not recorded"}</code></Row>
       </Section>
+      <AllMetadata tags={d.metadata ?? []} />
     </div>
+  );
+}
+
+// Every tag the Index recorded, folded until asked for (webui-spec 4.2): the fields
+// above are a few of them. Read from the catalog, so it is the photo as last indexed.
+function AllMetadata({ tags }: { tags: [string, unknown][] }) {
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState("");
+  const f = filter.trim().toLowerCase();
+  const shown = f ? tags.filter(([k, v]) => k.toLowerCase().includes(f) || String(v).toLowerCase().includes(f)) : tags;
+  const text = (v: unknown) => (v !== null && typeof v === "object" ? JSON.stringify(v) : String(v));
+  return (
+    <section className="info-section all-metadata">
+      <button className="link" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {open ? "Hide all metadata" : `Show all metadata (${tags.length} tags)`}
+      </button>
+      {open && (
+        <>
+          <p className="muted">Every tag recorded when the photo was last indexed, including the ones above.</p>
+          <input type="search" placeholder="Filter tags" value={filter} onChange={(e) => setFilter(e.target.value)}
+                 aria-label="Filter the metadata" />
+          {shown.length === 0 ? <p className="muted">No tag matches “{filter}”.</p> : (
+            <table className="meta-table">
+              <tbody>
+                {shown.map(([k, v]) => <tr key={k}><th>{k}</th><td>{text(v)}</td></tr>)}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
+    </section>
   );
 }

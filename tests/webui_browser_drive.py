@@ -144,6 +144,12 @@ with sync_playwright() as p:
     expect(inspector).to_contain_text("File modified")
     widths = inspector.locator("table.info").evaluate_all("ts => ts.map(t => Math.round(t.getBoundingClientRect().width))")
     assert len(widths) == 3 and len(set(widths)) == 1, f"the information tables differ in width: {widths}"
+    # Show all metadata: every tag recorded, folded until asked for, with a filter.
+    inspector.get_by_role("button", name=re.compile(r"^Show all metadata \(\d+ tags\)")).click()
+    expect(inspector.locator(".meta-table")).to_contain_text("ImageWidth")
+    inspector.get_by_label("Filter the metadata").fill("ImageWidth")
+    expect(inspector.locator(".meta-table tr")).to_have_count(1)
+    inspector.get_by_role("button", name="Hide all metadata").click()
     shot("3-inspector")
     no_errors_yet()
 

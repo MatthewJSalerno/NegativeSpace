@@ -278,6 +278,11 @@ _EXIF_DATES = (("taken", "DateTimeOriginal", "OffsetTimeOriginal"),
                ("modified", "ModifyDate", "OffsetTime"))
 
 
+# Keys the engine adds to a photo's metadata beside ExifTool's tags: its own reading of
+# the date, and where that reading came from.
+_ENGINE_KEYS = {"date_taken", "date_source"}
+
+
 def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
     """The Inspector's details (webui-spec 4.2, 6.2): paths, dates with their source,
     hashes, dimensions, camera, and every catalogued copy of the same content."""
@@ -318,6 +323,10 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         "width": content["width"] if content else None, "height": content["height"] if content else None,
         "sha1": p["sha1_hash"], "phash": p["phash"],
         "duplicates": copies,
+        # Every tag the Index recorded (ExifTool's full set, not a curated subset), for
+        # Show all metadata. The engine's own keys, which are not the photo's, are left out.
+        "metadata": sorted(([k, v] for k, v in meta.items() if k not in _ENGINE_KEYS),
+                           key=lambda kv: kv[0].lower()),
         "thumbnail": {"availability": grid[1] if grid else "pending",
                       "failure_category": grid[2] if grid else None,
                       "failure_detail": grid[3] if grid else None},

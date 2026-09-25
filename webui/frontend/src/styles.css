@@ -343,3 +343,10 @@ body.dragging { cursor: col-resize; user-select: none; }
 
 /* Continuous scrolling: where the next or previous page loads. */
 .page-sentinel { padding: 16px; text-align: center; }
+
+/* Show all metadata, at the foot of the Inspector. */
+.all-metadata { display: grid; gap: 6px; }
+.all-metadata .link { justify-self: start; }
+.meta-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; table-layout: fixed; }
+.meta-table th, .meta-table td { text-align: left; vertical-align: top; padding: 3px 6px; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.meta-table th { width: 42%; font-weight: normal; color: var(--muted); }

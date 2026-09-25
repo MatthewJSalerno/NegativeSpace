@@ -461,6 +461,12 @@ beside the photo instead of below it.
 ### 4.2 Split-Screen Photo Inspector Panel
 Clicking an image opens a right-side 50% detail panel.
 
+**Show all metadata.** The Index records every tag ExifTool reads (Pillow's when ExifTool
+finds nothing), not a curated subset; the Inspector's fields are a few of them. A folded
+**Show all metadata (n tags)** at the foot of the panel lists every one by name, with a
+filter box. It is read from the catalog, so it shows the photo as last indexed, and costs
+no file read.
+
 **Label what comes from the photo's own metadata as such.** The Inspector groups the
 EXIF dates (taken, digitized, modified), camera and exposure under **Photo EXIF
 information**. Each date shows the offset EXIF recorded for it (`OffsetTimeOriginal`,

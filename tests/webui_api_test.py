@@ -251,6 +251,14 @@ class JobsAndCatalog(ApiCase):
             {"field": "taken", "value": "2021:05:01 10:00:00", "offset": "+02:00"},
             {"field": "digitized", "value": "2021:05:01 10:00:05", "offset": None},
             {"field": "modified", "value": "2021:05:02 11:00:00", "offset": None}])
+        # Show all metadata: every tag the Index recorded, beyond the handful shown above.
+        tags = dict(detail["metadata"])
+        self.assertEqual((tags.get("DateTimeOriginal"), tags.get("OffsetTimeOriginal")),
+                         ("2021:05:01 10:00:00", "+02:00"))
+        self.assertIn("ImageWidth", tags, "the full ExifTool tag set, not only the curated fields")
+        self.assertNotIn("date_source", tags, "the engine's own keys are not the photo's metadata")
+        names = [k for k, _ in detail["metadata"]]
+        self.assertEqual(names, sorted(names, key=str.lower))
 
     def test_one_job_at_a_time_and_the_lock_decides(self):
         self.index_library()
