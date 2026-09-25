@@ -26,6 +26,16 @@ jobs:
       - name: Build the web image
         run: docker build -f docker/web.Dockerfile -t negativespace-web .
 
+      - name: A container CPU limit sets the default worker count
+        # os.cpu_count() reports the host; the engine must use what --cpus allows.
+        run: |
+          got=$(docker run --rm --cpus 2 --entrypoint python3 negativespace -c \
+                "import ns_db; c = ns_db.available_cpus(); print(c['available'], c['limited_by'])")
+          echo "with --cpus 2: $got"
+          if [ "$got" != "2 cpu_quota" ] && [ "$(nproc)" -gt 2 ]; then
+            echo "::error::the engine ignored the container's CPU limit"; exit 1
+          fi
+
       - name: Engine starts and parses its CLI
         run: docker run --rm negativespace python3 ns-engine.py --help
 

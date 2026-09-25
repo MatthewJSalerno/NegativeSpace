@@ -44,7 +44,7 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Create new catalog").click()
     expect(page.get_by_text("Welcome to NegativeSpace")).to_be_visible()
     expect(page.locator(".notice-first-run")).to_contain_text("change any of them at any time in the app's Settings")
-    expect(page.get_by_text("If you have set a CPU limit on this container, update this field to match it.")).to_be_visible()
+    expect(page.locator(".settings")).to_contain_text(re.compile(r"This container may use (all )?\d+"))
     shot("1-welcome")
     page.get_by_role("button", name="Save and continue").click()
     expect(page.get_by_text("No photos yet")).to_be_visible()

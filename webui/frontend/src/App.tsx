@@ -313,6 +313,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
           </div>
         </div>
+        <JobDrawer jobs={jobs} connection={connection} />
         <FinishedBanner jobs={jobs} dismissedId={dismissedId}
                         onDismiss={(id) => { setDismissedId(id); try { localStorage.setItem("ns.dismissedRun", String(id)); } catch { /* per-viewer convenience only */ } }} />
         {actionError && <p className="error banner" role="alert">{actionError} <button onClick={() => setActionError(null)}>Dismiss</button></p>}
@@ -381,8 +382,6 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           <button onClick={() => setSelected(new Map())}>Clear selection</button>
         </div>
       )}
-
-      <JobDrawer jobs={jobs} connection={connection} />
 
       {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
     </div>

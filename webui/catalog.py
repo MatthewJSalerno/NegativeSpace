@@ -339,19 +339,21 @@ def cache_file(cache_root: Path, cache_filename: str) -> Optional[Path]:
     return path
 
 
-def settings(db_path: Path, *, detected_workers: int, supported_extensions) -> dict:
+def settings(db_path: Path, *, cpus: dict, supported_extensions) -> dict:
     """Saved settings with their revisions, or the engine's defaults (revision 0) for
     any never saved - the value a job started now would use."""
     with connect(db_path) as conn:
         conn.row_factory = None          # ns_db's schema check compares plain tuples
         saved = ns_db.read_settings(conn)
         retention_default = ns_db.backup_retention(conn)
-    defaults = {"workers": detected_workers, "exts": sorted(supported_extensions),
+    defaults = {"workers": cpus["available"], "exts": sorted(supported_extensions),
                 "backup_retention": retention_default}
     out = {}
     for key, default in defaults.items():
         entry = saved.get(key, {"value": default, "revision": 0})
         out[key] = {"value": entry["value"], "revision": entry["revision"], "default": default}
     out["exts"]["support"] = [dict(ns_db.extension_support(e), extension=e) for e in out["exts"]["value"]]
-    out["workers"]["detected"] = detected_workers
+    out["workers"]["detected"] = cpus["available"]
+    out["workers"]["host"] = cpus["host"]
+    out["workers"]["limited_by"] = cpus["limited_by"]
     return out

@@ -6,8 +6,8 @@ import { activeTitle, countsLine, currentPhase, phaseLabel, summary, type Connec
 // The operations drawer (webui-spec 4.1): aggregate counts about once a second,
 // elapsed time from the job's recorded start, and Cancel. Per-file detail belongs
 // to the logs, not here.
-// The live drawer, at the bottom while a job runs (webui-spec 4.1). A finished job's
-// result is a banner at the top of the page instead (FinishedBanner).
+// The live progress while a job runs, at the top of the page under the toolbar
+// (webui-spec 4.1). When it finishes, FinishedBanner takes its place.
 export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Connection }) {
   const [now, setNow] = useState(Date.now());
   const [cancelError, setCancelError] = useState<string | null>(null);

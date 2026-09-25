@@ -4,6 +4,7 @@ Run: python3 -m unittest discover -s tests -p database_test.py -v
 """
 import concurrent.futures
 import json
+import os
 from pathlib import Path
 import sqlite3
 import sys
@@ -516,6 +517,31 @@ class DatabaseTests(unittest.TestCase):
                     {'path': '/d/b', 'kind': 'changed'}):
             with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
                 db.record_destination_findings(self.conn, run, [bad])
+
+    def test_available_cpus_honours_a_container_quota_and_cpu_set(self):
+        host = os.cpu_count() or 4
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            self.assertEqual(db.available_cpus(root)["quota"], None, "no cgroup files means no quota")
+            (root / "cpu.max").write_text("max 100000\n")
+            unlimited = db.available_cpus(root)
+            self.assertEqual((unlimited["quota"], unlimited["available"] <= host), (None, True))
+            (root / "cpu.max").write_text("200000 100000\n")
+            two = db.available_cpus(root)
+            if host > 2 and two["affinity"] > 2:
+                self.assertEqual((two["available"], two["limited_by"]), (2, "cpu_quota"))
+            (root / "cpu.max").write_text("50000 100000\n")
+            self.assertEqual(db.available_cpus(root)["available"], 1, "half a CPU still runs one worker")
+            (root / "cpu.max").unlink()
+            (root / "cpu").mkdir()
+            (root / "cpu" / "cpu.cfs_quota_us").write_text("150000\n")
+            (root / "cpu" / "cpu.cfs_period_us").write_text("100000\n")
+            v1 = db.available_cpus(root)
+            self.assertEqual(v1["quota"], 1.5, "the cgroup v1 quota was not read")
+            if host > 1 and v1["affinity"] > 1:
+                self.assertEqual(v1["available"], 1, "a fractional quota must round down")
+            (root / "cpu" / "cpu.cfs_quota_us").write_text("-1\n")
+            self.assertIsNone(db.available_cpus(root)["quota"], "-1 means unlimited")
 
     def test_extension_support_names_what_the_engine_can_read(self):
         for ext in ('.jpg', 'JPG', 'png', '.CR3', '.dng', '.heic'):

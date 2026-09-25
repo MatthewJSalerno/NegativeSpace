@@ -138,10 +138,13 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
             </label>
             <p className="muted">Controls how many photos are read and hashed at once.</p>
             <p className="notice">
-              Detected: {settings.workers.detected} CPU cores. This is what the host reports. By default a
-              container may use all of them, but a CPU limit set on the container (for example with
-              {" "}<code>--cpus</code>) is not reflected in this figure. <strong>If you have set a CPU limit on
-              this container, update this field to match it.</strong>
+              {settings.workers.limited_by
+                ? <>This container may use <strong>{settings.workers.detected}</strong> of the host's {settings.workers.host} CPU
+                    cores, because of its {settings.workers.limited_by === "cpu_quota" ? <>CPU limit (<code>--cpus</code>)</> : <>CPU set (<code>--cpuset-cpus</code>)</>}.
+                    {" "}That is the default here.</>
+                : <>This container may use all <strong>{settings.workers.detected}</strong> of the host's CPU cores; no CPU
+                    limit is set on it. That is the default here.</>}
+              {" "}A value you save stays until you change it, even if the container's CPU limit changes later.
             </p>
             <p className="muted">Database queue size: {QUEUE_SIZE.toLocaleString()} items (fixed in the engine, shown for reference).</p>
           </section>

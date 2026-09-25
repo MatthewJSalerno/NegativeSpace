@@ -13,7 +13,8 @@ deletion and are not reliably detected by the engine.
 - --base <path> (Optional) Base directory for app artifacts (default: "/data").
   Creates/uses <base>/db/ for SQLite and <base>/logs/ for logs.
 - --workers <N> (Optional) Override the worker process count used for
-  hashing/date resolution (default: os.cpu_count()).
+  hashing/date resolution (default: the CPUs the container may use,
+  ns_db.available_cpus()).
 - --exts <.ext1,.ext2,...> (Optional) Comma-separated extension list,
   replacing the built-in default set for directory scanning. Has no effect
   on --file-ids targeting, since that bypasses directory scanning entirely.
@@ -171,7 +172,6 @@ from concurrent.futures import ProcessPoolExecutor
 from typing import Optional, Callable, Any, List, Tuple
 
 # --- Configuration & Constants ---
-MAX_WORKER_PROCESSES = os.cpu_count() or 4
 DB_QUEUE_SIZE = 1000
 
 # Scan-phase commit batching. Only the INDEX path batches (see
@@ -283,6 +283,10 @@ from ns_db import (PhotoStatus, RunStatus, PHOTO_STATUSES, RUN_STATUSES,
                    OPERATION_STATUSES, OPERATION_CANCELLED, OPERATION_SKIPPED, OPERATION_RENAMED,
                    RAW_EXTENSIONS, RASTER_EXTENSIONS, SUPPORTED_EXTENSIONS)
 import ns_db
+
+# The CPUs this container may really use, not the host's count: a --cpus quota or
+# --cpuset-cpus set is invisible to os.cpu_count() (ns_db.available_cpus).
+MAX_WORKER_PROCESSES = ns_db.available_cpus()["available"]
 
 # Statuses that mean "already delivered to the destination and verified".
 ANCHOR_DELIVERED_STATUSES = (PhotoStatus.COMPLETED, PhotoStatus.COPIED,
@@ -3766,7 +3770,7 @@ def main():
     parser.add_argument("--base", default="/appdata", help="Base directory for DB and logs (default: /appdata).")
     parser.add_argument(
         "--workers", type=positive_int, default=None,
-        help=f"Worker process count for hashing/date resolution (default: {MAX_WORKER_PROCESSES}, auto-detected CPU count)."
+        help=f"Worker process count for hashing/date resolution (default: {MAX_WORKER_PROCESSES}, the CPUs this container may use)."
     )
     parser.add_argument(
         "--exts", type=str, default=None,

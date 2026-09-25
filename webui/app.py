@@ -6,7 +6,6 @@ Run with: uvicorn webui.app:app --host 0.0.0.0 --port 8000 (from the repository 
 import asyncio
 import contextlib
 import json
-import os
 import sqlite3
 from pathlib import Path
 from typing import Optional
@@ -73,7 +72,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     # -- Settings (the API's only catalog write, through ns_db) ---------------
 
     def _settings():
-        return catalog.settings(cfg.db_path, detected_workers=os.cpu_count() or 4,
+        return catalog.settings(cfg.db_path, cpus=ns_db.available_cpus(),
                                 supported_extensions=ns_db.SUPPORTED_EXTENSIONS)
 
     @app.get("/api/v1/settings")

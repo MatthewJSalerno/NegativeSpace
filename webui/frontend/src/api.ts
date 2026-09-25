@@ -128,7 +128,7 @@ export interface ExtensionSupport {
 }
 
 export interface Settings {
-  workers: Setting<number> & { detected: number };
+  workers: Setting<number> & { detected: number; host: number; limited_by: "cpu_quota" | "cpu_set" | null };
   exts: Setting<string[]> & { support: ExtensionSupport[] };
   backup_retention: Setting<number>;
   job_active: boolean;
