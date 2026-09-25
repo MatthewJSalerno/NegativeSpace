@@ -123,6 +123,47 @@ RASTER_EXTENSIONS = {
 SUPPORTED_EXTENSIONS = RASTER_EXTENSIONS | RAW_EXTENSIONS
 
 
+def available_cpus(cgroup_root="/sys/fs/cgroup"):
+    """The CPUs this process may really use, for the default worker count.
+
+    os.cpu_count() reports the host's cores. A container can be limited two ways
+    it does not reflect: a CPU set (`--cpuset-cpus`, visible as the scheduler
+    affinity) and a CPU quota (`--cpus`, in the cgroup's cpu.max, or cfs_quota_us
+    and cfs_period_us under cgroup v1). The answer is the smallest of the three.
+    A fractional quota rounds down, never below 1: 1.5 CPUs of quota spread over
+    two workers throttles both, where one runs at full speed.
+
+    Returns {'host', 'affinity', 'quota' (CPUs, or None when unlimited), 'available',
+    'limited_by' ('cpu_quota', 'cpu_set' or None)}.
+    """
+    host = os.cpu_count() or 4
+    try:
+        affinity = len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        affinity = host
+    quota = None
+    root = Path(cgroup_root)
+    try:
+        limit, period = (root / "cpu.max").read_text().split()[:2]
+        if limit != "max":
+            quota = int(limit) / int(period)
+    except (OSError, ValueError):
+        try:
+            limit = int((root / "cpu" / "cpu.cfs_quota_us").read_text())
+            period = int((root / "cpu" / "cpu.cfs_period_us").read_text())
+            if limit > 0 and period > 0:
+                quota = limit / period
+        except (OSError, ValueError):
+            pass
+    candidates = {"host": host, "cpu_set": affinity}
+    if quota is not None:
+        candidates["cpu_quota"] = max(1, int(quota))
+    limited_by = min(candidates, key=lambda k: (candidates[k], k != "cpu_quota"))
+    available = candidates[limited_by]
+    return {"host": host, "affinity": affinity, "quota": quota, "available": available,
+            "limited_by": None if available >= host else limited_by}
+
+
 def extension_support(extension):
     """What the engine does with files of this extension, for Settings (the API's
     validate-extension) and the run log. Informative, never blocking: a user may

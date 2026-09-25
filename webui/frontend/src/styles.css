@@ -176,20 +176,13 @@ body.dragging { cursor: col-resize; user-select: none; }
 }
 .action-bar > span:first-child { margin-right: auto; }
 .drawer {
-  position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 7;
-  background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--accent);
-  border-radius: var(--radius); padding: 12px 16px; box-shadow: 0 4px 16px rgb(0 0 0 / 0.2);
-  display: grid; gap: 8px;
+  margin: 0 16px 10px; background: var(--surface-2); border-left: 4px solid var(--accent);
+  border-radius: var(--radius); padding: 10px 14px; display: grid; gap: 8px;
 }
-.action-bar ~ .drawer { bottom: 84px; }
 .drawer p { margin: 0; }
 .drawer-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 .drawer-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.drawer-compact { grid-template-columns: 1fr auto; align-items: center; padding: 10px 16px; }
 .drawer-text { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
-.drawer-good { border-left-color: var(--good); }
-.drawer-warn { border-left-color: var(--warn); }
-.drawer-bad { border-left-color: var(--bad); }
 .drawer-lost { border-left-color: var(--warn); }
 .bar { height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
 .bar > div { height: 100%; background: var(--accent); transition: width 0.5s; }

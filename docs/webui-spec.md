@@ -164,6 +164,11 @@ guidance without automatically restoring or creating a replacement. When catalog
 logs cannot be read, offer available application diagnostics rather than a broken
 job-log link. This diagnostic path display does not add a backup destination setting.
 
+**The worker count defaults to the CPUs the container may use**
+(`ns_db.available_cpus`): the host's cores, reduced by a CPU set (`--cpuset-cpus`) or a
+CPU quota (`--cpus`, rounded down, at least 1). Settings names which applies. A saved
+value stays until changed, even if the container's limit changes later.
+
 **Settings changes never affect an already-running operation.** Users may save
 settings while a job is active; saved values apply only to jobs started after the
 save. Each job retains its starting configuration, available in its job details.
@@ -267,9 +272,8 @@ wrong for every such file that does carry a date.
 ## 4. UI Layouts & Component Specs
 
 ### 4.1 Real-Time Operations Drawer
-When a job is active, a progress drawer expands at the bottom of the viewport. When it
-finishes, its result shows as a banner at the top of the page, under the toolbar, until
-dismissed.
+When a job is active, its progress shows at the top of the page, under the toolbar. When
+it finishes, its result replaces it there as a banner until dismissed.
 
 The toolbar's actions are named **Index**, **Copy all** and **Move all**, matching the
 documentation, and each has a hover explanation, for example "Index your library".
