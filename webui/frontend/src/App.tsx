@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, ApiError, type PhotoItem, type PhotoPage, type Sort, type Status, type View } from "./api";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { api, ApiError, type PhotoItem, type PhotoPage, type Sort, type Status, type Timeline, type View } from "./api";
 import { count, plural } from "./format";
 import { useJobFeed } from "./jobs";
 import { Gallery } from "./components/Gallery";
 import { Inspector } from "./components/Inspector";
-import { JobDrawer } from "./components/JobDrawer";
+import { FinishedBanner, JobDrawer } from "./components/JobDrawer";
+import { JumpToDate, PAGE_SIZES, Pager } from "./components/Pager";
+import { Tip } from "./components/Tip";
 import { SettingsDialog } from "./components/SettingsDialog";
 
-const PAGE_SIZE = 60;
+// Neither side of the gallery/Inspector divider gets narrower than this.
+const MIN_SIDE = 320;
 const MAX_SELECTION = 1000; // mirrors the API's --file-ids limit (webui-spec 2)
 const VIEW_LABEL: Record<View, string> = { all: "All photos", unorganized: "Not yet organized", organized: "Organized" };
 
@@ -20,6 +23,7 @@ function readUrl() {
     sort: (p.get("sort") as Sort) || "newest",
     q: p.get("q") || "",
     page: Math.max(1, Number(p.get("page")) || 1),
+    size: PAGE_SIZES.includes(Number(p.get("size"))) ? Number(p.get("size")) : PAGE_SIZES[0],
     photo: p.get("photo") ? Number(p.get("photo")) : null,
   };
 }
@@ -112,8 +116,10 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [q, setQ] = useState(initial.q);
   const [search, setSearch] = useState(initial.q);
   const [page, setPage] = useState(initial.page);
+  const [pageSize, setPageSize] = useState(initial.size);
   const [openId, setOpenId] = useState<number | null>(initial.photo);
   const [data, setData] = useState<PhotoPage | null>(null);
+  const [timeline, setTimeline] = useState<Timeline | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Map<number, PhotoItem>>(new Map());
   const [confirm, setConfirm] = useState<Confirm | null>(null);
@@ -124,12 +130,27 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   });
   const { jobs, connection } = useJobFeed();
   const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
+  const header = useRef<HTMLElement>(null);
+  const content = useRef<HTMLElement>(null);
+  const [panelWidth, setPanelWidth] = useState<number | null>(() => {
+    try { return Number(localStorage.getItem("ns.inspectorWidth")) || null; } catch { return null; }
+  });
+
+  // The header's height, for everything that sticks below it: it grows when the
+  // finished-job banner shows or the toolbar wraps on a narrow screen.
+  useEffect(() => {
+    if (!header.current) return;
+    const observer = new ResizeObserver(([entry]) =>
+      document.documentElement.style.setProperty("--header-h", `${Math.ceil(entry.target.getBoundingClientRect().height)}px`));
+    observer.observe(header.current);
+    return () => observer.disconnect();
+  }, []);
 
   // A finished job changes the catalog: refresh the view and the counts. Keyed on
   // the last finished run rather than on seeing a job stop, because a job shorter
-  // than one feed update is never seen running at all.
-  // The first value seen is the baseline even when there is no finished run yet,
-  // so the very first job on a new catalog still refreshes the view.
+  // than one feed update is never seen running at all. The first value seen is the
+  // baseline even when there is no finished run yet, so the very first job on a new
+  // catalog still refreshes the view.
   const lastFinished = jobs.last && !jobRunning ? `${jobs.last.id}:${jobs.last.status}` : null;
   const seenFinished = useRef<string | null | undefined>(undefined);
   useEffect(() => {
@@ -140,10 +161,13 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     seenFinished.current = lastFinished;
   }, [lastFinished, refreshStatus]);
 
+  // Only a changed search goes back to page 1; loading the page keeps the URL's page.
   useEffect(() => {
-    const t = window.setTimeout(() => { setQ(search.trim()); setPage(1); }, 300);
+    const t = window.setTimeout(() => {
+      if (search.trim() !== q) { setQ(search.trim()); setPage(1); }
+    }, 300);
     return () => window.clearTimeout(t);
-  }, [search]);
+  }, [search, q]);
 
   useEffect(() => {
     const p = new URLSearchParams();
@@ -151,23 +175,37 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     if (sort !== "newest") p.set("sort", sort);
     if (q) p.set("q", q);
     if (page > 1) p.set("page", String(page));
+    if (pageSize !== PAGE_SIZES[0]) p.set("size", String(pageSize));
     if (openId != null) p.set("photo", String(openId));
     const url = `${window.location.pathname}${p.size ? `?${p}` : ""}`;
     window.history.replaceState(null, "", url);
-  }, [view, sort, q, page, openId]);
+  }, [view, sort, q, page, pageSize, openId]);
 
   useEffect(() => {
     let live = true;
-    api.photos({ view, sort, q, page, page_size: PAGE_SIZE }).then(
+    api.photos({ view, sort, q, page, page_size: pageSize }).then(
       (d) => { if (live) { setData(d); setLoadError(null); } },
       (e) => live && setLoadError(e instanceof ApiError ? e.message : "Photos could not be loaded."),
     );
     return () => { live = false; };
-  }, [view, sort, q, page, refreshKey]);
+  }, [view, sort, q, page, pageSize, refreshKey]);
 
-  const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
+  useEffect(() => {
+    let live = true;
+    api.timeline({ view, q }).then((t) => live && setTimeline(t), () => live && setTimeline(null));
+    return () => { live = false; };
+  }, [view, q, refreshKey]);
+
+  const pages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
   const onPageIds = useMemo(() => new Set(data?.items.map((i) => i.id) ?? []), [data]);
   const outside = [...selected.keys()].filter((id) => !onPageIds.has(id)).length;
+
+  const changePageSize = (size: number) => {
+    // Keep the first photo on screen in view: land on the page that holds it.
+    const first = (page - 1) * pageSize;
+    setPageSize(size);
+    setPage(Math.floor(first / size) + 1);
+  };
 
   const toggle = (item: PhotoItem, on: boolean) => setSelected((cur) => {
     const next = new Map(cur);
@@ -187,6 +225,29 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     if (next) setOpenId(next.id);
   }, [data, openId]);
 
+  // The divider between the gallery and the Inspector: drag it, or focus it and use
+  // the arrow keys. Each side keeps at least MIN_SIDE pixels; the width is remembered.
+  const setWidth = (px: number) => {
+    const total = content.current?.getBoundingClientRect().width ?? window.innerWidth;
+    const clamped = Math.round(Math.min(Math.max(px, MIN_SIDE), total - MIN_SIDE));
+    setPanelWidth(clamped);
+    try { localStorage.setItem("ns.inspectorWidth", String(clamped)); } catch { /* per-viewer convenience only */ }
+  };
+  const drag = (e: ReactPointerEvent) => {
+    e.preventDefault();
+    const right = content.current?.getBoundingClientRect().right ?? window.innerWidth;
+    const move = (ev: PointerEvent) => setWidth(right - ev.clientX);
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.classList.remove("dragging");
+    };
+    document.body.classList.add("dragging");
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  const currentWidth = () => panelWidth ?? (content.current?.getBoundingClientRect().width ?? window.innerWidth) / 2;
+
   const start = (mode: "index" | "copy" | "move", fileIds?: number[]) => async () => {
     setActionError(null);
     try {
@@ -198,7 +259,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   };
 
   const askTransfer = (mode: "copy" | "move", ids?: number[]) => {
-    const scope = ids ? plural(ids.length, "selected photo") : `every photo not yet organized (${count(status.photos ? (data?.counts.unorganized ?? 0) : 0)})`;
+    const scope = ids ? plural(ids.length, "selected photo") : `every photo not yet organized (${count(data?.counts.unorganized ?? 0)})`;
     setConfirm({
       title: mode === "move" ? `Move ${scope}?` : `Copy ${scope}?`,
       action: mode === "move" ? "Move" : "Copy",
@@ -215,42 +276,49 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
   const noPhotos = status.photos === 0;
   const tooMany = selected.size > MAX_SELECTION;
+  const busyTip = "A job is running. Wait for it to finish or cancel it.";
+  const emptyTip = "Index your library first - NegativeSpace acts on indexed photos.";
 
   return (
     <div className={`app ${openId != null ? "with-inspector" : ""}`}>
-      <header className="toolbar">
-        <h1 className="brand">NegativeSpace</h1>
-        <nav className="views" aria-label="Views">
-          {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
-            <button key={v} className={v === view ? "active" : ""} onClick={() => { setView(v); setPage(1); }}>
-              {VIEW_LABEL[v]}{data ? ` (${count(data.counts[v])})` : ""}
-            </button>
-          ))}
-        </nav>
-        <input className="search" type="search" placeholder="Search filenames" value={search}
-               onChange={(e) => setSearch(e.target.value)} aria-label="Search filenames" />
-        <select value={sort} onChange={(e) => { setSort(e.target.value as Sort); setPage(1); }} aria-label="Sort">
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-          <option value="largest">Largest first</option>
-          <option value="smallest">Smallest first</option>
-          <option value="name">Name</option>
-        </select>
-        <div className="toolbar-actions">
-          <button onClick={start("index")} disabled={jobRunning} title={jobRunning ? "A job is running." : "Scan the source for new and changed photos"}>
-            Scan
-          </button>
-          <button onClick={() => askTransfer("copy")} disabled={jobRunning || noPhotos}
-                  title={noPhotos ? "Run a Scan first - NegativeSpace acts on indexed photos." : undefined}>Copy all</button>
-          <button onClick={() => askTransfer("move")} disabled={jobRunning || noPhotos}
-                  title={noPhotos ? "Run a Scan first - NegativeSpace acts on indexed photos." : undefined}>Move all</button>
-          <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
+      <header className="toolbar" ref={header}>
+        <div className="toolbar-row">
+          <h1 className="brand">NegativeSpace</h1>
+          <nav className="views" aria-label="Views">
+            {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
+              <button key={v} className={v === view ? "active" : ""} onClick={() => { setView(v); setPage(1); }}>
+                {VIEW_LABEL[v]}{data ? ` (${count(data.counts[v])})` : ""}
+              </button>
+            ))}
+          </nav>
+          <input className="search" type="search" placeholder="Search filenames" value={search}
+                 onChange={(e) => setSearch(e.target.value)} aria-label="Search filenames" />
+          <select value={sort} onChange={(e) => { setSort(e.target.value as Sort); setPage(1); }} aria-label="Sort">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="largest">Largest first</option>
+            <option value="smallest">Smallest first</option>
+            <option value="name">Name</option>
+          </select>
+          <div className="toolbar-actions">
+            <Tip text={jobRunning ? busyTip : "Index your library: read new and changed photos from the source into the catalog. Nothing is moved or copied."}>
+              <button onClick={start("index")} disabled={jobRunning}>Index</button>
+            </Tip>
+            <Tip text={jobRunning ? busyTip : noPhotos ? emptyTip : "Copy every photo not yet organized into the destination's date folders. The source is left untouched."}>
+              <button onClick={() => askTransfer("copy")} disabled={jobRunning || noPhotos}>Copy all</button>
+            </Tip>
+            <Tip text={jobRunning ? busyTip : noPhotos ? emptyTip : "Move every photo not yet organized into the destination's date folders. Each source is deleted only after its copy is verified."}>
+              <button onClick={() => askTransfer("move")} disabled={jobRunning || noPhotos}>Move all</button>
+            </Tip>
+            <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
+          </div>
         </div>
+        <FinishedBanner jobs={jobs} dismissedId={dismissedId}
+                        onDismiss={(id) => { setDismissedId(id); try { localStorage.setItem("ns.dismissedRun", String(id)); } catch { /* per-viewer convenience only */ } }} />
+        {actionError && <p className="error banner" role="alert">{actionError} <button onClick={() => setActionError(null)}>Dismiss</button></p>}
       </header>
 
-      {actionError && <p className="error banner" role="alert">{actionError} <button onClick={() => setActionError(null)}>Dismiss</button></p>}
-
-      <main className="content">
+      <main className="content" ref={content}>
         <div className="gallery-pane">
           {loadError && <p className="error">{loadError}</p>}
           {data && data.total === 0 && (
@@ -258,8 +326,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               {noPhotos ? (
                 <>
                   <h2>No photos yet</h2>
-                  <p>Scan your source to build the catalog. Nothing is moved or copied by a scan.</p>
-                  <button className="primary" onClick={start("index")} disabled={jobRunning}>Scan the source</button>
+                  <p>Index your library to build the catalog. Indexing reads your photos; nothing is moved or copied.</p>
+                  <button className="primary" onClick={start("index")} disabled={jobRunning}>Index your library</button>
                 </>
               ) : q ? (
                 <>
@@ -276,15 +344,28 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               <div className="gallery-head">
                 <button onClick={() => toggleMany(data.items, true)} disabled={jobRunning}>Select all on this page</button>
                 {jobRunning && <span className="muted">Selection is unavailable while a job is running.</span>}
-                <Pager page={page} pages={pages} onPage={setPage} total={data.total} />
+                <JumpToDate timeline={timeline} sort={sort} pageSize={pageSize} onPage={setPage} />
               </div>
+              <Pager page={page} pages={pages} total={data.total} pageSize={pageSize} onPage={setPage} onPageSize={changePageSize} />
               <Gallery page={data} selected={selected} selectable={!jobRunning} openId={openId}
                        onOpen={setOpenId} onToggle={toggle} onToggleMany={toggleMany} />
-              <div className="gallery-foot"><Pager page={page} pages={pages} onPage={setPage} total={data.total} /></div>
+              <div className="gallery-foot">
+                <Pager page={page} pages={pages} total={data.total} pageSize={pageSize} onPage={setPage} onPageSize={changePageSize} />
+              </div>
             </>
           )}
         </div>
-        {openId != null && <Inspector id={openId} onClose={() => setOpenId(null)} onStep={step} />}
+        {openId != null && (
+          <>
+            <div className="divider" role="separator" aria-orientation="vertical" aria-label="Resize the photo panel"
+                 tabIndex={0} onPointerDown={drag}
+                 onKeyDown={(e) => {
+                   if (e.key === "ArrowLeft") setWidth(currentWidth() + 40);
+                   if (e.key === "ArrowRight") setWidth(currentWidth() - 40);
+                 }} />
+            <Inspector id={openId} width={panelWidth} onClose={() => setOpenId(null)} onStep={step} />
+          </>
+        )}
       </main>
 
       {selected.size > 0 && (
@@ -301,21 +382,10 @@ function Library({ status, refreshStatus, onOpenSettings }: {
         </div>
       )}
 
-      <JobDrawer jobs={jobs} connection={connection} dismissedId={dismissedId}
-                 onDismiss={(id) => { setDismissedId(id); try { localStorage.setItem("ns.dismissedRun", String(id)); } catch { /* per-viewer convenience only */ } }} />
+      <JobDrawer jobs={jobs} connection={connection} />
 
       {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
     </div>
-  );
-}
-
-function Pager({ page, pages, total, onPage }: { page: number; pages: number; total: number; onPage: (p: number) => void }) {
-  return (
-    <span className="pager">
-      <button onClick={() => onPage(page - 1)} disabled={page <= 1} aria-label="Previous page">‹</button>
-      <span>Page {count(page)} of {count(pages)} · {plural(total, "photo")}</span>
-      <button onClick={() => onPage(page + 1)} disabled={page >= pages} aria-label="Next page">›</button>
-    </span>
   );
 }
 

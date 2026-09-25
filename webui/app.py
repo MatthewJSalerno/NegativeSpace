@@ -118,6 +118,13 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(400, {"error": "invalid_request", "message": str(exc)})
 
+    @app.get("/api/v1/photos/timeline")
+    def get_timeline(view: str = "all", q: Optional[str] = None):
+        try:
+            return catalog.timeline(cfg.db_path, view=view, q=q)
+        except ValueError as exc:
+            raise HTTPException(400, {"error": "invalid_request", "message": str(exc)})
+
     @app.get("/api/v1/photos/{photo_id}/inspect")
     def inspect(photo_id: int):
         found = catalog.inspect_photo(cfg.db_path, photo_id)

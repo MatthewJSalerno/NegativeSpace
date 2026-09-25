@@ -82,7 +82,9 @@ docker build -t negativespace . && docker build -t negativespace-web webui/front
 sh tests/webui_browser_test.sh
 ```
 
-`IMAGE=<tag>` and `WEB_IMAGE=<tag>` test other builds. To prove it catches a frontend defect, change a copy
+`IMAGE=<tag>` and `WEB_IMAGE=<tag>` test other builds, and `SHOTS=<folder>` keeps
+screenshots of the main screens for review by eye. The photos are generated, so the
+screenshots show nothing from a real library. To prove it catches a frontend defect, change a copy
 of the checkout, build that copy under another tag, and run with `IMAGE` set to it.
 
 ## Shell tests

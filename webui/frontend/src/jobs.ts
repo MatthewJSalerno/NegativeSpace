@@ -42,11 +42,11 @@ export function useJobFeed(): { jobs: JobState; connection: Connection } {
 }
 
 const MODE_ACTIVE: Record<string, string> = {
-  INDEX: "Scanning", COPY: "Copying", MOVE: "Moving", REBUILD: "Rebuilding thumbnails",
+  INDEX: "Indexing", COPY: "Copying", MOVE: "Moving", REBUILD: "Rebuilding thumbnails",
   CHECK: "Checking the destination", RENAME: "Renaming",
 };
 const MODE_NAME: Record<string, string> = {
-  INDEX: "Scan", COPY: "Copy", MOVE: "Move", REBUILD: "Thumbnail rebuild", CHECK: "Destination check",
+  INDEX: "Index", COPY: "Copy", MOVE: "Move", REBUILD: "Thumbnail rebuild", CHECK: "Destination check",
   RENAME: "Rename",
 };
 const PHASE: Record<string, string> = {

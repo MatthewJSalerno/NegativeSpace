@@ -33,6 +33,11 @@ export interface PhotoPage {
   counts: Record<View, number>;
 }
 
+export interface Timeline {
+  months: { month: string; count: number }[];
+  undated: number;
+}
+
 export interface Copy {
   id: number;
   status: string;
@@ -50,6 +55,8 @@ export interface PhotoDetail {
   dest_path_is_projection: boolean;
   has_collision_rename: boolean;
   file_size: number | null;
+  file_created: number | null;
+  file_modified: number | null;
   date_taken: string | null;
   date_source: string | null;
   date_offset: string | null;
@@ -163,6 +170,11 @@ export const api = {
     });
     if (params.q) query.set("q", params.q);
     return request<PhotoPage>("GET", `/api/v1/photos?${query}`);
+  },
+  timeline: (params: { view: View; q: string }) => {
+    const query = new URLSearchParams({ view: params.view });
+    if (params.q) query.set("q", params.q);
+    return request<Timeline>("GET", `/api/v1/photos/timeline?${query}`);
   },
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   startJob: (body: { mode: "index" | "copy" | "move"; file_ids?: number[]; source_subdir?: string }) =>
