@@ -340,3 +340,6 @@ body.dragging { cursor: col-resize; user-select: none; }
   .submenu { position: static; box-shadow: none; border: 0; border-left: 2px solid var(--border); border-radius: 0; margin-left: 12px; min-width: 0; }
   .menu { min-width: min(300px, calc(100vw - 32px)); }
 }
+
+/* Continuous scrolling: where the next or previous page loads. */
+.page-sentinel { padding: 16px; text-align: center; }

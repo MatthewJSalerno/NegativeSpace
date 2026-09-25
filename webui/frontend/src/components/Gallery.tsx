@@ -8,8 +8,10 @@ const STATUS_BADGE: Record<string, string> = {
   Processing: "In progress",
 };
 
-export function Gallery({ page, selected, selectable, openId, onOpen, onToggle, onToggleMany }: {
+export function Gallery({ page, pageOf, selected, selectable, openId, onOpen, onToggle, onToggleMany }: {
   page: { items: PhotoItem[] };
+  // The page each photo came from, so scrolling can tell which page is on top.
+  pageOf?: number[];
   selected: Set<number>;
   selectable: boolean;
   openId: number | null;
@@ -37,7 +39,7 @@ export function Gallery({ page, selected, selectable, openId, onOpen, onToggle, 
       {page.items.map((item, index) => {
         const isSelected = selected.has(item.id);
         return (
-          <li key={item.id} className={`card ${isSelected ? "selected" : ""} ${openId === item.id ? "open" : ""}`}>
+          <li key={item.id} data-page={pageOf?.[index]} className={`card ${isSelected ? "selected" : ""} ${openId === item.id ? "open" : ""}`}>
             <button className="card-image" onClick={() => onOpen(item.id)} aria-label={`Open ${item.filename}`}>
               <Thumb id={item.id} alt={item.filename} />
             </button>

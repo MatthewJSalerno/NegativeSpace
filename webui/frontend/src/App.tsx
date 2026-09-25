@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { api, ApiError, type PhotoItem, type PhotoPage, type SelectionPage, type Sort, type Status, type Timeline, type View } from "./api";
 import { count, plural } from "./format";
 import { useDismissedRun, useJobFeed } from "./jobs";
@@ -8,6 +8,7 @@ import { FinishedBanner, JobDrawer } from "./components/JobDrawer";
 import { PAGE_SIZES, Pager } from "./components/Pager";
 import { DatesPanel, dateLabel, datePage } from "./components/DatesPanel";
 import { SelectMenu } from "./components/SelectMenu";
+import { usePaged } from "./paged";
 import { Tip } from "./components/Tip";
 import { ActionsMenu } from "./components/ActionsMenu";
 import { LogsPage } from "./components/LogsPage";
@@ -130,17 +131,21 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [sort, setSort] = useState<Sort>(initial.sort);
   const [q, setQ] = useState(initial.q);
   const [search, setSearch] = useState(initial.q);
-  const [page, setPage] = useState(initial.page);
+  // `jump` is where loading starts (the pager, a date, a filter change); `page` is the
+  // page at the top of the screen, which scrolling moves and the address records.
+  const [jump, setJump] = useState({ page: initial.page, n: 0 });
+  const [page, setVisiblePage] = useState(initial.page);
+  const setPage = (p: number) => { setJump((j) => ({ page: p, n: j.n + 1 })); setVisiblePage(p); };
   const [pageSize, setPageSize] = useState(initial.size);
   const [undated, setUndated] = useState(initial.undated);
   const [dates, setDates] = useState<string[]>(initial.dates);
   const [openId, setOpenId] = useState<number | null>(initial.photo);
-  const [data, setData] = useState<PhotoPage | null>(null);
   const [timeline, setTimeline] = useState<Timeline | null>(null);
   const [jumpTimeline, setJumpTimeline] = useState<Timeline | null>(null);
   const [focus, setFocus] = useState<Focus | null>(null);
-  const [focusPage, setFocusPage] = useState(1);
-  const [focusData, setFocusData] = useState<SelectionPage | null>(null);
+  const [focusJump, setFocusJump] = useState({ page: 1, n: 0 });
+  const [focusPage, setFocusVisible] = useState(1);
+  const setFocusPage = (p: number) => { setFocusJump((j) => ({ page: p, n: j.n + 1 })); setFocusVisible(p); };
   const [notice, setNotice] = useState<string | null>(null);
   const [datesOpen, setDatesOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -204,14 +209,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     window.history.replaceState(null, "", url);
   }, [view, sort, q, page, pageSize, undated, dates, openId]);
 
-  useEffect(() => {
-    let live = true;
-    api.photos({ view, sort, q, page, page_size: pageSize, undated, dates }).then(
-      (d) => { if (live) { setData(d); setLoadError(null); } },
-      (e) => live && setLoadError(e instanceof ApiError ? e.message : "Photos could not be loaded."),
-    );
-    return () => { live = false; };
-  }, [view, sort, q, page, pageSize, undated, dates, refreshKey]);
+  const results = usePaged((p) => api.photos({ view, sort, q, page: p, page_size: pageSize, undated, dates }),
+                           JSON.stringify([view, sort, q, undated, dates]), jump, pageSize, refreshKey, setLoadError);
+  const data: PhotoPage | null = results.meta;
 
   // The tree's counts ignore its own filter, so an unticked month keeps its number;
   // jumping needs the filtered months, to land on the right page.
@@ -227,22 +227,80 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     return () => { live = false; };
   }, [view, q, undated, dates, refreshKey]);
 
-  useEffect(() => {
-    if (!focus) { setFocusData(null); return; }
-    let live = true;
-    api.selection(focus.ids, sort, focusPage, pageSize).then(
-      (d) => { if (live) { setFocusData(d); setLoadError(null); } },
-      (e) => live && setLoadError(e instanceof ApiError ? e.message : "The selected photos could not be loaded."),
-    );
-    return () => { live = false; };
-  }, [focus, sort, focusPage, pageSize, refreshKey]);
+  const focused = usePaged((p) => (focus ? api.selection(focus.ids, sort, p, pageSize)
+                                          : Promise.resolve({ items: [], total: 0, page: p, page_size: pageSize, missing: [] } as SelectionPage)),
+                           JSON.stringify([focus, sort]), focusJump, pageSize, refreshKey, setLoadError);
+  const focusData: SelectionPage | null = focus ? focused.meta : null;
 
-  const pages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
-  const shown = focus ? focusData : data;
-  const onPageIds = useMemo(() => new Set(data?.items.map((i) => i.id) ?? []), [data]);
-  const outside = [...selected].filter((id) => !onPageIds.has(id)).length;
-  // The month the page starts in, highlighted in the tree.
-  const currentDate = sort === "newest" || sort === "oldest" ? data?.items[0]?.date_taken?.slice(0, 7) ?? null : null;
+  // What the gallery shows: the results, or only the selection. Every loaded page in
+  // order, each photo tagged with its page so scrolling can say which page is on top.
+  const list = focus ? focused : results;
+  const visible = focus ? focusPage : page;
+  const flat = useMemo(() => {
+    const items: PhotoItem[] = [];
+    const pageOf: number[] = [];
+    for (const p of [...list.pages.keys()].sort((a, b) => a - b)) {
+      for (const item of list.pages.get(p) ?? []) { items.push(item); pageOf.push(p); }
+    }
+    return { items, pageOf };
+  }, [list.pages]);
+  const pageItems = list.pages.get(visible) ?? [];
+  const pages = list.meta ? Math.max(1, Math.ceil(list.meta.total / pageSize)) : 1;
+  // "Outside this view": selected photos not among the results loaded on screen.
+  const loadedIds = useMemo(() => new Set([...results.pages.values()].flat().map((i) => i.id)), [results.pages]);
+  const outside = [...selected].filter((id) => !loadedIds.has(id)).length;
+  // The month the page on top starts in, highlighted in the tree.
+  const currentDate = sort === "newest" || sort === "oldest"
+    ? results.pages.get(page)?.[0]?.date_taken?.slice(0, 7) ?? null : null;
+
+  // Continuous scrolling: load the next page as the end nears, and the previous one as
+  // the start does, keeping the photos on screen where they are.
+  const topSentinel = useRef<HTMLDivElement>(null);
+  const bottomSentinel = useRef<HTMLDivElement>(null);
+  const prepend = useRef<{ height: number; y: number } | null>(null);
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        if (entry.target === bottomSentinel.current) list.load(list.last + 1);
+        if (entry.target === topSentinel.current && list.first > 1 && !prepend.current) {
+          prepend.current = { height: document.documentElement.scrollHeight, y: window.scrollY };
+          list.load(list.first - 1);
+        }
+      }
+    }, { rootMargin: "800px 0px" });
+    if (topSentinel.current) observer.observe(topSentinel.current);
+    if (bottomSentinel.current) observer.observe(bottomSentinel.current);
+    return () => observer.disconnect();
+  }, [list.first, list.last, list.load, list.ready, focus]);
+  useLayoutEffect(() => {
+    const mark = prepend.current;
+    if (!mark) return;
+    prepend.current = null;
+    window.scrollTo(0, mark.y + document.documentElement.scrollHeight - mark.height);
+  }, [list.first]);
+  // The page on top follows the scroll: the page of the first photo below the header.
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const top = header.current?.getBoundingClientRect().bottom ?? 0;
+        for (const card of document.querySelectorAll<HTMLElement>(".grid .card[data-page]")) {
+          if (card.getBoundingClientRect().bottom > top + 4) {
+            const p = Number(card.dataset.page);
+            if (focus) setFocusVisible(p); else setVisiblePage(p);
+            break;
+          }
+        }
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); cancelAnimationFrame(frame); };
+  }, [focus]);
+  // A jump starts at the top of the page it lands on.
+  useEffect(() => { if (jump.n > 0) window.scrollTo(0, 0); }, [jump.n]);
+  useEffect(() => { if (focusJump.n > 0) window.scrollTo(0, 0); }, [focusJump.n]);
 
   const showSelected = () => { setFocus({ kind: "selection", ids: [...selected] }); setFocusPage(1); };
   const backToResults = () => { setFocus(null); setFocusPage(1); };
@@ -303,11 +361,11 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   };
 
   const step = useCallback((delta: number) => {
-    if (!data || openId == null) return;
-    const index = data.items.findIndex((i) => i.id === openId);
-    const next = data.items[index + delta];
+    if (openId == null) return;
+    const index = flat.items.findIndex((i) => i.id === openId);
+    const next = flat.items[index + delta];
     if (next) setOpenId(next.id);
-  }, [data, openId]);
+  }, [flat, openId]);
 
   // The divider between the gallery and the Inspector: drag it, or focus it and use
   // the arrow keys. Each side keeps at least MIN_SIDE pixels; the width is remembered.
@@ -350,7 +408,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   // what the job will touch is on screen. Cancel returns to the view it came from.
   const transferSelected = (mode: "copy" | "move") => {
     const ids = [...selected];
-    const auto = !focus && ids.some((id) => !onPageIds.has(id));
+    const auto = !focus && ids.some((id) => !loadedIds.has(id));
     if (auto) { setFocus({ kind: "selection", ids, auto: true }); setFocusPage(1); }
     askTransfer(mode, ids, auto ? backToResults : undefined);
   };
@@ -380,9 +438,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const noPhotos = status.photos === 0;
   const tooMany = selected.size > MAX_SELECTION;
 
-  const focusTotal = focusData?.total ?? 0;
-  const focusPages = Math.max(1, Math.ceil(focusTotal / pageSize));
-  const pageSelected = shown ? shown.items.filter((i) => selected.has(i.id)).length : 0;
+  const pageSelected = pageItems.filter((i) => selected.has(i.id)).length;
+  const onPager = focus ? setFocusPage : setPage;
 
   return (
     <div className={`app ${openId != null ? "with-inspector" : ""}`}>
@@ -495,26 +552,25 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               ) : <p>Nothing in this view.</p>}
             </div>
           )}
-          {shown && shown.total > 0 && (
+          {list.meta && list.meta.total > 0 && (
             <>
               <div className="gallery-head">
-                <SelectMenu onPage={shown.items.length} pageSelected={pageSelected}
-                            total={focus ? focusTotal : shown.total} selected={selected.size} max={MAX_SELECTION}
+                <SelectMenu onPage={pageItems.length} pageSelected={pageSelected}
+                            total={list.meta.total} selected={selected.size} max={MAX_SELECTION}
                             disabledWhy={jobRunning ? "Selection is unavailable while a job is running." : null}
-                            onSelectPage={() => toggleMany(shown.items, true)} onSelectAll={selectAll}
-                            onUnselectPage={() => toggleMany(shown.items, false)} onUnselectAll={clearSelection} />
+                            onSelectPage={() => toggleMany(pageItems, true)} onSelectAll={selectAll}
+                            onUnselectPage={() => toggleMany(pageItems, false)} onUnselectAll={clearSelection} />
                 {jobRunning && <span className="muted">Selection is unavailable while a job is running.</span>}
               </div>
-              {focus
-                ? <Pager page={focusPage} pages={focusPages} total={focusTotal} pageSize={pageSize} onPage={setFocusPage} onPageSize={changePageSize} />
-                : <Pager page={page} pages={pages} total={shown.total} pageSize={pageSize} onPage={setPage} onPageSize={changePageSize} />}
-              <Gallery page={shown} selected={selected} selectable={!jobRunning} openId={openId}
+              <Pager page={visible} pages={pages} total={list.meta.total} pageSize={pageSize} onPage={onPager} onPageSize={changePageSize} />
+              {list.first > 1 && <div ref={topSentinel} className="page-sentinel muted">Loading page {count(list.first - 1)}…</div>}
+              <Gallery page={{ items: flat.items }} pageOf={flat.pageOf} selected={selected} selectable={!jobRunning} openId={openId}
                        onOpen={setOpenId} onToggle={toggle} onToggleMany={toggleMany} />
-              <div className="gallery-foot">
-                {focus
-                  ? <Pager page={focusPage} pages={focusPages} total={focusTotal} pageSize={pageSize} onPage={setFocusPage} onPageSize={changePageSize} />
-                  : <Pager page={page} pages={pages} total={shown.total} pageSize={pageSize} onPage={setPage} onPageSize={changePageSize} />}
-              </div>
+              {list.last < pages
+                ? <div ref={bottomSentinel} className="page-sentinel muted">Loading page {count(list.last + 1)}…</div>
+                : <div className="gallery-foot">
+                    <span className="muted">End of {plural(list.meta.total, "photo")}.</span>
+                  </div>}
             </>
           )}
         </div>

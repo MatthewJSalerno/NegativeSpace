@@ -134,13 +134,18 @@ the full scope. Label it a plan, not a log: subsequent execution can fail or det
 changed state, and its actual outcomes belong in the job log. Apply the same
 selection counts and stale-preview safeguards used by other confirmed actions.
 
-**Paging a large library:** pages rather than endless scrolling, because selection
-is defined per page and a page number is a place a refresh returns to. Offer first and
-last, numbered pages with gaps (**1 … 48 49 [50] 51 52 … 2,500**), a go-to-page box,
-and 60, 120 or 240 photos per page. When sorted by date, **Jump to** lists months with
-counts (`GET /api/v1/photos/timeline`). A month's first photo sits after every photo
-sorted before it, which gives its page directly. The page, page size, sort, view,
-search and open photo live in the URL.
+**Scrolling a large library:** the gallery scrolls continuously. Near either end of
+what is loaded, the next or previous page loads, keeping the photos on screen where they
+are, so rows run on without a half-empty row at each page boundary. Pages remain the unit
+the API serves and the address records: the pager and the address follow the page whose
+photos are at the top of the screen, so a refresh or a shared link returns to it. The
+pager jumps (first and last, numbered pages with gaps, **1 … 48 49 [50] 51 52 … 2,500**,
+a go-to-page box), and 60, 120 or 240 photos load at a time. **Select all on this page**
+means the page shown in the pager. **Why not separate pages any more:** they were chosen
+because selection was defined per page; the selection is now an explicit list kept
+across pages, and a page count that the grid's columns did not divide left gaps. The date
+tree jumps to a year or month by the page it starts on (`GET /api/v1/photos/timeline`).
+The page, page size, sort, view, search, dates and open photo live in the URL.
 
 **No capture date** is a quick filter beside the views, with its count. It shows the
 photos whose EXIF has no date taken, which are filed under Undated by their file's
