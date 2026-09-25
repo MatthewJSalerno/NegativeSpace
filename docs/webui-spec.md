@@ -94,7 +94,8 @@ Users can select individual files or multiple files across grid views to run tar
 * **Selection across views:** retain explicit photo selections when changing pages
   or filters. The top row, after **Logs**, shows the total and the number outside the
   displayed view, for example **“25 selected · 10 outside this view”**, with **Show
-  only selected** and **Clear**. Show only selected temporarily shows only the selected
+  only selected** and **Clear**; clearing while showing only the selection returns to
+  the results. Show only selected temporarily shows only the selected
   photos, including those hidden by prior filters or pagination, and allows inspection
   and deselection; the photos shown are fixed on entry, so one unticked there stays on
   screen, unticked. **Back to results** restores the previous search, filters, sort
@@ -108,7 +109,8 @@ Users can select individual files or multiple files across grid views to run tar
   just started**, so their statuses can be watched, until **Back to results**. When
   every selected photo is already on screen, nothing moves.
 * **Date tree:** a **Dates** panel left of the gallery lists years and their months with
-  counts for the current view and search. Clicking a name goes to the page it starts on
+  counts for the current view and search, every year unfolded to start. Clicking a name
+  goes to the page it starts on
   (a sort that is not by date switches to Newest first and says so). The boxes, under a
   **Show only** header, narrow the gallery to the ticked years and months; none ticked,
   the default, shows every date. A year's box ticks its months and shows a dash when
