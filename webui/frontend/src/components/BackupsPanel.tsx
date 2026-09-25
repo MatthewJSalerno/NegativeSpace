@@ -45,6 +45,14 @@ export function BackupsPanel({ retentionDraft }: { retentionDraft: number }) {
     load();
   }, []);
 
+  // While a job runs, look again until it ends: it takes its own backup, and then
+  // Back up now becomes available without reopening Settings.
+  useEffect(() => {
+    if (!data?.job_active) return;
+    const timer = window.setTimeout(load, 2000);
+    return () => window.clearTimeout(timer);
+  }, [data]);
+
   const backUpNow = async () => {
     setBusy(true);
     setMessage(null);
