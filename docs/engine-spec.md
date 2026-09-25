@@ -87,6 +87,7 @@ security concern, specified in `webui-spec.md` §5.6.
     *   `--preview <photo_id>` — makes the 1024px detail preview for one catalogued photo if it is not cached yet, and prints one line of JSON: `photo_id`, `availability` (`present`, `failed` or `unavailable`), `cache_filename` (relative to `--cache`), `bytes`, `reused`, `failure_category` and `failure_detail`. It exits `0` when a preview is present and `1` otherwise. The web API calls it when a photo is opened (`webui-spec.md` §4.2.1), so image decoding and every catalog write other than settings stay in the engine. It starts no run and **takes no engine lock**: it changes no photo file, only one disposable cache image and its `thumbnail_cache` row, written in a single short transaction, so a photo can be opened while a job runs. The preview is keyed on content, so identical copies share one. It is made from a delivered destination copy first, then a source that still exists, and only from a copy whose size and modification time still match the catalog, so an edited file never produces the preview for different content. A cached preview is served even when no usable copy remains. Nothing is logged to the console, so stdout carries only the answer. Measured end to end on a ~1,200-file sample, engine start included: a first view has a median of 110–195ms per format (JPEG, CR2, DNG, WebP, PNG, TIFF), and a cached repeat takes about 85ms.
     *   `--clear-previews` — the web UI's **Free up** (`webui-spec.md` §4.2.1): removes every recorded detail preview and prints one line of JSON, `removed`, `bytes_freed` and `not_removed`. It exits `1` when any file could not be removed. Grid thumbnails stay, and so do recorded preview failures, which name no file and keep the reason a photo has no preview. Only files the catalog records are removed, so the space freed matches the per-size total the page showed. Each file goes before its record, and a file that cannot be removed keeps its record. Like `--preview`, it starts no run and takes no engine lock. If it races a preview request, the worst case is a record whose file is gone, and the next request regenerates it.
     *   `--rebuild-thumbnails missing|all` — the web UI's grid repair and rebuild (`webui-spec.md` §4.2.1). A job: it takes the engine lock, opens a `REBUILD` run, reconciles interrupted work first, honours cancellation between batches and settles `Completed`, `Cancelled` or `Failed`. It needs no `--source`. `missing` makes the grid thumbnails not on disk, and `all` regenerates every one. Each is made from `catalogued_copies`: a delivered destination copy first, then a live source, and only one whose size and modification time still match the catalog. Under `all`, an existing thumbnail is replaced only when a copy supplies a new one, never discarded for lack of one. It uses `--workers` like a scan, records no operation, takes no backup, and exits `1` only when the run Failed. Refused with `--no-thumbnails`.
+    *   `--check-destination quick|full` — the destination check (§9.1). A read-only job under the engine lock, opening a `CHECK` run. It needs no `--source`, uses `--workers` and `--exts` like a scan, records findings in `destination_findings`, changes nothing, and exits `1` only when the run Failed.
     *   The database write-queue size is intentionally **not** configurable — left as a hardcoded internal constant rather than exposed, since there was no concrete need identified for tuning it separately from `--workers`.
 *   **Targeted Processing** (mutually exclusive with each other — pick at most one, or omit both for a full directory scan):
     *   `--file-ids <id1,id2,...>` — comma-separated `photos.id` values from a prior Index. Bypasses the directory scan entirely; looks up each ID's `source_path` directly and processes exactly those files. IDs not found in the database are logged as a warning and skipped, not treated as fatal. This is what a web UI's individual/multi-select maps onto, but works identically from the CLI.
@@ -226,6 +227,7 @@ catalogue, not the tree, so relocating them is a separate action.
     *   `scanning`: the total is the whole scope, and counts are `indexed`, `duplicates`, `unchanged` and `failed`. Unchanged files count as done the moment they are skipped. They write no operation row, which is why operation counts alone cannot supply a percentage.
     *   `transferring` for Copy and Move, and `removing_duplicates` for Move: counts are keyed by the outcome recorded for each photo (`Copied`, `Completed`, `Found_At_Destination`, `Skipped`, `Failed`, `Cancelled`, `Removed_Duplicate`, and `Already_Gone` for a duplicate whose source was already gone, which records nothing). A Copy's skipped duplicates and already-copied photos join its total when they are recorded, in the same commit.
     *   `rebuilding_thumbnails`: `made`, `already`, `kept` and `failed`.
+    *   `checking_destination` (§9.1), after a `discovering` walk of `--dest`: `ok`, `missing`, `changed`, `unreadable` and `unknown`.
 
     `done` is always the sum of the counts. Counts are added where each outcome is decided rather than re-derived from `operations`, because recovery rows written during a scan are run-level issues the drawer keeps separate (`webui-spec.md` §5.5). When a phase ends, its counts equal the outcomes `operations` recorded for it, and a test proves that for Copy and Move. The scan's snapshot rides in the writer thread's commit, so it never shows more than the catalog holds. The writer commits when a result arrives and a second has passed. Results arrive in batches, so a batch of slow files holds the count still for a moment: the longest gap measured on a ~1,200-file sample was 2.7s, and the median 1.2s. The transfer loop writes it in its own commit at most once a second: one extra fsync per second on a loop that fsyncs several times per file. A cancelled transfer counts every photo it did not reach as `Cancelled`, so its bar still reaches the total; a cancelled scan stops short of it. Elapsed time comes from `runs.started_at`.
     Runtime uses the run's recorded start/end, surviving browser reconnects. This
@@ -311,7 +313,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 8 and refuses incompatible catalogs before processing.
+initializes schema version 9 and refuses incompatible catalogs before processing.
 No migration exists: preserve an older catalog and use a fresh one. Index cannot
 reconstruct settings, past edits, or deleted-file lineage. Never describe deleting a
 user catalog as routine repair.
@@ -532,7 +534,7 @@ CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id);
 
 **Recovery, content, cache, discovery and backup records.** The first five are
 written by recovery (4.2), `contents` and `thumbnail_cache` by the scan,
-`run_discovery` by a full Index (4.3), `run_progress` by every job (4.3), and the backup records by catalog backups
+`run_discovery` by a full Index (4.3), `run_progress` by every job (4.3), `destination_findings` by the destination check (9.1), and the backup records by catalog backups
 (4.1); `file_changes` and `content_similarity` are defined but not yet written.
 Statement order matters here too:
 `contents` precedes everything referencing it, `operation_events` precedes
@@ -641,12 +643,26 @@ CREATE TABLE run_discovery (
 CREATE TABLE run_progress (
     run_id INTEGER NOT NULL REFERENCES runs(id),
     phase TEXT NOT NULL CHECK(phase IN ('discovering','scanning','transferring',
-                                        'removing_duplicates','rebuilding_thumbnails')),
+                                        'removing_duplicates','rebuilding_thumbnails',
+                                        'checking_destination')),
     seq INTEGER NOT NULL, total INTEGER CHECK(total IS NULL OR total >= 0),
     done INTEGER NOT NULL CHECK(done >= 0), counts_json TEXT NOT NULL,
     started_at TEXT NOT NULL, updated_at TEXT NOT NULL,
     PRIMARY KEY(run_id, phase), UNIQUE(run_id, seq)
 );
+
+-- What a destination check (9.1) found that is not simply intact. Intact
+-- copies are only counted in run_progress. An observation: no photo changes.
+CREATE TABLE destination_findings (
+    run_id INTEGER NOT NULL REFERENCES runs(id),
+    path TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('missing','changed','unreadable','unknown')),
+    photo_id INTEGER REFERENCES photos(id),
+    expected_sha1 TEXT, observed_sha1 TEXT, size INTEGER, mtime REAL, detail TEXT,
+    PRIMARY KEY(run_id, path),
+    CHECK((kind = 'unknown') = (photo_id IS NULL))
+);
+CREATE INDEX idx_destination_findings_sha1 ON destination_findings(observed_sha1);
 
 -- An attempt is history; an artifact's availability is current observed state.
 -- outcome is NULL only while an attempt runs; one found NULL under the engine
@@ -751,11 +767,11 @@ section changes that on the user's explicit instruction for a specific file —
 never on the engine's own initiative, and never as a side effect of something
 else the user asked for.
 
-**None of this is implemented.** Each subsection below names what the engine
-would need, so the gap is visible rather than implied. The corresponding user
+**Only the destination check (§9.1) is implemented.** Each other subsection names
+what the engine would need, so the gap is visible rather than implied. The corresponding user
 interface is specified in `webui-spec.md` §7.
 
-### 9.1. Destination Inventory
+### 9.1. Destination Check
 
 The destination is normally the engine's exclusively. Deduplication happens at
 Index time by SHA-1 — among files with identical content one row is `Pending`
@@ -765,19 +781,19 @@ That is the invariant the engine is built to keep, not something it proves: a
 selection or delivery bug can break it, and so can anything outside the engine
 that writes to the destination.
 
-A read-only inventory pass records each destination file's current SHA-1 and
-location; the catalog then groups by hash to show what is redundant. The same
-query shape serves near-duplicates by grouping on `phash` instead — one view,
-two columns.
-
 **This is the only thing that can answer "is my destination still intact?"**
 Index walks `--source` and never inspects `--dest`, which is why a photo whose
 destination file was deleted outside the engine keeps reporting `Skipped —
-already copied` (`webui-spec.md` §5.3). Until this exists, that question has no
-honest answer and the UI should not imply otherwise.
+already copied` (`webui-spec.md` §5.3).
 
-**Not implemented.** Needs: a destination walk, and a decision about whether its
-results live in `photos` or a table of their own.
+`--check-destination quick|full` is a read-only job run by `check_destination`. It takes the engine lock, opens a `CHECK` run, reconciles interrupted work first, can be cancelled between batches, and reports `discovering` then `checking_destination` progress (§4.3). It works in two passes:
+
+*   **Every delivered copy the catalog records under `--dest`** (`ANCHOR_DELIVERED_STATUSES`, one per path) is looked up directly by its path and found **ok**, **missing**, **changed** (content differs from the catalog's SHA-1) or **unreadable**. It is never inferred missing from the walk, which can skip a folder it cannot read. `quick` trusts an unchanged size and modification time; a copy keeps the source's mtime to the nanosecond, so a match means nothing rewrote the file. It hashes only the files that differ. `full` hashes every file, which also finds a same-size edit that kept its date, or silent corruption, at the cost of reading the whole destination.
+*   **The walk** then lists files the catalog did not put there, limited to the run's extensions (other files are only counted, as at Index). They are always hashed, since the catalog has nothing to compare them with. `ns_db.read_destination_check` groups them by content, both with each other and with catalogued photos holding the same content, so redundancy something outside the engine created is visible.
+
+What is not intact goes to `destination_findings`, one row per path; intact copies are only counted. **A check is an observation, never an action.** No file is touched or catalogued, no photo's status changes, and no operation or backup is recorded. A photo found missing is not assumed lost: the source may still exist, or the user may know why. The user decides, by re-delivering with `--force-rehash` and Copy, or through the fresh-destination workflow below.
+
+**Why two depths, the user's choice:** the two answer different questions at very different costs. A quick check finds missing, replaced and resized files in minutes. A full check reads every byte, which takes about as long as a Copy of the library, and is the only one that sees corruption that leaves size and date alone.
 
 ### 9.2. Re-processing a Disordered Destination
 
@@ -807,7 +823,7 @@ Three costs have to be surfaced before offering it:
     The count is directly available as `date_source = 'file_mtime'` in
     `metadata_json`.
 
-The inventory (§9.1) detects differences without modifying photos. When a mismatch is found, direct the user to this fresh-destination workflow; it logs new processing but cannot reconstruct external changes or recover missing pixels.
+The destination check (§9.1) detects differences without modifying photos. When a mismatch is found, direct the user to this fresh-destination workflow; it logs new processing but cannot reconstruct external changes or recover missing pixels.
 
 ### 9.3. Similarity: Perceptual Pairs
 

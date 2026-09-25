@@ -497,6 +497,26 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
             db.write_progress(self.conn, run, phase='sorting', seq=3, total=1, counts={}, started_at='t3')
 
+    def test_destination_findings_group_unknown_files_and_name_photos_only_when_catalogued(self):
+        run, (photo, _) = self.run_record(), self.photo()
+        with db.transaction(self.conn):
+            self.conn.execute("UPDATE photos SET sha1_hash = 'aaa' WHERE id = ?", (photo,))
+            db.record_destination_findings(self.conn, run, [
+                {'path': '/d/gone.jpg', 'kind': 'missing', 'photo_id': photo, 'expected_sha1': 'aaa'},
+                {'path': '/d/x/copy.jpg', 'kind': 'unknown', 'observed_sha1': 'aaa'},
+                {'path': '/d/x/one.jpg', 'kind': 'unknown', 'observed_sha1': 'bbb'},
+                {'path': '/d/x/two.jpg', 'kind': 'unknown', 'observed_sha1': 'bbb'},
+                {'path': '/d/x/alone.jpg', 'kind': 'unknown', 'observed_sha1': 'ccc'}])
+        report = db.read_destination_check(self.conn, run)
+        self.assertEqual([(f['path'], f['kind']) for f in report['findings']][:1], [('/d/gone.jpg', 'missing')])
+        self.assertEqual(report['unknown_groups'],
+                         [{'sha1': 'aaa', 'paths': ['/d/x/copy.jpg'], 'catalogued_photo_ids': [photo]},
+                          {'sha1': 'bbb', 'paths': ['/d/x/one.jpg', '/d/x/two.jpg'], 'catalogued_photo_ids': []}])
+        for bad in ({'path': '/d/a', 'kind': 'unknown', 'photo_id': photo},
+                    {'path': '/d/b', 'kind': 'changed'}):
+            with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
+                db.record_destination_findings(self.conn, run, [bad])
+
     def test_extension_support_names_what_the_engine_can_read(self):
         for ext in ('.jpg', 'JPG', 'png', '.CR3', '.dng', '.heic'):
             got = db.extension_support(ext)

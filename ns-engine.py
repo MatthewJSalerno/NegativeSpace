@@ -52,6 +52,8 @@ default Index):
 - --backup-now: one manual catalog backup, under the engine lock.
 - --rebuild-thumbnails missing|all: a job that makes grid thumbnails from any
   catalogued copy, under the engine lock.
+- --check-destination quick|full: a read-only job that reports what under --dest
+  is missing, changed, unreadable or not put there by NegativeSpace.
 
 Cancellation: sending SIGTERM or SIGINT (e.g. `docker stop`, or Ctrl+C)
 during a --move/--copy run lets the file currently being copy-verified
@@ -3195,25 +3197,24 @@ def rebuild_thumbnails(db_path: Path, cache_root: Path, scope: str,
     return outcome
 
 
-def run_thumbnail_rebuild(args, db_path: Path, base_dir: Path, log_dir: Path, lock_fd) -> int:
-    """--rebuild-thumbnails. A job like any other: a runs row, reconciliation first,
-    cancellation, and a settled status. Exits 0 unless the run Failed."""
+def run_maintenance_job(args, db_path: Path, lock_fd, *, mode: str, label: str, submitted: dict,
+                        defaults: dict, overrides: dict, body) -> int:
+    """A job that is not Index/Copy/Move, run like any other: a runs row (with
+    --request-id replay and conflict handling), reconciliation first, cancellation,
+    live progress, and a settled status. `body(run_id, config)` does the work and
+    returns the run outcome. Releases the lock. Exits 0 unless the run Failed."""
     try:
         try:
             init_database(str(db_path))
         except (ns_db.SchemaError, sqlite3.DatabaseError) as exc:
-            logger.error(f"FATAL: catalog initialization failed: {exc}. Nothing was rebuilt.")
+            logger.error(f"FATAL: catalog initialization failed: {exc}. Nothing was started.")
             return 1
         signal.signal(signal.SIGTERM, _handle_cancel_signal)
         signal.signal(signal.SIGINT, _handle_cancel_signal)
-        cache_root = Path(args.cache).resolve()
         try:
-            run_id, created = start_run(
-                str(db_path), "REBUILD", None, None, None,
-                defaults={"workers": MAX_WORKER_PROCESSES},
-                overrides={"workers": args.workers} if args.workers is not None else {},
-                request_id=args.request_id,
-                submitted={"scope": args.rebuild_thumbnails, "cache": str(cache_root)})
+            run_id, created = start_run(str(db_path), mode, None, None, None, defaults=defaults,
+                                        overrides=overrides, request_id=args.request_id,
+                                        submitted=submitted)
         except ns_db.RequestConflict:
             logger.error(f"FATAL: request ID {args.request_id!r} was already used for a different "
                          f"submission. Nothing was started. A new attempt needs a new request ID.")
@@ -3223,8 +3224,8 @@ def run_thumbnail_rebuild(args, db_path: Path, base_dir: Path, log_dir: Path, lo
                            f"Nothing was started.")
             return EXIT_REQUEST_ALREADY_ACCEPTED
         with contextlib.closing(get_db_connection(str(db_path))) as conn:
-            workers = json.loads(conn.execute(
-                "SELECT effective_config_json FROM run_configs WHERE run_id=?", (run_id,)).fetchone()[0])["workers"]
+            config = json.loads(conn.execute(
+                "SELECT effective_config_json FROM run_configs WHERE run_id=?", (run_id,)).fetchone()[0])
         run_progress.bind(str(db_path), run_id)
         cancel_watcher = threading.Thread(target=watch_for_cancellation, args=(str(db_path), run_id), daemon=True)
         cancel_watcher.start()
@@ -3233,18 +3234,159 @@ def run_thumbnail_rebuild(args, db_path: Path, base_dir: Path, log_dir: Path, lo
             reconcile_interrupted_state(db_path, run_id)
             with contextlib.closing(get_db_connection(str(db_path))) as conn:
                 ns_db.transition_run(conn, run_id, RunStatus.RUNNING)
-            outcome = rebuild_thumbnails(db_path, cache_root, args.rebuild_thumbnails, workers, log_dir)
+            outcome = body(run_id, config)
         except Exception as exc:
-            logger.error(f"Thumbnail rebuild failed: {exc}", exc_info=True)
+            logger.error(f"{label} failed: {exc}", exc_info=True)
         finally:
             if cancel_requested.is_set() and outcome == RunStatus.COMPLETED:
                 outcome = RunStatus.CANCELLED
+            run_progress.write_now()
             await_cancelling_record(cancel_watcher)
             finish_run(str(db_path), run_id, outcome)
             logger.info(f"Run #{run_id} finished with status: {outcome}")
         return 1 if outcome == RunStatus.FAILED else 0
     finally:
         release_single_instance_lock(lock_fd)
+
+
+def _check_destination_file(path: str, expected: Optional[tuple], full: bool) -> dict:
+    """One destination file for the destination check, in a worker process. Reads only.
+
+    `expected` is (photo_id, sha1, size, mtime) for a catalogued copy, None for a file
+    the catalog did not put there. Returns a finding dict (ns_db.record_destination_findings)
+    with an extra 'outcome': 'ok', 'missing', 'changed', 'unreadable' or 'unknown'.
+    """
+    photo_id, sha1, size, mtime = expected or (None, None, None, None)
+    finding = {"path": path, "photo_id": photo_id, "expected_sha1": sha1}
+    try:
+        st = os.stat(path)
+    except FileNotFoundError:
+        return dict(finding, outcome="missing", kind="missing")
+    except OSError as exc:
+        kind = "unknown" if expected is None else "unreadable"
+        return dict(finding, outcome=kind, kind=kind, detail=f"{type(exc).__name__}: {exc}")
+    finding.update(size=st.st_size, mtime=st.st_mtime)
+    # Quick trusts an unchanged size and modification time: a copy keeps the source's
+    # mtime to the nanosecond, so a match means nothing has rewritten the file since.
+    if (expected is not None and not full and size is not None and mtime is not None
+            and st.st_size == size and abs(st.st_mtime - mtime) < 1e-6):
+        return dict(finding, outcome="ok", kind=None)
+    try:
+        observed = compute_sha1(path)
+    except OSError as exc:
+        kind = "unknown" if expected is None else "unreadable"
+        return dict(finding, outcome=kind, kind=kind, detail=f"{type(exc).__name__}: {exc}")
+    finding["observed_sha1"] = observed
+    if expected is None:
+        return dict(finding, outcome="unknown", kind="unknown")
+    if observed == sha1:
+        return dict(finding, outcome="ok", kind=None)
+    return dict(finding, outcome="changed", kind="changed")
+
+
+def check_destination(db_path: Path, dest_root: Path, run_id: int, depth: str, workers: int,
+                      extensions: set, log_dir: Path) -> str:
+    """The destination check (engine-spec 9.1). Returns the run outcome.
+
+    Answers "is my destination still intact?", which Index cannot: it never reads
+    --dest. Every delivered copy the catalog records under `dest_root` is looked up
+    directly - never inferred missing from the walk, which can skip an unreadable
+    folder - and found ok, missing, changed or unreadable. `quick` trusts an unchanged
+    size and mtime and hashes the rest; `full` hashes everything, which also finds
+    silent corruption. The walk then finds files the catalog did not put there,
+    limited to the run's extensions; they are always hashed, so redundancy something
+    outside the engine created shows up grouped by content.
+
+    Read only, and an observation: no file is touched and no photo's status changes.
+    What is not intact is stored in destination_findings; intact copies are counted.
+    """
+    full = depth == "full"
+    dest_root = Path(dest_root).resolve()
+    expected = {}
+    with contextlib.closing(get_db_connection(str(db_path))) as conn:
+        for photo_id, path, sha1, size, mtime in conn.execute(
+                f"SELECT id, dest_path, sha1_hash, file_size, file_mtime FROM photos "
+                f"WHERE status IN ({sql_values(ANCHOR_DELIVERED_STATUSES)}) AND dest_path IS NOT NULL "
+                f"ORDER BY id"):
+            if _is_under(path, dest_root):
+                expected.setdefault(path, (photo_id, sha1, size, mtime))
+
+    run_progress.start("discovering", None)
+
+    def discovered(eligible, excluded):
+        run_progress.set_count("eligible", eligible)
+        run_progress.set_count("excluded", excluded)
+        run_progress.maybe_write_now()
+    walk_errors: List[tuple] = []
+    walked = discover_source_files(dest_root, extensions, errors=walk_errors, excluded={},
+                                   on_directory=discovered) if dest_root.is_dir() else []
+    run_progress.write_now()
+    work = [(path, exp) for path, exp in expected.items()]
+    work += [(path, None) for path in walked if path not in expected]
+    unknown_count = len(work) - len(expected)
+    logger.info(f"Checking the destination ({'every file read in full' if full else 'quick'}): "
+                f"{len(expected):,} catalogued cop(ies), {unknown_count:,} file(s) the catalog did not "
+                f"put there.")
+    if walk_errors:
+        logger.warning(f"{len(walk_errors)} destination folder(s) or file(s) could not be read; files "
+                       f"inside them could not be checked for being unknown.")
+
+    run_progress.start("checking_destination", len(work))
+    counts = collections.Counter()
+    outcome = RunStatus.COMPLETED
+    batch_size = max(workers * 4, 16)
+    last_log = time.monotonic()
+    with ProcessPoolExecutor(max_workers=workers, initializer=_init_worker_process,
+                             initargs=(False, str(log_dir))) as executor, \
+            contextlib.closing(get_db_connection(str(db_path))) as conn:
+        for start in range(0, len(work), batch_size):
+            if cancel_requested.is_set():
+                logger.warning(f"Cancellation requested - stopping the destination check after "
+                               f"{sum(counts.values()):,} of {len(work):,}. Findings so far are kept.")
+                outcome = RunStatus.CANCELLED
+                break
+            results = [f.result() for f in [executor.submit(_check_destination_file, path, exp, full)
+                                             for path, exp in work[start:start + batch_size]]]
+            with ns_db.transaction(conn):
+                ns_db.record_destination_findings(
+                    conn, run_id, [{k: v for k, v in r.items() if k != "outcome"} for r in results
+                                   if r["kind"] is not None])
+                for r in results:
+                    counts[r["outcome"]] += 1
+                    run_progress.add(r["outcome"])
+                run_progress.write(conn)
+            if time.monotonic() - last_log >= PROGRESS_INTERVAL_SECONDS:
+                logger.info(f"Checking the destination: {sum(counts.values()):,} of {len(work):,}.")
+                last_log = time.monotonic()
+    logger.info(f"Destination check: {counts['ok']:,} intact, {counts['missing']:,} missing, "
+                f"{counts['changed']:,} changed, {counts['unreadable']:,} unreadable, "
+                f"{counts['unknown']:,} not put there by NegativeSpace. Nothing was changed.")
+    return outcome
+
+
+def run_destination_check(args, db_path: Path, log_dir: Path, lock_fd) -> int:
+    """--check-destination, as a job (run_maintenance_job)."""
+    dest_root = Path(args.dest).resolve()
+    return run_maintenance_job(
+        args, db_path, lock_fd, mode="CHECK", label="Destination check",
+        submitted={"depth": args.check_destination, "dest": str(dest_root)},
+        defaults={"workers": MAX_WORKER_PROCESSES, "exts": sorted(SUPPORTED_EXTENSIONS)},
+        overrides={**({"workers": args.workers} if args.workers is not None else {}),
+                   **({"exts": sorted(normalize_extensions(args.exts))} if args.exts is not None else {})},
+        body=lambda run_id, config: check_destination(db_path, dest_root, run_id, args.check_destination,
+                                                      config["workers"], set(config["exts"]), log_dir))
+
+
+def run_thumbnail_rebuild(args, db_path: Path, log_dir: Path, lock_fd) -> int:
+    """--rebuild-thumbnails, as a job (run_maintenance_job)."""
+    cache_root = Path(args.cache).resolve()
+    return run_maintenance_job(
+        args, db_path, lock_fd, mode="REBUILD", label="Thumbnail rebuild",
+        submitted={"scope": args.rebuild_thumbnails, "cache": str(cache_root)},
+        defaults={"workers": MAX_WORKER_PROCESSES},
+        overrides={"workers": args.workers} if args.workers is not None else {},
+        body=lambda run_id, config: rebuild_thumbnails(db_path, cache_root, args.rebuild_thumbnails,
+                                                       config["workers"], log_dir))
 
 
 def backup_after_job(db_path: Path, backups_dir: Path, base_dir: Path, run_id: int):
@@ -3410,6 +3552,12 @@ def main():
              "not on disk, 'all' every one. Takes the engine lock; needs no --source."
     )
     mode_group.add_argument(
+        "--check-destination", choices=("quick", "full"), default=None, metavar="{quick,full}",
+        help="Run a read-only job that checks every catalogued copy under --dest (ok, missing, "
+             "changed, unreadable) and lists files the catalog did not put there. 'quick' trusts an "
+             "unchanged size and date; 'full' reads every file. Takes the engine lock."
+    )
+    mode_group.add_argument(
         "--backup-now", action="store_true",
         help="Write one manual catalog backup to --backups and exit. Takes the engine lock, so it "
              "is refused while a job runs. Touches no photo and needs no --source."
@@ -3462,7 +3610,9 @@ def main():
     if args.backup_now:
         sys.exit(run_manual_backup(db_path, Path(args.backups), base_dir, lock_fd))
     if args.rebuild_thumbnails:
-        sys.exit(run_thumbnail_rebuild(args, db_path, base_dir, log_dir, lock_fd))
+        sys.exit(run_thumbnail_rebuild(args, db_path, log_dir, lock_fd))
+    if args.check_destination:
+        sys.exit(run_destination_check(args, db_path, log_dir, lock_fd))
 
     # 2b. ExifTool is a hard requirement (module docstring) — fail fast and
     # clearly, before touching source/dest/the database at all, rather than

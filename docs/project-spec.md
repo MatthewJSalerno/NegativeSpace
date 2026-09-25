@@ -138,7 +138,6 @@ with what it needs:
 
 | Gap | Where | Blocks |
 | :--- | :--- | :--- |
-| Destination inventory pass | `engine-spec.md` §9.1 | Answering "is my destination intact?" |
 | Precomputed perceptual pairs | `engine-spec.md` §9.3 | Similar-photo review and its slider |
 | Rename a delivered file | `engine-spec.md` §9.4 | Recovering a better filename from a duplicate group |
 | Delete under `--dest`, with an extended record | `engine-spec.md` §9.5 | Discarding redundant copies; needs `width`/`height` too |
@@ -173,7 +172,7 @@ above. No code exists yet.
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 8; older catalogs are refused, never migrated. It stores immutable
+at schema version 9; older catalogs are refused, never migrated. It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its
 identity, and reuse of an existing destination keeps both identities and links the
