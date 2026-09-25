@@ -1,8 +1,8 @@
 # Web interface screens
 
-React + TypeScript, built with Vite. This folder's `Dockerfile` builds them with Node and
-serves the result with nginx (`nginx.conf`), which also passes `/api` to the app
-container. That is the `web` service in `docker-compose.yml`. Nothing needs installing
+React + TypeScript, built with Vite. `docker/web.Dockerfile` builds them with Node and
+serves the result with nginx (`docker/nginx.conf`), which also passes `/api` to the app
+container. That is the `web` service in `docker/compose.yml`. Nothing needs installing
 on the host.
 
 Check types and build without the image, in the same pinned Node image:

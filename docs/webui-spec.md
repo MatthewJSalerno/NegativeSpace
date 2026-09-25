@@ -4,7 +4,7 @@
 
 The NegativeSpace Web Interface provides a modern web UI for the containerized Python engine (`ns-engine.py`). It transforms the CLI engine into an interactive application supporting real-time operation monitoring, selective file processing, context-aware duplicate resolution, detailed metadata inspection, dedicated runtime settings management, extension validation, and audit logging.
 
-**Deployment:** two containers (`docker-compose.yml`). `web` (nginx) serves the built
+**Deployment:** two containers (`docker/compose.yml`). `web` (nginx) serves the built
 React screens and passes `/api`, including the WebSocket, to `app`, which runs FastAPI
 and the engine it spawns. Only `web` publishes a port.
 

@@ -164,7 +164,7 @@ scheduled.
 
 ### The web interface — core loop built
 
-Specified in `webui-spec.md`. It runs as two containers (`docker-compose.yml`):
+Specified in `webui-spec.md`. It runs as two containers (`docker/compose.yml`):
 `web`, nginx serving the screens on port 8080 and passing `/api` through, and `app`,
 the API with the engine it starts. **Why the API and engine share a container:** the
 API runs the engine as a child process and both use the catalog's SQLite files and

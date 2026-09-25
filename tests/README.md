@@ -8,7 +8,7 @@ Build the image first — the Python suites run inside it, because they need Exi
 Pillow, imagehash and rawpy:
 
 ```bash
-docker build -t negativespace .
+docker build -f docker/app.Dockerfile -t negativespace .
 ```
 
 ## Engine smoke suite — `engine_smoke_test.py`
@@ -71,14 +71,14 @@ mount the copy as `/app`: the API is imported in-process, so `--engine` cannot r
 
 ## Web interface in a browser — `webui_browser_test.sh`
 
-Both containers as `docker-compose.yml` arranges them (`app`, and `web` proxying `/api`
+Both containers as `docker/compose.yml` arranges them (`app`, and `web` proxying `/api`
 to it), driven by headless Chromium (Playwright) against generated photos. It covers first run, settings, Scan, the gallery,
 the Inspector, selection, Copy, search and the phone-width layout, and fails on any
 browser console error. It starts a server container and a Playwright container, so it
 runs on the host:
 
 ```bash
-docker build -t negativespace . && docker build -t negativespace-web webui/frontend
+docker build -f docker/app.Dockerfile -t negativespace . && docker build -f docker/web.Dockerfile -t negativespace-web .
 sh tests/webui_browser_test.sh
 ```
 
@@ -94,7 +94,7 @@ script:
 
 ```bash
 sh tests/sampler_test.sh                                   # the sampler never writes to the library
-docker build -t negativespace . && sh tests/entrypoint_test.sh   # the entrypoint's ownership handling
+docker build -f docker/app.Dockerfile -t negativespace . && sh tests/entrypoint_test.sh   # the entrypoint's ownership handling
 ```
 
 ## Validating against real files — `make_sample_tree.sh`

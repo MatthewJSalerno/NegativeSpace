@@ -1,3 +1,5 @@
+# The app image: the engine and the web API that runs it. Build from the repository root:
+#   docker build -f docker/app.Dockerfile -t negativespace .
 # Pinned by digest, with requirements.txt pinned to exact versions, so a
 # rebuild produces the image that was validated. Update deliberately: change
 # the digest, rebuild, run CI, and validate before merging.
@@ -23,7 +25,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application script and entrypoint
-COPY entrypoint.sh /entrypoint.sh
+COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 COPY ns-engine.py ns_db.py ./
 COPY webui/*.py ./webui/
@@ -63,7 +65,7 @@ RUN chmod 644 ns-engine.py
 # Pre-create standard volume mount points
 RUN mkdir -p /data/source /data/dest /appdata/db /appdata/logs /cache /backups
 
-# The web API, reached through the web container (docker-compose.yml); not
+# The web API, reached through the web container (docker/compose.yml); not
 # published to the host.
 EXPOSE 8000
 
