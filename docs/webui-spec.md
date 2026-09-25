@@ -1596,6 +1596,20 @@ validity does not prove decoder behavior or pixel integrity; a matching pHash is
 not proof of exact pixel equality. Define and test consistent decoding/orientation
 rules for supported formats before implementing this verification path.
 
+**Rotate is an EXIF edit, never a pixel edit.** The Inspector and bulk edit offer
+**Rotate left**, **Rotate right** and **Rotate 180°**. Each changes only the EXIF
+`Orientation` tag, which viewers and galleries apply when displaying the photo.
+The pixel data is never decoded and re-saved: re-encoding a JPEG loses quality on
+every save, and a rotation that changed pixels would be a different photograph.
+It goes through the same confirmed edit as any other field: the pre-action backup,
+a working copy, read-back verification of the tag, the expected-rendering rule for
+pHash above, and a new content identity linked to the old one in lineage, since the
+file's bytes change. The grid thumbnail and detail preview follow the new content;
+both already honour `Orientation`. A rotated copy is no longer byte-identical to its
+former duplicates, and history shows that. Where a format's `Orientation` cannot be
+written safely, the control is unavailable with that reason. It never falls back to
+re-encoding, a sidecar, or a catalog-only rotation a gallery would not see.
+
 **A changed date refiles the photo** to the folder its new date implies,
 automatically and with no setting to disable it. Correcting the date *is* the
 decision; moving the file is only that decision applied consistently, so a

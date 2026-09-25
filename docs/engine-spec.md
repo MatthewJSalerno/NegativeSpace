@@ -961,6 +961,11 @@ eventually unavoidable: a consuming gallery reads EXIF from the file, so a
 correction that lives only in this catalog is a correction the gallery never
 sees.
 
+**Rotation is one of these writes** (`webui-spec.md` §7.5): it sets the EXIF
+`Orientation` tag and never decodes or re-saves pixels. It needs the per-format
+answer to "can `Orientation` be written here safely", which the rest of this
+capability needs anyway; a format without one is refused, not re-encoded.
+
 **Write changes back to the metadata source.** Embedded metadata is updated inside
 the delivered photo. Manually entered values also go into that photo. Retained
 source originals are not edited. Unsupported writes fail explicitly rather than
