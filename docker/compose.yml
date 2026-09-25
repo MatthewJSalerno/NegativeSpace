@@ -4,7 +4,8 @@
 #          engine as a child process and both use the catalog and its lock file,
 #          so they share one container. Its port is not published.
 #
-# Set SOURCE_DIR, DEST_DIR, APPDATA_DIR and BACKUP_DIR to absolute host paths, then
+# Set SOURCE_DIR, DEST_DIR, APPDATA_DIR and BACKUP_DIR to absolute host paths in
+# docker/.env (copy docker/.env.example; it is git-ignored and read automatically), then
 # run `docker compose -f docker/compose.yml up -d --build` from the repository root
 # (or `docker compose up -d --build` from this folder) and open http://localhost:8080.
 #
