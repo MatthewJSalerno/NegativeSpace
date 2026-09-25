@@ -109,7 +109,9 @@ Users can select individual files or multiple files across grid views to run tar
   just started**, so their statuses can be watched, until **Back to results**. When
   every selected photo is already on screen, nothing moves.
 * **Date tree:** a **Dates** panel left of the gallery lists years and their months with
-  counts for the current view and search, every year unfolded to start. Clicking a name
+  counts for the current view and search, every year unfolded to start, in the order of
+  the gallery's date sort (oldest first lists the oldest year and month first; No date
+  stays last, as both date sorts place it). Clicking a name
   goes to the page it starts on
   (a sort that is not by date switches to Newest first and says so). The boxes, under a
   **Show only** header, narrow the gallery to the ticked years and months; none ticked,
@@ -142,7 +144,10 @@ search and open photo live in the URL.
 
 **No capture date** is a quick filter beside the views, with its count. It shows the
 photos whose EXIF has no date taken, which are filed under Undated by their file's
-modification date. It combines with the view and the search.
+modification date. It combines with the view and the search. **All photos** means every
+photo: choosing it also clears No capture date, the date tree's Show only and the search,
+and it is not shown as chosen while any of them narrows the gallery. The other views keep
+them, to narrow within a view.
 
 **Main-page browsing:** default to newest first by recorded photo date, clearly
 distinguishing filesystem fallback dates from capture dates; offer size sorting.

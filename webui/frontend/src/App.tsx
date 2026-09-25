@@ -250,6 +250,14 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const clearSelection = () => { setSelected(new Set()); if (focus?.kind === "selection") backToResults(); };
 
   const changeDates = (next: string[]) => { setDates(next); setPage(1); };
+  // All photos means every photo: it also clears No capture date, the dates and the
+  // search. The other views keep them, to narrow within them.
+  const narrowed = undated || dates.length > 0 || !!q;
+  const chooseView = (v: View) => {
+    setView(v);
+    setPage(1);
+    if (v === "all") { setUndated(false); setDates([]); setSearch(""); setQ(""); }
+  };
   const jumpTo = (key: string) => {
     const newestFirst = sort !== "oldest";
     const target = datePage(jumpTimeline ?? timeline ?? { months: [], undated: 0 }, newestFirst, pageSize, key);
@@ -411,8 +419,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           </button>
           <nav className="views" aria-label="Views">
             {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
-              <button key={v} className={v === view ? "active" : ""} disabled={!!focus}
-                      onClick={() => { setView(v); setPage(1); }}>
+              <button key={v} className={v === view && !(v === "all" && narrowed) ? "active" : ""} disabled={!!focus}
+                      onClick={() => chooseView(v)}>
                 {VIEW_LABEL[v]}{data ? ` (${count(data.counts[v])})` : ""}
               </button>
             ))}
@@ -440,7 +448,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
       <main className={`content ${datesOpen ? "dates-open" : ""}`} ref={content}>
         {!focus && (
-          <DatesPanel timeline={timeline} dates={dates} current={currentDate} onDates={changeDates}
+          <DatesPanel timeline={timeline} dates={dates} current={currentDate} oldestFirst={sort === "oldest"} onDates={changeDates}
                       onJump={(key) => { jumpTo(key); setDatesOpen(false); }} />
         )}
         <div className="gallery-pane">

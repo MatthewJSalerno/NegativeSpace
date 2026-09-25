@@ -15,21 +15,24 @@ export function dateLabel(key: string): string {
 // The date tree (webui-spec 2): years with their months, with counts for the current
 // view and search. Clicking a name jumps the gallery there; the boxes under "Show only"
 // narrow it to the ticked years and months. None ticked shows every date.
-export function DatesPanel({ timeline, dates, current, onDates, onJump }: {
+export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJump }: {
   timeline: Timeline | null;
   dates: string[];
   current: string | null;
+  // The gallery's date order: oldest first lists the oldest year and month first.
+  oldestFirst: boolean;
   onDates: (dates: string[]) => void;
   onJump: (key: string) => void;
 }) {
   const years = useMemo(() => {
     const out = new Map<string, { month: string; count: number }[]>();
-    for (const m of timeline?.months ?? []) {
+    const months = timeline?.months ?? [];           // newest first, as the API sends them
+    for (const m of oldestFirst ? [...months].reverse() : months) {
       const y = m.month.slice(0, 4);
       out.set(y, [...(out.get(y) ?? []), m]);
     }
     return [...out.entries()];
-  }, [timeline]);
+  }, [timeline, oldestFirst]);
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const seeded = useRef(false);
   // Every year starts unfolded; folding one is kept while the page is open.

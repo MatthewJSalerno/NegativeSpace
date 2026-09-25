@@ -110,6 +110,12 @@ with sync_playwright() as p:
     page.reload()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
     page.locator(".dates-filter-line").get_by_role("button", name="Show all dates").click()
+    # Oldest first turns the tree over: the oldest year leads.
+    year_names = dates.locator(".dates-tree > li > .dates-row .dates-name")
+    expect(year_names.first).to_have_text("2023")
+    page.get_by_label("Sort").select_option("oldest")
+    expect(year_names.first).to_have_text("2019")
+    page.get_by_label("Sort").select_option("newest")
     expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS} photos")
     shot("2b-dates")
     page.locator(".pager").first.get_by_label("Photos per page").select_option("120")
@@ -342,6 +348,15 @@ with sync_playwright() as p:
     expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS - 2:,} photos")
     undated_filter.click()
     expect(page).not_to_have_url(re.compile(r"undated=1"))
+    # All photos resets every filter: No capture date, the dates and the search.
+    undated_filter.click()
+    page.get_by_role("navigation", name="Dates").get_by_label("Show only 2019").check()
+    page.locator(".search").fill("photo")
+    expect(page).to_have_url(re.compile(r"q=photo"))
+    page.get_by_role("button", name=re.compile(r"^All photos")).click()
+    expect(page).not_to_have_url(re.compile(r"undated=1|date=|q="))
+    expect(page.locator(".search")).to_have_value("")
+    expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS:,} photos")
 
     # A photo with an EXIF date: shown from EXIF, one note for the missing time zone.
     page.locator(".search").fill("photo-000")
