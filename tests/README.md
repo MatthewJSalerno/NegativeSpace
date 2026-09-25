@@ -69,6 +69,21 @@ docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app \
 To prove a test catches a defect in the API, copy the checkout, change the copy, and
 mount the copy as `/app`: the API is imported in-process, so `--engine` cannot reach it.
 
+## Web interface in a browser — `webui_browser_test.sh`
+
+The screens as built into the image, served by it and driven by headless Chromium
+(Playwright) against generated photos. It covers first run, settings, Scan, the gallery,
+the Inspector, selection, Copy, search and the phone-width layout, and fails on any
+browser console error. It starts a server container and a Playwright container, so it
+runs on the host:
+
+```bash
+docker build -t negativespace . && sh tests/webui_browser_test.sh
+```
+
+`IMAGE=<tag>` tests another build. To prove it catches a frontend defect, change a copy
+of the checkout, build that copy under another tag, and run with `IMAGE` set to it.
+
 ## Shell tests
 
 These run on the host, not in the container, because the thing under test is a shell

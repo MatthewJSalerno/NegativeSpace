@@ -21,9 +21,10 @@ MAX_FILE_IDS = 1000
 # How long a started engine has to create its run before the start is reported
 # as failed. It creates the run right after taking its lock, before any file work.
 RUN_APPEAR_SECONDS = 30.0
-# What the API waits for a job to stop after SIGTERM when the server shuts down,
-# inside Docker's stop grace period (README).
-SHUTDOWN_GRACE_SECONDS = 25.0
+# What the API waits for a job to stop after SIGTERM when the server shuts down.
+# Inside the 300 s stop timeout the README and compose file set: a cancel finishes
+# the file being copied, and one large file over a network share can take minutes.
+SHUTDOWN_GRACE_SECONDS = 290.0
 # Detail previews are made by the engine on request; bound how many run at once
 # when a user pages quickly through photos.
 PREVIEW_CONCURRENCY = 2
