@@ -3,7 +3,6 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -20,7 +19,6 @@ class Config:
     backups: Path = Path("/backups")
     engine: Path = REPO / "ns-engine.py"
     python: str = sys.executable
-    static: Optional[Path] = REPO / "webui" / "static"
 
     @property
     def db_path(self) -> Path:
@@ -37,8 +35,7 @@ class Config:
         d = cls()
         return cls(base=path("NS_BASE", d.base), source=path("NS_SOURCE", d.source),
                    dest=path("NS_DEST", d.dest), cache=path("NS_CACHE", d.cache),
-                   backups=path("NS_BACKUPS", d.backups), engine=path("NS_ENGINE", d.engine),
-                   static=path("NS_STATIC", d.static))
+                   backups=path("NS_BACKUPS", d.backups), engine=path("NS_ENGINE", d.engine))
 
     def engine_argv(self, *args) -> list:
         """An engine command as an argument list, never a shell string: arguments

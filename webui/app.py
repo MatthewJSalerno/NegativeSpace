@@ -1,6 +1,7 @@
-"""The NegativeSpace HTTP API and the built web interface it serves.
+"""The NegativeSpace HTTP API. The screens are served by the web container, which
+passes /api here (docker-compose.yml, webui/frontend/nginx.conf).
 
-Run with: uvicorn webui.app:app --host 0.0.0.0 --port 8080 (from the repository root).
+Run with: uvicorn webui.app:app --host 0.0.0.0 --port 8000 (from the repository root).
 """
 import asyncio
 import contextlib
@@ -13,7 +14,6 @@ from typing import Optional
 from fastapi import Body, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 
 import ns_db
@@ -197,21 +197,6 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
                 await asyncio.sleep(PUSH_INTERVAL_SECONDS)
         except (WebSocketDisconnect, RuntimeError):
             return
-
-    # -- The built frontend ---------------------------------------------------
-
-    if cfg.static and (cfg.static / "index.html").is_file():
-        app.mount("/assets", StaticFiles(directory=cfg.static / "assets", check_dir=False), name="assets")
-
-        @app.get("/{path:path}", include_in_schema=False)
-        def spa(path: str):
-            """Client-side routes all load the app; unknown API paths stay 404s."""
-            if path.startswith("api/"):
-                raise HTTPException(404)
-            candidate = (cfg.static / path).resolve()
-            if path and cfg.static.resolve() in candidate.parents and candidate.is_file():
-                return FileResponse(candidate)
-            return FileResponse(cfg.static / "index.html")
 
     return app
 

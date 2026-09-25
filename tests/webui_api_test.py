@@ -41,11 +41,10 @@ def make_photo(path: Path, seed: str, size=(64, 48), mtime=None):
 class ApiCase(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix="ns-webui-"))
-        for name in ("src", "dest", "appdata", "cache", "backups", "static"):
+        for name in ("src", "dest", "appdata", "cache", "backups"):
             (self.root / name).mkdir()
         self.cfg = Config(base=self.root / "appdata", source=self.root / "src", dest=self.root / "dest",
-                          cache=self.root / "cache", backups=self.root / "backups",
-                          static=self.root / "static")
+                          cache=self.root / "cache", backups=self.root / "backups")
         self.client = TestClient(create_app(self.cfg))
 
     def tearDown(self):
@@ -250,17 +249,6 @@ class DerivedOutcome(ApiCase):
         cancelled = self.run_with("MOVE", [scan, ("transferring", 3, {"Completed": 1, "Cancelled": 2})],
                                   status=ns_db.RunStatus.CANCELLED)
         self.assertEqual((cancelled["verdict"], cancelled["succeeded"], cancelled["cancelled"]), ("cancelled", 1, 2))
-
-
-class ServingTheApp(ApiCase):
-    def test_client_routes_load_the_app_and_unknown_api_paths_stay_404(self):
-        (self.cfg.static / "index.html").write_text("<html>app</html>")
-        (self.cfg.static / "assets").mkdir()
-        client = TestClient(create_app(self.cfg))
-        self.assertEqual(client.get("/gallery/42").text, "<html>app</html>")
-        self.assertEqual(client.get("/api/v1/nothing-here").status_code, 404)
-        self.assertEqual(client.get("/../../etc/passwd").text, "<html>app</html>")
-        client.close()
 
 
 if __name__ == "__main__":

@@ -27,5 +27,5 @@ ai-memory/
 *-private.md
 todo-private.md
 pains-private.md
-webui/static/
 webui/frontend/node_modules/
+webui/frontend/dist/

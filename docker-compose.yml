@@ -1,4 +1,12 @@
-# Set SOURCE_DIR, DEST_DIR, APPDATA_DIR and BACKUP_DIR to absolute host paths.
+# NegativeSpace as two containers:
+#   web  - the screens, served by nginx on port 8080; passes /api to app.
+#   app  - the API and the engine it runs, with every volume. The API starts the
+#          engine as a child process and both use the catalog and its lock file,
+#          so they share one container. Its port is not published.
+#
+# Set SOURCE_DIR, DEST_DIR, APPDATA_DIR and BACKUP_DIR to absolute host paths, then
+# run `docker compose up -d --build` and open http://localhost:8080.
+#
 # Source/destination must be distinct, non-overlapping directories.
 # BACKUP_DIR and APPDATA_DIR must also be distinct and non-overlapping:
 # neither may contain the other, including through symlinks or mount aliases.
@@ -6,13 +14,19 @@
 # /backups holds multiple catalog snapshots, NOT photos. The engine writes one
 # after every job that recorded changes and on --backup-now, and refuses (records a
 # failed backup) when /backups is missing, unmounted, unwritable or overlaps /appdata.
-#
-# Start with `docker compose up -d`, then open http://localhost:8080.
 services:
-  negativespace:
-    build: .
+  web:
+    build: webui/frontend
+    image: negativespace-web
     ports:
       - "8080:8080"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  app:
+    build: .
+    image: negativespace
     environment:
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
@@ -41,11 +55,16 @@ services:
         target: /backups
         bind:
           create_host_path: false
-    # The web server (the image's default command). Restarting it never restarts
-    # a job: jobs start only when you start them in the web interface.
+      # Thumbnails: disposable, rebuilt from the photos, so a named volume is enough.
+      # It keeps them when the container is replaced.
+      - cache:/cache
+    # Restarting never restarts a job: jobs start only from the web interface.
     restart: unless-stopped
     # docker stop cancels a running job and, by default, kills the container 10 s
     # later. A graceful cancel finishes the file being copied, records the rest
     # Cancelled and takes a catalog backup; a large file over a network share can
     # outlast 10 s, and a kill mid-cancel leaves the run Interrupted instead.
     stop_grace_period: 5m
+
+volumes:
+  cache:

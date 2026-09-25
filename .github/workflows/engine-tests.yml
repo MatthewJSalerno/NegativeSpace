@@ -23,6 +23,9 @@ jobs:
       - name: Build image
         run: docker build -t negativespace .
 
+      - name: Build the web image
+        run: docker build -t negativespace-web webui/frontend
+
       - name: Engine starts and parses its CLI
         run: docker run --rm negativespace python3 ns-engine.py --help
 
@@ -39,9 +42,9 @@ jobs:
           fi
 
       - name: Web interface in a browser
-        # The built screens served by the image, driven by headless Chromium through
+        # Both containers as in docker-compose.yml, driven by headless Chromium through
         # first run, Scan, gallery, Inspector, selection, Copy and settings. On the
-        # host because it starts a server container and a Playwright container.
+        # host because it starts the containers and a Playwright container.
         run: sh tests/webui_browser_test.sh
 
       - name: Entrypoint ownership

@@ -17,35 +17,39 @@ Specifications are organized by component, not by release phase:
 
 > **Never mount source and destination to the same underlying folder, or place either folder inside the other.** Different container paths (`/data/source` and `/data/dest`) do not make the storage separate. Check the host folders or network-share mappings, including NFS. Overlapping locations can cause unintended processing or deletion of your photos. This configuration is unsupported. The engine refuses to start when it can see the overlap (the same folder, one inside the other, or one folder mounted at both paths) and never deletes a source that turns out to be the same file as its copy — but it cannot see every alias, such as two separate network mounts of one share.
 
-### Build
-
-```bash
-docker build -t negativespace .
-```
-
 ### Start the web interface
 
+NegativeSpace runs as two containers, defined in `docker-compose.yml`:
+
+| Container | Holds |
+| --- | --- |
+| `web` | The screens, on port 8080. It passes everything under `/api` to `app`. |
+| `app` | The API and the engine it runs, with all the volumes. Its port is not published. |
+
+Set the four folders, then build and start both:
+
 ```bash
-docker run -d --name negativespace --stop-timeout 300 -p 8080:8080 \
-  -e PUID=$(id -u) -e PGID=$(id -g) \
-  -v /path/to/your/photos:/data/source:ro \
-  -v /path/to/organized:/data/dest \
-  -v /path/to/appdata:/appdata \
-  -v /path/to/backups:/backups \
-  -v /path/to/cache:/cache \
-  negativespace
+export SOURCE_DIR=/path/to/your/photos   # read-only unless you plan to Move
+export DEST_DIR=/path/to/organized
+export APPDATA_DIR=/path/to/appdata
+export BACKUP_DIR=/path/to/backups
+docker compose up -d --build
 ```
 
-Then open **http://localhost:8080** (or the host's address). Or use `docker-compose.yml`: set `SOURCE_DIR`, `DEST_DIR`, `APPDATA_DIR` and `BACKUP_DIR`, then run `docker compose up -d`.
+Open **http://localhost:8080** (or the host's address). `docker compose down` stops both.
 
 - **First visit:** there is no catalog yet, so the page offers to create one, then shows the settings. Save them to reach the library.
 - **Scan** reads your photos into the catalog. It moves and copies nothing.
 - **Copy** or **Move** everything not yet organized, or select photos first. Both ask before they start.
 - The drawer at the bottom shows a running job's progress and lets you cancel it. Closing the browser does not stop a job.
-- **Move needs a writable source.** It deletes each source file after its copy is verified, so with `:ro` every file in a Move fails, although nothing is lost. Drop `:ro` if you plan to Move.
-- `docker stop` cancels a running job cleanly. `--stop-timeout 300` gives a large file time to finish copying first.
+- **Move needs a writable source.** It deletes each source file after its copy is verified, so with a read-only source every file in a Move fails, although nothing is lost. To Move, set `read_only: false` on the source volume in `docker-compose.yml`.
+- `docker compose down` cancels a running job cleanly; the compose file allows five minutes for a large file to finish copying first.
 
-The sections below describe the engine's modes and options in more detail. The commands that run the engine directly are for development and debugging; the web interface runs the same engine for you.
+The sections below describe the engine's modes and options in more detail. The commands that run the engine directly are for development and debugging; the web interface runs the same engine for you. They use the `app` image:
+
+```bash
+docker build -t negativespace .
+```
 
 ### Operations Summary
 
