@@ -85,21 +85,42 @@ One consequence for display: after a Move, each `Duplicate` row's `dest_path` is
 ### Selective File Processing
 Users can select individual files or multiple files across grid views to run targeted operations.
 * **Multi-Select Controls:** Checkboxes on photo cards, Shift-click range selections,
-  and **Select all on this page**. This selects eligible photos on the displayed
-  page only, not all results matching the current filter. Keep the total selected
-  count visible in the action bar and repeat it in bulk-action previews, including
-  metadata edits and deletion. Do not label a page-only control simply "Select all."
+  and a **Select ▾** menu above the grid: **Select all on this page (n)**, **Select all
+  (n)** (every photo the view, search and dates show, on every page), **Unselect all on
+  this page** and **Unselect all**. Select all is refused whole above the 1,000-photo
+  limit, never cut short (`GET /photos/ids`); an item that would do nothing says why.
+  Keep the total selected count visible and repeat it in bulk-action previews, including
+  metadata edits and deletion.
 * **Selection across views:** retain explicit photo selections when changing pages
-  or filters. Show the total and the number outside the displayed view, for example
-  **“25 selected · 10 outside this view”**, with **Review selection** and **Clear
-  selection**. Review selection temporarily shows only the selected photos,
-  including those hidden by prior filters or pagination, and allows inspection and
-  deselection. **Back to results** restores the previous search, filters, sort order
-  and page while retaining the updated selection. It does not permanently replace
-  the browsing view. Bulk actions use the explicit selection and show its count
-  in the preview, not just the photos visible on the current page.
-* **Unavailable selected photos:** keep the item visible in Review selection with
-  its reason. Show counts such as **“24 available · 1 unavailable”** and require
+  or filters. The top row, after **Logs**, shows the total and the number outside the
+  displayed view, for example **“25 selected · 10 outside this view”**, with **Show
+  only selected** and **Clear**. Show only selected temporarily shows only the selected
+  photos, including those hidden by prior filters or pagination, and allows inspection
+  and deselection; the photos shown are fixed on entry, so one unticked there stays on
+  screen, unticked. **Back to results** restores the previous search, filters, sort
+  order and page while retaining the updated selection. It does not permanently replace
+  the browsing view. Bulk actions use the explicit selection and show its count in the
+  preview, not just the photos visible on the current page.
+* **Acting on a hidden selection shows it first.** When Copy or Move selected is chosen
+  and any selected photo is outside the displayed view, the gallery switches to the
+  selected photos before the confirmation opens over them. **Cancel** returns to the
+  view it came from; confirming keeps those photos on screen as **the photos in the job
+  just started**, so their statuses can be watched, until **Back to results**. When
+  every selected photo is already on screen, nothing moves.
+* **Date tree:** a **Dates** panel left of the gallery lists years and their months with
+  counts for the current view and search. Clicking a name goes to the page it starts on
+  (a sort that is not by date switches to Newest first and says so). The boxes, under a
+  **Show only** header, narrow the gallery to the ticked years and months; none ticked,
+  the default, shows every date. A year's box ticks its months and shows a dash when
+  only some are ticked. The filter is in the address, named above the gallery
+  (**“Showing only June 2023, 2019 · Show all dates”**), and applies to the view
+  counts; the tree's own counts ignore it, so an unticked month keeps its number. On a
+  narrow screen the panel opens from a **Dates** button.
+* **Unavailable selected photos:** keep the item visible in Show only selected with
+  its reason. Built so far: a selected photo gone from the catalog is named there
+  (**“1 selected photo is no longer in the catalog · Remove from the selection”**,
+  from `missing` in `POST /photos/selection`); the counts and the required removal
+  below are not yet enforced. Show counts such as **“24 available · 1 unavailable”** and require
   removal of unavailable items before confirmation. Never silently drop them from
   the selection. Revalidate before execution using the stale-preview policy (§7.1).
 
@@ -129,7 +150,7 @@ matches. Distinguish not-yet-organized and organized photos; when a search has m
 in the other view, show its count and a link rather than implying no matches exist.
 * **Selection size limit:** Individual multi-select (including "Select all on page") is capped at a configurable maximum (default: 1,000 files) per job submission — this isn't an arbitrary UX restriction, it's because each selected file becomes an integer in the `--file-ids` command-line argument passed to the engine, and there's a real OS limit on total command-line length. Exceeding the cap shows a clear message (e.g. *"1,000 file limit for individual selection — try Folder Selection below for larger batches"*) rather than silently truncating the selection or attempting a job that might fail at spawn time.
 * **Folder Selection (for large batches):** Instead of "select all matching current filter" against individual files, users can select a source folder (recursive) and scope the operation to everything currently indexed under it. This maps directly to the engine's `--source-subdir <path>` flag (`engine-spec.md` §4.1) rather than enumerating individual IDs, which sidesteps the command-line length limit entirely — there's no practical upper bound on how many files a folder selection can cover. Symlinks are excluded automatically, inherited from the original Index that populated the catalog (a symlink was never indexed as a row in the first place). If a folder hasn't been indexed yet (zero matching rows), show *"No indexed files found under this folder — run an Index first."*
-* **Sticky Action Bar:** Appears when items (individual or folder) are selected, presenting **Move Selected** and **Copy Selected** actions.
+* **Actions on a selection:** **Actions ▾ → Copy ▸ / Move ▸ → selected (n)** (§4.1).
 * **Targeted Execution:** Individual selections use the `--file-ids <id1,id2>` flag; folder selections use `--source-subdir <path>`. These are mutually exclusive targeting mechanisms in a single job — pick one per submission. IDs (not raw file paths) were chosen for the individual case specifically because a database primary key is unambiguous and doesn't depend on path strings staying identical between when the frontend fetched the catalog and when the operation actually runs — and it keeps one targeting implementation rather than a parallel web-only code path, which is what makes the engine directly runnable for debugging and development (see §1).
 
 ---

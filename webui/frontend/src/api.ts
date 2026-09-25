@@ -36,6 +36,31 @@ export interface PhotoPage {
   counts: Record<View | "undated", number>;
 }
 
+// What narrows the gallery: the view, the search, No capture date, and the date tree's
+// "Show only" years and months ("2023", "2023-06", "none").
+export interface BrowseFilters {
+  view: View;
+  q: string;
+  undated: boolean;
+  dates?: string[];
+}
+
+function browseQuery(f: BrowseFilters): URLSearchParams {
+  const query = new URLSearchParams({ view: f.view });
+  if (f.q) query.set("q", f.q);
+  if (f.undated) query.set("undated", "true");
+  (f.dates ?? []).forEach((d) => query.append("date", d));
+  return query;
+}
+
+export interface SelectionPage {
+  items: PhotoItem[];
+  page: number;
+  page_size: number;
+  total: number;
+  missing: number[];
+}
+
 export interface Timeline {
   months: { month: string; count: number }[];
   undated: number;
@@ -239,20 +264,19 @@ export const api = {
     request<Settings>("PUT", "/api/v1/settings", { values, revisions }),
   validateExtension: (extension: string) =>
     request<ExtensionSupport>("POST", "/api/v1/settings/validate-extension", { extension }),
-  photos: (params: { view: View; sort: Sort; q: string; page: number; page_size: number; undated: boolean }) => {
-    const query = new URLSearchParams({
-      view: params.view, sort: params.sort, page: String(params.page), page_size: String(params.page_size),
-    });
-    if (params.q) query.set("q", params.q);
-    if (params.undated) query.set("undated", "true");
+  photos: (params: BrowseFilters & { sort: Sort; page: number; page_size: number }) => {
+    const query = browseQuery(params);
+    query.set("sort", params.sort);
+    query.set("page", String(params.page));
+    query.set("page_size", String(params.page_size));
     return request<PhotoPage>("GET", `/api/v1/photos?${query}`);
   },
-  timeline: (params: { view: View; q: string; undated: boolean }) => {
-    const query = new URLSearchParams({ view: params.view });
-    if (params.q) query.set("q", params.q);
-    if (params.undated) query.set("undated", "true");
-    return request<Timeline>("GET", `/api/v1/photos/timeline?${query}`);
-  },
+  // Without `dates` for the date tree's counts; with them for the page a jump lands on.
+  timeline: (params: BrowseFilters) => request<Timeline>("GET", `/api/v1/photos/timeline?${browseQuery(params)}`),
+  photoIds: (params: BrowseFilters) =>
+    request<{ ids: number[]; total: number; limit: number; over_limit: boolean }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
+  selection: (ids: number[], sort: Sort, page: number, page_size: number) =>
+    request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size }),
   operations: (f: LogFilters, page: number, pageSize: number) => {
     const p = logQuery(f);
     p.set("page", String(page));

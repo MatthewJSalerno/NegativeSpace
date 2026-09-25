@@ -130,21 +130,43 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     # -- Photos ---------------------------------------------------------------
 
+    def _bad_request(exc: ValueError) -> HTTPException:
+        return HTTPException(400, {"error": "invalid_request", "message": str(exc)})
+
     @app.get("/api/v1/photos")
     def get_photos(view: str = "all", sort: str = "newest", q: Optional[str] = None,
-                   page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=240), undated: bool = False):
+                   page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=240), undated: bool = False,
+                   date: Optional[List[str]] = Query(None)):
         try:
             return catalog.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size,
-                                       undated=undated)
+                                       undated=undated, dates=date)
         except ValueError as exc:
-            raise HTTPException(400, {"error": "invalid_request", "message": str(exc)})
+            raise _bad_request(exc)
 
     @app.get("/api/v1/photos/timeline")
-    def get_timeline(view: str = "all", q: Optional[str] = None, undated: bool = False):
+    def get_timeline(view: str = "all", q: Optional[str] = None, undated: bool = False,
+                     date: Optional[List[str]] = Query(None)):
         try:
-            return catalog.timeline(cfg.db_path, view=view, q=q, undated=undated)
+            return catalog.timeline(cfg.db_path, view=view, q=q, undated=undated, dates=date)
         except ValueError as exc:
-            raise HTTPException(400, {"error": "invalid_request", "message": str(exc)})
+            raise _bad_request(exc)
+
+    @app.get("/api/v1/photos/ids")
+    def get_photo_ids(view: str = "all", q: Optional[str] = None, undated: bool = False,
+                      date: Optional[List[str]] = Query(None)):
+        try:
+            return catalog.photo_ids(cfg.db_path, view=view, q=q, undated=undated, dates=date)
+        except ValueError as exc:
+            raise _bad_request(exc)
+
+    @app.post("/api/v1/photos/selection")
+    def get_selection(body: dict = Body(...)):
+        """A POST only because a selection of 1,000 ids is too long for a URL; it reads."""
+        try:
+            return catalog.photos_by_ids(cfg.db_path, body.get("ids"), sort=body.get("sort", "newest"),
+                                         page=body.get("page", 1), page_size=body.get("page_size", 60))
+        except (ValueError, TypeError) as exc:
+            raise _bad_request(ValueError(str(exc)))
 
     @app.get("/api/v1/photos/{photo_id}/inspect")
     def inspect(photo_id: int):

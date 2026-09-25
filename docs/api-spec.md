@@ -105,6 +105,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 | `sort` | `newest`, `oldest`, `largest`, `smallest`, `name` | `newest` |
 | `q` | filename search: current and original names, including removed duplicates' names; never folder names | none |
 | `undated` | `true` for only photos with no EXIF date taken, the ones filed under Undated | `false` |
+| `date` | repeatable: a year (`2023`), a month (`2023-06`) or `none` (no date at all); the date tree's "Show only". Several add up | none: every date |
 | `page`, `page_size` | page from 1; 1 to 240 photos | 1, 60 |
 
     {"items": [{"id": 12, "status": "Pending", "file_size": 3012443,
@@ -113,19 +114,42 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
      "page": 1, "page_size": 60, "total": 1160,
      "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160}}
 
-`counts` apply the search and the `undated` filter to each view. `counts.undated` is how
+`counts` apply the search, the `undated` filter and `date` to each view. `counts.undated` is how
 many photos in this view and search have no capture date, whether or not the filter is
 on, for the filter's label. The date sorts put undatable rows last.
 
 ### `GET /api/v1/photos/timeline`
 
-Photos per calendar month for the same `view`, `q` and `undated`, newest month first:
+Photos per calendar month for the same `view`, `q`, `undated` and `date`, newest month first:
 
     {"months": [{"month": "2023-06", "count": 68}, ...], "undated": 0}
 
 `undated` here counts rows with no date at all. A month's first photo in a date sort
 sits after every photo sorted before it, which is how the screen jumps to a month's
-page.
+page. The date tree asks without `date`, so an unticked month keeps its count; a jump
+asks with it, to land on the right page of the filtered gallery.
+
+### `GET /api/v1/photos/ids`
+
+Every photo id the gallery shows for the same `view`, `q`, `undated` and `date`, across
+all pages: **Select all**.
+
+    {"ids": [3, 7, ...], "total": 412, "limit": 1000, "over_limit": false}
+
+Over the 1,000-photo selection limit (the engine's `--file-ids`), `ids` is empty and
+`over_limit` true: refused whole, never cut short, because a partial Select all would
+act on only some of what was shown.
+
+### `POST /api/v1/photos/selection`
+
+The selected photos, whatever view, search or dates would hide them (Show only selected):
+
+    {"ids": [3, 7, 99999], "sort": "newest", "page": 1, "page_size": 60}
+    ->  {"items": [...as GET /photos...], "page": 1, "page_size": 60, "total": 2, "missing": [99999]}
+
+It reads; it is a POST because 1,000 ids is too long for a URL. `missing` names ids no
+longer in the catalog, so a selection is never silently shortened. More than 1,000 ids
+is `400 invalid_request`.
 
 ### `GET /api/v1/photos/{id}/inspect`
 

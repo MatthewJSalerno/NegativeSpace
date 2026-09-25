@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import type { PhotoItem, PhotoPage } from "../api";
+import type { PhotoItem } from "../api";
 import { isFallbackDate, photoDate, plural } from "../format";
 import { Thumb } from "./Thumb";
 
@@ -9,8 +9,8 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 export function Gallery({ page, selected, selectable, openId, onOpen, onToggle, onToggleMany }: {
-  page: PhotoPage;
-  selected: Map<number, PhotoItem>;
+  page: { items: PhotoItem[] };
+  selected: Set<number>;
   selectable: boolean;
   openId: number | null;
   onOpen: (id: number) => void;

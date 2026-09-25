@@ -192,6 +192,45 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual((status["eligible"], status["copied"]), ({"copy": 0, "move": 2}, 2),
                          "after a Copy, Move all still has every copied photo to finish")
 
+    def test_the_date_tree_filters_and_select_all_takes_exactly_what_is_shown(self):
+        self.index_library()                        # one photo dated 2020-09, one 2023-11
+        photos = lambda **p: self.client.get("/api/v1/photos", params=p).json()
+        self.assertEqual(photos()["total"], 2)
+        only_2023 = photos(date=["2023"])
+        self.assertEqual([i["date_taken"][:7] for i in only_2023["items"]], ["2023-11"])
+        self.assertEqual(only_2023["counts"]["all"], 1, "the view counts must follow the date filter")
+        self.assertEqual(photos(date=["2020-09", "2023"])["total"], 2, "ticked dates add up")
+        self.assertEqual(photos(date=["none"])["total"], 0)
+        self.assertEqual(self.client.get("/api/v1/photos", params={"date": "June"}).status_code, 400)
+        # The tree's counts ignore the date filter, so an unticked month keeps its number;
+        # the jump positions follow it.
+        tree = self.client.get("/api/v1/photos/timeline").json()
+        self.assertEqual([m["month"] for m in tree["months"]], ["2023-11", "2020-09"])
+        jump = self.client.get("/api/v1/photos/timeline", params={"date": "2023"}).json()
+        self.assertEqual([m["month"] for m in jump["months"]], ["2023-11"])
+
+        ids = self.client.get("/api/v1/photos/ids", params={"date": "2020"}).json()
+        self.assertEqual((ids["total"], ids["over_limit"]), (1, False))
+        self.assertEqual(ids["ids"], [i["id"] for i in photos(date=["2020"])["items"]],
+                         "Select all must take exactly the photos the filters show")
+
+    def test_select_all_over_the_limit_is_refused_whole_not_cut_short(self):
+        self.index_library()
+        from webui import catalog
+        over = catalog.photo_ids(self.cfg.db_path, limit=1)
+        self.assertEqual((over["over_limit"], over["total"], over["ids"]), (True, 2, []))
+
+    def test_the_selection_shows_photos_every_filter_hides_and_names_missing_ones(self):
+        self.index_library()
+        dated_2020 = self.client.get("/api/v1/photos", params={"date": "2020"}).json()["items"][0]["id"]
+        shown = self.client.post("/api/v1/photos/selection",
+                                 json={"ids": [dated_2020, 99999], "sort": "newest"}).json()
+        self.assertEqual([i["id"] for i in shown["items"]], [dated_2020])
+        self.assertEqual((shown["total"], shown["missing"]), (1, [99999]),
+                         "a photo gone from the catalog must be named, not silently dropped")
+        refused = self.client.post("/api/v1/photos/selection", json={"ids": list(range(1, 1002))})
+        self.assertEqual(refused.status_code, 400)
+
     def test_exif_dates_keep_their_own_time_zones_and_the_undated_filter_finds_the_rest(self):
         make_photo(self.cfg.source / "dated.jpg", "dated", exif={
             36867: "2021:05:01 10:00:00", 36881: "+02:00",   # DateTimeOriginal, with its offset

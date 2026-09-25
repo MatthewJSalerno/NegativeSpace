@@ -95,11 +95,22 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"page=2\b"))
     expect(page.locator(".pager").first.locator("button.current")).to_have_text("2")
     page.goto(BASE)
-    # The older year's month: its first photo is photo number NEWER + 1, on this page.
-    older = page.get_by_label("Jump to a month").locator("optgroup").nth(1).locator("option").first.get_attribute("value")
-    page.get_by_label("Jump to a month").select_option(older)
+    # The date tree: clicking the older year jumps to its page; its first photo is photo
+    # number NEWER + 1. Ticking it shows only that year, and the address keeps it.
+    dates = page.get_by_role("navigation", name="Dates")
+    dates.get_by_role("button", name="2019", exact=True).click()
     expect(page).to_have_url(re.compile(rf"page={NEWER // 60 + 1}\b"))
     expect(page.locator(".card-sub", has_text="2019").first).to_be_visible()
+    dates.get_by_label("Show only 2019").check()
+    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only 2019")
+    expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
+    expect(page.locator(".views")).to_contain_text(f"All photos ({OLDER})")
+    expect(dates.get_by_role("button", name="2023", exact=True)).to_be_visible()   # counts ignore the filter
+    page.reload()
+    expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
+    page.locator(".dates-filter-line").get_by_role("button", name="Show all dates").click()
+    expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS} photos")
+    shot("2b-dates")
     page.locator(".pager").first.get_by_label("Photos per page").select_option("120")
     expect(page).to_have_url(re.compile(r"size=120"))
     page.goto(BASE)
@@ -160,19 +171,59 @@ with sync_playwright() as p:
     expect(page).not_to_have_url(first_url)
     page.keyboard.press("Escape")
 
+    # The Select menu: this page, everything shown, and unselecting either.
+    line = page.locator(".selection-line")
+    def select(item):
+        page.get_by_role("button", name=re.compile(r"^Select")).first.click()
+        label = page.locator(".menu-label").get_by_text(item, exact=True)
+        page.get_by_role("menu", name="Select").get_by_role("menuitem").filter(has=label).click()
+    select("Select all on this page (60)")
+    expect(line).to_contain_text("60 photos selected")
+    select("Unselect all")
+    expect(line).to_have_count(0)
+    select(f"Select all ({PHOTOS})")
+    expect(line).to_contain_text(f"{PHOTOS} photos selected")
+    line.get_by_role("button", name="Clear").click()
+    expect(line).to_have_count(0)
+
     # Selection and Copy; a job shorter than one feed update still refreshes the counts.
+    # The selection line sits in the top row, after Logs.
     checks = page.locator(".card-check input")
     checks.nth(0).click()
     checks.nth(2).click(modifiers=["Shift"])
-    expect(page.locator(".action-bar")).to_contain_text("3 photos selected")
+    expect(line).to_contain_text("3 photos selected")
+    logs_box = page.get_by_role("link", name="Logs").bounding_box()
+    line_box = line.bounding_box()
+    assert abs(line_box["y"] - logs_box["y"]) < 20 and line_box["x"] > logs_box["x"], "the selection is not beside Logs"
+    # On another page the three are outside the view; Show only selected brings them back.
+    page.locator(".pager").first.get_by_role("button", name="2", exact=True).click()
+    expect(line).to_contain_text("3 outside this view")
+    line.get_by_role("button", name="Show only selected").click()
+    expect(page.locator(".focus-head")).to_contain_text("Showing only the 3 selected photos")
+    expect(page.locator(".card")).to_have_count(3)
+    line.get_by_role("button", name="Back to results").click()
+    expect(page.locator(".focus-head")).to_have_count(0)
+    expect(page).to_have_url(re.compile(r"page=2\b"))
+    # Acting on a selection that is hidden shows it first; Cancel returns to the page.
+    open_actions(page, "Copy").get_by_role("menuitem", name="Copy selected (3)").click()
+    expect(page.locator(".focus-head")).to_contain_text("Showing only the 3 selected photos")
+    page.get_by_role("alertdialog").get_by_role("button", name="Cancel").click()
+    expect(page.locator(".focus-head")).to_have_count(0)
+    expect(page).to_have_url(re.compile(r"page=2\b"))
     open_actions(page, "Copy").get_by_role("menuitem", name="Copy selected (3)").click()
     dialog = page.get_by_role("alertdialog")
     expect(dialog).to_contain_text("Copy 3 selected photos?")
+    expect(page.locator(".card")).to_have_count(3)
+    shot("5b-review-before-copy")
     dialog.get_by_role("button", name="Copy").click()
+    expect(page.locator(".focus-head")).to_contain_text("The 3 photos in the job just started")
     expect(banner).to_contain_text("Copy finished", timeout=60_000)
     expect(banner).to_contain_text("3 of 3 files copied")
+    expect(page.locator(".badge-copied")).to_have_count(3, timeout=5_000)
+    expect(line).to_contain_text("0 photos selected")
+    page.locator(".focus-head").get_by_role("button", name="Back to results").click()
+    expect(line).to_have_count(0)
     expect(page.locator(".views")).to_contain_text("Organized (3)", timeout=5_000)
-    expect(page.locator(".action-bar")).to_have_count(0)
 
     # Copy all, with one photo made unreadable to the app: the three already copied
     # and the duplicates are skipped with their reasons, and the failure is offered.
@@ -303,4 +354,4 @@ with sync_playwright() as p:
 assert not errors, f"browser console errors: {errors}"
 assert not server_errors, f"server errors: {server_errors}"
 print("web interface: first run, index, paging, jump to date, inspector, divider, selection, copy, "
-      "settings, backups, search and phone layout ok")
+      "settings, backups, dates, select, show only selected, search and phone layout ok")
