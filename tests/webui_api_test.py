@@ -260,6 +260,26 @@ class JobsAndCatalog(ApiCase):
             active = self.client.get("/api/v1/jobs/active").json()["active"]
             self.assertTrue(active and active["unrecorded"], f"a held lock was not shown as a job: {active}")
 
+    def test_overlapping_checks_never_report_a_job_that_is_not_running(self):
+        # The page checks every second and on every refresh; two checks at once
+        # used to see each other's hold on the start lock and show a job.
+        import threading
+        self.create_catalog()
+        self.cfg.lock_path.touch()
+        runner, false_busy = self.app_jobs(), []
+        def check():
+            for _ in range(2000):
+                if runner.engine_busy():
+                    false_busy.append(1)
+        threads = [threading.Thread(target=check) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(len(false_busy), 0, "an idle server reported a running job")
+        with self.engine_lock_held():
+            self.assertTrue(runner.engine_busy(), "a real engine's lock must still read as busy")
+
     def test_a_run_left_active_by_a_dead_engine_is_presented_interrupted_not_rewritten(self):
         self.index_library()
         with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
