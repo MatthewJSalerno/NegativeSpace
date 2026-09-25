@@ -1,6 +1,6 @@
 # NegativeSpace
 
-A backend engine for organizing large photo collections based on EXIF metadata, hash verification, and transactional file moves.
+Organizes large photo collections into dated folders using EXIF metadata, hash verification and transactional file moves. You use it through a web interface in your browser; the engine behind it does the file work.
 
 ## Documentation
 
@@ -23,6 +23,30 @@ Specifications are organized by component, not by release phase:
 docker build -t negativespace .
 ```
 
+### Start the web interface
+
+```bash
+docker run -d --name negativespace --stop-timeout 300 -p 8080:8080 \
+  -e PUID=$(id -u) -e PGID=$(id -g) \
+  -v /path/to/your/photos:/data/source:ro \
+  -v /path/to/organized:/data/dest \
+  -v /path/to/appdata:/appdata \
+  -v /path/to/backups:/backups \
+  -v /path/to/cache:/cache \
+  negativespace
+```
+
+Then open **http://localhost:8080** (or the host's address). Or use `docker-compose.yml`: set `SOURCE_DIR`, `DEST_DIR`, `APPDATA_DIR` and `BACKUP_DIR`, then run `docker compose up -d`.
+
+- **First visit:** there is no catalog yet, so the page offers to create one, then shows the settings. Save them to reach the library.
+- **Scan** reads your photos into the catalog. It moves and copies nothing.
+- **Copy** or **Move** everything not yet organized, or select photos first. Both ask before they start.
+- The drawer at the bottom shows a running job's progress and lets you cancel it. Closing the browser does not stop a job.
+- **Move needs a writable source.** It deletes each source file after its copy is verified, so with `:ro` every file in a Move fails, although nothing is lost. Drop `:ro` if you plan to Move.
+- `docker stop` cancels a running job cleanly. `--stop-timeout 300` gives a large file time to finish copying first.
+
+The sections below describe the engine's modes and options in more detail. The commands that run the engine directly are for development and debugging; the web interface runs the same engine for you.
+
 ### Operations Summary
 
 NegativeSpace has three mutually exclusive modes. `--move` and `--copy` cannot be combined — pick at most one:
@@ -35,7 +59,7 @@ NegativeSpace has three mutually exclusive modes. `--move` and `--copy` cannot b
 
 The Destination column describes `/data/dest` only. Every mode begins with a scan, and the scan generates thumbnails into `/cache` (see Volume Layout) unless `--no-thumbnails` is passed — so "nothing written" above means nothing written *to the destination tree*, not that Index writes nothing at all.
 
-### Run (Index — Default)
+### Run the engine directly: Index
 
 Scan, extract metadata, hash every file (SHA1 + pHash), generate grid thumbnails, and catalog everything into SQLite — including flagging exact duplicates — without moving, copying, or deleting anything. Mount `/data/source` as read-only (`:ro`) for safety; Index never needs write access to it.
 
@@ -47,7 +71,7 @@ docker run --rm --stop-timeout 300 \
   -v /path/to/appdata:/appdata \
   -v /path/to/backups:/backups \
   -v /path/to/cache:/cache \
-  negativespace
+  negativespace python3 ns-engine.py
 ```
 
 Mounting `/cache` is optional — left unmounted, thumbnails live in the container's writable layer and are regenerated after the container is replaced. Two flags control this:
@@ -59,7 +83,7 @@ Mounting `/cache` is optional — left unmounted, thumbnails live in the contain
 
 A thumbnail is disposable cache and never decides whether a file is catalogued: an unreadable photo, a full disk or an unwritable `/cache` records the reason and lets the Index finish normally.
 
-### Run (Move — Copy-Verify-Delete)
+### Run the engine directly: Move (Copy-Verify-Delete)
 
 Performs pre-flight disk space validation, copies files, verifies SHA1 checksums, and only then deletes originals from the source folder. Confirmed exact duplicates are also removed from source once a verified copy of their content exists at the destination. **Drop `:ro`** — this mode deletes from source, so the container needs write access to it.
 
@@ -73,7 +97,7 @@ docker run --rm --stop-timeout 300 \
   negativespace python3 ns-engine.py --move
 ```
 
-### Run (Copy — Non-Destructive)
+### Run the engine directly: Copy (non-destructive)
 
 Same verified Copy-Verify step as Move, but the source file is never deleted or modified — nothing is ever removed from source, including duplicates. Because of this, `/data/source` can safely **stay `:ro`** even in this mode, unlike `--move`.
 

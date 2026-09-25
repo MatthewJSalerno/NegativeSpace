@@ -162,14 +162,32 @@ Index → Copy or Move → cleanup rather than a matter of preference.
 The durability claims ledger in [TODO.md](../TODO.md) is tracked rather than
 scheduled.
 
-### The web interface — API built, screens in progress
+### The web interface — core loop built
 
-Specified in `webui-spec.md`. The FastAPI layer (`webui/`) is built and tested
-(`tests/webui_api_test.py`). It covers the first-run catalog check and creation,
-settings, the gallery listing and search, photo details, thumbnails and detail
-previews, starting and cancelling jobs, and live job state over a WebSocket, with
-outcomes derived as `webui-spec.md` §5.5 requires. The React screens are next.
+Specified in `webui-spec.md`. The image serves it on port 8080 (`README.md`). Built and
+tested:
 
+*   **API** (`webui/`): the first-run catalog check and creation, settings, the gallery
+    listing and search, photo details, thumbnails and detail previews, starting and
+    cancelling jobs, and live job state over a WebSocket, with outcomes derived as
+    `webui-spec.md` §5.5 requires (`tests/webui_api_test.py`).
+*   **Screens** (`webui/frontend`, React + TypeScript):
+    *   the first-run screens;
+    *   settings as a window over the page;
+    *   the gallery, with its views, sorts, search, paging, and selection across pages
+        (shift-click, select-page);
+    *   Scan, and Copy and Move of everything or of a selection, each confirmed;
+    *   the job drawer, with live counts, elapsed time and Cancel;
+    *   the split Inspector with the 1024px preview.
+
+    `tests/webui_browser_test.sh` drives them in a real browser.
+
+Specified but not yet on screen:
+*   Logs, the Error Center, backups, and the Dashboard's duplicate-space figures.
+*   Folder selection (`--source-subdir`).
+*   The Move/Copy preview grouped by destination folder, and the downloadable plan.
+*   A photo's full history.
+*   The Rename, Similar and Undated tabs, and metadata editing.
 
 ### The catalog
 

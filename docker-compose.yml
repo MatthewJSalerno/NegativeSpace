@@ -6,9 +6,13 @@
 # /backups holds multiple catalog snapshots, NOT photos. The engine writes one
 # after every job that recorded changes and on --backup-now, and refuses (records a
 # failed backup) when /backups is missing, unmounted, unwritable or overlaps /appdata.
+#
+# Start with `docker compose up -d`, then open http://localhost:8080.
 services:
-  ns-engine:
+  negativespace:
     build: .
+    ports:
+      - "8080:8080"
     environment:
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
@@ -17,7 +21,8 @@ services:
       - type: bind
         source: ${SOURCE_DIR:?Set SOURCE_DIR to the source directory}
         target: /data/source
-        # Index and Copy need only read access. Move requires read_only: false.
+        # Scan and Copy need only read access. Move deletes verified sources, so it
+        # needs read_only: false; with a read-only source every Move file fails.
         read_only: true
         bind:
           create_host_path: false
@@ -36,10 +41,11 @@ services:
         target: /backups
         bind:
           create_host_path: false
-    # Run Index by default; no automatic restart of file-processing operations.
-    command: ["python3", "ns-engine.py"]
-    # docker stop sends a cancel and, by default, kills the engine 10 s later. A
-    # graceful cancel finishes the file being copied, records the rest Cancelled
-    # and takes a catalog backup; a large file over a network share can outlast
-    # 10 s, and a kill mid-cancel leaves the run Interrupted instead of Cancelled.
+    # The web server (the image's default command). Restarting it never restarts
+    # a job: jobs start only when you start them in the web interface.
+    restart: unless-stopped
+    # docker stop cancels a running job and, by default, kills the container 10 s
+    # later. A graceful cancel finishes the file being copied, records the rest
+    # Cancelled and takes a catalog backup; a large file over a network share can
+    # outlast 10 s, and a kill mid-cancel leaves the run Interrupted instead.
     stop_grace_period: 5m

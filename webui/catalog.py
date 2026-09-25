@@ -180,6 +180,10 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         "file_size": p["file_size"],
         "date_taken": meta.get("date_taken"), "date_source": meta.get("date_source"),
         "camera": camera,
+        # A capture time's offset, when the camera recorded one; without it the
+        # time zone is unknown and must not be shown as UTC (webui-spec 10).
+        "date_offset": meta.get("OffsetTimeOriginal"),
+        "iso": meta.get("ISO"), "aperture": meta.get("FNumber"), "shutter": meta.get("ExposureTime"),
         "width": content["width"] if content else None, "height": content["height"] if content else None,
         "sha1": p["sha1_hash"], "phash": p["phash"],
         "duplicates": copies,

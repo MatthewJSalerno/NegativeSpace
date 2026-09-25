@@ -38,6 +38,12 @@ jobs:
             exit 1
           fi
 
+      - name: Web interface in a browser
+        # The built screens served by the image, driven by headless Chromium through
+        # first run, Scan, gallery, Inspector, selection, Copy and settings. On the
+        # host because it starts a server container and a Playwright container.
+        run: sh tests/webui_browser_test.sh
+
       - name: Entrypoint ownership
         # Runs on the host: it checks what the entrypoint does to real bind
         # mounts, which the suite (running after the entrypoint) cannot see.
