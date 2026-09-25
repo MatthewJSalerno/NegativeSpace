@@ -119,7 +119,10 @@ Users can select individual files or multiple files across grid views to run tar
   **Show only** header, narrow the gallery to the ticked years and months; none ticked,
   the default, shows every date. A year's box ticks its months and shows a dash when
   only some are ticked. The filter is in the address, named above the gallery
-  (**“Showing only June 2023, 2019 · Show all dates”**), and applies to the view
+  (**“Showing only June 2023, 2019 · Select these 412 · Show all dates”**; **Select these**
+  selects what the filter shows, as Select all in this view does, refused above the
+  1,000-photo limit. The boxes themselves only filter: unchecking a month to look
+  elsewhere must never change the selection), and applies to the view
   counts; the tree's own counts ignore it, so an unticked month keeps its number. On a
   narrow screen the panel opens from a **Dates** button. Going to a date the filter hides
   says so and offers the fixes as buttons that apply them and then go there: **“December
