@@ -23,6 +23,15 @@ PHOTOS = NEWER + OLDER
 
 errors = []
 server_errors = []
+def open_actions(page, branch=None):
+    """Opens the Actions menu, and Copy or Move within it; returns the menu."""
+    page.get_by_role("button", name=re.compile(r"^Actions")).click()
+    menu = page.get_by_role("menu", name="Actions")
+    if branch:
+        menu.get_by_role("menuitem", name=branch, exact=True).click()
+    return menu
+
+
 with sync_playwright() as p:
     browser = p.chromium.launch()
     page = browser.new_page(viewport={"width": 1400, "height": 900})
@@ -48,9 +57,13 @@ with sync_playwright() as p:
     shot("1-welcome")
     page.get_by_role("button", name="Save and continue").click()
     expect(page.get_by_text("No photos yet")).to_be_visible()
-    expect(page.get_by_role("button", name="Move all")).to_be_disabled()
-    expect(page.locator(".tip").filter(has=page.get_by_role("button", name="Index", exact=True))).to_have_attribute(
-        "data-tip", re.compile("Index your library"))
+    # The Actions menu: every item that cannot run says why.
+    menu = open_actions(page, "Move")
+    expect(menu.get_by_role("menuitem", name=re.compile(r"^Move all"))).to_be_disabled()
+    expect(menu).to_contain_text("Index your library first")
+    expect(menu.get_by_role("menuitem", name=re.compile(r"^Index"))).to_be_enabled()
+    page.keyboard.press("Escape")
+    expect(page.locator(".menu")).to_have_count(0)
 
     # Index; the result shows at the top of the page, and the gallery refreshes itself.
     page.get_by_role("button", name="Index your library").click()
@@ -152,7 +165,7 @@ with sync_playwright() as p:
     checks.nth(0).click()
     checks.nth(2).click(modifiers=["Shift"])
     expect(page.locator(".action-bar")).to_contain_text("3 photos selected")
-    page.get_by_role("button", name="Copy selected").click()
+    open_actions(page, "Copy").get_by_role("menuitem", name="Copy selected (3)").click()
     dialog = page.get_by_role("alertdialog")
     expect(dialog).to_contain_text("Copy 3 selected photos?")
     dialog.get_by_role("button", name="Copy").click()
@@ -165,13 +178,27 @@ with sync_playwright() as p:
     # and the duplicates are skipped with their reasons, and the failure is offered.
     locked = "/src/photo-129.jpg"
     os.chmod(locked, 0)
-    page.get_by_role("button", name="Copy all").click()
-    page.get_by_role("alertdialog").get_by_role("button", name="Copy").click()
+    # Counted over the whole catalog, whatever the gallery shows: search does not change it.
+    page.locator(".search").fill("photo-00")
+    open_actions(page, "Copy").get_by_role("menuitem", name=f"Copy all ({PHOTOS - 3:,})").click()
+    dialog = page.get_by_role("alertdialog")
+    expect(dialog).to_contain_text(f"every photo not yet copied ({PHOTOS - 3:,})")
+    dialog.get_by_role("button", name="Copy").click()
+    page.locator(".search").fill("")
     expect(banner).to_contain_text("Copy finished with failures", timeout=120_000)
     expect(banner).to_contain_text(
         f"{PHOTOS - 4} of {PHOTOS + DUPLICATES} files copied · 1 failed · {3 + DUPLICATES} skipped "
         f"(3 copied by an earlier job, {DUPLICATES} duplicates: the same content is copied once)")
     shot("6-skip-reasons")
+    # Everything copyable is copied, but Move still has every copied photo to finish.
+    menu = open_actions(page, "Copy")
+    expect(menu.get_by_role("menuitem", name="Copy all (0)")).to_be_disabled()
+    expect(menu).to_contain_text("Nothing to copy")
+    menu.get_by_role("menuitem", name="Move", exact=True).click()
+    expect(menu.get_by_role("menuitem", name=f"Move all ({PHOTOS - 1:,})")).to_be_enabled()
+    expect(menu).to_contain_text(f"including {PHOTOS - 1:,} already copied")
+    shot("6b-actions-menu")
+    page.keyboard.press("Escape")
 
     # The Error Center: the log filtered to this job's failures, with what to do and Retry.
     banner.get_by_role("link", name="View failures").click()

@@ -7,6 +7,9 @@ export interface Status {
   detail: string | null;
   photos: number;
   indexed: boolean;
+  // What a Copy all and a Move all would take, across the whole catalog.
+  eligible: { copy: number; move: number };
+  copied: number;
   application_data: string;
   catalog_backups: string;
   active_job: Run | null;

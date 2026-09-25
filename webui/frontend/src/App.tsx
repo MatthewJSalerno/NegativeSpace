@@ -7,6 +7,7 @@ import { Inspector } from "./components/Inspector";
 import { FinishedBanner, JobDrawer } from "./components/JobDrawer";
 import { JumpToDate, PAGE_SIZES, Pager } from "./components/Pager";
 import { Tip } from "./components/Tip";
+import { ActionsMenu } from "./components/ActionsMenu";
 import { LogsPage } from "./components/LogsPage";
 import { follow, usePath } from "./nav";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -265,13 +266,18 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   };
 
   const askTransfer = (mode: "copy" | "move", ids?: number[]) => {
-    const scope = ids ? plural(ids.length, "selected photo") : `every photo not yet organized (${count(data?.counts.unorganized ?? 0)})`;
+    // "All" counts what the engine would take across the whole catalog (GET /status),
+    // never the gallery's view or search.
+    const scope = ids ? plural(ids.length, "selected photo")
+      : mode === "copy" ? `every photo not yet copied (${count(status.eligible.copy)})`
+        : `every photo not yet moved (${count(status.eligible.move)})`;
     setConfirm({
       title: mode === "move" ? `Move ${scope}?` : `Copy ${scope}?`,
       action: mode === "move" ? "Move" : "Copy",
       danger: mode === "move",
       body: mode === "move" ? [
         "Each photo is copied into the destination's date folders, checked byte for byte, and only then deleted from the source.",
+        ...(!ids && status.copied > 0 ? [`${plural(status.copied, "photo is", "photos are")} already copied: each of their copies is verified again before its source is deleted.`] : []),
         "Duplicate copies in the source are removed once a matching copy is confirmed at the destination.",
       ] : [
         "Each photo is copied into the destination's date folders and checked byte for byte. Nothing in the source is changed or deleted.",
@@ -282,8 +288,6 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
   const noPhotos = status.photos === 0;
   const tooMany = selected.size > MAX_SELECTION;
-  const busyTip = "A job is running. Wait for it to finish or cancel it.";
-  const emptyTip = "Index your library first - NegativeSpace acts on indexed photos.";
 
   return (
     <div className={`app ${openId != null ? "with-inspector" : ""}`}>
@@ -292,8 +296,18 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           <h1 className="brand">NegativeSpace</h1>
           <nav className="pages" aria-label="Pages">
             <a className="button-link active" href="/" onClick={follow} aria-current="page">Library</a>
+            <ActionsMenu
+              state={{ jobRunning, noPhotos, selected: selected.size, tooMany, maxSelection: MAX_SELECTION,
+                       eligible: status.eligible, copied: status.copied }}
+              onIndex={start("index")}
+              onTransfer={(mode, scope) => askTransfer(mode, scope === "selected" ? [...selected.keys()] : undefined)} />
             <a className="button-link" href="/logs" onClick={follow}>Logs</a>
           </nav>
+          <div className="toolbar-actions">
+            <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
+          </div>
+        </div>
+        <div className="toolbar-row toolbar-browse">
           <nav className="views" aria-label="Views">
             {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
               <button key={v} className={v === view ? "active" : ""} onClick={() => { setView(v); setPage(1); }}>
@@ -316,18 +330,6 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             <option value="smallest">Smallest first</option>
             <option value="name">Name</option>
           </select>
-          <div className="toolbar-actions">
-            <Tip text={jobRunning ? busyTip : "Index your library: read new and changed photos from the source into the catalog. Nothing is moved or copied."}>
-              <button onClick={start("index")} disabled={jobRunning}>Index</button>
-            </Tip>
-            <Tip text={jobRunning ? busyTip : noPhotos ? emptyTip : "Copy every photo not yet organized into the destination's date folders. The source is left untouched."}>
-              <button onClick={() => askTransfer("copy")} disabled={jobRunning || noPhotos}>Copy all</button>
-            </Tip>
-            <Tip text={jobRunning ? busyTip : noPhotos ? emptyTip : "Move every photo not yet organized into the destination's date folders. Each source is deleted only after its copy is verified."}>
-              <button onClick={() => askTransfer("move")} disabled={jobRunning || noPhotos}>Move all</button>
-            </Tip>
-            <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
-          </div>
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
         <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />

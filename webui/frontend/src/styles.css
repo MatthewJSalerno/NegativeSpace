@@ -294,3 +294,24 @@ body.dragging { cursor: col-resize; user-select: none; }
   .job-head { grid-template-columns: auto 1fr; }
   .job-detail, .job-count { grid-column: 2; }
 }
+
+/* The Actions menu, after Library in the page links. */
+.actions-menu { position: relative; }
+.actions-menu > button { font: inherit; cursor: pointer; }
+.button-link.active-soft { border-color: var(--accent); color: var(--accent); }
+.menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 300px; display: grid; padding: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.18); }
+.menu-parent { position: relative; }
+.submenu { top: -6px; left: calc(100% + 6px); min-width: 320px; }
+.menu-item { display: grid; gap: 2px; width: 100%; text-align: left; border: 0; border-radius: 6px; background: none;
+  padding: 9px 12px; font: inherit; color: inherit; cursor: pointer; }
+.menu-item:hover:not(:disabled), .menu-item.current { background: var(--surface-2); }
+.menu-item:disabled { cursor: default; color: var(--muted); }
+.menu-branch { grid-template-columns: 1fr auto; align-items: center; }
+.menu-label { font-weight: 600; }
+.menu-hint { font-size: 0.85rem; color: var(--muted); }
+.toolbar-browse { border-top: 1px solid var(--border); padding-top: 8px; padding-bottom: 8px; }
+@media (max-width: 700px) {
+  .submenu { position: static; box-shadow: none; border: 0; border-left: 2px solid var(--border); border-radius: 0; margin-left: 12px; min-width: 0; }
+  .menu { min-width: min(300px, calc(100vw - 32px)); }
+}

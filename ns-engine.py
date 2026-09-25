@@ -4843,11 +4843,9 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     cursor = conn.cursor()
 
     predicate, predicate_params = _targeting_predicate(args)
-    # --move also takes Copied rows. A verified copy already exists, so the
-    # move completes by deleting the source against it — the already-present
-    # branch below re-verifies both sides live first. Without this, --copy
-    # followed by --move of an unchanged file could never finish the move.
-    eligible = (PhotoStatus.PENDING, PhotoStatus.COPIED) if args.move else (PhotoStatus.PENDING,)
+    # Why --move also takes Copied rows: ns_db.TRANSFER_ELIGIBLE. The web UI counts
+    # "Copy all" and "Move all" from the same table.
+    eligible = ns_db.TRANSFER_ELIGIBLE["move" if args.move else "copy"]
     cursor.execute(
         f"SELECT id, source_path, dest_path, metadata_json FROM photos "
         f"WHERE status IN ({sql_values(eligible)})" + predicate,

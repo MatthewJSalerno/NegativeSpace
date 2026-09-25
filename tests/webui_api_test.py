@@ -181,6 +181,17 @@ class JobsAndCatalog(ApiCase):
         again = self.wait_for(self.start(mode="copy"))
         self.assertEqual(again["outcome"]["verdict"], "no_change")
 
+    def test_copy_all_and_move_all_are_counted_as_the_engine_selects_them(self):
+        self.index_library()
+        status = self.client.get("/api/v1/status").json()
+        self.assertEqual((status["eligible"], status["copied"]), ({"copy": 2, "move": 2}, 0))
+        self.wait_for(self.start(mode="copy"))
+        # Searching narrows the gallery's counts, never these.
+        self.client.get("/api/v1/photos", params={"q": "Beach"})
+        status = self.client.get("/api/v1/status").json()
+        self.assertEqual((status["eligible"], status["copied"]), ({"copy": 0, "move": 2}, 2),
+                         "after a Copy, Move all still has every copied photo to finish")
+
     def test_exif_dates_keep_their_own_time_zones_and_the_undated_filter_finds_the_rest(self):
         make_photo(self.cfg.source / "dated.jpg", "dated", exif={
             36867: "2021:05:01 10:00:00", 36881: "+02:00",   # DateTimeOriginal, with its offset

@@ -291,8 +291,17 @@ A finished job's banner explains its skips, grouped by the reason each photo rec
 for example **"5 skipped (3 copied by an earlier job, 2 duplicates: the same content is
 copied once)"**. The API groups them from the engine's reason text (`webui/catalog.py`).
 
-The toolbar's actions are named **Index**, **Copy all** and **Move all**, matching the
-documentation, and each has a hover explanation, for example "Index your library".
+The Library's actions live in one **Actions** menu, after **Library** in the page links:
+**Index**, **Copy ▸** and **Move ▸**, the last two each offering **selected (n)** (the
+photos selected in the Library) and **all (n)**. The toolbar's second row holds the views,
+search and sort. Every item carries a one-line explanation, and one that cannot run
+replaces it with why: a job is running, nothing is indexed, nothing is selected, or
+nothing is left (**"Nothing to copy - every photo is copied or organized."**). The
+**all** counts are the whole catalog's, by the engine's own rule
+(`ns_db.TRANSFER_ELIGIBLE`), never the gallery's view or search: Copy takes photos not
+yet copied, and Move also takes copied ones, deleting each source once its copy is
+verified again, so after a full Copy, Copy all is empty and Move all is not. Its item
+and confirmation say how many are already copied.
 The divider between the gallery and the Inspector can be dragged or moved with the arrow
 keys, and its position is remembered. When the Inspector is wide enough, the details sit
 beside the photo instead of below it.
@@ -793,11 +802,15 @@ Users can view exact system error strings (e.g., `PermissionError`, `ChecksumMis
 **No dedicated retry subsystem.** There is no "Retry Item" / "Retry All Failed" backend endpoint and no `retry_count` tracking. A failed file's `photos.status` is reset to `Pending` automatically the next time it's re-indexed (a plain re-scan, full or `--file-ids`-scoped), so retrying means explicitly submitting a new operation. Successfully copied files remain in source; successfully moved files normally do not. Do not promise that rerunning requires no scanning or verification. The web UI's equivalent of "retry" is selecting the photos associated with failed attempts and re-issuing the same Move/Copy operation via `POST /api/v1/jobs/start` with their IDs in `file_ids` — no new endpoint required. Take those IDs from the failed `operations` rows rather than from `photos.status`, deduplicating when several attempts reference one photo, and do not require the photo's current status to be `Failed`: a duplicate-verification failure stays `Duplicate` and is retried by Move's duplicate cleanup on the next run. Retrying does not by itself fix a content mismatch or an unreadable file, so the UI should not promise that it will.
 
 ### 5.4 Operations Audit Log (`/logs`)
-**Built** (`api-spec.md` §5a). The Library and Logs pages are switched from the toolbar. A finished
-job's banner links to its log and, when it failed, to **View failures**. The Inspector's
+**Built** (`api-spec.md` §5a). The Library and Logs pages are switched from the toolbar. The
+log is grouped by job, newest first: each job is one line (its summary and how many
+entries match) until opened, and its entries page on their own. Filters apply inside
+every job; while any is set, a job with nothing matching is left out. A finished
+job's banner links to its log, opened on that job, and, when it failed, to **View failures**.
+A banner dismissed on one page stays dismissed on the other. The Inspector's
 **History** opens the log for that photo. Each failure carries a plain hint drawn from its
-recorded reason, and **Retry** runs the same mode again over the photos behind the shown
-failures.
+recorded reason, and **Retry**, inside the job it belongs to, runs the same mode again over the photos behind
+that job's shown failures.
 
 A searchable table logging every operation performed by the engine:
 * **Columns:** Timestamp, Mode (`MOVE`/`COPY`), Source Path, Destination Path, Status (`Completed`, `Copied`, `Removed_Duplicate`, `Found_At_Destination`, `Failed`), and System Error Message.

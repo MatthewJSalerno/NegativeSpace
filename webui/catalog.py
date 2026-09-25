@@ -64,15 +64,21 @@ def connect(db_path: Path):
 
 
 def status(db_path: Path) -> dict:
-    """What the first screen needs: whether a catalog exists and is usable, and
-    whether it holds anything yet."""
+    """What the first screen needs: whether a catalog exists and is usable, whether
+    it holds anything yet, and how many photos a Copy all and a Move all would take
+    (ns_db.TRANSFER_ELIGIBLE, the engine's own rule), whatever the gallery shows."""
     try:
         with connect(db_path) as conn:
             photos = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
             indexed = conn.execute("SELECT COUNT(*) FROM runs WHERE mode = 'INDEX'").fetchone()[0]
-        return {"state": "ok", "detail": None, "photos": photos, "indexed": indexed > 0}
+            by_status = dict(conn.execute("SELECT status, COUNT(*) FROM photos GROUP BY status").fetchall())
+        eligible = {mode: sum(by_status.get(s, 0) for s in statuses)
+                    for mode, statuses in ns_db.TRANSFER_ELIGIBLE.items()}
+        return {"state": "ok", "detail": None, "photos": photos, "indexed": indexed > 0,
+                "eligible": eligible, "copied": by_status.get(PhotoStatus.COPIED, 0)}
     except CatalogUnavailable as exc:
-        return {"state": exc.state, "detail": exc.detail, "photos": 0, "indexed": False}
+        return {"state": exc.state, "detail": exc.detail, "photos": 0, "indexed": False,
+                "eligible": {"copy": 0, "move": 0}, "copied": 0}
 
 
 def create(db_path: Path) -> dict:

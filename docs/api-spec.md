@@ -38,9 +38,14 @@ FastAPI also serves a generated schema at `/api/openapi.json` and an explorer at
 The first screen's state. It never creates anything.
 
     {"state": "missing" | "ok" | "incompatible" | "error", "detail": "<reason or null>",
-     "photos": 1160, "indexed": true,
+     "photos": 1160, "indexed": true, "eligible": {"copy": 0, "move": 1160}, "copied": 1160,
      "application_data": "/appdata", "catalog_backups": "/backups",
      "active_job": <Run or null, as in GET /jobs/active>}
+
+`eligible` is how many photos a Copy all and a Move all would take, by the engine's own
+rule (`ns_db.TRANSFER_ELIGIBLE`): Copy takes `Pending`; Move also takes `Copied`, deleting
+each source against its verified copy. `copied` is how many of Move's are already copied.
+Both count the whole catalog, whatever the gallery's view or search.
 
 The two paths are container paths, named in guidance; the API does not know the host's.
 
