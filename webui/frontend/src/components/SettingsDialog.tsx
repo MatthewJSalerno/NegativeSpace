@@ -120,7 +120,13 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
         {!firstRun && <button onClick={onClose} aria-label="Close settings">✕</button>}
       </header>
       {firstRun && (
-        <p>Check these settings, then save to continue. You can change them later from the gear icon.</p>
+        <div className="notice notice-first-run">
+          <p><strong>These are starting values, not a one-time choice.</strong></p>
+          <p>
+            You can change any of them at any time in the app's Settings: the <span aria-hidden="true">⚙</span> gear
+            icon at the top right of every page. Check them, then save to continue.
+          </p>
+        </div>
       )}
       {!settings ? <p className="muted">Loading…</p> : (
         <>
@@ -130,7 +136,13 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
               <span>Maximum worker processes</span>
               <input type="number" min={1} value={workers} onChange={(e) => setWorkers(e.target.value)} />
             </label>
-            <p className="muted">Detected: {settings.workers.detected} CPU cores. Controls how many photos are read and hashed at once.</p>
+            <p className="muted">Controls how many photos are read and hashed at once.</p>
+            <p className="notice">
+              Detected: {settings.workers.detected} CPU cores. This is what the host reports. By default a
+              container may use all of them, but a CPU limit set on the container (for example with
+              {" "}<code>--cpus</code>) is not reflected in this figure. <strong>If you have set a CPU limit on
+              this container, update this field to match it.</strong>
+            </p>
             <p className="muted">Database queue size: {QUEUE_SIZE.toLocaleString()} items (fixed in the engine, shown for reference).</p>
           </section>
           <section>

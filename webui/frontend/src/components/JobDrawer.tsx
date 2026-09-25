@@ -6,12 +6,9 @@ import { activeTitle, countsLine, currentPhase, phaseLabel, summary, type Connec
 // The operations drawer (webui-spec 4.1): aggregate counts about once a second,
 // elapsed time from the job's recorded start, and Cancel. Per-file detail belongs
 // to the logs, not here.
-export function JobDrawer({ jobs, connection, dismissedId, onDismiss }: {
-  jobs: JobState;
-  connection: Connection;
-  dismissedId: number | null;
-  onDismiss: (id: number) => void;
-}) {
+// The live drawer, at the bottom while a job runs (webui-spec 4.1). A finished job's
+// result is a banner at the top of the page instead (FinishedBanner).
+export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Connection }) {
   const [now, setNow] = useState(Date.now());
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [cancelSent, setCancelSent] = useState<number | null>(null);
@@ -22,7 +19,6 @@ export function JobDrawer({ jobs, connection, dismissedId, onDismiss }: {
   }, []);
 
   const active = jobs.active;
-  const finished = !active && jobs.last && jobs.last.id !== dismissedId ? jobs.last : null;
   if (connection === "lost") {
     return (
       <aside className="drawer drawer-lost" role="status">
@@ -30,9 +26,8 @@ export function JobDrawer({ jobs, connection, dismissedId, onDismiss }: {
       </aside>
     );
   }
-  if (!active && !finished) return null;
+  if (!active) return null;
 
-  if (active) {
     const phase = currentPhase(active);
     const interrupted = active.presented_status === "Interrupted";
     const cancelling = active.status === "Cancelling" || cancelSent === active.id;
@@ -86,15 +81,22 @@ export function JobDrawer({ jobs, connection, dismissedId, onDismiss }: {
         )}
       </aside>
     );
-  }
 
-  const run = finished as Run;
-  if (!run.outcome) return null;
-  const s = summary(run);
+}
+
+// A finished job's result, at the top of the page under the toolbar, until dismissed.
+export function FinishedBanner({ jobs, dismissedId, onDismiss }: {
+  jobs: JobState;
+  dismissedId: number | null;
+  onDismiss: (id: number) => void;
+}) {
+  const run = !jobs.active && jobs.last && jobs.last.id !== dismissedId ? jobs.last : null;
+  if (!run || !run.outcome) return null;
+  const s = summary(run as Run);
   const ended = run.ended_at ? Date.parse(run.ended_at) : null;
   const started = run.started_at ? Date.parse(run.started_at) : null;
   return (
-    <aside className={`drawer drawer-compact drawer-${s.tone}`} role="status">
+    <div className={`finished-banner finished-${s.tone}`} role="status">
       <div className="drawer-text">
         <strong>{s.headline}</strong>
         <span>{s.detail}</span>
@@ -103,6 +105,6 @@ export function JobDrawer({ jobs, connection, dismissedId, onDismiss }: {
         </span>
       </div>
       <button onClick={() => run.id != null && onDismiss(run.id)}>Dismiss</button>
-    </aside>
+    </div>
   );
 }

@@ -141,6 +141,25 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
     return {"items": items, "page": page, "page_size": page_size, "total": counts[view], "counts": counts}
 
 
+def timeline(db_path: Path, *, view="all", q=None) -> dict:
+    """Photos per month for a view and search, newest month first, for jumping to a date
+    in a large library. Months are the recorded date's calendar month (a file date for an
+    undated photo, as the gallery shows it); `undated` counts rows with no date at all,
+    which every date sort places last."""
+    if view not in VIEWS:
+        raise ValueError(f"unknown view: {view}")
+    search, params = _search_clause(q)
+    base = f"FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + search
+    with connect(db_path) as conn:
+        months = [{"month": r[0], "count": r[1]} for r in conn.execute(
+            f"SELECT substr(json_extract(p.metadata_json, '$.date_taken'), 1, 7) AS month, COUNT(*) {base} "
+            "AND json_extract(p.metadata_json, '$.date_taken') IS NOT NULL GROUP BY month ORDER BY month DESC",
+            params)]
+        undated = conn.execute(
+            f"SELECT COUNT(*) {base} AND json_extract(p.metadata_json, '$.date_taken') IS NULL", params).fetchone()[0]
+    return {"months": months, "undated": undated}
+
+
 def thumbnail_record(conn, photo_id: int, size: int):
     """The cache record for a photo's content at `size`: (cache_filename, availability,
     failure_category, failure_detail), or None when nothing was recorded (pending)."""
@@ -170,6 +189,11 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
             "SELECT id, status, source_path, dest_path, file_size FROM photos "
             "WHERE sha1_hash = ? AND id != ? ORDER BY id", (p["sha1_hash"], photo_id))] if p["sha1_hash"] else []
         grid = thumbnail_record(conn, photo_id, GRID_SIZE)
+        # The file's own times as its first scan observed them (source_snapshots),
+        # which later rescans, edits and transfers never overwrite (webui-spec 3.1).
+        snapshot = conn.execute(
+            "SELECT s.birthtime, s.file_mtime FROM photo_files pf JOIN source_snapshots s USING(file_id) "
+            "WHERE pf.photo_id = ?", (photo_id,)).fetchone()
     camera = " ".join(v for v in (meta.get("Make"), meta.get("Model")) if v) or None
     return {
         "id": p["id"], "status": p["status"],
@@ -178,6 +202,9 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         "dest_path_is_projection": p["status"] not in DELIVERED,
         "has_collision_rename": bool(p["has_name_collision"]),
         "file_size": p["file_size"],
+        # Epoch seconds, or None: many filesystems (NFS among them) report no creation time.
+        "file_created": snapshot["birthtime"] if snapshot else None,
+        "file_modified": snapshot["file_mtime"] if snapshot else p["file_mtime"],
         "date_taken": meta.get("date_taken"), "date_source": meta.get("date_source"),
         "camera": camera,
         # A capture time's offset, when the camera recorded one; without it the

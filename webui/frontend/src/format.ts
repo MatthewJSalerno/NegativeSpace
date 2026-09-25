@@ -38,7 +38,16 @@ export function instant(iso: string | null | undefined): string {
   if (!iso) return "unknown";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "medium", timeZoneName: "short" });
+  // dateStyle/timeStyle cannot be combined with timeZoneName (a RangeError), so the
+  // fields are named one by one.
+  return d.toLocaleString(undefined, {
+    year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit",
+    timeZoneName: "short",
+  });
+}
+
+export function epoch(seconds: number | null | undefined): string {
+  return seconds == null ? "unknown" : instant(new Date(seconds * 1000).toISOString());
 }
 
 export function duration(ms: number): string {

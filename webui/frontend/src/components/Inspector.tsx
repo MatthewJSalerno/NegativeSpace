@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { api, ApiError, type PhotoDetail } from "../api";
-import { bytes, isFallbackDate, photoDate } from "../format";
+import { bytes, epoch, isFallbackDate, photoDate } from "../format";
 import { Thumb } from "./Thumb";
 
 const STATUS: Record<string, string> = {
@@ -11,8 +11,11 @@ const STATUS: Record<string, string> = {
 
 // The split-screen Inspector (webui-spec 4.2): the grid thumbnail at once, the
 // 1024px preview as soon as the engine has made it, and what the catalog records.
-export function Inspector({ id, onClose, onStep }: {
+// When the panel is dragged wide, the details move to the right of the photo
+// (a container query in styles.css), so a large preview does not push them away.
+export function Inspector({ id, width, onClose, onStep }: {
   id: number;
+  width: number | null;
   onClose: () => void;
   onStep: (delta: number) => void;
 }) {
@@ -48,13 +51,14 @@ export function Inspector({ id, onClose, onStep }: {
   }, [onClose, onStep]);
 
   return (
-    <section className="inspector" aria-label="Photo details">
+    <section className="inspector" aria-label="Photo details" style={width ? { flexBasis: `${width}px` } : undefined}>
       <header className="inspector-head">
         <button onClick={() => onStep(-1)} aria-label="Previous photo">‹</button>
         <h2 title={detail?.filename}>{detail?.filename ?? "…"}</h2>
         <button onClick={() => onStep(1)} aria-label="Next photo">›</button>
         <button onClick={onClose} aria-label="Close">✕</button>
       </header>
+      <div className="inspector-main">
       <div className="inspector-image">
         {!previewReady && <Thumb id={id} alt={detail?.filename ?? ""} />}
         {!previewFailed && (
@@ -68,18 +72,33 @@ export function Inspector({ id, onClose, onStep }: {
           />
         )}
       </div>
-      {error && <p className="error">{error}</p>}
-      {detail && <Details detail={detail} />}
+      <div className="inspector-side">
+        {error && <p className="error">{error}</p>}
+        {detail && <Details detail={detail} />}
+      </div>
+      </div>
     </section>
   );
 }
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <>
-      <dt>{label}</dt>
-      <dd>{children}</dd>
-    </>
+    <tr>
+      <th scope="row">{label}</th>
+      <td>{children}</td>
+    </tr>
+  );
+}
+
+// One bordered table per section; every table has the same width and label column.
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="info-section">
+      <h3>{title}</h3>
+      <table className="info">
+        <tbody>{children}</tbody>
+      </table>
+    </section>
   );
 }
 
@@ -89,8 +108,7 @@ function Details({ detail: d }: { detail: PhotoDetail }) {
                     d.shutter != null ? `${d.shutter}s` : null].filter(Boolean).join(" · ");
   return (
     <div className="inspector-body">
-      <h3>File</h3>
-      <dl>
+      <Section title="File">
         <Row label="Status">{STATUS[d.status] ?? d.status}</Row>
         <Row label={d.dest_path_is_projection ? "Will go to" : "At destination"}>
           <code>{d.dest_path ?? "—"}</code>
@@ -99,27 +117,38 @@ function Details({ detail: d }: { detail: PhotoDetail }) {
         </Row>
         <Row label="From source"><code>{d.source_path ?? "—"}</code></Row>
         <Row label="Size">{bytes(d.file_size)}{d.width && d.height ? ` · ${d.width} × ${d.height}` : ""}</Row>
-      </dl>
-      <h3>Date and camera</h3>
-      <dl>
-        <Row label={fallback ? "File modified" : "Taken"}>
-          {photoDate(d.date_taken)}
-          {!fallback && (d.date_offset ? ` (UTC${d.date_offset})` : " (time zone unknown)")}
-          {fallback && (
-            <div className="muted">No capture date is recorded. This is the file's modification time, used only to file it under Undated.</div>
+        <Row label="File created">
+          {d.file_created != null ? epoch(d.file_created) : <span className="muted">Not reported by the storage</span>}
+        </Row>
+        <Row label="File modified">
+          {epoch(d.file_modified)}
+          <div className="muted">
+            As first scanned.{fallback ? " The photo's EXIF has no date taken, so this files it under Undated." : ""}
+          </div>
+        </Row>
+      </Section>
+      <Section title="Photo EXIF information">
+        <Row label="Date taken">
+          {fallback ? <span className="muted">Not in the photo's EXIF</span> : (
+            <>
+              {photoDate(d.date_taken)}
+              {d.date_offset ? ` (UTC${d.date_offset})` : " (time zone unknown)"}
+            </>
           )}
         </Row>
-        {d.camera && <Row label="Camera">{d.camera}</Row>}
-        {exposure && <Row label="Exposure">{exposure}</Row>}
-      </dl>
+        <Row label="Camera">{d.camera ?? <span className="muted">Not recorded</span>}</Row>
+        <Row label="Exposure">{exposure || <span className="muted">Not recorded</span>}</Row>
+      </Section>
+
       {d.thumbnail.availability === "failed" && (
         <p className="muted">Thumbnail unavailable: {d.thumbnail.failure_detail ?? "reason not recorded"}</p>
       )}
+      <section className="info-section">
       <h3>Exact duplicates ({d.duplicates.length})</h3>
       {d.duplicates.length === 0 ? (
-        <p className="muted">No other catalogued file has identical content.</p>
+        <p className="muted info-empty">No other catalogued file has identical content.</p>
       ) : (
-        <ul className="copies">
+        <ul className="copies info">
           {d.duplicates.map((c) => (
             <li key={c.id}>
               <span className="badge">{STATUS[c.status] ?? c.status}</span>
@@ -131,11 +160,11 @@ function Details({ detail: d }: { detail: PhotoDetail }) {
           ))}
         </ul>
       )}
-      <h3>Fingerprints</h3>
-      <dl>
+      </section>
+      <Section title="Fingerprints">
         <Row label="SHA-1"><code>{d.sha1 ?? "not recorded"}</code></Row>
         <Row label="Perceptual hash"><code>{d.phash ?? "not recorded"}</code></Row>
-      </dl>
+      </Section>
     </div>
   );
 }

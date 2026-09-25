@@ -7,12 +7,16 @@
 #
 #   docker build -t negativespace . && docker build -t negativespace-web webui/frontend \
 #     && sh tests/webui_browser_test.sh
+#
+# SHOTS=<folder> saves screenshots of the main screens there, for review by eye.
 set -eu
 
 IMAGE=${IMAGE:-negativespace}
 WEB_IMAGE=${WEB_IMAGE:-negativespace-web}
 PLAYWRIGHT=mcr.microsoft.com/playwright/python:v1.63.0-noble
-PHOTOS=24
+# Enough photos for three pages of 60, dated across two years for Jump to date.
+NEWER=70
+OLDER=60
 DUPLICATES=2
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d /tmp/ns-browser-XXXXXX)
@@ -34,12 +38,19 @@ trap cleanup EXIT
 mkdir -p "$WORK/src" "$WORK/dest" "$WORK/appdata" "$WORK/cache" "$WORK/backups"
 
 # Distinct photos plus exact copies of the first few, made with the image's Pillow.
+# None carries an EXIF date, so each is dated by its modification time: the first
+# NEWER in 2023, the rest in 2019.
 docker run --rm --user "$ME" --entrypoint python3 -v "$WORK/src":/src "$IMAGE" -c "
+import os
 from PIL import Image
-for i in range($PHOTOS):
-    Image.new('RGB', (640, 480), ((i * 37) % 256, (i * 91) % 256, (i * 53) % 256)).save(f'/src/photo-{i:03d}.jpg', quality=90)
+def make(name, i):
+    Image.new('RGB', (320, 240), ((i * 37) % 256, (i * 91) % 256, (i * 53) % 256)).save(name, quality=90)
+    t = 1_686_000_000 if i < $NEWER else 1_560_000_000
+    os.utime(name, (t, t))
+for i in range($NEWER + $OLDER):
+    make(f'/src/photo-{i:03d}.jpg', i)
 for i in range($DUPLICATES):
-    Image.new('RGB', (640, 480), ((i * 37) % 256, (i * 91) % 256, (i * 53) % 256)).save(f'/src/copy-of-{i:03d}.jpg', quality=90)
+    make(f'/src/copy-of-{i:03d}.jpg', i)
 "
 
 docker network create "$NET" >/dev/null
@@ -60,6 +71,9 @@ until docker run --rm --network "$NET" --entrypoint python3 "$IMAGE" -c \
     sleep 1
 done
 
-docker run --rm --network "$NET" -v "$HERE/webui_browser_drive.py":/drive.py:ro "$PLAYWRIGHT" \
-    sh -c "pip install -q --root-user-action=ignore playwright==1.63.0 >/dev/null 2>&1 && python3 /drive.py http://$WEB:8080 $PHOTOS $DUPLICATES" \
+SHOT_ARGS=""
+if [ -n "${SHOTS:-}" ]; then SHOT_ARGS="-v $SHOTS:/shots -e SHOTS=/shots"; fi
+# shellcheck disable=SC2086
+docker run --rm --network "$NET" $SHOT_ARGS -v "$HERE/webui_browser_drive.py":/drive.py:ro "$PLAYWRIGHT" \
+    sh -c "pip install -q --root-user-action=ignore playwright==1.63.0 >/dev/null 2>&1 && python3 /drive.py http://$WEB:8080 $NEWER $OLDER $DUPLICATES" \
   || { echo "--- app log ---"; docker logs "$APP" 2>&1 | tail -40; echo "--- web log ---"; docker logs "$WEB" 2>&1 | tail -20; exit 1; }

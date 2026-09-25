@@ -178,11 +178,14 @@ service. Built and tested:
 *   **Screens** (`webui/frontend`, React + TypeScript):
     *   the first-run screens;
     *   settings as a window over the page;
-    *   the gallery, with its views, sorts, search, paging, and selection across pages
-        (shift-click, select-page);
+    *   the gallery, with its views, sorts and search;
+    *   paging for a large library: numbered pages, go-to, page size, and Jump to a month;
+    *   selection across pages (shift-click, select-page);
     *   Scan, and Copy and Move of everything or of a selection, each confirmed;
     *   the job drawer, with live counts, elapsed time and Cancel;
-    *   the split Inspector with the 1024px preview.
+    *   the split Inspector, with a movable divider and the 1024px preview. It shows
+        the file's own details, including its created and modified dates, apart from
+        the photo's EXIF information.
 
     `tests/webui_browser_test.sh` drives them in a real browser.
 

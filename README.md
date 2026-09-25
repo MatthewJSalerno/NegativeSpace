@@ -39,7 +39,7 @@ docker compose up -d --build
 Open **http://localhost:8080** (or the host's address). `docker compose down` stops both.
 
 - **First visit:** there is no catalog yet, so the page offers to create one, then shows the settings. Save them to reach the library.
-- **Scan** reads your photos into the catalog. It moves and copies nothing.
+- **Index** reads your photos into the catalog. It moves and copies nothing.
 - **Copy** or **Move** everything not yet organized, or select photos first. Both ask before they start.
 - The drawer at the bottom shows a running job's progress and lets you cancel it. Closing the browser does not stop a job.
 - **Move needs a writable source.** It deletes each source file after its copy is verified, so with a read-only source every file in a Move fails, although nothing is lost. To Move, set `read_only: false` on the source volume in `docker-compose.yml`.

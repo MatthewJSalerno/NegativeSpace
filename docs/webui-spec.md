@@ -109,6 +109,14 @@ the full scope. Label it a plan, not a log: subsequent execution can fail or det
 changed state, and its actual outcomes belong in the job log. Apply the same
 selection counts and stale-preview safeguards used by other confirmed actions.
 
+**Paging a large library:** pages rather than endless scrolling, because selection
+is defined per page and a page number is a place a refresh returns to. Offer first and
+last, numbered pages with gaps (**1 … 48 49 [50] 51 52 … 2,500**), a go-to-page box,
+and 60, 120 or 240 photos per page. When sorted by date, **Jump to** lists months with
+counts (`GET /api/v1/photos/timeline`). A month's first photo sits after every photo
+sorted before it, which gives its page directly. The page, page size, sort, view,
+search and open photo live in the URL.
+
 **Main-page browsing:** default to newest first by recorded photo date, clearly
 distinguishing filesystem fallback dates from capture dates; offer size sorting.
 Search matches current and original filenames, including names of related removed
@@ -131,6 +139,11 @@ without scanning or touching photos. Saving validates and persists values; start
 must not reset saved preferences. The browser uses the API, never SQLite directly.
 One consistent database backup includes settings and lineage. The settings writer
 boundary is defined in §6.1; no second database is required.
+
+**First run shows the settings as the page itself**, before the library exists, and
+says prominently that these are starting values, changeable at any time from the gear
+icon in Settings. Without that, a user can take the screen for the only chance to set
+them. After first run, Settings opens as a window over the current view.
 
 **Startup without a usable catalog:** distinguish a missing database from access
 errors and from an invalid or corrupt database. Do not silently replace an existing
@@ -254,7 +267,15 @@ wrong for every such file that does carry a date.
 ## 4. UI Layouts & Component Specs
 
 ### 4.1 Real-Time Operations Drawer
-When a job is active, a progress drawer expands at the bottom of the viewport.
+When a job is active, a progress drawer expands at the bottom of the viewport. When it
+finishes, its result shows as a banner at the top of the page, under the toolbar, until
+dismissed.
+
+The toolbar's actions are named **Index**, **Copy all** and **Move all**, matching the
+documentation, and each has a hover explanation, for example "Index your library".
+The divider between the gallery and the Inspector can be dragged or moved with the arrow
+keys, and its position is remembered. When the Inspector is wide enough, the details sit
+beside the photo instead of below it.
 
 ```
 +-----------------------------------------------------------------------------------+
@@ -377,6 +398,14 @@ When a job is active, a progress drawer expands at the bottom of the viewport.
 
 ### 4.2 Split-Screen Photo Inspector Panel
 Clicking an image opens a right-side 50% detail panel.
+
+**Label what comes from the photo's own metadata as such.** The Inspector groups date
+taken, camera and exposure under **Photo EXIF information**. The file's own dates stay out
+of that section. **File created** and **File modified** sit under the file's size, as
+the first scan observed them. Creation time is shown only when the storage reports one,
+and many filesystems do not, NFS among them; otherwise it says so. A photo whose EXIF
+has no capture date says so in the EXIF section, and its File modified row notes that
+this date is what files it under Undated.
 
 **Deleted files retain their info screen and lineage.** Exclude deleted files from
 the normal actionable library, but keep their info screens reachable from log links

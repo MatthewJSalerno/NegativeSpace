@@ -140,6 +140,10 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual([i["date_taken"][:4] for i in page["items"]], ["2023", "2020"], "not newest first")
         self.assertEqual(sorted(i["duplicates"] for i in page["items"]), [0, 1])
 
+        timeline = self.client.get("/api/v1/photos/timeline").json()
+        self.assertEqual(timeline, {"months": [{"month": "2023-11", "count": 1}, {"month": "2020-09", "count": 1}],
+                                    "undated": 0}, "the per-month counts do not match the gallery")
+
         by_removed_name = self.client.get("/api/v1/photos", params={"q": "sunset"}).json()
         self.assertEqual(by_removed_name["total"], 1, "a duplicate's name did not find its photo")
         self.assertEqual(self.client.get("/api/v1/photos", params={"q": "trip"}).json()["total"], 0,
@@ -152,6 +156,8 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual(preview.status_code, 200, preview.text)
         detail = self.client.get(f"/api/v1/photos/{photo}/inspect").json()
         self.assertEqual((detail["date_source"], len(detail["duplicates"])), ("file_mtime", 1))
+        self.assertEqual(detail["file_modified"], 1_600_000_000, "the file's first-scan mtime was not reported")
+        self.assertIn("file_created", detail)
         self.assertTrue(detail["dest_path_is_projection"])
         self.assertEqual(self.client.get("/api/v1/photos/999999/inspect").status_code, 404)
 
