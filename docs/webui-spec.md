@@ -52,7 +52,7 @@ The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engi
    §2's Selective File Processing) and chooses an operation: Move or Copy.
 
 4. Frontend POSTs the selection + operation to FastAPI
-   (`POST /api/v1/jobs/start`, see §6.2).
+   (`POST /api/v1/jobs/start`, see `api-spec.md` §5).
 
 5. FastAPI re-checks for an active job (409 if one exists), then spawns
    the engine, scoped one of two ways:
@@ -335,7 +335,7 @@ beside the photo instead of below it.
   fine-grained checksum steps are not required by this drawer and must not be
   invented from catalog statuses.
 
-* **Job Control:** Provides a **Cancel Job** button. Sends `SIGTERM` to the engine subprocess (§6.2 `jobs/{id}/cancel`). During the **Index/scan** phase the engine stops at the next batch boundary and skips the move/copy phase entirely (everything already indexed is kept, so re-running continues where it left off) — note the UI should not expect per-file `Cancelled` rows for a scan-phase cancellation, since no physical work was scoped out yet. During **Move/Copy**, the file currently being copy-verified finishes normally, then every remaining targeted file is logged to the `operations` audit table with status `Cancelled` (not silently dropped — visible in the run's history afterward) and duplicate-source cleanup for that run is skipped entirely.
+* **Job Control:** Provides a **Cancel Job** button. Sends `SIGTERM` to the engine subprocess (`POST /api/v1/jobs/{id}/cancel`, `api-spec.md` §5). During the **Index/scan** phase the engine stops at the next batch boundary and skips the move/copy phase entirely (everything already indexed is kept, so re-running continues where it left off) — note the UI should not expect per-file `Cancelled` rows for a scan-phase cancellation, since no physical work was scoped out yet. During **Move/Copy**, the file currently being copy-verified finishes normally, then every remaining targeted file is logged to the `operations` audit table with status `Cancelled` (not silently dropped — visible in the run's history afterward) and duplicate-source cleanup for that run is skipped entirely.
 * **Cancellation feedback:** after the cancellation request is accepted, show
   **“Cancellation requested—waiting for the current work to stop safely.”** Keep
   progress and elapsed time visible and disable repeated Cancel clicks. The engine
@@ -656,7 +656,7 @@ undecodable file is therefore re-attempted on every scan.
   but deliberately deferred — this is a rarely run repair operation and the estimate is
   well below a nice-to-have.
 
-* **Serving:** `GET /api/v1/photos/{id}/thumbnail` (§6.2) serves the file directly from `/cache/thumbnails/`.
+* **Serving:** `GET /api/v1/photos/{id}/thumbnail` (`api-spec.md` §4) serves the file directly from `/cache/thumbnails/`.
 
 ---
 
@@ -975,7 +975,7 @@ Both statuses count, because neither was ever written to the destination: a `Dup
 
 What this is not: re-running a Copy does not write files it already delivered (§2's content-aware skip), but that is idempotency, not deduplication. Those rows are the anchors themselves, and the query excludes them by construction. Redundancy that something outside the engine put in the destination is a different question again, answered by the destination inventory (`engine-spec.md` §9.1), not here.
 
-The Inspector's `duplicates` array (§6.2, `GET /api/v1/photos/{id}/inspect`) should carry each copy's `file_size` for the same reason, so a single photo's panel can show what removing its duplicates would reclaim.
+The Inspector's `duplicates` array (`GET /api/v1/photos/{id}/inspect`, `api-spec.md` §4) carries each copy's `file_size` for the same reason, so a single photo's panel can show what removing its duplicates would reclaim.
 
 ---
 
@@ -1033,153 +1033,12 @@ Thumbnails are not a column on `photos`: they belong to content and live in
 
 
 ### 6.2 Key REST API Endpoints
-POST /api/v1/settings/validate-extension
 
-Reports whether the engine reads a file extension as a photo (`ns_db.extension_support`).
-
-    Request Body:
-    JSON
-
-    {
-      "extension": ".mp4"
-    }
-
-    Response:
-    JSON
-
-    {
-      "extension": ".mp4",
-      "supported": false,
-      "warning": "NegativeSpace cannot read .mp4 files as photos. They would still be catalogued, and Copy and Move would carry them into the destination, usually under Undated/<year> by modification time, with no thumbnail and no similarity matching."
-    }
-
-GET /api/v1/settings
-
-Returns each setting under the engine's own key, with its revision. A setting never saved shows the engine's default, the value a job started now would use, at revision 0. Each configured extension carries `ns_db.extension_support`'s verdict. `job_active` drives the "Changes apply to future jobs" notice (§3).
-
-    Response:
-    JSON
-
-    {
-      "workers": { "value": 8, "revision": 0, "default": 8, "detected": 8 },
-      "exts": { "value": [".cr2", ".jpg", ".png"], "revision": 3, "default": [...],
-                "support": [{ "extension": ".cr2", "supported": true, "warning": null }, ...] },
-      "backup_retention": { "value": 20, "revision": 0, "default": 20 },
-      "job_active": false
-    }
-
-PUT /api/v1/settings
-
-Saves the settings that changed, each with the revision it was read at (`ns_db.save_settings`). If a revision moved since then, another tab saved first: the response is `409 settings_changed` and nothing is written. An invalid value is `400`.
-
-    Body:
-    JSON
-
-    {
-      "values": { "workers": 4, "exts": [".jpg", ".cr2", ".png"] },
-      "revisions": { "workers": 0, "exts": 3 }
-    }
-
-POST /api/v1/jobs/start
-
-Starts an engine execution job, automatically injecting active configuration parameters from /settings if not explicitly overridden. `file_ids` and `source_subdir` are mutually exclusive — provide one or neither (a full directory scan), never both. Returns `409 Conflict` if another job is already running (§5.7) instead of spawning a doomed subprocess.
-
-    Body (individual selection):
-    JSON
-
-    {
-      "mode": "move",
-      "file_ids": [101, 102, 105]
-    }
-
-    Body (folder selection):
-    JSON
-
-    {
-      "mode": "move",
-      "source_subdir": "sd_card/day1"
-    }
-
-    409 Response (another job already active):
-    JSON
-
-    {
-      "error": "job_already_running",
-      "active_run": { "id": 47, "mode": "MOVE", "started_at": "2026-02-14T10:28:03Z" }
-    }
+**The implemented API is specified in [`api-spec.md`](./api-spec.md)**: catalog status and creation, settings, the gallery listing and timeline, photo details, thumbnails and previews, starting and cancelling jobs, runs and their derived outcome, and the live job feed. CI keeps it in step with the routes in `webui/app.py`. What follows are endpoints designed here and not built yet; each moves to `api-spec.md` when it is.
 
 GET /api/v1/runs/{run_id}/operations
 
 Returns the full `operations` history for a run (`SELECT * FROM operations WHERE run_id = ? ORDER BY id`). Used for the reconnect replay in §4.1/§5.2 — always called *after* subscribing to the run's live WebSocket stream, with live events buffered and deduplicated by `id`, and not just after a detected disconnect, so the log is complete regardless of when the client first connected.
-
-GET /api/v1/runs/{run_id}
-
-Returns a run with its **derived** outcome (§5.5). `status` is the engine's lifecycle value and `outcome` is computed from the `operations` rows — never render `status` alone, since a run where every file failed still reports `Completed`.
-
-    Response:
-    JSON
-
-    {
-      "id": 47,
-      "mode": "MOVE",
-      "status": "Completed",
-      "started_at": "2026-02-14T10:28:03Z",
-      "ended_at": "2026-02-14T10:31:11Z",
-      "targeting": { "source_subdir": "sd_card/day1" },
-      "outcome": {
-        "verdict": "failed",
-        "succeeded": 0,
-        "failed": 23,
-        "cancelled": 0,
-        "removed_duplicates": 0,
-        "summary": "0 of 23 succeeded"
-      }
-    }
-
-`verdict` is one of `success`, `partial`, `failed`, `cancelled`, `interrupted`, `running`, resolved by the rules in §5.5. `targeting` echoes the decoded `runs.file_ids_filter` object (§6.1) so the UI can show what the job was scoped to.
-
-POST /api/v1/jobs/{id}/cancel
-
-Requests graceful cancellation via SIGTERM. During Index, stop at the next batch boundary without claiming per-photo cancellation records for undiscovered or unscoped work. During transfer, finish the in-flight file and record remaining targeted files as `Cancelled`; skip duplicate-source cleanup. See §4.1.
-
-GET /api/v1/photos/{id}/thumbnail
-
-Serves the content-hash thumbnail for a catalogued photo (see §4.2.1). The 1024px detail preview is obtained by running `ns-engine.py --preview <id>` and serving the `cache_filename` it prints; the API never decodes images or writes `thumbnail_cache` itself. Show the 320px grid thumbnail while that runs — a first view costs roughly 0.1–0.2s and a cached one under 0.1s. A missing cache entry triggers regeneration from an available catalogued copy; return an unavailable response for a placeholder when no preview can be produced. A stored path does not guarantee the cached file exists.
-
-GET /api/v1/photos/{id}/inspect
-
-Returns inspector details for a specific photo.
-
-    Response:
-    JSON
-
-    {
-      "id": 502,
-      "status": "Completed",
-      "source_info": {
-        "path": "/data/source/sd_card/IMG_0001-1234.JPG"
-      },
-      "destination_info": {
-        "path": "/data/dest/2026/02/14/IMG_0001_1.JPG",
-        "has_collision_rename": true
-      },
-      "timestamps": { 
-        "created": "2026-02-14T10:30:00Z", 
-        "modified": "2026-02-14T10:30:00Z" 
-      },
-      "exif": { 
-        "date_taken": "2026-02-14T10:30:00",
-        "camera": "Canon EOS R5" 
-      },
-      "hashes": { 
-        "sha1": "a4b8c9...", 
-        "phash": "1001101..." 
-      },
-      "duplicates": [
-        { "location_type": "source", "path": "/data/source/sd_card/IMG_0001-1234.JPG", "status": "Completed" },
-        { "location_type": "destination", "path": "/data/dest/2026/02/14/IMG_0001_1.JPG", "status": "Completed" }
-      ]
-    }
 
 GET /api/v1/operations?status=Failed
 

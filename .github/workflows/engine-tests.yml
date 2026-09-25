@@ -84,6 +84,11 @@ jobs:
           docker run --rm -v "$PWD":/app -w /app \
             negativespace python3 tools/check-schema-drift.py
 
+      - name: API specification matches the routes
+        run: |
+          docker run --rm -v "$PWD":/app -w /app \
+            negativespace python3 tools/check-api-spec.py
+
       - name: Database contracts
         run: |
           docker run --rm \
