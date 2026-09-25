@@ -580,7 +580,15 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           )}
           {!focus && dates.length > 0 && (
             <p className="dates-filter-line">
-              Showing only {dates.map(dateLabel).join(", ")} · <button className="link" onClick={() => changeDates([])}>Show all dates</button>
+              Showing only {dates.map(dateLabel).join(", ")}
+              {data && data.total > 0 && (
+                <> · <button className="link" onClick={selectAll} disabled={jobRunning || data.total > MAX_SELECTION}
+                             title={data.total > MAX_SELECTION ? `More than the ${count(MAX_SELECTION)}-photo selection limit.`
+                                    : jobRunning ? "Selection is unavailable while a job is running." : undefined}>
+                  Select these {count(data.total)}
+                </button></>
+              )}
+              {" · "}<button className="link" onClick={() => changeDates([])}>Show all dates</button>
             </p>
           )}
           {!focus && data && data.total === 0 && (

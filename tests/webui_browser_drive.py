@@ -119,6 +119,10 @@ with sync_playwright() as p:
     expect(page.locator(".card-sub", has_text="2019").first).to_be_visible()
     dates.get_by_label("Show only 2019").check()
     expect(page.locator(".dates-filter-line")).to_contain_text("Showing only 2019")
+    # Select these: the photos the date filter shows, in one click.
+    page.locator(".dates-filter-line").get_by_role("button", name=f"Select these {OLDER}").click()
+    expect(page.locator(".selection-line")).to_contain_text(f"{OLDER} photos selected")
+    page.locator(".selection-line").get_by_role("button", name="Clear").click()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
     expect(page.locator(".views")).to_contain_text(f"All photos ({OLDER})")
     expect(dates.get_by_role("button", name="2023", exact=True)).to_be_visible()   # counts ignore the filter
