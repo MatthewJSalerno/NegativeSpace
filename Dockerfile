@@ -1,15 +1,6 @@
 # Pinned by digest, with requirements.txt pinned to exact versions, so a
 # rebuild produces the image that was validated. Update deliberately: change
 # the digest, rebuild, run CI, and validate before merging.
-# The web interface's screens, built once here so the runtime image carries only the
-# static files: no Node in the final image, and nothing to install on the host.
-FROM node:22-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS frontend
-WORKDIR /webui/frontend
-COPY webui/frontend/package.json webui/frontend/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY webui/frontend/ ./
-RUN npm run build
-
 FROM python:3.11-slim@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534
 
 # Install system dependencies (ExifTool, gosu, tzdata, and build essentials for
@@ -36,7 +27,6 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 COPY ns-engine.py ns_db.py ./
 COPY webui/*.py ./webui/
-COPY --from=frontend /webui/static ./webui/static
 RUN chmod 644 ns-engine.py
 
 # Source and destination MUST map to separate, non-overlapping underlying
@@ -73,8 +63,9 @@ RUN chmod 644 ns-engine.py
 # Pre-create standard volume mount points
 RUN mkdir -p /data/source /data/dest /appdata/db /appdata/logs /cache /backups
 
-# The web interface. Open http://<host>:8080 after publishing the port.
-EXPOSE 8080
+# The web API, reached through the web container (docker-compose.yml); not
+# published to the host.
+EXPOSE 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["uvicorn", "webui.app:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "webui.app:app", "--host", "0.0.0.0", "--port", "8000"]

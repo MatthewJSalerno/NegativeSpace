@@ -71,17 +71,18 @@ mount the copy as `/app`: the API is imported in-process, so `--engine` cannot r
 
 ## Web interface in a browser — `webui_browser_test.sh`
 
-The screens as built into the image, served by it and driven by headless Chromium
-(Playwright) against generated photos. It covers first run, settings, Scan, the gallery,
+Both containers as `docker-compose.yml` arranges them (`app`, and `web` proxying `/api`
+to it), driven by headless Chromium (Playwright) against generated photos. It covers first run, settings, Scan, the gallery,
 the Inspector, selection, Copy, search and the phone-width layout, and fails on any
 browser console error. It starts a server container and a Playwright container, so it
 runs on the host:
 
 ```bash
-docker build -t negativespace . && sh tests/webui_browser_test.sh
+docker build -t negativespace . && docker build -t negativespace-web webui/frontend
+sh tests/webui_browser_test.sh
 ```
 
-`IMAGE=<tag>` tests another build. To prove it catches a frontend defect, change a copy
+`IMAGE=<tag>` and `WEB_IMAGE=<tag>` test other builds. To prove it catches a frontend defect, change a copy
 of the checkout, build that copy under another tag, and run with `IMAGE` set to it.
 
 ## Shell tests

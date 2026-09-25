@@ -1,8 +1,9 @@
 # Web interface screens
 
-React + TypeScript, built with Vite. The Docker image builds them (the `frontend` stage
-of the `Dockerfile`) and the API serves the result from `webui/static`, so nothing needs
-installing on the host, and Node is not in the runtime image.
+React + TypeScript, built with Vite. This folder's `Dockerfile` builds them with Node and
+serves the result with nginx (`nginx.conf`), which also passes `/api` to the app
+container. That is the `web` service in `docker-compose.yml`. Nothing needs installing
+on the host.
 
 Check types and build without the image, in the same pinned Node image:
 
@@ -14,8 +15,8 @@ docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -v "$PWD/..":/webui -w /we
   node:22-slim npm run build
 ```
 
-`npm run dev` serves the screens with live reload and proxies `/api` to a server on
-port 8080. The browser test (`tests/webui_browser_test.sh`) drives the built screens.
+`npm run dev` serves the screens with live reload and proxies `/api` to an app container
+listening on port 8000. The browser test (`tests/webui_browser_test.sh`) drives the built screens.
 
 | File | Holds |
 | --- | --- |

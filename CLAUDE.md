@@ -1,8 +1,9 @@
 # NegativeSpace
 
-A photo-organizing engine with a web UI. `ns-engine.py` is the engine; `webui/` is
-the FastAPI layer (`app.py`, `catalog.py`, `jobs.py`) and the React + TypeScript
-screens it serves (`webui/frontend`, built in Docker). CLI args are the internal
+A photo-organizing engine with a web UI, run as two containers (`docker-compose.yml`):
+`app` holds `ns-engine.py` and the FastAPI layer that runs it (`webui/app.py`,
+`catalog.py`, `jobs.py`); `web` serves the React + TypeScript screens
+(`webui/frontend`, its own Dockerfile) with nginx and passes `/api` to `app`. CLI args are the internal
 calling convention between the two — they stay documented and usable, but end users
 interact through the web UI.
 

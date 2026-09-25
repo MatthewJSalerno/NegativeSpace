@@ -164,8 +164,12 @@ scheduled.
 
 ### The web interface — core loop built
 
-Specified in `webui-spec.md`. The image serves it on port 8080 (`README.md`). Built and
-tested:
+Specified in `webui-spec.md`. It runs as two containers (`docker-compose.yml`):
+`web`, nginx serving the screens on port 8080 and passing `/api` through, and `app`,
+the API with the engine it starts. **Why the API and engine share a container:** the
+API runs the engine as a child process and both use the catalog's SQLite files and
+the engine's lock file. Separating them would need the Docker socket or a job-relay
+service. Built and tested:
 
 *   **API** (`webui/`): the first-run catalog check and creation, settings, the gallery
     listing and search, photo details, thumbnails and detail previews, starting and

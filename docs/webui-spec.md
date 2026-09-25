@@ -4,6 +4,10 @@
 
 The NegativeSpace Web Interface provides a modern web UI for the containerized Python engine (`ns-engine.py`). It transforms the CLI engine into an interactive application supporting real-time operation monitoring, selective file processing, context-aware duplicate resolution, detailed metadata inspection, dedicated runtime settings management, extension validation, and audit logging.
 
+**Deployment:** two containers (`docker-compose.yml`). `web` (nginx) serves the built
+React screens and passes `/api`, including the WebSocket, to `app`, which runs FastAPI
+and the engine it spawns. Only `web` publishes a port.
+
 **The web UI is the interface.** The engine's command-line flags are an *internal* calling convention between FastAPI and the engine — not a supported end-user surface. Users interact with NegativeSpace through the web UI; nothing in the user-facing documentation should direct them to invoke `ns-engine.py` by hand.
 
 The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engine reference documentation stays in the repository. Anyone cloning the project to understand, debug, or extend it benefits from being able to run the engine directly, and hiding the flags would buy nothing — anyone who can execute the engine can read its source. The distinction is *documented for users* versus *available to developers*, not *present* versus *absent*.

@@ -1,24 +1,30 @@
 #!/bin/sh
-# The built web interface in a real browser, end to end: the image serves it, a
-# Playwright container drives it (tests/webui_browser_drive.py). Runs on the host
-# because it starts two containers. Every folder is made with mktemp under /tmp.
+# The built web interface in a real browser, end to end, arranged as in
+# docker-compose.yml: an app container (API and engine) and a web container
+# (screens, proxying /api to the app), driven by a Playwright container
+# (tests/webui_browser_drive.py). Runs on the host because it starts containers.
+# Every folder is made with mktemp under /tmp.
 #
-#   docker build -t negativespace . && sh tests/webui_browser_test.sh
+#   docker build -t negativespace . && docker build -t negativespace-web webui/frontend \
+#     && sh tests/webui_browser_test.sh
 set -eu
 
 IMAGE=${IMAGE:-negativespace}
+WEB_IMAGE=${WEB_IMAGE:-negativespace-web}
 PLAYWRIGHT=mcr.microsoft.com/playwright/python:v1.63.0-noble
 PHOTOS=24
 DUPLICATES=2
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d /tmp/ns-browser-XXXXXX)
 NET=ns-browser-$$
-SERVER=ns-browser-server-$$
+APP=ns-browser-app-$$
+WEB=ns-browser-web-$$
 ME="$(id -u):$(id -g)"
 
 cleanup() {
-    docker stop -t 30 "$SERVER" >/dev/null 2>&1 || true
-    docker rm "$SERVER" >/dev/null 2>&1 || true
+    docker rm -f "$WEB" >/dev/null 2>&1 || true
+    docker stop -t 30 "$APP" >/dev/null 2>&1 || true
+    docker rm "$APP" >/dev/null 2>&1 || true
     docker network rm "$NET" >/dev/null 2>&1 || true
     docker run --rm --entrypoint rm -v "$WORK":/w "$IMAGE" -rf /w/src /w/dest /w/appdata /w/cache /w/backups >/dev/null 2>&1 || true
     rm -rf "$WORK"
@@ -37,21 +43,23 @@ for i in range($DUPLICATES):
 "
 
 docker network create "$NET" >/dev/null
-docker run -d --name "$SERVER" --network "$NET" -e PUID="$(id -u)" -e PGID="$(id -g)" \
+# Named "app" on the network, as in compose: the web container's nginx proxies to it.
+docker run -d --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" \
     -v "$WORK/src":/data/source:ro -v "$WORK/dest":/data/dest -v "$WORK/appdata":/appdata \
     -v "$WORK/cache":/cache -v "$WORK/backups":/backups "$IMAGE" >/dev/null
+docker run -d --name "$WEB" --network "$NET" "$WEB_IMAGE" >/dev/null
 
-# Wait for the server rather than sleeping a fixed time.
+# Wait until the API answers through the web container, rather than a fixed time.
 tries=0
 until docker run --rm --network "$NET" --entrypoint python3 "$IMAGE" -c \
-      "import urllib.request; urllib.request.urlopen('http://$SERVER:8080/api/v1/status')" >/dev/null 2>&1; do
+      "import urllib.request; urllib.request.urlopen('http://$WEB:8080/api/v1/status')" >/dev/null 2>&1; do
     tries=$((tries + 1))
     if [ "$tries" -gt 60 ]; then
-        echo "the server did not start"; docker logs "$SERVER"; exit 1
+        echo "the web interface did not start"; docker logs "$APP"; docker logs "$WEB"; exit 1
     fi
     sleep 1
 done
 
 docker run --rm --network "$NET" -v "$HERE/webui_browser_drive.py":/drive.py:ro "$PLAYWRIGHT" \
-    sh -c "pip install -q --root-user-action=ignore playwright==1.63.0 >/dev/null 2>&1 && python3 /drive.py http://$SERVER:8080 $PHOTOS $DUPLICATES" \
-  || { echo "--- server log ---"; docker logs "$SERVER" 2>&1 | tail -40; exit 1; }
+    sh -c "pip install -q --root-user-action=ignore playwright==1.63.0 >/dev/null 2>&1 && python3 /drive.py http://$WEB:8080 $PHOTOS $DUPLICATES" \
+  || { echo "--- app log ---"; docker logs "$APP" 2>&1 | tail -40; echo "--- web log ---"; docker logs "$WEB" 2>&1 | tail -20; exit 1; }
