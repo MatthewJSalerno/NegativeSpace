@@ -7,6 +7,9 @@ export interface Status {
   detail: string | null;
   photos: number;
   indexed: boolean;
+  // What a Copy all and a Move all would take, across the whole catalog.
+  eligible: { copy: number; move: number };
+  copied: number;
   application_data: string;
   catalog_backups: string;
   active_job: Run | null;
@@ -156,6 +159,7 @@ export interface OperationPage {
   page_size: number;
   total: number;
   status_counts: Record<string, number>;
+  run_counts: Record<string, number>;
 }
 
 export interface LogFilters {
@@ -265,7 +269,7 @@ export const api = {
   backups: () => request<Backups>("GET", "/api/v1/backups"),
   backupNow: () => request<BackupAttempt>("POST", "/api/v1/backups"),
   backupDownloadUrl: (id: number) => `/api/v1/backups/${id}/download`,
-  runs: () => request<{ runs: Run[] }>("GET", "/api/v1/runs"),
+  runs: (limit = 100) => request<{ runs: Run[] }>("GET", `/api/v1/runs?limit=${limit}`),
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   startJob: (body: { mode: "index" | "copy" | "move"; file_ids?: number[]; source_subdir?: string }) =>
     request<Run>("POST", "/api/v1/jobs/start", body),

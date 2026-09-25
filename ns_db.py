@@ -31,6 +31,16 @@ class PhotoStatus:
                                               # destination; recorded from observation, no action taken
 
 
+# What a Copy or Move without targeting acts on. --move also takes Copied rows: a
+# verified copy already exists, so the move completes by deleting the source
+# against it (the already-present branch re-verifies both sides live first).
+# Without that, --copy followed by --move of an unchanged file could never finish.
+TRANSFER_ELIGIBLE = {
+    "copy": (PhotoStatus.PENDING,),
+    "move": (PhotoStatus.PENDING, PhotoStatus.COPIED),
+}
+
+
 class RunStatus:
     """Lifecycle of one engine invocation. Says whether the process ran to its end,
     not whether the work succeeded: a Completed run can hold every file Failed."""

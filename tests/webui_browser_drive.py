@@ -23,6 +23,15 @@ PHOTOS = NEWER + OLDER
 
 errors = []
 server_errors = []
+def open_actions(page, branch=None):
+    """Opens the Actions menu, and Copy or Move within it; returns the menu."""
+    page.get_by_role("button", name=re.compile(r"^Actions")).click()
+    menu = page.get_by_role("menu", name="Actions")
+    if branch:
+        menu.get_by_role("menuitem", name=branch, exact=True).click()
+    return menu
+
+
 with sync_playwright() as p:
     browser = p.chromium.launch()
     page = browser.new_page(viewport={"width": 1400, "height": 900})
@@ -48,9 +57,13 @@ with sync_playwright() as p:
     shot("1-welcome")
     page.get_by_role("button", name="Save and continue").click()
     expect(page.get_by_text("No photos yet")).to_be_visible()
-    expect(page.get_by_role("button", name="Move all")).to_be_disabled()
-    expect(page.locator(".tip").filter(has=page.get_by_role("button", name="Index", exact=True))).to_have_attribute(
-        "data-tip", re.compile("Index your library"))
+    # The Actions menu: every item that cannot run says why.
+    menu = open_actions(page, "Move")
+    expect(menu.get_by_role("menuitem", name=re.compile(r"^Move all"))).to_be_disabled()
+    expect(menu).to_contain_text("Index your library first")
+    expect(menu.get_by_role("menuitem", name=re.compile(r"^Index"))).to_be_enabled()
+    page.keyboard.press("Escape")
+    expect(page.locator(".menu")).to_have_count(0)
 
     # Index; the result shows at the top of the page, and the gallery refreshes itself.
     page.get_by_role("button", name="Index your library").click()
@@ -152,7 +165,7 @@ with sync_playwright() as p:
     checks.nth(0).click()
     checks.nth(2).click(modifiers=["Shift"])
     expect(page.locator(".action-bar")).to_contain_text("3 photos selected")
-    page.get_by_role("button", name="Copy selected").click()
+    open_actions(page, "Copy").get_by_role("menuitem", name="Copy selected (3)").click()
     dialog = page.get_by_role("alertdialog")
     expect(dialog).to_contain_text("Copy 3 selected photos?")
     dialog.get_by_role("button", name="Copy").click()
@@ -165,29 +178,61 @@ with sync_playwright() as p:
     # and the duplicates are skipped with their reasons, and the failure is offered.
     locked = "/src/photo-129.jpg"
     os.chmod(locked, 0)
-    page.get_by_role("button", name="Copy all").click()
-    page.get_by_role("alertdialog").get_by_role("button", name="Copy").click()
+    # Counted over the whole catalog, whatever the gallery shows: search does not change it.
+    page.locator(".search").fill("photo-00")
+    open_actions(page, "Copy").get_by_role("menuitem", name=f"Copy all ({PHOTOS - 3:,})").click()
+    dialog = page.get_by_role("alertdialog")
+    expect(dialog).to_contain_text(f"every photo not yet copied ({PHOTOS - 3:,})")
+    dialog.get_by_role("button", name="Copy").click()
+    page.locator(".search").fill("")
     expect(banner).to_contain_text("Copy finished with failures", timeout=120_000)
     expect(banner).to_contain_text(
         f"{PHOTOS - 4} of {PHOTOS + DUPLICATES} files copied · 1 failed · {3 + DUPLICATES} skipped "
         f"(3 copied by an earlier job, {DUPLICATES} duplicates: the same content is copied once)")
     shot("6-skip-reasons")
+    # Everything copyable is copied, but Move still has every copied photo to finish.
+    menu = open_actions(page, "Copy")
+    expect(menu.get_by_role("menuitem", name="Copy all (0)")).to_be_disabled()
+    expect(menu).to_contain_text("Nothing to copy")
+    menu.get_by_role("menuitem", name="Move", exact=True).click()
+    expect(menu.get_by_role("menuitem", name=f"Move all ({PHOTOS - 1:,})")).to_be_enabled()
+    expect(menu).to_contain_text(f"including {PHOTOS - 1:,} already copied")
+    shot("6b-actions-menu")
+    page.keyboard.press("Escape")
 
     # The Error Center: the log filtered to this job's failures, with what to do and Retry.
     banner.get_by_role("link", name="View failures").click()
     expect(page).to_have_url(re.compile(r"/logs\?run=\d+&status=Failed"))
     expect(page.get_by_role("heading", name="Failures")).to_be_visible()
+    # Grouped by job: the job the banner named is the only one listed, and it is open.
+    expect(page.locator(".job-group")).to_have_count(1)
+    expect(page.locator(".job-head")).to_have_attribute("aria-expanded", "true")
     rows = page.locator(".log-table tbody tr")
     expect(rows).to_have_count(1)
     expect(rows.first).to_contain_text("photo-129.jpg")
     expect(rows.first).to_contain_text("Check its permissions")
     shot("7-failures")
-    page.get_by_role("button", name=re.compile(r"^Retry these photos")).click()
+    page.get_by_role("button", name=re.compile(r"^Retry the 1 failed photo")).click()
     expect(page.locator(".notice")).to_contain_text("Retrying 1 photo as a new Copy")
     expect(page.locator(".finished-banner")).to_contain_text("Copy", timeout=60_000)
     os.chmod(locked, 0o644)
     page.get_by_role("button", name="All statuses").click()
     expect(page.locator(".status-chips")).to_contain_text("Copied")
+    # Every job, one line each until opened; the job arrived at from the banner stays open.
+    page.get_by_role("button", name="Show all jobs").click()
+    expect(page.locator(".job-group")).to_have_count(4)
+    expect(page.locator(".job-head[aria-expanded=true]")).to_have_count(1)
+    expect(page.locator(".log-table")).to_have_count(1)
+    page.locator(".job-head").last.click()
+    expect(page.locator(".log-table")).to_have_count(2)
+    expect(page.locator(".job-group").last).to_contain_text("Indexed")
+    # A banner dismissed in the library stays dismissed on the log.
+    page.get_by_role("link", name="Library").first.click()
+    expect(page.locator(".finished-banner")).to_be_visible()
+    page.locator(".finished-banner").get_by_role("button", name="Dismiss").click()
+    page.get_by_role("link", name="Logs").first.click()
+    expect(page.locator(".job-group").first).to_be_visible()
+    expect(page.locator(".finished-banner")).to_have_count(0)
     page.get_by_role("link", name="Library").first.click()
     expect(page).to_have_url(re.compile(r"/(\?.*)?$"))
     expect(page.locator(".card").first).to_be_visible()
@@ -196,7 +241,13 @@ with sync_playwright() as p:
     page.locator(".card-image").first.click()
     page.locator(".inspector").get_by_role("link", name="History").click()
     expect(page.get_by_role("heading", name=re.compile(r"^Log for photo #\d+"))).to_be_visible()
-    expect(page.locator(".log-table")).to_contain_text("Indexed")
+    expect(page.locator(".job-group").first).to_be_visible()
+    heads = page.locator(".job-head")
+    for i in range(heads.count()):
+        if heads.nth(i).get_attribute("aria-expanded") == "false":
+            heads.nth(i).click()
+    expect(page.locator(".log-table").first).to_be_visible()
+    expect(page.locator(".job-list")).to_contain_text("Indexed")
     page.go_back()
     expect(page.locator(".inspector")).to_be_visible()
     page.keyboard.press("Escape")

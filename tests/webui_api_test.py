@@ -181,6 +181,17 @@ class JobsAndCatalog(ApiCase):
         again = self.wait_for(self.start(mode="copy"))
         self.assertEqual(again["outcome"]["verdict"], "no_change")
 
+    def test_copy_all_and_move_all_are_counted_as_the_engine_selects_them(self):
+        self.index_library()
+        status = self.client.get("/api/v1/status").json()
+        self.assertEqual((status["eligible"], status["copied"]), ({"copy": 2, "move": 2}, 0))
+        self.wait_for(self.start(mode="copy"))
+        # Searching narrows the gallery's counts, never these.
+        self.client.get("/api/v1/photos", params={"q": "Beach"})
+        status = self.client.get("/api/v1/status").json()
+        self.assertEqual((status["eligible"], status["copied"]), ({"copy": 0, "move": 2}, 2),
+                         "after a Copy, Move all still has every copied photo to finish")
+
     def test_exif_dates_keep_their_own_time_zones_and_the_undated_filter_finds_the_rest(self):
         make_photo(self.cfg.source / "dated.jpg", "dated", exif={
             36867: "2021:05:01 10:00:00", 36881: "+02:00",   # DateTimeOriginal, with its offset
@@ -268,7 +279,7 @@ class LogAndErrorCenter(ApiCase):
         make_photo(self.cfg.source / "good.jpg", "good")
         make_photo(self.cfg.source / "locked.jpg", "locked")
         self.create_catalog()
-        self.wait_for(self.start(mode="index"))
+        index = self.wait_for(self.start(mode="index"))
         (self.cfg.source / "locked.jpg").chmod(0)
         try:
             copy = self.wait_for(self.start(mode="copy"))
@@ -281,6 +292,8 @@ class LogAndErrorCenter(ApiCase):
                          "the log does not hold one scan row per photo and one outcome per transfer")
         self.assertEqual([op["id"] for op in everything["items"]],
                          sorted((op["id"] for op in everything["items"]), reverse=True), "not newest first")
+        self.assertEqual(everything["run_counts"], {str(index["id"]): 2, str(copy["id"]): 2},
+                         "the log groups entries by job")
 
         failed = self.client.get("/api/v1/operations", params={"run": copy["id"], "status": "Failed"}).json()
         self.assertEqual(failed["total"], 1)
@@ -289,6 +302,8 @@ class LogAndErrorCenter(ApiCase):
         self.assertIn("Permission", op["error_message"])
         self.assertEqual(failed["status_counts"], {"Copied": 1, "Failed": 1},
                          "status counts must ignore the status filter, so each button shows what it finds")
+        self.assertEqual(self.client.get("/api/v1/operations", params={"status": "Failed"}).json()["run_counts"],
+                         {str(copy["id"]): 1}, "job counts must apply every filter, so a job with no match is hidden")
 
         retry = self.client.get("/api/v1/operations/photo-ids", params={"run": copy["id"], "status": "Failed"}).json()
         self.assertEqual((retry["photo_ids"], retry["more_than_limit"]), ([op["photo_id"]], False))
