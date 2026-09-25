@@ -1104,6 +1104,16 @@ def _fsync_dir(path):
         os.close(fd)
 
 
+def backup_storage_problem(backups_dir, appdata_dir):
+    """Why a backup written now would fail on storage, as (category, detail), or
+    None. The same checks a backup runs first, for showing before anyone tries."""
+    try:
+        _check_backup_storage(backups_dir, appdata_dir)
+    except BackupFailed as exc:
+        return exc.category, exc.detail
+    return None
+
+
 def settle_interrupted_backups(conn, backups_dir):
     """Marks attempts left without an outcome as interrupted and removes their
     partial files. Only safe under the engine lock, which proves no attempt is live."""

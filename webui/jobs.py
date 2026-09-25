@@ -28,6 +28,9 @@ SHUTDOWN_GRACE_SECONDS = 290.0
 # Detail previews are made by the engine on request; bound how many run at once
 # when a user pages quickly through photos.
 PREVIEW_CONCURRENCY = 2
+# A manual backup holds the engine lock; measured at about a second on a 524 MB
+# catalog (webui-spec 9), so this bound only catches a hung backup storage.
+BACKUP_TIMEOUT_SECONDS = 600
 
 
 class JobRefused(Exception):
@@ -78,6 +81,7 @@ class JobRunner:
         self._start_lock = threading.Lock()
         self._procs = {}                      # run_id -> Popen
         self._previews = threading.BoundedSemaphore(PREVIEW_CONCURRENCY)
+        self._backing_up = False
 
     # -- The lock -------------------------------------------------------------
 
@@ -119,8 +123,8 @@ class JobRunner:
         busy = self.engine_busy()
         run = catalog.newest_active_run(self.cfg.db_path)
         if run is None:
-            # An engine is starting, or one was run by hand outside this server.
-            return {"id": None, "mode": None, "status": "Preparing", "unrecorded": True} if busy else None
+            # An engine is starting, backing up, or was run by hand outside this server.
+            return {"id": None, "mode": "backup" if self._backing_up else None, "status": "Preparing", "unrecorded": True} if busy else None
         if busy:
             run["cancellable"] = run["id"] in self._procs and self._procs[run["id"]].poll() is None
             return run
@@ -210,6 +214,39 @@ class JobRunner:
                 proc.wait(timeout=max(0.1, deadline - time.monotonic()))
             except subprocess.TimeoutExpired:
                 pass
+
+    # -- Catalog backups ------------------------------------------------------
+
+    def backup_now(self) -> dict:
+        """--backup-now, waited for (webui-spec 9). Refused while a job runs, like
+        every write to the catalog: the engine refuses too, under its lock. Returns
+        the attempt the engine recorded, succeeded or failed."""
+        status = catalog.status(self.cfg.db_path)
+        if status["state"] != "ok":
+            raise JobRefused(409, {"error": f"catalog_{status['state']}", "message": status["detail"]})
+        with self._start_lock:
+            if self._probe_lock():
+                raise self._busy()
+            before = catalog.newest_backup_attempt(self.cfg.db_path)
+            self._backing_up = True
+            try:
+                proc = subprocess.run(self.cfg.engine_argv("--backup-now"), stdin=subprocess.DEVNULL,
+                                      capture_output=True, text=True, timeout=BACKUP_TIMEOUT_SECONDS)
+            except subprocess.TimeoutExpired:
+                raise JobRefused(500, {"error": "backup_timeout",
+                                       "message": "The backup did not finish in time. Check the backup storage."})
+            finally:
+                self._backing_up = False
+            attempt = catalog.newest_backup_attempt(self.cfg.db_path)
+        if attempt is None or (before is not None and attempt["attempt_id"] == before["attempt_id"]):
+            output = (proc.stderr + proc.stdout)
+            if "another NegativeSpace engine process is already running" in output:
+                raise self._busy()
+            reason = next((l.split("] ", 1)[-1].strip() for l in reversed(output.splitlines())
+                           if "FATAL" in l or "error:" in l), None)
+            raise JobRefused(500, {"error": "engine_refused", "message": reason or
+                                   f"The engine stopped before backing up (exit {proc.returncode})."})
+        return attempt
 
     # -- Detail previews ------------------------------------------------------
 

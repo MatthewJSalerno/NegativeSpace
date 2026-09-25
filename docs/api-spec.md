@@ -264,6 +264,51 @@ the filtered operations, for **Retry**, which starts the same mode again with th
 `file_ids`. They come from the operations, never from `photos.status`, and rows with no
 photo are left out. More than the job limit is reported, never cut silently.
 
+## 5b. Catalog backups
+
+The backup list, Back up now and downloads (`webui-spec.md` §9). The engine writes
+every backup; the API starts `--backup-now` and reads what it recorded.
+
+### `GET /api/v1/backups`
+
+Every recorded attempt, newest first, including failed and interrupted ones:
+
+    {"items": [{"attempt_id": 3, "trigger_kind": "manual" | "post_job" | "pre_action",
+                "related_run_id": null, "started_at": "...", "ended_at": "...",
+                "outcome": "succeeded" | "failed" | "interrupted" | null,
+                "error_category": null, "error_detail": null,
+                "relative_filename": "ns-catalog-....db.zst", "size": 20237312,
+                "compression_format": "zstd" | null,
+                "availability": "present" | "missing" | "unknown" | "pruned" | null}, ...],
+     "storage": {"ok": true, "error_category": null, "error_detail": null},
+     "retention": 20, "automatic_retained": 7, "present_count": 9, "present_bytes": 181000000,
+     "last_success": "...", "unbacked": {"count": 0, "since": "...", "runs": []},
+     "job_active": false}
+
+`availability` is observed on each request without writing to the catalog: `unknown`
+when `/backups` cannot be read, because storage trouble is not evidence that a file was
+deleted, and `null` for an attempt that wrote no file. `storage` runs the checks a
+backup runs first (missing, unmounted, overlapping `/appdata`, unwritable).
+`automatic_retained` is what retention counts, so a client can say how many backups a
+lower limit would remove. `unbacked` is `ns_db.unbacked_changes`.
+
+### `POST /api/v1/backups`
+
+Back up now. Waits for the engine, about a second for a large catalog, and returns the
+attempt it recorded:
+
+    {"attempt_id": 4, "trigger_kind": "manual", "started_at": "...", "outcome": "succeeded",
+     "error_category": null, "error_detail": null, "relative_filename": "...", "size": 20237312}
+
+A failed backup is still `200`: it is a recorded attempt with `outcome: "failed"` and
+its category. Refused with `409 job_already_running` while an engine holds the lock,
+and with `409 catalog_missing` (or another catalog state) when there is nothing to back up.
+
+### `GET /api/v1/backups/{id}/download`
+
+The file of a succeeded backup, as an attachment under its own name. A backup whose
+file is gone, pruned or never written is `404 backup_unavailable`.
+
 ## 6. The run object and its outcome
 
     {"id": 47, "mode": "INDEX" | "COPY" | "MOVE" | "REBUILD" | "CHECK" | "RENAME",
@@ -319,7 +364,9 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
 | `not_running`, `not_cancellable` | 409 | Cancel refused (§5) |
 | `settings_changed` | 409 | Another save came first; nothing was written |
 | `catalog_busy` | 503 | The catalog could not take a settings write in time |
+| `backup_unavailable` | 404 | The backup's file is not present to download |
 | `engine_start_timeout` | 500 | The engine recorded no run in time |
+| `backup_timeout` | 500 | Back up now did not finish in 10 minutes |
 
 ## 8. Designed, not built
 
@@ -330,6 +377,6 @@ These are designed in `webui-spec.md` and will be described here when they exist
     the drawer needs only the aggregate feed.
 *   `GET /api/v1/stats/duplicates`: the Dashboard's duplicate-space figures and
     coverage (`webui-spec.md` §5.9).
-*   Backups (list and download), and the curation actions: rename, destination
+*   The curation actions: rename, destination
     check, thumbnail cache controls, and later metadata editing, all of which the
     engine already supports or is specified to (`engine-spec.md` §9).

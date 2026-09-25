@@ -268,3 +268,11 @@ body.dragging { cursor: col-resize; user-select: none; }
   .toolbar-actions { margin-left: 0; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 }
+
+/* Catalog backups, inside Settings. */
+.backups { display: grid; gap: 8px; margin-top: 8px; }
+.backups details { margin-top: 4px; }
+.backups summary { cursor: pointer; }
+.backups ol { margin: 6px 0; padding-left: 1.4em; }
+.copyable { user-select: all; }
+.backups button, .backup-table a { white-space: nowrap; overflow-wrap: normal; }

@@ -203,6 +203,21 @@ with sync_playwright() as p:
 
     page.get_by_role("button", name="Settings").click()
     expect(page.get_by_role("dialog")).to_contain_text("Changes apply to future jobs")
+    # Catalog backups: each job above took one; Back up now adds a manual one.
+    backups = page.locator(".backups")
+    expect(backups).to_contain_text("not photos")
+    expect(backups.locator("tbody tr", has_text="After job #").first).to_be_visible()
+    backups.get_by_role("button", name="Back up now").click()
+    expect(backups.locator("p.ok")).to_contain_text("verified")
+    manual = backups.locator("tbody tr", has_text="Manual")
+    expect(manual).to_have_count(1)
+    expect(manual).to_contain_text("Zstandard")
+    with page.expect_download() as got:
+        manual.get_by_role("link", name="Download").click()
+    assert got.value.suggested_filename.endswith(".db.zst"), got.value.suggested_filename
+    page.get_by_label("Automatic backups to keep").fill("1")
+    expect(backups).to_contain_text(re.compile(r"removes the \d+ oldest automatic backups? after the next"))
+    shot("settings-backups")
     page.keyboard.press("Escape")
     expect(page.get_by_role("dialog")).to_have_count(0)
 
@@ -237,4 +252,4 @@ with sync_playwright() as p:
 assert not errors, f"browser console errors: {errors}"
 assert not server_errors, f"server errors: {server_errors}"
 print("web interface: first run, index, paging, jump to date, inspector, divider, selection, copy, "
-      "settings, search and phone layout ok")
+      "settings, backups, search and phone layout ok")

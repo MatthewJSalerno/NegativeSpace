@@ -334,6 +334,72 @@ class LogAndErrorCenter(ApiCase):
                          "an unreadable folder must be one run-level failure, not a failed photo or nothing")
 
 
+class CatalogBackups(ApiCase):
+    """webui-spec 9: the list, Back up now, and downloads."""
+
+    def test_backup_now_is_listed_downloadable_and_restorable(self):
+        import zstandard
+        make_photo(self.cfg.source / "IMG_0001.jpg", "a")
+        self.create_catalog()
+        run_id = self.wait_for(self.start(mode="index"))["id"]
+        listed = self.client.get("/api/v1/backups").json()
+        self.assertTrue(listed["storage"]["ok"])
+        (post_job,) = listed["items"]
+        self.assertEqual((post_job["trigger_kind"], post_job["related_run_id"]), ("post_job", run_id))
+        self.assertEqual(listed["unbacked"]["count"], 0, "the post-job backup holds the index")
+
+        made = self.client.post("/api/v1/backups")
+        self.assertEqual(made.status_code, 200, made.text)
+        self.assertEqual((made.json()["outcome"], made.json()["trigger_kind"]), ("succeeded", "manual"))
+        listed = self.client.get("/api/v1/backups").json()
+        manual = listed["items"][0]
+        self.assertEqual((manual["trigger_kind"], manual["availability"], manual["compression_format"]),
+                         ("manual", "present", "zstd"))
+        self.assertEqual((listed["present_count"], listed["automatic_retained"]), (2, 1))
+        self.assertEqual(listed["last_success"], manual["started_at"])
+
+        got = self.client.get(f"/api/v1/backups/{manual['attempt_id']}/download")
+        self.assertEqual(got.status_code, 200)
+        self.assertIn(manual["relative_filename"], got.headers["content-disposition"])
+        restored = self.root / "restored.db"
+        restored.write_bytes(zstandard.ZstdDecompressor().decompress(got.content))
+        with contextlib.closing(sqlite3.connect(restored)) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0], 1)
+
+        (self.cfg.backups / manual["relative_filename"]).unlink()
+        gone = self.client.get("/api/v1/backups").json()["items"][0]
+        self.assertEqual((gone["availability"], gone["outcome"]), ("missing", "succeeded"),
+                         "a vanished file changed the recorded outcome")
+        refused = self.client.get(f"/api/v1/backups/{manual['attempt_id']}/download")
+        self.assertEqual((refused.status_code, refused.json()["error"]), (404, "backup_unavailable"))
+
+    def test_unreachable_storage_is_reported_not_taken_for_deletion(self):
+        self.create_catalog()
+        self.assertEqual(self.client.post("/api/v1/backups").json()["outcome"], "succeeded")
+        shutil.rmtree(self.cfg.backups)
+        listed = self.client.get("/api/v1/backups").json()
+        self.assertEqual((listed["storage"]["ok"], listed["storage"]["error_category"]),
+                         (False, "storage_unavailable"))
+        self.assertEqual(listed["items"][0]["availability"], "unknown")
+        failed = self.client.post("/api/v1/backups")
+        self.assertEqual(failed.status_code, 200)
+        self.assertEqual((failed.json()["outcome"], failed.json()["error_category"]),
+                         ("failed", "storage_unavailable"))
+        self.assertEqual(self.client.get("/api/v1/backups").json()["items"][0]["outcome"], "failed")
+
+    def test_back_up_now_is_refused_while_a_job_runs(self):
+        self.create_catalog()
+        with self.engine_lock_held():
+            refused = self.client.post("/api/v1/backups")
+            self.assertEqual((refused.status_code, refused.json()["error"]), (409, "job_already_running"))
+        self.assertEqual(self.client.get("/api/v1/backups").json()["items"], [])
+
+    def test_a_missing_catalog_has_nothing_to_back_up(self):
+        refused = self.client.post("/api/v1/backups")
+        self.assertEqual((refused.status_code, refused.json()["error"]), (409, "catalog_missing"))
+        self.assertEqual(self.client.get("/api/v1/backups").status_code, 409)
+
+
 class DerivedOutcome(ApiCase):
     """webui-spec 5.5: the verdict comes from classified outcomes, not runs.status."""
 
