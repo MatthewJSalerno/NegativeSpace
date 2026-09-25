@@ -214,6 +214,56 @@ The live feed for the job drawer. On connect it sends `{"active", "last"}` exact
 `GET /jobs/active`, then sends it again whenever it changes, checked about once a second.
 A reconnect therefore restores the current state immediately and never restarts a job.
 
+### `GET /api/v1/runs`
+
+The newest runs (`limit`, default 100, at most 500), each as in §6, for choosing a job
+in the log: `{"runs": [<Run>, ...]}`.
+
+## 5a. The log and the Error Center
+
+The operations log (`webui-spec.md` §5.4). Filtered to failures, it is the Error
+Center (`webui-spec.md` §5.3).
+
+**Filters, shared by the three log routes:**
+
+| Parameter | Meaning |
+| :--- | :--- |
+| `run` | A job id. Repeat it for several (`?run=4&run=5`): the Dashboard links to every run since a scan. |
+| `status` | An operation status (repeatable), from the catalog's vocabulary; anything else is `400`. |
+| `photo` | A photo's history. It follows the photo's file identities through `operation_files`, including a copy made from it, so a Move or Copy stays in it. |
+| `q` | Text in the source path, destination path or recorded message. |
+| `since`, `until` | ISO instants, from inclusive to exclusive. The screen converts local calendar days. |
+
+### `GET /api/v1/operations`
+
+One page, newest first (`page`, and `page_size` from 1 to 500, default 100):
+
+    {"items": [{"id", "run_id", "mode", "photo_id", "timestamp", "source_path", "dest_path",
+                "status", "error_message", "photo_status", "recovery", "run_level"}, ...],
+     "page": 1, "page_size": 100, "total": 4,
+     "status_counts": {"Pending": 2, "Copied": 1, "Failed": 1}}
+
+*   **Failures are attempts.** An operation's `status` is the attempt's outcome, and
+    `photo_status` is the photo's status now. The two can disagree: a duplicate whose
+    verification failed stays `Duplicate` (`webui-spec.md` §5.3).
+*   **Photos are left-joined**, so a failure with no photo, such as an unreadable folder,
+    is never dropped. `run_level` is true for such a row.
+*   **`recovery`** marks a row that settles an earlier run's interrupted work.
+*   **`status_counts`** applies every filter except `status`, so each status button can
+    show what it would find.
+
+### `GET /api/v1/operations/export`
+
+The whole filtered log, oldest first, streamed, as `format=csv` (default) or `json`, with
+the columns of an item above.
+
+### `GET /api/v1/operations/photo-ids`
+
+`{"photo_ids": [...], "more_than_limit": false, "limit": 1000}`: the distinct photos behind
+the filtered operations, for **Retry**, which starts the same mode again with these
+`file_ids`. They come from the operations, never from `photos.status`, and rows with no
+photo are left out. More than the job limit is reported, never cut silently.
+
 ## 6. The run object and its outcome
 
     {"id": 47, "mode": "INDEX" | "COPY" | "MOVE" | "REBUILD" | "CHECK" | "RENAME",
@@ -275,11 +325,11 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
 
 These are designed in `webui-spec.md` and will be described here when they exist:
 
-*   `GET /api/v1/runs/{id}/operations`: a run's operation history, for logs and
-    reconnect replay (`webui-spec.md` §4.1, §5.2).
-*   `GET /api/v1/operations?status=Failed`: the Error Center (`webui-spec.md` §5.3).
+*   A live per-operation stream, for replaying a running job's individual events on
+    reconnect (`webui-spec.md` §4.1, §5.2). `GET /operations?run=` covers the history;
+    the drawer needs only the aggregate feed.
 *   `GET /api/v1/stats/duplicates`: the Dashboard's duplicate-space figures and
     coverage (`webui-spec.md` §5.9).
-*   Logs, backups (list and download), and the curation actions: rename, destination
+*   Backups (list and download), and the curation actions: rename, destination
     check, thumbnail cache controls, and later metadata editing, all of which the
     engine already supports or is specified to (`engine-spec.md` §9).

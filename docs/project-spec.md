@@ -191,8 +191,11 @@ service. Built and tested:
 
     `tests/webui_browser_test.sh` drives them in a real browser.
 
+*   **The log and the Error Center:** filters by job, status, photo, text and date;
+    failure hints; Retry; and CSV/JSON export.
+
 Specified but not yet on screen:
-*   Logs, the Error Center, backups, and the Dashboard's duplicate-space figures.
+*   Backups, and the Dashboard's duplicate-space figures.
 *   Folder selection (`--source-subdir`).
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   A photo's full history.

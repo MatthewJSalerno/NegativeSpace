@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError, type JobState, type Run } from "../api";
 import { duration, instant } from "../format";
 import { activeTitle, countsLine, currentPhase, phaseLabel, summary, type Connection } from "../jobs";
+import { follow, logUrl } from "../nav";
 
 // The operations drawer (webui-spec 4.1): aggregate counts about once a second,
 // elapsed time from the job's recorded start, and Cancel. Per-file detail belongs
@@ -104,7 +105,13 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss }: {
           {started && ended ? `Took ${duration(ended - started)}` : run.status === "Interrupted" ? "Duration unavailable" : ""}
         </span>
       </div>
-      <button onClick={() => run.id != null && onDismiss(run.id)}>Dismiss</button>
+      <span className="banner-links">
+        {(run.outcome.failed > 0 || run.outcome.run_level_issues > 0) && run.id != null && (
+          <a href={logUrl({ run: run.id, status: "Failed" })} onClick={follow}>View failures</a>
+        )}
+        {run.id != null && <a href={logUrl({ run: run.id })} onClick={follow}>View log</a>}
+        <button onClick={() => run.id != null && onDismiss(run.id)}>Dismiss</button>
+      </span>
     </div>
   );
 }

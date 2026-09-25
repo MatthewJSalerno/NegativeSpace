@@ -258,6 +258,82 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual(state["last"]["mode"], "INDEX")
 
 
+class LogAndErrorCenter(ApiCase):
+    """webui-spec 5.3 / 5.4: the log with its filters, failures from the recorded
+    attempts, retry ids from those attempts, and export."""
+
+    def test_failures_are_found_from_attempts_retried_by_photo_and_exported(self):
+        if os.geteuid() == 0:
+            self.skipTest("root reads any file, so a permission failure cannot be made")
+        make_photo(self.cfg.source / "good.jpg", "good")
+        make_photo(self.cfg.source / "locked.jpg", "locked")
+        self.create_catalog()
+        self.wait_for(self.start(mode="index"))
+        (self.cfg.source / "locked.jpg").chmod(0)
+        try:
+            copy = self.wait_for(self.start(mode="copy"))
+        finally:
+            (self.cfg.source / "locked.jpg").chmod(0o644)
+        self.assertEqual(copy["outcome"]["verdict"], "partial")
+
+        everything = self.client.get("/api/v1/operations").json()
+        self.assertEqual(everything["status_counts"], {"Pending": 2, "Copied": 1, "Failed": 1},
+                         "the log does not hold one scan row per photo and one outcome per transfer")
+        self.assertEqual([op["id"] for op in everything["items"]],
+                         sorted((op["id"] for op in everything["items"]), reverse=True), "not newest first")
+
+        failed = self.client.get("/api/v1/operations", params={"run": copy["id"], "status": "Failed"}).json()
+        self.assertEqual(failed["total"], 1)
+        op = failed["items"][0]
+        self.assertTrue(op["source_path"].endswith("locked.jpg") and not op["run_level"])
+        self.assertIn("Permission", op["error_message"])
+        self.assertEqual(failed["status_counts"], {"Copied": 1, "Failed": 1},
+                         "status counts must ignore the status filter, so each button shows what it finds")
+
+        retry = self.client.get("/api/v1/operations/photo-ids", params={"run": copy["id"], "status": "Failed"}).json()
+        self.assertEqual((retry["photo_ids"], retry["more_than_limit"]), ([op["photo_id"]], False))
+
+        history = self.client.get("/api/v1/operations", params={"photo": op["photo_id"]}).json()
+        self.assertEqual(sorted(i["status"] for i in history["items"]), ["Failed", "Pending"],
+                         "a photo's history must hold its scan and its failed attempt")
+        self.assertEqual(self.client.get("/api/v1/operations", params={"q": "good.jpg"}).json()["total"], 2)
+        self.assertEqual(self.client.get("/api/v1/operations", params={"status": "Nonsense"}).status_code, 400)
+
+        csv_text = self.client.get("/api/v1/operations/export", params={"format": "csv", "status": "Failed"}).text
+        self.assertEqual(csv_text.splitlines()[0].split(",")[:5], ["id", "timestamp", "run_id", "mode", "status"])
+        self.assertEqual(len(csv_text.strip().splitlines()), 2, "the export does not honour the filters")
+        exported = self.client.get("/api/v1/operations/export", params={"format": "json"}).json()
+        self.assertEqual(len(exported), 4)
+        self.assertEqual([r["id"] for r in exported], sorted(r["id"] for r in exported), "an export runs oldest first")
+
+        runs = self.client.get("/api/v1/runs").json()["runs"]
+        self.assertEqual([(r["mode"], r["outcome"]["verdict"]) for r in runs], [("COPY", "partial"), ("INDEX", "success")])
+
+    def test_a_photos_history_follows_it_through_a_move(self):
+        make_photo(self.cfg.source / "a.jpg", "a")
+        self.create_catalog()
+        self.wait_for(self.start(mode="index"))
+        photo = self.client.get("/api/v1/photos").json()["items"][0]["id"]
+        self.wait_for(self.start(mode="move"))
+        history = self.client.get("/api/v1/operations", params={"photo": photo}).json()
+        self.assertEqual(sorted(i["status"] for i in history["items"]), ["Completed", "Pending"])
+
+    def test_a_folder_that_could_not_be_read_is_a_run_level_failure(self):
+        if os.geteuid() == 0:
+            self.skipTest("root reads any folder")
+        make_photo(self.cfg.source / "ok.jpg", "ok")
+        make_photo(self.cfg.source / "sealed" / "inside.jpg", "inside")
+        (self.cfg.source / "sealed").chmod(0)
+        try:
+            self.create_catalog()
+            self.wait_for(self.start(mode="index"))
+        finally:
+            (self.cfg.source / "sealed").chmod(0o755)
+        failed = self.client.get("/api/v1/operations", params={"status": "Failed"}).json()["items"]
+        self.assertEqual([(f["run_level"], f["photo_id"]) for f in failed], [(True, None)],
+                         "an unreadable folder must be one run-level failure, not a failed photo or nothing")
+
+
 class DerivedOutcome(ApiCase):
     """webui-spec 5.5: the verdict comes from classified outcomes, not runs.status."""
 

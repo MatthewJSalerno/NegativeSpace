@@ -161,14 +161,45 @@ with sync_playwright() as p:
     expect(page.locator(".views")).to_contain_text("Organized (3)", timeout=5_000)
     expect(page.locator(".action-bar")).to_have_count(0)
 
-    # Copy all: the three already copied and the duplicates are skipped, and the banner
-    # says why for each group.
+    # Copy all, with one photo made unreadable to the app: the three already copied
+    # and the duplicates are skipped with their reasons, and the failure is offered.
+    locked = "/src/photo-129.jpg"
+    os.chmod(locked, 0)
     page.get_by_role("button", name="Copy all").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Copy").click()
+    expect(banner).to_contain_text("Copy finished with failures", timeout=120_000)
     expect(banner).to_contain_text(
-        f"{PHOTOS - 3} of {PHOTOS + DUPLICATES} files copied · {3 + DUPLICATES} skipped "
-        f"(3 copied by an earlier job, {DUPLICATES} duplicates: the same content is copied once)", timeout=120_000)
+        f"{PHOTOS - 4} of {PHOTOS + DUPLICATES} files copied · 1 failed · {3 + DUPLICATES} skipped "
+        f"(3 copied by an earlier job, {DUPLICATES} duplicates: the same content is copied once)")
     shot("6-skip-reasons")
+
+    # The Error Center: the log filtered to this job's failures, with what to do and Retry.
+    banner.get_by_role("link", name="View failures").click()
+    expect(page).to_have_url(re.compile(r"/logs\?run=\d+&status=Failed"))
+    expect(page.get_by_role("heading", name="Failures")).to_be_visible()
+    rows = page.locator(".log-table tbody tr")
+    expect(rows).to_have_count(1)
+    expect(rows.first).to_contain_text("photo-129.jpg")
+    expect(rows.first).to_contain_text("Check its permissions")
+    shot("7-failures")
+    page.get_by_role("button", name=re.compile(r"^Retry these photos")).click()
+    expect(page.locator(".notice")).to_contain_text("Retrying 1 photo as a new Copy")
+    expect(page.locator(".finished-banner")).to_contain_text("Copy", timeout=60_000)
+    os.chmod(locked, 0o644)
+    page.get_by_role("button", name="All statuses").click()
+    expect(page.locator(".status-chips")).to_contain_text("Copied")
+    page.get_by_role("link", name="Library").first.click()
+    expect(page).to_have_url(re.compile(r"/(\?.*)?$"))
+    expect(page.locator(".card").first).to_be_visible()
+
+    # A photo's history, from the Inspector.
+    page.locator(".card-image").first.click()
+    page.locator(".inspector").get_by_role("link", name="History").click()
+    expect(page.get_by_role("heading", name=re.compile(r"^Log for photo #\d+"))).to_be_visible()
+    expect(page.locator(".log-table")).to_contain_text("Indexed")
+    page.go_back()
+    expect(page.locator(".inspector")).to_be_visible()
+    page.keyboard.press("Escape")
 
     page.get_by_role("button", name="Settings").click()
     expect(page.get_by_role("dialog")).to_contain_text("Changes apply to future jobs")
