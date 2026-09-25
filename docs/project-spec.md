@@ -186,7 +186,7 @@ service. Built and tested:
     *   Scan, and Copy and Move of everything or of a selection, each confirmed;
     *   the job drawer, with live counts, elapsed time and Cancel;
     *   the split Inspector, with a movable divider and the 1024px preview. It shows
-        the file's own details, including its created and modified dates, apart from
+        the file's own details, including its modified date, apart from
         the photo's EXIF information.
 
     `tests/webui_browser_test.sh` drives them in a real browser.

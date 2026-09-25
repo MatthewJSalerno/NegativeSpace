@@ -208,10 +208,10 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
             "SELECT id, status, source_path, dest_path, file_size FROM photos "
             "WHERE sha1_hash = ? AND id != ? ORDER BY id", (p["sha1_hash"], photo_id))] if p["sha1_hash"] else []
         grid = thumbnail_record(conn, photo_id, GRID_SIZE)
-        # The file's own times as its first scan observed them (source_snapshots),
+        # The file's modification time as its first scan observed it (source_snapshots),
         # which later rescans, edits and transfers never overwrite (webui-spec 3.1).
         snapshot = conn.execute(
-            "SELECT s.birthtime, s.file_mtime FROM photo_files pf JOIN source_snapshots s USING(file_id) "
+            "SELECT s.file_mtime FROM photo_files pf JOIN source_snapshots s USING(file_id) "
             "WHERE pf.photo_id = ?", (photo_id,)).fetchone()
     camera = " ".join(v for v in (meta.get("Make"), meta.get("Model")) if v) or None
     return {
@@ -221,8 +221,6 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         "dest_path_is_projection": p["status"] not in DELIVERED,
         "has_collision_rename": bool(p["has_name_collision"]),
         "file_size": p["file_size"],
-        # Epoch seconds, or None: many filesystems (NFS among them) report no creation time.
-        "file_created": snapshot["birthtime"] if snapshot else None,
         "file_modified": snapshot["file_mtime"] if snapshot else p["file_mtime"],
         "date_taken": meta.get("date_taken"), "date_source": meta.get("date_source"),
         "camera": camera,

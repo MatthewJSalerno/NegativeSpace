@@ -164,7 +164,7 @@ class JobsAndCatalog(ApiCase):
         detail = self.client.get(f"/api/v1/photos/{photo}/inspect").json()
         self.assertEqual((detail["date_source"], len(detail["duplicates"])), ("file_mtime", 1))
         self.assertEqual(detail["file_modified"], 1_600_000_000, "the file's first-scan mtime was not reported")
-        self.assertIn("file_created", detail)
+        self.assertNotIn("file_created", detail, "a creation date is not shown: it is the date of the last copy")
         self.assertTrue(detail["dest_path_is_projection"])
         self.assertEqual(self.client.get("/api/v1/photos/999999/inspect").status_code, 404)
 

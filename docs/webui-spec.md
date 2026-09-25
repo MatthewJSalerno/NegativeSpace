@@ -429,12 +429,18 @@ shifted.
 
 **Clicking the preview enlarges it** over the blurred page, with the photo's details
 below; Esc or the close button returns. It shows the 1024px preview, the largest image
-the engine makes. The file's own dates stay out
-of that section. **File created** and **File modified** sit under the file's size, as
-the first scan observed them. Creation time is shown only when the storage reports one,
-and many filesystems do not, NFS among them; otherwise it says so. A photo whose EXIF
-has no capture date says so in the EXIF section, and its File modified row notes that
-this date is what files it under Undated.
+the engine makes. The file's own date stays out
+of that section: **File modified**, as the first scan observed it, sits under the file's
+size. A photo whose EXIF has no capture date says so in the EXIF section, and its File
+modified row notes that this date is what files it under Undated.
+
+**Why no file creation date:** a copy is a new file with a new creation date, so for
+an organized photo it is the day NegativeSpace copied it, and elsewhere usually the day
+of the last copy or restore. That reads as a photo date and is not one. NFS does not
+pass it on at all, so on a network library the row would always be empty. Only three
+file times reach the engine over NFS: modification, which copies preserve and which is
+shown; status change, which any rename, permission change or hard link resets; and
+access, which reading the file resets.
 
 **Deleted files retain their info screen and lineage.** Exclude deleted files from
 the normal actionable library, but keep their info screens reachable from log links

@@ -55,7 +55,6 @@ export interface PhotoDetail {
   dest_path_is_projection: boolean;
   has_collision_rename: boolean;
   file_size: number | null;
-  file_created: number | null;
   file_modified: number | null;
   date_taken: string | null;
   date_source: string | null;

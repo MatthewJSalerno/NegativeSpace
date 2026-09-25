@@ -160,9 +160,6 @@ function Details({ detail: d }: { detail: PhotoDetail }) {
         </Row>
         <Row label="Source path"><code>{d.source_path ?? "—"}</code></Row>
         <Row label="Size">{bytes(d.file_size)}{d.width && d.height ? ` · ${d.width} × ${d.height}` : ""}</Row>
-        <Row label="File created">
-          {d.file_created != null ? epoch(d.file_created) : <span className="muted">Not reported by the storage</span>}
-        </Row>
         <Row label="File modified">
           {epoch(d.file_modified)}
           <div className="muted">
