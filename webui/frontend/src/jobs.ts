@@ -102,6 +102,21 @@ export function countsLine(counts: Record<string, number>): string {
   return [...parts, ...keys.map((k) => `${count(c[k])} ${OUTCOME[k] ?? k}`)].join(" · ");
 }
 
+// Why photos were skipped, grouped by the API from the engine's recorded reasons.
+const SKIP_REASON: Record<string, string> = {
+  duplicate: "duplicates: the same content is copied once",
+  duplicate_original_not_selected: "duplicates whose original was not selected",
+  already_copied: "copied by an earlier job",
+  network_share_unconfirmed: "not attempted: a Move to a network share needs confirming",
+  source_looked_empty: "not attempted: the source looked empty",
+  other: "other reasons",
+};
+
+export function skipReasons(reasons: Record<string, number>): string {
+  return Object.entries(reasons).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])
+    .map(([key, n]) => `${count(n)} ${SKIP_REASON[key] ?? key}`).join(", ");
+}
+
 const VERDICT: Record<string, string> = {
   success: "finished", partial: "finished with failures", failed: "failed", no_change: "had nothing to do",
   cancelled: "was cancelled", interrupted: "was interrupted", running: "is running",
@@ -119,11 +134,14 @@ export function summary(run: Run): { headline: string; detail: string; tone: "go
       : run.mode === "MOVE" && outcome.total != null
         ? `${count(outcome.counts.Completed ?? 0)} of ${plural(outcome.total, "file")} moved`
         : "";
+  const reasons = outcome.skip_reasons ? skipReasons(outcome.skip_reasons) : "";
   const rest = countsLine(
     Object.fromEntries(Object.entries(outcome.counts).filter(([k]) =>
-      !(run.mode === "COPY" && k === "Copied") && !(run.mode === "MOVE" && k === "Completed"))),
+      !(run.mode === "COPY" && k === "Copied") && !(run.mode === "MOVE" && k === "Completed")
+      && !(reasons && k === "Skipped"))),
   );
-  const parts = [lead, rest].filter(Boolean);
+  const skipped = reasons ? `${count(outcome.counts.Skipped ?? 0)} skipped (${reasons})` : "";
+  const parts = [lead, rest, skipped].filter(Boolean);
   if (outcome.run_level_issues) parts.push(`${plural(outcome.run_level_issues, "folder or file")} could not be read`);
   if (outcome.recovered_earlier_work) parts.push(`${plural(outcome.recovered_earlier_work, "earlier operation")} recovered`);
   const tone =

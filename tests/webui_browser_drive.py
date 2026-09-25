@@ -96,6 +96,7 @@ with sync_playwright() as p:
     page.locator(".card-image").first.click()
     inspector = page.locator(".inspector")
     expect(inspector).to_contain_text("Not yet organized")
+    expect(inspector).to_contain_text("Proposed destination path")
     expect(inspector.locator(".inspector-image img:not([style*='none'])")).to_be_visible(timeout=15_000)
     expect(inspector).to_contain_text("Photo EXIF information")
     expect(inspector).to_contain_text("Not in the photo's EXIF")
@@ -105,6 +106,21 @@ with sync_playwright() as p:
     assert len(widths) == 3 and len(set(widths)) == 1, f"the information tables differ in width: {widths}"
     shot("3-inspector")
     no_errors_yet()
+
+    # Clicking the photo enlarges it over a blurred page, details below; Esc returns.
+    inspector.locator(".inspector-image").click()
+    lightbox = page.locator(".lightbox")
+    expect(lightbox).to_be_visible()
+    expect(lightbox).to_contain_text("Photo EXIF information")
+    blur = lightbox.evaluate("e => getComputedStyle(e).backdropFilter")
+    assert "blur" in blur, f"the enlarged view does not blur the page behind it: {blur}"
+    shot("5-enlarged")
+    page.keyboard.press("Escape")
+    expect(lightbox).to_have_count(0)
+    expect(inspector).to_be_visible()
+    inspector.locator(".inspector-image").click()
+    page.get_by_role("button", name="Close the enlarged photo").click()
+    expect(lightbox).to_have_count(0)
 
     # The divider: drag it, and a wide panel puts the details beside the photo.
     divider = page.locator(".divider")
@@ -145,13 +161,37 @@ with sync_playwright() as p:
     expect(page.locator(".views")).to_contain_text("Organized (3)", timeout=5_000)
     expect(page.locator(".action-bar")).to_have_count(0)
 
+    # Copy all: the three already copied and the duplicates are skipped, and the banner
+    # says why for each group.
+    page.get_by_role("button", name="Copy all").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Copy").click()
+    expect(banner).to_contain_text(
+        f"{PHOTOS - 3} of {PHOTOS + DUPLICATES} files copied · {3 + DUPLICATES} skipped "
+        f"(3 copied by an earlier job, {DUPLICATES} duplicates: the same content is copied once)", timeout=120_000)
+    shot("6-skip-reasons")
+
     page.get_by_role("button", name="Settings").click()
     expect(page.get_by_role("dialog")).to_contain_text("Changes apply to future jobs")
     page.keyboard.press("Escape")
     expect(page.get_by_role("dialog")).to_have_count(0)
 
+    # The quick filter for photos with no capture date in their EXIF.
+    undated_filter = page.get_by_role("button", name=re.compile(r"^No capture date"))
+    expect(undated_filter).to_contain_text(f"({PHOTOS - 2:,})")
+    undated_filter.click()
+    expect(page).to_have_url(re.compile(r"undated=1"))
+    expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS - 2:,} photos")
+    undated_filter.click()
+    expect(page).not_to_have_url(re.compile(r"undated=1"))
+
+    # A photo with an EXIF date: shown from EXIF, one note for the missing time zone.
     page.locator(".search").fill("photo-000")
     expect(page.locator(".card")).to_have_count(1, timeout=5_000)
+    page.locator(".card-image").first.click()
+    expect(inspector).to_contain_text("2023-01-15 09:30:00")
+    expect(inspector.locator(".section-note")).to_contain_text("recorded no time zone")
+    expect(inspector.locator("th", has_text="*")).to_have_count(0)
+    page.keyboard.press("Escape")
     expect(page).to_have_url(re.compile(r"q=photo-000"))
     page.reload()
     expect(page.locator(".search")).to_have_value("photo-000")

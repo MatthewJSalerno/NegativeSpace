@@ -39,13 +39,16 @@ trap cleanup EXIT
 mkdir -p "$WORK/src" "$WORK/dest" "$WORK/appdata" "$WORK/cache" "$WORK/backups"
 
 # Distinct photos plus exact copies of the first few, made with the image's Pillow.
-# None carries an EXIF date, so each is dated by its modification time: the first
-# NEWER in 2023, the rest in 2019.
+# The first two carry an EXIF date taken (January 2023); every other photo has none,
+# so it is dated by its modification time: up to NEWER in June 2023, the rest in 2019.
 docker run --rm --user "$ME" --entrypoint python3 -v "$WORK/src":/src "$IMAGE" -c "
 import os
 from PIL import Image
 def make(name, i):
-    Image.new('RGB', (320, 240), ((i * 37) % 256, (i * 91) % 256, (i * 53) % 256)).save(name, quality=90)
+    extra = {}
+    if i < 2:
+        e = Image.Exif(); e.get_ifd(0x8769)[36867] = '2023:01:15 09:30:00'; extra['exif'] = e
+    Image.new('RGB', (320, 240), ((i * 37) % 256, (i * 91) % 256, (i * 53) % 256)).save(name, quality=90, **extra)
     t = 1_686_000_000 if i < $NEWER else 1_560_000_000
     os.utime(name, (t, t))
 for i in range($NEWER + $OLDER):

@@ -28,12 +28,19 @@ from webui.app import create_app  # noqa: E402
 from webui.config import Config  # noqa: E402
 
 
-def make_photo(path: Path, seed: str, size=(64, 48), mtime=None):
+def make_photo(path: Path, seed: str, size=(64, 48), mtime=None, exif=None):
     """A small, valid JPEG whose pixels depend on `seed`; the same seed gives the
-    same bytes, so two calls make an exact duplicate."""
+    same bytes, so two calls make an exact duplicate. `exif` maps tag ids to values;
+    36867, 36868 and the offset tags 36881-36882 go in the Exif sub-IFD."""
     path.parent.mkdir(parents=True, exist_ok=True)
     value = sum(seed.encode()) % 256
-    Image.new("RGB", size, (value, 255 - value, (value * 7) % 256)).save(path, "JPEG", quality=90)
+    extra = {}
+    if exif:
+        e = Image.Exif()
+        for tag, v in exif.items():
+            (e.get_ifd(0x8769) if tag >= 0x8000 else e)[tag] = v
+        extra["exif"] = e
+    Image.new("RGB", size, (value, 255 - value, (value * 7) % 256)).save(path, "JPEG", quality=90, **extra)
     if mtime is not None:
         os.utime(path, (mtime, mtime))
 
@@ -167,10 +174,33 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual(run["outcome"]["verdict"], "success")
         self.assertEqual(run["outcome"]["counts"], {"Copied": 2, "Skipped": 1},
                          "the Copy's scan was counted as its work")
+        self.assertEqual(run["outcome"]["skip_reasons"], {"duplicate": 1},
+                         "the skipped duplicate's reason was not recognised; did the engine's wording change?")
         organized = self.client.get("/api/v1/photos", params={"view": "organized"}).json()
         self.assertEqual(organized["total"], 2)
         again = self.wait_for(self.start(mode="copy"))
         self.assertEqual(again["outcome"]["verdict"], "no_change")
+
+    def test_exif_dates_keep_their_own_time_zones_and_the_undated_filter_finds_the_rest(self):
+        make_photo(self.cfg.source / "dated.jpg", "dated", exif={
+            36867: "2021:05:01 10:00:00", 36881: "+02:00",   # DateTimeOriginal, with its offset
+            36868: "2021:05:01 10:00:05",                     # CreateDate, no offset
+            306: "2021:05:02 11:00:00"})                      # ModifyDate, no offset
+        make_photo(self.cfg.source / "undated.jpg", "undated", mtime=1_600_000_000)
+        self.create_catalog()
+        self.wait_for(self.start(mode="index"))
+        page = self.client.get("/api/v1/photos").json()
+        self.assertEqual((page["total"], page["counts"]["undated"]), (2, 1))
+        only = self.client.get("/api/v1/photos", params={"undated": "true"}).json()
+        self.assertEqual([i["filename"] for i in only["items"]], ["undated.jpg"])
+        self.assertEqual(self.client.get("/api/v1/photos/timeline", params={"undated": "true"}).json()["months"],
+                         [{"month": "2020-09", "count": 1}])
+        dated = next(i["id"] for i in page["items"] if i["filename"] == "dated.jpg")
+        detail = self.client.get(f"/api/v1/photos/{dated}/inspect").json()
+        self.assertEqual(detail["exif_dates"], [
+            {"field": "taken", "value": "2021:05:01 10:00:00", "offset": "+02:00"},
+            {"field": "digitized", "value": "2021:05:01 10:00:05", "offset": None},
+            {"field": "modified", "value": "2021:05:02 11:00:00", "offset": None}])
 
     def test_one_job_at_a_time_and_the_lock_decides(self):
         self.index_library()
