@@ -249,9 +249,16 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   // "Outside this view": selected photos not among the results loaded on screen.
   const loadedIds = useMemo(() => new Set([...results.pages.values()].flat().map((i) => i.id)), [results.pages]);
   const outside = [...selected].filter((id) => !loadedIds.has(id)).length;
-  // The month the page on top starts in, highlighted in the tree.
-  const currentDate = sort === "newest" || sort === "oldest"
-    ? results.pages.get(page)?.[0]?.date_taken?.slice(0, 7) ?? null : null;
+  // Every month with a photo on screen, highlighted in the tree. Photos, not pages: a
+  // month with a few photos rarely starts a page or a row, and was skipped.
+  const [onScreen, setOnScreen] = useState<number[]>([]);
+  const currentDates = useMemo(() => {
+    if (sort !== "newest" && sort !== "oldest") return [];
+    const dateOf = new Map<number, string | null>();
+    for (const items of results.pages.values()) for (const i of items) dateOf.set(i.id, i.date_taken);
+    const ids = onScreen.length ? onScreen : (results.pages.get(page) ?? []).slice(0, 1).map((i) => i.id);
+    return [...new Set(ids.map((id) => dateOf.get(id)?.slice(0, 7)).filter((m): m is string => !!m))];
+  }, [results.pages, onScreen, page, sort]);
 
   // Continuous scrolling: load the next page as the end nears, and the previous one as
   // the start does, keeping the photos on screen where they are.
@@ -286,13 +293,19 @@ function Library({ status, refreshStatus, onOpenSettings }: {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const top = header.current?.getBoundingClientRect().bottom ?? 0;
+        const bottom = window.innerHeight;
+        let first: HTMLElement | null = null;
+        const seen: number[] = [];
         for (const card of document.querySelectorAll<HTMLElement>(".grid .card[data-page]")) {
-          if (card.getBoundingClientRect().bottom > top + 4) {
-            const p = Number(card.dataset.page);
-            if (focus) setFocusVisible(p); else setVisiblePage(p);
-            break;
-          }
+          const box = card.getBoundingClientRect();
+          if (box.bottom <= top + 4) continue;
+          if (box.top >= bottom) break;
+          first ??= card;
+          seen.push(Number(card.dataset.id));
         }
+        if (!first) return;
+        const p = Number(first.dataset.page);
+        if (focus) setFocusVisible(p); else { setVisiblePage(p); setOnScreen(seen); }
       });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -505,7 +518,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
       <main className={`content ${datesOpen ? "dates-open" : ""}`} ref={content}>
         {!focus && (
-          <DatesPanel timeline={timeline} dates={dates} current={currentDate} oldestFirst={sort === "oldest"} onDates={changeDates}
+          <DatesPanel timeline={timeline} dates={dates} current={currentDates} oldestFirst={sort === "oldest"} onDates={changeDates}
                       onJump={(key) => { jumpTo(key); setDatesOpen(false); }} />
         )}
         <div className="gallery-pane">

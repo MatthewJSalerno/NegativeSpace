@@ -39,7 +39,7 @@ export function Gallery({ page, pageOf, selected, selectable, openId, onOpen, on
       {page.items.map((item, index) => {
         const isSelected = selected.has(item.id);
         return (
-          <li key={item.id} data-page={pageOf?.[index]} className={`card ${isSelected ? "selected" : ""} ${openId === item.id ? "open" : ""}`}>
+          <li key={item.id} data-page={pageOf?.[index]} data-id={item.id} className={`card ${isSelected ? "selected" : ""} ${openId === item.id ? "open" : ""}`}>
             <button className="card-image" onClick={() => onOpen(item.id)} aria-label={`Open ${item.filename}`}>
               <Thumb id={item.id} alt={item.filename} />
             </button>

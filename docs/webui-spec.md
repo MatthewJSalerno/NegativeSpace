@@ -109,7 +109,9 @@ Users can select individual files or multiple files across grid views to run tar
   just started**, so their statuses can be watched, until **Back to results**. When
   every selected photo is already on screen, nothing moves.
 * **Date tree:** a **Dates** panel left of the gallery lists years and their months with
-  counts for the current view and search, every year unfolded to start, in the order of
+  counts for the current view and search, every year unfolded to start, every month with
+  a photo on screen highlighted as the gallery scrolls (photos, not pages: a month of a few
+  photos rarely starts a page or a row) and kept in sight in the panel, in the order of
   the gallery's date sort (oldest first lists the oldest year and month first; No date
   stays last, as both date sorts place it). Clicking a name
   goes to the page it starts on

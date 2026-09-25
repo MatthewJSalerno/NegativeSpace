@@ -18,7 +18,8 @@ export function dateLabel(key: string): string {
 export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJump }: {
   timeline: Timeline | null;
   dates: string[];
-  current: string | null;
+  // Every month with a photo on screen ("2023-06").
+  current: string[];
   // The gallery's date order: oldest first lists the oldest year and month first.
   oldestFirst: boolean;
   onDates: (dates: string[]) => void;
@@ -39,6 +40,13 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJ
   useEffect(() => {
     if (!seeded.current && years.length) { seeded.current = true; setOpen(new Set(years.map(([y]) => y))); }
   }, [years]);
+
+  // Keep the highlighted months in sight in a long tree, without moving the page.
+  const panel = useRef<HTMLElement>(null);
+  const currentKey = current.join();
+  useEffect(() => {
+    panel.current?.querySelector(".dates-row.current")?.scrollIntoView({ block: "nearest" });
+  }, [currentKey]);
 
   if (!timeline) return null;
   const has = (key: string) => dates.includes(key);
@@ -65,7 +73,7 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJ
   const toggleNone = () => onDates(has("none") ? dates.filter((d) => d !== "none") : [...dates, "none"]);
 
   return (
-    <nav className="dates-panel" aria-label="Dates">
+    <nav className="dates-panel" aria-label="Dates" ref={panel}>
       <div className="dates-head">
         <h2>Dates</h2>
         <span className="dates-show-only" title="Tick years or months to show only those. Clear them all to show everything.">
@@ -79,7 +87,7 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJ
           const total = months.reduce((n, m) => n + m.count, 0);
           return (
             <li key={year}>
-              <div className={`dates-row ${current?.startsWith(year) ? "current" : ""}`}>
+              <div className={`dates-row ${current.some((m) => m.startsWith(year)) ? "current" : ""}`}>
                 <input type="checkbox" aria-label={`Show only ${year}`} checked={ticked === months.length}
                        ref={(el) => { if (el) el.indeterminate = ticked > 0 && ticked < months.length; }}
                        onChange={() => toggleYear(year, months)} />
@@ -93,7 +101,7 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJ
               {isOpen && (
                 <ul>
                   {months.map((m) => (
-                    <li key={m.month} className={`dates-row month ${current === m.month ? "current" : ""}`}>
+                    <li key={m.month} className={`dates-row month ${current.includes(m.month) ? "current" : ""}`}>
                       <input type="checkbox" aria-label={`Show only ${dateLabel(m.month)}`} checked={monthOn(m.month)}
                              onChange={() => toggleMonth(m.month, months)} />
                       <button className="dates-name" onClick={() => onJump(m.month)} title={`Go to ${dateLabel(m.month)}`}>

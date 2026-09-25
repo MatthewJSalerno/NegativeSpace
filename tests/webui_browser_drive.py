@@ -103,6 +103,12 @@ with sync_playwright() as p:
     page.locator(".card").nth(90).scroll_into_view_if_needed()
     expect(page).to_have_url(re.compile(r"page=2\b"), timeout=5_000)
     expect(page.locator(".pager").first.locator("button.current")).to_have_text("2")
+    # The tree highlights every month with a photo on screen, not the page's: January
+    # 2023 has two photos, mid-row in page 2, and lights up when they are in view.
+    january = page.locator(".card", has_text="2023-01-15").first
+    january.evaluate("""e => window.scrollTo(0, e.getBoundingClientRect().top + window.scrollY
+        - document.querySelector('.toolbar').getBoundingClientRect().height - 2)""")
+    expect(page.locator(".dates-row.current.month", has_text="January")).to_have_count(1, timeout=5_000)
     page.goto(BASE)
     # The date tree: clicking the older year jumps to its page; its first photo is photo
     # number NEWER + 1. Ticking it shows only that year, and the address keeps it.
