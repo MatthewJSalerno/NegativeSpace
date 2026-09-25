@@ -1,20 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { count } from "../format";
 
-// Selecting in bulk (webui-spec 2): this page, or everything the gallery shows across
-// its pages, and the same two to unselect. An item that would do nothing, or cannot,
-// says why.
-export function SelectMenu({ onPage, pageSelected, total, selected, max, disabledWhy, onSelectPage, onSelectAll,
-                             onUnselectPage, onUnselectAll }: {
-  onPage: number;
-  pageSelected: number;
+// Selecting in bulk (webui-spec 2): the photos on screen, or everything the view shows,
+// and the same two to unselect. An item that would do nothing, or cannot, says why.
+export function SelectMenu({ onScreen, screenSelected, total, selected, max, disabledWhy, onSelectScreen, onSelectAll,
+                             onUnselectScreen, onUnselectAll }: {
+  onScreen: number;
+  screenSelected: number;
   total: number;
   selected: number;
   max: number;
   disabledWhy: string | null;
-  onSelectPage: () => void;
+  onSelectScreen: () => void;
   onSelectAll: () => void;
-  onUnselectPage: () => void;
+  onUnselectScreen: () => void;
   onUnselectAll: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -31,14 +30,15 @@ export function SelectMenu({ onPage, pageSelected, total, selected, max, disable
 
   const run = (fn: () => void) => () => { setOpen(false); fn(); };
   const items = [
-    { label: `Select all on this page (${count(onPage)})`, onClick: onSelectPage,
-      why: disabledWhy ?? (pageSelected === onPage ? "Every photo on this page is selected." : null) },
-    { label: `Select all (${count(total)})`, onClick: onSelectAll,
+    { label: `Select all on screen (${count(onScreen)})`, onClick: onSelectScreen,
+      why: disabledWhy ?? (screenSelected === onScreen ? "Every photo on screen is selected." : null),
+      hint: "The photos you can see right now." },
+    { label: `Select all in this view (${count(total)})`, onClick: onSelectAll,
       why: disabledWhy ?? (total > max
         ? `More than the ${count(max)}-photo limit. Use Actions for all photos, or narrow the view.` : null),
-      hint: "Every photo shown, on every page." },
-    { label: "Unselect all on this page", onClick: onUnselectPage,
-      why: disabledWhy ?? (pageSelected === 0 ? "Nothing on this page is selected." : null) },
+      hint: "Every photo the view, search and dates show, scrolled to or not." },
+    { label: "Unselect all on screen", onClick: onUnselectScreen,
+      why: disabledWhy ?? (screenSelected === 0 ? "Nothing on screen is selected." : null) },
     { label: "Unselect all", onClick: onUnselectAll, why: selected === 0 ? "Nothing is selected." : null },
   ];
 

@@ -147,6 +147,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [focusPage, setFocusVisible] = useState(1);
   const setFocusPage = (p: number) => { setFocusJump((j) => ({ page: p, n: j.n + 1 })); setFocusVisible(p); };
   const [notice, setNotice] = useState<string | null>(null);
+  // Every photo on screen, as the last scroll found them.
+  const [onScreen, setOnScreen] = useState<number[]>([]);
   const [datesOpen, setDatesOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -244,14 +246,18 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     }
     return { items, pageOf };
   }, [list.pages]);
-  const pageItems = list.pages.get(visible) ?? [];
+  // The photos on screen, for Select all on screen; until first measured, the page.
+  const screenItems = useMemo(() => {
+    const ids = new Set(onScreen);
+    const found = flat.items.filter((i) => ids.has(i.id));
+    return found.length ? found : list.pages.get(visible) ?? [];
+  }, [flat, onScreen, list.pages, visible]);
   const pages = list.meta ? Math.max(1, Math.ceil(list.meta.total / pageSize)) : 1;
   // "Outside this view": selected photos not among the results loaded on screen.
   const loadedIds = useMemo(() => new Set([...results.pages.values()].flat().map((i) => i.id)), [results.pages]);
   const outside = [...selected].filter((id) => !loadedIds.has(id)).length;
   // Every month with a photo on screen, highlighted in the tree. Photos, not pages: a
   // month with a few photos rarely starts a page or a row, and was skipped.
-  const [onScreen, setOnScreen] = useState<number[]>([]);
   const currentDates = useMemo(() => {
     if (sort !== "newest" && sort !== "oldest") return [];
     const dateOf = new Map<number, string | null>();
@@ -305,12 +311,16 @@ function Library({ status, refreshStatus, onOpenSettings }: {
         }
         if (!first) return;
         const p = Number(first.dataset.page);
-        if (focus) setFocusVisible(p); else { setVisiblePage(p); setOnScreen(seen); }
+        if (focus) setFocusVisible(p); else setVisiblePage(p);
+        setOnScreen(seen);
       });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => { window.removeEventListener("scroll", onScroll); cancelAnimationFrame(frame); };
+    window.addEventListener("resize", onScroll);
+    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); cancelAnimationFrame(frame); };
   }, [focus]);
+  // Photos arriving change what is on screen without a scroll: measure again.
+  useEffect(() => { window.dispatchEvent(new Event("resize")); }, [flat]);
   // A jump starts at the top of the page it lands on.
   useEffect(() => { if (jump.n > 0) window.scrollTo(0, 0); }, [jump.n]);
   useEffect(() => { if (focusJump.n > 0) window.scrollTo(0, 0); }, [focusJump.n]);
@@ -451,7 +461,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const noPhotos = status.photos === 0;
   const tooMany = selected.size > MAX_SELECTION;
 
-  const pageSelected = pageItems.filter((i) => selected.has(i.id)).length;
+  const screenSelected = screenItems.filter((i) => selected.has(i.id)).length;
   const onPager = focus ? setFocusPage : setPage;
 
   return (
@@ -568,19 +578,19 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           {list.meta && list.meta.total > 0 && (
             <>
               <div className="gallery-head">
-                <SelectMenu onPage={pageItems.length} pageSelected={pageSelected}
+                <SelectMenu onScreen={screenItems.length} screenSelected={screenSelected}
                             total={list.meta.total} selected={selected.size} max={MAX_SELECTION}
                             disabledWhy={jobRunning ? "Selection is unavailable while a job is running." : null}
-                            onSelectPage={() => toggleMany(pageItems, true)} onSelectAll={selectAll}
-                            onUnselectPage={() => toggleMany(pageItems, false)} onUnselectAll={clearSelection} />
+                            onSelectScreen={() => toggleMany(screenItems, true)} onSelectAll={selectAll}
+                            onUnselectScreen={() => toggleMany(screenItems, false)} onUnselectAll={clearSelection} />
                 {jobRunning && <span className="muted">Selection is unavailable while a job is running.</span>}
               </div>
-              <Pager page={visible} pages={pages} total={list.meta.total} pageSize={pageSize} onPage={onPager} onPageSize={changePageSize} />
-              {list.first > 1 && <div ref={topSentinel} className="page-sentinel muted">Loading page {count(list.first - 1)}…</div>}
+              <Pager page={visible} pages={pages} total={list.meta.total} pageSize={pageSize} onPage={onPager} onPageSize={changePageSize} continuous />
+              {list.first > 1 && <div ref={topSentinel} className="page-sentinel muted">Loading more photos…</div>}
               <Gallery page={{ items: flat.items }} pageOf={flat.pageOf} selected={selected} selectable={!jobRunning} openId={openId}
                        onOpen={setOpenId} onToggle={toggle} onToggleMany={toggleMany} />
               {list.last < pages
-                ? <div ref={bottomSentinel} className="page-sentinel muted">Loading page {count(list.last + 1)}…</div>
+                ? <div ref={bottomSentinel} className="page-sentinel muted">Loading more photos…</div>
                 : <div className="gallery-foot">
                     <span className="muted">End of {plural(list.meta.total, "photo")}.</span>
                   </div>}

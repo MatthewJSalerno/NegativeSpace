@@ -85,9 +85,9 @@ One consequence for display: after a Move, each `Duplicate` row's `dest_path` is
 ### Selective File Processing
 Users can select individual files or multiple files across grid views to run targeted operations.
 * **Multi-Select Controls:** Checkboxes on photo cards, Shift-click range selections,
-  and a **Select ▾** menu above the grid: **Select all on this page (n)**, **Select all
-  (n)** (every photo the view, search and dates show, on every page), **Unselect all on
-  this page** and **Unselect all**. Select all is refused whole above the 1,000-photo
+  and a **Select ▾** menu above the grid: **Select all on screen (n)** (the photos
+  visible right now), **Select all in this view (n)** (every photo the view, search and
+  dates show, scrolled to or not), **Unselect all on screen** and **Unselect all**. Select all is refused whole above the 1,000-photo
   limit, never cut short (`GET /photos/ids`); an item that would do nothing says why.
   Keep the total selected count visible and repeat it in bulk-action previews, including
   metadata edits and deletion.
@@ -142,8 +142,8 @@ are, so rows run on without a half-empty row at each page boundary. Pages remain
 the API serves and the address records: the pager and the address follow the page whose
 photos are at the top of the screen, so a refresh or a shared link returns to it. The
 pager jumps (first and last, numbered pages with gaps, **1 … 48 49 [50] 51 52 … 2,500**,
-a go-to-page box), and 60, 120 or 240 photos load at a time. **Select all on this page**
-means the page shown in the pager. **Why not separate pages any more:** they were chosen
+a go-to-page box), and 60, 120 or 240 photos load at a time (**Load 60 at a time**).
+Selecting in bulk speaks of the screen and the view, not pages. **Why not separate pages any more:** they were chosen
 because selection was defined per page; the selection is now an explicit list kept
 across pages, and a page count that the grid's columns did not divide left gaps. The date
 tree jumps to a year or month by the page it starts on (`GET /api/v1/photos/timeline`).
