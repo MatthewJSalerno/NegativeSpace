@@ -146,7 +146,12 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [focusJump, setFocusJump] = useState({ page: 1, n: 0 });
   const [focusPage, setFocusVisible] = useState(1);
   const setFocusPage = (p: number) => { setFocusJump((j) => ({ page: p, n: j.n + 1 })); setFocusVisible(p); };
-  const [notice, setNotice] = useState<string | null>(null);
+  // A notice names its fixes as buttons that apply them, not as instructions.
+  const [notice, setNoticeState] = useState<{ text: string; actions: { label: string; run: () => void }[] } | null>(null);
+  const setNotice = (text: string | null, actions: { label: string; run: () => void }[] = []) =>
+    setNoticeState(text == null ? null : { text, actions });
+  // A date to go to once the date filter that hid it has changed.
+  const [pendingJump, setPendingJump] = useState<string | null>(null);
   // Every photo on screen, as the last scroll found them.
   const [onScreen, setOnScreen] = useState<number[]>([]);
   const [datesOpen, setDatesOpen] = useState(false);
@@ -343,7 +348,11 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     const newestFirst = sort !== "oldest";
     const target = datePage(jumpTimeline ?? timeline ?? { months: [], undated: 0 }, newestFirst, pageSize, key);
     if (target == null) {
-      setNotice(`${dateLabel(key)} is not in the dates shown. Tick it under Show only, or clear the date filter.`);
+      const then = (next: string[]) => () => { setNotice(null); changeDates(next); setPendingJump(key); };
+      setNotice(`${dateLabel(key)} is outside the dates shown.`, [
+        { label: `Show ${dateLabel(key)} too`, run: then([...dates, key]) },
+        { label: "Show all dates", run: then([]) },
+      ]);
       return;
     }
     if (sort !== "newest" && sort !== "oldest") {
@@ -354,6 +363,17 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     }
     setPage(target);
   };
+
+  // Go to the date once the filtered months that include it have arrived.
+  useEffect(() => {
+    if (!pendingJump) return;
+    const source = dates.length ? jumpTimeline : timeline;
+    const has = (m: string) => m === pendingJump || m.startsWith(`${pendingJump}-`);
+    if (source && (source.months.some((m) => has(m.month)) || (pendingJump === "none" && source.undated > 0))) {
+      setPendingJump(null);
+      jumpTo(pendingJump);
+    }
+  }, [pendingJump, jumpTimeline, timeline, dates]);
 
   const changePageSize = (size: number) => {
     // Keep the first photo on screen in view: land on the page that holds it.
@@ -533,7 +553,13 @@ function Library({ status, refreshStatus, onOpenSettings }: {
         )}
         <div className="gallery-pane">
           {loadError && <p className="error">{loadError}</p>}
-          {notice && <p className="notice" role="status">{notice} <button className="link" onClick={() => setNotice(null)}>Dismiss</button></p>}
+          {notice && (
+            <p className="notice" role="status">
+              {notice.text}
+              {notice.actions.map((a) => <span key={a.label}> <button className="link" onClick={a.run}>{a.label}</button> ·</span>)}
+              {" "}<button className="link" onClick={() => setNotice(null)}>Dismiss</button>
+            </p>
+          )}
           {focus && (
             <div className="focus-head">
               <strong>

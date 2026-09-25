@@ -124,6 +124,15 @@ with sync_playwright() as p:
     expect(dates.get_by_role("button", name="2023", exact=True)).to_be_visible()   # counts ignore the filter
     page.reload()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
+    # A date outside the filter says so and offers the fixes as buttons that apply them.
+    dates.get_by_role("button", name="2023", exact=True).click()
+    notice = page.locator(".notice")
+    expect(notice).to_contain_text("2023 is outside the dates shown.")
+    notice.get_by_role("button", name="Show 2023 too").click()
+    expect(page.locator(".dates-filter-line")).to_contain_text("2019, 2023")
+    expect(page.locator(".card-sub", has_text="2023").first).to_be_visible()
+    expect(notice).to_have_count(0)
+    dates.get_by_label("Show only 2023").uncheck()
     page.locator(".dates-filter-line").get_by_role("button", name="Show all dates").click()
     # Oldest first turns the tree over: the oldest year leads.
     year_names = dates.locator(".dates-tree > li > .dates-row .dates-name")

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run } from "../api";
 import { count, instant, plural } from "../format";
 import { modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
@@ -24,7 +24,7 @@ const STATUS_LABEL: Record<string, string> = {
 function failureHint(op: Operation): string | null {
   if (op.status !== "Failed") return null;
   const m = op.error_message ?? "";
-  if (op.run_level) return "A folder or the whole job, not one photo: nothing inside it was examined. Fix the folder's access, then index again.";
+  if (op.run_level) return "A folder or the whole job, not one photo: nothing inside it was examined. Fix the folder's access, then run an Index.";
   if (m.startsWith("Duplicate verification failed") && m.includes("ChecksumMismatch"))
     return "The two copies' contents differ, so the source was kept. Nothing was deleted.";
   if (m.startsWith("Duplicate verification failed"))
@@ -35,6 +35,9 @@ function failureHint(op: Operation): string | null {
   if (/differs from the catalog/.test(m)) return "The destination file is not what the catalog recorded. See the destination check.";
   return null;
 }
+
+// A hint that calls for an Index offers it, rather than sending the user to find it.
+const CALLS_FOR_INDEX = /run an index/i;
 
 function readFilters(): LogFilters {
   const p = new URLSearchParams(window.location.search);
@@ -144,7 +147,7 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
         return;
       }
       if (ids.photo_ids.length === 0) {
-        setNotice("None of these failures belongs to a photo, so there is nothing to retry. Fix the folder, then index again.");
+        setNotice("None of these failures belongs to a photo, so there is nothing to retry. Fix the folder's access, then run an Index.");
         return;
       }
       await api.startJob({ mode, file_ids: ids.photo_ids });
@@ -153,6 +156,21 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
       setNotice(e instanceof ApiError ? e.message : "The retry could not be started.");
     }
   };
+
+  const runIndex = async () => {
+    setNotice(null);
+    try {
+      await api.startJob({ mode: "index" });
+      setNotice("Index started. Its progress shows at the top of the page.");
+    } catch (e) {
+      setNotice(e instanceof ApiError ? e.message : "The Index could not be started.");
+    }
+  };
+  const indexButton = (
+    <button className="link" onClick={runIndex} disabled={jobRunning} title={jobRunning ? "A job is running." : undefined}>
+      Run an Index
+    </button>
+  );
 
   const failuresOnly = filters.status.length === 1 && filters.status[0] === "Failed";
   // With any filter other than the job, a job with nothing matching is left out;
@@ -220,7 +238,7 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
           ))}
         </div>
 
-        {notice && <p className="notice" role="status">{notice}</p>}
+        {notice && <p className="notice" role="status">{notice}{CALLS_FOR_INDEX.test(notice) && <> {indexButton}</>}</p>}
         {error && <p className="error">{error}</p>}
 
         {runs && totals && (
@@ -255,7 +273,7 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
                   <span className="job-count">{plural(matches, "entry", "entries")}</span>
                 </button>
                 {open && (
-                  <JobEntries run={run} filters={apiFilters} refreshKey={refreshKey} activePhoto={filters.photo}
+                  <JobEntries run={run} filters={apiFilters} refreshKey={refreshKey} activePhoto={filters.photo} indexButton={indexButton}
                               onPhoto={(id) => set({ photo: id })} onRetry={() => retry(run)} jobRunning={jobRunning} />
                 )}
               </li>
@@ -269,8 +287,9 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
 }
 
 // One job's entries under the page's filters, paged on their own.
-function JobEntries({ run, filters, refreshKey, activePhoto, onPhoto, onRetry, jobRunning }: {
+function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhoto, onRetry, jobRunning }: {
   run: RecordedRun;
+  indexButton: ReactNode;
   filters: LogFilters;
   refreshKey: number;
   activePhoto: number | null;
@@ -343,7 +362,7 @@ function JobEntries({ run, filters, refreshKey, activePhoto, onPhoto, onRetry, j
                     </td>
                     <td>
                       {op.error_message && <div className="message">{op.error_message}</div>}
-                      {hint && <div className="hint">{hint}</div>}
+                      {hint && <div className="hint">{hint}{CALLS_FOR_INDEX.test(hint) && <> {indexButton}</>}</div>}
                       {op.status === "Failed" && op.photo_status && op.photo_status !== "Failed" && (
                         <div className="muted">The photo is now {STATUS_LABEL[op.photo_status]?.toLowerCase() ?? op.photo_status}.</div>
                       )}

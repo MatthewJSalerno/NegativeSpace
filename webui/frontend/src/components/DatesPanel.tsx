@@ -76,7 +76,7 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJ
     <nav className="dates-panel" aria-label="Dates" ref={panel}>
       <div className="dates-head">
         <h2>Dates</h2>
-        <span className="dates-show-only" title="Tick years or months to show only those. Clear them all to show everything.">
+        <span className="dates-show-only" title="Check years or months to show only those. Uncheck them all to show everything.">
           Show only <span aria-hidden="true">ⓘ</span>
         </span>
       </div>

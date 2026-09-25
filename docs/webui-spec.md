@@ -121,7 +121,13 @@ Users can select individual files or multiple files across grid views to run tar
   only some are ticked. The filter is in the address, named above the gallery
   (**“Showing only June 2023, 2019 · Show all dates”**), and applies to the view
   counts; the tree's own counts ignore it, so an unticked month keeps its number. On a
-  narrow screen the panel opens from a **Dates** button.
+  narrow screen the panel opens from a **Dates** button. Going to a date the filter hides
+  says so and offers the fixes as buttons that apply them and then go there: **“December
+  2016 is outside the dates shown. Show December 2016 too · Show all dates”**.
+* **Fixes are buttons, not instructions.** Where a message names an action the screen can
+  take, the words are a button that takes it (**Run an Index** in a log hint), never
+  "tick it" or "go to X and click Y". Actions outside the app, such as fixing a folder's
+  permissions, stay as text.
 * **Unavailable selected photos:** keep the item visible in Show only selected with
   its reason. Built so far: a selected photo gone from the catalog is named there
   (**“1 selected photo is no longer in the catalog · Remove from the selection”**,
