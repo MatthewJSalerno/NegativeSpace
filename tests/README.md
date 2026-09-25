@@ -122,4 +122,6 @@ Not tests of the engine, but CI gates on them and they exit non-zero on failure:
 python3 tools/check-specs.py          # cross-references resolve, fences balance, tables are whole
 docker run --rm -v "$PWD":/app -w /app negativespace python3 tools/check-schema-drift.py
                                       # engine-spec 6.5 matches what the engine creates
+docker run --rm -v "$PWD":/app -w /app negativespace python3 tools/check-api-spec.py
+                                      # every API route is in api-spec.md, and nothing else is
 ```

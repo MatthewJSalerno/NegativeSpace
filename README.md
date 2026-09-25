@@ -11,6 +11,7 @@ Specifications are organized by component, not by release phase:
 | [project-spec.md](docs/project-spec.md) | Scope boundary, architecture, and what exists today — start here |
 | [engine-spec.md](docs/engine-spec.md) | `ns-engine.py`: hashing, metadata, placement, Copy-Verify-Delete, and the SQLite catalog it owns |
 | [webui-spec.md](docs/webui-spec.md) | The browser-facing half: jobs, selection, settings, logs, inspection, curation |
+| [api-spec.md](docs/api-spec.md) | The web API as implemented: every route, its parameters, responses and errors |
 | [TODO.md](TODO.md) | Durability claims that need enforcing, and work deliberately postponed |
 
 ## Docker Usage

@@ -10,7 +10,8 @@ interact through the web UI.
 
 Specifications are organized by component, not by release phase:
 `docs/project-spec.md` (scope and status), `docs/engine-spec.md` (the engine),
-`docs/webui-spec.md` (the web interface).
+`docs/webui-spec.md` (the web interface), `docs/api-spec.md` (the web API as built;
+`tools/check-api-spec.py` fails CI when a route is missing from it).
 
 ## Privacy: never publish library contents
 

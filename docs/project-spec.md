@@ -9,6 +9,8 @@ are, and what exists today. The detail lives in two component specifications:
 *   **[webui-spec.md](./webui-spec.md)** — the browser-facing half: job
     management, selection, settings, logs, inspection, and the curation
     workflows.
+*   **[api-spec.md](./api-spec.md)** — the web API as implemented: every route,
+    its parameters, responses and errors, kept in step with the code by CI.
 
 **These are organized by component, not by release phase.** Why not phases: a
 phase document mixes engine work that must happen first with UI work that belongs
