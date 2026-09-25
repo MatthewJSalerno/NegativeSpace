@@ -27,15 +27,17 @@ NegativeSpace runs as two containers, defined in `docker/compose.yml` (everythin
 | `web` | The screens, on port 8080. It passes everything under `/api` to `app`. |
 | `app` | The API and the engine it runs, with all the volumes. Its port is not published. |
 
-Set the four folders, then build and start both:
+Put your four folders in `docker/.env` once (copy `docker/.env.example`; the file is
+git-ignored), then build and start both:
 
 ```bash
-export SOURCE_DIR=/path/to/your/photos   # read-only unless you plan to Move
-export DEST_DIR=/path/to/organized
-export APPDATA_DIR=/path/to/appdata
-export BACKUP_DIR=/path/to/backups
+cp docker/.env.example docker/.env   # then edit the paths in docker/.env
 docker compose -f docker/compose.yml up -d --build
 ```
+
+Compose reads `docker/.env` by itself, in any terminal. Without it, compose stops with
+"required variable SOURCE_DIR is missing a value". Setting the same names with
+`export` also works, but only for that terminal.
 
 Open **http://localhost:8080** (or the host's address). `docker compose -f docker/compose.yml down` stops both.
 

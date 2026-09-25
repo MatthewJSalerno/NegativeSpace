@@ -29,3 +29,4 @@ todo-private.md
 pains-private.md
 webui/frontend/node_modules/
 webui/frontend/dist/
+docker/.env
