@@ -142,14 +142,22 @@ with sync_playwright() as p:
     expect(inspector).to_contain_text("Not in the photo's EXIF")
     expect(inspector).not_to_contain_text("File created")
     expect(inspector).to_contain_text("File modified")
+    expect(inspector).to_contain_text("As recorded when NegativeSpace first indexed this file")
     widths = inspector.locator("table.info").evaluate_all("ts => ts.map(t => Math.round(t.getBoundingClientRect().width))")
     assert len(widths) == 3 and len(set(widths)) == 1, f"the information tables differ in width: {widths}"
     # Show all metadata: every tag recorded, folded until asked for, with a filter.
     inspector.get_by_role("button", name=re.compile(r"^Show all metadata \(\d+ tags\)")).click()
     expect(inspector.locator(".meta-table")).to_contain_text("ImageWidth")
+    # Scrolled to the last tag, Hide stays in reach, below the panel's own title bar.
+    inspector.locator(".meta-table tr").last.scroll_into_view_if_needed()
+    hide = inspector.get_by_role("button", name="Hide all metadata")
+    expect(hide).to_be_in_viewport()
+    title_bottom = inspector.locator(".inspector-head").bounding_box()
+    title_bottom = title_bottom["y"] + title_bottom["height"]
+    assert hide.bounding_box()["y"] >= title_bottom - 1, "the metadata header slid under the panel's title bar"
     inspector.get_by_label("Filter the metadata").fill("ImageWidth")
     expect(inspector.locator(".meta-table tr")).to_have_count(1)
-    inspector.get_by_role("button", name="Hide all metadata").click()
+    hide.click()
     shot("3-inspector")
     no_errors_yet()
 
@@ -360,9 +368,15 @@ with sync_playwright() as p:
     # The quick filter for photos with no capture date in their EXIF.
     undated_filter = page.get_by_role("button", name=re.compile(r"^No capture date"))
     expect(undated_filter).to_contain_text(f"({PHOTOS - 2:,})")
+    views = page.locator(".views")
+    widths = views.locator("button").evaluate_all("bs => bs.map(b => Math.round(b.getBoundingClientRect().width))")
     undated_filter.click()
     expect(page).to_have_url(re.compile(r"undated=1"))
     expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS - 2:,} photos")
+    # The views keep their real counts, and the buttons their widths.
+    expect(views).to_contain_text(f"All photos ({PHOTOS:,})")
+    after = views.locator("button").evaluate_all("bs => bs.map(b => Math.round(b.getBoundingClientRect().width))")
+    assert after == widths, f"the view buttons changed width: {widths} -> {after}"
     undated_filter.click()
     expect(page).not_to_have_url(re.compile(r"undated=1"))
     # All photos resets every filter: No capture date, the dates and the search.

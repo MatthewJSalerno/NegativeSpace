@@ -149,7 +149,10 @@ The page, page size, sort, view, search, dates and open photo live in the URL.
 
 **No capture date** is a quick filter beside the views, with its count. It shows the
 photos whose EXIF has no date taken, which are filed under Undated by their file's
-modification date. It combines with the view and the search. **All photos** means every
+modification date. It combines with the view and the search, but the views' counts
+ignore it: turning it on leaves **All photos** at its real number, and the pager says how
+many are shown. Each view button keeps its width whatever its count, with room for
+**(999,999)** in even-width digits, so switching views never moves them. **All photos** means every
 photo: choosing it also clears No capture date, the date tree's Show only and the search,
 and it is not shown as chosen while any of them narrows the gallery. The other views keep
 them, to narrow within a view.
@@ -461,10 +464,15 @@ beside the photo instead of below it.
 ### 4.2 Split-Screen Photo Inspector Panel
 Clicking an image opens a right-side 50% detail panel.
 
+**The file's modification time** is labelled **"As recorded when NegativeSpace first
+indexed this file"**: the time the file carried when the first Index read it, not a date
+the photo was scanned.
+
 **Show all metadata.** The Index records every tag ExifTool reads (Pillow's when ExifTool
 finds nothing), not a curated subset; the Inspector's fields are a few of them. A folded
 **Show all metadata (n tags)** at the foot of the panel lists every one by name, with a
-filter box. It is read from the catalog, so it shows the photo as last indexed, and costs
+filter box; its header, with **Hide all metadata**, stays at the top of the panel while
+the tags scroll. It is read from the catalog, so it shows the photo as last indexed, and costs
 no file read.
 
 **Label what comes from the photo's own metadata as such.** The Inspector groups the

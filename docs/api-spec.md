@@ -114,7 +114,9 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
      "page": 1, "page_size": 60, "total": 1160,
      "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160}}
 
-`counts` apply the search, the `undated` filter and `date` to each view. `counts.undated` is how
+`counts` apply the search and `date` to each view, but not `undated`, which has its
+own count: turning No capture date on leaves All photos at its real number. `total` is
+what this request shows, every filter applied. `counts.undated` is how
 many photos in this view and search have no capture date, whether or not the filter is
 on, for the filter's label. The date sorts put undatable rows last.
 

@@ -189,11 +189,16 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
     date_sql, date_params = _dates_clause(dates)
     filtered, filtered_params = _filters(q, undated, dates)
     with connect(db_path) as conn:
+        # The views' counts ignore No capture date, which has its own count: turning it
+        # on must not make All photos read as if the library had shrunk.
         counts = {}
         for name, statuses in VIEWS.items():
             counts[name] = conn.execute(
-                f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(statuses)})" + filtered,
-                filtered_params).fetchone()[0]
+                f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(statuses)})" + search + date_sql,
+                tuple(search_params) + date_params).fetchone()[0]
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered,
+            filtered_params).fetchone()[0]
         # How many in this view, search and dates have no capture date, filter on or off, for its label.
         counts["undated"] = conn.execute(
             f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})"
@@ -203,7 +208,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             + filtered + f" ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?",
             filtered_params + (page_size, (page - 1) * page_size)).fetchall()
         items = _items(conn, rows)
-    return {"items": items, "page": page, "page_size": page_size, "total": counts[view], "counts": counts}
+    return {"items": items, "page": page, "page_size": page_size, "total": total, "counts": counts}
 
 
 def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, limit=SELECTION_MAX) -> dict:

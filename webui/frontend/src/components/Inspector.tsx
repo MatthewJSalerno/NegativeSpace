@@ -166,7 +166,7 @@ function Details({ detail: d }: { detail: PhotoDetail }) {
         <Row label="File modified">
           {epoch(d.file_modified)}
           <div className="muted">
-            As first scanned.{fallback ? " The photo's EXIF has no date taken, so this files it under Undated." : ""}
+            As recorded when NegativeSpace first indexed this file.{fallback ? " The photo's EXIF has no date taken, so this files it under Undated." : ""}
           </div>
         </Row>
       </Section>
@@ -221,14 +221,17 @@ function AllMetadata({ tags }: { tags: [string, unknown][] }) {
   const text = (v: unknown) => (v !== null && typeof v === "object" ? JSON.stringify(v) : String(v));
   return (
     <section className="info-section all-metadata">
-      <button className="link" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {open ? "Hide all metadata" : `Show all metadata (${tags.length} tags)`}
-      </button>
+      {/* Stays at the top of the panel while the tags scroll, so Hide is always at hand. */}
+      <div className={open ? "meta-head" : undefined}>
+        <button className="link" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? "Hide all metadata" : `Show all metadata (${tags.length} tags)`}
+        </button>
+        {open && <input type="search" placeholder="Filter tags" value={filter} onChange={(e) => setFilter(e.target.value)}
+                        aria-label="Filter the metadata" />}
+      </div>
       {open && (
         <>
           <p className="muted">Every tag recorded when the photo was last indexed, including the ones above.</p>
-          <input type="search" placeholder="Filter tags" value={filter} onChange={(e) => setFilter(e.target.value)}
-                 aria-label="Filter the metadata" />
           {shown.length === 0 ? <p className="muted">No tag matches “{filter}”.</p> : (
             <table className="meta-table">
               <tbody>

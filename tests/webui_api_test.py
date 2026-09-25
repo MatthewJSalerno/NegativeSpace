@@ -243,6 +243,8 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual((page["total"], page["counts"]["undated"]), (2, 1))
         only = self.client.get("/api/v1/photos", params={"undated": "true"}).json()
         self.assertEqual([i["filename"] for i in only["items"]], ["undated.jpg"])
+        self.assertEqual((only["total"], only["counts"]["all"]), (1, 2),
+                         "No capture date narrows what is shown, not the All photos count")
         self.assertEqual(self.client.get("/api/v1/photos/timeline", params={"undated": "true"}).json()["months"],
                          [{"month": "2020-09", "count": 1}])
         dated = next(i["id"] for i in page["items"] if i["filename"] == "dated.jpg")

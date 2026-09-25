@@ -478,13 +478,13 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
               <button key={v} className={v === view && !(v === "all" && narrowed) ? "active" : ""} disabled={!!focus}
                       onClick={() => chooseView(v)}>
-                {VIEW_LABEL[v]}{data ? ` (${count(data.counts[v])})` : ""}
+                <span>{VIEW_LABEL[v]}</span> <span className="view-count">{data ? `(${count(data.counts[v])})` : ""}</span>
               </button>
             ))}
             <Tip text="Photos whose EXIF has no date taken. They are filed under Undated, by their file's modification date.">
               <button className={`filter ${undated ? "active" : ""}`} aria-pressed={undated} disabled={!!focus}
                       onClick={() => { setUndated(!undated); setPage(1); }}>
-                No capture date{data ? ` (${count(data.counts.undated)})` : ""}
+                <span>No capture date</span> <span className="view-count">{data ? `(${count(data.counts.undated)})` : ""}</span>
               </button>
             </Tip>
           </nav>

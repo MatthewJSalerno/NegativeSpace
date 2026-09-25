@@ -184,7 +184,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 /* Inspector */
 .inspector {
   flex: 0 0 50%; min-width: 320px; background: var(--surface);
-  position: sticky; top: var(--header-h); height: calc(100vh - var(--header-h)); overflow-y: auto; padding-bottom: 140px;
+  position: sticky; top: var(--header-h); height: calc(100vh - var(--header-h)); overflow-y: auto; padding-bottom: 32px;
   container-type: inline-size;
 }
 /* Dragged wide, the details sit to the right of the photo. */
@@ -350,3 +350,9 @@ body.dragging { cursor: col-resize; user-select: none; }
 .meta-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; table-layout: fixed; }
 .meta-table th, .meta-table td { text-align: left; vertical-align: top; padding: 3px 6px; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
 .meta-table th { width: 42%; font-weight: normal; color: var(--muted); }
+.meta-head { position: sticky; top: var(--inspector-head-h, 46px); z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 8px 0; background: var(--surface); border-bottom: 1px solid var(--border); }
+.meta-head input { flex: 1 1 160px; }
+
+/* The view buttons keep their width as counts change: room for "(999,999)", even digits. */
+.views .view-count { display: inline-block; min-width: 9ch; text-align: left; font-variant-numeric: tabular-nums; }
