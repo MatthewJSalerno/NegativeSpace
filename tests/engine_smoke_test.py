@@ -9,7 +9,7 @@ are a few content-safety tests that import the engine in-process to inject a
 fault BETWEEN two steps of one function (after verification, before the
 source is deleted) — a window a subprocess offers no way to act inside.
 
-    docker build -t negativespace .
+    docker build -f docker/app.Dockerfile -t negativespace .
     docker run --rm -v "$PWD":/app -w /app negativespace python3 tests/engine_smoke_test.py
 
     # or directly, if deps are installed locally:

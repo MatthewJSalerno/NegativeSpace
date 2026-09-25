@@ -5,7 +5,8 @@
 #          so they share one container. Its port is not published.
 #
 # Set SOURCE_DIR, DEST_DIR, APPDATA_DIR and BACKUP_DIR to absolute host paths, then
-# run `docker compose up -d --build` and open http://localhost:8080.
+# run `docker compose -f docker/compose.yml up -d --build` from the repository root
+# (or `docker compose up -d --build` from this folder) and open http://localhost:8080.
 #
 # Source/destination must be distinct, non-overlapping directories.
 # BACKUP_DIR and APPDATA_DIR must also be distinct and non-overlapping:
@@ -14,9 +15,15 @@
 # /backups holds multiple catalog snapshots, NOT photos. The engine writes one
 # after every job that recorded changes and on --backup-now, and refuses (records a
 # failed backup) when /backups is missing, unmounted, unwritable or overlaps /appdata.
+# The project name is fixed, not taken from this folder's name ("docker"): containers
+# and volumes stay negativespace-* wherever the file lives or is started from.
+name: negativespace
+
 services:
   web:
-    build: webui/frontend
+    build:
+      context: ..
+      dockerfile: docker/web.Dockerfile
     image: negativespace-web
     ports:
       - "8080:8080"
@@ -25,7 +32,9 @@ services:
     restart: unless-stopped
 
   app:
-    build: .
+    build:
+      context: ..
+      dockerfile: docker/app.Dockerfile
     image: negativespace
     environment:
       PUID: ${PUID:-1000}

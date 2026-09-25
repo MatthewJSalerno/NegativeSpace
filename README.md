@@ -19,7 +19,7 @@ Specifications are organized by component, not by release phase:
 
 ### Start the web interface
 
-NegativeSpace runs as two containers, defined in `docker-compose.yml`:
+NegativeSpace runs as two containers, defined in `docker/compose.yml` (everything Docker lives in `docker/`):
 
 | Container | Holds |
 | --- | --- |
@@ -33,22 +33,22 @@ export SOURCE_DIR=/path/to/your/photos   # read-only unless you plan to Move
 export DEST_DIR=/path/to/organized
 export APPDATA_DIR=/path/to/appdata
 export BACKUP_DIR=/path/to/backups
-docker compose up -d --build
+docker compose -f docker/compose.yml up -d --build
 ```
 
-Open **http://localhost:8080** (or the host's address). `docker compose down` stops both.
+Open **http://localhost:8080** (or the host's address). `docker compose -f docker/compose.yml down` stops both.
 
 - **First visit:** there is no catalog yet, so the page offers to create one, then shows the settings. Save them to reach the library.
 - **Index** reads your photos into the catalog. It moves and copies nothing.
 - **Copy** or **Move** everything not yet organized, or select photos first. Both ask before they start.
 - The drawer at the bottom shows a running job's progress and lets you cancel it. Closing the browser does not stop a job.
-- **Move needs a writable source.** It deletes each source file after its copy is verified, so with a read-only source every file in a Move fails, although nothing is lost. To Move, set `read_only: false` on the source volume in `docker-compose.yml`.
-- `docker compose down` cancels a running job cleanly; the compose file allows five minutes for a large file to finish copying first.
+- **Move needs a writable source.** It deletes each source file after its copy is verified, so with a read-only source every file in a Move fails, although nothing is lost. To Move, set `read_only: false` on the source volume in `docker/compose.yml`.
+- Stopping the containers cancels a running job cleanly; the compose file allows five minutes for a large file to finish copying first.
 
 The sections below describe the engine's modes and options in more detail. The commands that run the engine directly are for development and debugging; the web interface runs the same engine for you. They use the `app` image:
 
 ```bash
-docker build -t negativespace .
+docker build -f docker/app.Dockerfile -t negativespace .
 ```
 
 ### Operations Summary
@@ -167,7 +167,7 @@ docker run --rm --stop-timeout 300 \
   Your photos are not at risk if you do it — a source is only ever deleted after the engine doing the deleting has verified, live, the copy it made itself. What you get instead is unexplained failures: crash recovery in one catalog can delete a partial file the other is still writing, both can pick the same free filename and one loses the race, and neither knows about the other's files, so the same photo can be delivered twice under different names. Each of those ends as a recorded failure or a redundant copy, never a lost original.
 
   Use one `/appdata` per destination. Several *sources* feeding one destination is fine — that's one catalog with several runs, which is exactly what it's built for.
-- **Cancelling a run.** `docker stop <container>` sends the engine a cancel: it finishes the file it is copying, records every photo it did not reach as `Cancelled`, takes a catalog backup, and settles the run `Cancelled`. Docker waits only **10 seconds** before killing the container by default, and one large file over a network share can take longer than that. The examples above pass `--stop-timeout 300`, which raises that wait for this container, and `docker-compose.yml` sets `stop_grace_period: 5m`. A run killed before it settles is not lost: it is recorded `Interrupted` at the next start and its files are reconciled, but it gets no backup until you run `--backup-now` or the next job that records changes.
+- **Cancelling a run.** `docker stop <container>` sends the engine a cancel: it finishes the file it is copying, records every photo it did not reach as `Cancelled`, takes a catalog backup, and settles the run `Cancelled`. Docker waits only **10 seconds** before killing the container by default, and one large file over a network share can take longer than that. The examples above pass `--stop-timeout 300`, which raises that wait for this container, and `docker/compose.yml` sets `stop_grace_period: 5m`. A run killed before it settles is not lost: it is recorded `Interrupted` at the next start and its files are reconciled, but it gets no backup until you run `--backup-now` or the next job that records changes.
 - **If a run appears stuck.** Cancellation is checked between files, and between batches during a scan, so a worker blocked indefinitely — an unresponsive network mount, a native decoder wedged on a malformed file — can stall a scan with no deadline. The symptom is progress lines stopping while the container stays alive.
 
   `docker stop` is the remedy, and it is safe: it escalates to `SIGKILL`, the kernel releases the lock immediately, and the next run marks the interrupted run `Interrupted` and settles any file left mid-operation. Nothing needs cleaning up by hand.

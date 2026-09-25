@@ -1,5 +1,5 @@
 """The NegativeSpace HTTP API. The screens are served by the web container, which
-passes /api here (docker-compose.yml, webui/frontend/nginx.conf).
+passes /api here (docker/compose.yml, docker/nginx.conf).
 
 Run with: uvicorn webui.app:app --host 0.0.0.0 --port 8000 (from the repository root).
 """

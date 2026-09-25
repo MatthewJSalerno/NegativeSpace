@@ -1,9 +1,10 @@
 # NegativeSpace
 
-A photo-organizing engine with a web UI, run as two containers (`docker-compose.yml`):
+A photo-organizing engine with a web UI, run as two containers (`docker/compose.yml`):
 `app` holds `ns-engine.py` and the FastAPI layer that runs it (`webui/app.py`,
 `catalog.py`, `jobs.py`); `web` serves the React + TypeScript screens
-(`webui/frontend`, its own Dockerfile) with nginx and passes `/api` to `app`. CLI args are the internal
+(`webui/frontend`) with nginx and passes `/api` to `app`. All Docker files live in
+`docker/`; both images build from the repository root. CLI args are the internal
 calling convention between the two — they stay documented and usable, but end users
 interact through the web UI.
 

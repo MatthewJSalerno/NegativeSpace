@@ -1,0 +1,9 @@
+# The app image needs the engine, the API and its own files; not the frontend,
+# git history, private notes or local build output.
+.git
+webui/frontend
+**/__pycache__
+*-private.md
+ai-memory
+ai-reviews
+REVIEW_LOG.md

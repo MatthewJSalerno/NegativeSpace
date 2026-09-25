@@ -3,7 +3,7 @@
 # mounts. Runs on the host, since it needs docker; the smoke suite runs inside
 # the container, after the entrypoint has already done its work.
 #
-#   docker build -t negativespace . && sh tests/entrypoint_test.sh
+#   docker build -f docker/app.Dockerfile -t negativespace . && sh tests/entrypoint_test.sh
 set -eu
 
 IMAGE=${IMAGE:-negativespace}
