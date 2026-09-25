@@ -5,14 +5,16 @@ Run with: uvicorn webui.app:app --host 0.0.0.0 --port 8000 (from the repository 
 """
 import asyncio
 import contextlib
+import csv
+import io
 import json
 import sqlite3
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import Body, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.exception_handlers import http_exception_handler
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 import ns_db
@@ -159,6 +161,74 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         return JSONResponse({"availability": record[1] if record and record[1] != "present" else "pending",
                              "failure_category": record[2] if record else None,
                              "failure_detail": record[3] if record else None}, status_code=404)
+
+    # -- The log and the Error Center (webui-spec 5.3, 5.4) ------------------
+
+    def _log_filters(run: Optional[List[int]], status: Optional[List[str]], photo: Optional[int],
+                     q: Optional[str], since: Optional[str], until: Optional[str]) -> dict:
+        unknown = [s for s in status or [] if s not in ns_db.OPERATION_STATUSES]
+        if unknown:
+            raise HTTPException(400, {"error": "invalid_request", "message": f"Unknown status: {', '.join(unknown)}."})
+        return {"runs": run or None, "statuses": status or None, "photo": photo, "q": q or None,
+                "since": since or None, "until": until or None}
+
+    @app.get("/api/v1/operations")
+    def get_operations(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
+                       photo: Optional[int] = None, q: Optional[str] = None, since: Optional[str] = None,
+                       until: Optional[str] = None, page: int = Query(1, ge=1),
+                       page_size: int = Query(100, ge=1, le=catalog.LOG_PAGE_MAX)):
+        return catalog.list_operations(cfg.db_path, page=page, page_size=page_size,
+                                       **_log_filters(run, status, photo, q, since, until))
+
+    @app.get("/api/v1/operations/export")
+    def export_operations(format: str = "csv", run: Optional[List[int]] = Query(None),
+                          status: Optional[List[str]] = Query(None), photo: Optional[int] = None,
+                          q: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None):
+        """The whole filtered log as CSV or JSON, streamed, oldest first."""
+        if format not in ("csv", "json"):
+            raise HTTPException(400, {"error": "invalid_request", "message": "format is csv or json."})
+        filters = _log_filters(run, status, photo, q, since, until)
+        with catalog.connect(cfg.db_path):               # refuse with 409 before streaming, not midway
+            pass
+        columns = ["id", "timestamp", "run_id", "mode", "status", "source_path", "dest_path", "error_message",
+                   "photo_id", "photo_status", "recovery", "run_level"]
+
+        def rows_csv():
+            out = io.StringIO()
+            writer = csv.DictWriter(out, fieldnames=columns, extrasaction="ignore")
+            writer.writeheader()
+            for item in catalog.iter_operations(cfg.db_path, **filters):
+                writer.writerow(item)
+                if out.tell() > 64_000:
+                    yield out.getvalue()
+                    out.seek(0)
+                    out.truncate()
+            yield out.getvalue()
+
+        def rows_json():
+            yield "["
+            for n, item in enumerate(catalog.iter_operations(cfg.db_path, **filters)):
+                yield ("," if n else "") + json.dumps({k: item[k] for k in columns})
+            yield "]"
+
+        name = f"negativespace-log.{format}"
+        return StreamingResponse(rows_csv() if format == "csv" else rows_json(),
+                                 media_type="text/csv" if format == "csv" else "application/json",
+                                 headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+    @app.get("/api/v1/operations/photo-ids")
+    def operation_photo_ids(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
+                            photo: Optional[int] = None, q: Optional[str] = None, since: Optional[str] = None,
+                            until: Optional[str] = None):
+        """The distinct photos behind the filtered operations, for Retry. More than the
+        job limit is reported, never cut silently."""
+        from .jobs import MAX_FILE_IDS
+        ids = catalog.operation_photo_ids(cfg.db_path, MAX_FILE_IDS, **_log_filters(run, status, photo, q, since, until))
+        return {"photo_ids": ids[:MAX_FILE_IDS], "more_than_limit": len(ids) > MAX_FILE_IDS, "limit": MAX_FILE_IDS}
+
+    @app.get("/api/v1/runs")
+    def get_runs(limit: int = Query(100, ge=1, le=500)):
+        return {"runs": catalog.list_runs(cfg.db_path, limit=limit)}
 
     # -- Jobs -----------------------------------------------------------------
 

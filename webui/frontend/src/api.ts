@@ -135,6 +135,49 @@ export interface Settings {
   job_active: boolean;
 }
 
+export interface Operation {
+  id: number;
+  run_id: number;
+  mode: string | null;
+  photo_id: number | null;
+  timestamp: string;
+  source_path: string | null;
+  dest_path: string | null;
+  status: string;
+  error_message: string | null;
+  photo_status: string | null;
+  recovery: boolean;
+  run_level: boolean;
+}
+
+export interface OperationPage {
+  items: Operation[];
+  page: number;
+  page_size: number;
+  total: number;
+  status_counts: Record<string, number>;
+}
+
+export interface LogFilters {
+  run: number[];
+  status: string[];
+  photo: number | null;
+  q: string;
+  since: string;
+  until: string;
+}
+
+export function logQuery(f: LogFilters): URLSearchParams {
+  const p = new URLSearchParams();
+  f.run.forEach((r) => p.append("run", String(r)));
+  f.status.forEach((s) => p.append("status", s));
+  if (f.photo != null) p.set("photo", String(f.photo));
+  if (f.q) p.set("q", f.q);
+  if (f.since) p.set("since", f.since);
+  if (f.until) p.set("until", f.until);
+  return p;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public body: Record<string, unknown>) {
     super(message);
@@ -179,6 +222,20 @@ export const api = {
     if (params.undated) query.set("undated", "true");
     return request<Timeline>("GET", `/api/v1/photos/timeline?${query}`);
   },
+  operations: (f: LogFilters, page: number, pageSize: number) => {
+    const p = logQuery(f);
+    p.set("page", String(page));
+    p.set("page_size", String(pageSize));
+    return request<OperationPage>("GET", `/api/v1/operations?${p}`);
+  },
+  exportUrl: (f: LogFilters, format: "csv" | "json") => {
+    const p = logQuery(f);
+    p.set("format", format);
+    return `/api/v1/operations/export?${p}`;
+  },
+  retryIds: (f: LogFilters) =>
+    request<{ photo_ids: number[]; more_than_limit: boolean; limit: number }>("GET", `/api/v1/operations/photo-ids?${logQuery(f)}`),
+  runs: () => request<{ runs: Run[] }>("GET", "/api/v1/runs"),
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   startJob: (body: { mode: "index" | "copy" | "move"; file_ids?: number[]; source_subdir?: string }) =>
     request<Run>("POST", "/api/v1/jobs/start", body),

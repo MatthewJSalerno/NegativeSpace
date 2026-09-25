@@ -793,6 +793,12 @@ Users can view exact system error strings (e.g., `PermissionError`, `ChecksumMis
 **No dedicated retry subsystem.** There is no "Retry Item" / "Retry All Failed" backend endpoint and no `retry_count` tracking. A failed file's `photos.status` is reset to `Pending` automatically the next time it's re-indexed (a plain re-scan, full or `--file-ids`-scoped), so retrying means explicitly submitting a new operation. Successfully copied files remain in source; successfully moved files normally do not. Do not promise that rerunning requires no scanning or verification. The web UI's equivalent of "retry" is selecting the photos associated with failed attempts and re-issuing the same Move/Copy operation via `POST /api/v1/jobs/start` with their IDs in `file_ids` — no new endpoint required. Take those IDs from the failed `operations` rows rather than from `photos.status`, deduplicating when several attempts reference one photo, and do not require the photo's current status to be `Failed`: a duplicate-verification failure stays `Duplicate` and is retried by Move's duplicate cleanup on the next run. Retrying does not by itself fix a content mismatch or an unreadable file, so the UI should not promise that it will.
 
 ### 5.4 Operations Audit Log (`/logs`)
+**Built** (`api-spec.md` §5a). The Library and Logs pages are switched from the toolbar. A finished
+job's banner links to its log and, when it failed, to **View failures**. The Inspector's
+**History** opens the log for that photo. Each failure carries a plain hint drawn from its
+recorded reason, and **Retry** runs the same mode again over the photos behind the shown
+failures.
+
 A searchable table logging every operation performed by the engine:
 * **Columns:** Timestamp, Mode (`MOVE`/`COPY`), Source Path, Destination Path, Status (`Completed`, `Copied`, `Removed_Duplicate`, `Found_At_Destination`, `Failed`), and System Error Message.
 * **Controls:** Filter by photo lineage, date, status, run, or free-text search;
@@ -1050,13 +1056,8 @@ Thumbnails are not a column on `photos`: they belong to content and live in
 
 **The implemented API is specified in [`api-spec.md`](./api-spec.md)**: catalog status and creation, settings, the gallery listing and timeline, photo details, thumbnails and previews, starting and cancelling jobs, runs and their derived outcome, and the live job feed. CI keeps it in step with the routes in `webui/app.py`. What follows are endpoints designed here and not built yet; each moves to `api-spec.md` when it is.
 
-GET /api/v1/runs/{run_id}/operations
-
-Returns the full `operations` history for a run (`SELECT * FROM operations WHERE run_id = ? ORDER BY id`). Used for the reconnect replay in §4.1/§5.2 — always called *after* subscribing to the run's live WebSocket stream, with live events buffered and deduplicated by `id`, and not just after a detected disconnect, so the log is complete regardless of when the client first connected.
-
-GET /api/v1/operations?status=Failed
-
-Fetches failed attempts for the Error Center (§5.3), filtering on `operations.status`. Returns the operation ID, photo ID (nullable), run ID, timestamp, source and destination paths, status, error message, and the associated photo's current status as a separate field — the two are not interchangeable, per §5.3. Left-join the photo so a missing row cannot hide a failure. Supports run and date filters with stable ordering for pagination.
+The run history and the Error Center's failures are built: `GET /api/v1/operations` with
+`run` and `status` filters (`api-spec.md` §5a).
 
 GET /api/v1/stats/duplicates
 

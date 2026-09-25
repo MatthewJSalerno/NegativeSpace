@@ -7,6 +7,8 @@ import { Inspector } from "./components/Inspector";
 import { FinishedBanner, JobDrawer } from "./components/JobDrawer";
 import { JumpToDate, PAGE_SIZES, Pager } from "./components/Pager";
 import { Tip } from "./components/Tip";
+import { LogsPage } from "./components/LogsPage";
+import { follow, usePath } from "./nav";
 import { SettingsDialog } from "./components/SettingsDialog";
 
 // Neither side of the gallery/Inspector divider gets narrower than this.
@@ -36,6 +38,7 @@ export function App() {
   const [statusError, setStatusError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [firstRunDone, setFirstRunDone] = useState(false);
+  const path = usePath();
 
   const loadStatus = useCallback(() =>
     api.status().then((s) => { setStatus(s); setStatusError(null); },
@@ -52,7 +55,9 @@ export function App() {
   }
   return (
     <>
-      <Library status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />
+      {path === "/logs"
+        ? <LogsPage onOpenSettings={() => setSettingsOpen(true)} />
+        : <Library status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />}
       {settingsOpen && <SettingsDialog firstRun={false} onClose={() => setSettingsOpen(false)} onSaved={() => undefined} />}
     </>
   );
@@ -287,6 +292,10 @@ function Library({ status, refreshStatus, onOpenSettings }: {
       <header className="toolbar" ref={header}>
         <div className="toolbar-row">
           <h1 className="brand">NegativeSpace</h1>
+          <nav className="pages" aria-label="Pages">
+            <a className="button-link active" href="/" onClick={follow} aria-current="page">Library</a>
+            <a className="button-link" href="/logs" onClick={follow}>Logs</a>
+          </nav>
           <nav className="views" aria-label="Views">
             {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
               <button key={v} className={v === view ? "active" : ""} onClick={() => { setView(v); setPage(1); }}>

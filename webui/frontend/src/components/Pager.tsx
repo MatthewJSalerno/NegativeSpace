@@ -23,13 +23,16 @@ function pageList(page: number, pages: number): (number | "gap")[] {
 // Paging for a large library: first/last, numbered pages, a go-to box, and a page
 // size. Pages rather than endless scrolling, because selection is defined per page
 // (webui-spec 2) and a page number is a place a refresh can return to.
-export function Pager({ page, pages, total, pageSize, onPage, onPageSize }: {
+export function Pager({ page, pages, total, pageSize, onPage, onPageSize, sizes = PAGE_SIZES, noun = "photo", nouns }: {
   page: number;
   pages: number;
   total: number;
   pageSize: number;
   onPage: (p: number) => void;
   onPageSize: (n: number) => void;
+  sizes?: number[];
+  noun?: string;
+  nouns?: string;
 }) {
   const [goto, setGoto] = useState("");
   const go = () => {
@@ -52,10 +55,10 @@ export function Pager({ page, pages, total, pageSize, onPage, onPageSize }: {
                placeholder="Page" aria-label="Go to page" inputMode="numeric" />
         <button onClick={go}>Go</button>
       </span>
-      <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} aria-label="Photos per page">
-        {PAGE_SIZES.map((n) => <option key={n} value={n}>{n} per page</option>)}
+      <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} aria-label={`${(nouns ?? `${noun}s`)[0].toUpperCase()}${(nouns ?? `${noun}s`).slice(1)} per page`}>
+        {sizes.map((n) => <option key={n} value={n}>{n} per page</option>)}
       </select>
-      <span className="muted">{plural(total, "photo")}</span>
+      <span className="muted">{plural(total, noun, nouns)}</span>
     </nav>
   );
 }

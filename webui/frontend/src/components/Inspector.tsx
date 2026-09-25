@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api, ApiError, type PhotoDetail } from "../api";
 import { bytes, epoch, isFallbackDate } from "../format";
+import { follow, logUrl } from "../nav";
 import { Thumb } from "./Thumb";
 
 const STATUS: Record<string, string> = {
@@ -78,6 +79,8 @@ export function Inspector({ id, width, onClose, onStep }: {
         <button onClick={() => onStep(-1)} aria-label="Previous photo">‹</button>
         <h2 title={detail?.filename}>{detail?.filename ?? "…"}</h2>
         <button onClick={() => onStep(1)} aria-label="Next photo">›</button>
+        <a className="button-link" href={logUrl({ photo: id })} onClick={follow}
+           title="Everything recorded for this photo, across jobs">History</a>
         <button onClick={onClose} aria-label="Close">✕</button>
       </header>
       <div className="inspector-main">
