@@ -241,7 +241,8 @@ One page, newest first (`page`, and `page_size` from 1 to 500, default 100):
     {"items": [{"id", "run_id", "mode", "photo_id", "timestamp", "source_path", "dest_path",
                 "status", "error_message", "photo_status", "recovery", "run_level"}, ...],
      "page": 1, "page_size": 100, "total": 4,
-     "status_counts": {"Pending": 2, "Copied": 1, "Failed": 1}}
+     "status_counts": {"Pending": 2, "Copied": 1, "Failed": 1},
+     "run_counts": {"1": 2, "2": 2}}
 
 *   **Failures are attempts.** An operation's `status` is the attempt's outcome, and
     `photo_status` is the photo's status now. The two can disagree: a duplicate whose
@@ -251,6 +252,8 @@ One page, newest first (`page`, and `page_size` from 1 to 500, default 100):
 *   **`recovery`** marks a row that settles an earlier run's interrupted work.
 *   **`status_counts`** applies every filter except `status`, so each status button can
     show what it would find.
+*   **`run_counts`** applies every filter and counts matches per job, keyed by run id,
+    so the log can list only the jobs that match and say how many entries each holds.
 
 ### `GET /api/v1/operations/export`
 

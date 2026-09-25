@@ -460,7 +460,8 @@ def _op_dict(row) -> dict:
 
 def list_operations(db_path: Path, *, page=1, page_size=100, **filters) -> dict:
     """One page of the log, newest first, with counts per status for the same filters
-    minus the status filter, so the status buttons can show what each would find."""
+    minus the status filter, so the status buttons can show what each would find, and
+    counts per job for all of them, so the log can list the jobs that match."""
     if page < 1 or not 1 <= page_size <= LOG_PAGE_MAX:
         raise ValueError(f"page must be at least 1 and page_size between 1 and {LOG_PAGE_MAX}")
     where, params = _operations_where(**filters)
@@ -472,8 +473,10 @@ def list_operations(db_path: Path, *, page=1, page_size=100, **filters) -> dict:
                             params + [page_size, (page - 1) * page_size]).fetchall()
         counts = dict(conn.execute(f"SELECT o.status, COUNT(*) {_OP_FROM}{count_where} GROUP BY o.status",
                                    count_params).fetchall())
+        per_run = {str(run): n for run, n in conn.execute(
+            f"SELECT o.run_id, COUNT(*) {_OP_FROM}{where} GROUP BY o.run_id", params)}
     return {"items": [_op_dict(r) for r in rows], "page": page, "page_size": page_size, "total": total,
-            "status_counts": counts}
+            "status_counts": counts, "run_counts": per_run}
 
 
 def iter_operations(db_path: Path, **filters):

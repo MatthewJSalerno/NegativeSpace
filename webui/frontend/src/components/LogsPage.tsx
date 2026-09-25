@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run } from "../api";
 import { count, instant, plural } from "../format";
-import { modeName, useJobFeed } from "../jobs";
+import { modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
 import { follow } from "../nav";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
 import { Pager } from "./Pager";
 
 const LOG_SIZES = [100, 250, 500];
+// Jobs listed in the log, newest first; the API's own cap.
+const RUNS_LISTED = 500;
 
 // How the log names each recorded status. A scan records Pending for a file it
 // catalogued and Duplicate for an exact copy.
@@ -34,18 +36,15 @@ function failureHint(op: Operation): string | null {
   return null;
 }
 
-function readFilters(): { filters: LogFilters; page: number } {
+function readFilters(): LogFilters {
   const p = new URLSearchParams(window.location.search);
   return {
-    filters: {
-      run: p.getAll("run").map(Number).filter((n) => n > 0),
-      status: p.getAll("status"),
-      photo: p.get("photo") ? Number(p.get("photo")) : null,
-      q: p.get("q") ?? "",
-      since: p.get("since") ?? "",
-      until: p.get("until") ?? "",
-    },
-    page: Math.max(1, Number(p.get("page")) || 1),
+    run: p.getAll("run").map(Number).filter((n) => n > 0),
+    status: p.getAll("status"),
+    photo: p.get("photo") ? Number(p.get("photo")) : null,
+    q: p.get("q") ?? "",
+    since: p.get("since") ?? "",
+    until: p.get("until") ?? "",
   };
 }
 
@@ -56,25 +55,32 @@ function dayStart(date: string, plusDays = 0): string {
   return new Date(y, m - 1, d + plusDays).toISOString();
 }
 
+// A job the catalog has recorded; only those have entries to list.
+type RecordedRun = Run & { id: number };
+
+function retryModeOf(run: Run): "index" | "copy" | "move" | null {
+  return run.mode === "INDEX" ? "index" : run.mode === "COPY" ? "copy" : run.mode === "MOVE" ? "move" : null;
+}
+
 // The operations log and, filtered to failures, the Error Center (webui-spec 5.3,
-// 5.4). Everything is in the address bar, so a banner link, the Inspector's History
-// button or a bookmark opens exactly this view.
+// 5.4), grouped by job: each job is one line until opened. Filters are in the
+// address bar, so a banner link, the Inspector's History button or a bookmark opens
+// exactly this view; a link to one job opens with that job expanded.
 export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
   const initial = useMemo(readFilters, []);
-  const [filters, setFilters] = useState<LogFilters>(initial.filters);
+  const [filters, setFilters] = useState<LogFilters>(initial);
   const [dates, setDates] = useState(() => {
     const p = new URLSearchParams(window.location.search);
     return { from: p.get("from") ?? "", to: p.get("to") ?? "" };
   });
-  const [search, setSearch] = useState(initial.filters.q);
-  const [page, setPage] = useState(initial.page);
-  const [pageSize, setPageSize] = useState(LOG_SIZES[0]);
-  const [data, setData] = useState<OperationPage | null>(null);
-  const [runs, setRuns] = useState<Run[]>([]);
+  const [search, setSearch] = useState(initial.q);
+  const [totals, setTotals] = useState<OperationPage | null>(null);
+  const [runs, setRuns] = useState<RecordedRun[] | null>(null);
+  const [expanded, setExpanded] = useState<Set<number>>(() => new Set(initial.run.length === 1 ? initial.run : []));
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [dismissedId, setDismissedId] = useState<number | null>(null);
+  const [dismissedId, dismissRun] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
   const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
 
@@ -82,7 +88,7 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
 
   useEffect(() => {
     const t = window.setTimeout(() => {
-      if (search.trim() !== filters.q) { setFilters((f) => ({ ...f, q: search.trim() })); setPage(1); }
+      if (search.trim() !== filters.q) setFilters((f) => ({ ...f, q: search.trim() }));
     }, 300);
     return () => window.clearTimeout(t);
   }, [search, filters.q]);
@@ -95,59 +101,67 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
     if (filters.q) p.set("q", filters.q);
     if (dates.from) p.set("from", dates.from);
     if (dates.to) p.set("to", dates.to);
-    if (page > 1) p.set("page", String(page));
     window.history.replaceState(null, "", `/logs${p.size ? `?${p}` : ""}`);
-  }, [filters, dates, page]);
+  }, [filters, dates]);
 
+  // The counts only: which jobs match, and how many entries each and each status holds.
   useEffect(() => {
     let live = true;
-    api.operations(apiFilters, page, pageSize).then(
-      (d) => { if (live) { setData(d); setError(null); } },
+    api.operations(apiFilters, 1, 1).then(
+      (d) => { if (live) { setTotals(d); setError(null); } },
       (e) => live && setError(e instanceof ApiError ? e.message : "The log could not be loaded."),
     );
     return () => { live = false; };
-  }, [filters, dates, page, pageSize, refreshKey]);
+  }, [filters, dates, refreshKey]);
 
   useEffect(() => {
-    api.runs().then((r) => setRuns(r.runs), () => setRuns([]));
+    api.runs(RUNS_LISTED).then((r) => setRuns(r.runs.filter((run): run is RecordedRun => run.id != null)), () => setRuns([]));
   }, [refreshKey]);
 
   // A job finishing changes the log.
   const lastKey = jobs.last && !jobRunning ? `${jobs.last.id}:${jobs.last.status}` : null;
   useEffect(() => { if (lastKey) setRefreshKey((k) => k + 1); }, [lastKey]);
 
-  const set = (patch: Partial<LogFilters>) => { setFilters((f) => ({ ...f, ...patch })); setPage(1); };
+  const set = (patch: Partial<LogFilters>) => setFilters((f) => ({ ...f, ...patch }));
   const toggleStatus = (s: string) =>
     set({ status: filters.status.includes(s) ? filters.status.filter((x) => x !== s) : [...filters.status, s] });
+  const toggleRun = (id: number) => setExpanded((cur) => {
+    const next = new Set(cur);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
-  const failuresOnly = filters.status.length === 1 && filters.status[0] === "Failed";
-  const oneRun = filters.run.length === 1 ? runs.find((r) => r.id === filters.run[0]) : undefined;
-  const retryMode = oneRun?.mode === "INDEX" ? "index" : oneRun?.mode === "COPY" ? "copy" : oneRun?.mode === "MOVE" ? "move" : null;
-
-  // Retrying is a new job over the photos behind these failures, taken from the
+  // Retrying is a new job over the photos behind one job's failures, taken from the
   // failed operations themselves (webui-spec 5.3). There is no separate retry.
-  const retry = async () => {
-    if (!retryMode || !oneRun) return;
+  const retry = async (run: RecordedRun) => {
+    const mode = retryModeOf(run);
+    if (!mode) return;
     setNotice(null);
     try {
-      const ids = await api.retryIds(apiFilters);
+      const ids = await api.retryIds({ ...apiFilters, run: [run.id], status: ["Failed"] });
       if (ids.more_than_limit) {
-        setNotice(`More than ${count(ids.limit)} photos failed. Retry them in smaller groups, or run the ${modeName(oneRun.mode)} again for everything.`);
+        setNotice(`More than ${count(ids.limit)} photos failed. Retry them in smaller groups, or run the ${modeName(run.mode)} again for everything.`);
         return;
       }
       if (ids.photo_ids.length === 0) {
         setNotice("None of these failures belongs to a photo, so there is nothing to retry. Fix the folder, then index again.");
         return;
       }
-      await api.startJob({ mode: retryMode, file_ids: ids.photo_ids });
-      setNotice(`Retrying ${plural(ids.photo_ids.length, "photo")} as a new ${modeName(oneRun.mode)}. A retry does not by itself fix an unreadable file or a content mismatch.`);
+      await api.startJob({ mode, file_ids: ids.photo_ids });
+      setNotice(`Retrying ${plural(ids.photo_ids.length, "photo")} as a new ${modeName(run.mode)}. A retry does not by itself fix an unreadable file or a content mismatch.`);
     } catch (e) {
       setNotice(e instanceof ApiError ? e.message : "The retry could not be started.");
     }
   };
 
-  const pages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
-  const statuses = Object.keys(STATUS_LABEL).filter((s) => (data?.status_counts[s] ?? 0) > 0 || filters.status.includes(s));
+  const failuresOnly = filters.status.length === 1 && filters.status[0] === "Failed";
+  // With any filter other than the job, a job with nothing matching is left out;
+  // without one, every job is listed, including one that recorded nothing.
+  const narrowed = filters.status.length > 0 || filters.photo != null || !!filters.q || !!dates.from || !!dates.to;
+  const groups = (runs ?? []).filter((r) =>
+    (filters.run.length === 0 || filters.run.includes(r.id)) && (!narrowed || (totals?.run_counts[String(r.id)] ?? 0) > 0));
+  const statuses = Object.keys(STATUS_LABEL).filter((s) => (totals?.status_counts[s] ?? 0) > 0 || filters.status.includes(s));
+  const allOpen = groups.length > 0 && groups.every((r) => expanded.has(r.id));
 
   return (
     <div className="app">
@@ -163,7 +177,7 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
           </div>
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
-        <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={setDismissedId} />
+        <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
       </header>
 
       <main className="logs">
@@ -183,27 +197,13 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
         )}
 
         <div className="log-filters">
-          <label className="field-inline">
-            <span>Job</span>
-            <select value={filters.run.length === 1 ? String(filters.run[0]) : filters.run.length ? "several" : ""}
-                    onChange={(e) => set({ run: e.target.value && e.target.value !== "several" ? [Number(e.target.value)] : [] })}
-                    aria-label="Job">
-              <option value="">All jobs</option>
-              {filters.run.length > 1 && <option value="several">{count(filters.run.length)} jobs</option>}
-              {runs.map((r) => (
-                <option key={r.id} value={String(r.id)}>
-                  #{r.id} {modeName(r.mode)} · {instant(r.started_at)} · {r.outcome?.verdict.replace("_", " ")}
-                </option>
-              ))}
-            </select>
-          </label>
           <input type="search" placeholder="Search paths and messages" value={search}
                  onChange={(e) => setSearch(e.target.value)} aria-label="Search the log" />
           <label className="field-inline"><span>From</span>
-            <input type="date" value={dates.from} onChange={(e) => { setDates((d) => ({ ...d, from: e.target.value })); setPage(1); }} aria-label="From date" />
+            <input type="date" value={dates.from} onChange={(e) => setDates((d) => ({ ...d, from: e.target.value }))} aria-label="From date" />
           </label>
           <label className="field-inline"><span>To</span>
-            <input type="date" value={dates.to} onChange={(e) => { setDates((d) => ({ ...d, to: e.target.value })); setPage(1); }} aria-label="To date" />
+            <input type="date" value={dates.to} onChange={(e) => setDates((d) => ({ ...d, to: e.target.value }))} aria-label="To date" />
           </label>
           <span className="export">
             Export: <a href={api.exportUrl(apiFilters, "csv")} download>CSV</a> · <a href={api.exportUrl(apiFilters, "json")} download>JSON</a>
@@ -215,75 +215,148 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
           {statuses.map((s) => (
             <button key={s} className={`${filters.status.includes(s) ? "active" : ""} ${s === "Failed" ? "chip-failed" : ""}`}
                     aria-pressed={filters.status.includes(s)} onClick={() => toggleStatus(s)}>
-              {STATUS_LABEL[s]} ({count(data?.status_counts[s] ?? 0)})
+              {STATUS_LABEL[s]} ({count(totals?.status_counts[s] ?? 0)})
             </button>
           ))}
         </div>
 
-        {failuresOnly && oneRun && retryMode && data && data.total > 0 && (
-          <div className="retry">
-            <button onClick={retry} disabled={jobRunning}
-                    title={jobRunning ? "A job is running." : undefined}>Retry these photos ({modeName(oneRun.mode)})</button>
-          </div>
-        )}
         {notice && <p className="notice" role="status">{notice}</p>}
         {error && <p className="error">{error}</p>}
 
-        {data && data.total === 0 && <p className="empty">Nothing recorded matches these filters.</p>}
-        {data && data.total > 0 && (
-          <>
-            <Pager page={page} pages={pages} total={data.total} pageSize={pageSize} onPage={setPage}
-                   onPageSize={(n) => { setPageSize(n); setPage(1); }} sizes={LOG_SIZES} noun="entry" nouns="entries" />
-            <table className="log-table">
-              <thead>
-                <tr><th>Time</th><th>Job</th><th>Status</th><th>File</th><th>Details</th></tr>
-              </thead>
-              <tbody>
-                {data.items.map((op) => {
-                  const hint = failureHint(op);
-                  return (
-                    <tr key={op.id} className={`log-${op.status.toLowerCase()}`}>
-                      <td className="nowrap">{instant(op.timestamp)}</td>
-                      <td className="nowrap">
-                        <button className="link" onClick={() => set({ run: [op.run_id] })} title="Show only this job">
-                          #{op.run_id} {modeName(op.mode)}
-                        </button>
-                      </td>
-                      <td>
-                        {STATUS_LABEL[op.status] ?? op.status}
-                        {op.recovery && <div><span className="badge">Recovery of earlier work</span></div>}
-                        {op.run_level && op.status === "Failed" && <div><span className="badge">Folder or job</span></div>}
-                      </td>
-                      <td>
-                        {op.source_path && <div><code>{op.source_path}</code></div>}
-                        {op.dest_path && <div className="muted">→ <code>{op.dest_path}</code></div>}
-                        {op.photo_id != null && (
-                          <div className="row-links">
-                            <a href={`/?photo=${op.photo_id}`} onClick={follow}>Photo #{op.photo_id}</a>
-                            {filters.photo !== op.photo_id && (
-                              <button className="link" onClick={() => set({ photo: op.photo_id })}>its history</button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      <td>
-                        {op.error_message && <div className="message">{op.error_message}</div>}
-                        {hint && <div className="hint">{hint}</div>}
-                        {op.status === "Failed" && op.photo_status && op.photo_status !== "Failed" && (
-                          <div className="muted">The photo is now {STATUS_LABEL[op.photo_status]?.toLowerCase() ?? op.photo_status}.</div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <Pager page={page} pages={pages} total={data.total} pageSize={pageSize} onPage={setPage}
-                   onPageSize={(n) => { setPageSize(n); setPage(1); }} sizes={LOG_SIZES} noun="entry" nouns="entries" />
-          </>
+        {runs && totals && (
+          <div className="job-list-head">
+            <span className="muted">
+              {plural(totals.total, "entry", "entries")} in {plural(groups.length, "job")}
+              {filters.run.length > 0 && <> · <button className="link" onClick={() => set({ run: [] })}>Show all jobs</button></>}
+            </span>
+            {groups.length > 1 && (
+              <button className="link" onClick={() => setExpanded(allOpen ? new Set() : new Set(groups.map((r) => r.id)))}>
+                {allOpen ? "Collapse all" : "Expand all"}
+              </button>
+            )}
+          </div>
         )}
+        {runs && totals && groups.length === 0 && <p className="empty">Nothing recorded matches these filters.</p>}
+
+        <ol className="job-list">
+          {groups.map((run) => {
+            const open = expanded.has(run.id);
+            const matches = totals?.run_counts[String(run.id)] ?? 0;
+            const s = run.outcome ? summary(run) : null;
+            return (
+              <li key={run.id} className={`job-group job-${s?.tone ?? "neutral"}`}>
+                <button className="job-head" aria-expanded={open} onClick={() => toggleRun(run.id)}>
+                  <span className="job-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>
+                  <span className="job-title">
+                    <strong>#{run.id} {s?.headline ?? modeName(run.mode)}</strong>
+                    <span className="muted">{instant(run.started_at)}</span>
+                  </span>
+                  <span className="job-detail">{s?.detail}</span>
+                  <span className="job-count">{plural(matches, "entry", "entries")}</span>
+                </button>
+                {open && (
+                  <JobEntries run={run} filters={apiFilters} refreshKey={refreshKey} activePhoto={filters.photo}
+                              onPhoto={(id) => set({ photo: id })} onRetry={() => retry(run)} jobRunning={jobRunning} />
+                )}
+              </li>
+            );
+          })}
+        </ol>
         <p className="muted back"><a href="/" onClick={follow}>← Back to the library</a></p>
       </main>
+    </div>
+  );
+}
+
+// One job's entries under the page's filters, paged on their own.
+function JobEntries({ run, filters, refreshKey, activePhoto, onPhoto, onRetry, jobRunning }: {
+  run: RecordedRun;
+  filters: LogFilters;
+  refreshKey: number;
+  activePhoto: number | null;
+  onPhoto: (id: number) => void;
+  onRetry: () => void;
+  jobRunning: boolean;
+}) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(LOG_SIZES[0]);
+  const [data, setData] = useState<OperationPage | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const scoped = { ...filters, run: [run.id] };
+  const key = JSON.stringify(scoped);
+
+  useEffect(() => { setPage(1); }, [key]);
+  useEffect(() => {
+    let live = true;
+    api.operations(scoped, page, pageSize).then(
+      (d) => { if (live) { setData(d); setError(null); } },
+      (e) => live && setError(e instanceof ApiError ? e.message : "This job's entries could not be loaded."),
+    );
+    return () => { live = false; };
+  }, [key, page, pageSize, refreshKey]);
+
+  if (error) return <p className="error job-body">{error}</p>;
+  if (!data) return <p className="muted job-body">Loading…</p>;
+  const pages = Math.max(1, Math.ceil(data.total / pageSize));
+  const failed = data.status_counts.Failed ?? 0;
+  const canRetry = failed > 0 && retryModeOf(run) != null;
+
+  return (
+    <div className="job-body">
+      {canRetry && (
+        <div className="retry">
+          <button onClick={onRetry} disabled={jobRunning} title={jobRunning ? "A job is running." : undefined}>
+            Retry the {plural(failed, "failed photo")} ({modeName(run.mode)})
+          </button>
+        </div>
+      )}
+      {data.total === 0 ? <p className="empty">This job recorded nothing{filters.status.length || filters.q ? " that matches these filters" : ""}.</p> : (
+        <>
+          {pages > 1 && <Pager page={page} pages={pages} total={data.total} pageSize={pageSize} onPage={setPage}
+                               onPageSize={(n) => { setPageSize(n); setPage(1); }} sizes={LOG_SIZES} noun="entry" nouns="entries" />}
+          <table className="log-table">
+            <thead>
+              <tr><th>Time</th><th>Status</th><th>File</th><th>Details</th></tr>
+            </thead>
+            <tbody>
+              {data.items.map((op) => {
+                const hint = failureHint(op);
+                return (
+                  <tr key={op.id} className={`log-${op.status.toLowerCase()}`}>
+                    <td className="nowrap">{instant(op.timestamp)}</td>
+                    <td className="log-status">
+                      {STATUS_LABEL[op.status] ?? op.status}
+                      {op.recovery && <div><span className="badge">Recovery of earlier work</span></div>}
+                      {op.run_level && op.status === "Failed" && <div><span className="badge">Folder or job</span></div>}
+                    </td>
+                    <td>
+                      {op.source_path && <div><code>{op.source_path}</code></div>}
+                      {op.dest_path && <div className="muted">→ <code>{op.dest_path}</code></div>}
+                      {op.photo_id != null && (
+                        <div className="row-links">
+                          <a href={`/?photo=${op.photo_id}`} onClick={follow}>Photo #{op.photo_id}</a>
+                          {activePhoto !== op.photo_id && (
+                            <button className="link" onClick={() => onPhoto(op.photo_id as number)}>its history</button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {op.error_message && <div className="message">{op.error_message}</div>}
+                      {hint && <div className="hint">{hint}</div>}
+                      {op.status === "Failed" && op.photo_status && op.photo_status !== "Failed" && (
+                        <div className="muted">The photo is now {STATUS_LABEL[op.photo_status]?.toLowerCase() ?? op.photo_status}.</div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {pages > 1 && <Pager page={page} pages={pages} total={data.total} pageSize={pageSize} onPage={setPage}
+                               onPageSize={(n) => { setPageSize(n); setPage(1); }} sizes={LOG_SIZES} noun="entry" nouns="entries" />}
+        </>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 // The job feed (WS /api/v1/ws/jobs) and the words the drawer uses for it.
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { JobState, Outcome, Phase, Run } from "./api";
 import { count, plural } from "./format";
 
@@ -149,4 +149,19 @@ export function summary(run: Run): { headline: string; detail: string; tone: "go
       : outcome.verdict === "no_change" ? "neutral"
         : outcome.verdict === "partial" || outcome.verdict === "cancelled" ? "warn" : "bad";
   return { headline, detail: parts.join(" · ") || "No files were processed.", tone };
+}
+
+// The finished-job banner the viewer dismissed, shared by every page so a banner
+// dismissed in the Library stays dismissed on the log. Per-viewer convenience only.
+const DISMISSED_KEY = "ns.dismissedRun";
+
+export function useDismissedRun(): [number | null, (id: number) => void] {
+  const [id, setId] = useState<number | null>(() => {
+    try { return Number(localStorage.getItem(DISMISSED_KEY)) || null; } catch { return null; }
+  });
+  const dismiss = useCallback((run: number) => {
+    setId(run);
+    try { localStorage.setItem(DISMISSED_KEY, String(run)); } catch { /* per-viewer convenience only */ }
+  }, []);
+  return [id, dismiss];
 }

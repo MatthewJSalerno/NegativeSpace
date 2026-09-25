@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { api, ApiError, type PhotoItem, type PhotoPage, type Sort, type Status, type Timeline, type View } from "./api";
 import { count, plural } from "./format";
-import { useJobFeed } from "./jobs";
+import { useDismissedRun, useJobFeed } from "./jobs";
 import { Gallery } from "./components/Gallery";
 import { Inspector } from "./components/Inspector";
 import { FinishedBanner, JobDrawer } from "./components/JobDrawer";
@@ -132,9 +132,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [dismissedId, setDismissedId] = useState<number | null>(() => {
-    try { return Number(localStorage.getItem("ns.dismissedRun")) || null; } catch { return null; }
-  });
+  const [dismissedId, dismissRun] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
   const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
   const header = useRef<HTMLElement>(null);
@@ -332,8 +330,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           </div>
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
-        <FinishedBanner jobs={jobs} dismissedId={dismissedId}
-                        onDismiss={(id) => { setDismissedId(id); try { localStorage.setItem("ns.dismissedRun", String(id)); } catch { /* per-viewer convenience only */ } }} />
+        <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
         {actionError && <p className="error banner" role="alert">{actionError} <button onClick={() => setActionError(null)}>Dismiss</button></p>}
       </header>
 
