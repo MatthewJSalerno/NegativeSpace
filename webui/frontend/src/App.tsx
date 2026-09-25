@@ -246,6 +246,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
   const showSelected = () => { setFocus({ kind: "selection", ids: [...selected] }); setFocusPage(1); };
   const backToResults = () => { setFocus(null); setFocusPage(1); };
+  // Clearing the selection leaves nothing to show only, so it returns to the results.
+  const clearSelection = () => { setSelected(new Set()); if (focus?.kind === "selection") backToResults(); };
 
   const changeDates = (next: string[]) => { setDates(next); setPage(1); };
   const jumpTo = (key: string) => {
@@ -396,7 +398,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               {focus
                 ? <button className="link" onClick={backToResults}>Back to results</button>
                 : <button className="link" onClick={showSelected}>Show only selected</button>}
-              {selected.size > 0 && <button className="link" onClick={() => setSelected(new Set())}>Clear</button>}
+              {selected.size > 0 && <button className="link" onClick={clearSelection}>Clear</button>}
             </div>
           )}
           <div className="toolbar-actions">
@@ -492,7 +494,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                             total={focus ? focusTotal : shown.total} selected={selected.size} max={MAX_SELECTION}
                             disabledWhy={jobRunning ? "Selection is unavailable while a job is running." : null}
                             onSelectPage={() => toggleMany(shown.items, true)} onSelectAll={selectAll}
-                            onUnselectPage={() => toggleMany(shown.items, false)} onUnselectAll={() => setSelected(new Set())} />
+                            onUnselectPage={() => toggleMany(shown.items, false)} onUnselectAll={clearSelection} />
                 {jobRunning && <span className="muted">Selection is unavailable while a job is running.</span>}
               </div>
               {focus

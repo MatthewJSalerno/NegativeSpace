@@ -32,9 +32,9 @@ export function DatesPanel({ timeline, dates, current, onDates, onJump }: {
   }, [timeline]);
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const seeded = useRef(false);
-  // The newest year starts open; the rest stay folded until asked for.
+  // Every year starts unfolded; folding one is kept while the page is open.
   useEffect(() => {
-    if (!seeded.current && years.length) { seeded.current = true; setOpen(new Set([years[0][0]])); }
+    if (!seeded.current && years.length) { seeded.current = true; setOpen(new Set(years.map(([y]) => y))); }
   }, [years]);
 
   if (!timeline) return null;

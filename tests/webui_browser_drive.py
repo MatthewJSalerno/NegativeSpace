@@ -98,6 +98,7 @@ with sync_playwright() as p:
     # The date tree: clicking the older year jumps to its page; its first photo is photo
     # number NEWER + 1. Ticking it shows only that year, and the address keeps it.
     dates = page.get_by_role("navigation", name="Dates")
+    expect(dates.get_by_label("Show only June 2019")).to_be_visible()   # every year starts unfolded
     dates.get_by_role("button", name="2019", exact=True).click()
     expect(page).to_have_url(re.compile(rf"page={NEWER // 60 + 1}\b"))
     expect(page.locator(".card-sub", has_text="2019").first).to_be_visible()
@@ -204,6 +205,16 @@ with sync_playwright() as p:
     line.get_by_role("button", name="Back to results").click()
     expect(page.locator(".focus-head")).to_have_count(0)
     expect(page).to_have_url(re.compile(r"page=2\b"))
+    # Clearing the selection while showing only it returns to the results.
+    line.get_by_role("button", name="Show only selected").click()
+    line.get_by_role("button", name="Clear").click()
+    expect(page.locator(".focus-head")).to_have_count(0)
+    expect(page.locator(".card")).to_have_count(60)
+    page.locator(".pager").first.get_by_role("button", name="1", exact=True).click()
+    checks.nth(0).click()
+    checks.nth(2).click(modifiers=["Shift"])
+    page.locator(".pager").first.get_by_role("button", name="2", exact=True).click()
+    expect(line).to_contain_text("3 outside this view")
     # Acting on a selection that is hidden shows it first; Cancel returns to the page.
     open_actions(page, "Copy").get_by_role("menuitem", name="Copy selected (3)").click()
     expect(page.locator(".focus-head")).to_contain_text("Showing only the 3 selected photos")
