@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 COPY ns-engine.py ns_db.py ./
+COPY webui/ ./webui/
 RUN chmod 644 ns-engine.py
 
 # Source and destination MUST map to separate, non-overlapping underlying
@@ -61,6 +62,10 @@ RUN chmod 644 ns-engine.py
 # as a cache.
 # Pre-create standard volume mount points
 RUN mkdir -p /data/source /data/dest /appdata/db /appdata/logs /cache /backups
+
+# The web interface listens here when the container runs the web server
+# (uvicorn webui.app:app); the default command below still runs an Index.
+EXPOSE 8080
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python3", "ns-engine.py"]
