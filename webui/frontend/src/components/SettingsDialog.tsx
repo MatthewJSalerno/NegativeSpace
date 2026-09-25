@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, type ExtensionSupport, type Settings } from "../api";
+import { BackupsPanel } from "./BackupsPanel";
 
 const QUEUE_SIZE = 1000; // DB_QUEUE_SIZE, fixed in the engine (engine-spec 4.1)
 
@@ -172,6 +173,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
               <span>Automatic backups to keep</span>
               <input type="number" min={1} value={retention} onChange={(e) => setRetention(e.target.value)} />
             </label>
+            {!firstRun && <BackupsPanel retentionDraft={Number(retention)} />}
           </section>
           <p className="notice">Changes apply to future jobs. Active jobs will continue with their existing settings.</p>
           {message && <p className={message.kind === "error" ? "error" : "ok"} role="alert">{message.text}</p>}

@@ -109,6 +109,25 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(400, {"error": "invalid_request", "message": "Send an extension."})
         return ns_db.extension_support(ext.strip())
 
+    # -- Catalog backups (webui-spec 9) ----------------------------------------
+
+    @app.get("/api/v1/backups")
+    def get_backups():
+        return dict(catalog.backups(cfg.db_path, cfg.backups, cfg.base), job_active=jobs.active() is not None)
+
+    @app.post("/api/v1/backups")
+    def post_backup():
+        """Back up now. Waits for the engine; a failed backup is a recorded attempt,
+        returned with 200 and its outcome, not an HTTP error."""
+        return jobs.backup_now()
+
+    @app.get("/api/v1/backups/{attempt_id}/download")
+    def download_backup(attempt_id: int):
+        path = catalog.backup_download(cfg.db_path, cfg.backups, attempt_id)
+        if path is None:
+            raise HTTPException(404, {"error": "backup_unavailable", "message": "Backup file no longer available."})
+        return FileResponse(path, filename=path.name, media_type="application/octet-stream")
+
     # -- Photos ---------------------------------------------------------------
 
     @app.get("/api/v1/photos")

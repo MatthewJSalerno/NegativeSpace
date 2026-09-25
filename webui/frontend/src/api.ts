@@ -178,6 +178,33 @@ export function logQuery(f: LogFilters): URLSearchParams {
   return p;
 }
 
+export interface BackupAttempt {
+  attempt_id: number;
+  trigger_kind: "manual" | "post_job" | "pre_action";
+  related_run_id: number | null;
+  started_at: string;
+  ended_at: string | null;
+  outcome: "succeeded" | "failed" | "interrupted" | null;
+  error_category: string | null;
+  error_detail: string | null;
+  relative_filename: string | null;
+  size: number | null;
+  compression_format: string | null;
+  availability: "present" | "missing" | "unknown" | "pruned" | null;
+}
+
+export interface Backups {
+  items: BackupAttempt[];
+  storage: { ok: boolean; error_category: string | null; error_detail: string | null };
+  retention: number;
+  automatic_retained: number;
+  present_count: number;
+  present_bytes: number;
+  last_success: string | null;
+  unbacked: { count: number; since: string | null; runs: number[] };
+  job_active: boolean;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public body: Record<string, unknown>) {
     super(message);
@@ -235,6 +262,9 @@ export const api = {
   },
   retryIds: (f: LogFilters) =>
     request<{ photo_ids: number[]; more_than_limit: boolean; limit: number }>("GET", `/api/v1/operations/photo-ids?${logQuery(f)}`),
+  backups: () => request<Backups>("GET", "/api/v1/backups"),
+  backupNow: () => request<BackupAttempt>("POST", "/api/v1/backups"),
+  backupDownloadUrl: (id: number) => `/api/v1/backups/${id}/download`,
   runs: () => request<{ runs: Run[] }>("GET", "/api/v1/runs"),
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   startJob: (body: { mode: "index" | "copy" | "move"; file_ids?: number[]; source_subdir?: string }) =>
