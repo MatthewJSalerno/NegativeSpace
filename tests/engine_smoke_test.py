@@ -3983,6 +3983,102 @@ def the_transfer_loop_writes_progress_between_files():
           f"the transfer loop did not write progress between files: {dones}")
 
 
+def _check_findings(case):
+    run_id = rows(case, "SELECT MAX(id) m FROM runs")[0]["m"]
+    return {(Path(r["path"]).name, r["kind"]) for r in rows(
+        case, "SELECT path, kind FROM destination_findings WHERE run_id = ?", (run_id,))}
+
+
+@test
+def a_destination_check_reports_what_is_not_intact_and_changes_nothing():
+    """
+    engine-spec 9.1: the only answer to "is my destination still intact?". Every
+    delivered copy is found ok, missing or changed; files the catalog did not put
+    there are listed and grouped by content, including one holding a catalogued
+    photo's content. `quick` trusts an unchanged size and date, so a same-size edit
+    that kept the date is invisible to it and caught by `full`. Read only: no file
+    is touched, no photo status changes, no operation or backup is recorded.
+    """
+    import fcntl
+    case = new_case("destination_check")
+    make_photo(case / "src" / "a.jpg", "check-a", date="2020:02:01 10:00:00")
+    make_photo(case / "src" / "a_twin.jpg", "check-a", date="2020:02:01 10:00:00")
+    make_photo(case / "src" / "b.jpg", "check-b", date="2020:02:02 10:00:00")
+    make_photo(case / "src" / "c.jpg", "check-c", date="2020:02:03 10:00:00")
+    run_engine(case)
+    run_engine(case, "--move")
+    before = rows(case, "SELECT id, status, dest_path FROM photos ORDER BY id")
+    backups = len(backups_of(case))
+
+    run_engine(case, "--check-destination", "quick")
+    run = rows(case, "SELECT id, mode, status FROM runs ORDER BY id DESC LIMIT 1")[0]
+    check((run["mode"], run["status"]) == ("CHECK", "Completed"), f"the check was not a settled run: {run}")
+    check(_check_findings(case) == set(), f"an intact destination produced findings: {_check_findings(case)}")
+    check(_progress(case)[-1]["counts"] == {"ok": 3}, f"intact counts: {_progress(case)[-1]}")
+
+    dest = {p.name: p for p in (case / "dest").rglob("*.jpg")}
+    a_name = next(n for n in dest if n.startswith("a"))   # whichever copy the engine kept
+    other = case / "dest" / "from-elsewhere"
+    other.mkdir()
+    shutil.copy2(dest[a_name], other / "a_again.jpg")
+    dest["b.jpg"].unlink()
+    with open(dest[a_name], "ab") as f:
+        f.write(b"appended")
+    c = dest["c.jpg"]
+    st = c.stat()
+    data = bytearray(c.read_bytes())
+    data[-3] ^= 0xFF                      # same size; the date is put back below
+    c.write_bytes(bytes(data))
+    os.utime(c, ns=(st.st_atime_ns, st.st_mtime_ns))
+    make_photo(other / "x1.jpg", "check-x")
+    make_photo(other / "x2.jpg", "check-x")
+    (other / "notes.txt").write_text("not a photo")
+
+    run_engine(case, "--check-destination", "quick")
+    quick = _check_findings(case)
+    check({("b.jpg", "missing"), (a_name, "changed")} <= quick and ("c.jpg", "changed") not in quick,
+          f"quick findings for catalogued copies: {quick}")
+    check({("a_again.jpg", "unknown"), ("x1.jpg", "unknown"), ("x2.jpg", "unknown")} <= quick
+          and not any(n == "notes.txt" for n, _ in quick),
+          f"quick findings for files the catalog did not put there: {quick}")
+
+    run_engine(case, "--check-destination", "full")
+    full = _check_findings(case)
+    check(full == quick | {("c.jpg", "changed")},
+          f"full must add the same-size edit quick cannot see: {full - quick}")
+    p = _progress(case)
+    check([r["phase"] for r in p] == ["discovering", "checking_destination"] and p[-1]["total"] == 6
+          and p[-1]["counts"] == {"missing": 1, "changed": 2, "unknown": 3},
+          f"full check progress: {p}")
+
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("ns_db_for_check", ENGINE.parent / "ns_db.py")
+    ns = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ns)
+    conn = db(case)
+    try:
+        report = ns.read_destination_check(conn, rows(case, "SELECT MAX(id) m FROM runs")[0]["m"])
+    finally:
+        conn.close()
+    groups = {tuple(Path(q).name for q in g["paths"]): len(g["catalogued_photo_ids"])
+              for g in report["unknown_groups"]}
+    check(groups == {("a_again.jpg",): 2, ("x1.jpg", "x2.jpg"): 0},
+          f"unknown files were not grouped by content: {groups}")
+
+    check(rows(case, "SELECT id, status, dest_path FROM photos ORDER BY id") == before,
+          "a destination check changed the catalog's photos")
+    check(rows(case, "SELECT COUNT(*) n FROM operations WHERE run_id IN "
+                     "(SELECT id FROM runs WHERE mode = 'CHECK')")[0]["n"] == 0,
+          "a destination check recorded operations")
+    check(len(backups_of(case)) == backups, "a destination check took a catalog backup")
+    check(not (case / "dest" / "2020" / "02" / "02").exists() or not any(
+          (case / "dest" / "2020" / "02" / "02").iterdir()), "the check recreated a missing file")
+
+    with open(case / "appdata" / "engine.lock", "a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        run_engine(case, "--check-destination", "quick", expect_rc=1)
+
+
 @test
 def raw_files_produce_thumbnails_through_rawpy():
     """

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 class PhotoStatus:
     """State of one source file in the catalog. One row per source_path."""
@@ -422,11 +422,25 @@ FOUNDATION_DDL = (
     """CREATE TABLE run_progress (
         run_id INTEGER NOT NULL REFERENCES runs(id),
         phase TEXT NOT NULL CHECK(phase IN ('discovering','scanning','transferring',
-                                            'removing_duplicates','rebuilding_thumbnails')),
+                                            'removing_duplicates','rebuilding_thumbnails',
+                                            'checking_destination')),
         seq INTEGER NOT NULL, total INTEGER CHECK(total IS NULL OR total >= 0),
         done INTEGER NOT NULL CHECK(done >= 0), counts_json TEXT NOT NULL,
         started_at TEXT NOT NULL, updated_at TEXT NOT NULL,
         PRIMARY KEY(run_id, phase), UNIQUE(run_id, seq))""",
+    # What a destination check found that is not simply intact (engine-spec 9.1):
+    # a catalogued copy missing, changed or unreadable, or a file the catalog did
+    # not put there. Intact copies are only counted (run_progress), not stored.
+    # An observation, never a status change: no photo row is altered by a check.
+    """CREATE TABLE destination_findings (
+        run_id INTEGER NOT NULL REFERENCES runs(id),
+        path TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK(kind IN ('missing','changed','unreadable','unknown')),
+        photo_id INTEGER REFERENCES photos(id),
+        expected_sha1 TEXT, observed_sha1 TEXT, size INTEGER, mtime REAL, detail TEXT,
+        PRIMARY KEY(run_id, path),
+        CHECK((kind = 'unknown') = (photo_id IS NULL)))""",
+    "CREATE INDEX idx_destination_findings_sha1 ON destination_findings(observed_sha1)",
     # outcome is NULL only while an attempt runs; one found NULL under the
     # engine lock was interrupted.
     """CREATE TABLE backup_attempts (
@@ -822,6 +836,41 @@ def read_progress(conn, run_id):
             for phase, total, done, counts, started, updated in conn.execute(
                 "SELECT phase, total, done, counts_json, started_at, updated_at FROM run_progress "
                 "WHERE run_id = ? ORDER BY seq", (run_id,))]
+
+
+def record_destination_findings(conn, run_id, findings):
+    """Stores one batch of destination-check findings, each a dict with `path`, `kind`
+    and optionally photo_id, expected_sha1, observed_sha1, size, mtime, detail. Joins
+    the caller's transaction."""
+    conn.executemany(
+        "INSERT INTO destination_findings VALUES (?,?,?,?,?,?,?,?,?)",
+        [(run_id, f['path'], f['kind'], f.get('photo_id'), f.get('expected_sha1'),
+          f.get('observed_sha1'), f.get('size'), f.get('mtime'), f.get('detail')) for f in findings])
+
+
+def read_destination_check(conn, run_id):
+    """What one destination check found, for the web UI.
+
+    {'findings': [...] ordered by kind then path, 'unknown_groups': [...]}. Each unknown
+    group is one content held by more than one file outside the catalog's knowledge, or
+    by an unknown file and a catalogued photo: {'sha1', 'paths', 'catalogued_photo_ids'}.
+    Intact counts are in read_progress (phase checking_destination)."""
+    findings = [dict(zip(('path', 'kind', 'photo_id', 'expected_sha1', 'observed_sha1', 'size',
+                          'mtime', 'detail'), row)) for row in conn.execute(
+        "SELECT path, kind, photo_id, expected_sha1, observed_sha1, size, mtime, detail "
+        "FROM destination_findings WHERE run_id = ? ORDER BY kind, path", (run_id,))]
+    groups = {}
+    for f in findings:
+        if f['kind'] == 'unknown' and f['observed_sha1']:
+            groups.setdefault(f['observed_sha1'], []).append(f['path'])
+    catalogued = {}
+    for sha1 in groups:
+        catalogued[sha1] = [r[0] for r in conn.execute(
+            "SELECT id FROM photos WHERE sha1_hash = ? ORDER BY id", (sha1,))]
+    return {'findings': findings,
+            'unknown_groups': [{'sha1': sha1, 'paths': sorted(paths), 'catalogued_photo_ids': catalogued[sha1]}
+                               for sha1, paths in sorted(groups.items())
+                               if len(paths) > 1 or catalogued[sha1]]}
 
 
 def orphaned_thumbnails(conn):
