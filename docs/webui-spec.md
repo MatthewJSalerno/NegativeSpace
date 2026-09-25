@@ -245,7 +245,15 @@ Index for `Undated/<year>`, including after capture-date removal. Preserve this
 original snapshot per source copy, including duplicates; later rescans, edits and
 transfers must not replace it. Show it as **Original source modification time (at
 Index)**, not as a capture date. Genuine creation time, if available, remains a
-separate historical clue. The snapshot lives in `source_snapshots` (`engine-spec.md`
+separate historical clue.
+
+**Why not file by creation time, or the earlier of the two:** a copy keeps its
+modification time (NegativeSpace preserves it to the nanosecond) but gets a new
+creation time. For most photos in a real library, which have been copied off a card,
+between disks or from a backup, the creation time is the date of the last copy. Taking
+the earlier of the two would help only a file edited after it arrived, and only on
+disks that record creation times at all; NFS does not pass them on. The same photo
+would then file differently depending on where it was indexed from. The snapshot lives in `source_snapshots` (`engine-spec.md`
 §10) and the scan files from it; the mutable `photos.file_mtime` is refreshed for
 change detection and is deliberately not the filing source.
 
