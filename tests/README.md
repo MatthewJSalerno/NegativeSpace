@@ -54,6 +54,21 @@ docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app \
   negativespace python3 -m unittest discover -s tests -p database_test.py
 ```
 
+## Web API suite — `webui_api_test.py`
+
+The FastAPI layer (`webui/`) through FastAPI's test client, against a real catalog.
+Jobs start the real `ns-engine.py` as a child process, as in production, so the
+request-to-run handshake, the engine lock, cancellation and the derived outcome are
+tested together:
+
+```bash
+docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app \
+  negativespace python3 -m unittest discover -s tests -p webui_api_test.py
+```
+
+To prove a test catches a defect in the API, copy the checkout, change the copy, and
+mount the copy as `/app`: the API is imported in-process, so `--engine` cannot reach it.
+
 ## Shell tests
 
 These run on the host, not in the container, because the thing under test is a shell

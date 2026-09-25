@@ -133,7 +133,7 @@ files under `Undated/<year>/`, the year taken from the source's modification tim
 as captured at its original Index; `CreateDate` and `DateTime` are kept as review
 evidence but never place a file. See `engine-spec.md` §4.2.
 
-**Five capabilities the web UI depends on do not exist yet**, each specified
+**Three capabilities the web UI depends on do not exist yet**, each specified
 with what it needs:
 
 | Gap | Where | Blocks |
@@ -162,10 +162,13 @@ Index → Copy or Move → cleanup rather than a matter of preference.
 The durability claims ledger in [TODO.md](../TODO.md) is tracked rather than
 scheduled.
 
-### The web interface — in design, not started
+### The web interface — API built, screens in progress
 
-Specified in `webui-spec.md`, including the workflows that consume the five gaps
-above. No code exists yet.
+Specified in `webui-spec.md`. The FastAPI layer (`webui/`) is built and tested
+(`tests/webui_api_test.py`). It covers the first-run catalog check and creation,
+settings, the gallery listing and search, photo details, thumbnails and detail
+previews, starting and cancelling jobs, and live job state over a WebSocket, with
+outcomes derived as `webui-spec.md` §5.5 requires. The React screens are next.
 
 
 ### The catalog

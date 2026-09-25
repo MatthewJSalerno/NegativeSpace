@@ -967,7 +967,7 @@ manages settings through the API, which writes settings using shared Python data
 and validation code. The browser never accesses SQLite directly. API settings writes
 do not authorize arbitrary photo-state or history updates. Initialization uses the
 engine-owned schema routines without requiring Index; the API defines no competing
-schema. The shared functions exist in `ns_db.py`; the API that calls them is not built.
+schema. The shared functions are in `ns_db.py`, and the API calls them (`webui/`).
 
 Use short transactions with bounded lock waits and report save failure truthfully.
 Settings can be saved during processing; each job retains its starting configuration.
@@ -1001,30 +1001,29 @@ Reports whether the engine reads a file extension as a photo (`ns_db.extension_s
 
 GET /api/v1/settings
 
-Retrieves persisted system settings along with EXIF support status for each configured extension.
+Returns each setting under the engine's own key, with its revision. A setting never saved shows the engine's default, the value a job started now would use, at revision 0. Each configured extension carries `ns_db.extension_support`'s verdict. `job_active` drives the "Changes apply to future jobs" notice (§3).
 
     Response:
     JSON
 
     {
-      "max_worker_processes": 8,
-      "supported_extensions": [
-        { "ext": ".jpg", "supports_exif": true },
-        { "ext": ".cr2", "supports_exif": true },
-        { "ext": ".png", "supports_exif": false, "warning": "Files without a usable capture date go to Undated/<year>, using their modification year." }
-      ]
+      "workers": { "value": 8, "revision": 0, "default": 8, "detected": 8 },
+      "exts": { "value": [".cr2", ".jpg", ".png"], "revision": 3, "default": [...],
+                "support": [{ "extension": ".cr2", "supported": true, "warning": null }, ...] },
+      "backup_retention": { "value": 20, "revision": 0, "default": 20 },
+      "job_active": false
     }
 
 PUT /api/v1/settings
 
-Updates global engine settings.
+Saves the settings that changed, each with the revision it was read at (`ns_db.save_settings`). If a revision moved since then, another tab saved first: the response is `409 settings_changed` and nothing is written. An invalid value is `400`.
 
     Body:
     JSON
 
     {
-      "max_worker_processes": 8,
-      "supported_extensions": [".jpg", ".cr2", ".png"]
+      "values": { "workers": 4, "exts": [".jpg", ".cr2", ".png"] },
+      "revisions": { "workers": 0, "exts": 3 }
     }
 
 POST /api/v1/jobs/start
