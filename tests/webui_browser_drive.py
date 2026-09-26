@@ -48,7 +48,7 @@ with sync_playwright() as p:
             page.screenshot(path=f"{os.environ['SHOTS']}/{name}.png")
 
     # First run: create the catalog, then settings as the page, saying they can change later.
-    page.goto(BASE)
+    page.goto(BASE + "/logs")   # an address left by an earlier session
     expect(page.get_by_text("No catalog found")).to_be_visible()
     page.get_by_role("button", name="Create new catalog").click()
     expect(page.get_by_text("Welcome to NegativeSpace")).to_be_visible()
@@ -56,6 +56,8 @@ with sync_playwright() as p:
     expect(page.locator(".settings")).to_contain_text(re.compile(r"This container may use (all )?\d+"))
     shot("1-welcome")
     page.get_by_role("button", name="Save and continue").click()
+    # Saved, the first run lands in the Library, where the Index waits, whatever the address was.
+    expect(page).to_have_url(re.compile(r"^[^?]*://[^/]+/(\?.*)?$"))
     expect(page.get_by_text("No photos yet")).to_be_visible()
     # The Actions menu: every item that cannot run says why.
     menu = open_actions(page, "Move")
@@ -168,6 +170,10 @@ with sync_playwright() as p:
     expect(inspector).not_to_contain_text("File created")
     expect(inspector).to_contain_text("File modified")
     expect(inspector).to_contain_text("As recorded when NegativeSpace first indexed this file")
+    # History, in a section of its own near the top, with the latest events.
+    history = inspector.locator(".photo-history")
+    expect(history).to_contain_text("Indexed")
+    expect(history.get_by_role("link", name=re.compile(r"^View full history \(1 entry\)"))).to_be_visible()
     widths = inspector.locator("table.info").evaluate_all("ts => ts.map(t => Math.round(t.getBoundingClientRect().width))")
     assert len(widths) == 3 and len(set(widths)) == 1, f"the information tables differ in width: {widths}"
     # Show all metadata: every tag recorded, folded until asked for, with a filter.

@@ -13,7 +13,7 @@ import { ConfirmDialog, transferConfirm, type Confirm } from "./components/Confi
 import { Tip } from "./components/Tip";
 import { ActionsMenu } from "./components/ActionsMenu";
 import { LogsPage } from "./components/LogsPage";
-import { follow, useHeaderHeight, usePath } from "./nav";
+import { follow, navigate, useHeaderHeight, usePath } from "./nav";
 import { SettingsDialog } from "./components/SettingsDialog";
 
 // Neither side of the gallery/Inspector divider gets narrower than this.
@@ -63,7 +63,10 @@ export function App() {
   if (status.state !== "ok") return <CatalogProblem status={status} />;
   // First run: nothing indexed yet, so settings are the destination (webui-spec 3).
   if (!status.indexed && !firstRunDone) {
-    return <div className="center-page"><SettingsDialog firstRun onClose={() => undefined} onSaved={() => setFirstRunDone(true)} /></div>;
+    // Saved, the user lands in the Library, where Index your library waits: never on the
+    // page an earlier session left in the address bar.
+    return <div className="center-page"><SettingsDialog firstRun onClose={() => undefined}
+                                                        onSaved={() => { navigate("/"); setFirstRunDone(true); }} /></div>;
   }
   return (
     <>

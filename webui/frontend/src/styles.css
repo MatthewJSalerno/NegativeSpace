@@ -375,3 +375,9 @@ body.dragging { cursor: col-resize; user-select: none; }
 .review-text { flex: 1; min-width: 0; }
 .review-text p { margin: 4px 0 0; }
 @media (max-width: 700px) { .review-bar { flex-wrap: wrap; } }
+
+/* History: prominent in the Inspector, beside the file it describes. */
+.history-link { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.photo-history { display: grid; gap: 6px; }
+.photo-history .history-link { justify-self: start; }
+.history-recent { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }

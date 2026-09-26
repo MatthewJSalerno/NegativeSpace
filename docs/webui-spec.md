@@ -197,7 +197,9 @@ boundary is defined in §6.1; no second database is required.
 **First run shows the settings as the page itself**, before the library exists, and
 says prominently that these are starting values, changeable at any time from the gear
 icon in Settings. Without that, a user can take the screen for the only chance to set
-them. After first run, Settings opens as a window over the current view.
+them. Saving them lands in the Library, where **Index your library** waits, whatever
+page an earlier session left in the address bar. After first run, Settings opens as a
+window over the current view.
 
 **Startup without a usable catalog:** distinguish a missing database from access
 errors and from an invalid or corrupt database. Do not silently replace an existing
@@ -481,6 +483,10 @@ Clicking an image opens a right-side 50% detail panel.
 **The file's modification time** is labelled **"As recorded when NegativeSpace first
 indexed this file"**: the time the file carried when the first Index read it, not a date
 the photo was scanned.
+
+**History is prominent.** A **History** section sits under **File**, with the photo's
+latest recorded events (what happened, in which job, when) and **View full history (n
+entries)**; the title bar keeps a **History** button in the accent colour.
 
 **Show all metadata.** The Index records every tag ExifTool reads (Pillow's when ExifTool
 finds nothing), not a curated subset; the Inspector's fields are a few of them. A folded
