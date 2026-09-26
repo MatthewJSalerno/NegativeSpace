@@ -322,6 +322,9 @@ with sync_playwright() as p:
     banner.get_by_role("link", name="View failures").click()
     expect(page).to_have_url(re.compile(r"/logs\?run=\d+&status=Failed"))
     expect(page.get_by_role("heading", name="Failures")).to_be_visible()
+    # The same top row as the Library, and the filters named in one line with one reset.
+    expect(page.get_by_role("button", name=re.compile(r"^Actions"))).to_be_visible()
+    expect(page.locator(".dates-filter-line")).to_contain_text(re.compile(r"Showing: job #\d+ · Failed"))
     # Grouped by job: the job the banner named is the only one listed, and it is open.
     expect(page.locator(".job-group")).to_have_count(1)
     expect(page.locator(".job-head")).to_have_attribute("aria-expanded", "true")
@@ -344,6 +347,23 @@ with sync_playwright() as p:
     page.locator(".job-head").last.click()
     expect(page.locator(".log-table")).to_have_count(2)
     expect(page.locator(".job-group").last).to_contain_text("Indexed")
+    # A long job loads more entries as it scrolls, and its header line stays in view.
+    page.locator(".job-head[aria-expanded=true]").first.click()
+    copy_all = page.locator(".job-group", has_text="Copy finished with failures")
+    copy_all.locator(".job-head").click()
+    rows = copy_all.locator(".log-table tbody tr")
+    expect(rows).to_have_count(100)
+    rows.last.scroll_into_view_if_needed()
+    expect(rows).to_have_count(PHOTOS + DUPLICATES - 3 + 3, timeout=10_000)
+    expect(copy_all.locator(".job-head")).to_be_in_viewport()
+    shot("8-log-scrolling")
+    copy_all.locator(".job-head").click()
+    page.locator(".status-chips").get_by_role("button", name=re.compile(r"^Copied")).click()
+    page.get_by_label("Search the log").fill("photo-00")
+    expect(page.locator(".dates-filter-line")).to_contain_text("Showing: Copied · “photo-00”")
+    page.get_by_role("button", name="Clear all filters").click()
+    expect(page.get_by_label("Search the log")).to_have_value("")
+    expect(page.locator(".dates-filter-line")).to_have_count(0)
     # A banner dismissed in the library stays dismissed on the log.
     page.get_by_role("link", name="Library").first.click()
     expect(page.locator(".finished-banner")).to_be_visible()

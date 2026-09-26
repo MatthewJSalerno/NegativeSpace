@@ -9,10 +9,11 @@ import { PAGE_SIZES, Pager } from "./components/Pager";
 import { DatesPanel, dateLabel, datePage } from "./components/DatesPanel";
 import { SelectMenu } from "./components/SelectMenu";
 import { usePaged } from "./paged";
+import { ConfirmDialog, transferConfirm, type Confirm } from "./components/Confirm";
 import { Tip } from "./components/Tip";
 import { ActionsMenu } from "./components/ActionsMenu";
 import { LogsPage } from "./components/LogsPage";
-import { follow, usePath } from "./nav";
+import { follow, useHeaderHeight, usePath } from "./nav";
 import { SettingsDialog } from "./components/SettingsDialog";
 
 // Neither side of the gallery/Inspector divider gets narrower than this.
@@ -36,7 +37,6 @@ function readUrl() {
   };
 }
 
-type Confirm = { title: string; body: string[]; action: string; danger?: boolean; run: () => Promise<void>; onCancel?: () => void };
 
 // Showing only a set of photos, whatever the view, search and dates would hide: the
 // selection (Show only selected), or the photos a job just started on. `ids` is fixed
@@ -66,7 +66,7 @@ export function App() {
   return (
     <>
       {path === "/logs"
-        ? <LogsPage onOpenSettings={() => setSettingsOpen(true)} />
+        ? <LogsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />
         : <Library status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />}
       {settingsOpen && <SettingsDialog firstRun={false} onClose={() => setSettingsOpen(false)} onSaved={() => undefined} />}
     </>
@@ -169,15 +169,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     try { return Number(localStorage.getItem("ns.inspectorWidth")) || null; } catch { return null; }
   });
 
-  // The header's height, for everything that sticks below it: it grows when the
-  // finished-job banner shows or the toolbar wraps on a narrow screen.
-  useEffect(() => {
-    if (!header.current) return;
-    const observer = new ResizeObserver(([entry]) =>
-      document.documentElement.style.setProperty("--header-h", `${Math.ceil(entry.target.getBoundingClientRect().height)}px`));
-    observer.observe(header.current);
-    return () => observer.disconnect();
-  }, []);
+  useHeaderHeight(header);
 
   // A finished job changes the catalog: refresh the view and the counts. Keyed on
   // the last finished run rather than on seeing a job stop, because a job shorter
@@ -456,27 +448,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     askTransfer(mode, ids, auto ? backToResults : undefined);
   };
 
-  const askTransfer = (mode: "copy" | "move", ids?: number[], onCancel?: () => void) => {
-    // "All" counts what the engine would take across the whole catalog (GET /status),
-    // never the gallery's view or search.
-    const scope = ids ? plural(ids.length, "selected photo")
-      : mode === "copy" ? `every photo not yet copied (${count(status.eligible.copy)})`
-        : `every photo not yet moved (${count(status.eligible.move)})`;
-    setConfirm({
-      title: mode === "move" ? `Move ${scope}?` : `Copy ${scope}?`,
-      action: mode === "move" ? "Move" : "Copy",
-      danger: mode === "move",
-      body: mode === "move" ? [
-        "Each photo is copied into the destination's date folders, checked byte for byte, and only then deleted from the source.",
-        ...(!ids && status.copied > 0 ? [`${plural(status.copied, "photo is", "photos are")} already copied: each of their copies is verified again before its source is deleted.`] : []),
-        "Duplicate copies in the source are removed once a matching copy is confirmed at the destination.",
-      ] : [
-        "Each photo is copied into the destination's date folders and checked byte for byte. Nothing in the source is changed or deleted.",
-      ],
-      run: start(mode, ids),
-      onCancel,
-    });
-  };
+  const askTransfer = (mode: "copy" | "move", ids?: number[], onCancel?: () => void) =>
+    setConfirm(transferConfirm(mode, status, ids, start(mode, ids), onCancel));
 
   const noPhotos = status.photos === 0;
   const tooMany = selected.size > MAX_SELECTION;
@@ -645,31 +618,6 @@ function Library({ status, refreshStatus, onOpenSettings }: {
       </main>
 
       {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
-    </div>
-  );
-}
-
-function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const cancel = useCallback(() => { confirm.onCancel?.(); onClose(); }, [confirm, onClose]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && cancel();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [cancel]);
-  return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && cancel()}>
-      <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
-        <h2 id="confirm-title">{confirm.title}</h2>
-        {confirm.body.map((line) => <p key={line}>{line}</p>)}
-        <footer className="settings-actions">
-          <button onClick={cancel} disabled={busy}>Cancel</button>
-          <button className={confirm.danger ? "danger" : "primary"} disabled={busy}
-                  onClick={async () => { setBusy(true); await confirm.run(); onClose(); }}>
-            {confirm.action}
-          </button>
-        </footer>
-      </div>
     </div>
   );
 }

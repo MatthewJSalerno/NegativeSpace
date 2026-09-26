@@ -4,17 +4,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PhotoItem } from "./api";
 
-export interface PageResult { items: PhotoItem[]; total: number }
+export interface PageResult<I = PhotoItem> { items: I[]; total: number }
 
-interface Loaded<T> { key: string; pages: Map<number, PhotoItem[]>; meta: T | null; error: string | null }
+interface Loaded<I, T> { key: string; pages: Map<number, I[]>; meta: T | null; error: string | null }
 
 // `key` names everything the list depends on except the page; a new key, or a new
 // `anchor` jump, starts again from the anchor page. `refreshKey` reloads what is loaded.
-export function usePaged<T extends PageResult>(fetchPage: (page: number) => Promise<T>, key: string, anchor: { page: number; n: number },
+export function usePaged<T extends PageResult<I>, I = PhotoItem>(fetchPage: (page: number) => Promise<T>, key: string, anchor: { page: number; n: number },
                                                pageSize: number, refreshKey: number, onError: (message: string) => void) {
   // A jump starts a new run, so a page still loading from before it cannot join it.
   const runKey = `${key}#${anchor.n}#${pageSize}`;
-  const [state, setState] = useState<Loaded<T>>({ key: "", pages: new Map(), meta: null, error: null });
+  const [state, setState] = useState<Loaded<I, T>>({ key: "", pages: new Map(), meta: null, error: null });
   const runRef = useRef(runKey);
   runRef.current = runKey;
   const loading = useRef(new Set<number>());

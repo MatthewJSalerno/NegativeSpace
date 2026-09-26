@@ -865,7 +865,13 @@ log is grouped by job, newest first: each job is one line (its summary and how m
 entries match) until opened, and its entries page on their own. Filters apply inside
 every job; while any is set, a job with nothing matching is left out. A finished
 job's banner links to its log, opened on that job, and, when it failed, to **View failures**.
-A banner dismissed on one page stays dismissed on the other. The Inspector's
+A banner dismissed on one page stays dismissed on the other. The Logs page has the Library's top row,
+**Actions ▾** included, so the page links never move and whole-library actions start from
+either page (Copy and Move selected are disabled there: selecting is the Library's). The
+active filters are named in one line with one reset (**"Showing: job #3 · Failed ·
+“photo-00” · Clear all filters"**). An open job's entries load in batches of 100 as the
+list scrolls, and the job's header line, with its collapse arrow, stays at the top
+meanwhile. Status counts keep their width, as the Library's view counts do. The Inspector's
 **History** opens the log for that photo. Each failure carries a plain hint drawn from its
 recorded reason, and **Retry**, inside the job it belongs to, runs the same mode again over the photos behind
 that job's shown failures.

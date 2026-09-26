@@ -355,4 +355,16 @@ body.dragging { cursor: col-resize; user-select: none; }
 .meta-head input { flex: 1 1 160px; }
 
 /* The view buttons keep their width as counts change: room for "(999,999)", even digits. */
-.views .view-count { display: inline-block; min-width: 9ch; text-align: left; font-variant-numeric: tabular-nums; }
+.views .view-count, .status-chips .view-count { display: inline-block; min-width: 9ch; text-align: left; font-variant-numeric: tabular-nums; }
+
+/* An open job's header line stays at the top while its entries scroll. */
+.job-group.open > .job-head { position: sticky; top: var(--header-h, 0px); z-index: 2; background: var(--surface);
+  border-bottom: 1px solid var(--border); }
+.job-count { font-variant-numeric: tabular-nums; }
+/* A job's entries: fixed columns, so an empty Details column cannot squeeze the others. */
+.log-entries { table-layout: fixed; }
+.log-entries .col-time { width: 17rem; }
+.log-entries .col-status { width: 11rem; }
+.log-entries .col-file { width: 45%; }
+.log-entries .log-status { overflow-wrap: normal; }
+@media (max-width: 700px) { .log-entries { table-layout: auto; } }

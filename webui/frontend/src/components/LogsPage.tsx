@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run } from "../api";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
 import { modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
-import { follow } from "../nav";
+import { follow, useHeaderHeight } from "../nav";
+import { usePaged } from "../paged";
+import { ActionsMenu } from "./ActionsMenu";
+import { ConfirmDialog, transferConfirm, type Confirm } from "./Confirm";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
-import { Pager } from "./Pager";
 
-const LOG_SIZES = [100, 250, 500];
+// Entries loaded at a time as a job's list scrolls on.
+const LOG_BATCH = 100;
 // Jobs listed in the log, newest first; the API's own cap.
 const RUNS_LISTED = 500;
 
@@ -69,7 +72,11 @@ function retryModeOf(run: Run): "index" | "copy" | "move" | null {
 // 5.4), grouped by job: each job is one line until opened. Filters are in the
 // address bar, so a banner link, the Inspector's History button or a bookmark opens
 // exactly this view; a link to one job opens with that job expanded.
-export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
+export function LogsPage({ status, refreshStatus, onOpenSettings }: {
+  status: Status;
+  refreshStatus: () => void;
+  onOpenSettings: () => void;
+}) {
   const initial = useMemo(readFilters, []);
   const [filters, setFilters] = useState<LogFilters>(initial);
   const [dates, setDates] = useState(() => {
@@ -86,6 +93,9 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [dismissedId, dismissRun] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
   const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
+  const [confirm, setConfirm] = useState<Confirm | null>(null);
+  const header = useRef<HTMLElement>(null);
+  useHeaderHeight(header);
 
   const apiFilters = { ...filters, since: dayStart(dates.from), until: dayStart(dates.to, 1) };
 
@@ -123,7 +133,17 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
 
   // A job finishing changes the log.
   const lastKey = jobs.last && !jobRunning ? `${jobs.last.id}:${jobs.last.status}` : null;
-  useEffect(() => { if (lastKey) setRefreshKey((k) => k + 1); }, [lastKey]);
+  useEffect(() => { if (lastKey) { setRefreshKey((k) => k + 1); refreshStatus(); } }, [lastKey]);
+
+  // The Actions menu, as in the Library: whole-library actions start here too.
+  const startJob = (mode: "index" | "copy" | "move") => async () => {
+    setNotice(null);
+    try {
+      await api.startJob({ mode });
+    } catch (e) {
+      setNotice(e instanceof ApiError ? e.message : "The job could not be started.");
+    }
+  };
 
   const set = (patch: Partial<LogFilters>) => setFilters((f) => ({ ...f, ...patch }));
   const toggleStatus = (s: string) =>
@@ -180,14 +200,33 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
     (filters.run.length === 0 || filters.run.includes(r.id)) && (!narrowed || (totals?.run_counts[String(r.id)] ?? 0) > 0));
   const statuses = Object.keys(STATUS_LABEL).filter((s) => (totals?.status_counts[s] ?? 0) > 0 || filters.status.includes(s));
   const allOpen = groups.length > 0 && groups.every((r) => expanded.has(r.id));
+  // What narrows the log, named in one line with one reset.
+  const active = [
+    ...filters.run.map((r) => `job #${r}`),
+    ...filters.status.map((st) => STATUS_LABEL[st] ?? st),
+    ...(filters.photo != null ? [`photo #${filters.photo}`] : []),
+    ...(filters.q ? [`“${filters.q}”`] : []),
+    ...(dates.from ? [`from ${dates.from}`] : []),
+    ...(dates.to ? [`to ${dates.to}`] : []),
+  ];
+  const clearAll = () => {
+    setFilters({ run: [], status: [], photo: null, q: "", since: "", until: "" });
+    setSearch("");
+    setDates({ from: "", to: "" });
+  };
 
   return (
     <div className="app">
-      <header className="toolbar">
+      <header className="toolbar" ref={header}>
         <div className="toolbar-row">
           <h1 className="brand">NegativeSpace</h1>
           <nav className="pages" aria-label="Pages">
             <a className="button-link" href="/" onClick={follow}>Library</a>
+            <ActionsMenu
+              state={{ jobRunning, noPhotos: status.photos === 0, selected: 0, tooMany: false, maxSelection: 1000,
+                       eligible: status.eligible, copied: status.copied }}
+              onIndex={startJob("index")}
+              onTransfer={(mode) => setConfirm(transferConfirm(mode, status, undefined, startJob(mode)))} />
             <a className="button-link active" href="/logs" onClick={follow} aria-current="page">Logs</a>
           </nav>
           <div className="toolbar-actions">
@@ -233,7 +272,7 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
           {statuses.map((s) => (
             <button key={s} className={`${filters.status.includes(s) ? "active" : ""} ${s === "Failed" ? "chip-failed" : ""}`}
                     aria-pressed={filters.status.includes(s)} onClick={() => toggleStatus(s)}>
-              {STATUS_LABEL[s]} ({count(totals?.status_counts[s] ?? 0)})
+              <span>{STATUS_LABEL[s]}</span> <span className="view-count">({count(totals?.status_counts[s] ?? 0)})</span>
             </button>
           ))}
         </div>
@@ -241,6 +280,11 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
         {notice && <p className="notice" role="status">{notice}{CALLS_FOR_INDEX.test(notice) && <> {indexButton}</>}</p>}
         {error && <p className="error">{error}</p>}
 
+        {active.length > 0 && (
+          <p className="dates-filter-line">
+            Showing: {active.join(" · ")} · <button className="link" onClick={clearAll}>Clear all filters</button>
+          </p>
+        )}
         {runs && totals && (
           <div className="job-list-head">
             <span className="muted">
@@ -262,7 +306,7 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
             const matches = totals?.run_counts[String(run.id)] ?? 0;
             const s = run.outcome ? summary(run) : null;
             return (
-              <li key={run.id} className={`job-group job-${s?.tone ?? "neutral"}`}>
+              <li key={run.id} className={`job-group job-${s?.tone ?? "neutral"} ${open ? "open" : ""}`}>
                 <button className="job-head" aria-expanded={open} onClick={() => toggleRun(run.id)}>
                   <span className="job-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>
                   <span className="job-title">
@@ -282,11 +326,13 @@ export function LogsPage({ onOpenSettings }: { onOpenSettings: () => void }) {
         </ol>
         <p className="muted back"><a href="/" onClick={follow}>← Back to the library</a></p>
       </main>
+      {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
     </div>
   );
 }
 
-// One job's entries under the page's filters, paged on their own.
+// One job's entries under the page's filters, loading more as the list scrolls on.
+// The job's header line sticks to the top meanwhile, so collapsing it is always at hand.
 function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhoto, onRetry, jobRunning }: {
   run: RecordedRun;
   indexButton: ReactNode;
@@ -297,26 +343,23 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
   onRetry: () => void;
   jobRunning: boolean;
 }) {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(LOG_SIZES[0]);
-  const [data, setData] = useState<OperationPage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scoped = { ...filters, run: [run.id] };
-  const key = JSON.stringify(scoped);
-
-  useEffect(() => { setPage(1); }, [key]);
+  const list = usePaged<OperationPage, Operation>((p) => api.operations(scoped, p, LOG_BATCH), JSON.stringify(scoped),
+                                                   { page: 1, n: 0 }, LOG_BATCH, refreshKey, setError);
+  const more = useRef<HTMLDivElement>(null);
+  const items = useMemo(() => [...list.pages.keys()].sort((x, y) => x - y).flatMap((p) => list.pages.get(p) ?? []), [list.pages]);
+  const data = list.meta;
+  const hasMore = !!data && items.length < data.total;
   useEffect(() => {
-    let live = true;
-    api.operations(scoped, page, pageSize).then(
-      (d) => { if (live) { setData(d); setError(null); } },
-      (e) => live && setError(e instanceof ApiError ? e.message : "This job's entries could not be loaded."),
-    );
-    return () => { live = false; };
-  }, [key, page, pageSize, refreshKey]);
+    if (!more.current) return;
+    const observer = new IntersectionObserver(([e]) => e.isIntersecting && list.load(list.last + 1), { rootMargin: "600px 0px" });
+    observer.observe(more.current);
+    return () => observer.disconnect();
+  }, [list.last, list.load, hasMore]);
 
   if (error) return <p className="error job-body">{error}</p>;
   if (!data) return <p className="muted job-body">Loading…</p>;
-  const pages = Math.max(1, Math.ceil(data.total / pageSize));
   const failed = data.status_counts.Failed ?? 0;
   const canRetry = failed > 0 && retryModeOf(run) != null;
 
@@ -331,14 +374,13 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
       )}
       {data.total === 0 ? <p className="empty">This job recorded nothing{filters.status.length || filters.q ? " that matches these filters" : ""}.</p> : (
         <>
-          {pages > 1 && <Pager page={page} pages={pages} total={data.total} pageSize={pageSize} onPage={setPage}
-                               onPageSize={(n) => { setPageSize(n); setPage(1); }} sizes={LOG_SIZES} noun="entry" nouns="entries" />}
-          <table className="log-table">
+          <table className="log-table log-entries">
+            <colgroup><col className="col-time" /><col className="col-status" /><col className="col-file" /><col /></colgroup>
             <thead>
               <tr><th>Time</th><th>Status</th><th>File</th><th>Details</th></tr>
             </thead>
             <tbody>
-              {data.items.map((op) => {
+              {items.map((op) => {
                 const hint = failureHint(op);
                 return (
                   <tr key={op.id} className={`log-${op.status.toLowerCase()}`}>
@@ -372,8 +414,9 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
               })}
             </tbody>
           </table>
-          {pages > 1 && <Pager page={page} pages={pages} total={data.total} pageSize={pageSize} onPage={setPage}
-                               onPageSize={(n) => { setPageSize(n); setPage(1); }} sizes={LOG_SIZES} noun="entry" nouns="entries" />}
+          {hasMore
+            ? <div ref={more} className="page-sentinel muted">Loading more entries… ({count(items.length)} of {count(data.total)})</div>
+            : data.total > LOG_BATCH && <p className="muted">All {count(data.total)} entries shown.</p>}
         </>
       )}
     </div>
