@@ -171,11 +171,10 @@ function Details({ detail: d, onLineage }: { detail: PhotoDetail; onLineage: () 
         </Row>
         <Row label="Source path"><code>{d.source_path ?? "—"}</code></Row>
         <Row label="Size">{bytes(d.file_size)}{d.width && d.height ? ` · ${d.width} × ${d.height}` : ""}</Row>
-        <Row label="File modified">
+        <Row label={<span className="row-tip" title="As recorded when NegativeSpace first indexed this file.">
+                      File modified <span aria-hidden="true">ⓘ</span></span>}>
           {epoch(d.file_modified)}
-          <div className="muted">
-            As recorded when NegativeSpace first indexed this file.{fallback ? " The photo's EXIF has no date taken, so this files it under Undated." : ""}
-          </div>
+          {fallback && <div className="muted">* Files it under Undated: no EXIF date taken.</div>}
         </Row>
       </Section>
       <PhotoHistory id={d.id} onLineage={onLineage} />

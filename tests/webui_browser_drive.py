@@ -194,7 +194,10 @@ with sync_playwright() as p:
     expect(inspector).to_contain_text("Not in the photo's EXIF")
     expect(inspector).not_to_contain_text("File created")
     expect(inspector).to_contain_text("File modified")
-    expect(inspector).to_contain_text("As recorded when NegativeSpace first indexed this file")
+    # The file's time says what it is for, briefly; how it was recorded is on hover.
+    expect(inspector.locator(".row-tip", has_text="File modified")).to_have_attribute(
+        "title", "As recorded when NegativeSpace first indexed this file.")
+    expect(inspector).to_contain_text("* Files it under Undated: no EXIF date taken.")
     # History, in a section of its own near the top, with the latest events.
     history = inspector.locator(".photo-history")
     expect(history).to_contain_text("Indexed")

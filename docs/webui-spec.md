@@ -523,9 +523,10 @@ beside the photo instead of below it.
 ### 4.2 Split-Screen Photo Inspector Panel
 Clicking an image opens a right-side 50% detail panel.
 
-**The file's modification time** is labelled **"As recorded when NegativeSpace first
-indexed this file"**: the time the file carried when the first Index read it, not a date
-the photo was scanned.
+**The file's modification time** is the time the file carried when the first Index read
+it, not a date the photo was scanned; its label says so on hover (**"As recorded when
+NegativeSpace first indexed this file"**). For a photo with no EXIF date taken, one short
+line says what it is used for: **"* Files it under Undated: no EXIF date taken."**
 
 **History in the panel, lineage in its own window.** A **History (n)** section under
 **File** shows the latest three events as a small timeline, with two links: **Open in the
