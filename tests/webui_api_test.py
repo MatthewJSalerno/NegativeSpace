@@ -476,6 +476,26 @@ class LogAndErrorCenter(ApiCase):
         runs = self.client.get("/api/v1/runs").json()["runs"]
         self.assertEqual([(r["mode"], r["outcome"]["verdict"]) for r in runs], [("COPY", "partial"), ("INDEX", "success")])
 
+    def test_retry_takes_the_photos_behind_failed_attempts_not_their_status(self):
+        # They differ for a duplicate whose verification failed: its attempt is Failed and
+        # the photo stays Duplicate (webui-spec 5.3). Staged by recording such an attempt,
+        # and a photo whose status reads Failed with no failed attempt behind it.
+        make_photo(self.cfg.source / "a.jpg", "a")
+        make_photo(self.cfg.source / "copy of a.jpg", "a")
+        make_photo(self.cfg.source / "b.jpg", "b")
+        self.create_catalog()
+        self.wait_for(self.start(mode="index"))
+        copy = self.wait_for(self.start(mode="copy"))
+        with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn, conn:
+            dup, dup_path = conn.execute("SELECT id, source_path FROM photos WHERE status = 'Duplicate'").fetchone()
+            conn.execute("INSERT INTO operations (run_id, photo_id, source_path, status, error_message, timestamp) "
+                         "VALUES (?, ?, ?, 'Failed', 'Duplicate verification failed: ChecksumMismatch', ?)",
+                         (copy["id"], dup, dup_path, "2026-01-01T00:00:00+00:00"))
+            other = conn.execute("SELECT id FROM photos WHERE status = 'Copied' LIMIT 1").fetchone()[0]
+            conn.execute("UPDATE photos SET status = 'Failed' WHERE id = ?", (other,))
+        ids = self.client.get("/api/v1/operations/photo-ids", params={"run": copy["id"], "status": "Failed"}).json()
+        self.assertEqual(ids["photo_ids"], [dup], "Retry must follow the failed attempt, not photos.status")
+
     def test_a_photos_history_follows_it_through_a_move(self):
         make_photo(self.cfg.source / "a.jpg", "a")
         self.create_catalog()
