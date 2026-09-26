@@ -689,6 +689,15 @@ CREATE TABLE backup_artifacts (
     last_checked_at TEXT, pruned_at TEXT
 );
 
+-- What the web interface remembers for its user, kept with the catalog so clearing a
+-- browser's data does not bring back what was dismissed (webui-spec 4.1). Written by
+-- the API through ns_db.save_ui_state. Not settings: settings configure jobs and are
+-- copied into each run's configuration.
+CREATE TABLE ui_state (
+    key TEXT PRIMARY KEY CHECK(key IN ('dismissed_run')),
+    value_json TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+
 CREATE INDEX idx_evidence_operation ON operation_evidence(operation_id,evidence_id);
 CREATE INDEX idx_events_operation ON operation_events(operation_id,event_id);
 CREATE INDEX idx_open_attention ON attention_issues(file_id) WHERE resolved_at IS NULL;
