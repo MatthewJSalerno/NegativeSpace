@@ -293,6 +293,70 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual(both["total"], 1, "types and dates combine")
         self.assertEqual(self.client.get("/api/v1/photos", params={"type": ".jpg"}).status_code, 400)
 
+    def test_the_folder_tree_counts_filters_and_moves_by_source_folder(self):
+        # Folders a wildcard or a case-blind match would confuse, a chain to fold into one
+        # row, and a file directly in the source folder.
+        for rel, seed in [("Phone/2019/a.jpg", "a"), ("Phone/2019/b.jpg", "b"), ("Phone/2021/c.jpg", "c"),
+                          ("Camera/Nikon/d.jpg", "d"), ("top.jpg", "top"), ("My_Photos/e.jpg", "e"),
+                          ("MyXPhotos/f.jpg", "f"), ("album/g.jpg", "g"), ("Album/h.jpg", "h")]:
+            make_photo(self.cfg.source / rel, seed)
+        self.create_catalog()
+        self.wait_for(self.start(mode="index"))
+        tree = self.client.get("/api/v1/photos/folders").json()
+        rows = {f["path"]: f for f in tree["folders"]}
+        self.assertEqual([f["path"] for f in tree["folders"]],
+                         ["Album", "album", "Camera/Nikon", "My_Photos", "MyXPhotos", "Phone"], "by name, any case")
+        self.assertEqual(rows["Camera/Nikon"]["name"], "Camera / Nikon", "a chain of single folders is one row")
+        self.assertEqual((rows["Phone"]["photos"], rows["Phone"]["eligible"]), (3, {"copy": 3, "move": 3}))
+        self.assertEqual([(f["path"], f["photos"]) for f in rows["Phone"]["folders"]], [("Phone/2019", 2), ("Phone/2021", 1)])
+        self.assertEqual((tree["top_files"]["photos"], tree["outside"]), (1, 0))
+
+        def names(**params):
+            return sorted(i["filename"] for i in self.client.get("/api/v1/photos", params=params).json()["items"])
+        self.assertEqual(names(folder="My_Photos"), ["e.jpg"], "a literal folder, not a wildcard")
+        self.assertEqual(names(folder="album"), ["g.jpg"], "a folder's letter case counts")
+        self.assertEqual(names(folder=["Phone/2021", "Camera/Nikon"]), ["c.jpg", "d.jpg"], "several folders add up")
+        self.assertEqual(names(folder="."), ["top.jpg"], "the files directly in the source folder")
+        self.assertEqual(names(folder="Phone"), ["a.jpg", "b.jpg", "c.jpg"], "a folder takes its subfolders")
+        self.assertEqual(self.client.get("/api/v1/photos/ids", params={"folder": "Phone"}).json()["total"], 3)
+        self.assertEqual(self.client.get("/api/v1/photos/types", params={"folder": "Phone"}).json()["types"],
+                         [{"type": "jpg", "photos": 3}])
+        for bad in ("../elsewhere", "/data/source/Phone", ".."):
+            self.assertEqual(self.client.get("/api/v1/photos", params={"folder": bad}).status_code, 400, bad)
+        # Its counts follow a search.
+        searched = self.client.get("/api/v1/photos/folders", params={"q": "a.jpg"})
+        self.assertEqual(searched.status_code, 200, searched.text)
+        self.assertEqual([(f["path"], f["photos"]) for f in searched.json()["folders"] if f["photos"]], [("Phone", 1)])
+        # The tree ignores its own filter, and keeps a ticked folder listed at 0.
+        kept = self.client.get("/api/v1/photos/folders", params={"folder": "Phone/2021", "type": "png"}).json()
+        self.assertEqual([(f["path"], f["photos"]) for f in kept["folders"]], [("Phone", 0)])
+        self.assertEqual([f["path"] for f in kept["folders"][0]["folders"]], ["Phone/2021"])
+
+        # A folder's Move takes that folder only, however many photos it holds.
+        self.wait_for(self.start(mode="move", source_subdir="Phone"))
+        after = {f["path"]: f for f in self.client.get("/api/v1/photos/folders").json()["folders"]}
+        self.assertEqual(after["Phone"]["eligible"], {"copy": 0, "move": 0})
+        self.assertEqual(after["My_Photos"]["eligible"], {"copy": 1, "move": 1})
+        statuses = {i["filename"]: i["status"] for i in self.client.get("/api/v1/photos", params={"page_size": 60}).json()["items"]}
+        self.assertEqual({n for n, st in statuses.items() if st == "Completed"}, {"a.jpg", "b.jpg", "c.jpg"})
+
+    def test_the_folder_tree_counts_a_photo_it_could_not_read_under_any_filter(self):
+        # An unreadable photo has no date, name or destination recorded, so a date or
+        # search filter is NULL for it, not false: it must count as not shown, not fail.
+        if os.geteuid() == 0:
+            self.skipTest("root reads any file")
+        make_photo(self.cfg.source / "Trip" / "ok.jpg", "ok")
+        make_photo(self.cfg.source / "Trip" / "locked.jpg", "locked")
+        (self.cfg.source / "Trip" / "locked.jpg").chmod(0)
+        try:
+            self.create_catalog()
+            self.wait_for(self.start(mode="index"))
+        finally:
+            (self.cfg.source / "Trip" / "locked.jpg").chmod(0o644)
+        for params in ({"date": "2023"}, {"q": "ok"}, {"undated": "true", "date": "2019"}):
+            got = self.client.get("/api/v1/photos/folders", params=params)
+            self.assertEqual(got.status_code, 200, f"{params}: {got.text}")
+
     def test_select_all_over_the_limit_is_refused_whole_not_cut_short(self):
         self.index_library()
         from webui import catalog

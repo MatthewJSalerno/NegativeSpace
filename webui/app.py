@@ -162,34 +162,52 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/photos")
     def get_photos(view: str = "all", sort: str = "newest", q: Optional[str] = None,
                    page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=240), undated: bool = False,
-                   date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None)):
+                   date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
+                   folder: Optional[List[str]] = Query(None)):
         try:
             return catalog.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size,
-                                       undated=undated, dates=date, types=type)
+                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/timeline")
     def get_timeline(view: str = "all", q: Optional[str] = None, undated: bool = False,
-                     date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None)):
+                     date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
+                     folder: Optional[List[str]] = Query(None)):
         try:
-            return catalog.timeline(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type)
+            return catalog.timeline(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
+                                    folders=folder, root=cfg.source)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/types")
     def get_types(view: str = "all", q: Optional[str] = None, undated: bool = False,
-                  date: Optional[List[str]] = Query(None)):
+                  date: Optional[List[str]] = Query(None), folder: Optional[List[str]] = Query(None)):
         try:
-            return {"types": catalog.file_types(cfg.db_path, view=view, q=q, undated=undated, dates=date)}
+            return {"types": catalog.file_types(cfg.db_path, view=view, q=q, undated=undated, dates=date,
+                                                folders=folder, root=cfg.source)}
+        except ValueError as exc:
+            raise _bad_request(exc)
+
+    @app.get("/api/v1/photos/folders")
+    def get_folders(view: str = "all", q: Optional[str] = None, undated: bool = False,
+                    date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
+                    folder: Optional[List[str]] = Query(None)):
+        """The source's folders with their counts; `folder` names ticked folders, which stay
+        listed at 0 but do not narrow the counts (the tree ignores its own filter)."""
+        try:
+            return catalog.folder_tree(cfg.db_path, cfg.source, view=view, q=q, undated=undated, dates=date,
+                                       types=type, keep=folder)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/ids")
     def get_photo_ids(view: str = "all", q: Optional[str] = None, undated: bool = False,
-                      date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None)):
+                      date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
+                      folder: Optional[List[str]] = Query(None)):
         try:
-            return catalog.photo_ids(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type)
+            return catalog.photo_ids(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
+                                     folders=folder, root=cfg.source)
         except ValueError as exc:
             raise _bad_request(exc)
 

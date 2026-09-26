@@ -174,7 +174,7 @@ the engine's lock file. Separating them would need the Docker socket or a job-re
 service. Built and tested:
 
 *   **API** (`webui/`, `docs/api-spec.md`): the first-run catalog check and creation,
-    settings, the gallery listing, search, and date and type filters, selection by id and Select
+    settings, the gallery listing, search, and date, type and folder filters, the source's folders, selection by id and Select
     all, photo details with every recorded tag, a photo's lineage, thumbnails and
     detail previews, starting and cancelling jobs, live job state over a WebSocket
     with outcomes derived as `webui-spec.md` §5.5 requires, the log, library stats, catalog backups,
@@ -185,10 +185,12 @@ service. Built and tested:
     *   settings as a window over the page, with catalog backups (list, Back up now,
         download);
     *   the top row: the logo, Library, the **Actions** menu (Index, Copy, Move, each for
-        the selection or all), Logs, the selection, and the build beside Settings;
-    *   the gallery, with its views, sorts and search, a left panel with **Types** (folded
-        by default) and a **Dates** tree to jump to or show only file types, years and
-        months, and continuous scrolling whose page number follows;
+        the selection, the one folder shown, or all), Logs, the selection, and the build
+        beside Settings;
+    *   the gallery, with its views, sorts and search, a resizable left panel with
+        **Types** (folded by default) and, by choice, the source's **Folders** (the
+        default) or a **Dates** tree, to show only file types, folders, years and months
+        or jump to a date, and continuous scrolling whose page number follows;
     *   selection across views (shift-click, the Select menu, Show only selected), and
         Copy and Move of a selection reviewed on screen before they run;
     *   the job drawer, with live counts, elapsed time and Cancel;
@@ -208,7 +210,6 @@ service. Built and tested:
     could only copy shown as Copied only, never as failed; Retry; and CSV/JSON export.
 
 Specified but not yet on screen:
-*   Folder selection (`--source-subdir`).
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
 *   The Rename, Similar and Undated tabs, and metadata editing.

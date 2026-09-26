@@ -3,6 +3,7 @@ import contextlib
 import json
 import re
 import os
+import posixpath
 import sqlite3
 from pathlib import Path
 from typing import Optional
@@ -185,14 +186,52 @@ def _types_clause(types):
     return f" AND {_TYPE_OF} IN ({','.join('?' * len(types))})", tuple(types)
 
 
-def _filters(q, undated, dates, types=None):
-    """Search, no-capture-date, date-tree and type filters, shared by the list, its ids
-    and its counts, so Select all takes exactly what the gallery shows."""
+# The folder tree's "files directly in the source folder", which no subfolder holds.
+TOP_FILES = "."
+
+
+def _folder(root: Path, folder: str) -> str:
+    """A folder named relative to the source, checked as the job request checks it
+    (jobs.validate_request): inside the source, no parent steps."""
+    if not isinstance(folder, str) or not folder or "\0" in folder:
+        raise ValueError("folder must be a folder inside the source")
+    if folder == TOP_FILES:
+        return folder
+    normal = posixpath.normpath(folder)
+    if posixpath.isabs(normal) or normal in (".", "..") or normal.startswith("../"):
+        raise ValueError("folder must be a folder inside the source")
+    return normal
+
+
+def _folders_clause(folders, root):
+    """The folder tree's "Show only": photos whose source path is under any of these
+    folders, recursively, named relative to the source; "." is the files directly in the
+    source folder. A literal range comparison, not LIKE, whose wildcards and letter case
+    would take the wrong folders (the engine's --source-subdir does the same)."""
+    if not folders:
+        return "", ()
+    base = str(root).rstrip("/") + "/"
+    parts, params = [], []
+    for f in (_folder(root, f) for f in folders):
+        if f == TOP_FILES:
+            parts.append("(p.source_path >= ? AND p.source_path < ? AND instr(substr(p.source_path, ?), '/') = 0)")
+            params += [base, base[:-1] + "0", len(base) + 1]
+        else:
+            prefix = base + f + "/"
+            parts.append("(p.source_path >= ? AND p.source_path < ?)")   # "0" is the character after "/"
+            params += [prefix, prefix[:-1] + "0"]
+    return " AND (" + " OR ".join(parts) + ")", tuple(params)
+
+
+def _filters(q, undated, dates, types=None, folders=None, root=None):
+    """Search, no-capture-date, date-tree, type and folder filters, shared by the list,
+    its ids and its counts, so Select all takes exactly what the gallery shows."""
     search, search_params = _search_clause(q)
     date_sql, date_params = _dates_clause(dates)
     type_sql, type_params = _types_clause(types)
-    return (search + (f" AND {_UNDATED}" if undated else "") + date_sql + type_sql,
-            tuple(search_params) + date_params + type_params)
+    folder_sql, folder_params = _folders_clause(folders, root) if folders else ("", ())
+    return (search + (f" AND {_UNDATED}" if undated else "") + date_sql + type_sql + folder_sql,
+            tuple(search_params) + date_params + type_params + folder_params)
 
 
 def _check_view(view, sort=None, page=None, page_size=None):
@@ -250,9 +289,9 @@ def _items(conn, rows) -> list:
 
 
 def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, page_size=60, undated=False,
-                dates=None, types=None) -> dict:
+                dates=None, types=None, folders=None, root=None) -> dict:
     _check_view(view, sort, page, page_size)
-    filtered, filtered_params = _filters(q, undated, dates, types)
+    filtered, filtered_params = _filters(q, undated, dates, types, folders, root)
     with connect(db_path) as conn:
         # The view buttons count the whole library: "All photos" is every photo, whatever
         # the search, dates, types or No capture date narrow the gallery to (webui-spec 2,
@@ -281,12 +320,12 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
 
 
 def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,
-              limit=SELECTION_MAX) -> dict:
+              folders=None, root=None, limit=SELECTION_MAX) -> dict:
     """Every photo id the gallery would show for these filters, across all pages, for
     Select all. More than `limit` is refused with the total, never cut short: a
     partial Select all would silently act on some of what the user saw."""
     _check_view(view)
-    filtered, params = _filters(q, undated, dates, types)
+    filtered, params = _filters(q, undated, dates, types, folders, root)
     base = f"FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered
     with connect(db_path) as conn:
         total = conn.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
@@ -313,14 +352,15 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60) ->
             "missing": [i for i in wanted if i not in found]}
 
 
-def timeline(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None) -> dict:
+def timeline(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,
+             folders=None, root=None) -> dict:
     """Photos per month for a view and search, newest month first: the date tree's counts
     and the page each month starts on. Months are the recorded date's calendar month (a
     file date for an undated photo, as the gallery shows it); `undated` counts rows with
     no date at all, which every date sort places last. The tree asks without `dates`, so
     an unticked month keeps its count; jumping asks with them, to land on the right page."""
     _check_view(view)
-    filtered, params = _filters(q, undated, dates, types)
+    filtered, params = _filters(q, undated, dates, types, folders, root)
     base = f"FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered
     with connect(db_path) as conn:
         months = [{"month": r[0], "count": r[1]} for r in conn.execute(
@@ -332,15 +372,83 @@ def timeline(db_path: Path, *, view="all", q=None, undated=False, dates=None, ty
     return {"months": months, "undated": undated}
 
 
-def file_types(db_path: Path, *, view="all", q=None, undated=False, dates=None) -> list:
-    """Photos per file type for the Types section: the view, search and dates apply, the
-    Types filter itself does not, so an unchecked type keeps its count. Most first."""
+def file_types(db_path: Path, *, view="all", q=None, undated=False, dates=None, folders=None, root=None) -> list:
+    """Photos per file type for the Types section: the view, search, dates and folders
+    apply, the Types filter itself does not, so an unchecked type keeps its count. Most first."""
     _check_view(view)
-    filtered, params = _filters(q, undated, dates)
+    filtered, params = _filters(q, undated, dates, None, folders, root)
     with connect(db_path) as conn:
         return [{"type": r[0], "photos": r[1]} for r in conn.execute(
             f"SELECT {_TYPE_OF} AS t, COUNT(*) AS n FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})"
             + filtered + " GROUP BY t ORDER BY n DESC, t", params)]
+
+
+def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False, dates=None, types=None,
+                keep=None) -> dict:
+    """The source's folders for the Folders tree (webui-spec 2): built from catalogued
+    source paths, never a disk listing, so every folder offered holds photos a job can
+    act on. Each folder counts its photos recursively under the view, search, dates and
+    types (the folder filter itself does not apply, so an unticked folder keeps its
+    number), and, whatever the filters, the photos a Copy or a Move of it would take
+    (ns_db.TRANSFER_ELIGIBLE), for Actions. A chain of folders each holding only one
+    folder and no photos is one row ("Camera / Nikon D750"). A folder in `keep` stays
+    listed at 0, so a ticked folder can be unticked. Photos outside the source folder
+    (a catalog shared with another source) are counted in `outside`, not placed."""
+    _check_view(view)
+    filtered, params = _filters(q, undated, dates, types)
+    base = str(root).rstrip("/") + "/"
+    # COALESCE: a filter can be NULL rather than false (a search against a photo with no
+    # destination path yet), and NULL is not a count.
+    shown = f"COALESCE((p.status IN ({ns_db.sql_values(VIEWS[view])}){filtered}), 0)"
+    copy_ok, move_ok = (ns_db.sql_values(ns_db.TRANSFER_ELIGIBLE[m]) for m in ("copy", "move"))
+    tree = {"all": 0, "photos": 0, "copy": 0, "move": 0, "sub": {}}
+    top = {"photos": 0, "copy": 0, "move": 0}
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            f"SELECT p.source_path, {shown}, p.status IN ({copy_ok}), p.status IN ({move_ok}) FROM photos p "
+            "WHERE p.source_path >= ? AND p.source_path < ?", params + (base, base[:-1] + "0"))
+        for path, is_shown, can_copy, can_move in rows:
+            parts = path[len(base):].split("/")[:-1]
+            node = tree
+            if not parts:
+                node = top
+            for name in parts:
+                node = node["sub"].setdefault(name, {"all": 0, "photos": 0, "copy": 0, "move": 0, "sub": {}})
+                node["all"] += 1
+                node["photos"] += is_shown
+                node["copy"] += can_copy
+                node["move"] += can_move
+            if not parts:
+                top["photos"] += is_shown
+                top["copy"] += can_copy
+                top["move"] += can_move
+        outside = conn.execute(
+            f"SELECT COUNT(*) FROM photos p WHERE {shown} AND NOT (p.source_path >= ? AND p.source_path < ?)",
+            params + (base, base[:-1] + "0")).fetchone()[0]
+    kept = {_folder(root, k) for k in keep or []}
+
+    def listed(path, node):
+        return node["photos"] > 0 or path in kept or any(k.startswith(path + "/") for k in kept)
+
+    def build(prefix, sub):
+        out = []
+        for name in sorted(sub, key=lambda n: (n.casefold(), n)):
+            node, path, label = sub[name], f"{prefix}{name}", name
+            # One folder holding only one folder and no photos of its own: one row.
+            while len(node["sub"]) == 1 and path not in kept:
+                (child_name, child), = node["sub"].items()
+                if child["all"] != node["all"]:          # it holds files of its own
+                    break
+                node, path, label = child, f"{path}/{child_name}", f"{label} / {child_name}"
+            if listed(path, node):
+                out.append({"path": path, "name": label, "photos": node["photos"],
+                            "eligible": {"copy": node["copy"], "move": node["move"]},
+                            "folders": build(path + "/", node["sub"])})
+        return out
+
+    return {"folders": build("", tree["sub"]),
+            "top_files": {"photos": top["photos"], "eligible": {"copy": top["copy"], "move": top["move"]}},
+            "outside": outside}
 
 
 def thumbnail_record(conn, photo_id: int, size: int):
