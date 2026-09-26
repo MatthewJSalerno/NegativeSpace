@@ -485,6 +485,40 @@ class LogAndErrorCenter(ApiCase):
         history = self.client.get("/api/v1/operations", params={"photo": photo}).json()
         self.assertEqual(sorted(i["status"] for i in history["items"]), ["Completed", "Pending"])
 
+    def test_a_move_that_could_only_copy_says_so_everywhere(self):
+        if os.geteuid() == 0:
+            self.skipTest("root deletes from any folder, so a kept original cannot be made")
+        make_photo(self.cfg.source / "a.jpg", "a")
+        make_photo(self.cfg.source / "b.jpg", "b")
+        self.create_catalog()
+        self.wait_for(self.start(mode="index"))
+        self.cfg.source.chmod(0o555)
+        try:
+            move = self.wait_for(self.start(mode="move"))
+        finally:
+            self.cfg.source.chmod(0o755)
+        outcome = move["outcome"]
+        self.assertEqual((outcome["verdict"], outcome["copied_only"], outcome["succeeded"], outcome["failed"]),
+                         ("originals_kept", 2, 0, 0), "copied, not moved, and not failed")
+        self.assertEqual(outcome["kept_reasons"], {"Permission denied": 2})
+        self.assertEqual(outcome["failure_reasons"], {})
+        items = self.client.get("/api/v1/photos").json()["items"]
+        self.assertEqual({(i["status"], i["kept"]) for i in items}, {("Copied", "Permission denied")})
+
+        log = self.client.get("/api/v1/operations", params={"run": move["id"]}).json()
+        self.assertEqual(log["status_counts"], {"Copied_Only": 2}, "the log names it, derived from the recorded Copied")
+        only = self.client.get("/api/v1/operations", params={"status": "Copied_Only"}).json()
+        self.assertEqual(only["total"], 2)
+        plain = self.client.get("/api/v1/operations", params={"status": "Copied"}).json()
+        self.assertEqual(plain["total"], 0, "a plain Copied filter must not find a Move's kept originals")
+        ids = self.client.get("/api/v1/operations/photo-ids",
+                              params={"run": move["id"], "status": ["Failed", "Copied_Only"]}).json()
+        self.assertEqual(sorted(ids["photo_ids"]), sorted(i["id"] for i in items), "the photos a Move again would take")
+
+        finished = self.wait_for(self.start(mode="move", file_ids=ids["photo_ids"]))
+        self.assertEqual((finished["outcome"]["verdict"], finished["outcome"]["copied_only"]), ("success", 0))
+        self.assertEqual({i["status"] for i in self.client.get("/api/v1/photos").json()["items"]}, {"Completed"})
+
     def test_a_folder_that_could_not_be_read_is_a_run_level_failure(self):
         if os.geteuid() == 0:
             self.skipTest("root reads any folder")

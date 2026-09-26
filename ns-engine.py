@@ -2418,6 +2418,16 @@ def copy_verify_delete(source_str: str, dest_str: str, delete_source: bool = Tru
                 error_message = f"Copied and verified, but the source was kept: {e}"
                 logger.warning(f"{error_message} ({source_str})")
                 return False, error_message
+            except OSError as e:
+                # The copy is published and verified; only deleting the original failed
+                # (a read-only source, a permission). What happened is a Copy, and the
+                # caller records it as one, with this reason, rather than as a failure
+                # whose copy the catalog would not know about.
+                error_message = f"{ns_db.ORIGINAL_KEPT}: {type(e).__name__}: {e}"
+                logger.warning(f"Copied and verified, but {error_message} ({source_str})")
+                if verified_content is not None:
+                    verified_content["original_kept"] = True
+                return False, error_message
             logger.info(f"Successfully migrated: {label or source.name} -> {dest}")
         else:
             logger.info(f"Successfully copied: {label or source.name} -> {dest} (source untouched)")
@@ -5109,6 +5119,11 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                     final_status = PhotoStatus.FAILED
                     skip_error = f"Source kept: {e}"
                     logger.warning(f"{skip_error} ({src})")
+                except OSError as e:
+                    # The copy there was verified above; only the delete failed.
+                    final_status = PhotoStatus.COPIED
+                    skip_error = f"{ns_db.ORIGINAL_KEPT}: {type(e).__name__}: {e}"
+                    logger.warning(f"Already at the destination, but {skip_error} ({src})")
                 except Exception as e:
                     final_status = PhotoStatus.FAILED
                     skip_error = f"{type(e).__name__}: {e}"
@@ -5124,8 +5139,9 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             log_operation(conn, run_id, record_id, src, resolved_dst, final_status, skip_error,
                           has_collision, commit=False, operation_id=intent_id,
                           step="move_already_present",
-                          delivery=dict(source_removed=args.move, created=False,
-                                        sha1_hash=verified_sha1) if skip_error is None else None)
+                          delivery=dict(source_removed=final_status == PhotoStatus.COMPLETED,
+                                        created=False, sha1_hash=verified_sha1)
+                          if final_status != PhotoStatus.FAILED else None)
             conn.commit()
             run_progress.add(final_status)
             continue
@@ -5173,16 +5189,20 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         success, error_message = copy_verify_delete(src, resolved_dst, delete_source=args.move,
                                                     label=label, verified_content=verified_content)
 
+        # A Move whose original could not be deleted delivered a verified copy: Copied.
+        copied_only = args.move and not success and verified_content.get("original_kept", False)
         if args.move:
-            final_status = PhotoStatus.COMPLETED if success else PhotoStatus.FAILED
+            final_status = (PhotoStatus.COMPLETED if success
+                            else PhotoStatus.COPIED if copied_only else PhotoStatus.FAILED)
         else:
             final_status = PhotoStatus.COPIED if success else PhotoStatus.FAILED
         cursor.execute("UPDATE photos SET status = ? WHERE id = ?", (final_status, record_id))
         log_operation(conn, run_id, record_id, src, resolved_dst, final_status, error_message,
                       has_collision, commit=False, operation_id=intent_id,
                       step="move" if args.move else "copy",
-                      delivery=dict(source_removed=args.move, created=True,
-                                    sha1_hash=verified_content.get("sha1_hash")) if success else None)
+                      delivery=dict(source_removed=args.move and success, created=True,
+                                    sha1_hash=verified_content.get("sha1_hash"))
+                      if success or copied_only else None)
         conn.commit()
         run_progress.add(final_status)
     run_progress.write(conn)

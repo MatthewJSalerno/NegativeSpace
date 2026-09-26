@@ -60,7 +60,12 @@ export function Gallery({ page, pageOf, selected, selectable, openId, onOpen, on
                   {photoDate(item.date_taken, false)}
                   {isFallbackDate(item.date_source) ? " (file date)" : ""}
                 </span>
-                {STATUS_BADGE[item.status] && (
+                {item.kept ? (
+                  <span className="badge badge-copied_only"
+                        title={`A Move copied this photo but could not remove the original: ${item.kept}. Moving it again once the source can be written finishes the Move.`}>
+                    Copied only
+                  </span>
+                ) : STATUS_BADGE[item.status] && (
                   <span className={`badge badge-${item.status.toLowerCase()}`}
                         title={item.failure ? `Failed: ${item.failure}` : undefined}>{STATUS_BADGE[item.status]}</span>
                 )}

@@ -49,7 +49,7 @@ Open **http://localhost:8080** (or the host's address). `docker compose -f docke
 - **Index** reads your photos into the catalog. It moves and copies nothing.
 - **Copy** or **Move** everything not yet organized, or select photos first. Both ask before they start.
 - The drawer at the bottom shows a running job's progress and lets you cancel it. Closing the browser does not stop a job.
-- **Move needs a writable source.** It deletes each source file after its copy is verified, so with a read-only source every file in a Move fails, although nothing is lost. To Move, set `read_only: false` on the source volume in `docker/compose.yml`.
+- **Move needs a writable source.** It deletes each source file after its copy is verified. With a read-only source a Move can only copy: each photo is shown as **Copied only**, with the reason, and nothing is lost. To Move, set `read_only: false` on the source volume in `docker/compose.yml`, then Move those photos again to remove the originals.
 - Stopping the containers cancels a running job cleanly; the compose file allows five minutes for a large file to finish copying first.
 
 The sections below describe the engine's modes and options in more detail. The commands that run the engine directly are for development and debugging; the web interface runs the same engine for you. They use the `app` image:
@@ -122,7 +122,7 @@ docker run --rm --stop-timeout 300 \
   negativespace python3 ns-engine.py --copy
 ```
 
-> **Note:** `--move` against a read-only-mounted source will not corrupt anything, but every file will report `status='Failed'` — the copy succeeds and only the source deletion fails, so nothing is ever lost. Re-running is safe and does **not** accumulate duplicate copies: the engine recognizes that an identical copy already exists at the destination and skips rewriting it, failing only on the delete. Use `--copy` for read-only sources instead — it is the same verified copy without the futile delete step.
+> **Note:** `--move` against a read-only-mounted source will not corrupt anything: the copy succeeds and only the source deletion fails, so each photo is recorded `Copied`, its operation giving the reason the original was kept, and nothing is ever lost. Re-running is safe and does **not** accumulate duplicate copies: the engine recognizes that an identical copy already exists at the destination and skips rewriting it. Once the source is writable, `--move` finishes the job by deleting the originals. Use `--copy` for read-only sources instead — it is the same verified copy without the futile delete step.
 
 ---
 

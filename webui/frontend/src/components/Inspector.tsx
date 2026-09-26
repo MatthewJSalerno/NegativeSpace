@@ -256,7 +256,8 @@ function AllMetadata({ tags }: { tags: [string, unknown][] }) {
 
 const EVENT_LABEL: Record<string, string> = {
   Pending: "Indexed", Duplicate: "Indexed as a duplicate", Processing: "Started", Completed: "Moved",
-  Copied: "Copied", Failed: "Failed", Removed_Duplicate: "Duplicate removed", Found_At_Destination: "Found at destination",
+  Copied: "Copied", Copied_Only: "Copied only, original kept", Failed: "Failed", Removed_Duplicate: "Duplicate removed",
+  Found_At_Destination: "Found at destination",
   Skipped: "Skipped", Cancelled: "Cancelled", Renamed: "Renamed",
 };
 

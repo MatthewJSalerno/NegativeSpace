@@ -30,6 +30,8 @@ export interface PhotoItem {
   duplicates: number;
   // A Failed photo's latest failure reason, for its badge's hover.
   failure?: string | null;
+  // Why a Move kept this Copied photo's original in the source, when one did.
+  kept?: string | null;
 }
 
 export interface PhotoPage {
@@ -120,7 +122,7 @@ export interface Phase {
   updated_at: string;
 }
 
-export type Verdict = "success" | "partial" | "failed" | "no_change" | "cancelled" | "interrupted" | "running";
+export type Verdict = "success" | "partial" | "originals_kept" | "failed" | "no_change" | "cancelled" | "interrupted" | "running";
 
 export interface Outcome {
   verdict: Verdict;
@@ -133,6 +135,9 @@ export interface Outcome {
   skip_reasons: Record<string, number>;
   // Why the requested work failed, by reason (paths removed), for the hover.
   failure_reasons?: Record<string, number>;
+  // A Move's photos copied but not moved, because the original could not be deleted.
+  copied_only?: number;
+  kept_reasons?: Record<string, number>;
   total: number | null;
   counts: Record<string, number>;
 }

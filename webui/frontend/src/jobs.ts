@@ -86,7 +86,7 @@ const ORDER = ["eligible", "excluded", "indexed", "unchanged", "Copied", "Comple
   "Found_At_Destination", "made", "ok", "Renamed", "already", "kept", "Skipped", "Already_Gone", "unknown",
   "Cancelled", "missing", "changed", "unreadable", "failed", "Failed"];
 
-export function countsLine(counts: Record<string, number>): string {
+export function countsLine(counts: Record<string, number>, mode?: string | null): string {
   const c = { ...counts };
   const parts: string[] = [];
   // The engine counts a scan's new files and its duplicates separately; they are
@@ -99,7 +99,9 @@ export function countsLine(counts: Record<string, number>): string {
   }
   const keys = Object.keys(c).filter((k) => c[k] > 0)
     .sort((a, b) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99));
-  return [...parts, ...keys.map((k) => `${count(c[k])} ${OUTCOME[k] ?? k}`)].join(" · ");
+  // In a Move, Copied is a file whose original could not be deleted.
+  const label = (k: string) => (mode === "MOVE" && k === "Copied" ? "copied only" : OUTCOME[k] ?? k);
+  return [...parts, ...keys.map((k) => `${count(c[k])} ${label(k)}`)].join(" · ");
 }
 
 // Why photos were skipped, grouped by the API from the engine's recorded reasons.
@@ -118,7 +120,7 @@ export function skipReasons(reasons: Record<string, number>): string {
 }
 
 const VERDICT: Record<string, string> = {
-  success: "finished", partial: "finished with failures", failed: "failed", no_change: "had nothing to do",
+  success: "finished", partial: "finished with failures", originals_kept: "finished, originals kept", failed: "failed", no_change: "had nothing to do",
   cancelled: "was cancelled", interrupted: "was interrupted", running: "is running",
 };
 
@@ -137,17 +139,21 @@ export function summary(run: Run): { headline: string; detail: string; tone: "go
   const reasons = outcome.skip_reasons ? skipReasons(outcome.skip_reasons) : "";
   const rest = countsLine(
     Object.fromEntries(Object.entries(outcome.counts).filter(([k]) =>
-      !(run.mode === "COPY" && k === "Copied") && !(run.mode === "MOVE" && k === "Completed")
+      !(run.mode === "COPY" && k === "Copied") && !(run.mode === "MOVE" && (k === "Completed" || k === "Copied"))
       && !(reasons && k === "Skipped"))),
   );
+  // A Move that could not delete an original copied it: said as such, never as moved.
+  const kept = run.mode === "MOVE" && outcome.copied_only
+    ? `${count(outcome.copied_only)} copied only: the original could not be removed` : "";
   const skipped = reasons ? `${count(outcome.counts.Skipped ?? 0)} skipped (${reasons})` : "";
-  const parts = [lead, rest, skipped].filter(Boolean);
+  const parts = [lead, kept, rest, skipped].filter(Boolean);
   if (outcome.run_level_issues) parts.push(`${plural(outcome.run_level_issues, "folder or file")} could not be read`);
   if (outcome.recovered_earlier_work) parts.push(`${plural(outcome.recovered_earlier_work, "earlier operation")} recovered`);
   const tone =
     outcome.verdict === "success" ? "good"
       : outcome.verdict === "no_change" ? "neutral"
-        : outcome.verdict === "partial" || outcome.verdict === "cancelled" ? "warn" : "bad";
+        : outcome.verdict === "partial" || outcome.verdict === "cancelled" || outcome.verdict === "originals_kept"
+          ? "warn" : "bad";
   return { headline, detail: parts.join(" · ") || "No files were processed.", tone };
 }
 
@@ -175,11 +181,17 @@ export function useDismissedRun(): [number | null, (id: number) => void] {
   return [known ? id : Number.MAX_SAFE_INTEGER, dismiss];
 }
 
-// The hover text for a run's failures: each reason with its count, most first.
-export function failureText(outcome: Outcome | null | undefined): string | null {
-  const reasons = Object.entries(outcome?.failure_reasons ?? {}).sort((a, b) => b[1] - a[1]);
-  if (reasons.length === 0) return null;
-  const shown = reasons.slice(0, 6).map(([r, n]) => `${r}: ${count(n)}`);
-  if (reasons.length > 6) shown.push(`and ${reasons.length - 6} more reasons (see the log)`);
-  return `Why they failed:\n${shown.join("\n")}`;
+// The hover text for a run's problems: why originals were kept and why files failed,
+// each reason with its count, most first.
+export function reasonsText(outcome: Outcome | null | undefined): string | null {
+  const block = (title: string, all: Record<string, number> | undefined) => {
+    const reasons = Object.entries(all ?? {}).sort((a, b) => b[1] - a[1]);
+    if (reasons.length === 0) return null;
+    const shown = reasons.slice(0, 6).map(([r, n]) => `${r}: ${count(n)}`);
+    if (reasons.length > 6) shown.push(`and ${reasons.length - 6} more reasons (see the log)`);
+    return `${title}\n${shown.join("\n")}`;
+  };
+  const blocks = [block("Why originals were kept:", outcome?.kept_reasons), block("Why they failed:", outcome?.failure_reasons)]
+    .filter(Boolean);
+  return blocks.length ? blocks.join("\n\n") : null;
 }

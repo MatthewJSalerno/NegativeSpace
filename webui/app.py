@@ -248,7 +248,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     def _log_filters(run: Optional[List[int]], status: Optional[List[str]], photo: Optional[int],
                      q: Optional[str], since: Optional[str], until: Optional[str]) -> dict:
-        unknown = [s for s in status or [] if s not in ns_db.OPERATION_STATUSES]
+        unknown = [s for s in status or [] if s not in catalog.LOG_STATUSES]
         if unknown:
             raise HTTPException(400, {"error": "invalid_request", "message": f"Unknown status: {', '.join(unknown)}."})
         return {"runs": run or None, "statuses": status or None, "photo": photo, "q": q or None,

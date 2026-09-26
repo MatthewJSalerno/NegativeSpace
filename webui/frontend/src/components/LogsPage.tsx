@@ -4,7 +4,7 @@ import { StatsLink } from "./StatsPage";
 import { VersionTag } from "./VersionTag";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
-import { failureText, modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
+import { reasonsText, modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
 import { follow, useHeaderHeight } from "../nav";
 import { usePaged } from "../paged";
 import { ActionsMenu } from "./ActionsMenu";
@@ -20,7 +20,7 @@ const RUNS_LISTED = 500;
 // catalogued and Duplicate for an exact copy.
 const STATUS_LABEL: Record<string, string> = {
   Pending: "Indexed", Duplicate: "Indexed (duplicate)", Processing: "Unfinished", Completed: "Moved",
-  Copied: "Copied", Failed: "Failed", Removed_Duplicate: "Duplicate removed",
+  Copied: "Copied", Copied_Only: "Copied only", Failed: "Failed", Removed_Duplicate: "Duplicate removed",
   Found_At_Destination: "Found at destination", Skipped: "Skipped", Cancelled: "Cancelled", Renamed: "Renamed",
 };
 
@@ -28,6 +28,8 @@ const STATUS_LABEL: Record<string, string> = {
 // mismatch reads differently from an unreadable file, and a changed source asks for
 // an Index, not a permissions check.
 function failureHint(op: Operation): string | null {
+  if (op.status === "Copied_Only")
+    return "The copy is at the destination; the original is still in the source. Once the source can be written, move it again to finish the Move.";
   if (op.status !== "Failed") return null;
   const m = op.error_message ?? "";
   if (op.run_level) return "A folder or the whole job, not one photo: nothing inside it was examined. Fix the folder's access, then run an Index.";
@@ -164,7 +166,8 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
     if (!mode) return;
     setNotice(null);
     try {
-      const ids = await api.retryIds({ ...apiFilters, run: [run.id], status: ["Failed"] });
+      // A Move's copied-only photos are retried with its failures: a Move takes Copied photos.
+      const ids = await api.retryIds({ ...apiFilters, run: [run.id], status: run.mode === "MOVE" ? ["Failed", "Copied_Only"] : ["Failed"] });
       if (ids.more_than_limit) {
         setNotice(`More than ${count(ids.limit)} photos failed. Retry them in smaller groups, or run the ${modeName(run.mode)} again for everything.`);
         return;
@@ -318,7 +321,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
                     <strong>#{run.id} {s?.headline ?? modeName(run.mode)}</strong>
                     <span className="muted">{instant(run.started_at)}</span>
                   </span>
-                  <span className="job-detail" title={failureText(run.outcome) ?? undefined}>{s?.detail}</span>
+                  <span className="job-detail" title={reasonsText(run.outcome) ?? undefined}>{s?.detail}</span>
                   <span className="job-count">{plural(matches, "entry", "entries")}</span>
                 </button>
                 {open && (
@@ -366,14 +369,18 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
   if (error) return <p className="error job-body">{error}</p>;
   if (!data) return <p className="muted job-body">Loading…</p>;
   const failed = data.status_counts.Failed ?? 0;
-  const canRetry = failed > 0 && retryModeOf(run) != null;
+  const kept = run.mode === "MOVE" ? data.status_counts.Copied_Only ?? 0 : 0;
+  const canRetry = failed + kept > 0 && retryModeOf(run) != null;
+  const retryLabel = !kept ? `Retry the ${plural(failed, "failed photo")} (${modeName(run.mode)})`
+    : !failed ? `Move the ${plural(kept, "copied-only photo")} again`
+      : `Retry the ${count(failed + kept)} failed and copied-only photos (Move)`;
 
   return (
     <div className="job-body">
       {canRetry && (
         <div className="retry">
           <button onClick={onRetry} disabled={jobRunning} title={jobRunning ? "A job is running." : undefined}>
-            Retry the {plural(failed, "failed photo")} ({modeName(run.mode)})
+            {retryLabel}
           </button>
         </div>
       )}

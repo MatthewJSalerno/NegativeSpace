@@ -132,13 +132,15 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
     {"items": [{"id": 12, "status": "Pending", "file_size": 3012443,
                 "date_taken": "2023-06-05T21:20:00", "date_source": "exif" | "file_mtime",
                 "filename": "IMG_0001.jpg", "duplicates": 1,
-                "failure": null | "Permission denied"}, ...],
+                "failure": null | "Permission denied", "kept": null | "Read-only file system"}, ...],
      "page": 1, "page_size": 60, "total": 1160,
      "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160},
      "matches": {"all": 1160, "organized": 0, "unorganized": 1160}}
 
 `failure` is a `Failed` photo's latest failure reason, made readable as in a run's
-`failure_reasons` (§6); `null` for any other status.
+`failure_reasons` (§6); `null` for any other status. `kept` is, for a `Copied` photo
+whose latest delivery was a Move that could not delete the original, why (a run's
+`kept_reasons`); otherwise `null`.
 
 `counts` are the view buttons: each view's whole library, whatever the search, `date`,
 `type` and `undated` narrow the gallery to, so All photos is always every photo.
@@ -323,7 +325,7 @@ Center (`webui-spec.md` §5.3).
 | Parameter | Meaning |
 | :--- | :--- |
 | `run` | A job id. Repeat it for several (`?run=4&run=5`): the Stats page links to every run since the last complete scan. |
-| `status` | An operation status (repeatable), from the catalog's vocabulary; anything else is `400`. |
+| `status` | An operation status (repeatable), from the catalog's vocabulary or `Copied_Only`; anything else is `400`. |
 | `photo` | A photo's history: the photo, the files made from it (through `operation_files`, so a Move or Copy stays in it) and its exact duplicates, however they arrived; the same set as its lineage tree (`webui-spec.md` §6.3). |
 | `q` | Text in the source path, destination path or recorded message. |
 | `since`, `until` | ISO instants, from inclusive to exclusive. The screen converts local calendar days. |
@@ -338,6 +340,10 @@ One page, newest first (`page`, and `page_size` from 1 to 500, default 100):
      "status_counts": {"Pending": 2, "Copied": 1, "Failed": 1},
      "run_counts": {"1": 2, "2": 2}}
 
+*   **`Copied_Only`** is derived, never stored: a Move's operation recorded `Copied` with
+    a message starting "The original could not be removed" (`engine-spec.md` §4.2). The
+    `status` column, `status_counts` and the `status` filter all use it, so `Copied`
+    finds only real Copies.
 *   **Failures are attempts.** An operation's `status` is the attempt's outcome, and
     `photo_status` is the photo's status now. The two can disagree: a duplicate whose
     verification failed stays `Duplicate` (`webui-spec.md` §5.3).
@@ -466,22 +472,28 @@ and `done` is always the sum of `counts`.
 **`outcome`** is derived from classified progress, never from `status` alone: a run
 where every file failed still ends `Completed` (`webui-spec.md` §5.5).
 
-    {"verdict": "success" | "partial" | "failed" | "no_change" | "cancelled" |
-                "interrupted" | "running",
-     "succeeded": 2, "failed": 0, "skipped": 1, "cancelled": 0,
+    {"verdict": "success" | "partial" | "originals_kept" | "failed" | "no_change" |
+                "cancelled" | "interrupted" | "running",
+     "succeeded": 2, "failed": 0, "skipped": 1, "cancelled": 0, "copied_only": 0,
      "run_level_issues": 0, "recovered_earlier_work": 0,
      "total": 3, "counts": {"Copied": 2, "Skipped": 1},
      "skip_reasons": {"duplicate": 1},
-     "failure_reasons": {"Read-only file system": 4681}}
+     "failure_reasons": {"Permission denied": 1},
+     "kept_reasons": {"Read-only file system": 4681}}
 
 *   **Requested work only.** `counts` covers the work the job was asked to do: the scan
     for an Index; the transfer phases for Copy and Move, whose scan is not their work.
     Recovery of earlier runs is `recovered_earlier_work`, and failures with no photo,
     such as an unreadable folder, are `run_level_issues`.
 *   **Verdict:** an active status is `running`. A terminal Cancelled, Interrupted or
-    Failed wins. Otherwise: successes with no failures or issues are `success`,
-    successes with some are `partial`, failures or issues with no successes are
+    Failed wins. Otherwise: a Move with copied-only photos and no failures or issues is
+    `originals_kept`; successes with no failures or issues are `success`, successes or
+    copied-only photos with some are `partial`, failures or issues with neither are
     `failed`, and nothing done is `no_change`.
+*   **`copied_only`** is, for a Move, its photos copied but not moved because the
+    original could not be deleted (the `Copied` count of a Move). They are not in
+    `succeeded`, nor in `failed`; `kept_reasons` groups them by reason, made readable as
+    `failure_reasons` are.
 *   **`skip_reasons`** groups the run's `Skipped` operations by the reason the engine
     recorded: `duplicate`, `duplicate_original_not_selected`, `already_copied`,
     `network_share_unconfirmed`, `source_looked_empty` or `other`. The API

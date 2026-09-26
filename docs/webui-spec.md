@@ -357,8 +357,21 @@ it finishes, its result replaces it there as a banner until dismissed.
 
 **A failure count says why on hover.** Hovering (or focusing) a finished job's result
 lists why its files failed, each reason with its count, the file paths removed so reasons
-group (**"Why they failed: Read-only file system: 4,681"**); the Logs page's job lines do
+group (**"Why they failed: Permission denied: 2"**); the Logs page's job lines do
 the same, and a Failed photo's badge in the gallery gives its own latest reason.
+
+**A Move that could only copy says so, without stopping to ask.** When a Move cannot
+delete an original (a read-only source, a permission), the engine records the verified
+copy it made (`engine-spec.md` §4.2) and the screens name it **Copied only**, in the
+warning colour: never Moved, never Failed. The result reads **"Move finished, originals
+kept · 0 of 4,836 files moved · 4,836 copied only: the original could not be removed"**,
+and its hover gives the reasons (**"Why originals were kept: Read-only file system:
+4,836"**). The log has a **Copied only** status with its own filter, a hint that the copy
+is at the destination, and **Move the 4,836 copied-only photos again** to finish the job
+once the source can be written. The gallery badge reads **Copied only**, with the reason
+on hover; the Inspector's history and the lineage tree say **original kept**. *Why not
+ask on the first failure:* nothing is lost either way, and a question nobody is there to
+answer would stall an overnight job; a clear account afterwards serves better.
 
 A finished job's banner explains its skips, grouped by the reason each photo recorded,
 for example **"5 skipped (3 copied by an earlier job, 2 duplicates: the same content is
@@ -938,7 +951,7 @@ A searchable table logging every operation performed by the engine:
 
 **`runs.status` describes the run's lifecycle, not whether the work succeeded.** A run that reaches the end of its file loop is recorded `Completed` even if every single file in it failed. That is accurate for what the column means — the process ran to completion rather than crashing, being cancelled, or aborting on a pre-flight check — but it is the wrong thing to put in front of a user on its own.
 
-For example, a `--move` against a source mounted `:ro` fails every file (the copy succeeds, only the source deletion fails) and still reports:
+For example, a `--copy` whose every source file is unreadable fails every file and still reports:
 
 ```
 Run #2 finished with status: Completed
@@ -981,6 +994,7 @@ Job responses should carry both: the lifecycle status **and** the derived counts
 | `runs.status` is `Cancelling` | cancellation requested, still stopping (§4.1); keep counts live |
 | succeeded > 0, failed = 0 | success |
 | succeeded > 0, failed > 0 | partial success — surface the failed count and link the Error Center |
+| a Move with copied-only photos, failed = 0 | originals kept (warning) — the copied-only count and its reasons, never a success or a failure |
 | succeeded = 0, failed > 0 | **failure**, regardless of `runs.status` being `Completed` |
 | no changes, no failures or scan issues, and run completed | neutral completion with prominent counts and skip reasons; not an error |
 | `runs.status` is `Cancelled` / `Interrupted` / `Failed` | that status wins; still show counts for what was done before it ended. `Interrupted` has no end time; show its duration as unavailable (§4.1) |
