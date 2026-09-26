@@ -114,6 +114,46 @@ accounting needs, since a photos-only sample excludes nothing. A sampled file sh
 link count of 2 (the duplicate 3); `du` reports the full size regardless, so link count
 is the test that it is really linked.
 
+## A library of scenarios — `make_scenarios.py`
+
+For showing the app to someone, or checking it against every awkward case, without
+sharing a real library. `build` hard-links every photo from a seed folder into
+`OUT/library` and adds scenarios beside them: exact duplicates, the same photo without
+its EXIF, resized and format-converted copies, dates the engine must file (none, with a
+time-zone offset, conflicting, invalid, future, 1958), names that collide at the
+destination or are awkward, every EXIF orientation, and edge files (empty, truncated,
+not an image, a sidecar, a symlink, an unreadable file, a deep folder). `change` then
+applies one round of every kind of change (edited in place, touched, renamed, moved,
+deleted, replaced, new duplicates, a new date taken, and with `--dest` a destination
+copy deleted, altered and a stranger added), which is what gives a photo's lineage
+something to show. `OUT/manifest.json` lists every file, its scenario and what the app
+should show for it. Without `--seed-dir` the photos are generated.
+
+The seed folder is never written to: every file the script alters is written anew and
+renamed into place, which breaks its link first, and each run ends by proving it
+(`seed: N file(s), untouched by this run`). A seed folder that is still filling, say
+from a download, is reported, not mistaken for a write. `build` refuses a non-empty
+folder it did not make, and rebuilds its own only with `--replace`.
+
+Hard links need the seed and `OUT` on one filesystem **and one mount**, so mount their
+common parent once. Create `OUT`'s parent yourself first: Docker makes a missing mount
+path owned by root.
+
+```bash
+mkdir -p /storage/linked-samples
+docker run --rm --user "$(id -u):$(id -g)" --entrypoint python3 \
+  -v /storage:/storage -v "$PWD":/app -w /app negativespace \
+  tests/make_scenarios.py build --seed-dir /storage/sample --out /storage/linked-samples/demo [--replace] [--seed N]
+# Index and Copy with SOURCE_DIR=/storage/linked-samples/demo/library, then:
+docker run ... tests/make_scenarios.py change --out /storage/linked-samples/demo [--dest <your DEST_DIR>]
+# Index and Copy again: the lineage tree now has changes to show.
+```
+
+Its test, `make_scenarios_test.py`, runs in CI: a seed that must stay byte-identical, a
+seed filling during a build, refusals, and the real engine's Index checked against the
+manifest, including that an empty file and a text file named `.jpg` are logged as
+**Not an image** and never filed.
+
 ## Spec and schema checks — `tools/`
 
 Not tests of the engine, but CI gates on them and they exit non-zero on failure:
