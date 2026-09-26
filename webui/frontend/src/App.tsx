@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Logo } from "./components/Logo";
 import { VersionTag, versionText } from "./components/VersionTag";
-import { api, ApiError, type PhotoItem, type PhotoPage, type SelectionPage, type Sort, type Status, type Timeline, type View } from "./api";
+import { api, ApiError, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Sort, type Status, type Timeline, type View } from "./api";
 import { count, plural } from "./format";
 import { useDismissedRun, useJobFeed } from "./jobs";
 import { Gallery } from "./components/Gallery";
@@ -10,6 +10,7 @@ import { FinishedBanner, JobDrawer } from "./components/JobDrawer";
 import { PAGE_SIZES, Pager } from "./components/Pager";
 import { DatesPanel, dateLabel, datePage } from "./components/DatesPanel";
 import { TypesPanel, typeLabel } from "./components/TypesPanel";
+import { BrowseBySwitch, FoldersPanel, folderLabel, initialBrowseBy, shownFolder, type BrowseBy } from "./components/FoldersPanel";
 import { SelectMenu } from "./components/SelectMenu";
 import { usePaged } from "./paged";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./components/Confirm";
@@ -22,6 +23,9 @@ import { SettingsDialog } from "./components/SettingsDialog";
 
 // Neither side of the gallery/Inspector divider gets narrower than this.
 const MIN_SIDE = 320;
+// The left panel's width limits when dragged.
+const SIDE_MIN = 180;
+const SIDE_MAX = 560;
 const MAX_SELECTION = 1000; // mirrors the API's --file-ids limit (webui-spec 2)
 const VIEW_LABEL: Record<View, string> = { all: "All photos", unorganized: "Not yet organized", organized: "Organized" };
 
@@ -38,6 +42,7 @@ function readUrl() {
     undated: p.get("undated") === "1",
     dates: p.getAll("date"),
     types: p.getAll("type"),
+    folders: p.getAll("folder"),
     photo: p.get("photo") ? Number(p.get("photo")) : null,
   };
 }
@@ -177,6 +182,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [undated, setUndated] = useState(initial.undated);
   const [dates, setDates] = useState<string[]>(initial.dates);
   const [types, setTypes] = useState<string[]>(initial.types);
+  const [folders, setFolders] = useState<string[]>(initial.folders);
+  const [folderTree, setFolderTree] = useState<FolderTree | null>(null);
+  const [browseBy, setBrowseBy] = useState<BrowseBy>(() => initialBrowseBy(initial.folders, initial.dates));
   const [typeCounts, setTypeCounts] = useState<{ type: string; photos: number }[] | null>(null);
   const [openId, setOpenId] = useState<number | null>(initial.photo);
   const [timeline, setTimeline] = useState<Timeline | null>(null);
@@ -206,6 +214,11 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const content = useRef<HTMLElement>(null);
   const [panelWidth, setPanelWidth] = useState<number | null>(() => {
     try { return Number(localStorage.getItem("ns.inspectorWidth")) || null; } catch { return null; }
+  });
+  // The left panel's width: folder paths can be wide, so it can be dragged wider.
+  const side = useRef<HTMLElement>(null);
+  const [sideWidth, setSideWidthState] = useState<number | null>(() => {
+    try { return Number(localStorage.getItem("ns.sideWidth")) || null; } catch { return null; }
   });
 
   useHeaderHeight(header);
@@ -243,34 +256,42 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     if (undated) p.set("undated", "1");
     dates.forEach((d) => p.append("date", d));
     types.forEach((t) => p.append("type", t));
+    folders.forEach((f) => p.append("folder", f));
     if (openId != null) p.set("photo", String(openId));
     const url = `${window.location.pathname}${p.size ? `?${p}` : ""}`;
     window.history.replaceState(null, "", url);
-  }, [view, sort, q, page, pageSize, undated, dates, types, openId]);
+  }, [view, sort, q, page, pageSize, undated, dates, types, folders, openId]);
 
-  const results = usePaged((p) => api.photos({ view, sort, q, page: p, page_size: pageSize, undated, dates, types }),
-                           JSON.stringify([view, sort, q, undated, dates, types]), jump, pageSize, refreshKey, setLoadError);
+  const results = usePaged((p) => api.photos({ view, sort, q, page: p, page_size: pageSize, undated, dates, types, folders }),
+                           JSON.stringify([view, sort, q, undated, dates, types, folders]), jump, pageSize, refreshKey, setLoadError);
   const data: PhotoPage | null = results.meta;
 
   // The tree's counts ignore its own filter, so an unticked month keeps its number;
   // jumping needs the filtered months, to land on the right page.
   useEffect(() => {
     let live = true;
-    api.timeline({ view, q, undated, types }).then((t) => live && setTimeline(t), () => live && setTimeline(null));
+    api.timeline({ view, q, undated, types, folders }).then((t) => live && setTimeline(t), () => live && setTimeline(null));
     return () => { live = false; };
-  }, [view, q, undated, types, refreshKey]);
+  }, [view, q, undated, types, folders, refreshKey]);
   useEffect(() => {
     let live = true;
     if (dates.length === 0) { setJumpTimeline(null); return; }
-    api.timeline({ view, q, undated, dates, types }).then((t) => live && setJumpTimeline(t), () => live && setJumpTimeline(null));
+    api.timeline({ view, q, undated, dates, types, folders }).then((t) => live && setJumpTimeline(t), () => live && setJumpTimeline(null));
     return () => { live = false; };
-  }, [view, q, undated, dates, types, refreshKey]);
-  // The Types section's counts follow the view, search and dates, never its own filter.
+  }, [view, q, undated, dates, types, folders, refreshKey]);
+  // The Types section's counts follow the view, search, dates and folders, never its own filter.
   useEffect(() => {
     let live = true;
-    api.types({ view, q, undated, dates }).then((t) => live && setTypeCounts(t.types), () => live && setTypeCounts(null));
+    api.types({ view, q, undated, dates, folders }).then((t) => live && setTypeCounts(t.types), () => live && setTypeCounts(null));
     return () => { live = false; };
-  }, [view, q, undated, dates, refreshKey]);
+  }, [view, q, undated, dates, folders, refreshKey]);
+  // The Folders tree's counts follow the view, search, dates and types, never its own
+  // filter; the ticked folders are sent so they stay listed at 0.
+  useEffect(() => {
+    let live = true;
+    api.folders({ view, q, undated, dates, types, folders }).then((t) => live && setFolderTree(t), () => live && setFolderTree(null));
+    return () => { live = false; };
+  }, [view, q, undated, dates, types, folders, refreshKey]);
 
   const focused = usePaged((p) => (focus ? api.selection(focus.ids, sort, p, pageSize)
                                           : Promise.resolve({ items: [], total: 0, page: p, page_size: pageSize, missing: [] } as SelectionPage)),
@@ -375,13 +396,14 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
   const changeDates = (next: string[]) => { setDates(next); setPage(1); };
   const changeTypes = (next: string[]) => { setTypes(next); setPage(1); };
+  const changeFolders = (next: string[]) => { setFolders(next); setPage(1); };
   // All photos means every photo: it also clears No capture date, the dates and the
   // search. The other views keep them, to narrow within them.
-  const narrowed = undated || dates.length > 0 || types.length > 0 || !!q;
+  const narrowed = undated || dates.length > 0 || types.length > 0 || folders.length > 0 || !!q;
   const chooseView = (v: View) => {
     setView(v);
     setPage(1);
-    if (v === "all") { setUndated(false); setDates([]); setTypes([]); setSearch(""); setQ(""); }
+    if (v === "all") { setUndated(false); setDates([]); setTypes([]); setFolders([]); setSearch(""); setQ(""); }
   };
   const jumpTo = (key: string) => {
     const newestFirst = sort !== "oldest";
@@ -431,7 +453,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const selectAll = async () => {
     if (focus) { toggleIds(focus.ids, true); return; }
     try {
-      const got = await api.photoIds({ view, q, undated, dates, types });
+      const got = await api.photoIds({ view, q, undated, dates, types, folders });
       if (got.over_limit) {
         setNotice(`${count(got.total)} photos are shown: more than the ${count(got.limit)}-photo selection limit. Use Actions for all photos, or narrow the view.`);
         return;
@@ -503,6 +525,41 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
   const askTransfer = (mode: "copy" | "move", ids?: number[], onCancel?: () => void) =>
     setConfirm(transferConfirm(mode, status, ids, start(mode, ids), onCancel));
+  // A folder's Copy or Move: the engine takes the folder itself (--source-subdir), so
+  // there is no 1,000-photo limit, and Retry offers the same folder again.
+  const folderShown = shownFolder(folderTree, folders);
+  const askFolder = (mode: "copy" | "move") => {
+    if (!folderShown) return;
+    setConfirm(transferConfirm(mode, status, { folder: folderLabel(folderShown.path) }, async () => {
+      setActionError(null);
+      try {
+        await api.startJob({ mode, source_subdir: folderShown.path });
+      } catch (e) {
+        setActionError(e instanceof ApiError ? e.message : "The job could not be started.");
+      }
+    }));
+  };
+
+  // The divider right of the left panel: drag it, or focus it and use the arrow keys.
+  const setSideWidth = (px: number) => {
+    const clamped = Math.round(Math.min(Math.max(px, SIDE_MIN), SIDE_MAX));
+    setSideWidthState(clamped);
+    try { localStorage.setItem("ns.sideWidth", String(clamped)); } catch { /* per-viewer convenience only */ }
+  };
+  const dragSide = (e: ReactPointerEvent) => {
+    e.preventDefault();
+    const left = side.current?.getBoundingClientRect().left ?? 0;
+    const move = (ev: PointerEvent) => setSideWidth(ev.clientX - left);
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.classList.remove("dragging");
+    };
+    document.body.classList.add("dragging");
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  const currentSide = () => sideWidth ?? side.current?.getBoundingClientRect().width ?? 240;
 
   const noPhotos = status.photos === 0;
   const tooMany = selected.size > MAX_SELECTION;
@@ -519,9 +576,12 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             <a className="button-link active" href="/" onClick={follow} aria-current="page">Library</a>
             <ActionsMenu
               state={{ jobRunning, noPhotos, selected: selected.size, tooMany, maxSelection: MAX_SELECTION,
-                       eligible: status.eligible, copied: status.copied }}
+                       eligible: status.eligible, copied: status.copied,
+                       folder: folderShown ? { name: folderLabel(folderShown.path), eligible: folderShown.eligible } : null,
+                       folders: folders.length }}
               onIndex={start("index")}
-              onTransfer={(mode, scope) => (scope === "selected" ? transferSelected(mode) : askTransfer(mode))} />
+              onTransfer={(mode, scope) => (scope === "selected" ? transferSelected(mode)
+                                           : scope === "folder" ? askFolder(mode) : askTransfer(mode))} />
             <a className="button-link" href="/logs" onClick={follow}>Logs</a>
           </nav>
           {(selected.size > 0 || focus) && (
@@ -543,7 +603,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
         </div>
         <div className={`toolbar-row toolbar-browse ${focus ? "is-muted" : ""}`}>
           <button className="dates-toggle" aria-expanded={datesOpen} onClick={() => setDatesOpen(!datesOpen)}>
-            Dates &amp; types{dates.length + types.length ? ` (${dates.length + types.length})` : ""}
+            Browse{dates.length + types.length + folders.length ? ` (${dates.length + types.length + folders.length})` : ""}
           </button>
           <nav className="views" aria-label="Views">
             {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
@@ -576,11 +636,22 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
       <main className={`content ${datesOpen ? "dates-open" : ""}`} ref={content}>
         {!focus && (
-          <aside className="side-panel">
-            <TypesPanel types={typeCounts} selected={types} onTypes={changeTypes} />
-            <DatesPanel timeline={timeline} dates={dates} current={currentDates} oldestFirst={sort === "oldest"} onDates={changeDates}
-                        onJump={(key) => { jumpTo(key); setDatesOpen(false); }} />
-          </aside>
+          <>
+            <aside className="side-panel" ref={side} style={sideWidth ? { flexBasis: `${sideWidth}px` } : undefined}>
+              <TypesPanel types={typeCounts} selected={types} onTypes={changeTypes} />
+              <BrowseBySwitch value={browseBy} onChange={setBrowseBy} />
+              {browseBy === "folders"
+                ? <FoldersPanel tree={folderTree} folders={folders} onFolders={changeFolders} />
+                : <DatesPanel timeline={timeline} dates={dates} current={currentDates} oldestFirst={sort === "oldest"} onDates={changeDates}
+                              onJump={(key) => { jumpTo(key); setDatesOpen(false); }} />}
+            </aside>
+            <div className="divider side-divider" role="separator" aria-orientation="vertical" aria-label="Resize the left panel"
+                 tabIndex={0} onPointerDown={dragSide}
+                 onKeyDown={(e) => {
+                   if (e.key === "ArrowLeft") setSideWidth(currentSide() - 40);
+                   if (e.key === "ArrowRight") setSideWidth(currentSide() + 40);
+                 }} />
+          </>
         )}
         <div className="gallery-pane">
           {loadError && <p className="error">{loadError}</p>}
@@ -624,11 +695,11 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               )}
             </div>
           )}
-          {!focus && data && (dates.length > 0 || types.length > 0 || !!q || undated) && (
+          {!focus && data && (dates.length > 0 || types.length > 0 || folders.length > 0 || !!q || undated) && (
             <p className="dates-filter-line">
               {/* What is shown, against the library the view buttons count. */}
               Showing {count(data.total)} of {plural(data.counts[view], "photo")}
-              {dates.length + types.length > 0 && <> · only {[...dates.map(dateLabel), ...types.map(typeLabel)].join(", ")}</>}
+              {dates.length + types.length + folders.length > 0 && <> · only {[...folders.map(folderLabel), ...dates.map(dateLabel), ...types.map(typeLabel)].join(", ")}</>}
               {q && <> · matching “{q}”</>}
               {undated && <> · no capture date</>}
               {data && data.total > 0 && (
@@ -640,6 +711,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               )}
               {dates.length > 0 && <>{" · "}<button className="link" onClick={() => changeDates([])}>Show all dates</button></>}
               {types.length > 0 && <>{" · "}<button className="link" onClick={() => changeTypes([])}>Show all types</button></>}
+              {folders.length > 0 && <>{" · "}<button className="link" onClick={() => changeFolders([])}>Show all folders</button></>}
             </p>
           )}
           {!focus && data && data.total === 0 && (

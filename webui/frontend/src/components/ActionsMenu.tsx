@@ -12,15 +12,22 @@ export interface ActionState {
   maxSelection: number;
   eligible: Record<Mode, number>;
   copied: number;
+  // The Folders tree's one folder shown, with what a Copy or Move of it would take;
+  // `folders` is how many are ticked, to say why "this folder" waits for exactly one.
+  // Absent on pages without the tree.
+  folder?: { name: string; eligible: Record<Mode, number> } | null;
+  folders?: number;
 }
 
 // The Actions menu (webui-spec 4): Index, and Copy and Move each for the photos
-// selected in the Library or for every photo the engine would take. The counts are
-// the whole catalog's (GET /status), never the gallery's current view or search.
+// selected in the Library, for the one folder the Folders tree shows (no 1,000 limit:
+// the engine takes the folder, not a list of photos), or for every photo the engine
+// would take. The counts are the whole catalog's (GET /status) or the folder's, never
+// the gallery's current view or search.
 export function ActionsMenu({ state, onIndex, onTransfer }: {
   state: ActionState;
   onIndex: () => void;
-  onTransfer: (mode: Mode, scope: "selected" | "all") => void;
+  onTransfer: (mode: Mode, scope: "selected" | "folder" | "all") => void;
 }) {
   const [open, setOpen] = useState(false);
   const [sub, setSub] = useState<Mode | null>(null);
@@ -49,6 +56,12 @@ export function ActionsMenu({ state, onIndex, onTransfer }: {
       ? (mode === "copy" ? "Nothing to copy - every photo is copied or organized." : "Nothing to move - every photo is organized.")
       : null);
 
+  const folderWhy = (mode: Mode) => busy ?? empty
+    ?? (state.folder == null
+      ? ((state.folders ?? 0) > 1 ? "Show one folder to act on it." : "Show a folder in the Folders tree to act on it.")
+      : state.folder.eligible[mode] === 0
+        ? (mode === "copy" ? "Nothing to copy there - every photo in it is copied or organized." : "Nothing to move there - every photo in it is organized.")
+        : null);
   const allHint = (mode: Mode) => mode === "copy"
     ? "Every photo not yet copied. The source is left untouched."
     : state.copied > 0
@@ -81,6 +94,12 @@ export function ActionsMenu({ state, onIndex, onTransfer }: {
                   <MenuItem label={`${verb(mode)} selected (${count(state.selected)})`}
                             hint={`The ${state.selected === 1 ? "photo" : `${count(state.selected)} photos`} you selected in the Library.`}
                             why={selectedWhy} onClick={run(() => onTransfer(mode, "selected"))} />
+                  {state.folders !== undefined && (
+                    <MenuItem label={state.folder ? `${verb(mode)} this folder: ${state.folder.name} (${count(state.folder.eligible[mode])})`
+                                                  : `${verb(mode)} this folder`}
+                              hint="Everything in it and its subfolders, however many: no 1,000 limit."
+                              why={folderWhy(mode)} onClick={run(() => onTransfer(mode, "folder"))} />
+                  )}
                   <MenuItem label={`${verb(mode)} all (${count(state.eligible[mode])})`} hint={allHint(mode)}
                             why={allWhy(mode)} onClick={run(() => onTransfer(mode, "all"))} />
                 </div>

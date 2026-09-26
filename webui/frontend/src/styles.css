@@ -250,7 +250,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 /* The date tree, left of the gallery. */
 .dates-toggle { display: none; }
 /* The left panel: Dates, then Types, scrolling together beside the gallery. */
-.side-panel { flex: 0 0 220px; align-self: flex-start; position: sticky; top: var(--header-h, 0px);
+.side-panel { flex: 0 0 240px; align-self: flex-start; position: sticky; top: var(--header-h, 0px);
   max-height: calc(100vh - var(--header-h, 0px)); overflow: auto; padding: 12px 8px 24px 16px; border-right: 1px solid var(--border);
   display: grid; gap: 18px; }
 .type-row { padding-left: 4px; }
@@ -268,6 +268,18 @@ body.dragging { cursor: col-resize; user-select: none; }
 .dates-name:hover { color: var(--accent); text-decoration: underline; }
 .dates-count { color: var(--muted); font-size: 0.85rem; }
 .dates-foot { font-size: 0.85rem; margin: 10px 0 0; }
+/* Browse by Folders or Dates, under Types. */
+.browse-by { display: grid; gap: 4px; }
+.browse-by .muted { font-size: 0.8rem; }
+.segmented { display: flex; border: 1px solid var(--accent); border-radius: 6px; overflow: hidden; }
+.segmented button { flex: 1; border: 0; border-radius: 0; padding: 5px 0; background: var(--surface); color: var(--accent); }
+.segmented button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+/* A folder row: the name ends in "…" when the panel is narrower than it; hover shows it whole. */
+.folder-row { grid-template-columns: auto 18px minmax(0, 1fr) auto; }
+.folder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+/* The left panel's divider: the Inspector's, at the panel's edge. */
+.side-panel { border-right: 0; }
+.side-divider { flex-basis: 6px; }
 @media (max-width: 800px) {
   .dates-toggle { display: inline-block; }
   .side-panel { display: none; }

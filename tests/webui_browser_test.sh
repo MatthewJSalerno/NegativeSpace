@@ -51,8 +51,10 @@ def make(name, i):
     Image.new('RGB', (320, 240), ((i * 37) % 256, (i * 91) % 256, (i * 53) % 256)).save(name, quality=90, **extra)
     t = 1_686_000_000 if i < $NEWER else 1_560_000_000
     os.utime(name, (t, t))
+# Ten of the older photos sit in a nested folder, which the Folders tree folds into one row.
+os.makedirs('/src/trip/day 1', exist_ok=True)
 for i in range($NEWER + $OLDER):
-    make(f'/src/photo-{i:03d}.jpg', i)
+    make(f'/src/trip/day 1/photo-{i:03d}.jpg' if 110 <= i < 120 else f'/src/photo-{i:03d}.jpg', i)
 for i in range($DUPLICATES):
     make(f'/src/copy-of-{i:03d}.jpg', i)
 "

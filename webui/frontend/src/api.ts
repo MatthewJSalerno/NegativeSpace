@@ -53,6 +53,23 @@ export interface BrowseFilters {
   undated: boolean;
   dates?: string[];
   types?: string[];
+  folders?: string[];
+}
+
+// A source folder in the Folders tree (GET /photos/folders): its path relative to the
+// source, the name shown (a folded chain reads "Camera / Nikon D750"), its photos under
+// the filters, and what a Copy or Move of it would take, whatever the filters.
+export interface FolderNode {
+  path: string;
+  name: string;
+  photos: number;
+  eligible: { copy: number; move: number };
+  folders: FolderNode[];
+}
+export interface FolderTree {
+  folders: FolderNode[];
+  top_files: { photos: number; eligible: { copy: number; move: number } };
+  outside: number;
 }
 
 function browseQuery(f: BrowseFilters): URLSearchParams {
@@ -61,6 +78,7 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
   if (f.undated) query.set("undated", "true");
   (f.dates ?? []).forEach((d) => query.append("date", d));
   (f.types ?? []).forEach((t) => query.append("type", t));
+  (f.folders ?? []).forEach((d) => query.append("folder", d));
   return query;
 }
 
@@ -367,6 +385,8 @@ export const api = {
   timeline: (params: BrowseFilters) => request<Timeline>("GET", `/api/v1/photos/timeline?${browseQuery(params)}`),
   types: (params: BrowseFilters) =>
     request<{ types: { type: string; photos: number }[] }>("GET", `/api/v1/photos/types?${browseQuery(params)}`),
+  // `folders` here keeps ticked folders listed; the tree's counts ignore its own filter.
+  folders: (params: BrowseFilters) => request<FolderTree>("GET", `/api/v1/photos/folders?${browseQuery(params)}`),
   photoIds: (params: BrowseFilters) =>
     request<{ ids: number[]; total: number; limit: number; over_limit: boolean }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
   selection: (ids: number[], sort: Sort, page: number, page_size: number) =>

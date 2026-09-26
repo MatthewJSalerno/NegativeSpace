@@ -127,6 +127,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 | `undated` | `true` for only photos with no EXIF date taken, the ones filed under Undated | `false` |
 | `date` | repeatable: a year (`2023`), a month (`2023-06`) or `none` (no date at all); the date tree's "Show only". Several add up | none: every date |
 | `type` | repeatable: a file extension, lower case, no dot (`jpg`, `heic`); the Types section's "Show only". Several add up | none: every type |
+| `folder` | repeatable: a folder relative to the source (`Phone/2019`), taking its subfolders, or `.` for the files directly in the source folder; the Folders tree's "Show only". Several add up. Matched as a literal path, never a wildcard or case-blind; a path outside the source is `400` | none: every folder |
 | `page`, `page_size` | page from 1; 1 to 240 photos | 1, 60 |
 
     {"items": [{"id": 12, "status": "Pending", "file_size": 3012443,
@@ -143,7 +144,7 @@ whose latest delivery was a Move that could not delete the original, why (a run'
 `kept_reasons`); otherwise `null`.
 
 `counts` are the view buttons: each view's whole library, whatever the search, `date`,
-`type` and `undated` narrow the gallery to, so All photos is always every photo.
+`type`, `folder` and `undated` narrow the gallery to, so All photos is always every photo.
 `counts.undated` is how many photos in this view have no capture date, for the No capture
 date label. `total` is what this request shows, every filter applied. `matches` counts
 each view with every filter applied, for offering another view when a search finds
@@ -151,7 +152,7 @@ nothing in this one. The date sorts put undatable rows last.
 
 ### `GET /api/v1/photos/timeline`
 
-Photos per calendar month for the same `view`, `q`, `undated`, `date` and `type`, newest month first:
+Photos per calendar month for the same `view`, `q`, `undated`, `date`, `type` and `folder`, newest month first:
 
     {"months": [{"month": "2023-06", "count": 68}, ...], "undated": 0}
 
@@ -163,16 +164,37 @@ asks with it, to land on the right page of the filtered gallery.
 ### `GET /api/v1/photos/types`
 
 Photos per file type for the Types section, most first, for the same `view`, `q`,
-`undated` and `date`, but never `type`, so an unchecked type keeps its count. Only types
+`undated`, `date` and `folder`, but never `type`, so an unchecked type keeps its count. Only types
 the catalog holds are listed:
 
     {"types": [{"type": "jpg", "photos": 2980}, {"type": "heic", "photos": 212}, ...]}
 
 A type is the extension of the name the photo was indexed under, lower case.
 
+### `GET /api/v1/photos/folders`
+
+The source's folders for the Folders tree, built from catalogued source paths, never a
+disk listing, so every folder offered holds photos a job can act on:
+
+    {"folders": [{"path": "Camera/Nikon D750", "name": "Camera / Nikon D750", "photos": 812,
+                  "eligible": {"copy": 812, "move": 812}, "folders": [...]}, ...],
+     "top_files": {"photos": 4, "eligible": {"copy": 4, "move": 4}}, "outside": 0}
+
+*   **`photos`** counts a folder's photos, subfolders included, for the same `view`, `q`,
+    `undated`, `date` and `type`; `folder` does not narrow it, so an unticked folder keeps
+    its count. A folder named in `folder` stays listed at 0, so it can be unticked.
+*   **`eligible`** is what a Copy or a Move of the folder would take (`--source-subdir`,
+    `ns_db.TRANSFER_ELIGIBLE`), whatever the filters: Actions' "this folder".
+*   **`name`** folds a chain of folders, each holding one folder and no photos of its own,
+    into one row: `"Camera / Nikon D750"`, with `path` the deepest folder.
+*   **`top_files`** are the photos directly in the source folder, in no subfolder
+    (`folder=.`). **`outside`** counts shown photos whose source path is outside the
+    source folder, from a catalog shared with another source; they are not placed.
+*   Folders are ordered by name, letter case ignored, then by exact name.
+
 ### `GET /api/v1/photos/ids`
 
-Every photo id the gallery shows for the same `view`, `q`, `undated`, `date` and `type`, across
+Every photo id the gallery shows for the same `view`, `q`, `undated`, `date`, `type` and `folder`, across
 all pages: **Select all**.
 
     {"ids": [3, 7, ...], "total": 412, "limit": 1000, "over_limit": false}

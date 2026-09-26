@@ -128,7 +128,32 @@ Users can select individual files or multiple files across grid views to run tar
   1,000-photo limit. The boxes themselves only filter: unchecking a month to look
   elsewhere must never change the selection). The tree's own counts ignore it, so an
   unticked month keeps its number. On a
-  narrow screen the panel opens from a **Dates & types** button.
+  narrow screen the panel opens from a **Browse** button.
+* **Browse by Folders or Dates:** under Types, **Browse by [Folders | Dates]** chooses the
+  tree below it; **Folders** is the default, and the choice is remembered per browser (a
+  filter in the address for the other tree shows that one). The **Folders** tree is the
+  **source's** folders, built from catalogued paths (`GET /api/v1/photos/folders`), with
+  counts for the current view, search, dates and types, and the same **Show only** boxes: a
+  ticked folder takes its subfolders, which show ticked and cannot be unticked on their
+  own; a folder with only some subfolders ticked shows a dash. A chain of folders each
+  holding one folder and no photos is one row (**"Camera / Nikon D750"**); the photos
+  directly in the source folder are a last row, **Files in the source folder**. Folders
+  combine with dates and types and are named in the filter line (**"Showing 318 of 3,366
+  photos · only Family scans · Select these 318 · Show all folders"**). *Why the source
+  tree, not the destination's:* the destination is `YYYY/MM/DD` and `Undated/<year>`, which
+  the Dates tree already shows; the source's folders are what the user knows, every photo
+  has one (a moved photo under the folder it came from), and they are what a job can act
+  on. The left panel's edge can be dragged, or moved with the arrow keys, since folder
+  paths can be wide; a name wider than the panel ends in "…", whole on hover.
+* **A folder's Copy or Move:** with exactly one folder shown, **Actions ▾ → Copy ▸ / Move ▸
+  → this folder: Family scans (318)** takes that folder and its subfolders, however many
+  photos: the engine is given the folder (`--source-subdir`), not a list of photos, so the
+  1,000-photo limit does not apply. The count is what the job would take, whatever the
+  view. Otherwise the item stays in the menu, disabled, and says why: **"Show one folder
+  to act on it."** with several ticked, **"Show a folder in the Folders tree to act on
+  it."** with none, and the files directly in the source folder, which are no folder of
+  their own, are selected instead. It is confirmed as Copy all and Move all are, and a
+  Retry past the limit offers **Move this folder again** (§5.3).
 * **Types:** above Dates, folded by default to one line that names any type checked (a
   type filter in the address opens it; open or folded is remembered per browser): the
   file types the library holds (by extension), with counts
@@ -195,7 +220,8 @@ matches. Distinguish not-yet-organized and organized photos; when a search has m
 in the other view, show its count and a link rather than implying no matches exist.
 * **Selection size limit:** Individual multi-select (including "Select all on page") is capped at a configurable maximum (default: 1,000 files) per job submission — this isn't an arbitrary UX restriction, it's because each selected file becomes an integer in the `--file-ids` command-line argument passed to the engine, and there's a real OS limit on total command-line length. Exceeding the cap shows a clear message (e.g. *"1,000 file limit for individual selection — try Folder Selection below for larger batches"*) rather than silently truncating the selection or attempting a job that might fail at spawn time.
 * **Folder Selection (for large batches):** Instead of "select all matching current filter" against individual files, users can select a source folder (recursive) and scope the operation to everything currently indexed under it. This maps directly to the engine's `--source-subdir <path>` flag (`engine-spec.md` §4.1) rather than enumerating individual IDs, which sidesteps the command-line length limit entirely — there's no practical upper bound on how many files a folder selection can cover. Symlinks are excluded automatically, inherited from the original Index that populated the catalog (a symlink was never indexed as a row in the first place). If a folder hasn't been indexed yet (zero matching rows), show *"No indexed files found under this folder — run an Index first."*
-* **Actions on a selection:** **Actions ▾ → Copy ▸ / Move ▸ → selected (n)** (§4.1).
+* **Actions on a selection:** **Actions ▾ → Copy ▸ / Move ▸ → selected (n)** (§4.1); on a
+  folder, **this folder (n)**, from the Folders tree (above).
 * **Targeted Execution:** Individual selections use the `--file-ids <id1,id2>` flag; folder selections use `--source-subdir <path>`. These are mutually exclusive targeting mechanisms in a single job — pick one per submission. IDs (not raw file paths) were chosen for the individual case specifically because a database primary key is unambiguous and doesn't depend on path strings staying identical between when the frontend fetched the catalog and when the operation actually runs — and it keeps one targeting implementation rather than a parallel web-only code path, which is what makes the engine directly runnable for debugging and development (see §1).
 
 ---

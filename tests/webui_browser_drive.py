@@ -107,6 +107,40 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"page=2\b"))
     expect(page.locator(".pager").first.locator("button.current")).to_have_text("2")
     page.goto(BASE)
+    # Folders, the left panel's default: the source's folders as catalogued, a chain of
+    # single folders as one row, and the files directly in the source folder.
+    folders_nav = page.get_by_role("navigation", name="Folders")
+    expect(page.get_by_role("button", name="Folders", exact=True)).to_have_attribute("aria-pressed", "true")
+    trip = folders_nav.locator(".folder-row", has_text="trip / day 1")
+    expect(trip.locator(".dates-count")).to_have_text("10")
+    expect(folders_nav.locator(".folder-row", has_text="Files in the source folder").locator(".dates-count")).to_have_text(f"{PHOTOS - 10:,}")
+    trip.get_by_role("checkbox").check()
+    expect(page.locator(".dates-filter-line")).to_contain_text(f"Showing 10 of {PHOTOS} photos · only trip / day 1")
+    expect(page).to_have_url(re.compile(r"folder=trip"))
+    # One folder shown: Actions offers it, however many photos it holds.
+    item = open_actions(page, "Copy").get_by_role("menuitem", name=re.compile(r"^Copy this folder: trip \/ day 1 \(10\)"))
+    expect(item).to_be_enabled()
+    item.click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("Copy the photos under trip / day 1?")
+    page.keyboard.press("Escape")
+    # Two folders: "this folder" waits for one, and says why.
+    folders_nav.get_by_label("Show only the files in the source folder").check()
+    item = open_actions(page, "Copy").get_by_role("menuitem", name=re.compile(r"^Copy this folder"))
+    expect(item).to_be_disabled()
+    expect(item).to_contain_text("Show one folder to act on it.")
+    page.keyboard.press("Escape")
+    page.locator(".dates-filter-line").get_by_role("button", name="Show all folders").click()
+    expect(page).not_to_have_url(re.compile(r"folder="))
+    # The left panel widens for long folder paths: drag its edge, or use the arrow keys.
+    before = page.locator(".side-panel").bounding_box()["width"]
+    page.get_by_role("separator", name="Resize the left panel").focus()
+    page.keyboard.press("ArrowRight")
+    page.wait_for_timeout(100)
+    assert page.locator(".side-panel").bounding_box()["width"] >= before + 30, "the left panel did not widen"
+    page.keyboard.press("ArrowLeft")
+    # Dates, the other way to browse; this browser remembers the choice.
+    page.get_by_role("button", name="Dates", exact=True).click()
+    expect(page.get_by_role("navigation", name="Dates")).to_be_visible()
     # Continuous scrolling: past the first page the next loads below it, and the page
     # number and the address follow the photos on top.
     expect(page.locator(".card")).to_have_count(60)
@@ -239,7 +273,7 @@ with sync_playwright() as p:
     expect(lightbox).to_have_count(0)
 
     # The divider: drag it, and a wide panel puts the details beside the photo.
-    divider = page.locator(".divider")
+    divider = page.get_by_role("separator", name="Resize the photo panel")
     before = inspector.bounding_box()["width"]
     box = divider.bounding_box()
     page.mouse.move(box["x"] + 4, box["y"] + 200)
