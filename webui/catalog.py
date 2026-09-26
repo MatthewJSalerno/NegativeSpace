@@ -230,32 +230,32 @@ def _items(conn, rows) -> list:
 def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, page_size=60, undated=False,
                 dates=None, types=None) -> dict:
     _check_view(view, sort, page, page_size)
-    search, search_params = _search_clause(q)
-    date_sql, date_params = _dates_clause(dates)
-    type_sql, type_params = _types_clause(types)
-    date_sql, date_params = date_sql + type_sql, date_params + type_params     # both narrow every count
     filtered, filtered_params = _filters(q, undated, dates, types)
     with connect(db_path) as conn:
-        # The views' counts ignore No capture date, which has its own count: turning it
-        # on must not make All photos read as if the library had shrunk.
-        counts = {}
+        # The view buttons count the whole library: "All photos" is every photo, whatever
+        # the search, dates, types or No capture date narrow the gallery to (webui-spec 2,
+        # Selective File Processing); `total` is what this request shows. `matches` counts
+        # each view under every filter, for suggesting another view when a search finds
+        # nothing in this one.
+        counts, matches = {}, {}
         for name, statuses in VIEWS.items():
-            counts[name] = conn.execute(
-                f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(statuses)})" + search + date_sql,
-                tuple(search_params) + date_params).fetchone()[0]
+            base = f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(statuses)})"
+            counts[name] = conn.execute(base).fetchone()[0]
+            matches[name] = conn.execute(base + filtered, filtered_params).fetchone()[0]
         total = conn.execute(
             f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered,
             filtered_params).fetchone()[0]
-        # How many in this view, search and dates have no capture date, filter on or off, for its label.
+        # How many photos in this view have no capture date, whatever else is on, for its label.
         counts["undated"] = conn.execute(
-            f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})"
-            + search + f" AND {_UNDATED}" + date_sql, tuple(search_params) + date_params).fetchone()[0]
+            f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])}) AND {_UNDATED}"
+        ).fetchone()[0]
         rows = conn.execute(
             f"SELECT {_LIST_COLUMNS} FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})"
             + filtered + f" ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?",
             filtered_params + (page_size, (page - 1) * page_size)).fetchall()
         items = _items(conn, rows)
-    return {"items": items, "page": page, "page_size": page_size, "total": total, "counts": counts}
+    return {"items": items, "page": page, "page_size": page_size, "total": total, "counts": counts,
+            "matches": matches}
 
 
 def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,

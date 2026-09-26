@@ -134,16 +134,18 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
                 "filename": "IMG_0001.jpg", "duplicates": 1,
                 "failure": null | "Permission denied"}, ...],
      "page": 1, "page_size": 60, "total": 1160,
-     "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160}}
+     "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160},
+     "matches": {"all": 1160, "organized": 0, "unorganized": 1160}}
 
 `failure` is a `Failed` photo's latest failure reason, made readable as in a run's
 `failure_reasons` (§6); `null` for any other status.
 
-`counts` apply the search, `date` and `type` to each view, but not `undated`, which has its
-own count: turning No capture date on leaves All photos at its real number. `total` is
-what this request shows, every filter applied. `counts.undated` is how
-many photos in this view and search have no capture date, whether or not the filter is
-on, for the filter's label. The date sorts put undatable rows last.
+`counts` are the view buttons: each view's whole library, whatever the search, `date`,
+`type` and `undated` narrow the gallery to, so All photos is always every photo.
+`counts.undated` is how many photos in this view have no capture date, for the No capture
+date label. `total` is what this request shows, every filter applied. `matches` counts
+each view with every filter applied, for offering another view when a search finds
+nothing in this one. The date sorts put undatable rows last.
 
 ### `GET /api/v1/photos/timeline`
 

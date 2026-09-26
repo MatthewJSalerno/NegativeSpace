@@ -131,13 +131,13 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(rf"page={NEWER // 60 + 1}\b"))
     expect(page.locator(".card-sub", has_text="2019").first).to_be_visible()
     dates.get_by_label("Show only 2019").check()
-    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only 2019")
+    expect(page.locator(".dates-filter-line")).to_contain_text(f"Showing {OLDER} of {PHOTOS} photos · only 2019")
     # Select these: the photos the date filter shows, in one click.
     page.locator(".dates-filter-line").get_by_role("button", name=f"Select these {OLDER}").click()
     expect(page.locator(".selection-line")).to_contain_text(f"{OLDER} photos selected")
     page.locator(".selection-line").get_by_role("button", name="Clear").click()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
-    expect(page.locator(".views")).to_contain_text(f"All photos ({OLDER})")
+    expect(page.locator(".views")).to_contain_text(f"All photos ({PHOTOS})")   # the whole library, not what is shown
     expect(dates.get_by_role("button", name="2023", exact=True)).to_be_visible()   # counts ignore the filter
     page.reload()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
@@ -160,7 +160,7 @@ with sync_playwright() as p:
     expect(types.locator(".type-row")).to_have_count(1)
     expect(types.locator(".type-row")).to_contain_text(f"JPG{PHOTOS:,}")
     types.get_by_label("Show only JPG").check()
-    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only JPG")
+    expect(page.locator(".dates-filter-line")).to_contain_text("only JPG")
     expect(page).to_have_url(re.compile(r"type=jpg"))
     types.get_by_role("button", name=re.compile(r"Types")).click()           # folded, it still names the filter
     expect(types.get_by_role("button", name=re.compile(r"Types"))).to_contain_text("JPG")
@@ -502,7 +502,7 @@ with sync_playwright() as p:
     # A format row opens the Library showing only that type.
     page.locator(".stat-bars a.bar-label", has_text="JPG").click()
     expect(page).to_have_url(re.compile(r"type=jpg"))
-    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only JPG")
+    expect(page.locator(".dates-filter-line")).to_contain_text("only JPG")
     page.go_back()
     tiles.filter(has_text="Failed attempts").click()
     expect(page).to_have_url(re.compile(r"/logs\?status=Failed"))
@@ -511,7 +511,7 @@ with sync_playwright() as p:
     expect(page.locator(".year-bar")).to_have_count(1)
     page.locator(".year-bar", has_text="2023").click()
     expect(page).to_have_url(re.compile(r"date=2023"))
-    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only 2023")
+    expect(page.locator(".dates-filter-line")).to_contain_text("only 2023")
     page.locator(".dates-filter-line").get_by_role("button", name="Show all dates").click()
 
     page.get_by_role("button", name="Settings").click()

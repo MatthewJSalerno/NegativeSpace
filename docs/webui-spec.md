@@ -122,19 +122,27 @@ Users can select individual files or multiple files across grid views to run tar
   **Show only** header, narrow the gallery to the ticked years and months; none ticked,
   the default, shows every date. A year's box ticks its months and shows a dash when
   only some are ticked. The filter is in the address, named above the gallery
-  (**“Showing only June 2023, 2019 · Select these 412 · Show all dates”**; **Select these**
+  (**“Showing 412 of 1,160 photos · only June 2023, 2019 · Select these 412 · Show all
+  dates”**; **Select these**
   selects what the filter shows, as Select all in this view does, refused above the
   1,000-photo limit. The boxes themselves only filter: unchecking a month to look
-  elsewhere must never change the selection), and applies to the view
-  counts; the tree's own counts ignore it, so an unticked month keeps its number. On a
+  elsewhere must never change the selection). The tree's own counts ignore it, so an
+  unticked month keeps its number. On a
   narrow screen the panel opens from a **Dates & types** button.
 * **Types:** above Dates, folded by default to one line that names any type checked (a
   type filter in the address opens it; open or folded is remembered per browser): the
   file types the library holds (by extension), with counts
   for the current view, search and dates, and the same **Show only** boxes; none checked,
   the default, shows every type. A checked type stays listed at 0 so it can be unchecked.
-  Types and dates combine, and the filter line names both (**"Showing only 2019, HEIC ·
-  Select these 42 · Show all dates · Show all types"**). **All photos** clears them too.
+  Types and dates combine, and the filter line names both (**"Showing 42 of 1,160 photos
+  · only 2019, HEIC · Select these 42 · Show all dates · Show all types"**). **All
+  photos** clears them too.
+* **The view buttons count the library; the filter line counts the gallery.** **All
+  photos (1,160)** is every photo whatever the dates, types, search or No capture date
+  narrow the gallery to, and so are the other views' numbers. Whenever any of those is
+  on, the line above the gallery says what is shown and of what: **"Showing 9 of 1,160
+  photos · only 2022, 2023"**. **Why not counts that follow the filters:** a button
+  labelled All photos showing 9 read as the library's size, not the gallery's.
   The Stats page's formats open the Library filtered to that type. Going to a date the filter hides
   says so and offers the fixes as buttons that apply them and then go there: **“December
   2016 is outside the dates shown. Show December 2016 too · Show all dates”**.
@@ -171,9 +179,9 @@ The page, page size, sort, view, search, dates and open photo live in the URL.
 
 **No capture date** is a quick filter beside the views, with its count. It shows the
 photos whose EXIF has no date taken, which are filed under Undated by their file's
-modification date. It combines with the view and the search, but the views' counts
-ignore it: turning it on leaves **All photos** at its real number, and the pager says how
-many are shown. Each view button keeps its width whatever its count, with room for
+modification date, counted in the current view. It combines with the view and the
+search; the views' counts ignore it, as they ignore every filter, and the filter line says
+how many are shown. Each view button keeps its width whatever its count, with room for
 **(999,999)** in even-width digits, so switching views never moves them. **All photos** means every
 photo: choosing it also clears No capture date, the date tree's Show only and the search,
 and it is not shown as chosen while any of them narrows the gallery. The other views keep

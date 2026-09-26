@@ -258,7 +258,8 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual(photos()["total"], 2)
         only_2023 = photos(date=["2023"])
         self.assertEqual([i["date_taken"][:7] for i in only_2023["items"]], ["2023-11"])
-        self.assertEqual(only_2023["counts"]["all"], 1, "the view counts must follow the date filter")
+        self.assertEqual((only_2023["counts"]["all"], only_2023["matches"]["all"]), (2, 1),
+                         "the view buttons count the library; matches follow the filters")
         self.assertEqual(photos(date=["2020-09", "2023"])["total"], 2, "checked dates add up")
         self.assertEqual(photos(date=["none"])["total"], 0)
         self.assertEqual(self.client.get("/api/v1/photos", params={"date": "June"}).status_code, 400)
@@ -284,7 +285,8 @@ class JobsAndCatalog(ApiCase):
                          "only the types the library holds, most first")
         only_png = self.client.get("/api/v1/photos", params={"type": "png"}).json()
         self.assertEqual([i["filename"] for i in only_png["items"]], ["scan.png"])
-        self.assertEqual(only_png["counts"]["all"], 1, "the view counts follow the type filter")
+        self.assertEqual((only_png["counts"]["all"], only_png["matches"]["all"]), (3, 1),
+                         "the view buttons count the library; matches follow the type filter")
         ids = self.client.get("/api/v1/photos/ids", params={"type": "jpg"}).json()
         self.assertEqual(ids["total"], 2, "Select all takes exactly the types shown")
         both = self.client.get("/api/v1/photos", params={"type": ["jpg", "png"], "date": "2023"}).json()

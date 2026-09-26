@@ -37,7 +37,10 @@ export interface PhotoPage {
   page: number;
   page_size: number;
   total: number;
+  // The whole library per view (and No capture date within this view), for the buttons.
   counts: Record<View | "undated", number>;
+  // Each view under every filter now on, for suggesting another view.
+  matches: Record<View, number>;
 }
 
 // What narrows the gallery: the view, the search, No capture date, and the date tree's
