@@ -468,6 +468,16 @@ with sync_playwright() as p:
     expect(tiles.filter(has_text="Photos")).to_contain_text(f"{PHOTOS:,}")
     expect(page.locator(".stat-panel h3")).to_have_count(6)
     expect(page.locator(".stat-panel", has_text="Duplicates")).to_contain_text("Extra copies")
+    # Aligned: fixed columns, and every panel in a row as tall as the row.
+    boxes = page.locator(".stat-panel").evaluate_all(
+        "ps => ps.map(p => { const r = p.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; })")
+    rows = {}
+    for left, top, width, height in boxes:
+        rows.setdefault(top, []).append((left, width, height))
+    for top, row in rows.items():
+        assert len({w for _, w, _ in row}) == 1 and len({h for _, _, h in row}) == 1, f"a row of uneven panels: {row}"
+    lefts = [sorted(l for l, _, _ in row) for row in rows.values()]
+    assert all(r == lefts[0][:len(r)] for r in lefts), f"columns do not line up: {lefts}"
     shot("9-stats")
     tiles.filter(has_text="Failed attempts").click()
     expect(page).to_have_url(re.compile(r"/logs\?status=Failed"))
