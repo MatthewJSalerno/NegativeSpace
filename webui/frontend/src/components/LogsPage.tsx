@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Logo } from "./Logo";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
 import { modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
@@ -219,7 +220,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
     <div className="app">
       <header className="toolbar" ref={header}>
         <div className="toolbar-row">
-          <h1 className="brand">NegativeSpace</h1>
+          <h1 className="brand"><Logo />NegativeSpace</h1>
           <nav className="pages" aria-label="Pages">
             <a className="button-link" href="/" onClick={follow}>Library</a>
             <ActionsMenu

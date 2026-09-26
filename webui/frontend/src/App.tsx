@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Logo } from "./components/Logo";
 import { api, ApiError, type PhotoItem, type PhotoPage, type SelectionPage, type Sort, type Status, type Timeline, type View } from "./api";
 import { count, plural } from "./format";
 import { useDismissedRun, useJobFeed } from "./jobs";
@@ -472,7 +473,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     <div className={`app ${openId != null ? "with-inspector" : ""}`}>
       <header className="toolbar" ref={header}>
         <div className="toolbar-row">
-          <h1 className="brand">NegativeSpace</h1>
+          <h1 className="brand"><Logo />NegativeSpace</h1>
           <nav className="pages" aria-label="Pages">
             <a className="button-link active" href="/" onClick={follow} aria-current="page">Library</a>
             <ActionsMenu

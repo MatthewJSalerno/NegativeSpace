@@ -59,6 +59,9 @@ with sync_playwright() as p:
     # Saved, the first run lands in the Library, where the Index waits, whatever the address was.
     expect(page).to_have_url(re.compile(r"^[^?]*://[^/]+/(\?.*)?$"))
     expect(page.get_by_text("No photos yet")).to_be_visible()
+    # The logo at the top left, in its own proportions.
+    logo = page.locator(".brand .logo").bounding_box()
+    assert logo and logo["x"] < 40 and abs(logo["width"] / logo["height"] - 991 / 956) < 0.05, f"logo: {logo}"
     # The Actions menu: every item that cannot run says why.
     menu = open_actions(page, "Move")
     expect(menu.get_by_role("menuitem", name=re.compile(r"^Move all"))).to_be_disabled()

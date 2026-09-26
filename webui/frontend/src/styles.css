@@ -92,7 +92,8 @@ button.icon { font-size: 1.1rem; padding: 4px 10px; }
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.2); opacity: 0; pointer-events: none; transition: opacity 0.12s 0.25s;
 }
 .tip:hover::after, .tip:focus-within::after { opacity: 1; }
-.brand { font-size: 1.1rem; }
+.brand { font-size: 1.1rem; display: inline-flex; align-items: center; gap: 8px; }
+.logo { flex: none; display: block; }
 .views { display: flex; gap: 4px; flex-wrap: wrap; }
 .pages { display: flex; gap: 4px; }
 .views button { border-color: transparent; }
