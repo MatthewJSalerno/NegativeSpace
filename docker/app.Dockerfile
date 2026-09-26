@@ -27,6 +27,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application script and entrypoint
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+# Which build this is, shown at the top right of every page (webui-spec 4.1): the
+# release from VERSION, and the branch and commit passed in at build time
+# (README: NS_BRANCH and NS_COMMIT), so a report names the exact code.
+ARG NS_BRANCH=
+ARG NS_COMMIT=
+ENV NS_BRANCH=$NS_BRANCH NS_COMMIT=$NS_COMMIT
+COPY VERSION ./
 COPY ns-engine.py ns_db.py ./
 COPY webui/*.py ./webui/
 RUN chmod 644 ns-engine.py

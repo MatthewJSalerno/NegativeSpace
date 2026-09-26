@@ -12,6 +12,8 @@ export interface Status {
   copied: number;
   application_data: string;
   catalog_backups: string;
+  // Which build is running: the release, and the branch and commit it was built from.
+  version?: { release: string | null; branch: string | null; commit: string | null };
   active_job: Run | null;
 }
 
@@ -34,6 +36,31 @@ export interface PhotoPage {
   page_size: number;
   total: number;
   counts: Record<View | "undated", number>;
+}
+
+// What narrows the gallery: the view, the search, No capture date, and the date tree's
+// "Show only" years and months ("2023", "2023-06", "none").
+export interface BrowseFilters {
+  view: View;
+  q: string;
+  undated: boolean;
+  dates?: string[];
+}
+
+function browseQuery(f: BrowseFilters): URLSearchParams {
+  const query = new URLSearchParams({ view: f.view });
+  if (f.q) query.set("q", f.q);
+  if (f.undated) query.set("undated", "true");
+  (f.dates ?? []).forEach((d) => query.append("date", d));
+  return query;
+}
+
+export interface SelectionPage {
+  items: PhotoItem[];
+  page: number;
+  page_size: number;
+  total: number;
+  missing: number[];
 }
 
 export interface Timeline {
@@ -72,6 +99,8 @@ export interface PhotoDetail {
   sha1: string | null;
   phash: string | null;
   duplicates: Copy[];
+  // Every tag the Index recorded, [name, value], sorted by name.
+  metadata: [string, unknown][];
   thumbnail: { availability: string; failure_category: string | null; failure_detail: string | null };
 }
 
@@ -209,6 +238,44 @@ export interface Backups {
   job_active: boolean;
 }
 
+export interface LineageFile {
+  file_id: number;
+  origin_file_id: number | null;
+  origin_kind: "indexed" | "copy" | "observed_destination" | null;
+  path: string | null;
+  role: "source" | "destination" | null;
+  presence: "present" | "removed" | "missing" | null;
+  sha1_hash: string | null;
+  matches: boolean;
+  file_size: number | null;
+  indexed_path: string | null;
+  created_at: string | null;
+  photo_id: number | null;
+  photo_status: string | null;
+}
+
+export interface LineageOperation {
+  id: number;
+  run_id: number;
+  mode: string | null;
+  status: string;
+  timestamp: string;
+  error_message: string | null;
+  photo_id: number | null;
+  source_path: string | null;
+  dest_path: string | null;
+  recovery: boolean;
+  files: { file_id: number; role: "source" | "destination" | "retained_copy" }[];
+}
+
+export interface Lineage {
+  photo_id: number;
+  sha1: string | null;
+  photos: number[];
+  files: LineageFile[];
+  operations: LineageOperation[];
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public body: Record<string, unknown>) {
     super(message);
@@ -239,20 +306,19 @@ export const api = {
     request<Settings>("PUT", "/api/v1/settings", { values, revisions }),
   validateExtension: (extension: string) =>
     request<ExtensionSupport>("POST", "/api/v1/settings/validate-extension", { extension }),
-  photos: (params: { view: View; sort: Sort; q: string; page: number; page_size: number; undated: boolean }) => {
-    const query = new URLSearchParams({
-      view: params.view, sort: params.sort, page: String(params.page), page_size: String(params.page_size),
-    });
-    if (params.q) query.set("q", params.q);
-    if (params.undated) query.set("undated", "true");
+  photos: (params: BrowseFilters & { sort: Sort; page: number; page_size: number }) => {
+    const query = browseQuery(params);
+    query.set("sort", params.sort);
+    query.set("page", String(params.page));
+    query.set("page_size", String(params.page_size));
     return request<PhotoPage>("GET", `/api/v1/photos?${query}`);
   },
-  timeline: (params: { view: View; q: string; undated: boolean }) => {
-    const query = new URLSearchParams({ view: params.view });
-    if (params.q) query.set("q", params.q);
-    if (params.undated) query.set("undated", "true");
-    return request<Timeline>("GET", `/api/v1/photos/timeline?${query}`);
-  },
+  // Without `dates` for the date tree's counts; with them for the page a jump lands on.
+  timeline: (params: BrowseFilters) => request<Timeline>("GET", `/api/v1/photos/timeline?${browseQuery(params)}`),
+  photoIds: (params: BrowseFilters) =>
+    request<{ ids: number[]; total: number; limit: number; over_limit: boolean }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
+  selection: (ids: number[], sort: Sort, page: number, page_size: number) =>
+    request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size }),
   operations: (f: LogFilters, page: number, pageSize: number) => {
     const p = logQuery(f);
     p.set("page", String(page));
@@ -269,7 +335,10 @@ export const api = {
   backups: () => request<Backups>("GET", "/api/v1/backups"),
   backupNow: () => request<BackupAttempt>("POST", "/api/v1/backups"),
   backupDownloadUrl: (id: number) => `/api/v1/backups/${id}/download`,
+  uiState: () => request<{ dismissed_run: number | null }>("GET", "/api/v1/ui-state"),
+  saveUiState: (values: { dismissed_run: number }) => request<{ dismissed_run: number | null }>("PUT", "/api/v1/ui-state", values),
   runs: (limit = 100) => request<{ runs: Run[] }>("GET", `/api/v1/runs?limit=${limit}`),
+  lineage: (id: number) => request<Lineage>("GET", `/api/v1/photos/${id}/lineage`),
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   startJob: (body: { mode: "index" | "copy" | "move"; file_ids?: number[]; source_subdir?: string }) =>
     request<Run>("POST", "/api/v1/jobs/start", body),

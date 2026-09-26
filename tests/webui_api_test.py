@@ -100,6 +100,17 @@ class FirstRunAndSettings(ApiCase):
         empty = self.client.post("/api/v1/jobs/start", json={"mode": "move"})
         self.assertEqual((empty.status_code, empty.json()["error"]), (409, "catalog_empty"))
 
+    def test_status_says_which_build_is_running(self):
+        release = (Path(__file__).resolve().parent.parent / "VERSION").read_text().strip()
+        os.environ.update(NS_BRANCH="feat/example", NS_COMMIT="abc1234")
+        try:
+            version = self.client.get("/api/v1/status").json()["version"]
+        finally:
+            del os.environ["NS_BRANCH"], os.environ["NS_COMMIT"]
+        self.assertEqual(version, {"release": release, "branch": "feat/example", "commit": "abc1234"})
+        self.assertEqual(self.client.get("/api/v1/status").json()["version"]["commit"], None,
+                         "an image built without the commit says so, rather than inventing one")
+
     def test_an_incompatible_catalog_is_left_alone_and_explained(self):
         self.cfg.db_path.parent.mkdir(parents=True)
         with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
@@ -181,6 +192,25 @@ class JobsAndCatalog(ApiCase):
         again = self.wait_for(self.start(mode="copy"))
         self.assertEqual(again["outcome"]["verdict"], "no_change")
 
+    def test_a_photos_lineage_joins_its_files_copies_duplicates_and_operations(self):
+        self.index_library()                  # IMG_0001 and "Beach Sunset" share content
+        self.wait_for(self.start(mode="copy"))
+        anchor = next(i for i in self.client.get("/api/v1/photos").json()["items"] if i["duplicates"])
+        tree = self.client.get(f"/api/v1/photos/{anchor['id']}/lineage").json()
+        self.assertEqual(len(tree["photos"]), 2, "the duplicate belongs in the tree")
+        sources = [f for f in tree["files"] if f["origin_kind"] == "indexed"]
+        copies = [f for f in tree["files"] if f["origin_kind"] == "copy"]
+        self.assertEqual((len(sources), len(copies)), (2, 1))
+        (copy,) = copies
+        own = next(f for f in sources if f["photo_id"] == anchor["id"])
+        self.assertEqual((copy["origin_file_id"], copy["role"], copy["presence"]), (own["file_id"], "destination", "present"))
+        self.assertEqual(own["origin_file_id"], own["file_id"], "an indexed file is its own origin")
+        self.assertTrue(all(f["matches"] for f in tree["files"]), "every file here holds the same content")
+        copied = next(op for op in tree["operations"] if op["status"] == "Copied")
+        self.assertEqual({(x["file_id"], x["role"]) for x in copied["files"]},
+                         {(own["file_id"], "source"), (copy["file_id"], "destination")})
+        self.assertEqual(self.client.get("/api/v1/photos/99999/lineage").status_code, 404)
+
     def test_copy_all_and_move_all_are_counted_as_the_engine_selects_them(self):
         self.index_library()
         status = self.client.get("/api/v1/status").json()
@@ -191,6 +221,45 @@ class JobsAndCatalog(ApiCase):
         status = self.client.get("/api/v1/status").json()
         self.assertEqual((status["eligible"], status["copied"]), ({"copy": 0, "move": 2}, 2),
                          "after a Copy, Move all still has every copied photo to finish")
+
+    def test_the_date_tree_filters_and_select_all_takes_exactly_what_is_shown(self):
+        self.index_library()                        # one photo dated 2020-09, one 2023-11
+        photos = lambda **p: self.client.get("/api/v1/photos", params=p).json()
+        self.assertEqual(photos()["total"], 2)
+        only_2023 = photos(date=["2023"])
+        self.assertEqual([i["date_taken"][:7] for i in only_2023["items"]], ["2023-11"])
+        self.assertEqual(only_2023["counts"]["all"], 1, "the view counts must follow the date filter")
+        self.assertEqual(photos(date=["2020-09", "2023"])["total"], 2, "checked dates add up")
+        self.assertEqual(photos(date=["none"])["total"], 0)
+        self.assertEqual(self.client.get("/api/v1/photos", params={"date": "June"}).status_code, 400)
+        # The tree's counts ignore the date filter, so an unticked month keeps its number;
+        # the jump positions follow it.
+        tree = self.client.get("/api/v1/photos/timeline").json()
+        self.assertEqual([m["month"] for m in tree["months"]], ["2023-11", "2020-09"])
+        jump = self.client.get("/api/v1/photos/timeline", params={"date": "2023"}).json()
+        self.assertEqual([m["month"] for m in jump["months"]], ["2023-11"])
+
+        ids = self.client.get("/api/v1/photos/ids", params={"date": "2020"}).json()
+        self.assertEqual((ids["total"], ids["over_limit"]), (1, False))
+        self.assertEqual(ids["ids"], [i["id"] for i in photos(date=["2020"])["items"]],
+                         "Select all must take exactly the photos the filters show")
+
+    def test_select_all_over_the_limit_is_refused_whole_not_cut_short(self):
+        self.index_library()
+        from webui import catalog
+        over = catalog.photo_ids(self.cfg.db_path, limit=1)
+        self.assertEqual((over["over_limit"], over["total"], over["ids"]), (True, 2, []))
+
+    def test_the_selection_shows_photos_every_filter_hides_and_names_missing_ones(self):
+        self.index_library()
+        dated_2020 = self.client.get("/api/v1/photos", params={"date": "2020"}).json()["items"][0]["id"]
+        shown = self.client.post("/api/v1/photos/selection",
+                                 json={"ids": [dated_2020, 99999], "sort": "newest"}).json()
+        self.assertEqual([i["id"] for i in shown["items"]], [dated_2020])
+        self.assertEqual((shown["total"], shown["missing"]), (1, [99999]),
+                         "a photo gone from the catalog must be named, not silently dropped")
+        refused = self.client.post("/api/v1/photos/selection", json={"ids": list(range(1, 1002))})
+        self.assertEqual(refused.status_code, 400)
 
     def test_exif_dates_keep_their_own_time_zones_and_the_undated_filter_finds_the_rest(self):
         make_photo(self.cfg.source / "dated.jpg", "dated", exif={
@@ -204,6 +273,8 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual((page["total"], page["counts"]["undated"]), (2, 1))
         only = self.client.get("/api/v1/photos", params={"undated": "true"}).json()
         self.assertEqual([i["filename"] for i in only["items"]], ["undated.jpg"])
+        self.assertEqual((only["total"], only["counts"]["all"]), (1, 2),
+                         "No capture date narrows what is shown, not the All photos count")
         self.assertEqual(self.client.get("/api/v1/photos/timeline", params={"undated": "true"}).json()["months"],
                          [{"month": "2020-09", "count": 1}])
         dated = next(i["id"] for i in page["items"] if i["filename"] == "dated.jpg")
@@ -212,6 +283,14 @@ class JobsAndCatalog(ApiCase):
             {"field": "taken", "value": "2021:05:01 10:00:00", "offset": "+02:00"},
             {"field": "digitized", "value": "2021:05:01 10:00:05", "offset": None},
             {"field": "modified", "value": "2021:05:02 11:00:00", "offset": None}])
+        # Show all metadata: every tag the Index recorded, beyond the handful shown above.
+        tags = dict(detail["metadata"])
+        self.assertEqual((tags.get("DateTimeOriginal"), tags.get("OffsetTimeOriginal")),
+                         ("2021:05:01 10:00:00", "+02:00"))
+        self.assertIn("ImageWidth", tags, "the full ExifTool tag set, not only the curated fields")
+        self.assertNotIn("date_source", tags, "the engine's own keys are not the photo's metadata")
+        names = [k for k, _ in detail["metadata"]]
+        self.assertEqual(names, sorted(names, key=str.lower))
 
     def test_one_job_at_a_time_and_the_lock_decides(self):
         self.index_library()
@@ -220,6 +299,26 @@ class JobsAndCatalog(ApiCase):
             self.assertEqual((busy.status_code, busy.json()["error"]), (409, "job_already_running"))
             active = self.client.get("/api/v1/jobs/active").json()["active"]
             self.assertTrue(active and active["unrecorded"], f"a held lock was not shown as a job: {active}")
+
+    def test_overlapping_checks_never_report_a_job_that_is_not_running(self):
+        # The page checks every second and on every refresh; two checks at once
+        # used to see each other's hold on the start lock and show a job.
+        import threading
+        self.create_catalog()
+        self.cfg.lock_path.touch()
+        runner, false_busy = self.app_jobs(), []
+        def check():
+            for _ in range(2000):
+                if runner.engine_busy():
+                    false_busy.append(1)
+        threads = [threading.Thread(target=check) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(len(false_busy), 0, "an idle server reported a running job")
+        with self.engine_lock_held():
+            self.assertTrue(runner.engine_busy(), "a real engine's lock must still read as busy")
 
     def test_a_run_left_active_by_a_dead_engine_is_presented_interrupted_not_rewritten(self):
         self.index_library()
@@ -347,6 +446,19 @@ class LogAndErrorCenter(ApiCase):
         failed = self.client.get("/api/v1/operations", params={"status": "Failed"}).json()["items"]
         self.assertEqual([(f["run_level"], f["photo_id"]) for f in failed], [(True, None)],
                          "an unreadable folder must be one run-level failure, not a failed photo or nothing")
+
+
+class InterfaceState(ApiCase):
+    def test_a_dismissed_banner_is_kept_with_the_catalog(self):
+        self.create_catalog()
+        self.assertEqual(self.client.get("/api/v1/ui-state").json(), {"dismissed_run": None})
+        run_id = self.wait_for(self.start(mode="index"))["id"]
+        saved = self.client.put("/api/v1/ui-state", json={"dismissed_run": run_id})
+        self.assertEqual(saved.json(), {"dismissed_run": run_id})
+        self.assertEqual(self.client.get("/api/v1/ui-state").json(), {"dismissed_run": run_id},
+                         "a dismissal must outlive the browser that made it")
+        for bad in ({"dismissed_run": 999}, {"dismissed_run": "1"}, {"theme": "dark"}, {}):
+            self.assertEqual(self.client.put("/api/v1/ui-state", json=bad).status_code, 400, bad)
 
 
 class CatalogBackups(ApiCase):

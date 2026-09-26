@@ -92,7 +92,8 @@ button.icon { font-size: 1.1rem; padding: 4px 10px; }
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.2); opacity: 0; pointer-events: none; transition: opacity 0.12s 0.25s;
 }
 .tip:hover::after, .tip:focus-within::after { opacity: 1; }
-.brand { font-size: 1.1rem; }
+.brand { font-size: 1.1rem; display: inline-flex; align-items: center; gap: 8px; }
+.logo { flex: none; display: block; }
 .views { display: flex; gap: 4px; flex-wrap: wrap; }
 .pages { display: flex; gap: 4px; }
 .views button { border-color: transparent; }
@@ -143,7 +144,7 @@ button.link { border: 0; padding: 0; background: none; color: var(--accent); tex
 .banner { margin: 0 16px 10px; }
 
 .content { flex: 1; display: flex; min-height: 0; }
-.gallery-pane { flex: 1; padding: 12px 16px 140px; min-width: 0; }
+.gallery-pane { flex: 1; padding: 12px 16px 32px; min-width: 0; }
 .with-inspector .gallery-pane { flex: 1 1 0; }
 
 /* The movable divider between gallery and Inspector. */
@@ -184,7 +185,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 /* Inspector */
 .inspector {
   flex: 0 0 50%; min-width: 320px; background: var(--surface);
-  position: sticky; top: var(--header-h); height: calc(100vh - var(--header-h)); overflow-y: auto; padding-bottom: 140px;
+  position: sticky; top: var(--header-h); height: calc(100vh - var(--header-h)); overflow-y: auto; padding-bottom: 32px;
   container-type: inline-size;
 }
 /* Dragged wide, the details sit to the right of the photo. */
@@ -222,14 +223,39 @@ body.dragging { cursor: col-resize; user-select: none; }
 .copies li { display: grid; gap: 4px; justify-items: start; padding: 8px 10px; border-top: 1px solid var(--border); }
 .copies li:first-child { border-top: 0; }
 
-/* Selection bar and drawer */
-.action-bar {
-  position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 6;
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap);
-  background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius); padding: 10px 14px;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.15);
+/* The selection, in the top row after the page links (webui-spec 2). */
+.selection-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 6px 12px;
+  border: 1px solid var(--accent); border-radius: var(--radius); background: var(--surface-2); }
+.toolbar-browse.is-muted .views, .toolbar-browse.is-muted .search { opacity: 0.5; }
+.focus-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 8px; padding: 10px 14px;
+  border-left: 4px solid var(--accent); background: var(--surface-2); border-radius: var(--radius); }
+.focus-head .warning { flex-basis: 100%; margin: 0; }
+.dates-filter-line { margin: 0 0 8px; }
+.select-menu .menu { min-width: 320px; }
+
+/* The date tree, left of the gallery. */
+.dates-toggle { display: none; }
+.dates-panel { flex: 0 0 220px; align-self: flex-start; position: sticky; top: var(--header-h, 0px);
+  max-height: calc(100vh - var(--header-h, 0px)); overflow: auto; padding: 12px 8px 24px 16px; border-right: 1px solid var(--border); }
+.dates-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.dates-head h2 { font-size: 1rem; margin: 0 0 6px; }
+.dates-show-only { font-size: 0.8rem; color: var(--muted); cursor: help; }
+.dates-tree, .dates-tree ul { list-style: none; margin: 0; padding: 0; }
+.dates-row { display: grid; grid-template-columns: auto 18px 1fr auto; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 4px; }
+.dates-row.month { grid-template-columns: auto 1fr auto; padding-left: 26px; }
+.dates-row.current { background: var(--surface-2); }
+.dates-row.current > .dates-name { font-weight: 600; }
+.dates-caret { border: 0; background: none; padding: 0; cursor: pointer; color: var(--muted); font: inherit; }
+.dates-name { border: 0; background: none; padding: 2px 0; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.dates-name:hover { color: var(--accent); text-decoration: underline; }
+.dates-count { color: var(--muted); font-size: 0.85rem; }
+.dates-foot { font-size: 0.85rem; margin: 10px 0 0; }
+@media (max-width: 800px) {
+  .dates-toggle { display: inline-block; }
+  .dates-panel { display: none; }
+  .dates-open .dates-panel { display: block; position: fixed; left: 0; top: var(--header-h, 0px); bottom: 0; z-index: 7;
+    width: min(300px, 85vw); max-height: none; background: var(--surface); box-shadow: 4px 0 16px rgb(0 0 0 / 0.2); }
 }
-.action-bar > span:first-child { margin-right: auto; }
 .drawer {
   margin: 0 16px 10px; background: var(--surface-2); border-left: 4px solid var(--accent);
   border-radius: var(--radius); padding: 10px 14px; display: grid; gap: 8px;
@@ -315,3 +341,73 @@ body.dragging { cursor: col-resize; user-select: none; }
   .submenu { position: static; box-shadow: none; border: 0; border-left: 2px solid var(--border); border-radius: 0; margin-left: 12px; min-width: 0; }
   .menu { min-width: min(300px, calc(100vw - 32px)); }
 }
+
+/* Continuous scrolling: where the next or previous page loads. */
+.page-sentinel { padding: 16px; text-align: center; }
+
+/* Show all metadata, at the foot of the Inspector. */
+.all-metadata { display: grid; gap: 6px; }
+.all-metadata .link { justify-self: start; }
+.meta-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; table-layout: fixed; }
+.meta-table th, .meta-table td { text-align: left; vertical-align: top; padding: 3px 6px; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.meta-table th { width: 42%; font-weight: normal; color: var(--muted); }
+.meta-head { position: sticky; top: var(--inspector-head-h, 46px); z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 8px 0; background: var(--surface); border-bottom: 1px solid var(--border); }
+.meta-head input { flex: 1 1 160px; }
+
+/* The view buttons keep their width as counts change: room for "(999,999)", even digits. */
+.views .view-count, .status-chips .view-count { display: inline-block; min-width: 9ch; text-align: left; font-variant-numeric: tabular-nums; }
+
+/* An open job's header line stays at the top while its entries scroll. */
+.job-group.open > .job-head { position: sticky; top: var(--header-h, 0px); z-index: 2; background: var(--surface);
+  border-bottom: 1px solid var(--border); }
+.job-count { font-variant-numeric: tabular-nums; }
+/* A job's entries: fixed columns, so an empty Details column cannot squeeze the others. */
+.log-entries { table-layout: fixed; }
+.log-entries .col-time { width: 17rem; }
+.log-entries .col-status { width: 11rem; }
+.log-entries .col-file { width: 45%; }
+.log-entries .log-status { overflow-wrap: normal; }
+@media (max-width: 700px) { .log-entries { table-layout: auto; } }
+
+/* Reviewing a selection before Copy or Move: the action stays above the photos as they scroll. */
+.review-bar { position: sticky; top: var(--header-h, 0px); z-index: 4; background: var(--surface-2); flex-wrap: nowrap;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.08); }
+.review-text { flex: 1; min-width: 0; }
+.review-text p { margin: 4px 0 0; }
+@media (max-width: 700px) { .review-bar { flex-wrap: wrap; } }
+
+/* History: prominent in the Inspector, beside the file it describes. */
+.photo-history { display: grid; gap: 6px; }
+.history-list { list-style: none; margin: 0; padding: 0 0 0 12px; display: grid; gap: 6px; border-left: 2px solid var(--border); }
+.history-list li { position: relative; }
+.history-list li::before { content: ""; position: absolute; left: -18px; top: 0.45em; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); }
+.history-list li.history-failed::before { border-color: var(--bad); }
+.history-detail { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; }
+.history-event { border: 0; background: none; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.history-event:hover strong, .history-event:focus-visible strong { color: var(--accent); text-decoration: underline; }
+.history-links { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.9rem; }
+
+/* The lineage tree, in its own window. */
+.lineage-dialog { width: min(900px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
+.lineage-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lineage-head h2 { margin: 0; font-size: 1.1rem; overflow-wrap: anywhere; }
+.lineage-tree, .lineage-children { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.lineage-children { margin: 10px 0 0 22px; padding-left: 14px; border-left: 2px dashed var(--border); }
+.lineage-node { display: grid; gap: 6px; }
+.lineage-file { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.lineage-kind { font-weight: 600; }
+.lineage-path { overflow-wrap: anywhere; font-size: 0.85rem; }
+.lineage-steps { margin-left: 6px; }
+.lineage-step { font-weight: 600; }
+.lineage-failure { display: grid; gap: 6px; justify-items: start; margin-top: 4px; }
+.presence-removed, .presence-missing { color: var(--warn); }
+.tip[data-tip]::after { white-space: pre-line; }
+/* Above the enlarged photo (z-index 30), which can open it too; closing returns there. */
+.lineage-overlay { z-index: 40; }
+
+/* Which build is running, beside Settings. */
+.toolbar-actions { align-items: center; }
+.version-tag { font-size: 0.8rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) { .version-tag { display: none; } }

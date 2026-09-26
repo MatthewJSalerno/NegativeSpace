@@ -85,21 +85,60 @@ One consequence for display: after a Move, each `Duplicate` row's `dest_path` is
 ### Selective File Processing
 Users can select individual files or multiple files across grid views to run targeted operations.
 * **Multi-Select Controls:** Checkboxes on photo cards, Shift-click range selections,
-  and **Select all on this page**. This selects eligible photos on the displayed
-  page only, not all results matching the current filter. Keep the total selected
-  count visible in the action bar and repeat it in bulk-action previews, including
-  metadata edits and deletion. Do not label a page-only control simply "Select all."
+  and a **Select ▾** menu above the grid: **Select all on screen (n)** (the photos
+  visible right now), **Select all in this view (n)** (every photo the view, search and
+  dates show, scrolled to or not), **Unselect all on screen** and **Unselect all**. Select all is refused whole above the 1,000-photo
+  limit, never cut short (`GET /photos/ids`); an item that would do nothing says why.
+  Keep the total selected count visible and repeat it in bulk-action previews, including
+  metadata edits and deletion.
 * **Selection across views:** retain explicit photo selections when changing pages
-  or filters. Show the total and the number outside the displayed view, for example
-  **“25 selected · 10 outside this view”**, with **Review selection** and **Clear
-  selection**. Review selection temporarily shows only the selected photos,
-  including those hidden by prior filters or pagination, and allows inspection and
-  deselection. **Back to results** restores the previous search, filters, sort order
-  and page while retaining the updated selection. It does not permanently replace
-  the browsing view. Bulk actions use the explicit selection and show its count
-  in the preview, not just the photos visible on the current page.
-* **Unavailable selected photos:** keep the item visible in Review selection with
-  its reason. Show counts such as **“24 available · 1 unavailable”** and require
+  or filters. The top row, after **Logs**, shows the total and the number outside the
+  displayed view, for example **“25 selected · 10 outside this view”**, with **Show
+  only selected** and **Clear**; clearing while showing only the selection returns to
+  the results. Show only selected temporarily shows only the selected
+  photos, including those hidden by prior filters or pagination, and allows inspection
+  and deselection; the photos shown are fixed on entry, so one unticked there stays on
+  screen, unticked. **Back to results** restores the previous search, filters, sort
+  order and page while retaining the updated selection. It does not permanently replace
+  the browsing view. Bulk actions use the explicit selection and show its count in the
+  preview, not just the photos visible on the current page.
+* **Copy or Move selected is reviewed first, never confirmed over the photos.** It shows
+  every selected photo, whatever hides them, with a bar pinned above them: **"Review the
+  25 selected photos below"**, what the action does, **Copy these 25 photos** (or Move)
+  and **Cancel**. The photos can be scrolled, opened and unticked; the button's count
+  follows the ticks, and an unticked photo stays on screen. **Why not a dialog:** one
+  over the photos hid them and stopped the scrolling the review needs. **Cancel**
+  returns to the view it came from; committing keeps those photos on screen as **the
+  photos in the job just started**, so their statuses can be watched, until **Back to
+  results**. Copy all and Move all still confirm in a dialog: there is no selection to review.
+* **Date tree:** a **Dates** panel left of the gallery lists years and their months with
+  counts for the current view and search, every year unfolded to start, every month with
+  a photo on screen highlighted as the gallery scrolls (photos, not pages: a month of a few
+  photos rarely starts a page or a row) and kept in sight in the panel, in the order of
+  the gallery's date sort (oldest first lists the oldest year and month first; No date
+  stays last, as both date sorts place it). Clicking a name
+  goes to the page it starts on
+  (a sort that is not by date switches to Newest first and says so). The boxes, under a
+  **Show only** header, narrow the gallery to the ticked years and months; none ticked,
+  the default, shows every date. A year's box ticks its months and shows a dash when
+  only some are ticked. The filter is in the address, named above the gallery
+  (**“Showing only June 2023, 2019 · Select these 412 · Show all dates”**; **Select these**
+  selects what the filter shows, as Select all in this view does, refused above the
+  1,000-photo limit. The boxes themselves only filter: unchecking a month to look
+  elsewhere must never change the selection), and applies to the view
+  counts; the tree's own counts ignore it, so an unticked month keeps its number. On a
+  narrow screen the panel opens from a **Dates** button. Going to a date the filter hides
+  says so and offers the fixes as buttons that apply them and then go there: **“December
+  2016 is outside the dates shown. Show December 2016 too · Show all dates”**.
+* **Fixes are buttons, not instructions.** Where a message names an action the screen can
+  take, the words are a button that takes it (**Run an Index** in a log hint), never
+  "tick it" or "go to X and click Y". Actions outside the app, such as fixing a folder's
+  permissions, stay as text.
+* **Unavailable selected photos:** keep the item visible in Show only selected with
+  its reason. Built so far: a selected photo gone from the catalog is named there
+  (**“1 selected photo is no longer in the catalog · Remove from the selection”**,
+  from `missing` in `POST /photos/selection`); the counts and the required removal
+  below are not yet enforced. Show counts such as **“24 available · 1 unavailable”** and require
   removal of unavailable items before confirmation. Never silently drop them from
   the selection. Revalidate before execution using the stale-preview policy (§7.1).
 
@@ -109,17 +148,28 @@ the full scope. Label it a plan, not a log: subsequent execution can fail or det
 changed state, and its actual outcomes belong in the job log. Apply the same
 selection counts and stale-preview safeguards used by other confirmed actions.
 
-**Paging a large library:** pages rather than endless scrolling, because selection
-is defined per page and a page number is a place a refresh returns to. Offer first and
-last, numbered pages with gaps (**1 … 48 49 [50] 51 52 … 2,500**), a go-to-page box,
-and 60, 120 or 240 photos per page. When sorted by date, **Jump to** lists months with
-counts (`GET /api/v1/photos/timeline`). A month's first photo sits after every photo
-sorted before it, which gives its page directly. The page, page size, sort, view,
-search and open photo live in the URL.
+**Scrolling a large library:** the gallery scrolls continuously. Near either end of
+what is loaded, the next or previous page loads, keeping the photos on screen where they
+are, so rows run on without a half-empty row at each page boundary. Pages remain the unit
+the API serves and the address records: the pager and the address follow the page whose
+photos are at the top of the screen, so a refresh or a shared link returns to it. The
+pager jumps (first and last, numbered pages with gaps, **1 … 48 49 [50] 51 52 … 2,500**,
+a go-to-page box), and 60, 120 or 240 photos load at a time (**Load 60 at a time**).
+Selecting in bulk speaks of the screen and the view, not pages. **Why not separate pages any more:** they were chosen
+because selection was defined per page; the selection is now an explicit list kept
+across pages, and a page count that the grid's columns did not divide left gaps. The date
+tree jumps to a year or month by the page it starts on (`GET /api/v1/photos/timeline`).
+The page, page size, sort, view, search, dates and open photo live in the URL.
 
 **No capture date** is a quick filter beside the views, with its count. It shows the
 photos whose EXIF has no date taken, which are filed under Undated by their file's
-modification date. It combines with the view and the search.
+modification date. It combines with the view and the search, but the views' counts
+ignore it: turning it on leaves **All photos** at its real number, and the pager says how
+many are shown. Each view button keeps its width whatever its count, with room for
+**(999,999)** in even-width digits, so switching views never moves them. **All photos** means every
+photo: choosing it also clears No capture date, the date tree's Show only and the search,
+and it is not shown as chosen while any of them narrows the gallery. The other views keep
+them, to narrow within a view.
 
 **Main-page browsing:** default to newest first by recorded photo date, clearly
 distinguishing filesystem fallback dates from capture dates; offer size sorting.
@@ -129,7 +179,7 @@ matches. Distinguish not-yet-organized and organized photos; when a search has m
 in the other view, show its count and a link rather than implying no matches exist.
 * **Selection size limit:** Individual multi-select (including "Select all on page") is capped at a configurable maximum (default: 1,000 files) per job submission — this isn't an arbitrary UX restriction, it's because each selected file becomes an integer in the `--file-ids` command-line argument passed to the engine, and there's a real OS limit on total command-line length. Exceeding the cap shows a clear message (e.g. *"1,000 file limit for individual selection — try Folder Selection below for larger batches"*) rather than silently truncating the selection or attempting a job that might fail at spawn time.
 * **Folder Selection (for large batches):** Instead of "select all matching current filter" against individual files, users can select a source folder (recursive) and scope the operation to everything currently indexed under it. This maps directly to the engine's `--source-subdir <path>` flag (`engine-spec.md` §4.1) rather than enumerating individual IDs, which sidesteps the command-line length limit entirely — there's no practical upper bound on how many files a folder selection can cover. Symlinks are excluded automatically, inherited from the original Index that populated the catalog (a symlink was never indexed as a row in the first place). If a folder hasn't been indexed yet (zero matching rows), show *"No indexed files found under this folder — run an Index first."*
-* **Sticky Action Bar:** Appears when items (individual or folder) are selected, presenting **Move Selected** and **Copy Selected** actions.
+* **Actions on a selection:** **Actions ▾ → Copy ▸ / Move ▸ → selected (n)** (§4.1).
 * **Targeted Execution:** Individual selections use the `--file-ids <id1,id2>` flag; folder selections use `--source-subdir <path>`. These are mutually exclusive targeting mechanisms in a single job — pick one per submission. IDs (not raw file paths) were chosen for the individual case specifically because a database primary key is unambiguous and doesn't depend on path strings staying identical between when the frontend fetched the catalog and when the operation actually runs — and it keeps one targeting implementation rather than a parallel web-only code path, which is what makes the engine directly runnable for debugging and development (see §1).
 
 ---
@@ -147,7 +197,9 @@ boundary is defined in §6.1; no second database is required.
 **First run shows the settings as the page itself**, before the library exists, and
 says prominently that these are starting values, changeable at any time from the gear
 icon in Settings. Without that, a user can take the screen for the only chance to set
-them. After first run, Settings opens as a window over the current view.
+them. Saving them lands in the Library, where **Index your library** waits, whatever
+page an earlier session left in the address bar. After first run, Settings opens as a
+window over the current view.
 
 **Startup without a usable catalog:** distinguish a missing database from access
 errors and from an invalid or corrupt database. Do not silently replace an existing
@@ -291,6 +343,11 @@ A finished job's banner explains its skips, grouped by the reason each photo rec
 for example **"5 skipped (3 copied by an earlier job, 2 duplicates: the same content is
 copied once)"**. The API groups them from the engine's reason text (`webui/catalog.py`).
 
+**Which build is running** shows at the top right, beside Settings, on every page and on
+the first-run and catalog-problem screens: **"v0.1.0 · main · 2c4728f"**, the release in
+`VERSION` and the branch and commit the image was built from, so a report names the
+exact code. `VERSION` is raised with each merged change that alters behaviour.
+
 The Library's actions live in one **Actions** menu, after **Library** in the page links:
 **Index**, **Copy ▸** and **Move ▸**, the last two each offering **selected (n)** (the
 photos selected in the Library) and **all (n)**. The toolbar's second row holds the views,
@@ -427,6 +484,31 @@ beside the photo instead of below it.
 
 ### 4.2 Split-Screen Photo Inspector Panel
 Clicking an image opens a right-side 50% detail panel.
+
+**The file's modification time** is labelled **"As recorded when NegativeSpace first
+indexed this file"**: the time the file carried when the first Index read it, not a date
+the photo was scanned.
+
+**History in the panel, lineage in its own window.** A **History (n)** section under
+**File** shows the latest three events as a small timeline, with two links: **Open in the
+log** and **View lineage tree**; each event also opens the tree. **Why not every event in
+the panel:** it crowded the photo's details; the full record is one click away.
+
+**The lineage tree** (`GET /photos/{id}/lineage`, §6.3) is a window of its own: one node
+per file (the source, each copy made from it, each exact duplicate), each with its
+presence and the steps that happened to it. Each step appears once, on the file it
+produced (a copy's **Copied here** on the copy), else on the file it acted on. A
+duplicate's path opens that photo; a step's job opens the log on that job for this photo;
+a failed step opens to its recorded reason and **Retry this photo**; hovering or focusing
+a path shows its size, content fingerprint and whether it matches, and when it was
+recorded. Escape closes the window only, not the panel behind it.
+
+**Show all metadata.** The Index records every tag ExifTool reads (Pillow's when ExifTool
+finds nothing), not a curated subset; the Inspector's fields are a few of them. A folded
+**Show all metadata (n tags)** at the foot of the panel lists every one by name, with a
+filter box; its header, with **Hide all metadata**, stays at the top of the panel while
+the tags scroll. It is read from the catalog, so it shows the photo as last indexed, and costs
+no file read.
 
 **Label what comes from the photo's own metadata as such.** The Inspector groups the
 EXIF dates (taken, digitized, modified), camera and exposure under **Photo EXIF
@@ -807,8 +889,16 @@ log is grouped by job, newest first: each job is one line (its summary and how m
 entries match) until opened, and its entries page on their own. Filters apply inside
 every job; while any is set, a job with nothing matching is left out. A finished
 job's banner links to its log, opened on that job, and, when it failed, to **View failures**.
-A banner dismissed on one page stays dismissed on the other. The Inspector's
-**History** opens the log for that photo. Each failure carries a plain hint drawn from its
+A dismissed banner stays dismissed on every page, in every browser, and after the
+browser's data is cleared: the dismissal is kept with the catalog (`PUT /api/v1/ui-state`),
+and covers that job and every earlier one. The Logs page has the Library's top row,
+**Actions ▾** included, so the page links never move and whole-library actions start from
+either page (Copy and Move selected are disabled there: selecting is the Library's). The
+active filters are named in one line with one reset (**"Showing: job #3 · Failed ·
+“photo-00” · Clear all filters"**). An open job's entries load in batches of 100 as the
+list scrolls, and the job's header line, with its collapse arrow, stays at the top
+meanwhile. Status counts keep their width, as the Library's view counts do. The Inspector's
+**Open in the log**, under History, opens the log for that photo. Each failure carries a plain hint drawn from its
 recorded reason, and **Retry**, inside the job it belongs to, runs the same mode again over the photos behind
 that job's shown failures.
 
@@ -1032,7 +1122,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 10 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 11 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -1067,7 +1157,7 @@ Thumbnails are not a column on `photos`: they belong to content and live in
 
 ### 6.2 Key REST API Endpoints
 
-**The implemented API is specified in [`api-spec.md`](./api-spec.md)**: catalog status and creation, settings, the gallery listing and timeline, photo details, thumbnails and previews, starting and cancelling jobs, runs and their derived outcome, and the live job feed. CI keeps it in step with the routes in `webui/app.py`. What follows are endpoints designed here and not built yet; each moves to `api-spec.md` when it is.
+**The implemented API is specified in [`api-spec.md`](./api-spec.md)**: catalog status and creation, settings, the gallery listing, timeline and date filter, selection by id and Select all, photo details, lineage, thumbnails and previews, starting and cancelling jobs, runs and their derived outcome, the live job feed, the log, catalog backups, and what the interface remembers. CI keeps it in step with the routes in `webui/app.py`. What follows are endpoints designed here and not built yet; each moves to `api-spec.md` when it is.
 
 The run history and the Error Center's failures are built: `GET /api/v1/operations` with
 `run` and `status` filters (`api-spec.md` §5a).

@@ -91,7 +91,9 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss }: {
   dismissedId: number | null;
   onDismiss: (id: number) => void;
 }) {
-  const run = !jobs.active && jobs.last && jobs.last.id !== dismissedId ? jobs.last : null;
+  // Dismissing a job's banner covers it and every earlier job; a newer one still shows.
+  const run = !jobs.active && jobs.last && jobs.last.id != null && (dismissedId == null || jobs.last.id > dismissedId)
+    ? jobs.last : null;
   if (!run || !run.outcome) return null;
   const s = summary(run as Run);
   const ended = run.ended_at ? Date.parse(run.ended_at) : null;

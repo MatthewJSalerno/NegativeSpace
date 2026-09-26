@@ -19,7 +19,7 @@ from starlette.concurrency import run_in_threadpool
 
 import ns_db
 from . import catalog
-from .config import Config
+from .config import Config, build_version
 from .jobs import JobRefused, JobRunner
 
 # The drawer refreshes about once a second (webui-spec 4.1); the engine writes its
@@ -60,6 +60,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_status():
         """First-screen state, and the container paths to name in guidance (webui-spec 3)."""
         return dict(catalog.status(cfg.db_path), application_data=str(cfg.base), catalog_backups=str(cfg.backups),
+                    version=build_version(),
                     active_job=jobs.active())
 
     @app.post("/api/v1/catalog", status_code=201)
@@ -102,6 +103,25 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(503, {"error": "catalog_busy", "message": f"Settings were not saved: {exc}."})
         return dict(_settings(), job_active=jobs.active() is not None)
 
+    # -- What the interface remembers (webui-spec 4.1) ------------------------
+
+    @app.get("/api/v1/ui-state")
+    def get_ui_state():
+        with catalog.connect(cfg.db_path) as conn:
+            conn.row_factory = None
+            return ns_db.read_ui_state(conn)
+
+    @app.put("/api/v1/ui-state")
+    def put_ui_state(body: dict = Body(...)):
+        """{"dismissed_run": 12}: the finished-job banner the user dismissed, kept with the
+        catalog so clearing a browser's data or opening another does not bring it back."""
+        try:
+            with catalog.connect(cfg.db_path) as conn:
+                conn.row_factory = None
+                return ns_db.save_ui_state(conn, body)
+        except ValueError as exc:
+            raise HTTPException(400, {"error": "invalid_request", "message": str(exc)})
+
     @app.post("/api/v1/settings/validate-extension")
     def validate_extension(body: dict = Body(...)):
         ext = body.get("extension")
@@ -130,27 +150,56 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     # -- Photos ---------------------------------------------------------------
 
+    def _bad_request(exc: ValueError) -> HTTPException:
+        return HTTPException(400, {"error": "invalid_request", "message": str(exc)})
+
     @app.get("/api/v1/photos")
     def get_photos(view: str = "all", sort: str = "newest", q: Optional[str] = None,
-                   page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=240), undated: bool = False):
+                   page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=240), undated: bool = False,
+                   date: Optional[List[str]] = Query(None)):
         try:
             return catalog.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size,
-                                       undated=undated)
+                                       undated=undated, dates=date)
         except ValueError as exc:
-            raise HTTPException(400, {"error": "invalid_request", "message": str(exc)})
+            raise _bad_request(exc)
 
     @app.get("/api/v1/photos/timeline")
-    def get_timeline(view: str = "all", q: Optional[str] = None, undated: bool = False):
+    def get_timeline(view: str = "all", q: Optional[str] = None, undated: bool = False,
+                     date: Optional[List[str]] = Query(None)):
         try:
-            return catalog.timeline(cfg.db_path, view=view, q=q, undated=undated)
+            return catalog.timeline(cfg.db_path, view=view, q=q, undated=undated, dates=date)
         except ValueError as exc:
-            raise HTTPException(400, {"error": "invalid_request", "message": str(exc)})
+            raise _bad_request(exc)
+
+    @app.get("/api/v1/photos/ids")
+    def get_photo_ids(view: str = "all", q: Optional[str] = None, undated: bool = False,
+                      date: Optional[List[str]] = Query(None)):
+        try:
+            return catalog.photo_ids(cfg.db_path, view=view, q=q, undated=undated, dates=date)
+        except ValueError as exc:
+            raise _bad_request(exc)
+
+    @app.post("/api/v1/photos/selection")
+    def get_selection(body: dict = Body(...)):
+        """A POST only because a selection of 1,000 ids is too long for a URL; it reads."""
+        try:
+            return catalog.photos_by_ids(cfg.db_path, body.get("ids"), sort=body.get("sort", "newest"),
+                                         page=body.get("page", 1), page_size=body.get("page_size", 60))
+        except (ValueError, TypeError) as exc:
+            raise _bad_request(ValueError(str(exc)))
 
     @app.get("/api/v1/photos/{photo_id}/inspect")
     def inspect(photo_id: int):
         found = catalog.inspect_photo(cfg.db_path, photo_id)
         if found is None:
             raise HTTPException(404, {"error": "unknown_photo", "message": "No catalogued photo has this id."})
+        return found
+
+    @app.get("/api/v1/photos/{photo_id}/lineage")
+    def lineage(photo_id: int):
+        found = catalog.photo_lineage(cfg.db_path, photo_id)
+        if found is None:
+            raise HTTPException(404, {"error": "unknown_photo", "message": "No such photo."})
         return found
 
     @app.get("/api/v1/photos/{photo_id}/thumbnail")

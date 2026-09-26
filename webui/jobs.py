@@ -25,6 +25,9 @@ RUN_APPEAR_SECONDS = 30.0
 # Inside the 300 s stop timeout the README and compose file set: a cancel finishes
 # the file being copied, and one large file over a network share can take minutes.
 SHUTDOWN_GRACE_SECONDS = 290.0
+# How long a check for a running engine waits on another check before concluding a
+# job is being started: probes hold the start lock for microseconds, starts for seconds.
+START_WAIT_SECONDS = 1.0
 # Detail previews are made by the engine on request; bound how many run at once
 # when a user pages quickly through photos.
 PREVIEW_CONCURRENCY = 2
@@ -88,8 +91,12 @@ class JobRunner:
     def engine_busy(self) -> bool:
         """Whether an engine holds its lock right now. While this server is starting
         one, the answer is yes without probing: the probe takes the lock for an
-        instant, and an engine starting in that instant would refuse to run."""
-        if not self._start_lock.acquire(blocking=False):
+        instant, and an engine starting in that instant would refuse to run.
+        Another probe holds the start lock too, for microseconds; so a check waits its
+        turn, and only a lock held past START_WAIT_SECONDS, which only a start or a
+        backup does, means busy. Answering busy at once showed a job that was not
+        there whenever two checks overlapped."""
+        if not self._start_lock.acquire(timeout=START_WAIT_SECONDS):
             return True
         try:
             return self._probe_lock()

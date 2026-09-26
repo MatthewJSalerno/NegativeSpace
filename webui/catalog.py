@@ -125,50 +125,133 @@ _UNDATED = ("(json_extract(p.metadata_json, '$.date_source') = 'file_mtime' "
             "OR json_extract(p.metadata_json, '$.date_taken') IS NULL)")
 
 
-def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, page_size=60, undated=False) -> dict:
+_DATE_TAKEN = "json_extract(p.metadata_json, '$.date_taken')"
+# The largest selection the engine can be handed as --file-ids (jobs.MAX_FILE_IDS).
+SELECTION_MAX = 1000
+
+
+def _dates_clause(dates):
+    """The date tree's "Show only" filter: years ("2023"), months ("2023-06") and
+    "none" for photos with no date at all, as the timeline groups them. The dates
+    are the gallery's own (a file date for an undated photo). None or empty: no filter."""
+    if not dates:
+        return "", ()
+    years = [d for d in dates if len(d) == 4 and d.isdigit()]
+    months = [d for d in dates if len(d) == 7 and d[:4].isdigit() and d[4] == "-" and d[5:].isdigit()]
+    none = "none" in dates
+    if len(years) + len(months) + none != len(dates):
+        raise ValueError("dates must be years (2023), months (2023-06) or none")
+    parts, params = [], []
+    if years:
+        parts.append(f"substr({_DATE_TAKEN}, 1, 4) IN ({','.join('?' * len(years))})")
+        params += years
+    if months:
+        parts.append(f"substr({_DATE_TAKEN}, 1, 7) IN ({','.join('?' * len(months))})")
+        params += months
+    if none:
+        parts.append(f"{_DATE_TAKEN} IS NULL")
+    return " AND (" + " OR ".join(parts) + ")", tuple(params)
+
+
+def _filters(q, undated, dates):
+    """Search, no-capture-date and date-tree filters, shared by the list, its ids and
+    its counts, so Select all takes exactly what the gallery shows."""
+    search, search_params = _search_clause(q)
+    date_sql, date_params = _dates_clause(dates)
+    return search + (f" AND {_UNDATED}" if undated else "") + date_sql, tuple(search_params) + date_params
+
+
+def _check_view(view, sort=None, page=None, page_size=None):
     if view not in VIEWS:
         raise ValueError(f"unknown view: {view}")
-    if sort not in SORTS:
+    if sort is not None and sort not in SORTS:
         raise ValueError(f"unknown sort: {sort}")
-    if page < 1 or not 1 <= page_size <= 240:
+    if page is not None and (page < 1 or not 1 <= page_size <= 240):
         raise ValueError("page must be at least 1 and page_size between 1 and 240")
+
+
+def _items(conn, rows) -> list:
+    items = []
+    for r in rows:
+        item = dict(r)
+        sha1 = item.pop("sha1_hash")
+        item["duplicates"] = conn.execute(
+            "SELECT COUNT(*) FROM photos WHERE sha1_hash = ? AND id != ?", (sha1, r["id"])
+        ).fetchone()[0] if sha1 else 0
+        items.append(item)
+    return items
+
+
+def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, page_size=60, undated=False,
+                dates=None) -> dict:
+    _check_view(view, sort, page, page_size)
     search, search_params = _search_clause(q)
-    filtered = search + (f" AND {_UNDATED}" if undated else "")
+    date_sql, date_params = _dates_clause(dates)
+    filtered, filtered_params = _filters(q, undated, dates)
     with connect(db_path) as conn:
+        # The views' counts ignore No capture date, which has its own count: turning it
+        # on must not make All photos read as if the library had shrunk.
         counts = {}
         for name, statuses in VIEWS.items():
             counts[name] = conn.execute(
-                f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(statuses)})" + filtered,
-                search_params).fetchone()[0]
-        # How many in this view and search have no capture date, filter on or off, for its label.
+                f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(statuses)})" + search + date_sql,
+                tuple(search_params) + date_params).fetchone()[0]
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered,
+            filtered_params).fetchone()[0]
+        # How many in this view, search and dates have no capture date, filter on or off, for its label.
         counts["undated"] = conn.execute(
             f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})"
-            + search + f" AND {_UNDATED}", search_params).fetchone()[0]
+            + search + f" AND {_UNDATED}" + date_sql, tuple(search_params) + date_params).fetchone()[0]
         rows = conn.execute(
             f"SELECT {_LIST_COLUMNS} FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})"
             + filtered + f" ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?",
-            search_params + (page_size, (page - 1) * page_size)).fetchall()
-        items = []
-        for r in rows:
-            item = dict(r)
-            sha1 = item.pop("sha1_hash")
-            item["duplicates"] = conn.execute(
-                "SELECT COUNT(*) FROM photos WHERE sha1_hash = ? AND id != ?", (sha1, r["id"])
-            ).fetchone()[0] if sha1 else 0
-            items.append(item)
-    return {"items": items, "page": page, "page_size": page_size, "total": counts[view], "counts": counts}
+            filtered_params + (page_size, (page - 1) * page_size)).fetchall()
+        items = _items(conn, rows)
+    return {"items": items, "page": page, "page_size": page_size, "total": total, "counts": counts}
 
 
-def timeline(db_path: Path, *, view="all", q=None, undated=False) -> dict:
-    """Photos per month for a view and search, newest month first, for jumping to a date
-    in a large library. Months are the recorded date's calendar month (a file date for an
-    undated photo, as the gallery shows it); `undated` counts rows with no date at all,
-    which every date sort places last."""
-    if view not in VIEWS:
-        raise ValueError(f"unknown view: {view}")
-    search, params = _search_clause(q)
-    base = (f"FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + search
-            + (f" AND {_UNDATED}" if undated else ""))
+def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, limit=SELECTION_MAX) -> dict:
+    """Every photo id the gallery would show for these filters, across all pages, for
+    Select all. More than `limit` is refused with the total, never cut short: a
+    partial Select all would silently act on some of what the user saw."""
+    _check_view(view)
+    filtered, params = _filters(q, undated, dates)
+    base = f"FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered
+    with connect(db_path) as conn:
+        total = conn.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
+        ids = [] if total > limit else [r[0] for r in conn.execute(f"SELECT p.id {base} ORDER BY p.id", params)]
+    return {"ids": ids, "total": total, "limit": limit, "over_limit": total > limit}
+
+
+def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60) -> dict:
+    """The selected photos, whatever view, search or dates would hide them, one page at a
+    time (webui-spec 2, Show only selected and the review before Copy/Move). `missing` names ids no longer in the catalog,
+    so a selection is never silently shortened."""
+    _check_view("all", sort, page, page_size)
+    if not isinstance(ids, list) or any(type(i) is not int or i < 1 for i in ids) or len(ids) > SELECTION_MAX:
+        raise ValueError(f"ids must be a list of at most {SELECTION_MAX:,} photo ids")
+    wanted = sorted(set(ids))
+    # json_each reads the list as a table, with no write to the catalog.
+    join = "FROM photos p JOIN json_each(?) w ON w.value = p.id"
+    with connect(db_path) as conn:
+        found = {r[0] for r in conn.execute(f"SELECT p.id {join}", (json.dumps(wanted),))}
+        rows = conn.execute(f"SELECT {_LIST_COLUMNS} {join} ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?",
+                            (json.dumps(wanted), page_size, (page - 1) * page_size)).fetchall()
+        items = _items(conn, rows)
+    return {"items": items, "page": page, "page_size": page_size, "total": len(found),
+            "missing": [i for i in wanted if i not in found]}
+
+
+def timeline(db_path: Path, *, view="all", q=None, undated=False, dates=None) -> dict:
+    """Photos per month for a view and search, newest month first: the date tree's counts
+    and the page each month starts on. Months are the recorded date's calendar month (a
+    file date for an undated photo, as the gallery shows it); `undated` counts rows with
+    no date at all, which every date sort places last. The tree asks without `dates`, so
+    an unticked month keeps its count; jumping asks with them, to land on the right page."""
+    _check_view(view)
+    filtered, params = _filters(q, undated, dates)
+    base = f"FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered
     with connect(db_path) as conn:
         months = [{"month": r[0], "count": r[1]} for r in conn.execute(
             f"SELECT substr(json_extract(p.metadata_json, '$.date_taken'), 1, 7) AS month, COUNT(*) {base} "
@@ -198,6 +281,11 @@ def photo_exists(conn, photo_id: int) -> bool:
 _EXIF_DATES = (("taken", "DateTimeOriginal", "OffsetTimeOriginal"),
                ("digitized", "CreateDate", "OffsetTimeDigitized"),
                ("modified", "ModifyDate", "OffsetTime"))
+
+
+# Keys the engine adds to a photo's metadata beside ExifTool's tags: its own reading of
+# the date, and where that reading came from.
+_ENGINE_KEYS = {"date_taken", "date_source"}
 
 
 def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
@@ -240,6 +328,10 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         "width": content["width"] if content else None, "height": content["height"] if content else None,
         "sha1": p["sha1_hash"], "phash": p["phash"],
         "duplicates": copies,
+        # Every tag the Index recorded (ExifTool's full set, not a curated subset), for
+        # Show all metadata. The engine's own keys, which are not the photo's, are left out.
+        "metadata": sorted(([k, v] for k, v in meta.items() if k not in _ENGINE_KEYS),
+                           key=lambda kv: kv[0].lower()),
         "thumbnail": {"availability": grid[1] if grid else "pending",
                       "failure_category": grid[2] if grid else None,
                       "failure_detail": grid[3] if grid else None},
@@ -585,3 +677,53 @@ def newest_backup_attempt(db_path: Path) -> Optional[dict]:
             "a.relative_filename, a.size FROM backup_attempts t LEFT JOIN backup_artifacts a USING(attempt_id) "
             "ORDER BY t.attempt_id DESC LIMIT 1").fetchone()
     return dict(row) if row else None
+
+
+# --- A photo's lineage (webui-spec 6.3) ----------------------------------------
+
+def photo_lineage(db_path: Path, photo_id: int) -> Optional[dict]:
+    """Everything the catalog records about a photo's files, for the lineage tree: its
+    source file and every file descended from it (file_origins), the same for each exact
+    duplicate, and every operation that touched any of them with the role each file
+    played. The engine proves this assembles for every file in every status (TODO.md
+    claim 11); this only reads it."""
+    with connect(db_path) as conn:
+        photo = conn.execute("SELECT id, sha1_hash, status FROM photos WHERE id = ?", (photo_id,)).fetchone()
+        if photo is None:
+            return None
+        photos = [photo_id] + ([r[0] for r in conn.execute(
+            "SELECT id FROM photos WHERE sha1_hash = ? AND id != ? ORDER BY id", (photo["sha1_hash"], photo_id))]
+            if photo["sha1_hash"] else [])
+        marks = ",".join("?" * len(photos))
+        tree = (f"WITH RECURSIVE tree(file_id) AS (SELECT file_id FROM photo_files WHERE photo_id IN ({marks}) "
+                "UNION SELECT o.file_id FROM file_origins o JOIN tree t ON o.origin_file_id = t.file_id) ")
+        files = [dict(r) for r in conn.execute(
+            tree + "SELECT t.file_id, o.origin_file_id, o.kind AS origin_kind, s.current_path AS path, "
+            "s.location_role AS role, s.presence_state AS presence, s.sha1_hash, snap.file_size, "
+            "snap.source_path AS indexed_path, f.created_at, pf.photo_id, ph.status AS photo_status "
+            "FROM tree t JOIN files f ON f.file_id = t.file_id "
+            "LEFT JOIN file_origins o ON o.file_id = t.file_id LEFT JOIN file_states s ON s.file_id = t.file_id "
+            "LEFT JOIN source_snapshots snap ON snap.file_id = t.file_id "
+            "LEFT JOIN photo_files pf ON pf.file_id = t.file_id LEFT JOIN photos ph ON ph.id = pf.photo_id "
+            "ORDER BY t.file_id", photos)]
+        links = conn.execute(
+            tree + "SELECT of.operation_id, of.file_id, of.role FROM operation_files of JOIN tree t USING(file_id) "
+            "ORDER BY of.operation_id", photos).fetchall()
+        op_ids = sorted({r["operation_id"] for r in links})
+        operations = [dict(r) for r in conn.execute(
+            "SELECT o.id, o.run_id, r.mode, o.status, o.timestamp, o.error_message, o.photo_id, "
+            "o.source_path, o.dest_path, (o.reconciles_operation_id IS NOT NULL) AS recovery "
+            f"FROM operations o LEFT JOIN runs r ON r.id = o.run_id WHERE o.id IN ({','.join('?' * len(op_ids))}) "
+            "ORDER BY o.id", op_ids)] if op_ids else []
+    by_op = {}
+    for r in links:
+        by_op.setdefault(r["operation_id"], []).append({"file_id": r["file_id"], "role": r["role"]})
+    size = next((f["file_size"] for f in files if f["file_size"] is not None), None)
+    for f in files:
+        # A copy is byte-identical to its origin (verified when made), so it shares its size.
+        f["file_size"] = f["file_size"] if f["file_size"] is not None else size
+        f["matches"] = bool(photo["sha1_hash"]) and f["sha1_hash"] == photo["sha1_hash"]
+    for op in operations:
+        op["recovery"] = bool(op["recovery"])
+        op["files"] = by_op.get(op["id"], [])
+    return {"photo_id": photo_id, "sha1": photo["sha1_hash"], "photos": photos, "files": files, "operations": operations}

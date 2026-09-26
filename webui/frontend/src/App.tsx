@@ -1,15 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { api, ApiError, type PhotoItem, type PhotoPage, type Sort, type Status, type Timeline, type View } from "./api";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Logo } from "./components/Logo";
+import { VersionTag, versionText } from "./components/VersionTag";
+import { api, ApiError, type PhotoItem, type PhotoPage, type SelectionPage, type Sort, type Status, type Timeline, type View } from "./api";
 import { count, plural } from "./format";
 import { useDismissedRun, useJobFeed } from "./jobs";
 import { Gallery } from "./components/Gallery";
 import { Inspector } from "./components/Inspector";
 import { FinishedBanner, JobDrawer } from "./components/JobDrawer";
-import { JumpToDate, PAGE_SIZES, Pager } from "./components/Pager";
+import { PAGE_SIZES, Pager } from "./components/Pager";
+import { DatesPanel, dateLabel, datePage } from "./components/DatesPanel";
+import { SelectMenu } from "./components/SelectMenu";
+import { usePaged } from "./paged";
+import { ConfirmDialog, transferConfirm, type Confirm } from "./components/Confirm";
 import { Tip } from "./components/Tip";
 import { ActionsMenu } from "./components/ActionsMenu";
 import { LogsPage } from "./components/LogsPage";
-import { follow, usePath } from "./nav";
+import { follow, navigate, useHeaderHeight, usePath } from "./nav";
 import { SettingsDialog } from "./components/SettingsDialog";
 
 // Neither side of the gallery/Inspector divider gets narrower than this.
@@ -28,11 +34,18 @@ function readUrl() {
     page: Math.max(1, Number(p.get("page")) || 1),
     size: PAGE_SIZES.includes(Number(p.get("size"))) ? Number(p.get("size")) : PAGE_SIZES[0],
     undated: p.get("undated") === "1",
+    dates: p.getAll("date"),
     photo: p.get("photo") ? Number(p.get("photo")) : null,
   };
 }
 
-type Confirm = { title: string; body: string[]; action: string; danger?: boolean; run: () => Promise<void> };
+
+// Showing only a set of photos, whatever the view, search and dates would hide: the
+// selection (Show only selected), or the photos a job just started on. `ids` is fixed
+// on entry, so unticking a photo there leaves it on screen, unticked.
+// "review" is the selection before a Copy or Move of it: shown in full, with the action
+// in a bar above it, so every photo can be looked at and unticked before committing.
+type Focus = { kind: "selection" | "review" | "job"; ids: number[]; mode?: "copy" | "move" };
 
 export function App() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -52,12 +65,15 @@ export function App() {
   if (status.state !== "ok") return <CatalogProblem status={status} />;
   // First run: nothing indexed yet, so settings are the destination (webui-spec 3).
   if (!status.indexed && !firstRunDone) {
-    return <div className="center-page"><SettingsDialog firstRun onClose={() => undefined} onSaved={() => setFirstRunDone(true)} /></div>;
+    // Saved, the user lands in the Library, where Index your library waits: never on the
+    // page an earlier session left in the address bar.
+    return <div className="center-page"><SettingsDialog firstRun onClose={() => undefined}
+                                                        onSaved={() => { navigate("/"); setFirstRunDone(true); }} /></div>;
   }
   return (
     <>
       {path === "/logs"
-        ? <LogsPage onOpenSettings={() => setSettingsOpen(true)} />
+        ? <LogsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />
         : <Library status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />}
       {settingsOpen && <SettingsDialog firstRun={false} onClose={() => setSettingsOpen(false)} onSaved={() => undefined} />}
     </>
@@ -88,6 +104,7 @@ function FirstRun({ status, onCreated }: { status: Status; onCreated: () => void
           If you've used it before, check your appdata mount or recover your catalog from a backup.
         </p>
         <p className="muted">Application data: <code>{status.application_data}</code> · Catalog backups: <code>{status.catalog_backups}</code> (container paths)</p>
+        <p className="muted">{versionText(status.version)}</p>
         {error && <p className="error">{error}</p>}
         <button className="primary" onClick={create} disabled={busy}>{busy ? "Creating…" : "Create new catalog"}</button>
       </div>
@@ -107,6 +124,7 @@ function CatalogProblem({ status }: { status: Status }) {
             : "Check that the application data folder is mounted and readable by the container, and that its storage is connected."}
         </p>
         <p className="muted">Application data: <code>{status.application_data}</code> · Catalog backups: <code>{status.catalog_backups}</code> (container paths)</p>
+        <p className="muted">{versionText(status.version)}</p>
       </div>
     </div>
   );
@@ -122,14 +140,32 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [sort, setSort] = useState<Sort>(initial.sort);
   const [q, setQ] = useState(initial.q);
   const [search, setSearch] = useState(initial.q);
-  const [page, setPage] = useState(initial.page);
+  // `jump` is where loading starts (the pager, a date, a filter change); `page` is the
+  // page at the top of the screen, which scrolling moves and the address records.
+  const [jump, setJump] = useState({ page: initial.page, n: 0 });
+  const [page, setVisiblePage] = useState(initial.page);
+  const setPage = (p: number) => { setJump((j) => ({ page: p, n: j.n + 1 })); setVisiblePage(p); };
   const [pageSize, setPageSize] = useState(initial.size);
   const [undated, setUndated] = useState(initial.undated);
+  const [dates, setDates] = useState<string[]>(initial.dates);
   const [openId, setOpenId] = useState<number | null>(initial.photo);
-  const [data, setData] = useState<PhotoPage | null>(null);
   const [timeline, setTimeline] = useState<Timeline | null>(null);
+  const [jumpTimeline, setJumpTimeline] = useState<Timeline | null>(null);
+  const [focus, setFocus] = useState<Focus | null>(null);
+  const [focusJump, setFocusJump] = useState({ page: 1, n: 0 });
+  const [focusPage, setFocusVisible] = useState(1);
+  const setFocusPage = (p: number) => { setFocusJump((j) => ({ page: p, n: j.n + 1 })); setFocusVisible(p); };
+  // A notice names its fixes as buttons that apply them, not as instructions.
+  const [notice, setNoticeState] = useState<{ text: string; actions: { label: string; run: () => void }[] } | null>(null);
+  const setNotice = (text: string | null, actions: { label: string; run: () => void }[] = []) =>
+    setNoticeState(text == null ? null : { text, actions });
+  // A date to go to once the date filter that hid it has changed.
+  const [pendingJump, setPendingJump] = useState<string | null>(null);
+  // Every photo on screen, as the last scroll found them.
+  const [onScreen, setOnScreen] = useState<number[]>([]);
+  const [datesOpen, setDatesOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Map<number, PhotoItem>>(new Map());
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -142,15 +178,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     try { return Number(localStorage.getItem("ns.inspectorWidth")) || null; } catch { return null; }
   });
 
-  // The header's height, for everything that sticks below it: it grows when the
-  // finished-job banner shows or the toolbar wraps on a narrow screen.
-  useEffect(() => {
-    if (!header.current) return;
-    const observer = new ResizeObserver(([entry]) =>
-      document.documentElement.style.setProperty("--header-h", `${Math.ceil(entry.target.getBoundingClientRect().height)}px`));
-    observer.observe(header.current);
-    return () => observer.disconnect();
-  }, []);
+  useHeaderHeight(header);
 
   // A finished job changes the catalog: refresh the view and the counts. Keyed on
   // the last finished run rather than on seeing a job stop, because a job shorter
@@ -183,29 +211,170 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     if (page > 1) p.set("page", String(page));
     if (pageSize !== PAGE_SIZES[0]) p.set("size", String(pageSize));
     if (undated) p.set("undated", "1");
+    dates.forEach((d) => p.append("date", d));
     if (openId != null) p.set("photo", String(openId));
     const url = `${window.location.pathname}${p.size ? `?${p}` : ""}`;
     window.history.replaceState(null, "", url);
-  }, [view, sort, q, page, pageSize, undated, openId]);
+  }, [view, sort, q, page, pageSize, undated, dates, openId]);
 
-  useEffect(() => {
-    let live = true;
-    api.photos({ view, sort, q, page, page_size: pageSize, undated }).then(
-      (d) => { if (live) { setData(d); setLoadError(null); } },
-      (e) => live && setLoadError(e instanceof ApiError ? e.message : "Photos could not be loaded."),
-    );
-    return () => { live = false; };
-  }, [view, sort, q, page, pageSize, undated, refreshKey]);
+  const results = usePaged((p) => api.photos({ view, sort, q, page: p, page_size: pageSize, undated, dates }),
+                           JSON.stringify([view, sort, q, undated, dates]), jump, pageSize, refreshKey, setLoadError);
+  const data: PhotoPage | null = results.meta;
 
+  // The tree's counts ignore its own filter, so an unticked month keeps its number;
+  // jumping needs the filtered months, to land on the right page.
   useEffect(() => {
     let live = true;
     api.timeline({ view, q, undated }).then((t) => live && setTimeline(t), () => live && setTimeline(null));
     return () => { live = false; };
   }, [view, q, undated, refreshKey]);
+  useEffect(() => {
+    let live = true;
+    if (dates.length === 0) { setJumpTimeline(null); return; }
+    api.timeline({ view, q, undated, dates }).then((t) => live && setJumpTimeline(t), () => live && setJumpTimeline(null));
+    return () => { live = false; };
+  }, [view, q, undated, dates, refreshKey]);
 
-  const pages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1;
-  const onPageIds = useMemo(() => new Set(data?.items.map((i) => i.id) ?? []), [data]);
-  const outside = [...selected.keys()].filter((id) => !onPageIds.has(id)).length;
+  const focused = usePaged((p) => (focus ? api.selection(focus.ids, sort, p, pageSize)
+                                          : Promise.resolve({ items: [], total: 0, page: p, page_size: pageSize, missing: [] } as SelectionPage)),
+                           JSON.stringify([focus, sort]), focusJump, pageSize, refreshKey, setLoadError);
+  const focusData: SelectionPage | null = focus ? focused.meta : null;
+
+  // What the gallery shows: the results, or only the selection. Every loaded page in
+  // order, each photo tagged with its page so scrolling can say which page is on top.
+  const list = focus ? focused : results;
+  const visible = focus ? focusPage : page;
+  const flat = useMemo(() => {
+    const items: PhotoItem[] = [];
+    const pageOf: number[] = [];
+    for (const p of [...list.pages.keys()].sort((a, b) => a - b)) {
+      for (const item of list.pages.get(p) ?? []) { items.push(item); pageOf.push(p); }
+    }
+    return { items, pageOf };
+  }, [list.pages]);
+  // The photos on screen, for Select all on screen; until first measured, the page.
+  const screenItems = useMemo(() => {
+    const ids = new Set(onScreen);
+    const found = flat.items.filter((i) => ids.has(i.id));
+    return found.length ? found : list.pages.get(visible) ?? [];
+  }, [flat, onScreen, list.pages, visible]);
+  const pages = list.meta ? Math.max(1, Math.ceil(list.meta.total / pageSize)) : 1;
+  // "Outside this view": selected photos not among the results loaded on screen.
+  const loadedIds = useMemo(() => new Set([...results.pages.values()].flat().map((i) => i.id)), [results.pages]);
+  const outside = [...selected].filter((id) => !loadedIds.has(id)).length;
+  // Every month with a photo on screen, highlighted in the tree. Photos, not pages: a
+  // month with a few photos rarely starts a page or a row, and was skipped.
+  const currentDates = useMemo(() => {
+    if (sort !== "newest" && sort !== "oldest") return [];
+    const dateOf = new Map<number, string | null>();
+    for (const items of results.pages.values()) for (const i of items) dateOf.set(i.id, i.date_taken);
+    const ids = onScreen.length ? onScreen : (results.pages.get(page) ?? []).slice(0, 1).map((i) => i.id);
+    return [...new Set(ids.map((id) => dateOf.get(id)?.slice(0, 7)).filter((m): m is string => !!m))];
+  }, [results.pages, onScreen, page, sort]);
+
+  // Continuous scrolling: load the next page as the end nears, and the previous one as
+  // the start does, keeping the photos on screen where they are.
+  const topSentinel = useRef<HTMLDivElement>(null);
+  const bottomSentinel = useRef<HTMLDivElement>(null);
+  const prepend = useRef<{ height: number; y: number } | null>(null);
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        if (entry.target === bottomSentinel.current) list.load(list.last + 1);
+        if (entry.target === topSentinel.current && list.first > 1 && !prepend.current) {
+          prepend.current = { height: document.documentElement.scrollHeight, y: window.scrollY };
+          list.load(list.first - 1);
+        }
+      }
+    }, { rootMargin: "800px 0px" });
+    if (topSentinel.current) observer.observe(topSentinel.current);
+    if (bottomSentinel.current) observer.observe(bottomSentinel.current);
+    return () => observer.disconnect();
+  }, [list.first, list.last, list.load, list.ready, focus]);
+  useLayoutEffect(() => {
+    const mark = prepend.current;
+    if (!mark) return;
+    prepend.current = null;
+    window.scrollTo(0, mark.y + document.documentElement.scrollHeight - mark.height);
+  }, [list.first]);
+  // The page on top follows the scroll: the page of the first photo below the header.
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const top = header.current?.getBoundingClientRect().bottom ?? 0;
+        const bottom = window.innerHeight;
+        let first: HTMLElement | null = null;
+        const seen: number[] = [];
+        for (const card of document.querySelectorAll<HTMLElement>(".grid .card[data-page]")) {
+          const box = card.getBoundingClientRect();
+          if (box.bottom <= top + 4) continue;
+          if (box.top >= bottom) break;
+          first ??= card;
+          seen.push(Number(card.dataset.id));
+        }
+        if (!first) return;
+        const p = Number(first.dataset.page);
+        if (focus) setFocusVisible(p); else setVisiblePage(p);
+        setOnScreen(seen);
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); cancelAnimationFrame(frame); };
+  }, [focus]);
+  // Photos arriving change what is on screen without a scroll: measure again.
+  useEffect(() => { window.dispatchEvent(new Event("resize")); }, [flat]);
+  // A jump starts at the top of the page it lands on.
+  useEffect(() => { if (jump.n > 0) window.scrollTo(0, 0); }, [jump.n]);
+  useEffect(() => { if (focusJump.n > 0) window.scrollTo(0, 0); }, [focusJump.n]);
+
+  const showSelected = () => { setFocus({ kind: "selection", ids: [...selected] }); setFocusPage(1); };
+  const backToResults = () => { setFocus(null); setFocusPage(1); };
+  // Clearing the selection leaves nothing to show only, so it returns to the results.
+  const clearSelection = () => { setSelected(new Set()); if (focus?.kind === "selection" || focus?.kind === "review") backToResults(); };
+
+  const changeDates = (next: string[]) => { setDates(next); setPage(1); };
+  // All photos means every photo: it also clears No capture date, the dates and the
+  // search. The other views keep them, to narrow within them.
+  const narrowed = undated || dates.length > 0 || !!q;
+  const chooseView = (v: View) => {
+    setView(v);
+    setPage(1);
+    if (v === "all") { setUndated(false); setDates([]); setSearch(""); setQ(""); }
+  };
+  const jumpTo = (key: string) => {
+    const newestFirst = sort !== "oldest";
+    const target = datePage(jumpTimeline ?? timeline ?? { months: [], undated: 0 }, newestFirst, pageSize, key);
+    if (target == null) {
+      const then = (next: string[]) => () => { setNotice(null); changeDates(next); setPendingJump(key); };
+      setNotice(`${dateLabel(key)} is outside the dates shown.`, [
+        { label: `Show ${dateLabel(key)} too`, run: then([...dates, key]) },
+        { label: "Show all dates", run: then([]) },
+      ]);
+      return;
+    }
+    if (sort !== "newest" && sort !== "oldest") {
+      setSort("newest");
+      setNotice("Sorted newest first, so the gallery can go to a date.");
+    } else {
+      setNotice(null);
+    }
+    setPage(target);
+  };
+
+  // Go to the date once the filtered months that include it have arrived.
+  useEffect(() => {
+    if (!pendingJump) return;
+    const source = dates.length ? jumpTimeline : timeline;
+    const has = (m: string) => m === pendingJump || m.startsWith(`${pendingJump}-`);
+    if (source && (source.months.some((m) => has(m.month)) || (pendingJump === "none" && source.undated > 0))) {
+      setPendingJump(null);
+      jumpTo(pendingJump);
+    }
+  }, [pendingJump, jumpTimeline, timeline, dates]);
 
   const changePageSize = (size: number) => {
     // Keep the first photo on screen in view: land on the page that holds it.
@@ -214,23 +383,33 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     setPage(Math.floor(first / size) + 1);
   };
 
-  const toggle = (item: PhotoItem, on: boolean) => setSelected((cur) => {
-    const next = new Map(cur);
-    if (on) next.set(item.id, item); else next.delete(item.id);
+  const toggleIds = (ids: number[], on: boolean) => setSelected((cur) => {
+    const next = new Set(cur);
+    for (const id of ids) { if (on) next.add(id); else next.delete(id); }
     return next;
   });
-  const toggleMany = (items: PhotoItem[], on: boolean) => setSelected((cur) => {
-    const next = new Map(cur);
-    for (const item of items) { if (on) next.set(item.id, item); else next.delete(item.id); }
-    return next;
-  });
+  const toggle = (item: PhotoItem, on: boolean) => toggleIds([item.id], on);
+  const toggleMany = (items: PhotoItem[], on: boolean) => toggleIds(items.map((i) => i.id), on);
+  const selectAll = async () => {
+    if (focus) { toggleIds(focus.ids, true); return; }
+    try {
+      const got = await api.photoIds({ view, q, undated, dates });
+      if (got.over_limit) {
+        setNotice(`${count(got.total)} photos are shown: more than the ${count(got.limit)}-photo selection limit. Use Actions for all photos, or narrow the view.`);
+        return;
+      }
+      toggleIds(got.ids, true);
+    } catch (e) {
+      setActionError(e instanceof ApiError ? e.message : "The photos could not be selected.");
+    }
+  };
 
   const step = useCallback((delta: number) => {
-    if (!data || openId == null) return;
-    const index = data.items.findIndex((i) => i.id === openId);
-    const next = data.items[index + delta];
+    if (openId == null) return;
+    const index = flat.items.findIndex((i) => i.id === openId);
+    const next = flat.items[index + delta];
     if (next) setOpenId(next.id);
-  }, [data, openId]);
+  }, [flat, openId]);
 
   // The divider between the gallery and the Inspector: drag it, or focus it and use
   // the arrow keys. Each side keeps at least MIN_SIDE pixels; the width is remembered.
@@ -259,71 +438,91 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     setActionError(null);
     try {
       await api.startJob(fileIds ? { mode, file_ids: fileIds } : { mode });
-      if (fileIds) setSelected(new Map());
+      if (fileIds) {
+        setSelected(new Set());
+        // Showing the selection: keep showing these photos, to watch them change.
+        setFocus((cur) => (cur ? { kind: "job", ids: fileIds } : null));
+      }
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : "The job could not be started.");
     }
   };
 
-  const askTransfer = (mode: "copy" | "move", ids?: number[]) => {
-    // "All" counts what the engine would take across the whole catalog (GET /status),
-    // never the gallery's view or search.
-    const scope = ids ? plural(ids.length, "selected photo")
-      : mode === "copy" ? `every photo not yet copied (${count(status.eligible.copy)})`
-        : `every photo not yet moved (${count(status.eligible.move)})`;
-    setConfirm({
-      title: mode === "move" ? `Move ${scope}?` : `Copy ${scope}?`,
-      action: mode === "move" ? "Move" : "Copy",
-      danger: mode === "move",
-      body: mode === "move" ? [
-        "Each photo is copied into the destination's date folders, checked byte for byte, and only then deleted from the source.",
-        ...(!ids && status.copied > 0 ? [`${plural(status.copied, "photo is", "photos are")} already copied: each of their copies is verified again before its source is deleted.`] : []),
-        "Duplicate copies in the source are removed once a matching copy is confirmed at the destination.",
-      ] : [
-        "Each photo is copied into the destination's date folders and checked byte for byte. Nothing in the source is changed or deleted.",
-      ],
-      run: start(mode, ids),
-    });
+  // Copy or Move selected first shows every selected photo, with the action in a bar
+  // above them rather than a dialog over them: scroll, open and untick, then commit.
+  const transferSelected = (mode: "copy" | "move") => {
+    setFocus({ kind: "review", mode, ids: [...selected] });
+    setFocusPage(1);
   };
+  const reviewIds = focus?.kind === "review" ? focus.ids.filter((id) => selected.has(id)) : [];
+  const review = focus?.kind === "review" && focus.mode ? transferConfirm(focus.mode, status, reviewIds, start(focus.mode, reviewIds)) : null;
+  const [committing, setCommitting] = useState(false);
+  const commit = async () => {
+    if (!review) return;
+    setCommitting(true);
+    try { await review.run(); } finally { setCommitting(false); }
+  };
+
+  const askTransfer = (mode: "copy" | "move", ids?: number[], onCancel?: () => void) =>
+    setConfirm(transferConfirm(mode, status, ids, start(mode, ids), onCancel));
 
   const noPhotos = status.photos === 0;
   const tooMany = selected.size > MAX_SELECTION;
+
+  const screenSelected = screenItems.filter((i) => selected.has(i.id)).length;
+  const onPager = focus ? setFocusPage : setPage;
 
   return (
     <div className={`app ${openId != null ? "with-inspector" : ""}`}>
       <header className="toolbar" ref={header}>
         <div className="toolbar-row">
-          <h1 className="brand">NegativeSpace</h1>
+          <h1 className="brand"><Logo />NegativeSpace</h1>
           <nav className="pages" aria-label="Pages">
             <a className="button-link active" href="/" onClick={follow} aria-current="page">Library</a>
             <ActionsMenu
               state={{ jobRunning, noPhotos, selected: selected.size, tooMany, maxSelection: MAX_SELECTION,
                        eligible: status.eligible, copied: status.copied }}
               onIndex={start("index")}
-              onTransfer={(mode, scope) => askTransfer(mode, scope === "selected" ? [...selected.keys()] : undefined)} />
+              onTransfer={(mode, scope) => (scope === "selected" ? transferSelected(mode) : askTransfer(mode))} />
             <a className="button-link" href="/logs" onClick={follow}>Logs</a>
           </nav>
+          {(selected.size > 0 || focus) && (
+            <div className="selection-line" role="region" aria-label="Selection">
+              <strong>{plural(selected.size, "photo")} selected</strong>
+              {!focus && outside > 0 && <span> · {count(outside)} outside this view</span>}
+              {tooMany && <span className="error"> · {count(MAX_SELECTION)} file limit for individual selection</span>}
+              {focus
+                ? <button className="link" onClick={backToResults}>Back to results</button>
+                : <button className="link" onClick={showSelected}>Show only selected</button>}
+              {selected.size > 0 && <button className="link" onClick={clearSelection}>Clear</button>}
+            </div>
+          )}
           <div className="toolbar-actions">
+            <VersionTag version={status.version} />
             <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
           </div>
         </div>
-        <div className="toolbar-row toolbar-browse">
+        <div className={`toolbar-row toolbar-browse ${focus ? "is-muted" : ""}`}>
+          <button className="dates-toggle" aria-expanded={datesOpen} onClick={() => setDatesOpen(!datesOpen)}>
+            Dates{dates.length ? ` (${dates.length})` : ""}
+          </button>
           <nav className="views" aria-label="Views">
             {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
-              <button key={v} className={v === view ? "active" : ""} onClick={() => { setView(v); setPage(1); }}>
-                {VIEW_LABEL[v]}{data ? ` (${count(data.counts[v])})` : ""}
+              <button key={v} className={v === view && !(v === "all" && narrowed) ? "active" : ""} disabled={!!focus}
+                      onClick={() => chooseView(v)}>
+                <span>{VIEW_LABEL[v]}</span> <span className="view-count">{data ? `(${count(data.counts[v])})` : ""}</span>
               </button>
             ))}
             <Tip text="Photos whose EXIF has no date taken. They are filed under Undated, by their file's modification date.">
-              <button className={`filter ${undated ? "active" : ""}`} aria-pressed={undated}
+              <button className={`filter ${undated ? "active" : ""}`} aria-pressed={undated} disabled={!!focus}
                       onClick={() => { setUndated(!undated); setPage(1); }}>
-                No capture date{data ? ` (${count(data.counts.undated)})` : ""}
+                <span>No capture date</span> <span className="view-count">{data ? `(${count(data.counts.undated)})` : ""}</span>
               </button>
             </Tip>
           </nav>
-          <input className="search" type="search" placeholder="Search filenames" value={search}
+          <input className="search" type="search" placeholder="Search filenames" value={search} disabled={!!focus}
                  onChange={(e) => setSearch(e.target.value)} aria-label="Search filenames" />
-          <select value={sort} onChange={(e) => { setSort(e.target.value as Sort); setPage(1); }} aria-label="Sort">
+          <select value={sort} onChange={(e) => { setSort(e.target.value as Sort); setPage(1); setFocusPage(1); }} aria-label="Sort">
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="largest">Largest first</option>
@@ -336,10 +535,67 @@ function Library({ status, refreshStatus, onOpenSettings }: {
         {actionError && <p className="error banner" role="alert">{actionError} <button onClick={() => setActionError(null)}>Dismiss</button></p>}
       </header>
 
-      <main className="content" ref={content}>
+      <main className={`content ${datesOpen ? "dates-open" : ""}`} ref={content}>
+        {!focus && (
+          <DatesPanel timeline={timeline} dates={dates} current={currentDates} oldestFirst={sort === "oldest"} onDates={changeDates}
+                      onJump={(key) => { jumpTo(key); setDatesOpen(false); }} />
+        )}
         <div className="gallery-pane">
           {loadError && <p className="error">{loadError}</p>}
-          {data && data.total === 0 && (
+          {notice && (
+            <p className="notice" role="status">
+              {notice.text}
+              {notice.actions.map((a) => <span key={a.label}> <button className="link" onClick={a.run}>{a.label}</button> ·</span>)}
+              {" "}<button className="link" onClick={() => setNotice(null)}>Dismiss</button>
+            </p>
+          )}
+          {focus && review && focus.mode && (
+            <div className="focus-head review-bar" role="region" aria-label={`Review before ${focus.mode === "move" ? "moving" : "copying"}`}>
+              <div className="review-text">
+                <strong>Review the {plural(focus.ids.length, "selected photo")} below</strong>
+                <span className="muted"> · untick any you do not want; {plural(reviewIds.length, "photo")} will be {focus.mode === "move" ? "moved" : "copied"}.</span>
+                <p className="muted">{review.body[0]}</p>
+              </div>
+              <button className={review.danger ? "danger" : "primary"} onClick={commit}
+                      disabled={committing || jobRunning || reviewIds.length === 0 || reviewIds.length > MAX_SELECTION}
+                      title={reviewIds.length === 0 ? "Every photo is unticked." : jobRunning ? "A job is running." : undefined}>
+                {focus.mode === "move" ? "Move" : "Copy"} these {plural(reviewIds.length, "photo")}
+              </button>
+              <button onClick={backToResults} disabled={committing}>Cancel</button>
+            </div>
+          )}
+          {focus && !review && (
+            <div className="focus-head">
+              <strong>
+                {focus.kind === "job" ? `The ${plural(focus.ids.length, "photo")} in the job just started`
+                  : `Showing only the ${plural(focus.ids.length, "selected photo")}`}
+              </strong>
+              <span className="muted">
+                {focus.kind === "job" ? " · their status updates when the job ends." : " · whatever the view, search or dates would hide."}
+              </span>
+              <button onClick={backToResults}>Back to results</button>
+              {focusData && focusData.missing.length > 0 && (
+                <p className="warning">
+                  {plural(focusData.missing.length, "selected photo is", "selected photos are")} no longer in the catalog.{" "}
+                  <button className="link" onClick={() => toggleIds(focusData.missing, false)}>Remove from the selection</button>
+                </p>
+              )}
+            </div>
+          )}
+          {!focus && dates.length > 0 && (
+            <p className="dates-filter-line">
+              Showing only {dates.map(dateLabel).join(", ")}
+              {data && data.total > 0 && (
+                <> · <button className="link" onClick={selectAll} disabled={jobRunning || data.total > MAX_SELECTION}
+                             title={data.total > MAX_SELECTION ? `More than the ${count(MAX_SELECTION)}-photo selection limit.`
+                                    : jobRunning ? "Selection is unavailable while a job is running." : undefined}>
+                  Select these {count(data.total)}
+                </button></>
+              )}
+              {" · "}<button className="link" onClick={() => changeDates([])}>Show all dates</button>
+            </p>
+          )}
+          {!focus && data && data.total === 0 && (
             <div className="empty">
               {noPhotos ? (
                 <>
@@ -357,19 +613,25 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               ) : <p>Nothing in this view.</p>}
             </div>
           )}
-          {data && data.total > 0 && (
+          {list.meta && list.meta.total > 0 && (
             <>
               <div className="gallery-head">
-                <button onClick={() => toggleMany(data.items, true)} disabled={jobRunning}>Select all on this page</button>
+                <SelectMenu onScreen={screenItems.length} screenSelected={screenSelected}
+                            total={list.meta.total} selected={selected.size} max={MAX_SELECTION}
+                            disabledWhy={jobRunning ? "Selection is unavailable while a job is running." : null}
+                            onSelectScreen={() => toggleMany(screenItems, true)} onSelectAll={selectAll}
+                            onUnselectScreen={() => toggleMany(screenItems, false)} onUnselectAll={clearSelection} />
                 {jobRunning && <span className="muted">Selection is unavailable while a job is running.</span>}
-                <JumpToDate timeline={timeline} sort={sort} pageSize={pageSize} onPage={setPage} />
               </div>
-              <Pager page={page} pages={pages} total={data.total} pageSize={pageSize} onPage={setPage} onPageSize={changePageSize} />
-              <Gallery page={data} selected={selected} selectable={!jobRunning} openId={openId}
+              <Pager page={visible} pages={pages} total={list.meta.total} pageSize={pageSize} onPage={onPager} onPageSize={changePageSize} continuous />
+              {list.first > 1 && <div ref={topSentinel} className="page-sentinel muted">Loading more photos…</div>}
+              <Gallery page={{ items: flat.items }} pageOf={flat.pageOf} selected={selected} selectable={!jobRunning} openId={openId}
                        onOpen={setOpenId} onToggle={toggle} onToggleMany={toggleMany} />
-              <div className="gallery-foot">
-                <Pager page={page} pages={pages} total={data.total} pageSize={pageSize} onPage={setPage} onPageSize={changePageSize} />
-              </div>
+              {list.last < pages
+                ? <div ref={bottomSentinel} className="page-sentinel muted">Loading more photos…</div>
+                : <div className="gallery-foot">
+                    <span className="muted">End of {plural(list.meta.total, "photo")}.</span>
+                  </div>}
             </>
           )}
         </div>
@@ -381,50 +643,13 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                    if (e.key === "ArrowLeft") setWidth(currentWidth() + 40);
                    if (e.key === "ArrowRight") setWidth(currentWidth() - 40);
                  }} />
-            <Inspector id={openId} width={panelWidth} onClose={() => setOpenId(null)} onStep={step} />
+            <Inspector id={openId} width={panelWidth} onClose={() => setOpenId(null)} onStep={step}
+                       onOpenPhoto={setOpenId} jobRunning={jobRunning} />
           </>
         )}
       </main>
 
-      {selected.size > 0 && (
-        <div className="action-bar" role="region" aria-label="Selection">
-          <span>
-            <strong>{plural(selected.size, "photo")} selected</strong>
-            {outside > 0 && ` · ${count(outside)} outside this view`}
-          </span>
-          {tooMany && <span className="error">{count(MAX_SELECTION)} file limit for individual selection.</span>}
-          {jobRunning && <span className="muted">Photo changes are unavailable while a job is running.</span>}
-          <button onClick={() => askTransfer("copy", [...selected.keys()])} disabled={jobRunning || tooMany}>Copy selected</button>
-          <button onClick={() => askTransfer("move", [...selected.keys()])} disabled={jobRunning || tooMany}>Move selected</button>
-          <button onClick={() => setSelected(new Map())}>Clear selection</button>
-        </div>
-      )}
-
       {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
-    </div>
-  );
-}
-
-function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose: () => void }) {
-  const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
-        <h2 id="confirm-title">{confirm.title}</h2>
-        {confirm.body.map((line) => <p key={line}>{line}</p>)}
-        <footer className="settings-actions">
-          <button onClick={onClose} disabled={busy}>Cancel</button>
-          <button className={confirm.danger ? "danger" : "primary"} disabled={busy}
-                  onClick={async () => { setBusy(true); await confirm.run(); onClose(); }}>
-            {confirm.action}
-          </button>
-        </footer>
-      </div>
     </div>
   );
 }

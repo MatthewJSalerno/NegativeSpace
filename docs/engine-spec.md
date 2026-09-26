@@ -314,7 +314,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 10 and refuses incompatible catalogs before processing.
+initializes schema version 11 and refuses incompatible catalogs before processing.
 No migration exists: preserve an older catalog and use a fresh one. Index cannot
 reconstruct settings, past edits, or deleted-file lineage. Never describe deleting a
 user catalog as routine repair.
@@ -687,6 +687,15 @@ CREATE TABLE backup_artifacts (
     compression_format TEXT, created_at TEXT NOT NULL,
     availability TEXT NOT NULL CHECK(availability IN ('present','missing','unknown','pruned')),
     last_checked_at TEXT, pruned_at TEXT
+);
+
+-- What the web interface remembers for its user, kept with the catalog so clearing a
+-- browser's data does not bring back what was dismissed (webui-spec 4.1). Written by
+-- the API through ns_db.save_ui_state. Not settings: settings configure jobs and are
+-- copied into each run's configuration.
+CREATE TABLE ui_state (
+    key TEXT PRIMARY KEY CHECK(key IN ('dismissed_run')),
+    value_json TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 
 CREATE INDEX idx_evidence_operation ON operation_evidence(operation_id,evidence_id);

@@ -39,6 +39,7 @@ The first screen's state. It never creates anything.
 
     {"state": "missing" | "ok" | "incompatible" | "error", "detail": "<reason or null>",
      "photos": 1160, "indexed": true, "eligible": {"copy": 0, "move": 1160}, "copied": 1160,
+     "version": {"release": "0.1.0", "branch": "main" | null, "commit": "2c4728f" | null},
      "application_data": "/appdata", "catalog_backups": "/backups",
      "active_job": <Run or null, as in GET /jobs/active>}
 
@@ -46,6 +47,10 @@ The first screen's state. It never creates anything.
 rule (`ns_db.TRANSFER_ELIGIBLE`): Copy takes `Pending`; Move also takes `Copied`, deleting
 each source against its verified copy. `copied` is how many of Move's are already copied.
 Both count the whole catalog, whatever the gallery's view or search.
+
+`version` is which build is running: the release in the repository's `VERSION` file,
+and the branch and commit the image was built from (the `NS_BRANCH` and `NS_COMMIT`
+build arguments; `null` when the build was not given them). Shown beside Settings.
 
 The two paths are container paths, named in guidance; the API does not know the host's.
 
@@ -92,6 +97,21 @@ Saved values apply to jobs started afterwards, never to one already running.
 Whether the engine reads the extension as a photo (`ns_db.extension_support`). An
 unsupported one is never refused, only warned about (`webui-spec.md` §3.2).
 
+### `GET /api/v1/ui-state`
+
+What the interface remembers for its user, kept with the catalog rather than in the
+browser, so clearing a browser's data or opening another does not bring it back:
+
+    {"dismissed_run": 12}
+
+`dismissed_run` is the newest job whose finished banner was dismissed; it covers that job
+and every earlier one. A value that is not a recorded run id is `400 invalid_request`.
+Not a setting: settings configure jobs and are copied into each run's configuration.
+
+### `PUT /api/v1/ui-state`
+
+Saves `{"dismissed_run": 12}` and returns the state as in `GET`.
+
 ## 4. Photos
 
 ### `GET /api/v1/photos`
@@ -105,6 +125,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 | `sort` | `newest`, `oldest`, `largest`, `smallest`, `name` | `newest` |
 | `q` | filename search: current and original names, including removed duplicates' names; never folder names | none |
 | `undated` | `true` for only photos with no EXIF date taken, the ones filed under Undated | `false` |
+| `date` | repeatable: a year (`2023`), a month (`2023-06`) or `none` (no date at all); the date tree's "Show only". Several add up | none: every date |
 | `page`, `page_size` | page from 1; 1 to 240 photos | 1, 60 |
 
     {"items": [{"id": 12, "status": "Pending", "file_size": 3012443,
@@ -113,19 +134,44 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
      "page": 1, "page_size": 60, "total": 1160,
      "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160}}
 
-`counts` apply the search and the `undated` filter to each view. `counts.undated` is how
+`counts` apply the search and `date` to each view, but not `undated`, which has its
+own count: turning No capture date on leaves All photos at its real number. `total` is
+what this request shows, every filter applied. `counts.undated` is how
 many photos in this view and search have no capture date, whether or not the filter is
 on, for the filter's label. The date sorts put undatable rows last.
 
 ### `GET /api/v1/photos/timeline`
 
-Photos per calendar month for the same `view`, `q` and `undated`, newest month first:
+Photos per calendar month for the same `view`, `q`, `undated` and `date`, newest month first:
 
     {"months": [{"month": "2023-06", "count": 68}, ...], "undated": 0}
 
 `undated` here counts rows with no date at all. A month's first photo in a date sort
 sits after every photo sorted before it, which is how the screen jumps to a month's
-page.
+page. The date tree asks without `date`, so an unticked month keeps its count; a jump
+asks with it, to land on the right page of the filtered gallery.
+
+### `GET /api/v1/photos/ids`
+
+Every photo id the gallery shows for the same `view`, `q`, `undated` and `date`, across
+all pages: **Select all**.
+
+    {"ids": [3, 7, ...], "total": 412, "limit": 1000, "over_limit": false}
+
+Over the 1,000-photo selection limit (the engine's `--file-ids`), `ids` is empty and
+`over_limit` true: refused whole, never cut short, because a partial Select all would
+act on only some of what was shown.
+
+### `POST /api/v1/photos/selection`
+
+The selected photos, whatever view, search or dates would hide them (Show only selected):
+
+    {"ids": [3, 7, 99999], "sort": "newest", "page": 1, "page_size": 60}
+    ->  {"items": [...as GET /photos...], "page": 1, "page_size": 60, "total": 2, "missing": [99999]}
+
+It reads; it is a POST because 1,000 ids is too long for a URL. `missing` names ids no
+longer in the catalog, so a selection is never silently shortened. More than 1,000 ids
+is `400 invalid_request`.
 
 ### `GET /api/v1/photos/{id}/inspect`
 
@@ -140,11 +186,37 @@ The Inspector's details. `404 unknown_photo` for an id the catalog does not hold
                      "value": "2021:05:01 10:00:00", "offset": "+02:00" | null}],
      "camera", "iso", "aperture", "shutter", "sha1", "phash",
      "duplicates": [{"id", "status", "source_path", "dest_path", "file_size"}],
+     "metadata": [["Aperture", 2.8], ["DateTimeOriginal", "2021:05:01 10:00:00"], ...],
      "thumbnail": {"availability": "present" | "failed" | "pending",
                    "failure_category", "failure_detail"}}
 
 `exif_dates` lists only the dates EXIF holds, each with the offset tag that pairs with
 it (`OffsetTimeOriginal`, `OffsetTimeDigitized`, `OffsetTime`).
+
+`metadata` is every tag the Index recorded, as `[name, value]` pairs sorted by name:
+ExifTool's full set (or Pillow's when ExifTool found nothing for the file), not a curated
+subset. The engine's own `date_taken` and `date_source` are left out; they are above.
+Read from the catalog, so it shows the photo as last indexed.
+
+### `GET /api/v1/photos/{id}/lineage`
+
+Everything recorded about a photo's files, for the lineage tree (`webui-spec.md` §6.3):
+
+    {"photo_id": 12, "sha1": "...", "photos": [12, 40],          // the photo, then its exact duplicates
+     "files": [{"file_id", "origin_file_id", "origin_kind": "indexed" | "copy" | "observed_destination",
+                "path", "role": "source" | "destination", "presence": "present" | "removed" | "missing",
+                "sha1_hash", "matches": true, "file_size", "indexed_path", "created_at",
+                "photo_id", "photo_status"}, ...],
+     "operations": [{"id", "run_id", "mode", "status", "timestamp", "error_message", "photo_id",
+                     "source_path", "dest_path", "recovery",
+                     "files": [{"file_id", "role": "source" | "destination" | "retained_copy"}]}, ...]}
+
+`files` holds the photo's source file and every file descended from it (a copy records
+the file it came from; an indexed file records itself as its own origin), and the same
+for each duplicate. `matches` says whether the file's recorded
+content is the photo's. `operations` is every operation that touched any of them, oldest
+first, with the role each file played. A copy's size is its origin's: it was verified
+byte for byte when made. An unknown photo is `404 unknown_photo`.
 
 ### `GET /api/v1/photos/{id}/thumbnail`
 
@@ -385,6 +457,6 @@ These are designed in `webui-spec.md` and will be described here when they exist
     the drawer needs only the aggregate feed.
 *   `GET /api/v1/stats/duplicates`: the Dashboard's duplicate-space figures and
     coverage (`webui-spec.md` §5.9).
-*   The curation actions: rename, destination
-    check, thumbnail cache controls, and later metadata editing, all of which the
-    engine already supports or is specified to (`engine-spec.md` §9).
+*   The curation actions: rename, the destination check (offered from a lineage
+    tree's copy), thumbnail cache controls, and later metadata editing, all of which
+    the engine already supports or is specified to (`engine-spec.md` §9).

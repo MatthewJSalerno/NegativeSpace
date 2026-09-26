@@ -1,11 +1,9 @@
-import { useEffect, useState } from "react";
-import type { Sort, Timeline } from "../api";
+import { useState } from "react";
 import { count, plural } from "../format";
 
 export const PAGE_SIZES = [60, 120, 240];
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
-  "October", "November", "December"];
+const cap = (w: string) => w[0].toUpperCase() + w.slice(1);
 
 // Page numbers to show: the first, the last, and two either side of the current
 // page, with gaps marked - "1 … 48 49 [50] 51 52 … 2,500".
@@ -20,10 +18,10 @@ function pageList(page: number, pages: number): (number | "gap")[] {
   return out;
 }
 
-// Paging for a large library: first/last, numbered pages, a go-to box, and a page
-// size. Pages rather than endless scrolling, because selection is defined per page
-// (webui-spec 2) and a page number is a place a refresh can return to.
-export function Pager({ page, pages, total, pageSize, onPage, onPageSize, sizes = PAGE_SIZES, noun = "photo", nouns }: {
+// Positions in a large list: first/last, numbered pages, a go-to box, and a size. The
+// gallery scrolls on through pages (`continuous`: the size is how many load at a time);
+// the log shows one page at a time. Either way a page number is a place a refresh returns to.
+export function Pager({ page, pages, total, pageSize, onPage, onPageSize, sizes = PAGE_SIZES, noun = "photo", nouns, continuous }: {
   page: number;
   pages: number;
   total: number;
@@ -33,6 +31,8 @@ export function Pager({ page, pages, total, pageSize, onPage, onPageSize, sizes 
   sizes?: number[];
   noun?: string;
   nouns?: string;
+  // The gallery scrolls on through pages: the size is how many load at a time.
+  continuous?: boolean;
 }) {
   const [goto, setGoto] = useState("");
   const go = () => {
@@ -55,54 +55,11 @@ export function Pager({ page, pages, total, pageSize, onPage, onPageSize, sizes 
                placeholder="Page" aria-label="Go to page" inputMode="numeric" />
         <button onClick={go}>Go</button>
       </span>
-      <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} aria-label={`${(nouns ?? `${noun}s`)[0].toUpperCase()}${(nouns ?? `${noun}s`).slice(1)} per page`}>
-        {sizes.map((n) => <option key={n} value={n}>{n} per page</option>)}
+      <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))}
+              aria-label={continuous ? `${cap(nouns ?? `${noun}s`)} loaded at a time` : `${cap(nouns ?? `${noun}s`)} per page`}>
+        {sizes.map((n) => <option key={n} value={n}>{continuous ? `Load ${n} at a time` : `${n} per page`}</option>)}
       </select>
       <span className="muted">{plural(total, noun, nouns)}</span>
     </nav>
-  );
-}
-
-// Jump to a month in a date-sorted gallery. Each month's first photo sits at the
-// number of photos sorted before it, which gives its page directly.
-export function JumpToDate({ timeline, sort, pageSize, onPage }: {
-  timeline: Timeline | null;
-  sort: Sort;
-  pageSize: number;
-  onPage: (p: number) => void;
-}) {
-  const [value, setValue] = useState("");
-  useEffect(() => setValue(""), [sort, timeline]);
-  if (!timeline || (sort !== "newest" && sort !== "oldest") || timeline.months.length === 0) return null;
-  const months = sort === "newest" ? timeline.months : [...timeline.months].reverse();
-  const offsets = new Map<string, number>();
-  let before = 0;
-  for (const m of months) {
-    offsets.set(m.month, before);
-    before += m.count;
-  }
-  const years = [...new Set(months.map((m) => m.month.slice(0, 4)))];
-  const jump = (month: string) => {
-    setValue(month);
-    const offset = month === "undated" ? before : offsets.get(month);
-    if (offset != null) onPage(Math.floor(offset / pageSize) + 1);
-  };
-  return (
-    <label className="jump">
-      <span>Jump to</span>
-      <select value={value} onChange={(e) => e.target.value && jump(e.target.value)} aria-label="Jump to a month">
-        <option value="">Month…</option>
-        {years.map((y) => (
-          <optgroup key={y} label={y}>
-            {months.filter((m) => m.month.startsWith(y)).map((m) => (
-              <option key={m.month} value={m.month}>
-                {MONTHS[Number(m.month.slice(5, 7)) - 1]} {y} ({count(m.count)})
-              </option>
-            ))}
-          </optgroup>
-        ))}
-        {timeline.undated > 0 && <option value="undated">No date ({count(timeline.undated)})</option>}
-      </select>
-    </label>
   );
 }

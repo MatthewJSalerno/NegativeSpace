@@ -16,7 +16,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 class PhotoStatus:
     """State of one source file in the catalog. One row per source_path."""
@@ -505,6 +505,13 @@ FOUNDATION_DDL = (
         error_category TEXT, error_detail TEXT)""",
     # 'pruned' is the retention limit removing the file; 'missing' is the file
     # gone for a reason the application did not record.
+    # What the web interface remembers for its user, beside the catalog it describes:
+    # kept here rather than in the browser, so clearing a browser's data or opening
+    # another one does not bring back what was dismissed. Not settings: settings
+    # configure jobs and are copied into each run's configuration.
+    """CREATE TABLE ui_state (
+        key TEXT PRIMARY KEY CHECK(key IN ('dismissed_run')),
+        value_json TEXT NOT NULL, updated_at TEXT NOT NULL)""",
     """CREATE TABLE backup_artifacts (
         artifact_id INTEGER PRIMARY KEY AUTOINCREMENT,
         attempt_id INTEGER NOT NULL UNIQUE REFERENCES backup_attempts(attempt_id),
@@ -553,12 +560,32 @@ def require_schema(conn):
                     'file_observations','operation_files','settings','run_configs','job_requests',
                     'file_origins','file_states','contents','operation_events','operation_evidence',
                     'attention_issues','attention_evidence','file_changes','content_similarity',
-                    'thumbnail_cache','backup_attempts','backup_artifacts','run_discovery'}
+                    'thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state'}
         present = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if not required <= present:
             raise SchemaError("Incomplete catalog schema")
     except sqlite3.DatabaseError as exc:
         raise SchemaError("Catalog has no compatible schema marker; preserve it and use a new development catalog") from exc
+
+
+def read_ui_state(conn):
+    """The web interface's remembered state: {'dismissed_run': run id or None}."""
+    rows = dict(conn.execute("SELECT key, value_json FROM ui_state").fetchall())
+    return {'dismissed_run': json.loads(rows['dismissed_run']) if 'dismissed_run' in rows else None}
+
+
+def save_ui_state(conn, values):
+    """Scoped API write. Only known keys; a dismissed run must be a recorded run."""
+    if not isinstance(values, dict) or set(values) - {'dismissed_run'} or not values:
+        raise ValueError("ui_state accepts dismissed_run")
+    run = values['dismissed_run']
+    if type(run) is not int or run < 1 or not conn.execute("SELECT 1 FROM runs WHERE id=?", (run,)).fetchone():
+        raise ValueError("dismissed_run must be a recorded run id")
+    require_schema(conn)
+    with transaction(conn):
+        conn.execute("INSERT INTO ui_state VALUES('dismissed_run',?,?) ON CONFLICT(key) DO UPDATE SET "
+                     "value_json=excluded.value_json, updated_at=excluded.updated_at", (_json(run), utc_now()))
+    return read_ui_state(conn)
 
 
 def validate_settings(values):
