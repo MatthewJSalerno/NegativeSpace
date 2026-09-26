@@ -363,6 +363,12 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         connection gets the current state at once, so a refresh or reconnect never
         restarts anything or loses the elapsed time (webui-spec 4.1)."""
         await ws.accept()
+        # The page never sends; waiting on receive is how this loop learns the connection
+        # closed, whether the browser left or the server is shutting down. Sending only on
+        # a change never touches a closed socket, and uvicorn runs the app's shutdown,
+        # which cancels a running job cleanly, only after every connection has ended: a
+        # feed that did not notice held docker stop until the container was killed.
+        closed = asyncio.ensure_future(ws.receive())
         previous = None
         try:
             while True:
@@ -372,9 +378,15 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
                 if encoded != previous:
                     await ws.send_text(encoded)
                     previous = encoded
-                await asyncio.sleep(PUSH_INTERVAL_SECONDS)
+                await asyncio.wait({closed}, timeout=PUSH_INTERVAL_SECONDS)
+                if closed.done():
+                    if closed.result()["type"] == "websocket.disconnect":
+                        return
+                    closed = asyncio.ensure_future(ws.receive())   # a message: ignored
         except (WebSocketDisconnect, RuntimeError):
             return
+        finally:
+            closed.cancel()
 
     return app
 

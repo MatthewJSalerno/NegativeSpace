@@ -95,6 +95,7 @@ script:
 ```bash
 sh tests/sampler_test.sh                                   # the sampler never writes to the library
 docker build -f docker/app.Dockerfile -t negativespace . && sh tests/entrypoint_test.sh   # the entrypoint's ownership handling
+sh tests/shutdown_test.sh      # docker stop with a browser tab open: clean, and the app's shutdown runs
 ```
 
 ## Validating against real files — `make_sample_tree.sh`
