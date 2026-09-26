@@ -196,6 +196,19 @@ def _check_view(view, sort=None, page=None, page_size=None):
         raise ValueError("page must be at least 1 and page_size between 1 and 240")
 
 
+def failure_reason(message: Optional[str]) -> Optional[str]:
+    """An engine failure message as a reason a person reads, and one that groups: the
+    exception name, the error number and the quoted path go, so "OSError: [Errno 30]
+    Read-only file system: '/data/source/a.jpg'" reads "Read-only file system"."""
+    if not message:
+        return None
+    text = re.sub(r"^[A-Za-z]*(Error|Exception|Mismatch): ", "", message.strip())
+    text = re.sub(r"\[Errno \d+\]\s*", "", text)
+    text = re.sub(r"""(:\s*)?('[^']*'|"[^"]*")""", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" :.")
+    return (text[:117] + "…") if len(text) > 120 else text or None
+
+
 def _items(conn, rows) -> list:
     items = []
     for r in rows:
@@ -204,6 +217,12 @@ def _items(conn, rows) -> list:
         item["duplicates"] = conn.execute(
             "SELECT COUNT(*) FROM photos WHERE sha1_hash = ? AND id != ?", (sha1, r["id"])
         ).fetchone()[0] if sha1 else 0
+        # Why a Failed photo failed, for the badge's hover: its latest failed attempt.
+        item["failure"] = None
+        if r["status"] == PhotoStatus.FAILED:
+            last = conn.execute("SELECT error_message FROM operations WHERE photo_id = ? AND status = ? "
+                                "ORDER BY id DESC LIMIT 1", (r["id"], PhotoStatus.FAILED)).fetchone()
+            item["failure"] = failure_reason(last[0]) if last else None
         items.append(item)
     return items
 
@@ -440,6 +459,12 @@ def _outcome(conn, run: dict, progress: list) -> dict:
                                    "AND reconciles_operation_id IS NULL", (run["id"], OPERATION_SKIPPED)):
         reason = _skip_reason(message)
         skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
+    # Why the run's requested work failed, grouped by reason, for the banner's hover.
+    failure_reasons = {}
+    for (message,) in conn.execute("SELECT error_message FROM operations WHERE run_id = ? AND status = ? "
+                                   "AND reconciles_operation_id IS NULL", (run["id"], PhotoStatus.FAILED)):
+        reason = failure_reason(message) or "No reason recorded"
+        failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
     if run["status"] in ns_db.ACTIVE_RUN_STATUSES:
         verdict = "running"
     elif run["status"] in _TERMINAL_WINS:
@@ -455,7 +480,7 @@ def _outcome(conn, run: dict, progress: list) -> dict:
     total = sum(p["total"] or 0 for p in main) if main and all(p["total"] is not None for p in main) else None
     return {"verdict": verdict, "succeeded": succeeded, "failed": failed, "skipped": skipped,
             "cancelled": cancelled, "run_level_issues": issues, "recovered_earlier_work": recovered,
-            "skip_reasons": skip_reasons,
+            "skip_reasons": skip_reasons, "failure_reasons": failure_reasons,
             "total": total, "counts": counts}
 
 

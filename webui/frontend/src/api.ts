@@ -28,6 +28,8 @@ export interface PhotoItem {
   date_source: string | null;
   filename: string;
   duplicates: number;
+  // A Failed photo's latest failure reason, for its badge's hover.
+  failure?: string | null;
 }
 
 export interface PhotoPage {
@@ -126,6 +128,8 @@ export interface Outcome {
   run_level_issues: number;
   recovered_earlier_work: number;
   skip_reasons: Record<string, number>;
+  // Why the requested work failed, by reason (paths removed), for the hover.
+  failure_reasons?: Record<string, number>;
   total: number | null;
   counts: Record<string, number>;
 }

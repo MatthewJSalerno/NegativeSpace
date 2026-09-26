@@ -174,3 +174,12 @@ export function useDismissedRun(): [number | null, (id: number) => void] {
   // Until the catalog has answered, treat every banner as dismissed rather than flash one.
   return [known ? id : Number.MAX_SAFE_INTEGER, dismiss];
 }
+
+// The hover text for a run's failures: each reason with its count, most first.
+export function failureText(outcome: Outcome | null | undefined): string | null {
+  const reasons = Object.entries(outcome?.failure_reasons ?? {}).sort((a, b) => b[1] - a[1]);
+  if (reasons.length === 0) return null;
+  const shown = reasons.slice(0, 6).map(([r, n]) => `${r}: ${count(n)}`);
+  if (reasons.length > 6) shown.push(`and ${reasons.length - 6} more reasons (see the log)`);
+  return `Why they failed:\n${shown.join("\n")}`;
+}

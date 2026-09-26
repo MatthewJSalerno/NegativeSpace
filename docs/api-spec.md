@@ -131,9 +131,13 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 
     {"items": [{"id": 12, "status": "Pending", "file_size": 3012443,
                 "date_taken": "2023-06-05T21:20:00", "date_source": "exif" | "file_mtime",
-                "filename": "IMG_0001.jpg", "duplicates": 1}, ...],
+                "filename": "IMG_0001.jpg", "duplicates": 1,
+                "failure": null | "Permission denied"}, ...],
      "page": 1, "page_size": 60, "total": 1160,
      "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160}}
+
+`failure` is a `Failed` photo's latest failure reason, made readable as in a run's
+`failure_reasons` (§6); `null` for any other status.
 
 `counts` apply the search, `date` and `type` to each view, but not `undated`, which has its
 own count: turning No capture date on leaves All photos at its real number. `total` is
@@ -465,7 +469,8 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
      "succeeded": 2, "failed": 0, "skipped": 1, "cancelled": 0,
      "run_level_issues": 0, "recovered_earlier_work": 0,
      "total": 3, "counts": {"Copied": 2, "Skipped": 1},
-     "skip_reasons": {"duplicate": 1}}
+     "skip_reasons": {"duplicate": 1},
+     "failure_reasons": {"Read-only file system": 4681}}
 
 *   **Requested work only.** `counts` covers the work the job was asked to do: the scan
     for an Index; the transfer phases for Copy and Move, whose scan is not their work.
@@ -480,6 +485,10 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
     `network_share_unconfirmed`, `source_looked_empty` or `other`. The API
     recognises the reason by how its text begins, and the engine's reason function
     notes the dependency.
+*   **`failure_reasons`** groups the run's `Failed` operations (recovery excluded) by
+    their recorded reason made readable: the exception name, error number and quoted
+    path are removed (`catalog.failure_reason`), so `OSError: [Errno 30] Read-only file
+    system: '/data/source/a.jpg'` counts under `Read-only file system`.
 
 ## 7. Error codes
 

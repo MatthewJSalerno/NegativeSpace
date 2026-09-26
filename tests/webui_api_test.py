@@ -432,6 +432,10 @@ class LogAndErrorCenter(ApiCase):
         finally:
             (self.cfg.source / "locked.jpg").chmod(0o644)
         self.assertEqual(copy["outcome"]["verdict"], "partial")
+        self.assertEqual(copy["outcome"]["failure_reasons"], {"Permission denied": 1},
+                         "the reason, without the error number or the path, so reasons group")
+        locked = next(i for i in self.client.get("/api/v1/photos").json()["items"] if i["filename"] == "locked.jpg")
+        self.assertEqual((locked["status"], locked["failure"]), ("Failed", "Permission denied"))
 
         everything = self.client.get("/api/v1/operations").json()
         self.assertEqual(everything["status_counts"], {"Pending": 2, "Copied": 1, "Failed": 1},

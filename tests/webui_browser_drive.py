@@ -346,6 +346,11 @@ with sync_playwright() as p:
     expect(banner).to_contain_text(
         f"{PHOTOS - 4} of {PHOTOS + DUPLICATES} files copied · 1 failed · {3 + DUPLICATES} skipped "
         f"(3 copied by an earlier job, {DUPLICATES} duplicates: the same content is copied once)")
+    # Hovering the failure count gives the reasons; a Failed photo's badge gives its own.
+    expect(banner.locator(".tip")).to_have_attribute("data-tip", re.compile(r"Why they failed:\nPermission denied: 1"))
+    page.locator(".search").fill("photo-129")
+    expect(page.locator(".badge-failed")).to_have_attribute("title", "Failed: Permission denied")
+    page.locator(".search").fill("")
     shot("6-skip-reasons")
     # Everything copyable is copied, but Move still has every copied photo to finish.
     menu = open_actions(page, "Copy")

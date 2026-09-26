@@ -347,6 +347,11 @@ wrong for every such file that does carry a date.
 When a job is active, its progress shows at the top of the page, under the toolbar. When
 it finishes, its result replaces it there as a banner until dismissed.
 
+**A failure count says why on hover.** Hovering (or focusing) a finished job's result
+lists why its files failed, each reason with its count, the file paths removed so reasons
+group (**"Why they failed: Read-only file system: 4,681"**); the Logs page's job lines do
+the same, and a Failed photo's badge in the gallery gives its own latest reason.
+
 A finished job's banner explains its skips, grouped by the reason each photo recorded,
 for example **"5 skipped (3 copied by an earlier job, 2 duplicates: the same content is
 copied once)"**. The API groups them from the engine's reason text (`webui/catalog.py`).

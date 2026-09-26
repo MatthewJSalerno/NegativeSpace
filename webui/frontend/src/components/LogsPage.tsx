@@ -4,7 +4,7 @@ import { StatsLink } from "./StatsPage";
 import { VersionTag } from "./VersionTag";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
-import { modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
+import { failureText, modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
 import { follow, useHeaderHeight } from "../nav";
 import { usePaged } from "../paged";
 import { ActionsMenu } from "./ActionsMenu";
@@ -318,7 +318,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
                     <strong>#{run.id} {s?.headline ?? modeName(run.mode)}</strong>
                     <span className="muted">{instant(run.started_at)}</span>
                   </span>
-                  <span className="job-detail">{s?.detail}</span>
+                  <span className="job-detail" title={failureText(run.outcome) ?? undefined}>{s?.detail}</span>
                   <span className="job-count">{plural(matches, "entry", "entries")}</span>
                 </button>
                 {open && (

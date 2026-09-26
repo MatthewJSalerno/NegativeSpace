@@ -61,7 +61,8 @@ export function Gallery({ page, pageOf, selected, selectable, openId, onOpen, on
                   {isFallbackDate(item.date_source) ? " (file date)" : ""}
                 </span>
                 {STATUS_BADGE[item.status] && (
-                  <span className={`badge badge-${item.status.toLowerCase()}`}>{STATUS_BADGE[item.status]}</span>
+                  <span className={`badge badge-${item.status.toLowerCase()}`}
+                        title={item.failure ? `Failed: ${item.failure}` : undefined}>{STATUS_BADGE[item.status]}</span>
                 )}
                 {item.duplicates > 0 && <span className="badge">{plural(item.duplicates, "duplicate")}</span>}
               </span>
