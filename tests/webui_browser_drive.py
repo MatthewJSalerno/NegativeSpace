@@ -173,7 +173,8 @@ with sync_playwright() as p:
     # History, in a section of its own near the top, with the latest events.
     history = inspector.locator(".photo-history")
     expect(history).to_contain_text("Indexed")
-    expect(history.get_by_role("link", name=re.compile(r"^View full history \(1 entry\)"))).to_be_visible()
+    expect(history.locator("h3")).to_have_text("History (1)")
+    expect(inspector.get_by_role("link", name="History", exact=True)).to_have_count(0)   # one place, not two
     widths = inspector.locator("table.info").evaluate_all("ts => ts.map(t => Math.round(t.getBoundingClientRect().width))")
     assert len(widths) == 3 and len(set(widths)) == 1, f"the information tables differ in width: {widths}"
     # Show all metadata: every tag recorded, folded until asked for, with a filter.
@@ -401,7 +402,14 @@ with sync_playwright() as p:
 
     # A photo's history, from the Inspector.
     page.locator(".card-image").first.click()
-    page.locator(".inspector").get_by_role("link", name="History").click()
+    # After a Copy, the pane lists the photo's whole history; the log is one link away.
+    events = page.locator(".inspector .history-list li")
+    expect(events).to_have_count(3)                       # indexed, copied, then skipped by Copy all
+    expect(events.nth(0)).to_contain_text("Indexed")      # oldest first
+    expect(events.nth(1)).to_contain_text("Copied")
+    expect(events.nth(2)).to_contain_text("Skipped")
+    shot("3b-history")
+    page.locator(".inspector").get_by_role("link", name="Open in the log").click()
     expect(page.get_by_role("heading", name=re.compile(r"^Log for photo #\d+"))).to_be_visible()
     expect(page.locator(".job-group").first).to_be_visible()
     heads = page.locator(".job-head")

@@ -484,9 +484,10 @@ Clicking an image opens a right-side 50% detail panel.
 indexed this file"**: the time the file carried when the first Index read it, not a date
 the photo was scanned.
 
-**History is prominent.** A **History** section sits under **File**, with the photo's
-latest recorded events (what happened, in which job, when) and **View full history (n
-entries)**; the title bar keeps a **History** button in the accent colour.
+**History is shown in the panel.** A **History (n)** section under **File** lists every
+event recorded for the photo, oldest first, as a timeline (what happened, in which job,
+when, and the engine's reason for a skip or failure), with **Open in the log** for the
+log's filters and export. One place, not a button to another page.
 
 **Show all metadata.** The Index records every tag ExifTool reads (Pillow's when ExifTool
 finds nothing), not a curated subset; the Inspector's fields are a few of them. A folded

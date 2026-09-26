@@ -79,8 +79,6 @@ export function Inspector({ id, width, onClose, onStep }: {
         <button onClick={() => onStep(-1)} aria-label="Previous photo">‹</button>
         <h2 title={detail?.filename}>{detail?.filename ?? "…"}</h2>
         <button onClick={() => onStep(1)} aria-label="Next photo">›</button>
-        <a className="button-link history-link" href={logUrl({ photo: id })} onClick={follow}
-           title="Everything recorded for this photo, across jobs">History</a>
         <button onClick={onClose} aria-label="Close">✕</button>
       </header>
       <div className="inspector-main">
@@ -252,35 +250,40 @@ const EVENT_LABEL: Record<string, string> = {
   Skipped: "Skipped", Cancelled: "Cancelled", Renamed: "Renamed",
 };
 
-// The photo's latest recorded events, near the top of the panel, and the way to all of
-// them (webui-spec 4.2): history is one of the first things asked of a photo.
+// Everything recorded for the photo, in the panel itself (webui-spec 4.2), oldest first:
+// a photo has a handful of events, so the pane shows them all. The log has the same
+// entries with its filters and export, one link away.
+const HISTORY_MAX = 200;
+
 function PhotoHistory({ id }: { id: number }) {
-  const [page, setPage] = useState<{ items: { id: number; run_id: number; mode: string | null; status: string; timestamp: string }[]; total: number } | null>(null);
+  const [page, setPage] = useState<{ items: { id: number; run_id: number; mode: string | null; status: string; timestamp: string;
+                                              error_message: string | null }[]; total: number } | null>(null);
   useEffect(() => {
     let live = true;
     setPage(null);
-    api.operations({ run: [], status: [], photo: id, q: "", since: "", until: "" }, 1, 3)
+    api.operations({ run: [], status: [], photo: id, q: "", since: "", until: "" }, 1, HISTORY_MAX)
       .then((d) => live && setPage(d), () => live && setPage({ items: [], total: 0 }));
     return () => { live = false; };
   }, [id]);
+  const events = page ? [...page.items].reverse() : [];
   return (
     <section className="info-section photo-history">
-      <h3>History</h3>
+      <h3>History{page && page.total > 0 ? ` (${page.total})` : ""}</h3>
       {!page ? <p className="muted info-empty">Loading…</p> : page.total === 0 ? (
         <p className="muted info-empty">Nothing recorded yet.</p>
       ) : (
         <>
-          <ol className="history-recent">
-            {page.items.map((op) => (
-              <li key={op.id}>
+          <ol className="history-list">
+            {events.map((op) => (
+              <li key={op.id} className={op.status === "Failed" ? "history-failed" : undefined}>
                 <strong>{EVENT_LABEL[op.status] ?? op.status}</strong>
                 <span className="muted"> · job #{op.run_id}{op.mode ? ` ${op.mode.toLowerCase()}` : ""} · {epoch(Date.parse(op.timestamp) / 1000)}</span>
+                {op.error_message && <div className="history-detail">{op.error_message}</div>}
               </li>
             ))}
           </ol>
-          <a className="button-link history-link" href={logUrl({ photo: id })} onClick={follow}>
-            View full history ({page.total} {page.total === 1 ? "entry" : "entries"})
-          </a>
+          {page.total > events.length && <p className="muted">Showing the newest {events.length} of {page.total}.</p>}
+          <a className="history-open" href={logUrl({ photo: id })} onClick={follow}>Open in the log</a>
         </>
       )}
     </section>
