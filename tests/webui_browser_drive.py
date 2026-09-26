@@ -110,7 +110,7 @@ with sync_playwright() as p:
     # The date panel stays beside the photos however far the gallery scrolls.
     page.mouse.wheel(0, 20_000)
     page.wait_for_timeout(300)
-    panel = page.get_by_role("navigation", name="Dates").bounding_box()
+    panel = page.locator(".side-panel").bounding_box()
     toolbar = page.locator(".toolbar").bounding_box()
     assert abs(panel["y"] - (toolbar["y"] + toolbar["height"])) < 4, f"the date panel scrolled away: {panel}"
     page.locator(".card").nth(90).scroll_into_view_if_needed()
@@ -151,6 +151,15 @@ with sync_playwright() as p:
     expect(notice).to_have_count(0)
     dates.get_by_label("Show only 2023").uncheck()
     page.locator(".dates-filter-line").get_by_role("button", name="Show all dates").click()
+    # Types, under Dates: only the file types the library holds (here, all JPEG).
+    types = page.get_by_role("navigation", name="Types")
+    expect(types.locator(".type-row")).to_have_count(1)
+    expect(types.locator(".type-row")).to_contain_text(f"JPG{PHOTOS:,}")
+    types.get_by_label("Show only JPG").check()
+    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only JPG")
+    expect(page).to_have_url(re.compile(r"type=jpg"))
+    page.locator(".dates-filter-line").get_by_role("button", name="Show all types").click()
+    expect(page).not_to_have_url(re.compile(r"type="))
     # Oldest first turns the tree over: the oldest year leads.
     year_names = dates.locator(".dates-tree > li > .dates-row .dates-name")
     expect(year_names.first).to_have_text("2023")
@@ -479,6 +488,11 @@ with sync_playwright() as p:
     lefts = [sorted(l for l, _, _ in row) for row in rows.values()]
     assert all(r == lefts[0][:len(r)] for r in lefts), f"columns do not line up: {lefts}"
     shot("9-stats")
+    # A format row opens the Library showing only that type.
+    page.locator(".stat-bars a.bar-label", has_text="JPG").click()
+    expect(page).to_have_url(re.compile(r"type=jpg"))
+    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only JPG")
+    page.go_back()
     tiles.filter(has_text="Failed attempts").click()
     expect(page).to_have_url(re.compile(r"/logs\?status=Failed"))
     page.go_back()

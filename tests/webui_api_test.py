@@ -213,13 +213,18 @@ class JobsAndCatalog(ApiCase):
 
     def test_stats_count_the_library_its_dates_duplicates_and_work(self):
         self.index_library()                  # IMG_0001 + "Beach Sunset" (same content), IMG_0002
+        before = self.client.get("/api/v1/stats").json()["duplicates"]
+        self.assertEqual(before["saved_at_destination"], 0, "nothing is saved until the original is delivered")
+        self.assertIsNotNone(before["coverage"]["last_complete_scan"])
+        self.assertEqual(before["coverage"]["later_runs"], [])
         self.wait_for(self.start(mode="copy"))
         st = self.client.get("/api/v1/stats").json()
         lib = st["library"]
         self.assertEqual((lib["photos"], lib["organized"]), (2, 2), "two distinct photos, both copied")
         self.assertEqual(lib["formats"][0]["format"], "jpg")
         self.assertEqual(st["duplicates"]["extra_copies"], 1)
-        self.assertEqual(st["duplicates"]["saved_at_destination"], st["duplicates"]["bytes"])
+        self.assertEqual(st["duplicates"]["saved_at_destination"], st["duplicates"]["bytes"],
+                         "once the original is copied, the duplicate was never written")
         self.assertGreater(st["duplicates"]["move_would_free"], 0, "the duplicate's source is still there")
         self.assertIsNone(st["duplicates"]["near_duplicates"], "not recorded yet: no figure is invented")
         self.assertEqual(sum(y["photos"] for y in st["dates"]["per_year"]) + st["dates"]["undated"], 2)
@@ -262,6 +267,23 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual((ids["total"], ids["over_limit"]), (1, False))
         self.assertEqual(ids["ids"], [i["id"] for i in photos(date=["2020"])["items"]],
                          "Select all must take exactly the photos the filters show")
+
+    def test_the_types_filter_lists_what_the_library_holds_and_narrows_like_dates(self):
+        self.index_library()                                   # three .jpg, one a duplicate
+        from PIL import Image
+        Image.new("RGB", (40, 30), (1, 2, 3)).save(self.cfg.source / "scan.png", "PNG")
+        self.wait_for(self.start(mode="index"))
+        types = self.client.get("/api/v1/photos/types").json()["types"]
+        self.assertEqual(types, [{"type": "jpg", "photos": 2}, {"type": "png", "photos": 1}],
+                         "only the types the library holds, most first")
+        only_png = self.client.get("/api/v1/photos", params={"type": "png"}).json()
+        self.assertEqual([i["filename"] for i in only_png["items"]], ["scan.png"])
+        self.assertEqual(only_png["counts"]["all"], 1, "the view counts follow the type filter")
+        ids = self.client.get("/api/v1/photos/ids", params={"type": "jpg"}).json()
+        self.assertEqual(ids["total"], 2, "Select all takes exactly the types shown")
+        both = self.client.get("/api/v1/photos", params={"type": ["jpg", "png"], "date": "2023"}).json()
+        self.assertEqual(both["total"], 1, "types and dates combine")
+        self.assertEqual(self.client.get("/api/v1/photos", params={"type": ".jpg"}).status_code, 400)
 
     def test_select_all_over_the_limit_is_refused_whole_not_cut_short(self):
         self.index_library()

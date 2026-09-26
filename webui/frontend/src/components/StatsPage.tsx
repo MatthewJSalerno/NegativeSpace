@@ -112,7 +112,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
         <Tile label="Organized" value={pct(lib.organized, lib.photos)}
               sub={`${count(lib.organized)} of ${count(lib.photos)}`} href="/?view=organized" />
         <Tile label="Duplicate copies" value={count(s.duplicates.extra_copies)}
-              sub={`${bytes(s.duplicates.saved_at_destination)} not copied twice`} />
+              sub={`${bytes(s.duplicates.bytes)} in extra copies`} />
         <Tile label="Failed attempts" value={count(failed)} sub={failed ? "Open the Error Center" : "None"}
               href={failed ? "/logs?status=Failed" : undefined} tone={failed ? "bad" : undefined} />
         <Tile label="Last backup" value={s.health.last_backup ? photoDate(s.health.last_backup, false) : "None"}
@@ -130,7 +130,8 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
             ["Landscape · portrait · square", `${count(lib.orientation.landscape)} · ${count(lib.orientation.portrait)} · ${count(lib.orientation.square)}`],
           ]} />
           <h4>Formats, by space</h4>
-          <Bars rows={lib.formats.map((f) => ({ label: f.format.toUpperCase(), value: f.bytes, text: `${bytes(f.bytes)} · ${count(f.photos)}` }))} />
+          <Bars rows={lib.formats.map((f) => ({ label: f.format.toUpperCase(), value: f.bytes, text: `${bytes(f.bytes)} · ${count(f.photos)}`,
+                                                href: `/?type=${encodeURIComponent(f.format)}` }))} />
           <h4>Resolution</h4>
           <Bars rows={lib.megapixels.map((m) => ({ label: m.band, value: m.photos, text: count(m.photos) }))} />
           {lib.under_1mp > 0 && <p className="muted">{plural(lib.under_1mp, "photo is", "photos are")} under 1 megapixel: often thumbnails or screenshots.</p>}
@@ -164,11 +165,12 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
           <Facts rows={[
             ["Photos with exact copies", count(s.duplicates.groups)],
             ["Extra copies", `${count(s.duplicates.extra_copies)} · ${bytes(s.duplicates.bytes)}`],
-            ["Saved at the destination", <Tipped key="s" tip="Copy and Move file each photo once, so the extra copies never take space there.">{bytes(s.duplicates.saved_at_destination)}</Tipped>],
+            ["Saved at the destination", <Tipped key="s" tip="Extra copies of photos already copied or moved: the destination holds one copy, not two. A duplicate of a photo not yet delivered has saved nothing so far.">{`${bytes(s.duplicates.saved_at_destination)} · ${count(s.duplicates.copies_not_written)} not written`}</Tipped>],
             ["A Move would free in the source", <Tipped key="m" tip="Extra copies still in the source: a Move removes each once a copy of its content is verified at the destination.">{bytes(s.duplicates.move_would_free)}</Tipped>],
             ["Freed by earlier Moves", bytes(s.duplicates.freed_by_moves)],
             ["Near-duplicates (resized, re-saved)", <span key="nd" className="muted">Not recorded yet: they arrive with the Similar tab</span>],
           ]} />
+          <Coverage c={s.duplicates.coverage} />
         </Panel>
 
         <Panel title="Activity">
@@ -213,6 +215,21 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
   );
 }
 
+// How current the duplicate figures are (webui-spec 5.9): the last Index that completed
+// cleanly, and a link to every scan since that did not.
+function Coverage({ c }: { c: Stats["duplicates"]["coverage"] }) {
+  const later = new URLSearchParams();
+  c.later_runs.forEach((r) => later.append("run", String(r)));
+  const link = c.later_runs.length > 0 && (
+    <a href={`/logs?${later}`} onClick={follow}>{plural(c.later_runs.length, "later scan")} had issues</a>);
+  return (
+    <p className="muted">
+      {c.last_complete_scan ? <>Last complete scan: {instant(c.last_complete_scan)}{link && <> — {link}</>}.</>
+        : <>Not fully scanned yet{link && <> — {link}</>}.</>}
+    </p>
+  );
+}
+
 function Tile({ label, value, sub, href, onClick, tone }: {
   label: string; value: string; sub: string; href?: string; onClick?: () => void; tone?: "bad" | "warn";
 }) {
@@ -240,13 +257,14 @@ function Tipped({ tip, children }: { tip: string; children: ReactNode }) {
 }
 
 // One series, so one colour and no legend; each bar names its value beside it.
-function Bars({ rows }: { rows: { label: string; value: number; text: string }[] }) {
+function Bars({ rows }: { rows: { label: string; value: number; text: string; href?: string }[] }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   return (
     <ul className="stat-bars">
       {rows.map((r) => (
         <li key={r.label} title={`${r.label}: ${r.text}`}>
-          <span className="bar-label">{r.label}</span>
+          {r.href ? <a className="bar-label" href={r.href} onClick={follow} title={`Show only ${r.label} in the Library`}>{r.label}</a>
+                  : <span className="bar-label">{r.label}</span>}
           <span className="bar-track"><span className="bar-fill" style={{ width: `${Math.max(r.value ? 2 : 0, (100 * r.value) / max)}%` }} /></span>
           <span className="bar-value">{r.text}</span>
         </li>

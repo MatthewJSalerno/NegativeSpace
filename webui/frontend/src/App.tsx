@@ -9,6 +9,7 @@ import { Inspector } from "./components/Inspector";
 import { FinishedBanner, JobDrawer } from "./components/JobDrawer";
 import { PAGE_SIZES, Pager } from "./components/Pager";
 import { DatesPanel, dateLabel, datePage } from "./components/DatesPanel";
+import { TypesPanel, typeLabel } from "./components/TypesPanel";
 import { SelectMenu } from "./components/SelectMenu";
 import { usePaged } from "./paged";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./components/Confirm";
@@ -36,6 +37,7 @@ function readUrl() {
     size: PAGE_SIZES.includes(Number(p.get("size"))) ? Number(p.get("size")) : PAGE_SIZES[0],
     undated: p.get("undated") === "1",
     dates: p.getAll("date"),
+    types: p.getAll("type"),
     photo: p.get("photo") ? Number(p.get("photo")) : null,
   };
 }
@@ -151,6 +153,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [pageSize, setPageSize] = useState(initial.size);
   const [undated, setUndated] = useState(initial.undated);
   const [dates, setDates] = useState<string[]>(initial.dates);
+  const [types, setTypes] = useState<string[]>(initial.types);
+  const [typeCounts, setTypeCounts] = useState<{ type: string; photos: number }[] | null>(null);
   const [openId, setOpenId] = useState<number | null>(initial.photo);
   const [timeline, setTimeline] = useState<Timeline | null>(null);
   const [jumpTimeline, setJumpTimeline] = useState<Timeline | null>(null);
@@ -215,26 +219,33 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     if (pageSize !== PAGE_SIZES[0]) p.set("size", String(pageSize));
     if (undated) p.set("undated", "1");
     dates.forEach((d) => p.append("date", d));
+    types.forEach((t) => p.append("type", t));
     if (openId != null) p.set("photo", String(openId));
     const url = `${window.location.pathname}${p.size ? `?${p}` : ""}`;
     window.history.replaceState(null, "", url);
-  }, [view, sort, q, page, pageSize, undated, dates, openId]);
+  }, [view, sort, q, page, pageSize, undated, dates, types, openId]);
 
-  const results = usePaged((p) => api.photos({ view, sort, q, page: p, page_size: pageSize, undated, dates }),
-                           JSON.stringify([view, sort, q, undated, dates]), jump, pageSize, refreshKey, setLoadError);
+  const results = usePaged((p) => api.photos({ view, sort, q, page: p, page_size: pageSize, undated, dates, types }),
+                           JSON.stringify([view, sort, q, undated, dates, types]), jump, pageSize, refreshKey, setLoadError);
   const data: PhotoPage | null = results.meta;
 
   // The tree's counts ignore its own filter, so an unticked month keeps its number;
   // jumping needs the filtered months, to land on the right page.
   useEffect(() => {
     let live = true;
-    api.timeline({ view, q, undated }).then((t) => live && setTimeline(t), () => live && setTimeline(null));
+    api.timeline({ view, q, undated, types }).then((t) => live && setTimeline(t), () => live && setTimeline(null));
     return () => { live = false; };
-  }, [view, q, undated, refreshKey]);
+  }, [view, q, undated, types, refreshKey]);
   useEffect(() => {
     let live = true;
     if (dates.length === 0) { setJumpTimeline(null); return; }
-    api.timeline({ view, q, undated, dates }).then((t) => live && setJumpTimeline(t), () => live && setJumpTimeline(null));
+    api.timeline({ view, q, undated, dates, types }).then((t) => live && setJumpTimeline(t), () => live && setJumpTimeline(null));
+    return () => { live = false; };
+  }, [view, q, undated, dates, types, refreshKey]);
+  // The Types section's counts follow the view, search and dates, never its own filter.
+  useEffect(() => {
+    let live = true;
+    api.types({ view, q, undated, dates }).then((t) => live && setTypeCounts(t.types), () => live && setTypeCounts(null));
     return () => { live = false; };
   }, [view, q, undated, dates, refreshKey]);
 
@@ -340,13 +351,14 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const clearSelection = () => { setSelected(new Set()); if (focus?.kind === "selection" || focus?.kind === "review") backToResults(); };
 
   const changeDates = (next: string[]) => { setDates(next); setPage(1); };
+  const changeTypes = (next: string[]) => { setTypes(next); setPage(1); };
   // All photos means every photo: it also clears No capture date, the dates and the
   // search. The other views keep them, to narrow within them.
-  const narrowed = undated || dates.length > 0 || !!q;
+  const narrowed = undated || dates.length > 0 || types.length > 0 || !!q;
   const chooseView = (v: View) => {
     setView(v);
     setPage(1);
-    if (v === "all") { setUndated(false); setDates([]); setSearch(""); setQ(""); }
+    if (v === "all") { setUndated(false); setDates([]); setTypes([]); setSearch(""); setQ(""); }
   };
   const jumpTo = (key: string) => {
     const newestFirst = sort !== "oldest";
@@ -396,7 +408,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const selectAll = async () => {
     if (focus) { toggleIds(focus.ids, true); return; }
     try {
-      const got = await api.photoIds({ view, q, undated, dates });
+      const got = await api.photoIds({ view, q, undated, dates, types });
       if (got.over_limit) {
         setNotice(`${count(got.total)} photos are shown: more than the ${count(got.limit)}-photo selection limit. Use Actions for all photos, or narrow the view.`);
         return;
@@ -508,7 +520,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
         </div>
         <div className={`toolbar-row toolbar-browse ${focus ? "is-muted" : ""}`}>
           <button className="dates-toggle" aria-expanded={datesOpen} onClick={() => setDatesOpen(!datesOpen)}>
-            Dates{dates.length ? ` (${dates.length})` : ""}
+            Dates &amp; types{dates.length + types.length ? ` (${dates.length + types.length})` : ""}
           </button>
           <nav className="views" aria-label="Views">
             {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
@@ -541,8 +553,11 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
       <main className={`content ${datesOpen ? "dates-open" : ""}`} ref={content}>
         {!focus && (
-          <DatesPanel timeline={timeline} dates={dates} current={currentDates} oldestFirst={sort === "oldest"} onDates={changeDates}
-                      onJump={(key) => { jumpTo(key); setDatesOpen(false); }} />
+          <aside className="side-panel">
+            <DatesPanel timeline={timeline} dates={dates} current={currentDates} oldestFirst={sort === "oldest"} onDates={changeDates}
+                        onJump={(key) => { jumpTo(key); setDatesOpen(false); }} />
+            <TypesPanel types={typeCounts} selected={types} onTypes={changeTypes} />
+          </aside>
         )}
         <div className="gallery-pane">
           {loadError && <p className="error">{loadError}</p>}
@@ -586,9 +601,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               )}
             </div>
           )}
-          {!focus && dates.length > 0 && (
+          {!focus && (dates.length > 0 || types.length > 0) && (
             <p className="dates-filter-line">
-              Showing only {dates.map(dateLabel).join(", ")}
+              Showing only {[...dates.map(dateLabel), ...types.map(typeLabel)].join(", ")}
               {data && data.total > 0 && (
                 <> · <button className="link" onClick={selectAll} disabled={jobRunning || data.total > MAX_SELECTION}
                              title={data.total > MAX_SELECTION ? `More than the ${count(MAX_SELECTION)}-photo selection limit.`
@@ -596,7 +611,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                   Select these {count(data.total)}
                 </button></>
               )}
-              {" · "}<button className="link" onClick={() => changeDates([])}>Show all dates</button>
+              {dates.length > 0 && <>{" · "}<button className="link" onClick={() => changeDates([])}>Show all dates</button></>}
+              {types.length > 0 && <>{" · "}<button className="link" onClick={() => changeTypes([])}>Show all types</button></>}
             </p>
           )}
           {!focus && data && data.total === 0 && (

@@ -235,8 +235,12 @@ body.dragging { cursor: col-resize; user-select: none; }
 
 /* The date tree, left of the gallery. */
 .dates-toggle { display: none; }
-.dates-panel { flex: 0 0 220px; align-self: flex-start; position: sticky; top: var(--header-h, 0px);
-  max-height: calc(100vh - var(--header-h, 0px)); overflow: auto; padding: 12px 8px 24px 16px; border-right: 1px solid var(--border); }
+/* The left panel: Dates, then Types, scrolling together beside the gallery. */
+.side-panel { flex: 0 0 220px; align-self: flex-start; position: sticky; top: var(--header-h, 0px);
+  max-height: calc(100vh - var(--header-h, 0px)); overflow: auto; padding: 12px 8px 24px 16px; border-right: 1px solid var(--border);
+  display: grid; gap: 18px; }
+.type-row { padding-left: 4px; }
+.type-row label { cursor: pointer; }
 .dates-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .dates-head h2 { font-size: 1rem; margin: 0 0 6px; }
 .dates-show-only { font-size: 0.8rem; color: var(--muted); cursor: help; }
@@ -252,8 +256,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .dates-foot { font-size: 0.85rem; margin: 10px 0 0; }
 @media (max-width: 800px) {
   .dates-toggle { display: inline-block; }
-  .dates-panel { display: none; }
-  .dates-open .dates-panel { display: block; position: fixed; left: 0; top: var(--header-h, 0px); bottom: 0; z-index: 7;
+  .side-panel { display: none; }
+  .dates-open .side-panel { display: grid; position: fixed; left: 0; top: var(--header-h, 0px); bottom: 0; z-index: 7;
     width: min(300px, 85vw); max-height: none; background: var(--surface); box-shadow: 4px 0 16px rgb(0 0 0 / 0.2); }
 }
 .drawer {

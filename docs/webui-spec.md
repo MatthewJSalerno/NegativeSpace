@@ -127,7 +127,13 @@ Users can select individual files or multiple files across grid views to run tar
   1,000-photo limit. The boxes themselves only filter: unchecking a month to look
   elsewhere must never change the selection), and applies to the view
   counts; the tree's own counts ignore it, so an unticked month keeps its number. On a
-  narrow screen the panel opens from a **Dates** button. Going to a date the filter hides
+  narrow screen the panel opens from a **Dates & types** button.
+* **Types:** under Dates, the file types the library holds (by extension), with counts
+  for the current view, search and dates, and the same **Show only** boxes; none checked,
+  the default, shows every type. A checked type stays listed at 0 so it can be unchecked.
+  Types and dates combine, and the filter line names both (**"Showing only 2019, HEIC ·
+  Select these 42 · Show all dates · Show all types"**). **All photos** clears them too.
+  The Stats page's formats open the Library filtered to that type. Going to a date the filter hides
   says so and offers the fixes as buttons that apply them and then go there: **“December
   2016 is outside the dates shown. Show December 2016 too · Show all dates”**.
 * **Fixes are buttons, not instructions.** Where a message names an action the screen can
@@ -1039,6 +1045,11 @@ Preventing the situation is the UI's job:
 The general principle: the engine guarantees it will never act on something it has not catalogued, and says so when a selection resolves to nothing. The UI is responsible for making an empty selection hard to construct in the first place.
 
 ### 5.9 Duplicate Space: Reclaimable, Reclaimed, and Saved
+
+**Built on the Stats page** (`GET /api/v1/stats`, reached from an icon beside Settings):
+these three figures, the coverage line, and the rest of the library in figures (formats,
+cameras, resolution, dates, activity, catalog health), each leading to the photos or log
+entries behind it. Figures that need unbuilt features say so rather than guess.
 
 "How much space are my duplicates wasting?" is a headline figure for the Dashboard, and the catalog already answers it without any engine change. Deduplication acts on two different volumes, though, and conflating them produces a number that is wrong in whichever direction the user's mode does not apply:
 

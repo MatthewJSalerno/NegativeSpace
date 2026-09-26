@@ -45,6 +45,7 @@ export interface BrowseFilters {
   q: string;
   undated: boolean;
   dates?: string[];
+  types?: string[];
 }
 
 function browseQuery(f: BrowseFilters): URLSearchParams {
@@ -52,6 +53,7 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
   if (f.q) query.set("q", f.q);
   if (f.undated) query.set("undated", "true");
   (f.dates ?? []).forEach((d) => query.append("date", d));
+  (f.types ?? []).forEach((t) => query.append("type", t));
   return query;
 }
 
@@ -295,7 +297,8 @@ export interface Stats {
   };
   duplicates: {
     groups: number; extra_copies: number; bytes: number; saved_at_destination: number;
-    move_would_free: number; freed_by_moves: number; near_duplicates: number | null;
+    move_would_free: number; freed_by_moves: number; near_duplicates: number | null; copies_not_written: number;
+    coverage: { last_complete_scan: string | null; later_runs: number[] };
   };
   activity: {
     jobs: Record<string, number>; last_index: string | null; copied: number; moved: number;
@@ -348,6 +351,8 @@ export const api = {
   },
   // Without `dates` for the date tree's counts; with them for the page a jump lands on.
   timeline: (params: BrowseFilters) => request<Timeline>("GET", `/api/v1/photos/timeline?${browseQuery(params)}`),
+  types: (params: BrowseFilters) =>
+    request<{ types: { type: string; photos: number }[] }>("GET", `/api/v1/photos/types?${browseQuery(params)}`),
   photoIds: (params: BrowseFilters) =>
     request<{ ids: number[]; total: number; limit: number; over_limit: boolean }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
   selection: (ids: number[], sort: Sort, page: number, page_size: number) =>
