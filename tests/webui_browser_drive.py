@@ -107,12 +107,12 @@ with sync_playwright() as p:
     expect(page.locator(".card")).to_have_count(60)
     page.mouse.wheel(0, 20_000)
     expect(page.locator(".card")).to_have_count(120, timeout=10_000)
-    # The date panel stays beside the photos however far the gallery scrolls.
+    # The left panel stays beside the photos however far the gallery scrolls.
     page.mouse.wheel(0, 20_000)
     page.wait_for_timeout(300)
     panel = page.locator(".side-panel").bounding_box()
     toolbar = page.locator(".toolbar").bounding_box()
-    assert abs(panel["y"] - (toolbar["y"] + toolbar["height"])) < 4, f"the date panel scrolled away: {panel}"
+    assert abs(panel["y"] - (toolbar["y"] + toolbar["height"])) < 4, f"the left panel scrolled away: {panel}"
     page.locator(".card").nth(90).scroll_into_view_if_needed()
     expect(page).to_have_url(re.compile(r"page=2\b"), timeout=5_000)
     expect(page.locator(".pager").first.locator("button.current")).to_have_text("2")
@@ -151,13 +151,19 @@ with sync_playwright() as p:
     expect(notice).to_have_count(0)
     dates.get_by_label("Show only 2023").uncheck()
     page.locator(".dates-filter-line").get_by_role("button", name="Show all dates").click()
-    # Types, under Dates: only the file types the library holds (here, all JPEG).
+    # Types, above Dates and folded until opened: only the types the library holds (here, JPEG).
     types = page.get_by_role("navigation", name="Types")
+    side = page.locator(".side-panel nav").evaluate_all("ns => ns.map(n => n.getAttribute('aria-label'))")
+    assert side[:2] == ["Types", "Dates"], f"Types is not at the top of the panel: {side}"
+    expect(types.locator(".type-row")).to_have_count(0)
+    types.get_by_role("button", name=re.compile(r"Types")).click()
     expect(types.locator(".type-row")).to_have_count(1)
     expect(types.locator(".type-row")).to_contain_text(f"JPG{PHOTOS:,}")
     types.get_by_label("Show only JPG").check()
     expect(page.locator(".dates-filter-line")).to_contain_text("Showing only JPG")
     expect(page).to_have_url(re.compile(r"type=jpg"))
+    types.get_by_role("button", name=re.compile(r"Types")).click()           # folded, it still names the filter
+    expect(types.get_by_role("button", name=re.compile(r"Types"))).to_contain_text("JPG")
     page.locator(".dates-filter-line").get_by_role("button", name="Show all types").click()
     expect(page).not_to_have_url(re.compile(r"type="))
     # Oldest first turns the tree over: the oldest year leads.

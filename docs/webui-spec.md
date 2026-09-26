@@ -15,7 +15,7 @@ The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engi
 ```
 +-----------------------------------------------------------------------------------+
 |                                  React Frontend                                   |
-|  [ Dashboard ]  [ Gallery / Grid ]  [ Split Inspector ]  [ Settings / Config ]    |
+|  [ Gallery / Grid ]  [ Split Inspector ]  [ Logs ]  [ Stats ]  [ Settings ]     |
 +-----------------------------------------------------------------------------------+
 | HTTP REST / WebSockets
 +-----------------------------------------------------------------------------------+
@@ -128,7 +128,9 @@ Users can select individual files or multiple files across grid views to run tar
   elsewhere must never change the selection), and applies to the view
   counts; the tree's own counts ignore it, so an unticked month keeps its number. On a
   narrow screen the panel opens from a **Dates & types** button.
-* **Types:** under Dates, the file types the library holds (by extension), with counts
+* **Types:** above Dates, folded by default to one line that names any type checked (a
+  type filter in the address opens it; open or folded is remembered per browser): the
+  file types the library holds (by extension), with counts
   for the current view, search and dates, and the same **Show only** boxes; none checked,
   the default, shows every type. A checked type stays listed at 0 so it can be unchecked.
   Types and dates combine, and the filter line names both (**"Showing only 2019, HEIC ·
@@ -1051,7 +1053,7 @@ these three figures, the coverage line, and the rest of the library in figures (
 cameras, resolution, dates, activity, catalog health), each leading to the photos or log
 entries behind it. Figures that need unbuilt features say so rather than guess.
 
-"How much space are my duplicates wasting?" is a headline figure for the Dashboard, and the catalog already answers it without any engine change. Deduplication acts on two different volumes, though, and conflating them produces a number that is wrong in whichever direction the user's mode does not apply:
+"How much space are my duplicates wasting?" is a headline figure for the Stats page, and the catalog already answers it without any engine change. Deduplication acts on two different volumes, though, and conflating them produces a number that is wrong in whichever direction the user's mode does not apply:
 
 | Figure | Where | Realized by |
 | :--- | :--- | :--- |
@@ -1173,9 +1175,13 @@ Thumbnails are not a column on `photos`: they belong to content and live in
 The run history and the Error Center's failures are built: `GET /api/v1/operations` with
 `run` and `status` filters (`api-spec.md` §5a).
 
-GET /api/v1/stats/duplicates
-
-Backs the Dashboard's duplicate-space tiles (§5.9). Three separate figures, each naming the volume it applies to: what Move could still reclaim from the source, what past Moves already reclaimed from it, and what was never written to the destination in either mode. They overlap by design — a moved duplicate appears in both `already_reclaimed` and `saved_at_destination` — so the API returns them separately and the UI must not total them. `last_indexed_at` is the most recent **full Index** covering the source roots the figures span — `mode = 'INDEX'` with no targeting filter — that both **completed** and **recorded no run-level failure**. Not simply the most recent completed run: a one-file targeted Copy is a completed run, and taking its timestamp would stamp the whole catalog as freshly scanned on the strength of a run that examined one photo.
+**Built as the `duplicates` part of `GET /api/v1/stats`** (`api-spec.md` §5c), which backs
+the Stats page (§5.9). Three separate figures, each naming the volume it applies to: what
+Move could still reclaim from the source (`move_would_free`), what past Moves already
+reclaimed from it (`freed_by_moves`), and what was never written to the destination in
+either mode (`saved_at_destination`, counted only once the original is delivered). They
+overlap by design, a moved duplicate appears in both of the last two, so they are returned
+separately and never totalled. `coverage` says how current they are, by these rules:
 
 **Completing is not the same as covering.** An Index whose source was detached finds nothing, correctly refuses to condemn the catalog, records a run-level `Failed` operation — and still ends `Completed`, `mode = 'INDEX'`, untargeted. It satisfies every criterion above except the one that matters, having established no new coverage at all. An Index that could not read part of the tree has the same shape. **The safeguard works and then misreports its own freshness**, which is the defect.
 
@@ -1201,31 +1207,6 @@ ORDER BY r.ended_at DESC LIMIT 1;
 * `coverage.run_ids_since` — every run after that date, whatever its mode, since the user clicking through wants to see the whole gap rather than only its failures.
 
 **Extension scope counts too.** An Index run with a narrowed `--exts` scans the full tree, succeeds completely at a smaller job, and records no failure, having examined only some file types. Its effective extension set is recorded in `run_configs` (`engine-spec.md` §6.5), so the API can see it: an Index whose effective extensions omit a supported type does not advance the coverage date, and is listed in `run_ids_since` like any other later run.
-
-    Response:
-    JSON
-
-    {
-      "reclaimable_at_source": {
-        "duplicate_files": 3028,
-        "duplicate_groups": 1510,
-        "bytes": 6871947673
-      },
-      "already_reclaimed_at_source": {
-        "removed_duplicates": 12,
-        "bytes": 41943040
-      },
-      "saved_at_destination": {
-        "copies_not_written": 3040,
-        "bytes": 6913890713
-      },
-      "last_indexed_at": "2026-02-14T10:30:00Z",
-      "coverage": {
-        "established_by_run": 47,
-        "scans_with_issues_since": 2,
-        "run_ids_since": [48, 49, 51]
-      }
-    }
 
 `GET /api/v1/photos?status=Failed` remains available for filtering the catalog, but it is not the Error Center's data source: it misses any failure whose photo is not currently `Failed`. "Retrying" is selecting the associated photo IDs and calling `POST /api/v1/jobs/start` again with the same mode — no separate retry endpoint, per the design note in §5.3.
 

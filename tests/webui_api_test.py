@@ -216,7 +216,13 @@ class JobsAndCatalog(ApiCase):
         before = self.client.get("/api/v1/stats").json()["duplicates"]
         self.assertEqual(before["saved_at_destination"], 0, "nothing is saved until the original is delivered")
         self.assertIsNotNone(before["coverage"]["last_complete_scan"])
-        self.assertEqual(before["coverage"]["later_runs"], [])
+        self.assertEqual((before["coverage"]["run_ids_since"], before["coverage"]["scans_with_issues_since"]), ([], 0))
+        # A targeted Index covers only what it targeted: it never moves the coverage date.
+        covering = before["coverage"]["established_by_run"]
+        pid = self.client.get("/api/v1/photos").json()["items"][0]["id"]
+        targeted = self.wait_for(self.start(mode="index", file_ids=[pid]))["id"]
+        after = self.client.get("/api/v1/stats").json()["duplicates"]["coverage"]
+        self.assertEqual((after["established_by_run"], after["run_ids_since"]), (covering, [targeted]))
         self.wait_for(self.start(mode="copy"))
         st = self.client.get("/api/v1/stats").json()
         lib = st["library"]

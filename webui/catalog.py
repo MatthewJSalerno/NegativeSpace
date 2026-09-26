@@ -794,14 +794,27 @@ def _seconds(start: Optional[str], end: Optional[str]) -> Optional[float]:
         return None
 
 
-def _coverage(indexes) -> dict:
-    """The date the duplicate figures can be trusted from (webui-spec 5.9): the last Index
-    that completed with no run-level failure, and the Index runs since it, which had
-    issues or did not complete. Never a reassuring date the runs do not support."""
-    complete = [r for r in indexes if r["status"] == RunStatus.COMPLETED and not r["issues"]]
-    last = complete[-1] if complete else None
-    later = [r["id"] for r in indexes if last is None or r["id"] > last["id"]]
-    return {"last_complete_scan": last["at"] if last else None, "later_runs": later}
+def _coverage(runs) -> dict:
+    """How current the duplicate figures are (webui-spec 5.9, 6.2). Coverage is set by the
+    last Index that scanned the whole source for every supported type and completed with no
+    run-level failure: untargeted, Completed, no photo-less Failed operation, and effective
+    extensions covering every type the engine reads. Completing is not covering: an Index
+    of a detached source completes, finds nothing and records a run-level failure. Returned
+    with the Index runs since that had issues and every run since, of any mode, so the gap
+    is shown rather than hidden."""
+    def full_scan(r):
+        exts = json.loads(r["exts"]) if r["exts"] else None
+        every_type = exts is None or ns_db.SUPPORTED_EXTENSIONS <= {e.lower() for e in exts}
+        return (r["mode"] == "INDEX" and r["file_ids_filter"] is None and r["status"] == RunStatus.COMPLETED
+                and not r["issues"] and every_type)
+    covering = [r for r in runs if full_scan(r)]
+    last = covering[-1] if covering else None
+    since = [r for r in runs if last is None or r["id"] > last["id"]]
+    return {"last_complete_scan": last["at"] if last else None,
+            "established_by_run": last["id"] if last else None,
+            "scans_with_issues_since": sum(1 for r in since if r["mode"] == "INDEX" and r["file_ids_filter"] is None
+                                           and r["issues"]),
+            "run_ids_since": [r["id"] for r in since]}
 
 
 def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path) -> dict:
@@ -834,11 +847,12 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path) -> dict:
             f"SELECT COUNT(*), COALESCE(SUM(d.file_size), 0) FROM photos d WHERE d.status IN ({ns_db.sql_values(COPIES)}) "
             "AND EXISTS (SELECT 1 FROM photos a WHERE a.sha1_hash = d.sha1_hash AND a.id != d.id AND a.status IN (?, ?))",
             (PhotoStatus.COPIED, PhotoStatus.COMPLETED)).fetchone()
-        # Coverage: the last Index that completed with no run-level failure, and the scans since.
-        indexes = conn.execute(
-            "SELECT r.id, r.status, COALESCE(r.ended_at, r.started_at) AS at, "
-            "EXISTS (SELECT 1 FROM operations o WHERE o.run_id = r.id AND o.status = ? AND o.photo_id IS NULL) AS issues "
-            "FROM runs r WHERE r.mode = 'INDEX' ORDER BY r.id", (PhotoStatus.FAILED,)).fetchall()
+        # Coverage (webui-spec 6.2): every run, with what decides whether it established it.
+        coverage_runs = conn.execute(
+            "SELECT r.id, r.mode, r.status, r.file_ids_filter, COALESCE(r.ended_at, r.started_at) AS at, "
+            "EXISTS (SELECT 1 FROM operations o WHERE o.run_id = r.id AND o.status = ? AND o.photo_id IS NULL) AS issues, "
+            "json_extract(c.effective_config_json, '$.exts') AS exts "
+            "FROM runs r LEFT JOIN run_configs c ON c.run_id = r.id ORDER BY r.id", (PhotoStatus.FAILED,)).fetchall()
         ops = dict(conn.execute("SELECT status, COUNT(*) FROM operations GROUP BY status").fetchall())
         moved_bytes = conn.execute(
             "SELECT COALESCE(SUM(p.file_size), 0) FROM operations o JOIN photos p ON p.id = o.photo_id "
@@ -930,7 +944,7 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path) -> dict:
         "duplicates": {"groups": dup["groups"], "extra_copies": dup["copies"], "bytes": dup["bytes"],
                        "saved_at_destination": saved[1], "copies_not_written": saved[0],
                        "move_would_free": dup["in_source"], "freed_by_moves": dup["removed"], "near_duplicates": None,
-                       "coverage": _coverage(indexes)},
+                       "coverage": _coverage(coverage_runs)},
         "activity": {"jobs": mode_counts, "last_index": last_index,
                      "copied": ops.get(PhotoStatus.COPIED, 0), "moved": ops.get(PhotoStatus.COMPLETED, 0),
                      "bytes_transferred": moved_bytes,

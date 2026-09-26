@@ -554,9 +554,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
       <main className={`content ${datesOpen ? "dates-open" : ""}`} ref={content}>
         {!focus && (
           <aside className="side-panel">
+            <TypesPanel types={typeCounts} selected={types} onTypes={changeTypes} />
             <DatesPanel timeline={timeline} dates={dates} current={currentDates} oldestFirst={sort === "oldest"} onDates={changeDates}
                         onJump={(key) => { jumpTo(key); setDatesOpen(false); }} />
-            <TypesPanel types={typeCounts} selected={types} onTypes={changeTypes} />
           </aside>
         )}
         <div className="gallery-pane">

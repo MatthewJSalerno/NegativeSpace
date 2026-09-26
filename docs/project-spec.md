@@ -174,10 +174,10 @@ the engine's lock file. Separating them would need the Docker socket or a job-re
 service. Built and tested:
 
 *   **API** (`webui/`, `docs/api-spec.md`): the first-run catalog check and creation,
-    settings, the gallery listing, search and date filter, selection by id and Select
+    settings, the gallery listing, search, and date and type filters, selection by id and Select
     all, photo details with every recorded tag, a photo's lineage, thumbnails and
     detail previews, starting and cancelling jobs, live job state over a WebSocket
-    with outcomes derived as `webui-spec.md` §5.5 requires, the log, catalog backups,
+    with outcomes derived as `webui-spec.md` §5.5 requires, the log, library stats, catalog backups,
     what the interface remembers (a dismissed banner), and which build is running
     (`tests/webui_api_test.py`).
 *   **Screens** (`webui/frontend`, React + TypeScript):
@@ -186,14 +186,19 @@ service. Built and tested:
         download);
     *   the top row: the logo, Library, the **Actions** menu (Index, Copy, Move, each for
         the selection or all), Logs, the selection, and the build beside Settings;
-    *   the gallery, with its views, sorts and search, a **Dates** tree to jump to or
-        show only years and months, and continuous scrolling whose page number follows;
+    *   the gallery, with its views, sorts and search, a left panel with **Types** (folded
+        by default) and a **Dates** tree to jump to or show only file types, years and
+        months, and continuous scrolling whose page number follows;
     *   selection across views (shift-click, the Select menu, Show only selected), and
         Copy and Move of a selection reviewed on screen before they run;
     *   the job drawer, with live counts, elapsed time and Cancel;
     *   the split Inspector, with a movable divider, the 1024px preview, the file's own
         details apart from the photo's EXIF information, Show all metadata, the
         photo's recent history, and its lineage tree in a window of its own.
+
+    *   the **Stats** page: the library in figures (formats, cameras, resolution, dates,
+        duplicate space with its coverage, activity, catalog health), each leading to
+        the photos or log entries behind it.
 
     `tests/webui_browser_test.sh` drives them in a real browser.
 
@@ -202,7 +207,6 @@ service. Built and tested:
     failure hints with their fixes as buttons; Retry; and CSV/JSON export.
 
 Specified but not yet on screen:
-*   The Dashboard's duplicate-space figures.
 *   Folder selection (`--source-subdir`).
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.

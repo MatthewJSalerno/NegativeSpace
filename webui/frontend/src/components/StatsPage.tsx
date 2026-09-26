@@ -215,17 +215,17 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
   );
 }
 
-// How current the duplicate figures are (webui-spec 5.9): the last Index that completed
-// cleanly, and a link to every scan since that did not.
+// How current the duplicate figures are (webui-spec 5.9): the last complete scan, and
+// the scans since that had issues, linking to every run since so the gap is visible.
 function Coverage({ c }: { c: Stats["duplicates"]["coverage"] }) {
-  const later = new URLSearchParams();
-  c.later_runs.forEach((r) => later.append("run", String(r)));
-  const link = c.later_runs.length > 0 && (
-    <a href={`/logs?${later}`} onClick={follow}>{plural(c.later_runs.length, "later scan")} had issues</a>);
+  const since = new URLSearchParams();
+  c.run_ids_since.forEach((r) => since.append("run", String(r)));
+  const link = c.scans_with_issues_since > 0 && (
+    <a href={`/logs?${since}`} onClick={follow}>{plural(c.scans_with_issues_since, "later scan")} had issues</a>);
   return (
     <p className="muted">
       {c.last_complete_scan ? <>Last complete scan: {instant(c.last_complete_scan)}{link && <> — {link}</>}.</>
-        : <>Not fully scanned yet{link && <> — {link}</>}.</>}
+        : <>Not fully scanned yet{c.run_ids_since.length > 0 && <> — <a href={`/logs?${since}`} onClick={follow}>see the scans so far</a></>}.</>}
     </p>
   );
 }

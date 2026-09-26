@@ -316,7 +316,7 @@ Center (`webui-spec.md` §5.3).
 
 | Parameter | Meaning |
 | :--- | :--- |
-| `run` | A job id. Repeat it for several (`?run=4&run=5`): the Dashboard links to every run since a scan. |
+| `run` | A job id. Repeat it for several (`?run=4&run=5`): the Stats page links to every run since the last complete scan. |
 | `status` | An operation status (repeatable), from the catalog's vocabulary; anything else is `400`. |
 | `photo` | A photo's history. It follows the photo's file identities through `operation_files`, including a copy made from it, so a Move or Copy stays in it. |
 | `q` | Text in the source path, destination path or recorded message. |
@@ -416,7 +416,8 @@ Everything the Stats page shows, read from the catalog in one pass (`webui-spec.
                "undated", "undated_no_date", "undated_unusable", "with_time_zone"},
      "duplicates": {"groups", "extra_copies", "bytes", "saved_at_destination", "copies_not_written",
                     "move_would_free", "freed_by_moves", "near_duplicates": null,
-                    "coverage": {"last_complete_scan" | null, "later_runs": [ids]}},
+                    "coverage": {"last_complete_scan" | null, "established_by_run" | null,
+                                 "scans_with_issues_since", "run_ids_since": [ids]}},
      "activity": {"jobs": {"INDEX": 3, ...}, "last_index", "copied", "moved",
                   "bytes_transferred", "bytes_per_second" | null,
                   "failures": {"not_an_image": 2, "permission": 1, ...}, "renames", "exif_edits": null},
@@ -431,8 +432,11 @@ Counts cover the photos the gallery lists (duplicates are counted apart, in
 twice, as the log lists it. Figures that need unbuilt features (`near_duplicates`,
 `exif_edits`) are `null`, never a guess. The duplicate figures follow `webui-spec.md` §5.9:
 `move_would_free` is Reclaimable, `freed_by_moves` Reclaimed, and `saved_at_destination`
-counts only duplicates whose original is already `Copied` or `Completed`; `coverage` is
-the last Index that completed with no run-level failure, and every Index run since.
+counts only duplicates whose original is already `Copied` or `Completed`. `coverage`
+follows `webui-spec.md` §6.2: `last_complete_scan` and `established_by_run` come from the
+last untargeted Index that completed, recorded no run-level failure and scanned every
+supported type; `scans_with_issues_since` counts the untargeted Index runs after it that
+recorded one; `run_ids_since` lists every run after it, of any mode.
 
 ## 6. The run object and its outcome
 
@@ -500,8 +504,6 @@ These are designed in `webui-spec.md` and will be described here when they exist
 *   A live per-operation stream, for replaying a running job's individual events on
     reconnect (`webui-spec.md` §4.1, §5.2). `GET /operations?run=` covers the history;
     the drawer needs only the aggregate feed.
-*   `GET /api/v1/stats/duplicates`: the Dashboard's duplicate-space figures and
-    coverage (`webui-spec.md` §5.9).
 *   The curation actions: rename, the destination check (offered from a lineage
     tree's copy), thumbnail cache controls, and later metadata editing, all of which
     the engine already supports or is specified to (`engine-spec.md` §9).

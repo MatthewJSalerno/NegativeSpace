@@ -298,7 +298,8 @@ export interface Stats {
   duplicates: {
     groups: number; extra_copies: number; bytes: number; saved_at_destination: number;
     move_would_free: number; freed_by_moves: number; near_duplicates: number | null; copies_not_written: number;
-    coverage: { last_complete_scan: string | null; later_runs: number[] };
+    coverage: { last_complete_scan: string | null; established_by_run: number | null;
+                scans_with_issues_since: number; run_ids_since: number[] };
   };
   activity: {
     jobs: Record<string, number>; last_index: string | null; copied: number; moved: number;
