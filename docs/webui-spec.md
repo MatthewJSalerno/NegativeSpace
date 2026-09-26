@@ -938,9 +938,11 @@ meanwhile. Status counts keep their width, as the Library's view counts do. The 
 **Open in the log**, under History, opens the log for that photo. Each failure carries a plain hint drawn from its
 recorded reason, and **Retry**, inside the job it belongs to, runs the same mode again over the photos behind
 that job's shown failures, and says what it did beside the button. Over the 1,000 photos a
-retry can name one by one (§2's selection limit), it says so there and offers the job over
-everything that covers them as a button (**Move everything**, **Copy everything**): a
-Move re-reads failed photos and takes copied-only ones, so nothing is left out.
+retry can name one by one (§2's selection limit), it says so there and offers, as a button,
+**the job's own scope again, never more**: **Move everything** / **Copy everything** after a
+job over everything, **Move this folder again** after a folder's job. A Move re-reads failed
+photos and takes copied-only ones, so nothing is left out. A selection holds at most 1,000
+photos and its retry leaves out rows settling earlier jobs' work, so it always fits.
 
 A searchable table logging every operation performed by the engine:
 * **Columns:** Timestamp, Mode (`MOVE`/`COPY`), Source Path, Destination Path, Status (`Completed`, `Copied`, `Removed_Duplicate`, `Found_At_Destination`, `Failed`), and System Error Message.

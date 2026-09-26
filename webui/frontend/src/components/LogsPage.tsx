@@ -67,7 +67,7 @@ function dayStart(date: string, plusDays = 0): string {
 }
 
 // What a Retry did or could not do, and the job over everything that covers it.
-type RetryNote = { run: number; text: string; fix?: "index" | "copy" | "move" };
+type RetryNote = { run: number; text: string; fix?: { mode: "index" | "copy" | "move"; folder?: string } };
 
 // A job the catalog has recorded; only those have entries to list.
 type RecordedRun = Run & { id: number };
@@ -172,20 +172,30 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
     setNotice(null);
     setRetryNote(null);
     const note = (text: string, fix?: RetryNote["fix"]) => setRetryNote({ run: run.id, text, fix });
+    const targeting = run.targeting as { file_ids?: number[]; source_subdir?: string } | null | undefined;
+    const folder = targeting?.source_subdir ?? null;
+    const selection = !!targeting?.file_ids;
     try {
       // A Move's copied-only photos are retried with its failures: a Move takes Copied photos.
-      const ids = await api.retryIds({ ...apiFilters, run: [run.id], status: run.mode === "MOVE" ? ["Failed", "Copied_Only"] : ["Failed"] });
+      // A selection's retry leaves out rows settling earlier jobs' work, so it never names
+      // a photo the selection did not hold.
+      const ids = await api.retryIds({ ...apiFilters, run: [run.id], status: run.mode === "MOVE" ? ["Failed", "Copied_Only"] : ["Failed"] },
+                                     selection);
       if (ids.more_than_limit) {
-        // Too many to name one by one on the engine's command line. A job over everything
-        // covers them: it re-reads failed photos and, for a Move, takes Copied ones.
+        // Too many to name one by one on the engine's command line. The fix repeats the
+        // job's own scope, never more: everything, or the folder it covered. A job over
+        // everything re-reads failed photos and, for a Move, takes Copied ones.
+        const too = `${count(photos)} photos are more than the ${count(ids.limit)} a retry can name one by one.`;
         const covers = mode === "move" ? "it finishes the copied-only photos and tries the failed ones again, with anything not yet moved"
           : mode === "copy" ? "it tries the failed photos again, with anything not yet copied"
             : "it reads every photo again";
-        note(`${count(photos)} photos are more than the ${count(ids.limit)} a retry can name one by one. A ${modeName(run.mode)} of everything covers them: ${covers}.`, mode);
+        if (folder) note(`${too} The same ${modeName(run.mode)} over ${folder} covers them: ${covers} there.`, { mode, folder });
+        else if (selection) note(`${too} A selection holds at most ${count(ids.limit)}, so this should not happen; retry from the Library in parts.`);
+        else note(`${too} A ${modeName(run.mode)} of everything covers them: ${covers}.`, { mode });
         return;
       }
       if (ids.photo_ids.length === 0) {
-        note("None of these failures belongs to a photo, so there is nothing to retry. Fix the folder's access, then run an Index.", "index");
+        note("None of these failures belongs to a photo, so there is nothing to retry. Fix the folder's access, then run an Index.", { mode: "index" });
         return;
       }
       await api.startJob({ mode, file_ids: ids.photo_ids });
@@ -194,15 +204,26 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
       note(e instanceof ApiError ? e.message : "The retry could not be started.");
     }
   };
-  // The fix a retry note offers, as a button: a job over everything, confirmed as from Actions.
-  const retryFix = (fix: RetryNote["fix"]) =>
-    fix === "index" ? indexButton
-      : fix ? (
-        <button className="link" disabled={jobRunning} title={jobRunning ? "A job is running." : undefined}
-                onClick={() => setConfirm(transferConfirm(fix, status, undefined, startJob(fix)))}>
-          {fix === "move" ? "Move everything" : "Copy everything"}
-        </button>
-      ) : null;
+  // The fix a retry note offers, as a button over the job's own scope, confirmed as from
+  // Actions. An Index of everything is the page's Run an Index.
+  const startScoped = (mode: "index" | "copy" | "move", folder?: string) => async () => {
+    setRetryNote(null);
+    try {
+      await api.startJob(folder ? { mode, source_subdir: folder } : { mode });
+    } catch (e) {
+      setNotice(e instanceof ApiError ? e.message : "The job could not be started.");
+    }
+  };
+  const retryFix = (fix: NonNullable<RetryNote["fix"]>) => {
+    const busy = { disabled: jobRunning, title: jobRunning ? "A job is running." : undefined };
+    if (fix.mode === "index" && !fix.folder) return indexButton;
+    const label = fix.folder ? `${modeName(fix.mode.toUpperCase())} this folder again`
+      : fix.mode === "move" ? "Move everything" : "Copy everything";
+    const act = fix.mode === "index" ? startScoped("index", fix.folder)
+      : () => setConfirm(transferConfirm(fix.mode as "copy" | "move", status, fix.folder ? { folder: fix.folder } : undefined,
+                                         startScoped(fix.mode, fix.folder)));
+    return <button className="link" {...busy} onClick={act}>{label}</button>;
+  };
 
   const runIndex = async () => {
     setNotice(null);

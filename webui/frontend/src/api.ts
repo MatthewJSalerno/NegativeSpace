@@ -382,8 +382,9 @@ export const api = {
     p.set("format", format);
     return `/api/v1/operations/export?${p}`;
   },
-  retryIds: (f: LogFilters) =>
-    request<{ photo_ids: number[]; more_than_limit: boolean; limit: number }>("GET", `/api/v1/operations/photo-ids?${logQuery(f)}`),
+  retryIds: (f: LogFilters, requestedOnly = false) =>
+    request<{ photo_ids: number[]; more_than_limit: boolean; limit: number }>(
+      "GET", `/api/v1/operations/photo-ids?${logQuery(f)}${requestedOnly ? "&requested_only=true" : ""}`),
   backups: () => request<Backups>("GET", "/api/v1/backups"),
   backupNow: () => request<BackupAttempt>("POST", "/api/v1/backups"),
   backupDownloadUrl: (id: number) => `/api/v1/backups/${id}/download`,

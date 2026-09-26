@@ -301,11 +301,12 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/operations/photo-ids")
     def operation_photo_ids(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
                             photo: Optional[int] = None, q: Optional[str] = None, since: Optional[str] = None,
-                            until: Optional[str] = None):
+                            until: Optional[str] = None, requested_only: bool = False):
         """The distinct photos behind the filtered operations, for Retry. More than the
         job limit is reported, never cut silently."""
         from .jobs import MAX_FILE_IDS
-        ids = catalog.operation_photo_ids(cfg.db_path, MAX_FILE_IDS, **_log_filters(run, status, photo, q, since, until))
+        ids = catalog.operation_photo_ids(cfg.db_path, MAX_FILE_IDS, requested_only,
+                                          **_log_filters(run, status, photo, q, since, until))
         return {"photo_ids": ids[:MAX_FILE_IDS], "more_than_limit": len(ids) > MAX_FILE_IDS, "limit": MAX_FILE_IDS}
 
     @app.get("/api/v1/runs")

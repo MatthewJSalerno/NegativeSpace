@@ -514,6 +514,19 @@ class LogAndErrorCenter(ApiCase):
         ids = self.client.get("/api/v1/operations/photo-ids",
                               params={"run": move["id"], "status": ["Failed", "Copied_Only"]}).json()
         self.assertEqual(sorted(ids["photo_ids"]), sorted(i["id"] for i in items), "the photos a Move again would take")
+        # requested_only leaves out a row settling an earlier job's work, so a selection's
+        # retry never names a photo the selection did not hold. Staged: one row made a recovery.
+        with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn, conn:
+            recovered, earlier = conn.execute(
+                "SELECT o.id, (SELECT MIN(id) FROM operations WHERE photo_id = o.photo_id) FROM operations o "
+                "WHERE o.run_id = ? ORDER BY o.id LIMIT 1", (move["id"],)).fetchone()
+            conn.execute("UPDATE operations SET reconciles_operation_id = ? WHERE id = ?", (earlier, recovered))
+        requested = self.client.get("/api/v1/operations/photo-ids",
+                                    params={"run": move["id"], "status": ["Failed", "Copied_Only"],
+                                            "requested_only": "true"}).json()
+        self.assertEqual(len(requested["photo_ids"]), 1, "the recovery row's photo must be left out")
+        with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn, conn:
+            conn.execute("UPDATE operations SET reconciles_operation_id = NULL WHERE id = ?", (recovered,))
 
         finished = self.wait_for(self.start(mode="move", file_ids=ids["photo_ids"]))
         self.assertEqual((finished["outcome"]["verdict"], finished["outcome"]["copied_only"]), ("success", 0))

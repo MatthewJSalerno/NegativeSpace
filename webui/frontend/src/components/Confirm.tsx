@@ -4,12 +4,13 @@ import { count, plural } from "../format";
 
 export type Confirm = { title: string; body: string[]; action: string; danger?: boolean; run: () => Promise<void>; onCancel?: () => void };
 
-// Copy or Move, for selected photos or all of them, asked the same way on every page.
-// "All" counts what the engine would take across the whole catalog (GET /status),
+// Copy or Move, for selected photos, a folder or all of them, asked the same way on every
+// page. "All" counts what the engine would take across the whole catalog (GET /status),
 // never a view or search.
-export function transferConfirm(mode: "copy" | "move", status: Status, ids: number[] | undefined,
+export function transferConfirm(mode: "copy" | "move", status: Status, ids: number[] | { folder: string } | undefined,
                                 run: () => Promise<void>, onCancel?: () => void): Confirm {
-  const scope = ids ? plural(ids.length, "selected photo")
+  const scope = Array.isArray(ids) ? plural(ids.length, "selected photo")
+    : ids ? `the photos under ${ids.folder}`
     : mode === "copy" ? `every photo not yet copied (${count(status.eligible.copy)})`
       : `every photo not yet moved (${count(status.eligible.move)})`;
   return {

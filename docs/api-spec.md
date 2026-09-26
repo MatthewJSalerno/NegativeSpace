@@ -366,6 +366,8 @@ the columns of an item above.
 the filtered operations, for **Retry**, which starts the same mode again with these
 `file_ids`. They come from the operations, never from `photos.status`, and rows with no
 photo are left out. More than the job limit is reported, never cut silently.
+`requested_only=true` also leaves out rows settling an earlier job's interrupted work
+(`reconciles_operation_id`), so a retry of a selection names only photos it held.
 
 ## 5b. Catalog backups
 

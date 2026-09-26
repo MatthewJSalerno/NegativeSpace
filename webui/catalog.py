@@ -689,15 +689,19 @@ def iter_operations(db_path: Path, **filters):
             yield _op_dict(row)
 
 
-def operation_photo_ids(db_path: Path, limit: int, **filters) -> list:
+def operation_photo_ids(db_path: Path, limit: int, requested_only=False, **filters) -> list:
     """The distinct photos behind matching operations, for retrying failures: taken
     from the operations, never from photos.status, which can disagree with a failed
-    attempt (webui-spec 5.3). At most `limit` + 1, so the caller can tell it was cut."""
+    attempt (webui-spec 5.3). At most `limit` + 1, so the caller can tell it was cut.
+    `requested_only` leaves out rows settling an earlier job's interrupted work, so a
+    retry of a selection names only photos that selection held."""
     where, params = _operations_where(**filters)
+    where += (" AND" if where else " WHERE") + " o.photo_id IS NOT NULL"
+    if requested_only:
+        where += " AND o.reconciles_operation_id IS NULL"
     with connect(db_path) as conn:
         return [r[0] for r in conn.execute(
-            f"SELECT DISTINCT o.photo_id {_OP_FROM}{where}{' AND' if where else ' WHERE'} o.photo_id IS NOT NULL "
-            f"ORDER BY o.photo_id LIMIT ?", params + [limit + 1])]
+            f"SELECT DISTINCT o.photo_id {_OP_FROM}{where} ORDER BY o.photo_id LIMIT ?", params + [limit + 1])]
 
 
 def list_runs(db_path: Path, limit=100) -> list:
