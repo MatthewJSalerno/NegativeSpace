@@ -16,6 +16,13 @@ inode, so a file edited in place would change the seed too: every file this scri
 alters is written as a new file and renamed over the old path, which breaks the link
 first. Both commands finish by proving it: "seed: N file(s), untouched".
 
+--exif-donors names a folder of camera files kept for their metadata, such as ExifTool's
+sample images (https://exiftool.org/sample_images.html, whose pictures are shrunk to a few
+pixels). About three in four seed JPEGs with no EXIF date get one donor's tags - camera,
+lens, exposure, dates, GPS, maker notes - on a fresh copy; the rest stay without, for
+No capture date. A donor folder inside the seed folder is left out of the originals, and
+a few donors join the library as themselves: tiny images to sort out by resolution.
+
 Without --seed-dir the photos are generated, so it runs anywhere with nothing to
 download. OUT/manifest.json lists every file made, its scenario, and what the app
 should show for it. --seed makes a run reproducible.
@@ -26,7 +33,8 @@ seed and OUT on one filesystem AND one mount, so mount their common parent once:
     mkdir -p /photos/demos                  # before the first run: docker would make it root's
     docker run --rm --user "$(id -u):$(id -g)" --entrypoint python3 \\
       -v /photos:/photos -v "$PWD":/app -w /app negativespace \\
-      tests/make_scenarios.py build --seed-dir /photos/seed --out /photos/demos/demo
+      tests/make_scenarios.py build --seed-dir /photos/seed --out /photos/demos/demo \\
+        [--exif-donors /photos/seed/exiftool-samples]
 """
 import argparse
 import json
@@ -143,9 +151,64 @@ def generate_seeds(folder: Path, rng: random.Random) -> list:
     return made
 
 
-def seed_photos(seed: Path) -> list:
+def seed_photos(seed: Path, skip: Path = None) -> list:
     return sorted(p for p in seed.rglob("*")
-                  if p.is_file() and not p.is_symlink() and p.suffix.lower() in SUPPORTED_EXTENSIONS)
+                  if p.is_file() and not p.is_symlink() and p.suffix.lower() in SUPPORTED_EXTENSIONS
+                  and not (skip and p.is_relative_to(skip)))
+
+
+# Tags a donor's picture owns, not its camera: its size and embedded previews would
+# contradict the pixels they land on, and its rotation would turn them sideways
+# (orientation has its own scenario).
+DONOR_SKIP = ("Orientation", "ExifImageWidth", "ExifImageHeight", "ImageWidth", "ImageHeight",
+              "ThumbnailImage", "PreviewImage", "JpgFromRaw", "IFD1:all")
+DONOR_SHARE = 0.75
+
+
+def undated(paths: list) -> list:
+    """Those of `paths` with no EXIF DateTimeOriginal, in one ExifTool pass."""
+    if not paths:
+        return []
+    listed = subprocess.run(["exiftool", "-q", "-q", "-if", "$DateTimeOriginal", "-p", "$FilePath", "-@", "-"],
+                            input="\n".join(str(p) for p in paths), capture_output=True, text=True)
+    dated = {line for line in listed.stdout.splitlines() if line}
+    return [p for p in paths if str(p.resolve()) not in dated]
+
+
+def graft_exif(originals: list, donors: list, rng: random.Random, m) -> int:
+    """Gives about DONOR_SHARE of the undated seed JPEGs one donor's tags each, on a fresh
+    copy (the seed is untouched), in a single ExifTool process. Returns how many."""
+    targets = [p for p in undated([p for p in originals if p.suffix.lower() in EDITABLE])]
+    rng.shuffle(targets)
+    targets = sorted(targets[:round(len(targets) * DONOR_SHARE)])
+    if not targets or not donors:
+        return 0
+    order = rng.sample(donors, len(donors))
+    args, paired, copied = [], {}, {}
+    for i, path in enumerate(targets):
+        donor = order[i % len(order)]
+        fresh_copy(path, path)                    # breaks the hard link before any write
+        copied[path] = path.stat().st_ino
+        args += ["-tagsFromFile", str(donor), "-all:all", *[f"--{t}" for t in DONOR_SKIP],
+                 "-overwrite_original", str(path), "-execute"]
+        paired[str(path.relative_to(m.out / LIBRARY))] = donor.name
+    # -common_args applies the quiet flags to every -execute'd command, not only the first:
+    # many donors carry damaged maker notes, which is the point, and each would warn.
+    subprocess.run(["exiftool", "-@", "-", "-common_args", "-q", "-q", "-m"], input="\n".join(args), text=True, check=True)
+    # ExifTool writes a new file for each it changes; one whose donor's tags were too
+    # damaged to write keeps the copy's inode, and is recorded as not given any.
+    written = set()
+    for path in targets:
+        ALTERED.add(path.stat().st_ino)
+        if path.stat().st_ino != copied[path]:
+            written.add(str(path.relative_to(m.out / LIBRARY)))
+    for entry in m.files:
+        if entry["path"] in paired:
+            entry["hard_link"] = False
+            if entry["path"] in written:
+                entry.update(exif_from=paired[entry["path"]],
+                             expect="indexed; its camera, dates and exposure come from a sample camera file")
+    return len(written)
 
 
 def opens(path: Path) -> bool:
@@ -195,6 +258,12 @@ def build(args):
     seed = Path(args.seed_dir).resolve() if args.seed_dir else None
     if seed and (out.is_relative_to(seed) or seed.is_relative_to(out)):
         sys.exit("FATAL: the output and the seed folder must not contain one another.")
+    donor_dir = Path(args.exif_donors).resolve() if args.exif_donors else None
+    if donor_dir and not donor_dir.is_dir():
+        sys.exit(f"FATAL: --exif-donors is not a folder: {donor_dir}")
+    if donor_dir and (out.is_relative_to(donor_dir) or donor_dir.is_relative_to(out)):
+        sys.exit("FATAL: the output and the donor folder must not contain one another.")
+    donors = sorted(p for p in donor_dir.rglob("*") if p.is_file() and p.suffix.lower() in EDITABLE) if donor_dir else []
     prepare_out(out, args.replace)
     before = snapshot(seed) if seed else None
     lib = out / LIBRARY
@@ -203,7 +272,7 @@ def build(args):
     # 1. Originals: every seed photo, hard-linked, in its own folder layout.
     originals = []
     if seed:
-        for src in seed_photos(seed):
+        for src in seed_photos(seed, skip=donor_dir):
             dest = lib / "originals" / src.relative_to(seed)
             dest.parent.mkdir(parents=True, exist_ok=True)
             try:
@@ -220,6 +289,14 @@ def build(args):
             m.add(src, "original", "indexed", generated=True)
     if not originals:
         sys.exit("FATAL: the seed folder holds no photos.")
+    grafted = graft_exif(originals, donors, rng, m) if donors else 0
+    if donors:
+        print(f"exif: {grafted} photo(s) given a sample camera file's tags, from {len(donors)} donor(s)")
+        # A few donors as themselves: real camera metadata on a picture a few pixels wide.
+        for donor in rng.sample(donors, min(6, len(donors))):
+            dest = lib / "scenarios" / "tiny-camera-files" / donor.name
+            fresh_copy(donor, dest)
+            m.add(dest, "tiny_camera_file", "Indexed; a picture a few pixels wide with a real camera's tags")
     raster = [p for p in originals if opens(p)]
     jpegs = [p for p in raster if p.suffix.lower() in EDITABLE] or raster
     if not raster:
@@ -509,6 +586,7 @@ def main():
     b.add_argument("--out", required=True, help="an empty folder, or one this script made earlier")
     b.add_argument("--replace", action="store_true", help="rebuild over this script's earlier output")
     b.add_argument("--seed", type=int, default=1, help="random seed: the same seed makes the same choices")
+    b.add_argument("--exif-donors", help="folder of camera files kept for their metadata (e.g. ExifTool's samples)")
     c = sub.add_parser("change", help="one round of every kind of change, between runs")
     c.add_argument("--out", required=True, help="the folder build made")
     c.add_argument("--dest", help="the destination a Copy filled, for destination changes")

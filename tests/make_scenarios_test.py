@@ -74,6 +74,37 @@ class MakeScenarios(unittest.TestCase):
         for c in edited:
             self.assertNotIn((self.out / "library" / c["path"]).stat().st_ino, seed_inodes, c["kind"])
 
+    def test_undated_photos_get_a_donors_camera_tags_and_the_donors_stay_out(self):
+        plain = self.seed / "no-exif"
+        plain.mkdir()
+        for i in range(8):
+            Image.new("RGB", (320, 240), (i * 30, 90, 160)).save(plain / f"plain-{i}.jpg", "JPEG")
+        donors = self.seed / "donors"             # inside the seed, as downloaded
+        donors.mkdir()
+        for i in range(5):
+            exif = Image.Exif()
+            exif[0x010F], exif[0x0110], exif[0x0112] = "DonorCam", f"Model {i}", 6
+            exif.get_ifd(0x8769)[36867] = "2004:05:06 07:08:09"
+            Image.new("RGB", (8, 8), (200, 10, 10)).save(donors / f"donor-{i}.jpg", "JPEG", exif=exif)
+        before = fingerprint(self.seed)
+        done = run("build", "--seed-dir", str(self.seed), "--out", str(self.out), "--exif-donors", str(donors))
+        self.assertIn("untouched by this run", done.stdout)
+        self.assertEqual(fingerprint(self.seed), before, "a seed or donor file changed")
+        files = self.manifest()["files"]
+        self.assertFalse([f for f in files if f["scenario"] == "original" and "donors" in f["path"]],
+                         "a donor folder inside the seed must not become originals")
+        grafted = [f for f in files if "exif_from" in f]
+        self.assertEqual(len(grafted), 6, "three in four of the 8 undated JPEGs")
+        self.assertTrue(all("no-exif" in f["path"] for f in grafted), "a photo with its own date keeps it")
+        tags = json.loads(subprocess.run(
+            ["exiftool", "-j", "-Make", "-Orientation", "-ImageWidth", "-DateTimeOriginal",
+             *[str(self.out / "library" / f["path"]) for f in grafted]], capture_output=True, text=True).stdout)
+        for t in tags:
+            self.assertEqual((t.get("Make"), t.get("ImageWidth"), t.get("DateTimeOriginal")),
+                             ("DonorCam", 320, "2004:05:06 07:08:09"), t["SourceFile"])
+            self.assertNotIn("Orientation", t, "a donor's rotation would turn the picture sideways")
+        self.assertEqual(sum(f["scenario"] == "tiny_camera_file" for f in files), 5)
+
     def test_the_originals_are_links_and_every_scenario_is_made(self):
         run("build", "--seed-dir", str(self.seed), "--out", str(self.out))
         files = self.manifest()["files"]
