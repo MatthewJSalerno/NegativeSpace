@@ -638,7 +638,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                    if (e.key === "ArrowLeft") setWidth(currentWidth() + 40);
                    if (e.key === "ArrowRight") setWidth(currentWidth() - 40);
                  }} />
-            <Inspector id={openId} width={panelWidth} onClose={() => setOpenId(null)} onStep={step} />
+            <Inspector id={openId} width={panelWidth} onClose={() => setOpenId(null)} onStep={step}
+                       onOpenPhoto={setOpenId} jobRunning={jobRunning} />
           </>
         )}
       </main>

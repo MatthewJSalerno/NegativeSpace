@@ -236,6 +236,44 @@ export interface Backups {
   job_active: boolean;
 }
 
+export interface LineageFile {
+  file_id: number;
+  origin_file_id: number | null;
+  origin_kind: "indexed" | "copy" | "observed_destination" | null;
+  path: string | null;
+  role: "source" | "destination" | null;
+  presence: "present" | "removed" | "missing" | null;
+  sha1_hash: string | null;
+  matches: boolean;
+  file_size: number | null;
+  indexed_path: string | null;
+  created_at: string | null;
+  photo_id: number | null;
+  photo_status: string | null;
+}
+
+export interface LineageOperation {
+  id: number;
+  run_id: number;
+  mode: string | null;
+  status: string;
+  timestamp: string;
+  error_message: string | null;
+  photo_id: number | null;
+  source_path: string | null;
+  dest_path: string | null;
+  recovery: boolean;
+  files: { file_id: number; role: "source" | "destination" | "retained_copy" }[];
+}
+
+export interface Lineage {
+  photo_id: number;
+  sha1: string | null;
+  photos: number[];
+  files: LineageFile[];
+  operations: LineageOperation[];
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public body: Record<string, unknown>) {
     super(message);
@@ -298,6 +336,7 @@ export const api = {
   uiState: () => request<{ dismissed_run: number | null }>("GET", "/api/v1/ui-state"),
   saveUiState: (values: { dismissed_run: number }) => request<{ dismissed_run: number | null }>("PUT", "/api/v1/ui-state", values),
   runs: (limit = 100) => request<{ runs: Run[] }>("GET", `/api/v1/runs?limit=${limit}`),
+  lineage: (id: number) => request<Lineage>("GET", `/api/v1/photos/${id}/lineage`),
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   startJob: (body: { mode: "index" | "copy" | "move"; file_ids?: number[]; source_subdir?: string }) =>
     request<Run>("POST", "/api/v1/jobs/start", body),

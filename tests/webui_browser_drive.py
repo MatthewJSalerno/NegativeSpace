@@ -409,6 +409,26 @@ with sync_playwright() as p:
     expect(events.nth(1)).to_contain_text("Copied")
     expect(events.nth(2)).to_contain_text("Skipped")
     shot("3b-history")
+    # The lineage tree, in its own window: the source, the copy made from it, their steps.
+    page.locator(".inspector").get_by_role("button", name="View lineage tree").click()
+    tree = page.get_by_role("dialog", name=re.compile(r"^Lineage of "))
+    expect(tree.locator(".lineage-node.lineage-indexed .lineage-kind").first).to_have_text("Source")
+    copy_node = tree.locator(".lineage-node.lineage-copy")
+    expect(copy_node).to_have_count(1)
+    expect(copy_node).to_contain_text("Copied here")
+    expect(tree.locator(".lineage-step", has_text="Skipped")).to_have_count(1)   # each step once
+    expect(copy_node).to_contain_text("Present")
+    shot("3c-lineage")
+    page.keyboard.press("Escape")
+    expect(tree).to_have_count(0)
+    expect(page.locator(".inspector")).to_be_visible()     # Escape closes the window, not the panel too
+    # A step's job opens the log on that job.
+    events.nth(0).click()
+    tree.get_by_role("link", name=re.compile(r"^job #\d+ index")).click()
+    expect(page).to_have_url(re.compile(r"/logs\?run=\d+&photo=\d+"))
+    expect(page.locator(".job-head[aria-expanded=true]")).to_have_count(1)
+    page.go_back()
+    expect(page.locator(".inspector")).to_be_visible()
     page.locator(".inspector").get_by_role("link", name="Open in the log").click()
     expect(page.get_by_role("heading", name=re.compile(r"^Log for photo #\d+"))).to_be_visible()
     expect(page.locator(".job-group").first).to_be_visible()
@@ -473,6 +493,19 @@ with sync_playwright() as p:
     expect(inspector).to_contain_text("2023-01-15 09:30:00")
     expect(inspector.locator(".section-note")).to_contain_text("recorded no time zone")
     expect(inspector.locator("th", has_text="*")).to_have_count(0)
+    # Its lineage has a duplicate branch; the duplicate's path opens that photo.
+    inspector.get_by_role("button", name="View lineage tree").click()
+    tree = page.get_by_role("dialog", name=re.compile(r"^Lineage of "))
+    duplicate = tree.locator(".lineage-kind", has_text="Duplicate")
+    expect(duplicate).to_have_count(1)
+    # The gallery shows the copy the catalog keeps as the original; the other is the duplicate.
+    shown = inspector.locator(".inspector-head h2").inner_text()
+    other = "photo-000.jpg" if shown == "copy-of-000.jpg" else "copy-of-000.jpg"
+    tree.get_by_role("button", name=re.compile(re.escape(other))).click()
+    expect(tree).to_have_count(0)
+    expect(inspector.locator(".inspector-head h2")).to_have_text(other)
+    page.keyboard.press("Escape")
+    page.locator(".card-image").first.click()
     page.keyboard.press("Escape")
     expect(page).to_have_url(re.compile(r"q=photo-000"))
     page.reload()

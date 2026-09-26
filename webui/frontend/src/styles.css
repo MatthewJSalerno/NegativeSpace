@@ -384,4 +384,22 @@ body.dragging { cursor: col-resize; user-select: none; }
   border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); }
 .history-list li.history-failed::before { border-color: var(--bad); }
 .history-detail { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; }
-.history-open { justify-self: start; font-size: 0.9rem; }
+.history-event { border: 0; background: none; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.history-event:hover strong, .history-event:focus-visible strong { color: var(--accent); text-decoration: underline; }
+.history-links { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.9rem; }
+
+/* The lineage tree, in its own window. */
+.lineage-dialog { width: min(900px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
+.lineage-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lineage-head h2 { margin: 0; font-size: 1.1rem; overflow-wrap: anywhere; }
+.lineage-tree, .lineage-children { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.lineage-children { margin: 10px 0 0 22px; padding-left: 14px; border-left: 2px dashed var(--border); }
+.lineage-node { display: grid; gap: 6px; }
+.lineage-file { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.lineage-kind { font-weight: 600; }
+.lineage-path { overflow-wrap: anywhere; font-size: 0.85rem; }
+.lineage-steps { margin-left: 6px; }
+.lineage-step { font-weight: 600; }
+.lineage-failure { display: grid; gap: 6px; justify-items: start; margin-top: 4px; }
+.presence-removed, .presence-missing { color: var(--warn); }
+.tip[data-tip]::after { white-space: pre-line; }

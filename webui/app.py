@@ -194,6 +194,13 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(404, {"error": "unknown_photo", "message": "No catalogued photo has this id."})
         return found
 
+    @app.get("/api/v1/photos/{photo_id}/lineage")
+    def lineage(photo_id: int):
+        found = catalog.photo_lineage(cfg.db_path, photo_id)
+        if found is None:
+            raise HTTPException(404, {"error": "unknown_photo", "message": "No such photo."})
+        return found
+
     @app.get("/api/v1/photos/{photo_id}/thumbnail")
     def thumbnail(photo_id: int, size: str = "grid"):
         """The grid thumbnail from the cache, or the 1024px detail preview, which the

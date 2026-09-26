@@ -193,6 +193,26 @@ ExifTool's full set (or Pillow's when ExifTool found nothing for the file), not 
 subset. The engine's own `date_taken` and `date_source` are left out; they are above.
 Read from the catalog, so it shows the photo as last indexed.
 
+### `GET /api/v1/photos/{id}/lineage`
+
+Everything recorded about a photo's files, for the lineage tree (`webui-spec.md` §6.3):
+
+    {"photo_id": 12, "sha1": "...", "photos": [12, 40],          // the photo, then its exact duplicates
+     "files": [{"file_id", "origin_file_id", "origin_kind": "indexed" | "copy" | "observed_destination",
+                "path", "role": "source" | "destination", "presence": "present" | "removed" | "missing",
+                "sha1_hash", "matches": true, "file_size", "indexed_path", "created_at",
+                "photo_id", "photo_status"}, ...],
+     "operations": [{"id", "run_id", "mode", "status", "timestamp", "error_message", "photo_id",
+                     "source_path", "dest_path", "recovery",
+                     "files": [{"file_id", "role": "source" | "destination" | "retained_copy"}]}, ...]}
+
+`files` holds the photo's source file and every file descended from it (a copy records
+the file it came from; an indexed file records itself as its own origin), and the same
+for each duplicate. `matches` says whether the file's recorded
+content is the photo's. `operations` is every operation that touched any of them, oldest
+first, with the role each file played. A copy's size is its origin's: it was verified
+byte for byte when made. An unknown photo is `404 unknown_photo`.
+
 ### `GET /api/v1/photos/{id}/thumbnail`
 
 `size=grid` (default) serves the 320px grid thumbnail from the cache. `size=preview`

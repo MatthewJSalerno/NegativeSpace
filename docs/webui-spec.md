@@ -484,10 +484,19 @@ Clicking an image opens a right-side 50% detail panel.
 indexed this file"**: the time the file carried when the first Index read it, not a date
 the photo was scanned.
 
-**History is shown in the panel.** A **History (n)** section under **File** lists every
-event recorded for the photo, oldest first, as a timeline (what happened, in which job,
-when, and the engine's reason for a skip or failure), with **Open in the log** for the
-log's filters and export. One place, not a button to another page.
+**History in the panel, lineage in its own window.** A **History (n)** section under
+**File** shows the latest three events as a small timeline, with two links: **Open in the
+log** and **View lineage tree**; each event also opens the tree. **Why not every event in
+the panel:** it crowded the photo's details; the full record is one click away.
+
+**The lineage tree** (`GET /photos/{id}/lineage`, §6.3) is a window of its own: one node
+per file (the source, each copy made from it, each exact duplicate), each with its
+presence and the steps that happened to it. Each step appears once, on the file it
+produced (a copy's **Copied here** on the copy), else on the file it acted on. A
+duplicate's path opens that photo; a step's job opens the log on that job for this photo;
+a failed step opens to its recorded reason and **Retry this photo**; hovering or focusing
+a path shows its size, content fingerprint and whether it matches, and when it was
+recorded. Escape closes the window only, not the panel behind it.
 
 **Show all metadata.** The Index records every tag ExifTool reads (Pillow's when ExifTool
 finds nothing), not a curated subset; the Inspector's fields are a few of them. A folded

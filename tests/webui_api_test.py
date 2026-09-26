@@ -181,6 +181,25 @@ class JobsAndCatalog(ApiCase):
         again = self.wait_for(self.start(mode="copy"))
         self.assertEqual(again["outcome"]["verdict"], "no_change")
 
+    def test_a_photos_lineage_joins_its_files_copies_duplicates_and_operations(self):
+        self.index_library()                  # IMG_0001 and "Beach Sunset" share content
+        self.wait_for(self.start(mode="copy"))
+        anchor = next(i for i in self.client.get("/api/v1/photos").json()["items"] if i["duplicates"])
+        tree = self.client.get(f"/api/v1/photos/{anchor['id']}/lineage").json()
+        self.assertEqual(len(tree["photos"]), 2, "the duplicate belongs in the tree")
+        sources = [f for f in tree["files"] if f["origin_kind"] == "indexed"]
+        copies = [f for f in tree["files"] if f["origin_kind"] == "copy"]
+        self.assertEqual((len(sources), len(copies)), (2, 1))
+        (copy,) = copies
+        own = next(f for f in sources if f["photo_id"] == anchor["id"])
+        self.assertEqual((copy["origin_file_id"], copy["role"], copy["presence"]), (own["file_id"], "destination", "present"))
+        self.assertEqual(own["origin_file_id"], own["file_id"], "an indexed file is its own origin")
+        self.assertTrue(all(f["matches"] for f in tree["files"]), "every file here holds the same content")
+        copied = next(op for op in tree["operations"] if op["status"] == "Copied")
+        self.assertEqual({(x["file_id"], x["role"]) for x in copied["files"]},
+                         {(own["file_id"], "source"), (copy["file_id"], "destination")})
+        self.assertEqual(self.client.get("/api/v1/photos/99999/lineage").status_code, 404)
+
     def test_copy_all_and_move_all_are_counted_as_the_engine_selects_them(self):
         self.index_library()
         status = self.client.get("/api/v1/status").json()

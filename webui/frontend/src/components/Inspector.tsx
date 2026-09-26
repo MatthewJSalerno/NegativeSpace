@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { api, ApiError, type PhotoDetail } from "../api";
 import { bytes, epoch, isFallbackDate } from "../format";
 import { follow, logUrl } from "../nav";
+import { LineageDialog } from "./LineageDialog";
 import { Thumb } from "./Thumb";
 
 const STATUS: Record<string, string> = {
@@ -18,17 +19,22 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // When the panel is dragged wide, the details move to the right of the photo
 // (a container query in styles.css). Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, width, onClose, onStep }: {
+export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning }: {
   id: number;
   width: number | null;
   onClose: () => void;
   onStep: (delta: number) => void;
+  // Opens another photo in the panel: a duplicate, from the lineage tree.
+  onOpenPhoto: (id: number) => void;
+  jobRunning: boolean;
 }) {
   const [detail, setDetail] = useState<PhotoDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
   const [enlarged, setEnlarged] = useState(false);
+  const [lineage, setLineage] = useState(false);
+  useEffect(() => setLineage(false), [id]);
 
   useEffect(() => {
     let live = true;
@@ -88,9 +94,13 @@ export function Inspector({ id, width, onClose, onStep }: {
         </button>
         <div className="inspector-side">
           {error && <p className="error">{error}</p>}
-          {detail && <Details detail={detail} />}
+          {detail && <Details detail={detail} onLineage={() => setLineage(true)} />}
         </div>
       </div>
+      {lineage && detail && createPortal(
+        <LineageDialog photoId={id} filename={detail.filename} jobRunning={jobRunning}
+                       onOpenPhoto={(other) => { setLineage(false); onOpenPhoto(other); }} onClose={() => setLineage(false)} />,
+        document.body)}
       {/* Rendered at the page's top level: inside the Inspector, a size container,
           position: fixed would be relative to the panel and stay under the toolbar. */}
       {enlarged && createPortal(
@@ -99,7 +109,7 @@ export function Inspector({ id, width, onClose, onStep }: {
           <button className="lightbox-close" onClick={() => setEnlarged(false)} aria-label="Close the enlarged photo">✕</button>
           <div className="lightbox-body">
             <div className="lightbox-image">{photo}</div>
-            {detail && <Details detail={detail} />}
+            {detail && <Details detail={detail} onLineage={() => setLineage(true)} />}
           </div>
         </div>,
         document.body,
@@ -136,7 +146,7 @@ function exifTime(value: string) {
   return `${date.replace(/:/g, "-")} ${time}`.trim();
 }
 
-function Details({ detail: d }: { detail: PhotoDetail }) {
+function Details({ detail: d, onLineage }: { detail: PhotoDetail; onLineage: () => void }) {
   const fallback = isFallbackDate(d.date_source);
   const exposure = [d.iso != null ? `ISO ${d.iso}` : null, d.aperture != null ? `f/${d.aperture}` : null,
                     d.shutter != null ? `${d.shutter}s` : null].filter(Boolean).join(" · ");
@@ -168,7 +178,7 @@ function Details({ detail: d }: { detail: PhotoDetail }) {
           </div>
         </Row>
       </Section>
-      <PhotoHistory id={d.id} />
+      <PhotoHistory id={d.id} onLineage={onLineage} />
       <Section title="Photo EXIF information" note={zoneNote}>
         {!taken && <Row label="Date taken"><span className="muted">Not in the photo's EXIF</span></Row>}
         {dates.map((x) => (
@@ -250,18 +260,16 @@ const EVENT_LABEL: Record<string, string> = {
   Skipped: "Skipped", Cancelled: "Cancelled", Renamed: "Renamed",
 };
 
-// Everything recorded for the photo, in the panel itself (webui-spec 4.2), oldest first:
-// a photo has a handful of events, so the pane shows them all. The log has the same
-// entries with its filters and export, one link away.
-const HISTORY_MAX = 200;
+// The photo's latest events in the panel, compact (webui-spec 4.2); each opens the
+// lineage tree, as does View lineage tree. The log is the other way to the full record.
+const RECENT = 3;
 
-function PhotoHistory({ id }: { id: number }) {
-  const [page, setPage] = useState<{ items: { id: number; run_id: number; mode: string | null; status: string; timestamp: string;
-                                              error_message: string | null }[]; total: number } | null>(null);
+function PhotoHistory({ id, onLineage }: { id: number; onLineage: () => void }) {
+  const [page, setPage] = useState<{ items: { id: number; run_id: number; mode: string | null; status: string; timestamp: string }[]; total: number } | null>(null);
   useEffect(() => {
     let live = true;
     setPage(null);
-    api.operations({ run: [], status: [], photo: id, q: "", since: "", until: "" }, 1, HISTORY_MAX)
+    api.operations({ run: [], status: [], photo: id, q: "", since: "", until: "" }, 1, RECENT)
       .then((d) => live && setPage(d), () => live && setPage({ items: [], total: 0 }));
     return () => { live = false; };
   }, [id]);
@@ -273,17 +281,21 @@ function PhotoHistory({ id }: { id: number }) {
         <p className="muted info-empty">Nothing recorded yet.</p>
       ) : (
         <>
+          {page.total > events.length && <p className="muted">The latest {events.length}:</p>}
           <ol className="history-list">
             {events.map((op) => (
               <li key={op.id} className={op.status === "Failed" ? "history-failed" : undefined}>
-                <strong>{EVENT_LABEL[op.status] ?? op.status}</strong>
-                <span className="muted"> · job #{op.run_id}{op.mode ? ` ${op.mode.toLowerCase()}` : ""} · {epoch(Date.parse(op.timestamp) / 1000)}</span>
-                {op.error_message && <div className="history-detail">{op.error_message}</div>}
+                <button className="history-event" onClick={onLineage} title="Open the lineage tree">
+                  <strong>{EVENT_LABEL[op.status] ?? op.status}</strong>
+                  <span className="muted"> · job #{op.run_id}{op.mode ? ` ${op.mode.toLowerCase()}` : ""} · {epoch(Date.parse(op.timestamp) / 1000)}</span>
+                </button>
               </li>
             ))}
           </ol>
-          {page.total > events.length && <p className="muted">Showing the newest {events.length} of {page.total}.</p>}
-          <a className="history-open" href={logUrl({ photo: id })} onClick={follow}>Open in the log</a>
+          <div className="history-links">
+            <a href={logUrl({ photo: id })} onClick={follow}>Open in the log</a>
+            <button className="link" onClick={onLineage}>View lineage tree</button>
+          </div>
         </>
       )}
     </section>
