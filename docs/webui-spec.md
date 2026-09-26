@@ -221,14 +221,18 @@ window over the current view.
 errors and from an invalid or corrupt database. Do not silently replace an existing
 database or interpret a storage error as a fresh installation. If no database is
 found, show **“No catalog found. If this is your first time using NegativeSpace,
-create a catalog to get started. If you’ve used it before, check your appdata mount
+create a catalog to get started. If you’ve used it before, check the folders below,
 or recover your catalog from a backup.”** Offer **Create new catalog** explicitly;
 only after that choice initialize the database and defaults, without running Index.
 Verify application storage is accessible and writable before creation, and never
 overwrite a database that appears between the check and confirmation.
 
-In startup diagnostics and recovery guidance, show **Application data: `/appdata`**
-and **Catalog backups: `/backups`**, labelled as container paths. Their host locations
+In startup diagnostics and recovery guidance, show where the catalog (`/appdata`) and its
+backups (`/backups`) are looked for, and say what those are: **paths inside the container,
+not on the user's computer**, each a folder the user chose at setup (`APPDATA_DIR` and
+`BACKUP_DIR` in `docker/.env` with the included compose file, or `docker run -v`), to be
+checked for naming the same folders as before and being reachable. *Why:* a bare
+`/appdata` sent an inexperienced user searching their disk for it. Their host locations
 are determined by the Docker mounts; do not claim the application knows those paths.
 For read/write errors, show the specific reason and permissions/storage guidance.
 For an invalid or corrupt database, explain the problem and point to backup recovery

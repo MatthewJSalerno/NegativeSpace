@@ -94,6 +94,9 @@ button.icon { font-size: 1.1rem; padding: 4px 10px; }
 .tip:hover::after, .tip:focus-within::after { opacity: 1; }
 .brand { font-size: 1.1rem; display: inline-flex; align-items: center; gap: 8px; }
 .brand-large { font-size: 1.8rem; gap: 14px; }
+.mounts-note { display: grid; gap: 6px; }
+.mounts-note p, .mounts-note ul { margin: 0; }
+.mounts-note ul { padding-left: 20px; }
 .logo { flex: none; display: block; }
 .views { display: flex; gap: 4px; flex-wrap: wrap; }
 .pages { display: flex; gap: 4px; }
