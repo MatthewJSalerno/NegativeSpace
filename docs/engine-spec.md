@@ -263,7 +263,7 @@ The three transfer tables below — current state, runs, and the audit log — e
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `id` | Integer | Primary Key, autoincrement. This is what `--file-ids` targets. |
-| `source_path` | Text | Original file path. **Unique** — the re-scan upsert logic (§4.2) depends on this constraint. |
+| `source_path` | Text | Original file path. **Unique among files still in the source** (`idx_photos_live_source`): a re-scan updates the row still in the source; a row whose source a Move consumed keeps its path and history, and a file later put back there gets a row of its own (§10). |
 | `dest_path` | Text | Target path (including auto-generated suffixes) |
 | `sha1_hash` | Text | Exact content hash |
 | `phash` | Text | Perceptual hash. `"not_supported"` if the required optional library isn't installed for that format; `"error"` if hashing was attempted but failed (e.g. corrupt file). |
@@ -315,7 +315,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 11 and refuses incompatible catalogs before processing.
+initializes schema version 12 and refuses incompatible catalogs before processing.
 No migration exists: preserve an older catalog and use a fresh one. Index cannot
 reconstruct settings, past edits, or deleted-file lineage. Never describe deleting a
 user catalog as routine repair.
@@ -325,8 +325,10 @@ user catalog as routine repair.
 *   Settings are `workers`, `exts` and `backup_retention`. Each run stores its
     effective configuration in `run_configs` — defaults, then saved settings, then CLI
     overrides — and later settings changes never alter it.
-*   A source returning after a completed Move or duplicate removal receives a new
-    identity; operation links keep the previous identity and its original evidence.
+*   A file put back at a path whose source a Move or duplicate removal consumed is a
+    new arrival with its own photo row and identity; the consumed row keeps its identity,
+    evidence and history. With the content still recorded as delivered, the new arrival is
+    a duplicate of that photo (maintainer's rule; §10).
 *   Not yet implemented: content-version transitions (nothing modifies content yet)
     and revision enforcement across a whole transfer.
 
@@ -347,13 +349,14 @@ exists, because an `operations` index ahead of the `operations` table fails with
 indexes after.
 
 ```sql
--- photos: CURRENT STATE only, one row per source_path (UNIQUE constraint
--- enforces this). Continuously overwritten in place on every re-scan --
+-- photos: CURRENT STATE only, one row per source file. A path is unique among
+-- rows still in the source (idx_photos_live_source, below); a row whose source a
+-- Move consumed keeps its path. Overwritten in place on every re-scan --
 -- this is what keeps "what's still Pending" queries fast, and is the
 -- table --file-ids targets by primary key.
 CREATE TABLE photos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    source_path TEXT UNIQUE,
+    source_path TEXT,
     dest_path TEXT,
     sha1_hash TEXT,
     phash TEXT,
@@ -431,6 +434,8 @@ CREATE TABLE operations (
     FOREIGN KEY(photo_id) REFERENCES photos(id)
 );
 
+CREATE UNIQUE INDEX idx_photos_live_source ON photos(source_path)
+    WHERE status IS NULL OR status NOT IN ('Completed','Removed_Duplicate','Found_At_Destination');
 CREATE INDEX idx_photos_sha1 ON photos(sha1_hash);
 CREATE INDEX idx_photos_status ON photos(status);
 CREATE INDEX idx_photos_source_stat ON photos(source_path, file_size, file_mtime);
@@ -477,8 +482,8 @@ CREATE TABLE file_states (
 CREATE UNIQUE INDEX idx_present_destination ON file_states(current_path)
     WHERE location_role='destination' AND presence_state='present';
 
--- Binds a legacy photos row to its current identity. Rebinds when a consumed
--- source returns, which is a new arrival rather than a new version.
+-- Binds a legacy photos row to its identity. A file put back at a consumed path
+-- is a new photo row, so it gets a binding of its own; a row never rebinds.
 CREATE TABLE photo_files (
     photo_id INTEGER PRIMARY KEY REFERENCES photos(id),
     file_id INTEGER NOT NULL UNIQUE REFERENCES files(file_id),
@@ -1125,6 +1130,15 @@ deleted identity or erase its deletion event. A historical match alone must not
 classify the new import as already delivered or authorize duplicate-source deletion;
 those decisions require a current eligible copy and the normal verification checks.
 
+**A file arriving with content already catalogued is a duplicate of that photo and joins
+its lineage (maintainer's rule),** whether it is another archive's copy under a new name
+or the same file put back at its old path after a Move. It gets a photo row and identity
+of its own; the photo it duplicates keeps its row, status and history. This is a current
+match, not a historical one: the content must be recorded as delivered or pending now
+(`normalize_duplicate_groups`), and a Move removes the duplicate only after verifying the
+delivered copy live, as for any duplicate. Tested by
+`a_file_returning_after_a_move_is_a_duplicate_of_the_moved_photo`.
+
 **Identity across content changes:** each logical file retains a stable lineage
 identity independent of its current path and content hash. For every tool action
 that changes content, record the before/after hashes linked to that same lineage
@@ -1196,9 +1210,9 @@ unknown origin" — not "everything traces to an Index".
 Measured against a real-library catalog of 971 identities: every identity traced or
 explicitly observed, zero dangling origins, zero foreign-key violations, and a full
 history assembled in 0.02–0.08 ms, covered by `idx_lineage_file` and
-`idx_events_operation`. Reading a history correctly is a separate concern — a view
-keyed on `photos.id` alone drops the pre-reimport half of a file's past; see
-`webui-spec.md` §6.3.
+`idx_events_operation`. Reading a history correctly is a separate concern: a view
+keyed on `photos.id` alone misses the files made from the photo and its duplicates;
+see `webui-spec.md` §6.3.
 
 **Recovery provenance is required for truthful job reporting.** Distinguish a
 record written while reconciling earlier interrupted work from one describing the
@@ -1218,9 +1232,9 @@ current state. Records cannot recreate deleted pixels. This is a required capabi
 not a claim that current mutable photo rows already preserve all that evidence.
 
 **History is keyed by file identity, not by `photos.id`.** Operations reach files
-through `operation_files`, so a history follows `file_id` across renames, moves,
-reimports and edits; reading it by `photos.id` alone drops the pre-reimport half of a
-file's past (`webui-spec.md` §6.3). The Error Center and the Operations Audit Log read
+through `operation_files`, so a history follows `file_id` across renames, moves and
+edits; reading it by `photos.id` alone misses the files made from the photo and its
+duplicates (`webui-spec.md` §6.3). The Error Center and the Operations Audit Log read
 history the same way.
 
 **A catalog rebuild still discards history.** `photos` is derived and an Index

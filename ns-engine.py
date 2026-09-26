@@ -305,12 +305,8 @@ SETTLED_STATUSES = (
     PhotoStatus.DUPLICATE, PhotoStatus.REMOVED_DUPLICATE, PhotoStatus.FOUND_AT_DESTINATION,
 )
 
-# Statuses whose source file is legitimately gone: consumed by a --move, or found
-# gone with its content already on the destination. Targeted re-runs skip these
-# rather than re-scanning them: the source is *supposed* to be missing, so
-# re-indexing would overwrite a true record with a spurious Failed.
-SOURCE_CONSUMED_STATUSES = (PhotoStatus.COMPLETED, PhotoStatus.REMOVED_DUPLICATE,
-                            PhotoStatus.FOUND_AT_DESTINATION)
+# Statuses whose source file is legitimately gone: see ns_db.SOURCE_CONSUMED_STATUSES.
+SOURCE_CONSUMED_STATUSES = ns_db.SOURCE_CONSUMED_STATUSES
 
 # Every status a --move or --copy selection is drawn from, which is the same
 # set for both modes: the primaries each transfers (Pending, plus Copied —
@@ -989,18 +985,27 @@ def db_writer_worker(db_path: str):
                 conn.execute("BEGIN")
             conn.execute("SAVEPOINT scan_row")
 
-            # Exclude the file's own previous row ("source_path != ?") and
-            # rows that are themselves Duplicate/Removed_Duplicate. Without
-            # the status exclusion, re-scanning a duplicate pair would
-            # cascade: each file would find the other's persisted Duplicate
-            # status and count it as the original, leaving both Duplicate
-            # with no anchor, so the photo could never be moved or cleaned
-            # up. normalize_duplicate_groups() re-derives the final
-            # classification after the scan.
+            # The row this file updates: the one at its path among files still in the
+            # source. A row whose source a Move consumed stays with the photo it
+            # delivered; a file later found at that path is a new arrival with a row of
+            # its own (idx_photos_live_source), compared below against that delivered
+            # content like any other file, so it becomes its duplicate (engine-spec 6.5).
+            live = cursor.execute(
+                "SELECT id, status FROM photos WHERE source_path = ? AND (status IS NULL OR status NOT IN "
+                f"({sql_values(SOURCE_CONSUMED_STATUSES)}))", (result.file_path,)).fetchone()
+            live_id, prior_status = live if live else (None, None)
+
+            # Exclude the file's own row (by id: a consumed row at the same path is a
+            # different, delivered photo and counts) and rows that are themselves
+            # Duplicate/Removed_Duplicate. Without the status exclusion, re-scanning a
+            # duplicate pair would cascade: each file would find the other's persisted
+            # Duplicate status and count it as the original, leaving both Duplicate with
+            # no anchor, so the photo could never be moved or cleaned up.
+            # normalize_duplicate_groups() re-derives the final classification after the scan.
             cursor.execute(
-                "SELECT id FROM photos WHERE sha1_hash = ? AND source_path != ? "
+                "SELECT id FROM photos WHERE sha1_hash = ? AND id != ? "
                 f"AND status NOT IN ({sql_values((PhotoStatus.DUPLICATE, PhotoStatus.REMOVED_DUPLICATE))})",
-                (result.sha1_hash, result.file_path)
+                (result.sha1_hash, live_id if live_id is not None else -1)
             )
             existing = cursor.fetchone()
 
@@ -1008,52 +1013,23 @@ def db_writer_worker(db_path: str):
             if existing and status != PhotoStatus.FAILED:
                 status = PhotoStatus.DUPLICATE
 
-            prior_row = cursor.execute(
-                "SELECT status FROM photos WHERE source_path=?", (result.file_path,)
-            ).fetchone()
-            prior_status = prior_row[0] if prior_row else None
+            values = (result.dest_path, result.sha1_hash, result.phash, result.collision_group,
+                      1 if result.is_master else 0, status, json.dumps(result.metadata),
+                      1 if result.has_name_collision else 0, result.file_size, result.file_mtime)
+            if live_id is not None:
+                # Re-scanning a file already catalogued refreshes its row in place.
+                cursor.execute(
+                    "UPDATE photos SET dest_path = ?, sha1_hash = ?, phash = ?, collision_group = ?, "
+                    "is_master = ?, status = ?, metadata_json = ?, has_name_collision = ?, file_size = ?, "
+                    "file_mtime = ? WHERE id = ?", values + (live_id,))
+                photo_id = live_id
+            else:
+                cursor.execute(
+                    "INSERT INTO photos (source_path, dest_path, sha1_hash, phash, collision_group, is_master, "
+                    "status, metadata_json, has_name_collision, file_size, file_mtime) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (result.file_path,) + values)
+                photo_id = cursor.lastrowid
 
-            # UPSERT on source_path: re-scanning a file already catalogued (a
-            # repeated Index, or Index then Move) refreshes its row in place
-            # rather than violating the UNIQUE constraint.
-            cursor.execute(
-                """INSERT INTO photos
-                   (source_path, dest_path, sha1_hash, phash, collision_group, is_master, status,
-                    metadata_json, has_name_collision, file_size, file_mtime)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(source_path) DO UPDATE SET
-                       dest_path = excluded.dest_path,
-                       sha1_hash = excluded.sha1_hash,
-                       phash = excluded.phash,
-                       collision_group = excluded.collision_group,
-                       is_master = excluded.is_master,
-                       status = excluded.status,
-                       metadata_json = excluded.metadata_json,
-                       has_name_collision = excluded.has_name_collision,
-                       file_size = excluded.file_size,
-                       file_mtime = excluded.file_mtime
-                """,
-                (
-                    result.file_path,
-                    result.dest_path,
-                    result.sha1_hash,
-                    result.phash,
-                    result.collision_group,
-                    1 if result.is_master else 0,
-                    status,
-                    json.dumps(result.metadata),
-                    1 if result.has_name_collision else 0,
-                    result.file_size,
-                    result.file_mtime
-                )
-            )
-
-            # Audit log entry for this scan result. Looked up by source_path
-            # rather than trusting cursor.lastrowid, since that's unreliable
-            # across the UPDATE branch of an upsert.
-            cursor.execute("SELECT id FROM photos WHERE source_path = ?", (result.file_path,))
-            photo_row = cursor.fetchone()
-            photo_id = photo_row[0] if photo_row else None
             file_id = ns_db.record_source_observation(
                 conn, photo_id=photo_id, run_id=result.run_id,
                 source_path=result.file_path, sha1_hash=result.sha1_hash,
@@ -2826,11 +2802,10 @@ def original_source_mtimes(db_path: str, candidates: List[str]) -> dict:
     up advertising a folder the file never occupies.
 
     Rows whose status is SOURCE_CONSUMED_STATUSES are excluded, and that
-    exclusion is load-bearing rather than tidiness: `record_source_observation`
-    treats a returning Completed/Removed_Duplicate source as a NEW arrival and
-    mints a fresh identity with a fresh snapshot. Pinning such a file to the
-    snapshot of the identity a Move already consumed would date a new arrival
-    by a file that is gone.
+    exclusion is load-bearing rather than tidiness: a file put back at a path a
+    Move consumed is a NEW photo row with a fresh identity and snapshot.
+    Pinning it to the snapshot of the identity the Move consumed would date a
+    new arrival by a file that is gone.
     """
     if not candidates:
         return {}

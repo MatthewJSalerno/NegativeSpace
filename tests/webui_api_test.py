@@ -508,6 +508,50 @@ class InterfaceState(ApiCase):
             self.assertEqual(self.client.put("/api/v1/ui-state", json=bad).status_code, 400, bad)
 
 
+class ArchivesOverTime(ApiCase):
+    """The maintainer's use case: archives of the library, each in its own folder of the
+    source, indexed days apart; a copy of a photo already catalogued is a duplicate of it
+    and joins its lineage, even a file put back at its old path after a Move."""
+
+    def photo_at(self, name):
+        with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as db:
+            return db.execute("SELECT id, status FROM photos WHERE source_path LIKE ? ORDER BY id DESC",
+                              ("%/" + name,)).fetchone()
+
+    def test_archives_indexed_apart_share_one_lineage_and_count_their_duplicates(self):
+        A, B = self.cfg.source / "archive-2019", self.cfg.source / "archive-2021"
+        for i in range(4):
+            make_photo(A / f"IMG_{i}.jpg", f"photo-{i}", size=(60 + i, 40), mtime=1_560_000_000)
+        self.create_catalog()
+        self.wait_for(self.start(mode="index"))
+        self.wait_for(self.start(mode="move"))
+        # Days later, archive B: two photos A had, under other names, and one new.
+        make_photo(B / "copy_of_0.jpg", "photo-0", size=(60, 40))
+        make_photo(B / "DSC_1.jpg", "photo-1", size=(61, 40))
+        make_photo(B / "new.jpg", "photo-new", size=(70, 40))
+        # And one of A's photos put back where it was.
+        make_photo(A / "IMG_2.jpg", "photo-2", size=(62, 40), mtime=1_560_000_000)
+        self.wait_for(self.start(mode="index"))
+
+        self.assertEqual(self.photo_at("copy_of_0.jpg")[1], "Duplicate")
+        self.assertEqual(self.photo_at("IMG_2.jpg")[1], "Duplicate", "a file put back after a Move is a duplicate")
+        original = self.photo_at("IMG_0.jpg")
+        tree = self.client.get(f"/api/v1/photos/{original[0]}/lineage").json()
+        self.assertEqual(len(tree["photos"]), 2, "the archive copy joins the original's lineage")
+        moved_back = next(i for i in self.client.get("/api/v1/photos").json()["items"] if i["filename"] == "IMG_2.jpg")
+        self.assertEqual(moved_back["status"], "Completed", "the moved photo stays organized")
+        back_tree = self.client.get(f"/api/v1/photos/{moved_back['id']}/lineage").json()
+        self.assertEqual(sorted(f["origin_kind"] for f in back_tree["files"]), ["indexed", "indexed"],
+                         "the tree holds the moved photo and the returned file, both")
+        history = self.client.get("/api/v1/operations", params={"photo": original[0]}).json()["items"]
+        self.assertIn("Duplicate", [o["status"] for o in history], "the log history shows the duplicate, as the tree does")
+
+        folders = {f["folder"]: f for f in self.client.get("/api/v1/stats").json()["duplicates"]["by_folder"]}
+        self.assertEqual((folders["archive-2021"]["files"], folders["archive-2021"]["duplicates"]), (3, 2),
+                         "the later archive carries the duplicates")
+        self.assertEqual(folders["archive-2019"]["duplicates"], 1, "the file put back is a duplicate too")
+
+
 class CatalogBackups(ApiCase):
     """webui-spec 9: the list, Back up now, and downloads."""
 

@@ -166,16 +166,32 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
             self.conn.execute('DELETE FROM files')
 
-    def test_consumed_source_reimport_has_new_identity_and_history(self):
+    def test_a_source_returning_after_a_move_is_a_new_photo_and_the_moved_one_keeps_its_history(self):
         photo, run = self.photo()
-        original = self.conn.execute('SELECT file_id FROM photo_files').fetchone()[0]
+        original = self.conn.execute('SELECT file_id FROM photo_files WHERE photo_id=?', (photo,)).fetchone()[0]
         with db.transaction(self.conn):
             op = self.conn.execute("INSERT INTO operations(run_id,photo_id,status,timestamp) VALUES(?,?,'Completed','t')",(run,photo)).lastrowid
             db.link_operation(self.conn,op,photo)
-            replacement = self.observe(photo,run,prior_status='Completed')
-        self.assertNotEqual(original,replacement)
-        self.assertEqual(self.conn.execute('SELECT file_id FROM operation_files').fetchone()[0],original)
-        self.assertEqual(self.conn.execute('SELECT count(*) FROM source_snapshots').fetchone()[0],2)
+            self.conn.execute("UPDATE photos SET status='Completed' WHERE id=?", (photo,))
+        # A file put back at the consumed path is a photo row of its own, never the moved one's.
+        with db.transaction(self.conn):
+            back = self.conn.execute("INSERT INTO photos(source_path,status) VALUES('/source/a.jpg','Duplicate')").lastrowid
+            replacement = self.observe(back, run)
+        self.assertNotEqual(original, replacement)
+        self.assertEqual(self.conn.execute('SELECT file_id FROM photo_files WHERE photo_id=?', (photo,)).fetchone()[0],
+                         original, "the moved photo keeps its identity")
+        self.assertEqual(self.conn.execute('SELECT file_id FROM operation_files').fetchone()[0], original)
+        self.assertEqual(self.conn.execute('SELECT count(*) FROM source_snapshots').fetchone()[0], 2)
+
+    def test_a_path_is_unique_among_files_still_in_the_source(self):
+        with db.transaction(self.conn):
+            self.conn.execute("INSERT INTO photos(source_path,status) VALUES('/source/b.jpg','Pending')")
+        with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
+            self.conn.execute("INSERT INTO photos(source_path,status) VALUES('/source/b.jpg','Duplicate')")
+        with db.transaction(self.conn):
+            self.conn.execute("UPDATE photos SET status='Completed' WHERE source_path='/source/b.jpg'")
+            self.conn.execute("INSERT INTO photos(source_path,status) VALUES('/source/b.jpg','Duplicate')")
+        self.assertEqual(self.conn.execute("SELECT count(*) FROM photos WHERE source_path='/source/b.jpg'").fetchone()[0], 2)
 
     def test_initial_unknowns_remain_unknown(self):
         run=self.run_record()

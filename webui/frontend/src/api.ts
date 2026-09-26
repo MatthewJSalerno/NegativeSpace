@@ -300,6 +300,7 @@ export interface Stats {
     move_would_free: number; freed_by_moves: number; near_duplicates: number | null; copies_not_written: number;
     coverage: { last_complete_scan: string | null; established_by_run: number | null;
                 scans_with_issues_since: number; run_ids_since: number[] };
+    by_folder: { folder: string; files: number; duplicates: number; duplicate_bytes: number }[];
   };
   activity: {
     jobs: Record<string, number>; last_index: string | null; copied: number; moved: number;

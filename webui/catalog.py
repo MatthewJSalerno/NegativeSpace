@@ -562,11 +562,16 @@ def _operations_where(*, runs=None, statuses=None, photo=None, q=None, since=Non
         clauses.append(f"o.status IN ({','.join('?' * len(statuses))})")
         params += list(statuses)
     if photo is not None:
-        clauses.append("(o.photo_id = ? OR o.id IN (SELECT of.operation_id FROM operation_files of WHERE of.file_id IN ("
+        # The photo, the files made from it, and its exact duplicates (other rows holding
+        # the same content, including a file put back after a Move): the same set its
+        # lineage tree shows, so the log and the tree tell one history.
+        clauses.append("(o.photo_id = ? OR o.photo_id IN (SELECT d.id FROM photos d JOIN photos me "
+                       "  ON me.id = ? AND me.sha1_hash IS NOT NULL AND me.sha1_hash != '' AND d.sha1_hash = me.sha1_hash)"
+                       " OR o.id IN (SELECT of.operation_id FROM operation_files of WHERE of.file_id IN ("
                        "  SELECT pf.file_id FROM photo_files pf WHERE pf.photo_id = ?"
                        "  UNION SELECT fo.file_id FROM file_origins fo JOIN photo_files pf ON fo.origin_file_id = pf.file_id"
                        "  WHERE pf.photo_id = ?)))")
-        params += [photo, photo, photo]
+        params += [photo, photo, photo, photo]
     if q:
         like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         clauses.append("(o.source_path LIKE ? ESCAPE '\\' OR o.dest_path LIKE ? ESCAPE '\\' "
@@ -817,7 +822,29 @@ def _coverage(runs) -> dict:
             "run_ids_since": [r["id"] for r in since]}
 
 
-def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path) -> dict:
+def _by_folder(rows, source_root: Optional[Path]) -> list:
+    """Duplicates per top-level folder of the source: an archive of the library added in
+    its own folder shows how many of its files were copies of photos already catalogued
+    (webui-spec 5.9). Which copy is the original is the one indexed first, so a later
+    archive carries the duplicates. Files directly in the source root are "" (top level)."""
+    if source_root is None:
+        return []
+    root = str(source_root).rstrip("/") + "/"
+    folders = {}
+    for path, status, size in rows:
+        if not path.startswith(root):
+            continue
+        rel = path[len(root):]
+        name = rel.split("/", 1)[0] if "/" in rel else ""
+        f = folders.setdefault(name, {"folder": name, "files": 0, "duplicates": 0, "duplicate_bytes": 0})
+        f["files"] += 1
+        if status in COPIES:
+            f["duplicates"] += 1
+            f["duplicate_bytes"] += size or 0
+    return sorted(folders.values(), key=lambda f: f["folder"].lower())
+
+
+def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_root: Optional[Path] = None) -> dict:
     """Everything the Stats page shows, read from the catalog in one pass: the library,
     its dates, duplicates, the work done, and the catalog's health. Only what is
     recorded: figures that need unbuilt features (near-duplicates, EXIF edits) are None."""
@@ -853,6 +880,7 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path) -> dict:
             "EXISTS (SELECT 1 FROM operations o WHERE o.run_id = r.id AND o.status = ? AND o.photo_id IS NULL) AS issues, "
             "json_extract(c.effective_config_json, '$.exts') AS exts "
             "FROM runs r LEFT JOIN run_configs c ON c.run_id = r.id ORDER BY r.id", (PhotoStatus.FAILED,)).fetchall()
+        every_file = conn.execute("SELECT source_path, status, file_size FROM photos WHERE source_path IS NOT NULL").fetchall()
         ops = dict(conn.execute("SELECT status, COUNT(*) FROM operations GROUP BY status").fetchall())
         moved_bytes = conn.execute(
             "SELECT COALESCE(SUM(p.file_size), 0) FROM operations o JOIN photos p ON p.id = o.photo_id "
@@ -944,7 +972,8 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path) -> dict:
         "duplicates": {"groups": dup["groups"], "extra_copies": dup["copies"], "bytes": dup["bytes"],
                        "saved_at_destination": saved[1], "copies_not_written": saved[0],
                        "move_would_free": dup["in_source"], "freed_by_moves": dup["removed"], "near_duplicates": None,
-                       "coverage": _coverage(coverage_runs)},
+                       "coverage": _coverage(coverage_runs),
+                       "by_folder": _by_folder(every_file, source_root)},
         "activity": {"jobs": mode_counts, "last_index": last_index,
                      "copied": ops.get(PhotoStatus.COPIED, 0), "moved": ops.get(PhotoStatus.COMPLETED, 0),
                      "bytes_transferred": moved_bytes,

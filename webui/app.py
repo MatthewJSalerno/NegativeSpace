@@ -133,7 +133,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/api/v1/stats")
     def get_stats():
-        return catalog.library_stats(cfg.db_path, cfg.backups, cfg.base)
+        return catalog.library_stats(cfg.db_path, cfg.backups, cfg.base, cfg.source)
 
     # -- Catalog backups (webui-spec 9) ----------------------------------------
 
