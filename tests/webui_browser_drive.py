@@ -399,8 +399,16 @@ with sync_playwright() as p:
     page.keyboard.press("Escape")
     page.unroute("**/api/v1/operations/photo-ids*")
     os.chmod(locked, 0o644)
-    page.get_by_role("button", name="All statuses").click()
-    expect(page.locator(".status-chips")).to_contain_text("Copied")
+    # Status boxes: arriving from a message ticks only what it named; All statuses ticks
+    # every one again, which is no filter at all.
+    statuses = page.locator(".status-checks")
+    expect(statuses.get_by_role("checkbox", name=re.compile(r"^Failed \("))).to_be_checked()
+    expect(statuses.get_by_role("checkbox", name=re.compile(r"^Copied \("))).not_to_be_checked()
+    expect(statuses.get_by_role("checkbox", name=re.compile(r"^Failed \("))).to_be_disabled()   # at least one stays
+    statuses.get_by_role("checkbox", name="All statuses").check()
+    expect(statuses.get_by_role("checkbox", name=re.compile(r"^Copied \("))).to_be_checked()
+    expect(statuses.get_by_role("checkbox", name="All statuses")).to_be_disabled()
+    expect(page).not_to_have_url(re.compile(r"status="))
     # Every job, one line each until opened; the job arrived at from the banner stays open.
     page.get_by_role("button", name="Show all jobs").click()
     expect(page.locator(".job-group")).to_have_count(4)
@@ -420,7 +428,12 @@ with sync_playwright() as p:
     expect(copy_all.locator(".job-head")).to_be_in_viewport()
     shot("8-log-scrolling")
     copy_all.locator(".job-head").click()
-    page.locator(".status-chips").get_by_role("button", name=re.compile(r"^Copied")).click()
+    # One or many: unticking one leaves the rest, and "only" narrows to one in a click.
+    statuses.get_by_role("checkbox", name=re.compile(r"^Indexed \([\d,]+\)$")).uncheck()
+    expect(page.locator(".dates-filter-line")).not_to_contain_text("Indexed ·")
+    expect(statuses.get_by_role("checkbox", name="All statuses")).to_be_enabled()
+    statuses.get_by_role("button", name="Show only Copied").click()
+    expect(statuses.get_by_role("checkbox", name=re.compile(r"^Indexed \([\d,]+\)$"))).not_to_be_checked()
     page.get_by_label("Search the log").fill("photo-00")
     expect(page.locator(".dates-filter-line")).to_contain_text("Showing: Copied · “photo-00”")
     page.get_by_role("button", name="Clear all filters").click()

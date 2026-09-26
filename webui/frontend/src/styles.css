@@ -123,9 +123,13 @@ button.link { border: 0; padding: 0; background: none; color: var(--accent); tex
 .log-filters .field-inline { align-items: center; margin: 0; }
 .log-filters .export { margin-left: auto; }
 .log-filters .export a { color: var(--accent); }
-.status-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.status-chips button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-.status-chips .chip-failed:not(.active) { color: var(--bad); }
+.status-checks { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+.status-check { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.status-check label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.status-check.check-failed label { color: var(--bad); }
+.status-check.check-warn label { color: var(--warn); }
+.status-only { font-size: 0.8rem; }
+.status-checks .view-count { font-variant-numeric: tabular-nums; }
 .log-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
 .log-table th, .log-table td { padding: 8px 10px; text-align: left; vertical-align: top; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
 .log-table thead th { border-top: 0; color: var(--muted); font-weight: normal; font-size: 0.85rem; }
@@ -367,7 +371,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 .meta-head input { flex: 1 1 160px; }
 
 /* The view buttons keep their width as counts change: room for "(999,999)", even digits. */
-.views .view-count, .status-chips .view-count { display: inline-block; min-width: 9ch; text-align: left; font-variant-numeric: tabular-nums; }
+.views .view-count { display: inline-block; min-width: 9ch; text-align: left; font-variant-numeric: tabular-nums; }
 
 /* An open job's header line stays at the top while its entries scroll. */
 .job-group.open > .job-head { position: sticky; top: var(--header-h, 0px); z-index: 2; background: var(--surface);

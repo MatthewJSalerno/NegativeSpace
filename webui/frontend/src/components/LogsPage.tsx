@@ -156,8 +156,6 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
   };
 
   const set = (patch: Partial<LogFilters>) => setFilters((f) => ({ ...f, ...patch }));
-  const toggleStatus = (s: string) =>
-    set({ status: filters.status.includes(s) ? filters.status.filter((x) => x !== s) : [...filters.status, s] });
   const toggleRun = (id: number) => setExpanded((cur) => {
     const next = new Set(cur);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -247,6 +245,16 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
   const groups = (runs ?? []).filter((r) =>
     (filters.run.length === 0 || filters.run.includes(r.id)) && (!narrowed || (totals?.run_counts[String(r.id)] ?? 0) > 0));
   const statuses = Object.keys(STATUS_LABEL).filter((s) => (totals?.status_counts[s] ?? 0) > 0 || filters.status.includes(s));
+  // Status boxes: every one ticked means no status filter, which is how the log opens on
+  // its own; a link from a message (?status=Failed) ticks only what it names. At least
+  // one stays ticked, and ticking the last one back returns to no filter.
+  const allStatuses = filters.status.length === 0;
+  const ticked = (s: string) => allStatuses || filters.status.includes(s);
+  const tickedCount = statuses.filter(ticked).length;
+  const toggleStatus = (s: string) => {
+    const next = ticked(s) ? statuses.filter((x) => ticked(x) && x !== s) : [...statuses.filter(ticked), s];
+    if (next.length > 0) set({ status: statuses.every((x) => next.includes(x)) ? [] : next });
+  };
   const allOpen = groups.length > 0 && groups.every((r) => expanded.has(r.id));
   // What narrows the log, named in one line with one reset.
   const active = [
@@ -317,14 +325,27 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
           </span>
         </div>
 
-        <div className="status-chips" role="group" aria-label="Statuses">
-          <button className={filters.status.length === 0 ? "active" : ""} onClick={() => set({ status: [] })}>All statuses</button>
-          {statuses.map((s) => (
-            <button key={s} className={`${filters.status.includes(s) ? "active" : ""} ${s === "Failed" ? "chip-failed" : ""}`}
-                    aria-pressed={filters.status.includes(s)} onClick={() => toggleStatus(s)}>
-              <span>{STATUS_LABEL[s]}</span> <span className="view-count">({count(totals?.status_counts[s] ?? 0)})</span>
-            </button>
-          ))}
+        <div className="status-checks" role="group" aria-label="Statuses">
+          <label className="status-check">
+            <input type="checkbox" checked={allStatuses} disabled={allStatuses} onChange={() => set({ status: [] })}
+                   ref={(el) => { if (el) el.indeterminate = !allStatuses && tickedCount > 0; }} />
+            All statuses
+          </label>
+          {statuses.map((s) => {
+            const last = ticked(s) && tickedCount === 1;
+            return (
+              <span key={s} className={`status-check ${s === "Failed" ? "check-failed" : ""} ${s === "Copied_Only" ? "check-warn" : ""}`}>
+                <label title={last ? "At least one status is shown." : undefined}>
+                  <input type="checkbox" checked={ticked(s)} disabled={last} onChange={() => toggleStatus(s)} />
+                  {STATUS_LABEL[s]} <span className="view-count">({count(totals?.status_counts[s] ?? 0)})</span>
+                </label>
+                {statuses.length > 1 && !(filters.status.length === 1 && filters.status[0] === s) && (
+                  <button className="link status-only" onClick={() => set({ status: [s] })}
+                          aria-label={`Show only ${STATUS_LABEL[s]}`}>only</button>
+                )}
+              </span>
+            );
+          })}
         </div>
 
         {notice && <p className="notice" role="status">{notice}{CALLS_FOR_INDEX.test(notice) && <> {indexButton}</>}</p>}
