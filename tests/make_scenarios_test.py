@@ -146,11 +146,11 @@ class MakeScenarios(unittest.TestCase):
             "SELECT source_path FROM operations WHERE status = 'Failed' AND source_path IS NOT NULL")}
         if os.geteuid() != 0:
             self.assertIn("unreadable.jpg", failed, "an unreadable file fails with a reason")
-        # KNOWN GAP, recorded as the manifest states it: the engine takes a .jpg on its
-        # extension alone. When it learns to refuse non-images, this fails: update both.
-        pending = {Path(p).name for (p,) in db.execute("SELECT source_path FROM photos WHERE status = 'Pending'")}
+        # A photo's name with no image inside: logged as Failed, "Not an image", and left alone.
+        reasons = dict(db.execute("SELECT source_path, error_message FROM operations WHERE status = 'Failed'"))
         for name in ("zero-bytes.jpg", "not-a-photo.jpg"):
-            self.assertIn(name, pending, f"{name}: the engine's handling changed; update the manifest")
+            self.assertIn(name, failed, f"{name} must be logged as a bad file")
+            self.assertTrue(next(r for p, r in reasons.items() if p.endswith(name)).startswith("Not an image"))
         undated = dict(db.execute(
             "SELECT basename, json_extract(metadata_json, '$.date_source') FROM "
             "(SELECT replace(source_path, rtrim(source_path, replace(source_path, '/', '')), '') AS basename, "

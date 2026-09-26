@@ -308,6 +308,34 @@ def an_unreadable_selected_extension_is_warned_about():
 
 
 @test
+def a_file_that_is_not_an_image_is_logged_and_left_alone():
+    """
+    A file with a photo's extension whose content is not an image (an empty file, or
+    text named .jpg) is recorded Failed with "Not an image" and nothing else: it is in
+    the log, and no Copy files it. Judged by content, so a PNG named .jpg is still a
+    photo. An extension the user selected that is not a photo format is outside the
+    rule: a .mov is carried as before.
+    """
+    case = new_case("not_an_image")
+    make_photo(case / "src" / "real.jpg", "real")
+    (case / "src" / "empty.jpg").write_bytes(b"")
+    (case / "src" / "notes.jpg").write_text("a text file with a photo's name\n")
+    from PIL import Image
+    Image.new("RGB", (40, 30), (10, 200, 30)).save(case / "src" / "misnamed.jpg", "PNG")
+    (case / "src" / "clip.mov").write_bytes(b"\x00\x00\x00\x18ftypqt  \x00\x00\x02\x00qt  ")
+    run_engine(case, "--exts", "jpg,mov")
+    failed = {Path(r["source_path"]).name: r["error_message"] for r in rows(
+        case, "SELECT source_path, error_message FROM operations WHERE status = 'Failed'")}
+    check(set(failed) == {"empty.jpg", "notes.jpg"}, f"expected exactly the two non-images to fail, got {failed}")
+    check(all(m.startswith("Not an image") for m in failed.values()), f"reasons: {failed}")
+    check("empty" in failed["empty.jpg"], failed["empty.jpg"])
+    run_engine(case, "--copy", "--exts", "jpg,mov")
+    delivered = {Path(f).name for f in dest_files(case)}
+    check(delivered == {"real.jpg", "misnamed.jpg", "clip.mov"},
+          f"a non-image was filed, or a photo or the selected .mov was not: {delivered}")
+
+
+@test
 def move_preserves_distinct_photos_sharing_a_filename():
     """Move: two different photos named alike both survive; neither overwrites the other."""
     case = new_case("collision")
@@ -3436,9 +3464,14 @@ def byte_identical_duplicates_share_one_thumbnail():
 def an_undecodable_photo_records_a_thumbnail_failure_without_failing_the_index():
     """A thumbnail is disposable cache: losing one must not cost a catalog row."""
     case = new_case("thumbbroken")
-    make_photo(case / "src" / "good.jpg", "good")
-    # A supported extension whose bytes are not an image at all.
-    (case / "src" / "broken.jpg").write_bytes(b"not a jpeg at all")
+    make_photo(case / "src" / "good.jpg", "good", size=(640, 480))
+    # A real JPEG cut short: an image by content, so it is catalogued, but its pixels
+    # cannot be decoded. (Bytes that are not an image at all are refused before any
+    # thumbnail: see a_file_that_is_not_an_image_is_logged_and_left_alone.)
+    make_photo(case / "src" / "whole.jpg", "broken", size=(640, 480))
+    body = (case / "src" / "whole.jpg").read_bytes()
+    (case / "src" / "whole.jpg").unlink()
+    (case / "src" / "broken.jpg").write_bytes(body[: len(body) // 3])
     run_engine(case)  # expect_rc=0: the Index must still succeed
 
     failed = rows(case, "SELECT failure_category,failure_detail,cache_filename FROM thumbnail_cache "
@@ -3453,8 +3486,8 @@ def an_undecodable_photo_records_a_thumbnail_failure_without_failing_the_index()
 
     check(len(rows(case, "SELECT 1 FROM thumbnail_cache WHERE availability='present'")) == 1,
           "the readable photo's thumbnail must still have been generated")
-    check(status_of(case, "broken.jpg") is not None,
-          "a file whose thumbnail failed must still be catalogued")
+    check(status_of(case, "broken.jpg") not in (None, "Failed"),
+          "a photo whose thumbnail failed must still be catalogued, not refused")
 
 
 @test

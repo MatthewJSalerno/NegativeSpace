@@ -151,9 +151,8 @@ docker run ... tests/make_scenarios.py change --out /storage/linked-samples/demo
 
 Its test, `make_scenarios_test.py`, runs in CI: a seed that must stay byte-identical, a
 seed filling during a build, refusals, and the real engine's Index checked against the
-manifest. **Known gap it records:** the engine takes a `.jpg` on its extension alone, so
-an empty file or a text file named `.jpg` is indexed as a photo; the manifest says so,
-and the test fails when that changes.
+manifest, including that an empty file and a text file named `.jpg` are logged as
+**Not an image** and never filed.
 
 ## Spec and schema checks — `tools/`
 

@@ -324,13 +324,13 @@ def build(args):
     edge.mkdir(parents=True, exist_ok=True)
     (edge / "zero-bytes.jpg").write_bytes(b"")
     m.add(edge / "zero-bytes.jpg", "edge_zero_bytes",
-          "KNOWN GAP: indexed as a photo (the engine checks the extension, not the content); a Copy files it under Undated")
+          "Failed: Not an image (the file is empty); in the log, never copied")
     body = rng.choice(jpegs).read_bytes()
     (edge / "truncated.jpg").write_bytes(body[: len(body) // 3])
     m.add(edge / "truncated.jpg", "edge_truncated", "Indexed from its intact EXIF; its picture is cut short")
     (edge / "not-a-photo.jpg").write_text("This is text with a photo's extension.\n")
     m.add(edge / "not-a-photo.jpg", "edge_not_an_image",
-          "KNOWN GAP: indexed as a photo although it is text; a Copy files it under Undated")
+          "Failed: Not an image (its content is text); in the log, never copied")
     side = rng.choice(jpegs)
     dest = edge / "with-sidecar.jpg"
     fresh_copy(side, dest)

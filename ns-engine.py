@@ -2509,6 +2509,27 @@ def _failed_result(file_path_str: str, run_id: int, error_message: str) -> Proce
     )
 
 
+def not_an_image(file_path: Path, file_size: Optional[int], metadata: dict) -> Optional[str]:
+    """Why a file with a photo's extension is not a photo, or None. Judged by content,
+    as ExifTool identified it, never by the name: a PNG named .jpg is still an image.
+    Such a file is recorded Failed with this reason, so it appears in the log and is
+    never copied, moved or filed (maintainer's rule, engine-spec 4.1). Without
+    ExifTool's answer (its PIL fallback), nothing is concluded: a photo is never
+    refused on a guess. An extension the user selected that is not a photo format
+    (.mov) is outside this rule: it is catalogued and carried, with its own warning
+    (webui-spec 3.2)."""
+    if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+        return None
+    if file_size == 0:
+        return "Not an image: the file is empty"
+    if metadata.get("Error"):
+        return f"Not an image: {metadata['Error']}"
+    mime = metadata.get("MIMEType")
+    if mime and not str(mime).startswith("image/"):
+        return f"Not an image: its content is {metadata.get('FileType') or mime}, not a photo"
+    return None
+
+
 def process_file_task(file_path_str: str, dest_base_path: str, run_id: int,
                       cache_root: Optional[str] = None,
                       original_mtime: Optional[float] = None) -> ProcessingResult:
@@ -2556,6 +2577,12 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int,
         thumbnail = generate_thumbnail(file_path, sha1, cache_root) if cache_root and sha1 else None
 
         dt, metadata = get_metadata_and_date(file_path, original_mtime)
+        refusal = not_an_image(file_path, file_size, metadata)
+        if refusal:
+            result = _failed_result(file_path_str, run_id, refusal)
+            result.file_size, result.file_mtime = file_size, file_mtime
+            result.birthtime, result.observed_at = birthtime, observed_at
+            return result
         # Keep an explicit, guaranteed-present date_taken key regardless of which
         # capture path produced `metadata`, since downstream consumers (path
         # computation here, and the inspector UI later) shouldn't need to know
