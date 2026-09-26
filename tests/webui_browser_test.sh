@@ -15,7 +15,7 @@ set -eu
 IMAGE=${IMAGE:-negativespace}
 WEB_IMAGE=${WEB_IMAGE:-negativespace-web}
 PLAYWRIGHT=mcr.microsoft.com/playwright/python:v1.63.0-noble
-# Enough photos for three pages of 60, dated across two years for Jump to date.
+# Enough photos for three pages of 60, dated across two years for the date tree.
 NEWER=70
 OLDER=60
 DUPLICATES=2

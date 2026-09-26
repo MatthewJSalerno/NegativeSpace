@@ -229,7 +229,7 @@ class JobsAndCatalog(ApiCase):
         only_2023 = photos(date=["2023"])
         self.assertEqual([i["date_taken"][:7] for i in only_2023["items"]], ["2023-11"])
         self.assertEqual(only_2023["counts"]["all"], 1, "the view counts must follow the date filter")
-        self.assertEqual(photos(date=["2020-09", "2023"])["total"], 2, "ticked dates add up")
+        self.assertEqual(photos(date=["2020-09", "2023"])["total"], 2, "checked dates add up")
         self.assertEqual(photos(date=["none"])["total"], 0)
         self.assertEqual(self.client.get("/api/v1/photos", params={"date": "June"}).status_code, 400)
         # The tree's counts ignore the date filter, so an unticked month keeps its number;

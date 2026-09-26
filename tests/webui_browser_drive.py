@@ -2,9 +2,9 @@
 
 Run by tests/webui_browser_test.sh against both containers holding generated photos:
 NEWER photos dated in one year and OLDER in an earlier one, plus exact copies. It walks
-first run, settings, Index, the gallery and its paging, jumping to a date, the
-Inspector and its divider, selection, Copy and search, and fails on any browser
-console error.
+first run, settings and backups, Index, the gallery's scrolling and date tree, the
+Inspector (metadata, history, lineage), selection with its review before Copy, the
+Actions menu, the log, and search, and fails on any browser console error.
 
 The unit suites cannot see the screens. This found a gallery that never refreshed
 after a job too short to be seen running, and an Inspector that crashed on a date
@@ -88,7 +88,7 @@ with sync_playwright() as p:
     shot("2-indexed")
     no_errors_yet()
 
-    # Paging for a large library: numbered pages, go-to, page size, jump to a date.
+    # A large library: the pager (numbered pages, go-to, size) and continuous scrolling.
     pager = page.locator(".pager").first
     pages = -(-PHOTOS // 60)
     expect(pager.get_by_role("button", name=str(pages), exact=True)).to_be_visible()
@@ -124,7 +124,7 @@ with sync_playwright() as p:
     expect(page.locator(".dates-row.current.month", has_text="January")).to_have_count(1, timeout=5_000)
     page.goto(BASE)
     # The date tree: clicking the older year jumps to its page; its first photo is photo
-    # number NEWER + 1. Ticking it shows only that year, and the address keeps it.
+    # number NEWER + 1. Checking it shows only that year, and the address keeps it.
     dates = page.get_by_role("navigation", name="Dates")
     expect(dates.get_by_label("Show only June 2019")).to_be_visible()   # every year starts unfolded
     dates.get_by_role("button", name="2019", exact=True).click()
@@ -299,7 +299,7 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"date=2019"))
     open_actions(page, "Copy").get_by_role("menuitem", name="Copy selected (3)").click()
     expect(page.locator(".card")).to_have_count(3)
-    # Unticking one there changes what will be copied; the photo stays on screen.
+    # Unchecking one there changes what will be copied; the photo stays on screen.
     page.locator(".card-check input").first.click()
     expect(review.get_by_role("button", name="Copy these 2 photos")).to_be_visible()
     expect(page.locator(".card")).to_have_count(3)
@@ -539,5 +539,5 @@ with sync_playwright() as p:
 
 assert not errors, f"browser console errors: {errors}"
 assert not server_errors, f"server errors: {server_errors}"
-print("web interface: first run, index, paging, jump to date, inspector, divider, selection, copy, "
+print("web interface: first run, index, scrolling, date tree, inspector, divider, selection, copy, "
       "settings, backups, dates, select, show only selected, search and phone layout ok")

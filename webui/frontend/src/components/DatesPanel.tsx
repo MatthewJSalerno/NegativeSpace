@@ -14,7 +14,7 @@ export function dateLabel(key: string): string {
 
 // The date tree (webui-spec 2): years with their months, with counts for the current
 // view and search. Clicking a name jumps the gallery there; the boxes under "Show only"
-// narrow it to the ticked years and months. None ticked shows every date.
+// narrow it to the checked years and months. None checked shows every date.
 export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJump }: {
   timeline: Timeline | null;
   dates: string[];
@@ -64,13 +64,13 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJ
   const toggleMonth = (month: string, months: { month: string }[]) => {
     const year = month.slice(0, 4);
     if (has(year)) {
-      // Unticking one month of a ticked year: the year's other months stay ticked.
+      // Unchecking one month of a checked year: the year's other months stay checked.
       onDates([...dates.filter((d) => d !== year), ...months.map((m) => m.month).filter((m) => m !== month)]);
     } else if (has(month)) {
       onDates(dates.filter((d) => d !== month));
     } else {
       const next = [...dates, month];
-      // Every month ticked is the year ticked.
+      // Every month checked is the year checked.
       onDates(months.every((m) => next.includes(m.month)) ? [...next.filter((d) => !d.startsWith(`${year}-`)), year] : next);
     }
   };
