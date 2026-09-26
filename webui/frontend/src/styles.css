@@ -403,3 +403,5 @@ body.dragging { cursor: col-resize; user-select: none; }
 .lineage-failure { display: grid; gap: 6px; justify-items: start; margin-top: 4px; }
 .presence-removed, .presence-missing { color: var(--warn); }
 .tip[data-tip]::after { white-space: pre-line; }
+/* Above the enlarged photo (z-index 30), which can open it too; closing returns there. */
+.lineage-overlay { z-index: 40; }

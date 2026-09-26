@@ -98,7 +98,7 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
   };
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="overlay lineage-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="dialog lineage-dialog" role="dialog" aria-modal="true" aria-labelledby="lineage-title">
         <header className="lineage-head">
           <h2 id="lineage-title">Lineage of {filename}</h2>

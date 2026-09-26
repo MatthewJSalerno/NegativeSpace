@@ -422,6 +422,20 @@ with sync_playwright() as p:
     page.keyboard.press("Escape")
     expect(tree).to_have_count(0)
     expect(page.locator(".inspector")).to_be_visible()     # Escape closes the window, not the panel too
+    # From the enlarged photo too: the tree opens on top of it, and closing returns there.
+    page.locator(".inspector .inspector-image").click()
+    lightbox = page.locator(".lightbox")
+    lightbox.get_by_role("button", name="View lineage tree").click()
+    expect(tree).to_be_visible()
+    box = tree.bounding_box()
+    on_top = page.evaluate("([x, y]) => !!document.elementFromPoint(x, y).closest('.lineage-dialog')",
+                           [box["x"] + box["width"] / 2, box["y"] + 20])
+    assert on_top, "the lineage tree opened behind the enlarged photo"
+    page.keyboard.press("Escape")
+    expect(tree).to_have_count(0)
+    expect(lightbox).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(lightbox).to_have_count(0)
     # A step's job opens the log on that job.
     events.nth(0).click()
     tree.get_by_role("link", name=re.compile(r"^job #\d+ index")).click()
