@@ -52,7 +52,7 @@ with sync_playwright() as p:
     expect(page.get_by_text("No catalog found")).to_be_visible()
     expect(page.locator(".panel h1 .logo")).to_be_visible()   # the logo greets a fresh install too
     # The catalog's folders, said as the user's own mounts, not as paths on their disk.
-    expect(page.locator(".mounts-note")).to_contain_text("paths inside the container, not on your computer")
+    expect(page.locator(".mounts-note")).to_contain_text("paths inside the container, not folders on your computer")
     expect(page.locator(".mounts-note")).to_contain_text("APPDATA_DIR")
     shot("0-no-catalog")
     page.get_by_role("button", name="Create new catalog").click()
