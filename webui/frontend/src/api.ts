@@ -45,6 +45,7 @@ export interface BrowseFilters {
   q: string;
   undated: boolean;
   dates?: string[];
+  types?: string[];
 }
 
 function browseQuery(f: BrowseFilters): URLSearchParams {
@@ -52,6 +53,7 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
   if (f.q) query.set("q", f.q);
   if (f.undated) query.set("undated", "true");
   (f.dates ?? []).forEach((d) => query.append("date", d));
+  (f.types ?? []).forEach((t) => query.append("type", t));
   return query;
 }
 
@@ -276,6 +278,41 @@ export interface Lineage {
   operations: LineageOperation[];
 }
 
+export interface Stats {
+  library: {
+    photos: number; bytes: number; organized: number; organized_bytes: number; not_organized: number;
+    formats: { format: string; photos: number; bytes: number }[];
+    cameras: { name: string; photos: number }[];
+    lenses: { name: string; photos: number }[];
+    megapixels: { band: string; photos: number }[];
+    under_1mp: number;
+    orientation: { landscape: number; portrait: number; square: number };
+    with_location: number;
+  };
+  dates: {
+    per_year: { year: string; photos: number }[];
+    oldest: string | null; newest: string | null;
+    busiest_day: { day: string; photos: number } | null;
+    undated: number; undated_no_date: number; undated_unusable: number; with_time_zone: number;
+  };
+  duplicates: {
+    groups: number; extra_copies: number; bytes: number; saved_at_destination: number;
+    move_would_free: number; freed_by_moves: number; near_duplicates: number | null; copies_not_written: number;
+    coverage: { last_complete_scan: string | null; established_by_run: number | null;
+                scans_with_issues_since: number; run_ids_since: number[] };
+  };
+  activity: {
+    jobs: Record<string, number>; last_index: string | null; copied: number; moved: number;
+    bytes_transferred: number; bytes_per_second: number | null; failures: Record<string, number>;
+    renames: number; exif_edits: number | null;
+  };
+  health: {
+    last_backup: string | null; backup_bytes: number; backups: number; unbacked_changes: number;
+    catalog_bytes: number; thumbnail_cache: { size: number; photos: number; bytes: number }[];
+    destination_check: { at: string; findings: Record<string, number> } | null;
+  };
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public body: Record<string, unknown>) {
     super(message);
@@ -315,6 +352,8 @@ export const api = {
   },
   // Without `dates` for the date tree's counts; with them for the page a jump lands on.
   timeline: (params: BrowseFilters) => request<Timeline>("GET", `/api/v1/photos/timeline?${browseQuery(params)}`),
+  types: (params: BrowseFilters) =>
+    request<{ types: { type: string; photos: number }[] }>("GET", `/api/v1/photos/types?${browseQuery(params)}`),
   photoIds: (params: BrowseFilters) =>
     request<{ ids: number[]; total: number; limit: number; over_limit: boolean }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
   selection: (ids: number[], sort: Sort, page: number, page_size: number) =>
@@ -335,6 +374,7 @@ export const api = {
   backups: () => request<Backups>("GET", "/api/v1/backups"),
   backupNow: () => request<BackupAttempt>("POST", "/api/v1/backups"),
   backupDownloadUrl: (id: number) => `/api/v1/backups/${id}/download`,
+  stats: () => request<Stats>("GET", "/api/v1/stats"),
   uiState: () => request<{ dismissed_run: number | null }>("GET", "/api/v1/ui-state"),
   saveUiState: (values: { dismissed_run: number }) => request<{ dismissed_run: number | null }>("PUT", "/api/v1/ui-state", values),
   runs: (limit = 100) => request<{ runs: Run[] }>("GET", `/api/v1/runs?limit=${limit}`),

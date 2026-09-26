@@ -107,12 +107,12 @@ with sync_playwright() as p:
     expect(page.locator(".card")).to_have_count(60)
     page.mouse.wheel(0, 20_000)
     expect(page.locator(".card")).to_have_count(120, timeout=10_000)
-    # The date panel stays beside the photos however far the gallery scrolls.
+    # The left panel stays beside the photos however far the gallery scrolls.
     page.mouse.wheel(0, 20_000)
     page.wait_for_timeout(300)
-    panel = page.get_by_role("navigation", name="Dates").bounding_box()
+    panel = page.locator(".side-panel").bounding_box()
     toolbar = page.locator(".toolbar").bounding_box()
-    assert abs(panel["y"] - (toolbar["y"] + toolbar["height"])) < 4, f"the date panel scrolled away: {panel}"
+    assert abs(panel["y"] - (toolbar["y"] + toolbar["height"])) < 4, f"the left panel scrolled away: {panel}"
     page.locator(".card").nth(90).scroll_into_view_if_needed()
     expect(page).to_have_url(re.compile(r"page=2\b"), timeout=5_000)
     expect(page.locator(".pager").first.locator("button.current")).to_have_text("2")
@@ -151,6 +151,21 @@ with sync_playwright() as p:
     expect(notice).to_have_count(0)
     dates.get_by_label("Show only 2023").uncheck()
     page.locator(".dates-filter-line").get_by_role("button", name="Show all dates").click()
+    # Types, above Dates and folded until opened: only the types the library holds (here, JPEG).
+    types = page.get_by_role("navigation", name="Types")
+    side = page.locator(".side-panel nav").evaluate_all("ns => ns.map(n => n.getAttribute('aria-label'))")
+    assert side[:2] == ["Types", "Dates"], f"Types is not at the top of the panel: {side}"
+    expect(types.locator(".type-row")).to_have_count(0)
+    types.get_by_role("button", name=re.compile(r"Types")).click()
+    expect(types.locator(".type-row")).to_have_count(1)
+    expect(types.locator(".type-row")).to_contain_text(f"JPG{PHOTOS:,}")
+    types.get_by_label("Show only JPG").check()
+    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only JPG")
+    expect(page).to_have_url(re.compile(r"type=jpg"))
+    types.get_by_role("button", name=re.compile(r"Types")).click()           # folded, it still names the filter
+    expect(types.get_by_role("button", name=re.compile(r"Types"))).to_contain_text("JPG")
+    page.locator(".dates-filter-line").get_by_role("button", name="Show all types").click()
+    expect(page).not_to_have_url(re.compile(r"type="))
     # Oldest first turns the tree over: the oldest year leads.
     year_names = dates.locator(".dates-tree > li > .dates-row .dates-name")
     expect(year_names.first).to_have_text("2023")
@@ -461,6 +476,39 @@ with sync_playwright() as p:
     expect(page.locator(".inspector")).to_be_visible()
     page.keyboard.press("Escape")
 
+    # Stats, beside Settings: the library in figures, each leading to what is behind it.
+    page.get_by_role("link", name="Stats").click()
+    expect(page).to_have_url(re.compile(r"/stats$"))
+    tiles = page.locator(".stat-tile")
+    expect(tiles.filter(has_text="Photos")).to_contain_text(f"{PHOTOS:,}")
+    expect(page.locator(".stat-panel h3")).to_have_count(6)
+    expect(page.locator(".stat-panel", has_text="Duplicates")).to_contain_text("Extra copies")
+    # Aligned: fixed columns, and every panel in a row as tall as the row.
+    boxes = page.locator(".stat-panel").evaluate_all(
+        "ps => ps.map(p => { const r = p.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; })")
+    rows = {}
+    for left, top, width, height in boxes:
+        rows.setdefault(top, []).append((left, width, height))
+    for top, row in rows.items():
+        assert len({w for _, w, _ in row}) == 1 and len({h for _, _, h in row}) == 1, f"a row of uneven panels: {row}"
+    lefts = [sorted(l for l, _, _ in row) for row in rows.values()]
+    assert all(r == lefts[0][:len(r)] for r in lefts), f"columns do not line up: {lefts}"
+    shot("9-stats")
+    # A format row opens the Library showing only that type.
+    page.locator(".stat-bars a.bar-label", has_text="JPG").click()
+    expect(page).to_have_url(re.compile(r"type=jpg"))
+    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only JPG")
+    page.go_back()
+    tiles.filter(has_text="Failed attempts").click()
+    expect(page).to_have_url(re.compile(r"/logs\?status=Failed"))
+    page.go_back()
+    # The chart counts dates taken: here only the two photos with an EXIF date (2023).
+    expect(page.locator(".year-bar")).to_have_count(1)
+    page.locator(".year-bar", has_text="2023").click()
+    expect(page).to_have_url(re.compile(r"date=2023"))
+    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only 2023")
+    page.locator(".dates-filter-line").get_by_role("button", name="Show all dates").click()
+
     page.get_by_role("button", name="Settings").click()
     expect(page.get_by_role("dialog")).to_contain_text("Changes apply to future jobs")
     # Catalog backups: each job above took one; Back up now adds a manual one.
@@ -540,4 +588,4 @@ with sync_playwright() as p:
 assert not errors, f"browser console errors: {errors}"
 assert not server_errors, f"server errors: {server_errors}"
 print("web interface: first run, index, scrolling, date tree, inspector, divider, selection, copy, "
-      "settings, backups, dates, select, show only selected, search and phone layout ok")
+      "stats, settings, backups, dates, select, show only selected, search and phone layout ok")

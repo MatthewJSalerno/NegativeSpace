@@ -126,6 +126,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 | `q` | filename search: current and original names, including removed duplicates' names; never folder names | none |
 | `undated` | `true` for only photos with no EXIF date taken, the ones filed under Undated | `false` |
 | `date` | repeatable: a year (`2023`), a month (`2023-06`) or `none` (no date at all); the date tree's "Show only". Several add up | none: every date |
+| `type` | repeatable: a file extension, lower case, no dot (`jpg`, `heic`); the Types section's "Show only". Several add up | none: every type |
 | `page`, `page_size` | page from 1; 1 to 240 photos | 1, 60 |
 
     {"items": [{"id": 12, "status": "Pending", "file_size": 3012443,
@@ -134,7 +135,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
      "page": 1, "page_size": 60, "total": 1160,
      "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160}}
 
-`counts` apply the search and `date` to each view, but not `undated`, which has its
+`counts` apply the search, `date` and `type` to each view, but not `undated`, which has its
 own count: turning No capture date on leaves All photos at its real number. `total` is
 what this request shows, every filter applied. `counts.undated` is how
 many photos in this view and search have no capture date, whether or not the filter is
@@ -142,7 +143,7 @@ on, for the filter's label. The date sorts put undatable rows last.
 
 ### `GET /api/v1/photos/timeline`
 
-Photos per calendar month for the same `view`, `q`, `undated` and `date`, newest month first:
+Photos per calendar month for the same `view`, `q`, `undated`, `date` and `type`, newest month first:
 
     {"months": [{"month": "2023-06", "count": 68}, ...], "undated": 0}
 
@@ -151,9 +152,19 @@ sits after every photo sorted before it, which is how the screen jumps to a mont
 page. The date tree asks without `date`, so an unticked month keeps its count; a jump
 asks with it, to land on the right page of the filtered gallery.
 
+### `GET /api/v1/photos/types`
+
+Photos per file type for the Types section, most first, for the same `view`, `q`,
+`undated` and `date`, but never `type`, so an unchecked type keeps its count. Only types
+the catalog holds are listed:
+
+    {"types": [{"type": "jpg", "photos": 2980}, {"type": "heic", "photos": 212}, ...]}
+
+A type is the extension of the name the photo was indexed under, lower case.
+
 ### `GET /api/v1/photos/ids`
 
-Every photo id the gallery shows for the same `view`, `q`, `undated` and `date`, across
+Every photo id the gallery shows for the same `view`, `q`, `undated`, `date` and `type`, across
 all pages: **Select all**.
 
     {"ids": [3, 7, ...], "total": 412, "limit": 1000, "over_limit": false}
@@ -305,7 +316,7 @@ Center (`webui-spec.md` §5.3).
 
 | Parameter | Meaning |
 | :--- | :--- |
-| `run` | A job id. Repeat it for several (`?run=4&run=5`): the Dashboard links to every run since a scan. |
+| `run` | A job id. Repeat it for several (`?run=4&run=5`): the Stats page links to every run since the last complete scan. |
 | `status` | An operation status (repeatable), from the catalog's vocabulary; anything else is `400`. |
 | `photo` | A photo's history. It follows the photo's file identities through `operation_files`, including a copy made from it, so a Move or Copy stays in it. |
 | `q` | Text in the source path, destination path or recorded message. |
@@ -389,6 +400,44 @@ and with `409 catalog_missing` (or another catalog state) when there is nothing 
 The file of a succeeded backup, as an attachment under its own name. A backup whose
 file is gone, pruned or never written is `404 backup_unavailable`.
 
+## 5c. Stats
+
+### `GET /api/v1/stats`
+
+Everything the Stats page shows, read from the catalog in one pass (`webui-spec.md` §5.9):
+
+    {"library": {"photos", "bytes", "organized", "organized_bytes", "not_organized",
+                 "formats": [{"format": "jpg", "photos", "bytes"}, ...],     // most space first
+                 "cameras": [{"name", "photos"}, ...], "lenses": [...],       // top eight each
+                 "megapixels": [{"band": "under 1 MP", "photos"}, ...], "under_1mp",
+                 "orientation": {"landscape", "portrait", "square"}, "with_location"},
+     "dates": {"per_year": [{"year", "photos"}, ...], "oldest", "newest",
+               "busiest_day": {"day", "photos"} | null,
+               "undated", "undated_no_date", "undated_unusable", "with_time_zone"},
+     "duplicates": {"groups", "extra_copies", "bytes", "saved_at_destination", "copies_not_written",
+                    "move_would_free", "freed_by_moves", "near_duplicates": null,
+                    "coverage": {"last_complete_scan" | null, "established_by_run" | null,
+                                 "scans_with_issues_since", "run_ids_since": [ids]}},
+     "activity": {"jobs": {"INDEX": 3, ...}, "last_index", "copied", "moved",
+                  "bytes_transferred", "bytes_per_second" | null,
+                  "failures": {"not_an_image": 2, "permission": 1, ...}, "renames", "exif_edits": null},
+     "health": {"last_backup", "backup_bytes", "backups", "unbacked_changes", "catalog_bytes",
+                "thumbnail_cache": [{"size", "photos", "bytes"}, ...],
+                "destination_check": {"at", "findings": {"missing": 1, ...}} | null}}
+
+Counts cover the photos the gallery lists (duplicates are counted apart, in
+`duplicates`). Dates count a date taken only; a photo filed by its file time is
+`undated`, split into no date in its EXIF and an unusable one. `failures` counts failed
+**attempts** by the start of the recorded reason, so one file failing in two jobs counts
+twice, as the log lists it. Figures that need unbuilt features (`near_duplicates`,
+`exif_edits`) are `null`, never a guess. The duplicate figures follow `webui-spec.md` §5.9:
+`move_would_free` is Reclaimable, `freed_by_moves` Reclaimed, and `saved_at_destination`
+counts only duplicates whose original is already `Copied` or `Completed`. `coverage`
+follows `webui-spec.md` §6.2: `last_complete_scan` and `established_by_run` come from the
+last untargeted Index that completed, recorded no run-level failure and scanned every
+supported type; `scans_with_issues_since` counts the untargeted Index runs after it that
+recorded one; `run_ids_since` lists every run after it, of any mode.
+
 ## 6. The run object and its outcome
 
     {"id": 47, "mode": "INDEX" | "COPY" | "MOVE" | "REBUILD" | "CHECK" | "RENAME",
@@ -455,8 +504,6 @@ These are designed in `webui-spec.md` and will be described here when they exist
 *   A live per-operation stream, for replaying a running job's individual events on
     reconnect (`webui-spec.md` §4.1, §5.2). `GET /operations?run=` covers the history;
     the drawer needs only the aggregate feed.
-*   `GET /api/v1/stats/duplicates`: the Dashboard's duplicate-space figures and
-    coverage (`webui-spec.md` §5.9).
 *   The curation actions: rename, the destination check (offered from a lineage
     tree's copy), thumbnail cache controls, and later metadata editing, all of which
     the engine already supports or is specified to (`engine-spec.md` §9).

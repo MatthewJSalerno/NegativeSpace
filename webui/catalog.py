@@ -1,6 +1,7 @@
 """Catalog reads for the API. Every write except settings belongs to the engine."""
 import contextlib
 import json
+import re
 import os
 import sqlite3
 from pathlib import Path
@@ -35,6 +36,14 @@ class CatalogUnavailable(Exception):
         self.state, self.detail = state, detail
 
 
+def _extension(path):
+    """A path's file type as the Types filter names it: the extension, lower case, no dot."""
+    if not path:
+        return None
+    name = path.rsplit("/", 1)[-1]
+    return name.rsplit(".", 1)[-1].lower() if "." in name else ""
+
+
 def _basename(path):
     return path.rsplit("/", 1)[-1] if path else None
 
@@ -57,6 +66,7 @@ def connect(db_path: Path):
                 "incompatible", f"{exc}. The catalog was left as it is; this version of NegativeSpace "
                                 f"cannot read it.") from exc
         conn.create_function("basename", 1, _basename, deterministic=True)
+        conn.create_function("extension", 1, _extension, deterministic=True)
         conn.row_factory = sqlite3.Row
         yield conn
     finally:
@@ -153,12 +163,28 @@ def _dates_clause(dates):
     return " AND (" + " OR ".join(parts) + ")", tuple(params)
 
 
-def _filters(q, undated, dates):
-    """Search, no-capture-date and date-tree filters, shared by the list, its ids and
-    its counts, so Select all takes exactly what the gallery shows."""
+# A photo's file type, from the name it was indexed under: a copy keeps its extension.
+_TYPE_OF = "extension(COALESCE(p.source_path, p.dest_path))"
+
+
+def _types_clause(types):
+    """The Types filter's "Show only": file extensions, lower case, no dot ("jpg",
+    "heic"). None or empty: every type."""
+    if not types:
+        return "", ()
+    if any(not isinstance(t, str) or not re.fullmatch(r"[a-z0-9]{1,10}", t) for t in types):
+        raise ValueError("type must be a file extension, e.g. jpg or heic")
+    return f" AND {_TYPE_OF} IN ({','.join('?' * len(types))})", tuple(types)
+
+
+def _filters(q, undated, dates, types=None):
+    """Search, no-capture-date, date-tree and type filters, shared by the list, its ids
+    and its counts, so Select all takes exactly what the gallery shows."""
     search, search_params = _search_clause(q)
     date_sql, date_params = _dates_clause(dates)
-    return search + (f" AND {_UNDATED}" if undated else "") + date_sql, tuple(search_params) + date_params
+    type_sql, type_params = _types_clause(types)
+    return (search + (f" AND {_UNDATED}" if undated else "") + date_sql + type_sql,
+            tuple(search_params) + date_params + type_params)
 
 
 def _check_view(view, sort=None, page=None, page_size=None):
@@ -183,11 +209,13 @@ def _items(conn, rows) -> list:
 
 
 def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, page_size=60, undated=False,
-                dates=None) -> dict:
+                dates=None, types=None) -> dict:
     _check_view(view, sort, page, page_size)
     search, search_params = _search_clause(q)
     date_sql, date_params = _dates_clause(dates)
-    filtered, filtered_params = _filters(q, undated, dates)
+    type_sql, type_params = _types_clause(types)
+    date_sql, date_params = date_sql + type_sql, date_params + type_params     # both narrow every count
+    filtered, filtered_params = _filters(q, undated, dates, types)
     with connect(db_path) as conn:
         # The views' counts ignore No capture date, which has its own count: turning it
         # on must not make All photos read as if the library had shrunk.
@@ -211,12 +239,13 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
     return {"items": items, "page": page, "page_size": page_size, "total": total, "counts": counts}
 
 
-def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, limit=SELECTION_MAX) -> dict:
+def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,
+              limit=SELECTION_MAX) -> dict:
     """Every photo id the gallery would show for these filters, across all pages, for
     Select all. More than `limit` is refused with the total, never cut short: a
     partial Select all would silently act on some of what the user saw."""
     _check_view(view)
-    filtered, params = _filters(q, undated, dates)
+    filtered, params = _filters(q, undated, dates, types)
     base = f"FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered
     with connect(db_path) as conn:
         total = conn.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
@@ -243,14 +272,14 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60) ->
             "missing": [i for i in wanted if i not in found]}
 
 
-def timeline(db_path: Path, *, view="all", q=None, undated=False, dates=None) -> dict:
+def timeline(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None) -> dict:
     """Photos per month for a view and search, newest month first: the date tree's counts
     and the page each month starts on. Months are the recorded date's calendar month (a
     file date for an undated photo, as the gallery shows it); `undated` counts rows with
     no date at all, which every date sort places last. The tree asks without `dates`, so
     an unticked month keeps its count; jumping asks with them, to land on the right page."""
     _check_view(view)
-    filtered, params = _filters(q, undated, dates)
+    filtered, params = _filters(q, undated, dates, types)
     base = f"FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered
     with connect(db_path) as conn:
         months = [{"month": r[0], "count": r[1]} for r in conn.execute(
@@ -260,6 +289,17 @@ def timeline(db_path: Path, *, view="all", q=None, undated=False, dates=None) ->
         undated = conn.execute(
             f"SELECT COUNT(*) {base} AND json_extract(p.metadata_json, '$.date_taken') IS NULL", params).fetchone()[0]
     return {"months": months, "undated": undated}
+
+
+def file_types(db_path: Path, *, view="all", q=None, undated=False, dates=None) -> list:
+    """Photos per file type for the Types section: the view, search and dates apply, the
+    Types filter itself does not, so an unchecked type keeps its count. Most first."""
+    _check_view(view)
+    filtered, params = _filters(q, undated, dates)
+    with connect(db_path) as conn:
+        return [{"type": r[0], "photos": r[1]} for r in conn.execute(
+            f"SELECT {_TYPE_OF} AS t, COUNT(*) AS n FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})"
+            + filtered + " GROUP BY t ORDER BY n DESC, t", params)]
 
 
 def thumbnail_record(conn, photo_id: int, size: int):
@@ -727,3 +767,191 @@ def photo_lineage(db_path: Path, photo_id: int) -> Optional[dict]:
         op["recovery"] = bool(op["recovery"])
         op["files"] = by_op.get(op["id"], [])
     return {"photo_id": photo_id, "sha1": photo["sha1_hash"], "photos": photos, "files": files, "operations": operations}
+
+
+# --- Library stats (webui-spec 5.9) ---------------------------------------------
+
+# Why an attempt failed, by the start of the reason the engine recorded; the Error
+# Center shows the same attempts, one link away.
+_FAILURE_KINDS = (("Not an image", "not_an_image"), ("PermissionError", "permission"),
+                  ("Source file changed", "changed_since_index"), ("Duplicate verification failed", "duplicate_check"),
+                  ("Insufficient space", "no_space"))
+_MEGAPIXEL_BANDS = ((1, "under 1 MP"), (4, "1–4 MP"), (12, "4–12 MP"), (24, "12–24 MP"), (None, "24 MP and up"))
+
+
+def _failure_kind(message: Optional[str]) -> str:
+    for prefix, kind in _FAILURE_KINDS:
+        if message and (message.startswith(prefix) or prefix in message[:60]):
+            return kind
+    return "other"
+
+
+def _seconds(start: Optional[str], end: Optional[str]) -> Optional[float]:
+    from datetime import datetime
+    try:
+        return (datetime.fromisoformat(end) - datetime.fromisoformat(start)).total_seconds()
+    except (TypeError, ValueError):
+        return None
+
+
+def _coverage(runs) -> dict:
+    """How current the duplicate figures are (webui-spec 5.9, 6.2). Coverage is set by the
+    last Index that scanned the whole source for every supported type and completed with no
+    run-level failure: untargeted, Completed, no photo-less Failed operation, and effective
+    extensions covering every type the engine reads. Completing is not covering: an Index
+    of a detached source completes, finds nothing and records a run-level failure. Returned
+    with the Index runs since that had issues and every run since, of any mode, so the gap
+    is shown rather than hidden."""
+    def full_scan(r):
+        exts = json.loads(r["exts"]) if r["exts"] else None
+        every_type = exts is None or ns_db.SUPPORTED_EXTENSIONS <= {e.lower() for e in exts}
+        return (r["mode"] == "INDEX" and r["file_ids_filter"] is None and r["status"] == RunStatus.COMPLETED
+                and not r["issues"] and every_type)
+    covering = [r for r in runs if full_scan(r)]
+    last = covering[-1] if covering else None
+    since = [r for r in runs if last is None or r["id"] > last["id"]]
+    return {"last_complete_scan": last["at"] if last else None,
+            "established_by_run": last["id"] if last else None,
+            "scans_with_issues_since": sum(1 for r in since if r["mode"] == "INDEX" and r["file_ids_filter"] is None
+                                           and r["issues"]),
+            "run_ids_since": [r["id"] for r in since]}
+
+
+def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path) -> dict:
+    """Everything the Stats page shows, read from the catalog in one pass: the library,
+    its dates, duplicates, the work done, and the catalog's health. Only what is
+    recorded: figures that need unbuilt features (near-duplicates, EXIF edits) are None."""
+    shown = ns_db.sql_values(VIEWS["all"])
+    with connect(db_path) as conn:
+        photos = conn.execute(
+            f"SELECT p.status, p.file_size, COALESCE(CASE WHEN p.status IN ({ns_db.sql_values(DELIVERED)}) "
+            "THEN p.dest_path END, p.source_path) AS path, "
+            "json_extract(p.metadata_json, '$.Make') AS make, json_extract(p.metadata_json, '$.Model') AS model, "
+            "json_extract(p.metadata_json, '$.LensModel') AS lens, "
+            "json_extract(p.metadata_json, '$.GPSLatitude') AS gps, "
+            "json_extract(p.metadata_json, '$.Orientation') AS orientation, "
+            "json_extract(p.metadata_json, '$.date_taken') AS date_taken, "
+            "json_extract(p.metadata_json, '$.date_source') AS date_source, "
+            "json_extract(p.metadata_json, '$.DateTimeOriginal') AS original, "
+            "json_extract(p.metadata_json, '$.OffsetTimeOriginal') AS offset, c.width, c.height "
+            f"FROM photos p LEFT JOIN contents c ON c.digest = p.sha1_hash WHERE p.status IN ({shown})").fetchall()
+        dup = conn.execute(
+            f"SELECT COUNT(*) AS copies, COALESCE(SUM(file_size), 0) AS bytes, "
+            f"COALESCE(SUM(CASE WHEN status = ? THEN file_size END), 0) AS in_source, "
+            f"COALESCE(SUM(CASE WHEN status = ? THEN file_size END), 0) AS removed, "
+            f"COUNT(DISTINCT sha1_hash) AS groups FROM photos WHERE status IN ({ns_db.sql_values(COPIES)})",
+            (PhotoStatus.DUPLICATE, PhotoStatus.REMOVED_DUPLICATE)).fetchone()
+        # Saved at the destination only once the content is delivered there (webui-spec 5.9):
+        # a duplicate whose original is not yet copied has saved nothing so far.
+        saved = conn.execute(
+            f"SELECT COUNT(*), COALESCE(SUM(d.file_size), 0) FROM photos d WHERE d.status IN ({ns_db.sql_values(COPIES)}) "
+            "AND EXISTS (SELECT 1 FROM photos a WHERE a.sha1_hash = d.sha1_hash AND a.id != d.id AND a.status IN (?, ?))",
+            (PhotoStatus.COPIED, PhotoStatus.COMPLETED)).fetchone()
+        # Coverage (webui-spec 6.2): every run, with what decides whether it established it.
+        coverage_runs = conn.execute(
+            "SELECT r.id, r.mode, r.status, r.file_ids_filter, COALESCE(r.ended_at, r.started_at) AS at, "
+            "EXISTS (SELECT 1 FROM operations o WHERE o.run_id = r.id AND o.status = ? AND o.photo_id IS NULL) AS issues, "
+            "json_extract(c.effective_config_json, '$.exts') AS exts "
+            "FROM runs r LEFT JOIN run_configs c ON c.run_id = r.id ORDER BY r.id", (PhotoStatus.FAILED,)).fetchall()
+        ops = dict(conn.execute("SELECT status, COUNT(*) FROM operations GROUP BY status").fetchall())
+        moved_bytes = conn.execute(
+            "SELECT COALESCE(SUM(p.file_size), 0) FROM operations o JOIN photos p ON p.id = o.photo_id "
+            "WHERE o.status IN (?, ?)", (PhotoStatus.COPIED, PhotoStatus.COMPLETED)).fetchone()[0]
+        failures = {}
+        for (message,) in conn.execute("SELECT error_message FROM operations WHERE status = ?", (PhotoStatus.FAILED,)):
+            kind = _failure_kind(message)
+            failures[kind] = failures.get(kind, 0) + 1
+        runs = conn.execute("SELECT id, mode, status, started_at, ended_at FROM runs ORDER BY id").fetchall()
+        transfer_bytes = dict(conn.execute(
+            "SELECT o.run_id, SUM(p.file_size) FROM operations o JOIN photos p ON p.id = o.photo_id "
+            "WHERE o.status IN (?, ?) GROUP BY o.run_id", (PhotoStatus.COPIED, PhotoStatus.COMPLETED)).fetchall())
+        conn.row_factory = None
+        cache = [{"size": s, "photos": n, "bytes": b} for s, n, b in ns_db.thumbnail_cache_totals(conn)]
+        check = conn.execute("SELECT id, started_at FROM runs WHERE mode = 'CHECK' AND status = ? ORDER BY id DESC LIMIT 1",
+                             (RunStatus.COMPLETED,)).fetchone()
+        findings = dict(conn.execute("SELECT kind, COUNT(*) FROM destination_findings WHERE run_id = ? GROUP BY kind",
+                                     (check[0],)).fetchall()) if check else {}
+
+    # The library
+    organized = [p for p in photos if p["status"] in DELIVERED]
+    total_bytes = sum(p["file_size"] or 0 for p in photos)
+    formats = {}
+    for p in photos:
+        ext = Path(p["path"] or "").suffix.lower().lstrip(".") or "none"
+        f = formats.setdefault(ext, {"format": ext, "photos": 0, "bytes": 0})
+        f["photos"] += 1
+        f["bytes"] += p["file_size"] or 0
+    def top(values, n=8):
+        counts = {}
+        for v in values:
+            if v:
+                counts[v] = counts.get(v, 0) + 1
+        return [{"name": k, "photos": v} for k, v in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:n]]
+    cameras = top(" ".join(x for x in (p["make"], p["model"]) if x) or None for p in photos)
+    bands = {label: 0 for _, label in _MEGAPIXEL_BANDS}
+    portrait = landscape = square = 0
+    for p in photos:
+        if not p["width"] or not p["height"]:
+            continue
+        mp = p["width"] * p["height"] / 1e6
+        bands[next(label for limit, label in _MEGAPIXEL_BANDS if limit is None or mp < limit)] += 1
+        w, h = p["width"], p["height"]
+        if "90" in str(p["orientation"] or "") or "270" in str(p["orientation"] or ""):
+            w, h = h, w                           # a quarter turn: shown the other way up
+        portrait += h > w
+        landscape += w > h
+        square += w == h
+
+    # Dates: only a date taken from the photo counts; a file date is not one.
+    dated = [p for p in photos if p["date_source"] != "file_mtime" and p["date_taken"]]
+    years, days = {}, {}
+    for p in dated:
+        years[p["date_taken"][:4]] = years.get(p["date_taken"][:4], 0) + 1
+        days[p["date_taken"][:10]] = days.get(p["date_taken"][:10], 0) + 1
+    busiest = max(days.items(), key=lambda kv: (kv[1], kv[0])) if days else None
+    undated = [p for p in photos if p["date_source"] == "file_mtime"]
+    unusable = sum(1 for p in undated if p["original"])
+
+    # Activity
+    mode_counts = {}
+    for r in runs:
+        mode_counts[r["mode"]] = mode_counts.get(r["mode"], 0) + 1
+    last_index = next((r["ended_at"] or r["started_at"] for r in reversed(runs) if r["mode"] == "INDEX"), None)
+    moved_seconds = sum(s for r in runs if r["mode"] in ("COPY", "MOVE") and r["id"] in transfer_bytes
+                        for s in [_seconds(r["started_at"], r["ended_at"])] if s)
+    moved_run_bytes = sum(b for rid, b in transfer_bytes.items() if b)
+
+    status_path = db_path
+    catalog_bytes = sum(Path(f"{status_path}{suffix}").stat().st_size
+                        for suffix in ("", "-wal") if Path(f"{status_path}{suffix}").exists())
+    backup = backups(db_path, backups_dir, appdata_dir)
+    return {
+        "library": {"photos": len(photos), "bytes": total_bytes,
+                    "organized": len(organized), "organized_bytes": sum(p["file_size"] or 0 for p in organized),
+                    "not_organized": len(photos) - len(organized),
+                    "formats": sorted(formats.values(), key=lambda f: (-f["bytes"], f["format"])),
+                    "cameras": cameras, "lenses": top(p["lens"] for p in photos),
+                    "megapixels": [{"band": k, "photos": v} for k, v in bands.items()],
+                    "under_1mp": bands[_MEGAPIXEL_BANDS[0][1]],
+                    "orientation": {"landscape": landscape, "portrait": portrait, "square": square},
+                    "with_location": sum(1 for p in photos if p["gps"] is not None)},
+        "dates": {"per_year": [{"year": y, "photos": n} for y, n in sorted(years.items())],
+                  "oldest": min((p["date_taken"] for p in dated), default=None),
+                  "newest": max((p["date_taken"] for p in dated), default=None),
+                  "busiest_day": {"day": busiest[0], "photos": busiest[1]} if busiest else None,
+                  "undated": len(undated), "undated_no_date": len(undated) - unusable, "undated_unusable": unusable,
+                  "with_time_zone": sum(1 for p in dated if p["offset"])},
+        "duplicates": {"groups": dup["groups"], "extra_copies": dup["copies"], "bytes": dup["bytes"],
+                       "saved_at_destination": saved[1], "copies_not_written": saved[0],
+                       "move_would_free": dup["in_source"], "freed_by_moves": dup["removed"], "near_duplicates": None,
+                       "coverage": _coverage(coverage_runs)},
+        "activity": {"jobs": mode_counts, "last_index": last_index,
+                     "copied": ops.get(PhotoStatus.COPIED, 0), "moved": ops.get(PhotoStatus.COMPLETED, 0),
+                     "bytes_transferred": moved_bytes,
+                     "bytes_per_second": round(moved_run_bytes / moved_seconds) if moved_seconds else None,
+                     "failures": failures, "renames": ops.get(OPERATION_RENAMED, 0), "exif_edits": None},
+        "health": {"last_backup": backup["last_success"], "backup_bytes": backup["present_bytes"],
+                   "backups": backup["present_count"], "unbacked_changes": backup["unbacked"]["count"],
+                   "catalog_bytes": catalog_bytes, "thumbnail_cache": cache,
+                   "destination_check": {"at": check[1], "findings": findings} if check else None},
+    }
