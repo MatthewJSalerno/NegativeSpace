@@ -188,6 +188,7 @@ function Details({ detail: d, onLineage }: { detail: PhotoDetail; onLineage: () 
         ))}
         <Row label="Camera">{d.camera ?? <span className="muted">Not recorded</span>}</Row>
         <Row label="Exposure">{exposure || <span className="muted">Not recorded</span>}</Row>
+        <tr className="meta-row"><td colSpan={2}><AllMetadata tags={d.metadata ?? []} /></td></tr>
       </Section>
 
       {d.thumbnail.availability === "failed" && (
@@ -215,13 +216,12 @@ function Details({ detail: d, onLineage }: { detail: PhotoDetail; onLineage: () 
         <Row label="SHA-1"><code>{d.sha1 ?? "not recorded"}</code></Row>
         <Row label="Perceptual hash"><code>{d.phash ?? "not recorded"}</code></Row>
       </Section>
-      <AllMetadata tags={d.metadata ?? []} />
     </div>
   );
 }
 
-// Every tag the Index recorded, folded until asked for (webui-spec 4.2): the fields
-// above are a few of them. Read from the catalog, so it is the photo as last indexed.
+// Every tag the Index recorded, folded until asked for under the EXIF fields it
+// extends (webui-spec 4.2): those fields are a few of them. Read from the catalog, so it is the photo as last indexed.
 function AllMetadata({ tags }: { tags: [string, unknown][] }) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
@@ -229,7 +229,7 @@ function AllMetadata({ tags }: { tags: [string, unknown][] }) {
   const shown = f ? tags.filter(([k, v]) => k.toLowerCase().includes(f) || String(v).toLowerCase().includes(f)) : tags;
   const text = (v: unknown) => (v !== null && typeof v === "object" ? JSON.stringify(v) : String(v));
   return (
-    <section className="info-section all-metadata">
+    <div className="all-metadata">
       {/* Stays at the top of the panel while the tags scroll, so Hide is always at hand. */}
       <div className={open ? "meta-head" : undefined}>
         <button className="link" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -250,7 +250,7 @@ function AllMetadata({ tags }: { tags: [string, unknown][] }) {
           )}
         </>
       )}
-    </section>
+    </div>
   );
 }
 

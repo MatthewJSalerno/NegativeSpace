@@ -543,7 +543,8 @@ recorded. Escape closes the window only, not the panel behind it.
 
 **Show all metadata.** The Index records every tag ExifTool reads (Pillow's when ExifTool
 finds nothing), not a curated subset; the Inspector's fields are a few of them. A folded
-**Show all metadata (n tags)** at the foot of the panel lists every one by name, with a
+**Show all metadata (n tags)** inside **Photo EXIF information**, under the fields it
+extends, lists every one by name, with a
 filter box; its header, with **Hide all metadata**, stays at the top of the panel while
 the tags scroll. It is read from the catalog, so it shows the photo as last indexed, and costs
 no file read.
@@ -938,7 +939,12 @@ either page (Copy and Move selected are disabled there: selecting is the Library
 active filters are named in one line with one reset (**"Showing: job #3 · Failed ·
 “photo-00” · Clear all filters"**). An open job's entries load in batches of 100 as the
 list scrolls, and the job's header line, with its collapse arrow, stays at the top
-meanwhile. Status counts keep their width, as the Library's view counts do. The Inspector's
+meanwhile. **Statuses are checkboxes, one or many:** every one ticked, the way the log opens
+on its own, means no status filter; a link from a message (**View failures**) ticks only
+what it names. Each has its count and an **only** link to narrow to it in one click;
+**All statuses** ticks every one again, and the last ticked box cannot be unticked, since a
+log of no statuses shows nothing. *Why not buttons:* a row of toggle buttons grew crowded
+and did not say whether it meant one status or several. The Inspector's
 **Open in the log**, under History, opens the log for that photo. Each failure carries a plain hint drawn from its
 recorded reason, and **Retry**, inside the job it belongs to, runs the same mode again over the photos behind
 that job's shown failures, and says what it did beside the button. Over the 1,000 photos a

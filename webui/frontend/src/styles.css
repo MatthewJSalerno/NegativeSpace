@@ -94,7 +94,8 @@ button.icon { font-size: 1.1rem; padding: 4px 10px; }
 .tip:hover::after, .tip:focus-within::after { opacity: 1; }
 .brand { font-size: 1.1rem; display: inline-flex; align-items: center; gap: 8px; }
 .brand-large { font-size: 1.8rem; gap: 14px; }
-.mounts-note { display: grid; gap: 6px; }
+.mounts-note { display: grid; gap: 8px; border-left: 4px solid var(--border); padding-left: 12px; }
+.mounts-note code { white-space: nowrap; }
 .mounts-note p, .mounts-note ul { margin: 0; }
 .mounts-note ul { padding-left: 20px; }
 .logo { flex: none; display: block; }
@@ -122,9 +123,13 @@ button.link { border: 0; padding: 0; background: none; color: var(--accent); tex
 .log-filters .field-inline { align-items: center; margin: 0; }
 .log-filters .export { margin-left: auto; }
 .log-filters .export a { color: var(--accent); }
-.status-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.status-chips button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-.status-chips .chip-failed:not(.active) { color: var(--bad); }
+.status-checks { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+.status-check { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.status-check label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.status-check.check-failed label { color: var(--bad); }
+.status-check.check-warn label { color: var(--warn); }
+.status-only { font-size: 0.8rem; }
+.status-checks .view-count { font-variant-numeric: tabular-nums; }
 .log-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
 .log-table th, .log-table td { padding: 8px 10px; text-align: left; vertical-align: top; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
 .log-table thead th { border-top: 0; color: var(--muted); font-weight: normal; font-size: 0.85rem; }
@@ -224,6 +229,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .info th, .info td { padding: 6px 10px; text-align: left; vertical-align: top; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
 .info tr:first-child th, .info tr:first-child td { border-top: 0; }
 .info th { width: 34%; font-weight: normal; color: var(--muted); }
+/* Show all metadata, the EXIF box's last row: its tags open inside the box. */
+.info .meta-row > td { padding: 8px 10px; }
 .info-empty { margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; }
 .copies { list-style: none; padding: 0; margin: 0; display: grid; }
 .copies li { display: grid; gap: 4px; justify-items: start; padding: 8px 10px; border-top: 1px solid var(--border); }
@@ -366,7 +373,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 .meta-head input { flex: 1 1 160px; }
 
 /* The view buttons keep their width as counts change: room for "(999,999)", even digits. */
-.views .view-count, .status-chips .view-count { display: inline-block; min-width: 9ch; text-align: left; font-variant-numeric: tabular-nums; }
+.views .view-count { display: inline-block; min-width: 9ch; text-align: left; font-variant-numeric: tabular-nums; }
 
 /* An open job's header line stays at the top while its entries scroll. */
 .job-group.open > .job-head { position: sticky; top: var(--header-h, 0px); z-index: 2; background: var(--surface);

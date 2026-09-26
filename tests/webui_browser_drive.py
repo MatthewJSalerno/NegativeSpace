@@ -52,7 +52,7 @@ with sync_playwright() as p:
     expect(page.get_by_text("No catalog found")).to_be_visible()
     expect(page.locator(".panel h1 .logo")).to_be_visible()   # the logo greets a fresh install too
     # The catalog's folders, said as the user's own mounts, not as paths on their disk.
-    expect(page.locator(".mounts-note")).to_contain_text("paths inside the container, not on your computer")
+    expect(page.locator(".mounts-note")).to_contain_text("paths inside the container, not folders on your computer")
     expect(page.locator(".mounts-note")).to_contain_text("APPDATA_DIR")
     shot("0-no-catalog")
     page.get_by_role("button", name="Create new catalog").click()
@@ -202,8 +202,10 @@ with sync_playwright() as p:
     expect(inspector.get_by_role("link", name="History", exact=True)).to_have_count(0)   # one place, not two
     widths = inspector.locator("table.info").evaluate_all("ts => ts.map(t => Math.round(t.getBoundingClientRect().width))")
     assert len(widths) == 3 and len(set(widths)) == 1, f"the information tables differ in width: {widths}"
-    # Show all metadata: every tag recorded, folded until asked for, with a filter.
-    inspector.get_by_role("button", name=re.compile(r"^Show all metadata \(\d+ tags\)")).click()
+    # Show all metadata: every tag recorded, folded until asked for, with a filter, inside
+    # the EXIF section it extends.
+    exif = inspector.locator(".info-section", has=page.get_by_role("heading", name="Photo EXIF information"))
+    exif.get_by_role("button", name=re.compile(r"^Show all metadata \(\d+ tags\)")).click()
     expect(inspector.locator(".meta-table")).to_contain_text("ImageWidth")
     # Scrolled to the last tag, Hide stays in reach, below the panel's own title bar.
     inspector.locator(".meta-table tr").last.scroll_into_view_if_needed()
@@ -399,8 +401,16 @@ with sync_playwright() as p:
     page.keyboard.press("Escape")
     page.unroute("**/api/v1/operations/photo-ids*")
     os.chmod(locked, 0o644)
-    page.get_by_role("button", name="All statuses").click()
-    expect(page.locator(".status-chips")).to_contain_text("Copied")
+    # Status boxes: arriving from a message ticks only what it named; All statuses ticks
+    # every one again, which is no filter at all.
+    statuses = page.locator(".status-checks")
+    expect(statuses.get_by_role("checkbox", name=re.compile(r"^Failed \("))).to_be_checked()
+    expect(statuses.get_by_role("checkbox", name=re.compile(r"^Copied \("))).not_to_be_checked()
+    expect(statuses.get_by_role("checkbox", name=re.compile(r"^Failed \("))).to_be_disabled()   # at least one stays
+    statuses.get_by_role("checkbox", name="All statuses").check()
+    expect(statuses.get_by_role("checkbox", name=re.compile(r"^Copied \("))).to_be_checked()
+    expect(statuses.get_by_role("checkbox", name="All statuses")).to_be_disabled()
+    expect(page).not_to_have_url(re.compile(r"status="))
     # Every job, one line each until opened; the job arrived at from the banner stays open.
     page.get_by_role("button", name="Show all jobs").click()
     expect(page.locator(".job-group")).to_have_count(4)
@@ -420,7 +430,12 @@ with sync_playwright() as p:
     expect(copy_all.locator(".job-head")).to_be_in_viewport()
     shot("8-log-scrolling")
     copy_all.locator(".job-head").click()
-    page.locator(".status-chips").get_by_role("button", name=re.compile(r"^Copied")).click()
+    # One or many: unticking one leaves the rest, and "only" narrows to one in a click.
+    statuses.get_by_role("checkbox", name=re.compile(r"^Indexed \([\d,]+\)$")).uncheck()
+    expect(page.locator(".dates-filter-line")).not_to_contain_text("Indexed ·")
+    expect(statuses.get_by_role("checkbox", name="All statuses")).to_be_enabled()
+    statuses.get_by_role("button", name="Show only Copied").click()
+    expect(statuses.get_by_role("checkbox", name=re.compile(r"^Indexed \([\d,]+\)$"))).not_to_be_checked()
     page.get_by_label("Search the log").fill("photo-00")
     expect(page.locator(".dates-filter-line")).to_contain_text("Showing: Copied · “photo-00”")
     page.get_by_role("button", name="Clear all filters").click()

@@ -128,13 +128,14 @@ function MountsNote({ status }: { status: Status }) {
         <li>its catalog in <code>{status.application_data}</code></li>
         <li>catalog backups in <code>{status.catalog_backups}</code></li>
       </ul>
-      <p className="muted">
-        These are paths inside the container, not on your computer. Each is a folder on your computer
-        that you chose when you set up NegativeSpace: <code>APPDATA_DIR</code> and <code>BACKUP_DIR</code> in{" "}
-        <code>docker/.env</code> with the included <code>docker/compose.yml</code>, or the <code>-v</code>{" "}
-        options if you use <code>docker run</code>. Check that they still name the same folders as before
-        and that those folders are reachable (a network share or USB drive can be disconnected).
-      </p>
+      <p>These are paths inside the container, not folders on your computer.</p>
+      <p>Each is a folder on your computer that you chose when you set up NegativeSpace:</p>
+      <ul>
+        <li>with the included <code>docker/compose.yml</code>: <code>APPDATA_DIR</code> and <code>BACKUP_DIR</code> in <code>docker/.env</code></li>
+        <li>with <code>docker run</code>: its <code>-v</code> options</li>
+      </ul>
+      <p>If you've used NegativeSpace before, check that they still name the same folders, and that those
+        folders are reachable: a network share or USB drive can be disconnected.</p>
     </div>
   );
 }
