@@ -32,8 +32,12 @@ git-ignored), then build and start both:
 
 ```bash
 cp docker/.env.example docker/.env   # then edit the paths in docker/.env
-docker compose -f docker/compose.yml up -d --build
+NS_BRANCH=$(git branch --show-current) NS_COMMIT=$(git rev-parse --short HEAD) \
+  docker compose -f docker/compose.yml up -d --build
 ```
+
+`NS_BRANCH` and `NS_COMMIT` are optional: they put the branch and commit beside the
+release number at the top right of every page, so a report names the exact build.
 
 Compose reads `docker/.env` by itself, in any terminal. Without it, compose stops with
 "required variable SOURCE_DIR is missing a value". Setting the same names with

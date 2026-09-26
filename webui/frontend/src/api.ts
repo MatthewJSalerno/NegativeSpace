@@ -12,6 +12,8 @@ export interface Status {
   copied: number;
   application_data: string;
   catalog_backups: string;
+  // Which build is running: the release, and the branch and commit it was built from.
+  version?: { release: string | null; branch: string | null; commit: string | null };
   active_job: Run | null;
 }
 

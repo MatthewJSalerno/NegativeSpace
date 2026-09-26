@@ -343,6 +343,11 @@ A finished job's banner explains its skips, grouped by the reason each photo rec
 for example **"5 skipped (3 copied by an earlier job, 2 duplicates: the same content is
 copied once)"**. The API groups them from the engine's reason text (`webui/catalog.py`).
 
+**Which build is running** shows at the top right, beside Settings, on every page and on
+the first-run and catalog-problem screens: **"v0.1.0 · main · 2c4728f"**, the release in
+`VERSION` and the branch and commit the image was built from, so a report names the
+exact code. `VERSION` is raised with each merged change that alters behaviour.
+
 The Library's actions live in one **Actions** menu, after **Library** in the page links:
 **Index**, **Copy ▸** and **Move ▸**, the last two each offering **selected (n)** (the
 photos selected in the Library) and **all (n)**. The toolbar's second row holds the views,

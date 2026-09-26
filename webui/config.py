@@ -43,3 +43,14 @@ class Config:
         return [self.python, str(self.engine), "--source", str(self.source), "--dest", str(self.dest),
                 "--base", str(self.base), "--cache", str(self.cache), "--backups", str(self.backups),
                 *[str(a) for a in args]]
+
+
+def build_version() -> dict:
+    """Which build this is: the release in VERSION, and the branch and commit the image
+    was built from (NS_BRANCH, NS_COMMIT build arguments), or None when not given."""
+    try:
+        release = (REPO / "VERSION").read_text().strip() or None
+    except OSError:
+        release = None
+    return {"release": release, "branch": os.environ.get("NS_BRANCH") or None,
+            "commit": os.environ.get("NS_COMMIT") or None}

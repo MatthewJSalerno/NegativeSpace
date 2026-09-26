@@ -100,6 +100,17 @@ class FirstRunAndSettings(ApiCase):
         empty = self.client.post("/api/v1/jobs/start", json={"mode": "move"})
         self.assertEqual((empty.status_code, empty.json()["error"]), (409, "catalog_empty"))
 
+    def test_status_says_which_build_is_running(self):
+        release = (Path(__file__).resolve().parent.parent / "VERSION").read_text().strip()
+        os.environ.update(NS_BRANCH="feat/example", NS_COMMIT="abc1234")
+        try:
+            version = self.client.get("/api/v1/status").json()["version"]
+        finally:
+            del os.environ["NS_BRANCH"], os.environ["NS_COMMIT"]
+        self.assertEqual(version, {"release": release, "branch": "feat/example", "commit": "abc1234"})
+        self.assertEqual(self.client.get("/api/v1/status").json()["version"]["commit"], None,
+                         "an image built without the commit says so, rather than inventing one")
+
     def test_an_incompatible_catalog_is_left_alone_and_explained(self):
         self.cfg.db_path.parent.mkdir(parents=True)
         with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:

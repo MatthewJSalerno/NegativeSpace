@@ -39,6 +39,7 @@ The first screen's state. It never creates anything.
 
     {"state": "missing" | "ok" | "incompatible" | "error", "detail": "<reason or null>",
      "photos": 1160, "indexed": true, "eligible": {"copy": 0, "move": 1160}, "copied": 1160,
+     "version": {"release": "0.1.0", "branch": "main" | null, "commit": "2c4728f" | null},
      "application_data": "/appdata", "catalog_backups": "/backups",
      "active_job": <Run or null, as in GET /jobs/active>}
 
@@ -46,6 +47,10 @@ The first screen's state. It never creates anything.
 rule (`ns_db.TRANSFER_ELIGIBLE`): Copy takes `Pending`; Move also takes `Copied`, deleting
 each source against its verified copy. `copied` is how many of Move's are already copied.
 Both count the whole catalog, whatever the gallery's view or search.
+
+`version` is which build is running: the release in the repository's `VERSION` file,
+and the branch and commit the image was built from (the `NS_BRANCH` and `NS_COMMIT`
+build arguments; `null` when the build was not given them). Shown beside Settings.
 
 The two paths are container paths, named in guidance; the API does not know the host's.
 

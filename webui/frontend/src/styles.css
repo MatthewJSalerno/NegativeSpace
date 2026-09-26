@@ -406,3 +406,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .tip[data-tip]::after { white-space: pre-line; }
 /* Above the enlarged photo (z-index 30), which can open it too; closing returns there. */
 .lineage-overlay { z-index: 40; }
+
+/* Which build is running, beside Settings. */
+.toolbar-actions { align-items: center; }
+.version-tag { font-size: 0.8rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) { .version-tag { display: none; } }

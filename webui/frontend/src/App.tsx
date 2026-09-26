@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Logo } from "./components/Logo";
+import { VersionTag, versionText } from "./components/VersionTag";
 import { api, ApiError, type PhotoItem, type PhotoPage, type SelectionPage, type Sort, type Status, type Timeline, type View } from "./api";
 import { count, plural } from "./format";
 import { useDismissedRun, useJobFeed } from "./jobs";
@@ -103,6 +104,7 @@ function FirstRun({ status, onCreated }: { status: Status; onCreated: () => void
           If you've used it before, check your appdata mount or recover your catalog from a backup.
         </p>
         <p className="muted">Application data: <code>{status.application_data}</code> · Catalog backups: <code>{status.catalog_backups}</code> (container paths)</p>
+        <p className="muted">{versionText(status.version)}</p>
         {error && <p className="error">{error}</p>}
         <button className="primary" onClick={create} disabled={busy}>{busy ? "Creating…" : "Create new catalog"}</button>
       </div>
@@ -122,6 +124,7 @@ function CatalogProblem({ status }: { status: Status }) {
             : "Check that the application data folder is mounted and readable by the container, and that its storage is connected."}
         </p>
         <p className="muted">Application data: <code>{status.application_data}</code> · Catalog backups: <code>{status.catalog_backups}</code> (container paths)</p>
+        <p className="muted">{versionText(status.version)}</p>
       </div>
     </div>
   );
@@ -495,6 +498,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             </div>
           )}
           <div className="toolbar-actions">
+            <VersionTag version={status.version} />
             <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
           </div>
         </div>

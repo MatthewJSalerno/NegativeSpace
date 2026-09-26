@@ -36,6 +36,11 @@ services:
     build:
       context: ..
       dockerfile: docker/app.Dockerfile
+      # Shown at the top right with the release: set them when building, e.g.
+      #   NS_BRANCH=$(git branch --show-current) NS_COMMIT=$(git rev-parse --short HEAD) docker compose ... up -d --build
+      args:
+        NS_BRANCH: ${NS_BRANCH:-}
+        NS_COMMIT: ${NS_COMMIT:-}
     image: negativespace
     environment:
       PUID: ${PUID:-1000}

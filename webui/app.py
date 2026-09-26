@@ -19,7 +19,7 @@ from starlette.concurrency import run_in_threadpool
 
 import ns_db
 from . import catalog
-from .config import Config
+from .config import Config, build_version
 from .jobs import JobRefused, JobRunner
 
 # The drawer refreshes about once a second (webui-spec 4.1); the engine writes its
@@ -60,6 +60,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_status():
         """First-screen state, and the container paths to name in guidance (webui-spec 3)."""
         return dict(catalog.status(cfg.db_path), application_data=str(cfg.base), catalog_backups=str(cfg.backups),
+                    version=build_version(),
                     active_job=jobs.active())
 
     @app.post("/api/v1/catalog", status_code=201)

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
+import { VersionTag } from "./VersionTag";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
 import { modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
@@ -231,6 +232,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
             <a className="button-link active" href="/logs" onClick={follow} aria-current="page">Logs</a>
           </nav>
           <div className="toolbar-actions">
+            <VersionTag version={status.version} />
             <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
           </div>
         </div>

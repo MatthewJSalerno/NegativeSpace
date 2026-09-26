@@ -59,6 +59,8 @@ with sync_playwright() as p:
     # Saved, the first run lands in the Library, where the Index waits, whatever the address was.
     expect(page).to_have_url(re.compile(r"^[^?]*://[^/]+/(\?.*)?$"))
     expect(page.get_by_text("No photos yet")).to_be_visible()
+    # Which build is running, at the top right beside Settings.
+    expect(page.locator(".version-tag")).to_have_text(re.compile(r"^v\d+\.\d+\.\d+"))
     # The logo at the top left, in its own proportions.
     logo = page.locator(".brand .logo").bounding_box()
     assert logo and logo["x"] < 40 and abs(logo["width"] / logo["height"] - 991 / 956) < 0.05, f"logo: {logo}"
