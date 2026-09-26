@@ -336,6 +336,39 @@ def a_file_that_is_not_an_image_is_logged_and_left_alone():
 
 
 @test
+def a_file_returning_after_a_move_is_a_duplicate_of_the_moved_photo():
+    """
+    Maintainer's rule: a file that arrives after an Index with content already catalogued
+    is a duplicate of that photo and joins its lineage - including a source put back at
+    its old path after a Move. It gets a photo row of its own (a path is unique only
+    among files still in the source), so the moved photo keeps its row, its Completed
+    status and its identity; the next Move removes the returned copy against the
+    delivered one, and the destination keeps exactly one copy.
+    """
+    case = new_case("returning_source")
+    make_photo(case / "src" / "archive-2019" / "IMG_1.jpg", "kept")
+    run_engine(case)
+    run_engine(case, "--move")
+    moved = rows(case, "SELECT id, status FROM photos")
+    check([r["status"] for r in moved] == ["Completed"], f"setup: {moved}")
+    identity = rows(case, "SELECT file_id FROM photo_files WHERE photo_id = ?", (moved[0]["id"],))[0]["file_id"]
+
+    make_photo(case / "src" / "archive-2019" / "IMG_1.jpg", "kept")     # put back, same bytes
+    run_engine(case)
+    after = rows(case, "SELECT id, status FROM photos ORDER BY id")
+    check([r["status"] for r in after] == ["Completed", "Duplicate"],
+          f"the returned file must be a new Duplicate row, the moved photo untouched: {after}")
+    check(rows(case, "SELECT file_id FROM photo_files WHERE photo_id = ?", (moved[0]["id"],))[0]["file_id"] == identity,
+          "the moved photo lost its identity to the returning file")
+
+    run_engine(case, "--move")
+    check([r["status"] for r in rows(case, "SELECT status FROM photos ORDER BY id")] == ["Completed", "Removed_Duplicate"],
+          "the second Move must remove the returned copy as a duplicate")
+    check(not (case / "src" / "archive-2019" / "IMG_1.jpg").exists(), "the returned source is still there")
+    check(len(dest_files(case)) == 1, f"the destination must hold one copy: {dest_files(case)}")
+
+
+@test
 def move_preserves_distinct_photos_sharing_a_filename():
     """Move: two different photos named alike both survive; neither overwrites the other."""
     case = new_case("collision")

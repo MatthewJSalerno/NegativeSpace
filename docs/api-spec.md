@@ -318,7 +318,7 @@ Center (`webui-spec.md` §5.3).
 | :--- | :--- |
 | `run` | A job id. Repeat it for several (`?run=4&run=5`): the Stats page links to every run since the last complete scan. |
 | `status` | An operation status (repeatable), from the catalog's vocabulary; anything else is `400`. |
-| `photo` | A photo's history. It follows the photo's file identities through `operation_files`, including a copy made from it, so a Move or Copy stays in it. |
+| `photo` | A photo's history: the photo, the files made from it (through `operation_files`, so a Move or Copy stays in it) and its exact duplicates, however they arrived; the same set as its lineage tree (`webui-spec.md` §6.3). |
 | `q` | Text in the source path, destination path or recorded message. |
 | `since`, `until` | ISO instants, from inclusive to exclusive. The screen converts local calendar days. |
 
@@ -417,7 +417,8 @@ Everything the Stats page shows, read from the catalog in one pass (`webui-spec.
      "duplicates": {"groups", "extra_copies", "bytes", "saved_at_destination", "copies_not_written",
                     "move_would_free", "freed_by_moves", "near_duplicates": null,
                     "coverage": {"last_complete_scan" | null, "established_by_run" | null,
-                                 "scans_with_issues_since", "run_ids_since": [ids]}},
+                                 "scans_with_issues_since", "run_ids_since": [ids]},
+                    "by_folder": [{"folder": "archive-2021", "files", "duplicates", "duplicate_bytes"}, ...]},
      "activity": {"jobs": {"INDEX": 3, ...}, "last_index", "copied", "moved",
                   "bytes_transferred", "bytes_per_second" | null,
                   "failures": {"not_an_image": 2, "permission": 1, ...}, "renames", "exif_edits": null},
@@ -436,7 +437,10 @@ counts only duplicates whose original is already `Copied` or `Completed`. `cover
 follows `webui-spec.md` §6.2: `last_complete_scan` and `established_by_run` come from the
 last untargeted Index that completed, recorded no run-level failure and scanned every
 supported type; `scans_with_issues_since` counts the untargeted Index runs after it that
-recorded one; `run_ids_since` lists every run after it, of any mode.
+recorded one; `run_ids_since` lists every run after it, of any mode. `by_folder` counts, per top-level folder
+of the source (`""` for files directly in it), every file catalogued there and how many
+are duplicates of photos catalogued earlier, with their size: the copy indexed first is
+the original, so a later archive carries the duplicates.
 
 ## 6. The run object and its outcome
 

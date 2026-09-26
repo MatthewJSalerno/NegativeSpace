@@ -16,10 +16,11 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 class PhotoStatus:
-    """State of one source file in the catalog. One row per source_path."""
+    """State of one source file in the catalog. A path is unique among files still in the
+    source (idx_photos_live_source); a row whose source was consumed keeps its path."""
     PENDING = "Pending"                       # catalogued, not yet acted on
     PROCESSING = "Processing"                 # durable crash-recovery marker; see _run_move_or_copy
     COMPLETED = "Completed"                   # --move finished: copied, verified, source deleted
@@ -30,6 +31,13 @@ class PhotoStatus:
     FOUND_AT_DESTINATION = "Found_At_Destination"  # source gone, exact content observed on the
                                               # destination; recorded from observation, no action taken
 
+
+# Statuses whose source file is legitimately gone: consumed by a --move, or found gone
+# with its content already on the destination. A path is unique only among rows NOT in
+# these (idx_photos_live_source), and targeted re-runs skip them: the source is supposed
+# to be missing, so re-indexing would overwrite a true record with a spurious Failed.
+SOURCE_CONSUMED_STATUSES = (PhotoStatus.COMPLETED, PhotoStatus.REMOVED_DUPLICATE,
+                            PhotoStatus.FOUND_AT_DESTINATION)
 
 # What a Copy or Move without targeting acts on. --move also takes Copied rows: a
 # verified copy already exists, so the move completes by deleting the source
@@ -204,7 +212,7 @@ def _create_legacy_tables(conn):
     conn.execute(f"""
         CREATE TABLE IF NOT EXISTS photos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_path TEXT UNIQUE,
+            source_path TEXT,
             dest_path TEXT,
             sha1_hash TEXT,
             phash TEXT,
@@ -261,6 +269,14 @@ def _create_legacy_tables(conn):
     # growing with every file — quadratic over the size of the library. The
     # status index does the same job for the Pending/Duplicate sweeps, and
     # operations(run_id) is what the web UI's per-job history view will page over.
+    # One photo row per path among files still in the source, not forever: once a Move
+    # consumes a source, its row keeps the photo's history and a file later put back at
+    # that path is a new arrival with a row of its own, a duplicate of the delivered
+    # content (maintainer's rule; engine-spec 6.5). Why not a plain UNIQUE: the returning
+    # file would take over the moved photo's row, hiding the photo's history.
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_photos_live_source ON photos(source_path) "
+        f"WHERE status IS NULL OR status NOT IN ({sql_values(SOURCE_CONSUMED_STATUSES)})")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_photos_sha1 ON photos(sha1_hash)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_photos_status ON photos(status)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_operations_run ON operations(run_id)")
@@ -691,13 +707,17 @@ def transition_run(conn, run_id, to, *, reconciled_by=None):
 def record_source_observation(conn, *, photo_id, run_id, source_path, sha1_hash,
                               file_size, file_mtime, birthtime, metadata, error,
                               prior_status=None, observed_at=None):
-    """Participates in caller's scan savepoint, never commits independently."""
+    """Participates in caller's scan savepoint, never commits independently.
+
+    A photo row seen for the first time gets a new identity; a rescan keeps its binding.
+    A file returning to a path whose source a Move consumed is not a rescan: the scan
+    gives it a photo row of its own (idx_photos_live_source), so the moved photo keeps its
+    identity and history. `prior_status` is the row's status before this scan, kept for
+    callers' bookkeeping."""
     if not conn.in_transaction:
         raise RuntimeError("source observation requires caller transaction")
     row = conn.execute("SELECT file_id FROM photo_files WHERE photo_id=?", (photo_id,)).fetchone()
-    # A known consumed source returning is a new arrival, not a new version of the
-    # file now at destination. Ordinary rescans retain the binding.
-    new = row is None or prior_status in (PhotoStatus.COMPLETED, PhotoStatus.REMOVED_DUPLICATE)
+    new = row is None
     now = observed_at or utc_now()
     if new:
         file_id = conn.execute("INSERT INTO files(created_run_id,created_at) VALUES(?,?)", (run_id, now)).lastrowid

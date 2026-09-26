@@ -460,3 +460,6 @@ a.stat-tile:hover, button.stat-tile:hover { border-color: var(--accent); }
 @media (max-width: 700px) { .stat-panels { grid-template-columns: 1fr; } .stat-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .types-toggle { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
 .types-active { color: var(--accent); font-size: 0.85rem; font-weight: normal; }
+.stat-folders th { width: auto; overflow-wrap: anywhere; }
+.stat-folders thead td, .stat-folders thead th { color: var(--muted); font-size: 0.8rem; }
+.stat-folders td { text-align: right; padding-left: 8px; white-space: nowrap; }

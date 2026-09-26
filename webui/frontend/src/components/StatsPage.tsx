@@ -123,14 +123,14 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
       <div className="stat-panels">
         <Panel title="Your library">
           <Facts rows={[
-            ["Photos", `${count(lib.photos)} · ${bytes(lib.bytes)}`],
-            ["Organized", <a key="o" href="/?view=organized" onClick={follow}>{count(lib.organized)} · {bytes(lib.organized_bytes)}</a>],
-            ["Not yet organized", <a key="n" href="/?view=unorganized" onClick={follow}>{count(lib.not_organized)}</a>],
-            ["With a location (GPS)", `${count(lib.with_location)} · ${pct(lib.with_location, lib.photos)}`],
-            ["Landscape · portrait · square", `${count(lib.orientation.landscape)} · ${count(lib.orientation.portrait)} · ${count(lib.orientation.square)}`],
+            ["Photos", `${plural(lib.photos, "photo")} · ${bytes(lib.bytes)}`],
+            ["Organized", <a key="o" href="/?view=organized" onClick={follow}>{plural(lib.organized, "photo")} · {bytes(lib.organized_bytes)}</a>],
+            ["Not yet organized", <a key="n" href="/?view=unorganized" onClick={follow}>{plural(lib.not_organized, "photo")}</a>],
+            ["With a location (GPS)", `${plural(lib.with_location, "photo")} · ${pct(lib.with_location, lib.photos)} of them`],
+            ["Orientation", `${count(lib.orientation.landscape)} landscape · ${count(lib.orientation.portrait)} portrait · ${count(lib.orientation.square)} square`],
           ]} />
           <h4>Formats, by space</h4>
-          <Bars rows={lib.formats.map((f) => ({ label: f.format.toUpperCase(), value: f.bytes, text: `${bytes(f.bytes)} · ${count(f.photos)}`,
+          <Bars rows={lib.formats.map((f) => ({ label: f.format.toUpperCase(), value: f.bytes, text: `${bytes(f.bytes)} · ${plural(f.photos, "photo")}`,
                                                 href: `/?type=${encodeURIComponent(f.format)}` }))} />
           <h4>Resolution</h4>
           <Bars rows={lib.megapixels.map((m) => ({ label: m.band, value: m.photos, text: count(m.photos) }))} />
@@ -163,21 +163,37 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
 
         <Panel title="Duplicates">
           <Facts rows={[
-            ["Photos with exact copies", count(s.duplicates.groups)],
-            ["Extra copies", `${count(s.duplicates.extra_copies)} · ${bytes(s.duplicates.bytes)}`],
-            ["Saved at the destination", <Tipped key="s" tip="Extra copies of photos already copied or moved: the destination holds one copy, not two. A duplicate of a photo not yet delivered has saved nothing so far.">{`${bytes(s.duplicates.saved_at_destination)} · ${count(s.duplicates.copies_not_written)} not written`}</Tipped>],
+            ["Photos with exact copies", plural(s.duplicates.groups, "photo")],
+            ["Extra copies", `${plural(s.duplicates.extra_copies, "file")} · ${bytes(s.duplicates.bytes)}`],
+            ["Saved at the destination", <Tipped key="s" tip="Extra copies of photos already copied or moved: the destination holds one copy, not two. A duplicate of a photo not yet delivered has saved nothing so far.">{`${bytes(s.duplicates.saved_at_destination)} · ${plural(s.duplicates.copies_not_written, "duplicate file")} not copied`}</Tipped>],
             ["A Move would free in the source", <Tipped key="m" tip="Extra copies still in the source: a Move removes each once a copy of its content is verified at the destination.">{bytes(s.duplicates.move_would_free)}</Tipped>],
             ["Freed by earlier Moves", bytes(s.duplicates.freed_by_moves)],
             ["Near-duplicates (resized, re-saved)", <span key="nd" className="muted">Not recorded yet: they arrive with the Similar tab</span>],
           ]} />
           <Coverage c={s.duplicates.coverage} />
+          {s.duplicates.by_folder.length > 1 && (
+            <>
+              <h4>By folder (the copy indexed first counts as the original)</h4>
+              <table className="stat-facts stat-folders">
+                <thead><tr><th>Folder</th><td>Files</td><td>Duplicates</td><td>Their size</td></tr></thead>
+                <tbody>
+                  {s.duplicates.by_folder.map((f) => (
+                    <tr key={f.folder}>
+                      <th title={f.folder || "Files directly in the source folder"}>{f.folder || "(top level)"}</th>
+                      <td>{count(f.files)}</td><td>{count(f.duplicates)}</td><td>{bytes(f.duplicate_bytes)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </Panel>
 
         <Panel title="Activity">
           <Facts rows={[
             ["Jobs run", Object.entries(s.activity.jobs).map(([m, n]) => `${JOB_LABEL[m] ?? m} ${count(n)}`).join(" · ") || "None yet"],
             ["Last Index", s.activity.last_index ? instant(s.activity.last_index) : "Never"],
-            ["Copied · moved", `${count(s.activity.copied)} · ${count(s.activity.moved)}`],
+            ["Copied · moved", `${plural(s.activity.copied, "photo")} copied · ${count(s.activity.moved)} moved`],
             ["Transferred", `${bytes(s.activity.bytes_transferred)}${s.activity.bytes_per_second ? ` · about ${bytes(s.activity.bytes_per_second)}/s` : ""}`],
             ["Renamed", count(s.activity.renames)],
             ["EXIF edits", <span key="e" className="muted">Not built yet</span>],
@@ -199,10 +215,10 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
           <Facts rows={[
             ["Last backup", s.health.last_backup ? instant(s.health.last_backup) : "None yet"],
             ["Not yet backed up", s.health.unbacked_changes ? plural(s.health.unbacked_changes, "change") : "Nothing"],
-            ["Backups kept", `${count(s.health.backups)} · ${bytes(s.health.backup_bytes)}`],
+            ["Backups kept", `${plural(s.health.backups, "backup")} · ${bytes(s.health.backup_bytes)}`],
             ["Catalog size", bytes(s.health.catalog_bytes)],
             ...s.health.thumbnail_cache.map((c): [string, ReactNode] =>
-              [c.size <= 320 ? "Grid thumbnails" : "Detail previews", `${count(c.photos)} · ${bytes(c.bytes)}`]),
+              [c.size <= 320 ? "Grid thumbnails" : "Detail previews", `${plural(c.photos, "photo")} · ${bytes(c.bytes)}`]),
             ["Last destination check", s.health.destination_check
               ? `${instant(s.health.destination_check.at)} · ${Object.entries(s.health.destination_check.findings)
                   .map(([k, n]) => `${count(n)} ${k}`).join(", ") || "all as recorded"}`

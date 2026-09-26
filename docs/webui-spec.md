@@ -575,9 +575,12 @@ historical record and current file separately; do not redirect the old record to
 the new occupant. Describe catalog knowledge as recorded, not live filesystem
 verification. Distinct copies sharing a hash retain their own histories.
 
-**Reimported content has a new history.** When a newly imported photo matches a
-deleted record's hash, show **“Matches content from a previously deleted file”**
-with a link to that historical record. Keep the new import's Index information and
+**Content already catalogued is a duplicate.** A file arriving with content the catalog
+already holds, another archive's copy or a file put back after a Move, is a duplicate of
+that photo and a branch of its lineage tree; the photo keeps its own history and status.
+**Reimported content has a new history** only when nothing current holds it: when a
+newly imported photo matches a deleted record's hash, show **“Matches content from a
+previously deleted file”** with a link to that historical record. Keep the new import's Index information and
 subsequent actions separate from the old deletion history. Do not label the new
 import as a restoration or imply a deleted copy is still available for deduplication.
 
@@ -1049,7 +1052,9 @@ The general principle: the engine guarantees it will never act on something it h
 ### 5.9 Duplicate Space: Reclaimable, Reclaimed, and Saved
 
 **Built on the Stats page** (`GET /api/v1/stats`, reached from an icon beside Settings):
-these three figures, the coverage line, and the rest of the library in figures (formats,
+these three figures, the coverage line, duplicates by top-level folder of the source (for a
+library fed as archives in their own folders, how much each archive duplicated), and the
+rest of the library in figures (formats,
 cameras, resolution, dates, activity, catalog health), each leading to the photos or log
 entries behind it. Figures that need unbuilt features say so rather than guess.
 
@@ -1135,7 +1140,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 11 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 12 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -1218,32 +1223,28 @@ ORDER BY r.ended_at DESC LIMIT 1;
 photo's past.** It is the single most likely way a correct catalog gets presented
 incorrectly.
 
-`photos` holds one row per source *path*. Identity lives in `files`, bound to the
-photo row through `photo_files`. When a source returns after a completed Move or a
-duplicate removal, that arrival is a **new identity** — same path, same bytes, new
-`file_id` — and `photo_files` rebinds the photo row to it. The previous identity keeps
-everything: its immutable `source_snapshots` row, its observations, and every
-`operation_files` link it ever had. None of it is deleted. It is simply **no longer
-reachable from `photos.id`**.
+`photos` holds one row per source file, and a path is unique only among files still in the
+source. Identity lives in `files`, bound to the photo row through `photo_files`, which never
+rebinds. A file put back at a path whose source a Move or duplicate removal consumed is a
+**new photo row with a new identity**, a duplicate of the photo it matches; the consumed row
+keeps its immutable `source_snapshots` row, its observations and every `operation_files` link.
 
-For example, identity 1 keeps its snapshot and three operations across three runs while
-the photo row is bound to identity 971. A view joining
-`photos → photo_files → operations` shows only the new arrival and presents a photo with
-no history, which is false.
+A history keyed on `photos.id` alone still misses part of a photo's past: the copies made
+from it and its duplicates live under other rows. **So gather the photo's whole lineage**:
 
-**So traverse identities, not photo rows.** For a given photo:
+1. Resolve the photo's identity through `photo_files`.
+2. Walk `file_origins` from it: the reverse lookup reaches everything created from it.
+3. Add every photo row with the same content (its exact duplicates, however they arrived),
+   and their identities and descendants in turn.
+4. Union the `operation_files` links and `operations.photo_id` of all of them, ordered by
+   `operations.id`.
 
-1. Resolve the current identity through `photo_files`.
-2. Collect every identity sharing that `source_snapshots.source_path` — these are the
-   successive arrivals at one location, each with its own snapshot and history.
-3. Walk `file_origins` in both directions: `origin_file_id` reaches the source a delivered
-   file descends from, and the reverse lookup reaches everything created from it.
-4. Union the `operation_files` links of all of them, ordered by `operations.id`.
+`GET /photos/{id}/lineage` and the log's `photo=` filter both read this set.
 
-**Present them as distinct arrivals, never merged into one timeline.** Two identities at
-one path are two different files that happened to occupy the same place; showing their
-operations interleaved as a single photo's history asserts a continuity that did not
-happen. Label each arrival with its original Index time.
+**Keep distinct files distinct.** A duplicate is a different file, however alike: the
+lineage tree shows each file as its own branch with its own steps, and every log entry
+names the file it concerns, so a duplicate's arrival never reads as something that
+happened to the original file itself. Label each file with its original Index time.
 
 **Separate requested work from recovery.** An operation with a non-NULL
 `reconciles_operation_id` is a repair of earlier work, not something this run was asked
