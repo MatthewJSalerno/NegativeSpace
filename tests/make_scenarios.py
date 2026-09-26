@@ -23,10 +23,10 @@ should show for it. --seed makes a run reproducible.
 Run in the app image, which has Pillow, pillow-heif and ExifTool. Hard links need the
 seed and OUT on one filesystem AND one mount, so mount their common parent once:
 
-    mkdir -p /storage/linked-samples        # before the first run: docker would make it root's
+    mkdir -p /photos/demos                  # before the first run: docker would make it root's
     docker run --rm --user "$(id -u):$(id -g)" --entrypoint python3 \\
-      -v /storage:/storage -v "$PWD":/app -w /app negativespace \\
-      tests/make_scenarios.py build --seed-dir /storage/sample --out /storage/linked-samples/demo
+      -v /photos:/photos -v "$PWD":/app -w /app negativespace \\
+      tests/make_scenarios.py build --seed-dir /photos/seed --out /photos/demos/demo
 """
 import argparse
 import json

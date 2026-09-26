@@ -141,12 +141,12 @@ common parent once. Create `OUT`'s parent yourself first: Docker makes a missing
 path owned by root.
 
 ```bash
-mkdir -p /storage/linked-samples
+mkdir -p /photos/demos
 docker run --rm --user "$(id -u):$(id -g)" --entrypoint python3 \
-  -v /storage:/storage -v "$PWD":/app -w /app negativespace \
-  tests/make_scenarios.py build --seed-dir /storage/sample --out /storage/linked-samples/demo [--replace] [--seed N]
-# Index and Copy with SOURCE_DIR=/storage/linked-samples/demo/library, then:
-docker run ... tests/make_scenarios.py change --out /storage/linked-samples/demo [--dest <your DEST_DIR>]
+  -v /photos:/photos -v "$PWD":/app -w /app negativespace \
+  tests/make_scenarios.py build --seed-dir /photos/seed --out /photos/demos/demo [--replace] [--seed N]
+# Index and Copy with SOURCE_DIR=/photos/demos/demo/library, then:
+docker run ... tests/make_scenarios.py change --out /photos/demos/demo [--dest <your DEST_DIR>]
 # Index and Copy again: the lineage tree now has changes to show.
 ```
 
