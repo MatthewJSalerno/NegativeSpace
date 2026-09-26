@@ -1,14 +1,16 @@
-// The NegativeSpace mark, from the maintainer's logo.svg: the same three shapes and
-// 991:956 proportions, drawn in the text colour (the original is white, which vanishes
-// on a light header) so it follows light and dark mode.
+// The NegativeSpace mark, from the maintainer's n-logo.svg: the rounded frame and the N,
+// drawn in the text colour (the original is white, which vanishes on a light header) so
+// it follows light and dark mode. The frame is 1.5 screen pixels at any size: the original
+// 6 units would be a fifth of a pixel in the header.
 export function Logo({ height = 26 }: { height?: number }) {
   return (
-    <svg className="logo" viewBox="131 167 991 956" height={height} width={Math.round((height * 991) / 956)}
+    <svg className="logo" viewBox="237 236 781 782" height={height} width={Math.round((height * 781) / 782)}
          aria-hidden="true" focusable="false">
-      <g fill="currentColor">
-        <path d="M173 183 L470 526 L470 1122 L216 1122 Q131 1122 131 1037 L131 262 Q131 215 173 183 Z" />
-        <path d="M599 167 L1027 167 Q1121 167 1121 261 L1121 872 L642 322 L642 216 Z" />
-        <path d="M599 702 L964 1122 L599 1122 Z" />
+      <rect x="240" y="239" width="774" height="775" rx="122" fill="none" stroke="currentColor"
+            strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+      <g transform="matrix(.1 0 0 -.1 0 1254)" fill="currentColor">
+        <path d="M9440 9491 l-315 -300 -25 -73 -25 -73 -3 -2535 c-2 -1681 0 -2577 7 -2660 12 -138 39 -250 79 -323 39 -72 129 -151 198 -174 32 -11 60 -25 62 -31 3 -9 -218 -12 -948 -12 l-951 0 -173 263 c-95 144 -221 336 -281 427 -116 176 -719 1098 -828 1265 -136 210 -346 503 -450 629 -26 32 -47 62 -45 67 2 5 131 131 288 280 157 150 375 358 485 464 110 105 218 208 240 227 l40 36 182 -271 c100 -150 318 -473 485 -718 166 -245 323 -476 348 -512 25 -37 48 -67 52 -67 5 0 8 586 8 1301 l0 1301 -97 -93 c-54 -51 -250 -239 -436 -418 -427 -411 -537 -514 -541 -510 -14 14 -449 681 -489 749 -76 129 -150 240 -193 291 -21 25 -212 296 -424 602 l-385 557 -1098 0 -1098 0 3 -37 3 -38 100 -17 c115 -20 194 -46 285 -95 261 -141 476 -421 531 -690 19 -91 19 -149 16 -1816 -3 -1703 -3 -1724 -25 -1857 -11 -74 -30 -182 -41 -240 -12 -58 -21 -109 -21 -114 0 -9 49 35 209 188 l93 89 -23 131 -24 131 -3 1663 c-1 914 1 1662 5 1662 4 0 37 -44 73 -97 36 -54 81 -115 101 -138 19 -22 80 -105 134 -185 54 -80 315 -460 580 -845 265 -385 514 -749 554 -809 l73 -109 -38 -37 c-22 -21 -154 -147 -294 -281 -140 -134 -419 -401 -620 -594 -201 -192 -398 -381 -439 -420 l-73 -70 6 -100 c10 -184 81 -397 183 -555 70 -108 205 -240 310 -303 165 -99 379 -171 583 -197 122 -15 129 -17 136 -45 15 -58 87 -55 -1191 -55 -1044 0 -1174 2 -1179 15 -7 19 15 29 115 50 43 9 114 34 160 56 200 97 326 227 428 444 51 107 139 375 123 375 -3 0 -160 -152 -347 -338 -325 -323 -464 -454 -585 -552 -56 -46 -393 -359 -398 -371 -2 -4 24 -42 57 -86 190 -252 480 -423 783 -463 58 -8 916 -10 2858 -8 l2775 3 97 27 c139 38 253 86 353 149 299 186 507 484 572 818 15 79 17 303 19 2716 2 1447 -1 2713 -6 2815 -7 146 -14 206 -35 285 -30 117 -112 292 -181 385 -55 75 -135 170 -144 170 -3 0 -147 -135 -320 -299z" />
+        <path d="M7110 9141 c0 -35 3 -39 31 -45 17 -3 44 -6 59 -6 58 0 229 -52 320 -96 167 -83 281 -220 327 -397 12 -46 17 -131 22 -326 l6 -264 550 523 c303 288 578 550 613 582 34 33 62 62 62 64 0 2 -448 4 -995 4 l-995 0 0 -39z" />
       </g>
     </svg>
   );

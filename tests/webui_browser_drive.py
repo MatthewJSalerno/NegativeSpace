@@ -50,6 +50,8 @@ with sync_playwright() as p:
     # First run: create the catalog, then settings as the page, saying they can change later.
     page.goto(BASE + "/logs")   # an address left by an earlier session
     expect(page.get_by_text("No catalog found")).to_be_visible()
+    expect(page.locator(".panel h1 .logo")).to_be_visible()   # the logo greets a fresh install too
+    shot("0-no-catalog")
     page.get_by_role("button", name="Create new catalog").click()
     expect(page.get_by_text("Welcome to NegativeSpace")).to_be_visible()
     expect(page.locator(".notice-first-run")).to_contain_text("change any of them at any time in the app's Settings")
@@ -131,13 +133,13 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(rf"page={NEWER // 60 + 1}\b"))
     expect(page.locator(".card-sub", has_text="2019").first).to_be_visible()
     dates.get_by_label("Show only 2019").check()
-    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only 2019")
+    expect(page.locator(".dates-filter-line")).to_contain_text(f"Showing {OLDER} of {PHOTOS} photos · only 2019")
     # Select these: the photos the date filter shows, in one click.
     page.locator(".dates-filter-line").get_by_role("button", name=f"Select these {OLDER}").click()
     expect(page.locator(".selection-line")).to_contain_text(f"{OLDER} photos selected")
     page.locator(".selection-line").get_by_role("button", name="Clear").click()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
-    expect(page.locator(".views")).to_contain_text(f"All photos ({OLDER})")
+    expect(page.locator(".views")).to_contain_text(f"All photos ({PHOTOS})")   # the whole library, not what is shown
     expect(dates.get_by_role("button", name="2023", exact=True)).to_be_visible()   # counts ignore the filter
     page.reload()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
@@ -160,7 +162,7 @@ with sync_playwright() as p:
     expect(types.locator(".type-row")).to_have_count(1)
     expect(types.locator(".type-row")).to_contain_text(f"JPG{PHOTOS:,}")
     types.get_by_label("Show only JPG").check()
-    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only JPG")
+    expect(page.locator(".dates-filter-line")).to_contain_text("only JPG")
     expect(page).to_have_url(re.compile(r"type=jpg"))
     types.get_by_role("button", name=re.compile(r"Types")).click()           # folded, it still names the filter
     expect(types.get_by_role("button", name=re.compile(r"Types"))).to_contain_text("JPG")
@@ -346,6 +348,11 @@ with sync_playwright() as p:
     expect(banner).to_contain_text(
         f"{PHOTOS - 4} of {PHOTOS + DUPLICATES} files copied · 1 failed · {3 + DUPLICATES} skipped "
         f"(3 copied by an earlier job, {DUPLICATES} duplicates: the same content is copied once)")
+    # Hovering the failure count gives the reasons; a Failed photo's badge gives its own.
+    expect(banner.locator(".tip")).to_have_attribute("data-tip", re.compile(r"Why they failed:\nPermission denied: 1"))
+    page.locator(".search").fill("photo-129")
+    expect(page.locator(".badge-failed")).to_have_attribute("title", "Failed: Permission denied")
+    page.locator(".search").fill("")
     shot("6-skip-reasons")
     # Everything copyable is copied, but Move still has every copied photo to finish.
     menu = open_actions(page, "Copy")
@@ -372,9 +379,22 @@ with sync_playwright() as p:
     expect(rows.first).to_contain_text("photo-129.jpg")
     expect(rows.first).to_contain_text("Check its permissions")
     shot("7-failures")
-    page.get_by_role("button", name=re.compile(r"^Retry the 1 failed photo")).click()
-    expect(page.locator(".notice")).to_contain_text("Retrying 1 photo as a new Copy")
+    retry = page.get_by_role("button", name=re.compile(r"^Retry the 1 failed photo"))
+    retry.click()
+    # What Retry did is said beside it, not at the top of the page.
+    expect(page.locator(".retry .notice")).to_contain_text("Retrying 1 photo as a new Copy")
     expect(page.locator(".finished-banner")).to_contain_text("Copy", timeout=60_000)
+    # Over the limit a retry can name one by one, it offers the job over everything
+    # that covers those photos, as a button (simulated: the fixture is far smaller).
+    page.route("**/api/v1/operations/photo-ids*", lambda r: r.fulfill(
+        json={"photo_ids": [], "more_than_limit": True, "limit": 1000}))
+    retry.click()
+    note = page.locator(".retry .notice")
+    expect(note).to_contain_text("more than the 1,000 a retry can name one by one")
+    note.get_by_role("button", name="Copy everything").click()
+    expect(page.get_by_role("alertdialog")).to_contain_text("Copy every photo not yet copied")
+    page.keyboard.press("Escape")
+    page.unroute("**/api/v1/operations/photo-ids*")
     os.chmod(locked, 0o644)
     page.get_by_role("button", name="All statuses").click()
     expect(page.locator(".status-chips")).to_contain_text("Copied")
@@ -480,7 +500,16 @@ with sync_playwright() as p:
     page.get_by_role("link", name="Stats").click()
     expect(page).to_have_url(re.compile(r"/stats$"))
     tiles = page.locator(".stat-tile")
-    expect(tiles.filter(has_text="Photos")).to_contain_text(f"{PHOTOS:,}")
+    tile = lambda label: tiles.filter(has=page.locator(".tile-label", has_text=re.compile(f"^{label}$")))
+    expect(tile("Photos")).to_contain_text(f"{PHOTOS:,}")
+    # A share never rounds to all or nothing: 100% only when the counts beside it agree.
+    organized = tile("Organized")
+    done, of = (int(n.replace(",", "")) for n in
+                re.search(r"([\d,]+) of ([\d,]+)", organized.locator(".tile-sub").inner_text()).groups())
+    shown = organized.locator(".tile-value").inner_text()
+    assert (shown == "100%") == (done == of) and (shown == "0%") == (done == 0), f"Organized {shown} for {done} of {of}"
+    undated_tile = tile("No capture date")
+    expect(undated_tile).to_have_attribute("href", "/?undated=1")
     expect(page.locator(".stat-panel h3")).to_have_count(6)
     expect(page.locator(".stat-panel", has_text="Duplicates")).to_contain_text("Extra copies")
     # Aligned: fixed columns, and every panel in a row as tall as the row.
@@ -497,7 +526,7 @@ with sync_playwright() as p:
     # A format row opens the Library showing only that type.
     page.locator(".stat-bars a.bar-label", has_text="JPG").click()
     expect(page).to_have_url(re.compile(r"type=jpg"))
-    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only JPG")
+    expect(page.locator(".dates-filter-line")).to_contain_text("only JPG")
     page.go_back()
     tiles.filter(has_text="Failed attempts").click()
     expect(page).to_have_url(re.compile(r"/logs\?status=Failed"))
@@ -506,7 +535,7 @@ with sync_playwright() as p:
     expect(page.locator(".year-bar")).to_have_count(1)
     page.locator(".year-bar", has_text="2023").click()
     expect(page).to_have_url(re.compile(r"date=2023"))
-    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only 2023")
+    expect(page.locator(".dates-filter-line")).to_contain_text("only 2023")
     page.locator(".dates-filter-line").get_by_role("button", name="Show all dates").click()
 
     page.get_by_role("button", name="Settings").click()

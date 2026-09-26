@@ -103,7 +103,7 @@ function FirstRun({ status, onCreated }: { status: Status; onCreated: () => void
   return (
     <div className="center-page">
       <div className="panel">
-        <h1>NegativeSpace</h1>
+        <h1 className="brand brand-large"><Logo height={48} />NegativeSpace</h1>
         <p>
           No catalog found. If this is your first time using NegativeSpace, create a catalog to get started.
           If you've used it before, check your appdata mount or recover your catalog from a backup.
@@ -601,9 +601,13 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               )}
             </div>
           )}
-          {!focus && (dates.length > 0 || types.length > 0) && (
+          {!focus && data && (dates.length > 0 || types.length > 0 || !!q || undated) && (
             <p className="dates-filter-line">
-              Showing only {[...dates.map(dateLabel), ...types.map(typeLabel)].join(", ")}
+              {/* What is shown, against the library the view buttons count. */}
+              Showing {count(data.total)} of {plural(data.counts[view], "photo")}
+              {dates.length + types.length > 0 && <> · only {[...dates.map(dateLabel), ...types.map(typeLabel)].join(", ")}</>}
+              {q && <> · matching “{q}”</>}
+              {undated && <> · no capture date</>}
               {data && data.total > 0 && (
                 <> · <button className="link" onClick={selectAll} disabled={jobRunning || data.total > MAX_SELECTION}
                              title={data.total > MAX_SELECTION ? `More than the ${count(MAX_SELECTION)}-photo selection limit.`
@@ -626,8 +630,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               ) : q ? (
                 <>
                   <p>No {VIEW_LABEL[view].toLowerCase()} match “{q}”.</p>
-                  {(Object.keys(VIEW_LABEL) as View[]).filter((v) => v !== view && v !== "all" && data.counts[v] > 0).map((v) => (
-                    <button key={v} onClick={() => setView(v)}>{count(data.counts[v])} in {VIEW_LABEL[v]}</button>
+                  {(Object.keys(VIEW_LABEL) as View[]).filter((v) => v !== view && v !== "all" && data.matches[v] > 0).map((v) => (
+                    <button key={v} onClick={() => setView(v)}>{count(data.matches[v])} in {VIEW_LABEL[v]}</button>
                   ))}
                 </>
               ) : <p>Nothing in this view.</p>}

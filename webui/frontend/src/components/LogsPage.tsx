@@ -4,7 +4,7 @@ import { StatsLink } from "./StatsPage";
 import { VersionTag } from "./VersionTag";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
-import { modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
+import { reasonsText, modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
 import { follow, useHeaderHeight } from "../nav";
 import { usePaged } from "../paged";
 import { ActionsMenu } from "./ActionsMenu";
@@ -20,7 +20,7 @@ const RUNS_LISTED = 500;
 // catalogued and Duplicate for an exact copy.
 const STATUS_LABEL: Record<string, string> = {
   Pending: "Indexed", Duplicate: "Indexed (duplicate)", Processing: "Unfinished", Completed: "Moved",
-  Copied: "Copied", Failed: "Failed", Removed_Duplicate: "Duplicate removed",
+  Copied: "Copied", Copied_Only: "Copied only", Failed: "Failed", Removed_Duplicate: "Duplicate removed",
   Found_At_Destination: "Found at destination", Skipped: "Skipped", Cancelled: "Cancelled", Renamed: "Renamed",
 };
 
@@ -28,6 +28,8 @@ const STATUS_LABEL: Record<string, string> = {
 // mismatch reads differently from an unreadable file, and a changed source asks for
 // an Index, not a permissions check.
 function failureHint(op: Operation): string | null {
+  if (op.status === "Copied_Only")
+    return "The copy is at the destination; the original is still in the source. Once the source can be written, move it again to finish the Move.";
   if (op.status !== "Failed") return null;
   const m = op.error_message ?? "";
   if (op.run_level) return "A folder or the whole job, not one photo: nothing inside it was examined. Fix the folder's access, then run an Index.";
@@ -64,6 +66,9 @@ function dayStart(date: string, plusDays = 0): string {
   return new Date(y, m - 1, d + plusDays).toISOString();
 }
 
+// What a Retry did or could not do, and the job over everything that covers it.
+type RetryNote = { run: number; text: string; fix?: { mode: "index" | "copy" | "move"; folder?: string } };
+
 // A job the catalog has recorded; only those have entries to list.
 type RecordedRun = Run & { id: number };
 
@@ -92,6 +97,8 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set(initial.run.length === 1 ? initial.run : []));
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // What a job's Retry did, shown beside that button rather than at the top of the page.
+  const [retryNote, setRetryNote] = useState<RetryNote | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [dismissedId, dismissRun] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
@@ -159,25 +166,63 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
 
   // Retrying is a new job over the photos behind one job's failures, taken from the
   // failed operations themselves (webui-spec 5.3). There is no separate retry.
-  const retry = async (run: RecordedRun) => {
+  const retry = async (run: RecordedRun, photos: number) => {
     const mode = retryModeOf(run);
     if (!mode) return;
     setNotice(null);
+    setRetryNote(null);
+    const note = (text: string, fix?: RetryNote["fix"]) => setRetryNote({ run: run.id, text, fix });
+    const targeting = run.targeting as { file_ids?: number[]; source_subdir?: string } | null | undefined;
+    const folder = targeting?.source_subdir ?? null;
+    const selection = !!targeting?.file_ids;
     try {
-      const ids = await api.retryIds({ ...apiFilters, run: [run.id], status: ["Failed"] });
+      // A Move's copied-only photos are retried with its failures: a Move takes Copied photos.
+      // A selection's retry leaves out rows settling earlier jobs' work, so it never names
+      // a photo the selection did not hold.
+      const ids = await api.retryIds({ ...apiFilters, run: [run.id], status: run.mode === "MOVE" ? ["Failed", "Copied_Only"] : ["Failed"] },
+                                     selection);
       if (ids.more_than_limit) {
-        setNotice(`More than ${count(ids.limit)} photos failed. Retry them in smaller groups, or run the ${modeName(run.mode)} again for everything.`);
+        // Too many to name one by one on the engine's command line. The fix repeats the
+        // job's own scope, never more: everything, or the folder it covered. A job over
+        // everything re-reads failed photos and, for a Move, takes Copied ones.
+        const too = `${count(photos)} photos are more than the ${count(ids.limit)} a retry can name one by one.`;
+        const covers = mode === "move" ? "it finishes the copied-only photos and tries the failed ones again, with anything not yet moved"
+          : mode === "copy" ? "it tries the failed photos again, with anything not yet copied"
+            : "it reads every photo again";
+        if (folder) note(`${too} The same ${modeName(run.mode)} over ${folder} covers them: ${covers} there.`, { mode, folder });
+        else if (selection) note(`${too} A selection holds at most ${count(ids.limit)}, so this should not happen; retry from the Library in parts.`);
+        else note(`${too} A ${modeName(run.mode)} of everything covers them: ${covers}.`, { mode });
         return;
       }
       if (ids.photo_ids.length === 0) {
-        setNotice("None of these failures belongs to a photo, so there is nothing to retry. Fix the folder's access, then run an Index.");
+        note("None of these failures belongs to a photo, so there is nothing to retry. Fix the folder's access, then run an Index.", { mode: "index" });
         return;
       }
       await api.startJob({ mode, file_ids: ids.photo_ids });
-      setNotice(`Retrying ${plural(ids.photo_ids.length, "photo")} as a new ${modeName(run.mode)}. A retry does not by itself fix an unreadable file or a content mismatch.`);
+      note(`Retrying ${plural(ids.photo_ids.length, "photo")} as a new ${modeName(run.mode)}. A retry does not by itself fix an unreadable file or a content mismatch.`);
     } catch (e) {
-      setNotice(e instanceof ApiError ? e.message : "The retry could not be started.");
+      note(e instanceof ApiError ? e.message : "The retry could not be started.");
     }
+  };
+  // The fix a retry note offers, as a button over the job's own scope, confirmed as from
+  // Actions. An Index of everything is the page's Run an Index.
+  const startScoped = (mode: "index" | "copy" | "move", folder?: string) => async () => {
+    setRetryNote(null);
+    try {
+      await api.startJob(folder ? { mode, source_subdir: folder } : { mode });
+    } catch (e) {
+      setNotice(e instanceof ApiError ? e.message : "The job could not be started.");
+    }
+  };
+  const retryFix = (fix: NonNullable<RetryNote["fix"]>) => {
+    const busy = { disabled: jobRunning, title: jobRunning ? "A job is running." : undefined };
+    if (fix.mode === "index" && !fix.folder) return indexButton;
+    const label = fix.folder ? `${modeName(fix.mode.toUpperCase())} this folder again`
+      : fix.mode === "move" ? "Move everything" : "Copy everything";
+    const act = fix.mode === "index" ? startScoped("index", fix.folder)
+      : () => setConfirm(transferConfirm(fix.mode as "copy" | "move", status, fix.folder ? { folder: fix.folder } : undefined,
+                                         startScoped(fix.mode, fix.folder)));
+    return <button className="link" {...busy} onClick={act}>{label}</button>;
   };
 
   const runIndex = async () => {
@@ -318,12 +363,13 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
                     <strong>#{run.id} {s?.headline ?? modeName(run.mode)}</strong>
                     <span className="muted">{instant(run.started_at)}</span>
                   </span>
-                  <span className="job-detail">{s?.detail}</span>
+                  <span className="job-detail" title={reasonsText(run.outcome) ?? undefined}>{s?.detail}</span>
                   <span className="job-count">{plural(matches, "entry", "entries")}</span>
                 </button>
                 {open && (
                   <JobEntries run={run} filters={apiFilters} refreshKey={refreshKey} activePhoto={filters.photo} indexButton={indexButton}
-                              onPhoto={(id) => set({ photo: id })} onRetry={() => retry(run)} jobRunning={jobRunning} />
+                              onPhoto={(id) => set({ photo: id })} onRetry={(n) => retry(run, n)} jobRunning={jobRunning}
+                              note={retryNote?.run === run.id ? <>{retryNote.text}{retryNote.fix && <> {retryFix(retryNote.fix)}</>}</> : null} />
                 )}
               </li>
             );
@@ -338,15 +384,16 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
 
 // One job's entries under the page's filters, loading more as the list scrolls on.
 // The job's header line sticks to the top meanwhile, so collapsing it is always at hand.
-function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhoto, onRetry, jobRunning }: {
+function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhoto, onRetry, jobRunning, note }: {
   run: RecordedRun;
   indexButton: ReactNode;
   filters: LogFilters;
   refreshKey: number;
   activePhoto: number | null;
   onPhoto: (id: number) => void;
-  onRetry: () => void;
+  onRetry: (photos: number) => void;
   jobRunning: boolean;
+  note: ReactNode;
 }) {
   const [error, setError] = useState<string | null>(null);
   const scoped = { ...filters, run: [run.id] };
@@ -366,15 +413,22 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
   if (error) return <p className="error job-body">{error}</p>;
   if (!data) return <p className="muted job-body">Loading…</p>;
   const failed = data.status_counts.Failed ?? 0;
-  const canRetry = failed > 0 && retryModeOf(run) != null;
+  const kept = run.mode === "MOVE" ? data.status_counts.Copied_Only ?? 0 : 0;
+  const canRetry = failed + kept > 0 && retryModeOf(run) != null;
+  const retryLabel = !kept ? `Retry the ${plural(failed, "failed photo")} (${modeName(run.mode)})`
+    : !failed ? `Move the ${plural(kept, "copied-only photo")} again`
+      : `Retry the ${count(failed + kept)} failed and copied-only photos (Move)`;
 
   return (
     <div className="job-body">
-      {canRetry && (
+      {(canRetry || note) && (
         <div className="retry">
-          <button onClick={onRetry} disabled={jobRunning} title={jobRunning ? "A job is running." : undefined}>
-            Retry the {plural(failed, "failed photo")} ({modeName(run.mode)})
-          </button>
+          {canRetry && (
+            <button onClick={() => onRetry(failed + kept)} disabled={jobRunning} title={jobRunning ? "A job is running." : undefined}>
+              {retryLabel}
+            </button>
+          )}
+          {note && <p className="notice" role="status">{note}</p>}
         </div>
       )}
       {data.total === 0 ? <p className="empty">This job recorded nothing{filters.status.length || filters.q ? " that matches these filters" : ""}.</p> : (

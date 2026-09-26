@@ -87,7 +87,8 @@ class MakeScenarios(unittest.TestCase):
         scenarios = {f["scenario"] for f in files}
         for wanted in ("exact_duplicate", "duplicate_without_exif", "resized_with_exif", "resized_without_exif",
                        "format_converted", "date_no_date", "date_with_offset", "date_conflicting", "orientation",
-                       "name_same_name", "name_case_only", "edge_zero_bytes", "edge_truncated", "edge_symlink"):
+                       "name_same_name", "name_case_only", "edge_zero_bytes", "edge_truncated", "edge_symlink",
+                       "same_picture_2024", "same_picture_1969"):
             self.assertIn(wanted, scenarios)
         dups = [f for f in files if f["scenario"] == "exact_duplicate"]
         self.assertGreaterEqual(len(dups), 20)
@@ -157,6 +158,15 @@ class MakeScenarios(unittest.TestCase):
             " metadata_json FROM photos)").fetchall())
         no_date = next(Path(f["path"]).name for f in files if f["scenario"] == "date_no_date")
         self.assertEqual(undated.get(no_date), "file_mtime", "a photo with no date must be filed by file time")
+        # One picture, two dates: two photos, filed 55 years apart, with the same perceptual hash.
+        pair = {}
+        for year in ("2024", "1969"):
+            name = next(Path(f["path"]).name for f in files if f["scenario"] == f"same_picture_{year}")
+            pair[year] = db.execute("SELECT json_extract(metadata_json, '$.date_taken'), phash FROM photos "
+                                    "WHERE source_path LIKE ?",
+                                    (f"%/{name}",)).fetchone()
+            self.assertTrue(pair[year][0].startswith(year), f"{name} was filed {pair[year][0]}")
+        self.assertEqual(pair["2024"][1], pair["1969"][1], "the same pixels should give the same pHash")
 
 
 if __name__ == "__main__":

@@ -75,6 +75,13 @@ OPERATION_SKIPPED = "Skipped"
 # A delivered file given a new name on the user's instruction (engine-spec 9.4).
 OPERATION_RENAMED = "Renamed"
 
+# How a Move records a file whose verified copy was delivered but whose original could
+# not be deleted (a read-only source, a permission): the photo is Copied, and the
+# operation reads Copied with an error message starting with this and giving the
+# reason. The web API shows that operation as Copied only. A later Move finishes it:
+# TRANSFER_ELIGIBLE takes Copied photos.
+ORIGINAL_KEPT = "The original could not be removed"
+
 PHOTO_STATUSES = (
     PhotoStatus.PENDING, PhotoStatus.PROCESSING, PhotoStatus.COMPLETED,
     PhotoStatus.COPIED, PhotoStatus.FAILED, PhotoStatus.DUPLICATE,

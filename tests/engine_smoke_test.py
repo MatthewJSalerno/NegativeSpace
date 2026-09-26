@@ -2098,6 +2098,49 @@ def _assert_lineage_complete(case, label):
 
 
 @test
+def a_move_that_cannot_remove_the_original_records_the_copy():
+    """A Move whose original cannot be deleted records what it did, a verified Copy, and a later Move finishes it."""
+    # The maintainer's run: a Move against a read-only source published and verified
+    # every copy, then failed every delete, and recorded each photo Failed with no
+    # delivery, leaving copies at the destination the catalog did not know about.
+    case = new_case("move_original_kept")
+    make_photo(case / "src" / "a.jpg", "KEPT-A")
+    make_photo(case / "src" / "b.jpg", "KEPT-B")
+    run_engine(case)
+    os.chmod(case / "src", 0o555)          # the files can be read, not deleted
+    try:
+        run_engine(case, "--move")
+        first = {r["status"] for r in rows(case, "SELECT status FROM photos")}
+        # Again, still read-only: the copies are found at the destination, not made twice.
+        run_engine(case, "--move")
+    finally:
+        os.chmod(case / "src", 0o755)
+    check(first == {"Copied"}, f"a Move that could only copy should leave the photos Copied, got {first}")
+    check(sorted(p.name for p in (case / "src").iterdir()) == ["a.jpg", "b.jpg"],
+          "the originals should still be in the source")
+    check(len(dest_files(case)) == 2, f"expected the 2 verified copies at the destination, got {dest_files(case)}")
+    kept = rows(case, "SELECT run_id, error_message FROM operations WHERE status = 'Copied' ORDER BY id")
+    check(len(kept) == 4, f"expected a Copied operation per photo per Move, got {kept}")
+    import ns_db
+    check(all(k["error_message"].startswith(ns_db.ORIGINAL_KEPT) and "Permission denied" in k["error_message"]
+              for k in kept), f"each should say the original was kept, and why: {kept}")
+    check(not rows(case, "SELECT 1 FROM operations WHERE status = 'Failed'"),
+          "nothing failed: every photo was copied")
+    copies = rows(case, "SELECT COUNT(*) n FROM file_origins fo JOIN file_states s USING(file_id) "
+                        "WHERE fo.kind = 'copy' AND s.location_role = 'destination' AND s.presence_state = 'present'")
+    check(copies[0]["n"] == 2, f"each copy should be in its photo's lineage, once: {copies}")
+    sources = rows(case, "SELECT COUNT(*) n FROM file_states WHERE location_role = 'source' AND presence_state = 'present'")
+    check(sources[0]["n"] == 2, f"the originals should still be recorded as present in the source: {sources}")
+    _assert_lineage_complete(case, "original kept")
+
+    run_engine(case, "--move")
+    check({r["status"] for r in rows(case, "SELECT status FROM photos")} == {"Completed"},
+          "a Move once the source is writable should finish the job")
+    check(not any((case / "src").iterdir()), "the finished Move should have removed the originals")
+    check(len(dest_files(case)) == 2, "finishing the Move must not copy again")
+
+
+@test
 def every_catalogued_file_assembles_complete_lineage():
     """
     Lineage must be assemblable for EVERY catalogued file in EVERY status it can

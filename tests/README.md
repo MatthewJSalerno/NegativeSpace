@@ -120,7 +120,8 @@ For showing the app to someone, or checking it against every awkward case, witho
 sharing a real library. `build` hard-links every photo from a seed folder into
 `OUT/library` and adds scenarios beside them: exact duplicates, the same photo without
 its EXIF, resized and format-converted copies, dates the engine must file (none, with a
-time-zone offset, conflicting, invalid, future, 1958), names that collide at the
+time-zone offset, conflicting, invalid, future, 1958, and one picture dated both 2024 and
+1969), names that collide at the
 destination or are awkward, every EXIF orientation, and edge files (empty, truncated,
 not an image, a sidecar, a symlink, an unreadable file, a deep folder). `change` then
 applies one round of every kind of change (edited in place, touched, renamed, moved,

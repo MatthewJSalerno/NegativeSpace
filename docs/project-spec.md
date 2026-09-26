@@ -204,7 +204,8 @@ service. Built and tested:
 
 *   **The log and the Error Center:** grouped by job, each job loading as it scrolls;
     filters by job, status, photo, text and date, named in one line with Clear all;
-    failure hints with their fixes as buttons; Retry; and CSV/JSON export.
+    failure hints with their fixes as buttons, and failure reasons on hover; a Move that
+    could only copy shown as Copied only, never as failed; Retry; and CSV/JSON export.
 
 Specified but not yet on screen:
 *   Folder selection (`--source-subdir`).

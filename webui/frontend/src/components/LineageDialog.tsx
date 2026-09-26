@@ -6,7 +6,7 @@ import { Tip } from "./Tip";
 
 const STEP: Record<string, string> = {
   Pending: "Indexed", Duplicate: "Indexed as a duplicate", Processing: "Started", Completed: "Moved here",
-  Copied: "Copied here", Failed: "Failed", Removed_Duplicate: "Removed as a duplicate",
+  Copied: "Copied here", Copied_Only: "Copied here, original kept", Failed: "Failed", Removed_Duplicate: "Removed as a duplicate",
   Found_At_Destination: "Found here", Skipped: "Skipped", Cancelled: "Cancelled", Renamed: "Renamed",
 };
 const PRESENCE: Record<string, string> = { present: "Present", removed: "Removed", missing: "Missing" };

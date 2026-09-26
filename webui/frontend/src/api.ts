@@ -28,6 +28,10 @@ export interface PhotoItem {
   date_source: string | null;
   filename: string;
   duplicates: number;
+  // A Failed photo's latest failure reason, for its badge's hover.
+  failure?: string | null;
+  // Why a Move kept this Copied photo's original in the source, when one did.
+  kept?: string | null;
 }
 
 export interface PhotoPage {
@@ -35,7 +39,10 @@ export interface PhotoPage {
   page: number;
   page_size: number;
   total: number;
+  // The whole library per view (and No capture date within this view), for the buttons.
   counts: Record<View | "undated", number>;
+  // Each view under every filter now on, for suggesting another view.
+  matches: Record<View, number>;
 }
 
 // What narrows the gallery: the view, the search, No capture date, and the date tree's
@@ -115,7 +122,7 @@ export interface Phase {
   updated_at: string;
 }
 
-export type Verdict = "success" | "partial" | "failed" | "no_change" | "cancelled" | "interrupted" | "running";
+export type Verdict = "success" | "partial" | "originals_kept" | "failed" | "no_change" | "cancelled" | "interrupted" | "running";
 
 export interface Outcome {
   verdict: Verdict;
@@ -126,6 +133,11 @@ export interface Outcome {
   run_level_issues: number;
   recovered_earlier_work: number;
   skip_reasons: Record<string, number>;
+  // Why the requested work failed, by reason (paths removed), for the hover.
+  failure_reasons?: Record<string, number>;
+  // A Move's photos copied but not moved, because the original could not be deleted.
+  copied_only?: number;
+  kept_reasons?: Record<string, number>;
   total: number | null;
   counts: Record<string, number>;
 }
@@ -370,8 +382,9 @@ export const api = {
     p.set("format", format);
     return `/api/v1/operations/export?${p}`;
   },
-  retryIds: (f: LogFilters) =>
-    request<{ photo_ids: number[]; more_than_limit: boolean; limit: number }>("GET", `/api/v1/operations/photo-ids?${logQuery(f)}`),
+  retryIds: (f: LogFilters, requestedOnly = false) =>
+    request<{ photo_ids: number[]; more_than_limit: boolean; limit: number }>(
+      "GET", `/api/v1/operations/photo-ids?${logQuery(f)}${requestedOnly ? "&requested_only=true" : ""}`),
   backups: () => request<Backups>("GET", "/api/v1/backups"),
   backupNow: () => request<BackupAttempt>("POST", "/api/v1/backups"),
   backupDownloadUrl: (id: number) => `/api/v1/backups/${id}/download`,

@@ -12,6 +12,14 @@ from ns_db import PhotoStatus, RunStatus, OPERATION_SKIPPED, OPERATION_CANCELLED
 
 GRID_SIZE = 320
 DELIVERED = (PhotoStatus.COMPLETED, PhotoStatus.COPIED, PhotoStatus.FOUND_AT_DESTINATION)
+# A Move that delivered a verified copy but could not delete the original is recorded
+# as Copied with a reason (ns_db.ORIGINAL_KEPT). The log shows it as its own status,
+# derived here and never stored, so it reads as neither a Move nor a failure.
+COPIED_ONLY = "Copied_Only"
+LOG_STATUSES = ns_db.OPERATION_STATUSES + (COPIED_ONLY,)
+_KEPT_LIKE = ns_db.ORIGINAL_KEPT.replace("%", "") + "%"
+_OP_STATUS = (f"(CASE WHEN o.status = '{PhotoStatus.COPIED}' AND o.error_message LIKE '{_KEPT_LIKE}' "
+              f"THEN '{COPIED_ONLY}' ELSE o.status END)")
 NOT_ORGANIZED = (PhotoStatus.PENDING, PhotoStatus.PROCESSING, PhotoStatus.FAILED)
 # A duplicate's content is shown once, on its anchor, with a duplicate count: the
 # gallery lists photographs, not every copy of one (webui-spec 7.2).
@@ -196,6 +204,26 @@ def _check_view(view, sort=None, page=None, page_size=None):
         raise ValueError("page must be at least 1 and page_size between 1 and 240")
 
 
+def failure_reason(message: Optional[str]) -> Optional[str]:
+    """An engine failure message as a reason a person reads, and one that groups: the
+    exception name, the error number and the quoted path go, so "OSError: [Errno 30]
+    Read-only file system: '/data/source/a.jpg'" reads "Read-only file system"."""
+    if not message:
+        return None
+    text = re.sub(r"^[A-Za-z]*(Error|Exception|Mismatch): ", "", message.strip())
+    text = re.sub(r"\[Errno \d+\]\s*", "", text)
+    text = re.sub(r"""(:\s*)?('[^']*'|"[^"]*")""", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" :.")
+    return (text[:117] + "…") if len(text) > 120 else text or None
+
+
+def kept_reason(message: Optional[str]) -> Optional[str]:
+    """Why a Move kept an original, readable and grouping as failure_reason does."""
+    if not message or not message.startswith(ns_db.ORIGINAL_KEPT):
+        return None
+    return failure_reason(message[len(ns_db.ORIGINAL_KEPT):].lstrip(": ")) or "No reason recorded"
+
+
 def _items(conn, rows) -> list:
     items = []
     for r in rows:
@@ -204,6 +232,19 @@ def _items(conn, rows) -> list:
         item["duplicates"] = conn.execute(
             "SELECT COUNT(*) FROM photos WHERE sha1_hash = ? AND id != ?", (sha1, r["id"])
         ).fetchone()[0] if sha1 else 0
+        # Why a Failed photo failed, for the badge's hover: its latest failed attempt.
+        item["failure"] = None
+        if r["status"] == PhotoStatus.FAILED:
+            last = conn.execute("SELECT error_message FROM operations WHERE photo_id = ? AND status = ? "
+                                "ORDER BY id DESC LIMIT 1", (r["id"], PhotoStatus.FAILED)).fetchone()
+            item["failure"] = failure_reason(last[0]) if last else None
+        # A Copied photo a Move could not finish: why its original is still in the source.
+        item["kept"] = None
+        if r["status"] == PhotoStatus.COPIED:
+            last = conn.execute("SELECT error_message FROM operations WHERE photo_id = ? AND status IN (?, ?) "
+                                "ORDER BY id DESC LIMIT 1",
+                                (r["id"], PhotoStatus.COPIED, PhotoStatus.COMPLETED)).fetchone()
+            item["kept"] = kept_reason(last[0]) if last else None
         items.append(item)
     return items
 
@@ -211,32 +252,32 @@ def _items(conn, rows) -> list:
 def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, page_size=60, undated=False,
                 dates=None, types=None) -> dict:
     _check_view(view, sort, page, page_size)
-    search, search_params = _search_clause(q)
-    date_sql, date_params = _dates_clause(dates)
-    type_sql, type_params = _types_clause(types)
-    date_sql, date_params = date_sql + type_sql, date_params + type_params     # both narrow every count
     filtered, filtered_params = _filters(q, undated, dates, types)
     with connect(db_path) as conn:
-        # The views' counts ignore No capture date, which has its own count: turning it
-        # on must not make All photos read as if the library had shrunk.
-        counts = {}
+        # The view buttons count the whole library: "All photos" is every photo, whatever
+        # the search, dates, types or No capture date narrow the gallery to (webui-spec 2,
+        # Selective File Processing); `total` is what this request shows. `matches` counts
+        # each view under every filter, for suggesting another view when a search finds
+        # nothing in this one.
+        counts, matches = {}, {}
         for name, statuses in VIEWS.items():
-            counts[name] = conn.execute(
-                f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(statuses)})" + search + date_sql,
-                tuple(search_params) + date_params).fetchone()[0]
+            base = f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(statuses)})"
+            counts[name] = conn.execute(base).fetchone()[0]
+            matches[name] = conn.execute(base + filtered, filtered_params).fetchone()[0]
         total = conn.execute(
             f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered,
             filtered_params).fetchone()[0]
-        # How many in this view, search and dates have no capture date, filter on or off, for its label.
+        # How many photos in this view have no capture date, whatever else is on, for its label.
         counts["undated"] = conn.execute(
-            f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})"
-            + search + f" AND {_UNDATED}" + date_sql, tuple(search_params) + date_params).fetchone()[0]
+            f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])}) AND {_UNDATED}"
+        ).fetchone()[0]
         rows = conn.execute(
             f"SELECT {_LIST_COLUMNS} FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})"
             + filtered + f" ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?",
             filtered_params + (page_size, (page - 1) * page_size)).fetchall()
         items = _items(conn, rows)
-    return {"items": items, "page": page, "page_size": page_size, "total": total, "counts": counts}
+    return {"items": items, "page": page, "page_size": page_size, "total": total, "counts": counts,
+            "matches": matches}
 
 
 def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,
@@ -426,7 +467,10 @@ def _outcome(conn, run: dict, progress: list) -> dict:
     for p in main:
         for key, n in p["counts"].items():
             counts[key] = counts.get(key, 0) + n
-    succeeded = sum(n for k, n in counts.items() if k in _SUCCESS)
+    # In a Move, Copied means the original could not be deleted: not the Move asked for,
+    # and not a failure either. Counted apart, with its reasons.
+    copied_only = counts.get(PhotoStatus.COPIED, 0) if run["mode"] == "MOVE" else 0
+    succeeded = sum(n for k, n in counts.items() if k in _SUCCESS) - copied_only
     failed = sum(n for k, n in counts.items() if k in _FAILURE)
     skipped = sum(n for k, n in counts.items() if k in _SKIPPED)
     cancelled = counts.get(OPERATION_CANCELLED, 0)
@@ -440,13 +484,27 @@ def _outcome(conn, run: dict, progress: list) -> dict:
                                    "AND reconciles_operation_id IS NULL", (run["id"], OPERATION_SKIPPED)):
         reason = _skip_reason(message)
         skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
+    # Why the run's requested work failed, grouped by reason, for the banner's hover.
+    failure_reasons = {}
+    for (message,) in conn.execute("SELECT error_message FROM operations WHERE run_id = ? AND status = ? "
+                                   "AND reconciles_operation_id IS NULL", (run["id"], PhotoStatus.FAILED)):
+        reason = failure_reason(message) or "No reason recorded"
+        failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
+    kept_reasons = {}
+    for (message,) in conn.execute("SELECT error_message FROM operations WHERE run_id = ? AND status = ? "
+                                   "AND reconciles_operation_id IS NULL AND error_message LIKE ?",
+                                   (run["id"], PhotoStatus.COPIED, _KEPT_LIKE)):
+        reason = kept_reason(message)
+        kept_reasons[reason] = kept_reasons.get(reason, 0) + 1
     if run["status"] in ns_db.ACTIVE_RUN_STATUSES:
         verdict = "running"
     elif run["status"] in _TERMINAL_WINS:
         verdict = _TERMINAL_WINS[run["status"]]
+    elif copied_only and not failed and not issues:
+        verdict = "originals_kept"
     elif succeeded and not failed and not issues:
         verdict = "success"
-    elif succeeded:
+    elif succeeded or copied_only:
         verdict = "partial"
     elif failed or issues:
         verdict = "failed"
@@ -455,7 +513,8 @@ def _outcome(conn, run: dict, progress: list) -> dict:
     total = sum(p["total"] or 0 for p in main) if main and all(p["total"] is not None for p in main) else None
     return {"verdict": verdict, "succeeded": succeeded, "failed": failed, "skipped": skipped,
             "cancelled": cancelled, "run_level_issues": issues, "recovered_earlier_work": recovered,
-            "skip_reasons": skip_reasons,
+            "copied_only": copied_only, "skip_reasons": skip_reasons, "failure_reasons": failure_reasons,
+            "kept_reasons": kept_reasons,
             "total": total, "counts": counts}
 
 
@@ -559,7 +618,7 @@ def _operations_where(*, runs=None, statuses=None, photo=None, q=None, since=Non
         clauses.append(f"o.run_id IN ({','.join('?' * len(runs))})")
         params += list(runs)
     if statuses:
-        clauses.append(f"o.status IN ({','.join('?' * len(statuses))})")
+        clauses.append(f"{_OP_STATUS} IN ({','.join('?' * len(statuses))})")
         params += list(statuses)
     if photo is not None:
         # The photo, the files made from it, and its exact duplicates (other rows holding
@@ -586,7 +645,7 @@ def _operations_where(*, runs=None, statuses=None, photo=None, q=None, since=Non
     return (" WHERE " + " AND ".join(clauses)) if clauses else "", params
 
 
-_OP_COLUMNS = ("o.id, o.run_id, r.mode, o.photo_id, o.timestamp, o.source_path, o.dest_path, o.status, "
+_OP_COLUMNS = (f"o.id, o.run_id, r.mode, o.photo_id, o.timestamp, o.source_path, o.dest_path, {_OP_STATUS} AS status, "
                "o.error_message, p.status AS photo_status, (o.reconciles_operation_id IS NOT NULL) AS recovery")
 # Left joins: a failure with no photo (an unreadable folder) must never drop out
 # of the Error Center (webui-spec 5.3).
@@ -614,7 +673,7 @@ def list_operations(db_path: Path, *, page=1, page_size=100, **filters) -> dict:
         total = conn.execute(f"SELECT COUNT(*) {_OP_FROM}{where}", params).fetchone()[0]
         rows = conn.execute(f"SELECT {_OP_COLUMNS} {_OP_FROM}{where} ORDER BY o.id DESC LIMIT ? OFFSET ?",
                             params + [page_size, (page - 1) * page_size]).fetchall()
-        counts = dict(conn.execute(f"SELECT o.status, COUNT(*) {_OP_FROM}{count_where} GROUP BY o.status",
+        counts = dict(conn.execute(f"SELECT {_OP_STATUS}, COUNT(*) {_OP_FROM}{count_where} GROUP BY 1",
                                    count_params).fetchall())
         per_run = {str(run): n for run, n in conn.execute(
             f"SELECT o.run_id, COUNT(*) {_OP_FROM}{where} GROUP BY o.run_id", params)}
@@ -630,15 +689,19 @@ def iter_operations(db_path: Path, **filters):
             yield _op_dict(row)
 
 
-def operation_photo_ids(db_path: Path, limit: int, **filters) -> list:
+def operation_photo_ids(db_path: Path, limit: int, requested_only=False, **filters) -> list:
     """The distinct photos behind matching operations, for retrying failures: taken
     from the operations, never from photos.status, which can disagree with a failed
-    attempt (webui-spec 5.3). At most `limit` + 1, so the caller can tell it was cut."""
+    attempt (webui-spec 5.3). At most `limit` + 1, so the caller can tell it was cut.
+    `requested_only` leaves out rows settling an earlier job's interrupted work, so a
+    retry of a selection names only photos that selection held."""
     where, params = _operations_where(**filters)
+    where += (" AND" if where else " WHERE") + " o.photo_id IS NOT NULL"
+    if requested_only:
+        where += " AND o.reconciles_operation_id IS NULL"
     with connect(db_path) as conn:
         return [r[0] for r in conn.execute(
-            f"SELECT DISTINCT o.photo_id {_OP_FROM}{where}{' AND' if where else ' WHERE'} o.photo_id IS NOT NULL "
-            f"ORDER BY o.photo_id LIMIT ?", params + [limit + 1])]
+            f"SELECT DISTINCT o.photo_id {_OP_FROM}{where} ORDER BY o.photo_id LIMIT ?", params + [limit + 1])]
 
 
 def list_runs(db_path: Path, limit=100) -> list:
@@ -756,7 +819,7 @@ def photo_lineage(db_path: Path, photo_id: int) -> Optional[dict]:
             "ORDER BY of.operation_id", photos).fetchall()
         op_ids = sorted({r["operation_id"] for r in links})
         operations = [dict(r) for r in conn.execute(
-            "SELECT o.id, o.run_id, r.mode, o.status, o.timestamp, o.error_message, o.photo_id, "
+            f"SELECT o.id, o.run_id, r.mode, {_OP_STATUS} AS status, o.timestamp, o.error_message, o.photo_id, "
             "o.source_path, o.dest_path, (o.reconciles_operation_id IS NOT NULL) AS recovery "
             f"FROM operations o LEFT JOIN runs r ON r.id = o.run_id WHERE o.id IN ({','.join('?' * len(op_ids))}) "
             "ORDER BY o.id", op_ids)] if op_ids else []

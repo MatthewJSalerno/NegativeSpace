@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, type JobState, type Run } from "../api";
 import { duration, instant } from "../format";
-import { activeTitle, countsLine, currentPhase, phaseLabel, summary, type Connection } from "../jobs";
+import { activeTitle, countsLine, currentPhase, reasonsText, phaseLabel, summary, type Connection } from "../jobs";
+import { Tip } from "./Tip";
 import { follow, logUrl } from "../nav";
 
 // The operations drawer (webui-spec 4.1): aggregate counts about once a second,
@@ -67,7 +68,7 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
             <div className={`bar ${percent == null ? "bar-indeterminate" : ""}`}>
               <div style={{ width: percent == null ? undefined : `${percent}%` }} />
             </div>
-            {phase && <p className="muted">{countsLine(phase.counts) || "Starting…"}</p>}
+            {phase && <p className="muted">{countsLine(phase.counts, active.mode) || "Starting…"}</p>}
             {cancelling && (
               <p>Cancellation requested—waiting for the current work to stop safely.</p>
             )}
@@ -102,7 +103,8 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss }: {
     <div className={`finished-banner finished-${s.tone}`} role="status">
       <div className="drawer-text">
         <strong>{s.headline}</strong>
-        <span>{s.detail}</span>
+        {reasonsText(run.outcome) ? <Tip text={reasonsText(run.outcome) as string}><span tabIndex={0} className="has-reasons">{s.detail}</span></Tip>
+                                  : <span>{s.detail}</span>}
         <span className="muted">
           {started && ended ? `Took ${duration(ended - started)}` : run.status === "Interrupted" ? "Duration unavailable" : ""}
         </span>

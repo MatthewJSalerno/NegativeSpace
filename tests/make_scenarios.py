@@ -291,6 +291,16 @@ def build(args):
             os.utime(dest, (extra["mtime"], extra["mtime"]))
         m.add(dest, f"date_{name.replace('-', '_')}", expect, src)
 
+    # The same picture dated 55 years apart: only the EXIF differs, so two photos with
+    # different bytes and the same pixels, filed in two years. Nothing pairs them yet;
+    # the similarity review (engine-spec 9.3) is what should.
+    for src in pick(jpegs, 1):
+        for year, other in ((2024, 1969), (1969, 2024)):
+            dest = sc / "dates" / f"same-picture-{year}-{src.stem}.jpg"
+            fresh_copy(src, dest)
+            exiftool(dest, f"-DateTimeOriginal={year}:06:15 12:00:00")
+            m.add(dest, f"same_picture_{year}", f"Filed {year}/06; the same picture as the one filed {other}", src)
+
     # 8. Names: collisions at the destination, and awkward spellings.
     pool = pick(jpegs, 6)
     named = [("same-name/trip-a/IMG_0001.jpg", "Same name, different photo: the second at the destination gets _1"),

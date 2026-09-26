@@ -122,19 +122,27 @@ Users can select individual files or multiple files across grid views to run tar
   **Show only** header, narrow the gallery to the ticked years and months; none ticked,
   the default, shows every date. A year's box ticks its months and shows a dash when
   only some are ticked. The filter is in the address, named above the gallery
-  (**“Showing only June 2023, 2019 · Select these 412 · Show all dates”**; **Select these**
+  (**“Showing 412 of 1,160 photos · only June 2023, 2019 · Select these 412 · Show all
+  dates”**; **Select these**
   selects what the filter shows, as Select all in this view does, refused above the
   1,000-photo limit. The boxes themselves only filter: unchecking a month to look
-  elsewhere must never change the selection), and applies to the view
-  counts; the tree's own counts ignore it, so an unticked month keeps its number. On a
+  elsewhere must never change the selection). The tree's own counts ignore it, so an
+  unticked month keeps its number. On a
   narrow screen the panel opens from a **Dates & types** button.
 * **Types:** above Dates, folded by default to one line that names any type checked (a
   type filter in the address opens it; open or folded is remembered per browser): the
   file types the library holds (by extension), with counts
   for the current view, search and dates, and the same **Show only** boxes; none checked,
   the default, shows every type. A checked type stays listed at 0 so it can be unchecked.
-  Types and dates combine, and the filter line names both (**"Showing only 2019, HEIC ·
-  Select these 42 · Show all dates · Show all types"**). **All photos** clears them too.
+  Types and dates combine, and the filter line names both (**"Showing 42 of 1,160 photos
+  · only 2019, HEIC · Select these 42 · Show all dates · Show all types"**). **All
+  photos** clears them too.
+* **The view buttons count the library; the filter line counts the gallery.** **All
+  photos (1,160)** is every photo whatever the dates, types, search or No capture date
+  narrow the gallery to, and so are the other views' numbers. Whenever any of those is
+  on, the line above the gallery says what is shown and of what: **"Showing 9 of 1,160
+  photos · only 2022, 2023"**. **Why not counts that follow the filters:** a button
+  labelled All photos showing 9 read as the library's size, not the gallery's.
   The Stats page's formats open the Library filtered to that type. Going to a date the filter hides
   says so and offers the fixes as buttons that apply them and then go there: **“December
   2016 is outside the dates shown. Show December 2016 too · Show all dates”**.
@@ -171,9 +179,9 @@ The page, page size, sort, view, search, dates and open photo live in the URL.
 
 **No capture date** is a quick filter beside the views, with its count. It shows the
 photos whose EXIF has no date taken, which are filed under Undated by their file's
-modification date. It combines with the view and the search, but the views' counts
-ignore it: turning it on leaves **All photos** at its real number, and the pager says how
-many are shown. Each view button keeps its width whatever its count, with room for
+modification date, counted in the current view. It combines with the view and the
+search; the views' counts ignore it, as they ignore every filter, and the filter line says
+how many are shown. Each view button keeps its width whatever its count, with room for
 **(999,999)** in even-width digits, so switching views never moves them. **All photos** means every
 photo: choosing it also clears No capture date, the date tree's Show only and the search,
 and it is not shown as chosen while any of them narrows the gallery. The other views keep
@@ -346,6 +354,24 @@ wrong for every such file that does carry a date.
 ### 4.1 Real-Time Operations Drawer
 When a job is active, its progress shows at the top of the page, under the toolbar. When
 it finishes, its result replaces it there as a banner until dismissed.
+
+**A failure count says why on hover.** Hovering (or focusing) a finished job's result
+lists why its files failed, each reason with its count, the file paths removed so reasons
+group (**"Why they failed: Permission denied: 2"**); the Logs page's job lines do
+the same, and a Failed photo's badge in the gallery gives its own latest reason.
+
+**A Move that could only copy says so, without stopping to ask.** When a Move cannot
+delete an original (a read-only source, a permission), the engine records the verified
+copy it made (`engine-spec.md` §4.2) and the screens name it **Copied only**, in the
+warning colour: never Moved, never Failed. The result reads **"Move finished, originals
+kept · 0 of 4,836 files moved · 4,836 copied only: the original could not be removed"**,
+and its hover gives the reasons (**"Why originals were kept: Read-only file system:
+4,836"**). The log has a **Copied only** status with its own filter, a hint that the copy
+is at the destination, and **Move the n copied-only photos again** to finish the job once
+the source can be written (above 1,000 photos, through **Move everything**). The gallery badge reads **Copied only**, with the reason
+on hover; the Inspector's history and the lineage tree say **original kept**. *Why not
+ask on the first failure:* nothing is lost either way, and a question nobody is there to
+answer would stall an overnight job; a clear account afterwards serves better.
 
 A finished job's banner explains its skips, grouped by the reason each photo recorded,
 for example **"5 skipped (3 copied by an earlier job, 2 duplicates: the same content is
@@ -911,7 +937,12 @@ list scrolls, and the job's header line, with its collapse arrow, stays at the t
 meanwhile. Status counts keep their width, as the Library's view counts do. The Inspector's
 **Open in the log**, under History, opens the log for that photo. Each failure carries a plain hint drawn from its
 recorded reason, and **Retry**, inside the job it belongs to, runs the same mode again over the photos behind
-that job's shown failures.
+that job's shown failures, and says what it did beside the button. Over the 1,000 photos a
+retry can name one by one (§2's selection limit), it says so there and offers, as a button,
+**the job's own scope again, never more**: **Move everything** / **Copy everything** after a
+job over everything, **Move this folder again** after a folder's job. A Move re-reads failed
+photos and takes copied-only ones, so nothing is left out. A selection holds at most 1,000
+photos and its retry leaves out rows settling earlier jobs' work, so it always fits.
 
 A searchable table logging every operation performed by the engine:
 * **Columns:** Timestamp, Mode (`MOVE`/`COPY`), Source Path, Destination Path, Status (`Completed`, `Copied`, `Removed_Duplicate`, `Found_At_Destination`, `Failed`), and System Error Message.
@@ -925,7 +956,7 @@ A searchable table logging every operation performed by the engine:
 
 **`runs.status` describes the run's lifecycle, not whether the work succeeded.** A run that reaches the end of its file loop is recorded `Completed` even if every single file in it failed. That is accurate for what the column means — the process ran to completion rather than crashing, being cancelled, or aborting on a pre-flight check — but it is the wrong thing to put in front of a user on its own.
 
-For example, a `--move` against a source mounted `:ro` fails every file (the copy succeeds, only the source deletion fails) and still reports:
+For example, a `--copy` whose every source file is unreadable fails every file and still reports:
 
 ```
 Run #2 finished with status: Completed
@@ -968,6 +999,7 @@ Job responses should carry both: the lifecycle status **and** the derived counts
 | `runs.status` is `Cancelling` | cancellation requested, still stopping (§4.1); keep counts live |
 | succeeded > 0, failed = 0 | success |
 | succeeded > 0, failed > 0 | partial success — surface the failed count and link the Error Center |
+| a Move with copied-only photos, failed = 0 | originals kept (warning) — the copied-only count and its reasons, never a success or a failure |
 | succeeded = 0, failed > 0 | **failure**, regardless of `runs.status` being `Completed` |
 | no changes, no failures or scan issues, and run completed | neutral completion with prominent counts and skip reasons; not an error |
 | `runs.status` is `Cancelled` / `Interrupted` / `Failed` | that status wins; still show counts for what was done before it ended. `Interrupted` has no end time; show its duration as unavailable (§4.1) |
@@ -1056,7 +1088,10 @@ these three figures, the coverage line, duplicates by top-level folder of the so
 library fed as archives in their own folders, how much each archive duplicated), and the
 rest of the library in figures (formats,
 cameras, resolution, dates, activity, catalog health), each leading to the photos or log
-entries behind it. Figures that need unbuilt features say so rather than guess.
+entries behind it. Figures that need unbuilt features say so rather than guess. The
+tiles across the top are Photos, Organized, No capture date, Duplicate copies, Failed
+attempts and Last backup. **A share never rounds to all or nothing:** 100% means every
+photo and 0% none, so 4,681 of 4,684 reads 99.9%, not 100%.
 
 "How much space are my duplicates wasting?" is a headline figure for the Stats page, and the catalog already answers it without any engine change. Deduplication acts on two different volumes, though, and conflating them produces a number that is wrong in whichever direction the user's mode does not apply:
 

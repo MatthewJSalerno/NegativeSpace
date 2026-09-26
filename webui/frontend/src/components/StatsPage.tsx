@@ -101,16 +101,27 @@ export function StatsLink({ active = false }: { active?: boolean }) {
   );
 }
 
+// A share as a percentage that never rounds to all or nothing: 4,681 of 4,684 reads
+// 99.9%, not 100%, and 100% means every one.
+function share(n: number, of: number): string {
+  if (!of) return "–";
+  const exact = (100 * n) / of;
+  if (n === of || n === 0 || (exact >= 0.5 && exact < 99.5)) return `${Math.round(exact)}%`;
+  const tenths = Math.round(exact * 10) / 10;
+  return tenths >= 100 ? ">99.9%" : tenths <= 0 ? "<0.1%" : `${tenths}%`;
+}
+
 function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void }) {
   const lib = s.library;
   const failed = Object.values(s.activity.failures).reduce((a, b) => a + b, 0);
-  const pct = (n: number, of: number) => (of ? `${Math.round((100 * n) / of)}%` : "–");
   return (
     <>
       <div className="stat-tiles">
         <Tile label="Photos" value={count(lib.photos)} sub={bytes(lib.bytes)} href="/" />
-        <Tile label="Organized" value={pct(lib.organized, lib.photos)}
+        <Tile label="Organized" value={share(lib.organized, lib.photos)}
               sub={`${count(lib.organized)} of ${count(lib.photos)}`} href="/?view=organized" />
+        <Tile label="No capture date" value={count(s.dates.undated)}
+              sub={`${share(s.dates.undated, lib.photos)} of photos`} href="/?undated=1" />
         <Tile label="Duplicate copies" value={count(s.duplicates.extra_copies)}
               sub={`${bytes(s.duplicates.bytes)} in extra copies`} />
         <Tile label="Failed attempts" value={count(failed)} sub={failed ? "Open the Error Center" : "None"}
@@ -126,7 +137,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
             ["Photos", `${plural(lib.photos, "photo")} · ${bytes(lib.bytes)}`],
             ["Organized", <a key="o" href="/?view=organized" onClick={follow}>{plural(lib.organized, "photo")} · {bytes(lib.organized_bytes)}</a>],
             ["Not yet organized", <a key="n" href="/?view=unorganized" onClick={follow}>{plural(lib.not_organized, "photo")}</a>],
-            ["With a location (GPS)", `${plural(lib.with_location, "photo")} · ${pct(lib.with_location, lib.photos)} of them`],
+            ["With a location (GPS)", `${plural(lib.with_location, "photo")} · ${share(lib.with_location, lib.photos)} of them`],
             ["Orientation", `${count(lib.orientation.landscape)} landscape · ${count(lib.orientation.portrait)} portrait · ${count(lib.orientation.square)} square`],
           ]} />
           <h4>Formats, by space</h4>
@@ -154,7 +165,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
             ["Oldest photo", s.dates.oldest ? photoDate(s.dates.oldest, false) : "–"],
             ["Newest photo", s.dates.newest ? photoDate(s.dates.newest, false) : "–"],
             ["Busiest day", s.dates.busiest_day ? `${photoDate(s.dates.busiest_day.day, false)} · ${plural(s.dates.busiest_day.photos, "photo")}` : "–"],
-            ["Undated", <a key="u" href="/?undated=1" onClick={follow}>{count(s.dates.undated)}</a>],
+            ["No capture date", <a key="u" href="/?undated=1" onClick={follow}>{count(s.dates.undated)}</a>],
             ["  no date in the EXIF", count(s.dates.undated_no_date)],
             ["  an unusable date (e.g. 0000:00:00)", count(s.dates.undated_unusable)],
             ["Recorded a time zone", count(s.dates.with_time_zone)],

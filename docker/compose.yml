@@ -51,7 +51,7 @@ services:
         source: ${SOURCE_DIR:?Set SOURCE_DIR to the source directory}
         target: /data/source
         # Scan and Copy need only read access. Move deletes verified sources, so it
-        # needs read_only: false; with a read-only source every Move file fails.
+        # needs read_only: false; with a read-only source a Move can only copy (Copied only).
         read_only: true
         bind:
           create_host_path: false
