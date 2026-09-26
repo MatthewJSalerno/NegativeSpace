@@ -15,6 +15,7 @@ import { ConfirmDialog, transferConfirm, type Confirm } from "./components/Confi
 import { Tip } from "./components/Tip";
 import { ActionsMenu } from "./components/ActionsMenu";
 import { LogsPage } from "./components/LogsPage";
+import { StatsLink, StatsPage } from "./components/StatsPage";
 import { follow, navigate, useHeaderHeight, usePath } from "./nav";
 import { SettingsDialog } from "./components/SettingsDialog";
 
@@ -74,7 +75,9 @@ export function App() {
     <>
       {path === "/logs"
         ? <LogsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />
-        : <Library status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />}
+        : path === "/stats"
+          ? <StatsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />
+          : <Library status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />}
       {settingsOpen && <SettingsDialog firstRun={false} onClose={() => setSettingsOpen(false)} onSaved={() => undefined} />}
     </>
   );
@@ -499,6 +502,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           )}
           <div className="toolbar-actions">
             <VersionTag version={status.version} />
+            <StatsLink />
             <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
           </div>
         </div>

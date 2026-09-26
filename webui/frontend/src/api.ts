@@ -276,6 +276,39 @@ export interface Lineage {
   operations: LineageOperation[];
 }
 
+export interface Stats {
+  library: {
+    photos: number; bytes: number; organized: number; organized_bytes: number; not_organized: number;
+    formats: { format: string; photos: number; bytes: number }[];
+    cameras: { name: string; photos: number }[];
+    lenses: { name: string; photos: number }[];
+    megapixels: { band: string; photos: number }[];
+    under_1mp: number;
+    orientation: { landscape: number; portrait: number; square: number };
+    with_location: number;
+  };
+  dates: {
+    per_year: { year: string; photos: number }[];
+    oldest: string | null; newest: string | null;
+    busiest_day: { day: string; photos: number } | null;
+    undated: number; undated_no_date: number; undated_unusable: number; with_time_zone: number;
+  };
+  duplicates: {
+    groups: number; extra_copies: number; bytes: number; saved_at_destination: number;
+    move_would_free: number; freed_by_moves: number; near_duplicates: number | null;
+  };
+  activity: {
+    jobs: Record<string, number>; last_index: string | null; copied: number; moved: number;
+    bytes_transferred: number; bytes_per_second: number | null; failures: Record<string, number>;
+    renames: number; exif_edits: number | null;
+  };
+  health: {
+    last_backup: string | null; backup_bytes: number; backups: number; unbacked_changes: number;
+    catalog_bytes: number; thumbnail_cache: { size: number; photos: number; bytes: number }[];
+    destination_check: { at: string; findings: Record<string, number> } | null;
+  };
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public body: Record<string, unknown>) {
     super(message);
@@ -335,6 +368,7 @@ export const api = {
   backups: () => request<Backups>("GET", "/api/v1/backups"),
   backupNow: () => request<BackupAttempt>("POST", "/api/v1/backups"),
   backupDownloadUrl: (id: number) => `/api/v1/backups/${id}/download`,
+  stats: () => request<Stats>("GET", "/api/v1/stats"),
   uiState: () => request<{ dismissed_run: number | null }>("GET", "/api/v1/ui-state"),
   saveUiState: (values: { dismissed_run: number }) => request<{ dismissed_run: number | null }>("PUT", "/api/v1/ui-state", values),
   runs: (limit = 100) => request<{ runs: Run[] }>("GET", `/api/v1/runs?limit=${limit}`),

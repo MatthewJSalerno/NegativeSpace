@@ -461,6 +461,24 @@ with sync_playwright() as p:
     expect(page.locator(".inspector")).to_be_visible()
     page.keyboard.press("Escape")
 
+    # Stats, beside Settings: the library in figures, each leading to what is behind it.
+    page.get_by_role("link", name="Stats").click()
+    expect(page).to_have_url(re.compile(r"/stats$"))
+    tiles = page.locator(".stat-tile")
+    expect(tiles.filter(has_text="Photos")).to_contain_text(f"{PHOTOS:,}")
+    expect(page.locator(".stat-panel h3")).to_have_count(6)
+    expect(page.locator(".stat-panel", has_text="Duplicates")).to_contain_text("Extra copies")
+    shot("9-stats")
+    tiles.filter(has_text="Failed attempts").click()
+    expect(page).to_have_url(re.compile(r"/logs\?status=Failed"))
+    page.go_back()
+    # The chart counts dates taken: here only the two photos with an EXIF date (2023).
+    expect(page.locator(".year-bar")).to_have_count(1)
+    page.locator(".year-bar", has_text="2023").click()
+    expect(page).to_have_url(re.compile(r"date=2023"))
+    expect(page.locator(".dates-filter-line")).to_contain_text("Showing only 2023")
+    page.locator(".dates-filter-line").get_by_role("button", name="Show all dates").click()
+
     page.get_by_role("button", name="Settings").click()
     expect(page.get_by_role("dialog")).to_contain_text("Changes apply to future jobs")
     # Catalog backups: each job above took one; Back up now adds a manual one.
@@ -540,4 +558,4 @@ with sync_playwright() as p:
 assert not errors, f"browser console errors: {errors}"
 assert not server_errors, f"server errors: {server_errors}"
 print("web interface: first run, index, scrolling, date tree, inspector, divider, selection, copy, "
-      "settings, backups, dates, select, show only selected, search and phone layout ok")
+      "stats, settings, backups, dates, select, show only selected, search and phone layout ok")

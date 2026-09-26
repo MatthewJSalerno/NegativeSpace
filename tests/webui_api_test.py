@@ -211,6 +211,25 @@ class JobsAndCatalog(ApiCase):
                          {(own["file_id"], "source"), (copy["file_id"], "destination")})
         self.assertEqual(self.client.get("/api/v1/photos/99999/lineage").status_code, 404)
 
+    def test_stats_count_the_library_its_dates_duplicates_and_work(self):
+        self.index_library()                  # IMG_0001 + "Beach Sunset" (same content), IMG_0002
+        self.wait_for(self.start(mode="copy"))
+        st = self.client.get("/api/v1/stats").json()
+        lib = st["library"]
+        self.assertEqual((lib["photos"], lib["organized"]), (2, 2), "two distinct photos, both copied")
+        self.assertEqual(lib["formats"][0]["format"], "jpg")
+        self.assertEqual(st["duplicates"]["extra_copies"], 1)
+        self.assertEqual(st["duplicates"]["saved_at_destination"], st["duplicates"]["bytes"])
+        self.assertGreater(st["duplicates"]["move_would_free"], 0, "the duplicate's source is still there")
+        self.assertIsNone(st["duplicates"]["near_duplicates"], "not recorded yet: no figure is invented")
+        self.assertEqual(sum(y["photos"] for y in st["dates"]["per_year"]) + st["dates"]["undated"], 2)
+        self.assertEqual(st["activity"]["copied"], 2)
+        self.assertGreater(st["activity"]["bytes_transferred"], 0)
+        self.assertEqual(st["activity"]["failures"], {}, "nothing failed")
+        self.assertIsNone(st["activity"]["exif_edits"])
+        self.assertGreaterEqual(st["health"]["backups"], 1, "each job took a backup")
+        self.assertGreater(st["health"]["catalog_bytes"], 0)
+
     def test_copy_all_and_move_all_are_counted_as_the_engine_selects_them(self):
         self.index_library()
         status = self.client.get("/api/v1/status").json()

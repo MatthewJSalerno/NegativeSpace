@@ -129,6 +129,12 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(400, {"error": "invalid_request", "message": "Send an extension."})
         return ns_db.extension_support(ext.strip())
 
+    # -- Stats (webui-spec 5.9) -------------------------------------------------
+
+    @app.get("/api/v1/stats")
+    def get_stats():
+        return catalog.library_stats(cfg.db_path, cfg.backups, cfg.base)
+
     # -- Catalog backups (webui-spec 9) ----------------------------------------
 
     @app.get("/api/v1/backups")
