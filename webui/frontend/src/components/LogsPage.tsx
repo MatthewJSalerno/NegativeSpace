@@ -66,6 +66,9 @@ function dayStart(date: string, plusDays = 0): string {
   return new Date(y, m - 1, d + plusDays).toISOString();
 }
 
+// What a Retry did or could not do, and the job over everything that covers it.
+type RetryNote = { run: number; text: string; fix?: "index" | "copy" | "move" };
+
 // A job the catalog has recorded; only those have entries to list.
 type RecordedRun = Run & { id: number };
 
@@ -94,6 +97,8 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set(initial.run.length === 1 ? initial.run : []));
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // What a job's Retry did, shown beside that button rather than at the top of the page.
+  const [retryNote, setRetryNote] = useState<RetryNote | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [dismissedId, dismissRun] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
@@ -161,27 +166,43 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
 
   // Retrying is a new job over the photos behind one job's failures, taken from the
   // failed operations themselves (webui-spec 5.3). There is no separate retry.
-  const retry = async (run: RecordedRun) => {
+  const retry = async (run: RecordedRun, photos: number) => {
     const mode = retryModeOf(run);
     if (!mode) return;
     setNotice(null);
+    setRetryNote(null);
+    const note = (text: string, fix?: RetryNote["fix"]) => setRetryNote({ run: run.id, text, fix });
     try {
       // A Move's copied-only photos are retried with its failures: a Move takes Copied photos.
       const ids = await api.retryIds({ ...apiFilters, run: [run.id], status: run.mode === "MOVE" ? ["Failed", "Copied_Only"] : ["Failed"] });
       if (ids.more_than_limit) {
-        setNotice(`More than ${count(ids.limit)} photos failed. Retry them in smaller groups, or run the ${modeName(run.mode)} again for everything.`);
+        // Too many to name one by one on the engine's command line. A job over everything
+        // covers them: it re-reads failed photos and, for a Move, takes Copied ones.
+        const covers = mode === "move" ? "it finishes the copied-only photos and tries the failed ones again, with anything not yet moved"
+          : mode === "copy" ? "it tries the failed photos again, with anything not yet copied"
+            : "it reads every photo again";
+        note(`${count(photos)} photos are more than the ${count(ids.limit)} a retry can name one by one. A ${modeName(run.mode)} of everything covers them: ${covers}.`, mode);
         return;
       }
       if (ids.photo_ids.length === 0) {
-        setNotice("None of these failures belongs to a photo, so there is nothing to retry. Fix the folder's access, then run an Index.");
+        note("None of these failures belongs to a photo, so there is nothing to retry. Fix the folder's access, then run an Index.", "index");
         return;
       }
       await api.startJob({ mode, file_ids: ids.photo_ids });
-      setNotice(`Retrying ${plural(ids.photo_ids.length, "photo")} as a new ${modeName(run.mode)}. A retry does not by itself fix an unreadable file or a content mismatch.`);
+      note(`Retrying ${plural(ids.photo_ids.length, "photo")} as a new ${modeName(run.mode)}. A retry does not by itself fix an unreadable file or a content mismatch.`);
     } catch (e) {
-      setNotice(e instanceof ApiError ? e.message : "The retry could not be started.");
+      note(e instanceof ApiError ? e.message : "The retry could not be started.");
     }
   };
+  // The fix a retry note offers, as a button: a job over everything, confirmed as from Actions.
+  const retryFix = (fix: RetryNote["fix"]) =>
+    fix === "index" ? indexButton
+      : fix ? (
+        <button className="link" disabled={jobRunning} title={jobRunning ? "A job is running." : undefined}
+                onClick={() => setConfirm(transferConfirm(fix, status, undefined, startJob(fix)))}>
+          {fix === "move" ? "Move everything" : "Copy everything"}
+        </button>
+      ) : null;
 
   const runIndex = async () => {
     setNotice(null);
@@ -326,7 +347,8 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
                 </button>
                 {open && (
                   <JobEntries run={run} filters={apiFilters} refreshKey={refreshKey} activePhoto={filters.photo} indexButton={indexButton}
-                              onPhoto={(id) => set({ photo: id })} onRetry={() => retry(run)} jobRunning={jobRunning} />
+                              onPhoto={(id) => set({ photo: id })} onRetry={(n) => retry(run, n)} jobRunning={jobRunning}
+                              note={retryNote?.run === run.id ? <>{retryNote.text}{retryNote.fix && <> {retryFix(retryNote.fix)}</>}</> : null} />
                 )}
               </li>
             );
@@ -341,15 +363,16 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
 
 // One job's entries under the page's filters, loading more as the list scrolls on.
 // The job's header line sticks to the top meanwhile, so collapsing it is always at hand.
-function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhoto, onRetry, jobRunning }: {
+function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhoto, onRetry, jobRunning, note }: {
   run: RecordedRun;
   indexButton: ReactNode;
   filters: LogFilters;
   refreshKey: number;
   activePhoto: number | null;
   onPhoto: (id: number) => void;
-  onRetry: () => void;
+  onRetry: (photos: number) => void;
   jobRunning: boolean;
+  note: ReactNode;
 }) {
   const [error, setError] = useState<string | null>(null);
   const scoped = { ...filters, run: [run.id] };
@@ -377,11 +400,14 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
 
   return (
     <div className="job-body">
-      {canRetry && (
+      {(canRetry || note) && (
         <div className="retry">
-          <button onClick={onRetry} disabled={jobRunning} title={jobRunning ? "A job is running." : undefined}>
-            {retryLabel}
-          </button>
+          {canRetry && (
+            <button onClick={() => onRetry(failed + kept)} disabled={jobRunning} title={jobRunning ? "A job is running." : undefined}>
+              {retryLabel}
+            </button>
+          )}
+          {note && <p className="notice" role="status">{note}</p>}
         </div>
       )}
       {data.total === 0 ? <p className="empty">This job recorded nothing{filters.status.length || filters.q ? " that matches these filters" : ""}.</p> : (

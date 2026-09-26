@@ -367,8 +367,8 @@ warning colour: never Moved, never Failed. The result reads **"Move finished, or
 kept · 0 of 4,836 files moved · 4,836 copied only: the original could not be removed"**,
 and its hover gives the reasons (**"Why originals were kept: Read-only file system:
 4,836"**). The log has a **Copied only** status with its own filter, a hint that the copy
-is at the destination, and **Move the 4,836 copied-only photos again** to finish the job
-once the source can be written. The gallery badge reads **Copied only**, with the reason
+is at the destination, and **Move the n copied-only photos again** to finish the job once
+the source can be written (above 1,000 photos, through **Move everything**). The gallery badge reads **Copied only**, with the reason
 on hover; the Inspector's history and the lineage tree say **original kept**. *Why not
 ask on the first failure:* nothing is lost either way, and a question nobody is there to
 answer would stall an overnight job; a clear account afterwards serves better.
@@ -937,7 +937,10 @@ list scrolls, and the job's header line, with its collapse arrow, stays at the t
 meanwhile. Status counts keep their width, as the Library's view counts do. The Inspector's
 **Open in the log**, under History, opens the log for that photo. Each failure carries a plain hint drawn from its
 recorded reason, and **Retry**, inside the job it belongs to, runs the same mode again over the photos behind
-that job's shown failures.
+that job's shown failures, and says what it did beside the button. Over the 1,000 photos a
+retry can name one by one (§2's selection limit), it says so there and offers the job over
+everything that covers them as a button (**Move everything**, **Copy everything**): a
+Move re-reads failed photos and takes copied-only ones, so nothing is left out.
 
 A searchable table logging every operation performed by the engine:
 * **Columns:** Timestamp, Mode (`MOVE`/`COPY`), Source Path, Destination Path, Status (`Completed`, `Copied`, `Removed_Duplicate`, `Found_At_Destination`, `Failed`), and System Error Message.

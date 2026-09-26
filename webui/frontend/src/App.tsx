@@ -103,7 +103,7 @@ function FirstRun({ status, onCreated }: { status: Status; onCreated: () => void
   return (
     <div className="center-page">
       <div className="panel">
-        <h1>NegativeSpace</h1>
+        <h1 className="brand brand-large"><Logo height={48} />NegativeSpace</h1>
         <p>
           No catalog found. If this is your first time using NegativeSpace, create a catalog to get started.
           If you've used it before, check your appdata mount or recover your catalog from a backup.
