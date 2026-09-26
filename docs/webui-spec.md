@@ -543,7 +543,8 @@ recorded. Escape closes the window only, not the panel behind it.
 
 **Show all metadata.** The Index records every tag ExifTool reads (Pillow's when ExifTool
 finds nothing), not a curated subset; the Inspector's fields are a few of them. A folded
-**Show all metadata (n tags)** at the foot of the panel lists every one by name, with a
+**Show all metadata (n tags)** inside **Photo EXIF information**, under the fields it
+extends, lists every one by name, with a
 filter box; its header, with **Hide all metadata**, stays at the top of the panel while
 the tags scroll. It is read from the catalog, so it shows the photo as last indexed, and costs
 no file read.

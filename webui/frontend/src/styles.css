@@ -229,6 +229,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .info th, .info td { padding: 6px 10px; text-align: left; vertical-align: top; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
 .info tr:first-child th, .info tr:first-child td { border-top: 0; }
 .info th { width: 34%; font-weight: normal; color: var(--muted); }
+/* Show all metadata, the EXIF box's last row: its tags open inside the box. */
+.info .meta-row > td { padding: 8px 10px; }
 .info-empty { margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; }
 .copies { list-style: none; padding: 0; margin: 0; display: grid; }
 .copies li { display: grid; gap: 4px; justify-items: start; padding: 8px 10px; border-top: 1px solid var(--border); }

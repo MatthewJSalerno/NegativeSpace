@@ -202,8 +202,10 @@ with sync_playwright() as p:
     expect(inspector.get_by_role("link", name="History", exact=True)).to_have_count(0)   # one place, not two
     widths = inspector.locator("table.info").evaluate_all("ts => ts.map(t => Math.round(t.getBoundingClientRect().width))")
     assert len(widths) == 3 and len(set(widths)) == 1, f"the information tables differ in width: {widths}"
-    # Show all metadata: every tag recorded, folded until asked for, with a filter.
-    inspector.get_by_role("button", name=re.compile(r"^Show all metadata \(\d+ tags\)")).click()
+    # Show all metadata: every tag recorded, folded until asked for, with a filter, inside
+    # the EXIF section it extends.
+    exif = inspector.locator(".info-section", has=page.get_by_role("heading", name="Photo EXIF information"))
+    exif.get_by_role("button", name=re.compile(r"^Show all metadata \(\d+ tags\)")).click()
     expect(inspector.locator(".meta-table")).to_contain_text("ImageWidth")
     # Scrolled to the last tag, Hide stays in reach, below the panel's own title bar.
     inspector.locator(".meta-table tr").last.scroll_into_view_if_needed()
