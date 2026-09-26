@@ -130,6 +130,17 @@ copy deleted, altered and a stranger added), which is what gives a photo's linea
 something to show. `OUT/manifest.json` lists every file, its scenario and what the app
 should show for it. Without `--seed-dir` the photos are generated.
 
+`--exif-donors` names a folder of camera files kept for their metadata, such as
+[ExifTool's sample images](https://exiftool.org/sample_images.html): real tags from
+hundreds of cameras on pictures shrunk to a few pixels. About three in four seed JPEGs
+with no EXIF date get one donor's tags (camera, lens, exposure, dates, GPS, maker notes,
+damaged ones included) on a fresh copy; the rest stay without, for No capture date. The
+donor's size, previews and rotation are left behind, since they would contradict the
+pixels. A donor folder inside the seed is left out of the originals, and six donors join
+the library as themselves, tiny images for sorting out by resolution. Measured on a seed
+of 4,700 downloaded photos with EXIF stripped and 7,119 donors: 3,420 given tags, dated
+photos up from 3% to 70%, 296 camera makes, 53 s for the whole build.
+
 The seed folder is never written to: every file the script alters is written anew and
 renamed into place, which breaks its link first, and each run ends by proving it
 (`seed: N file(s), untouched by this run`). A seed folder that is still filling, say
@@ -141,12 +152,13 @@ common parent once. Create `OUT`'s parent yourself first: Docker makes a missing
 path owned by root.
 
 ```bash
-mkdir -p /storage/linked-samples
+mkdir -p /photos/demos
 docker run --rm --user "$(id -u):$(id -g)" --entrypoint python3 \
-  -v /storage:/storage -v "$PWD":/app -w /app negativespace \
-  tests/make_scenarios.py build --seed-dir /storage/sample --out /storage/linked-samples/demo [--replace] [--seed N]
-# Index and Copy with SOURCE_DIR=/storage/linked-samples/demo/library, then:
-docker run ... tests/make_scenarios.py change --out /storage/linked-samples/demo [--dest <your DEST_DIR>]
+  -v /photos:/photos -v "$PWD":/app -w /app negativespace \
+  tests/make_scenarios.py build --seed-dir /photos/seed --out /photos/demos/demo \
+    [--exif-donors /photos/seed/exiftool-samples] [--replace] [--seed N]
+# Index and Copy with SOURCE_DIR=/photos/demos/demo/library, then:
+docker run ... tests/make_scenarios.py change --out /photos/demos/demo [--dest <your DEST_DIR>]
 # Index and Copy again: the lineage tree now has changes to show.
 ```
 
