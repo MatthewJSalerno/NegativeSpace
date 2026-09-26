@@ -1833,8 +1833,13 @@ abandons the pending action without changing files.
 
 If a post-job
 backup fails, preserve the job's actual result, show a separate backup warning and
-offer **Retry backup**. Do not describe completed file work as failed merely because
-its backup failed.
+offer **Retry backup**: its own line in the finished-job banner. Do not describe
+completed file work as failed merely because its backup failed.
+
+**Where backups live:** in Settings, not on a page of their own; the top row is full, and
+Stats shows the backup state. While catalog changes are not in any backup, every page shows
+one line under the top row, **"N changes are not in any backup yet · Back up now"**, until a
+backup succeeds.
 
 **Missed backups after interruption:** on startup, reconcile and report the
 interrupted job without restarting its file operations. If its required post-job

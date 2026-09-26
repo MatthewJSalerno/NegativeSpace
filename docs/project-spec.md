@@ -210,6 +210,8 @@ service. Built and tested:
     could only copy shown as Copied only, never as failed; Retry; and CSV/JSON export.
 
 Specified but not yet on screen:
+*   The unbacked-changes line on every page, and Retry backup in the finished-job banner.
+*   Each folder's last-scanned time in the Folders tree.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
 *   The Rename, Similar and Undated tabs, and metadata editing.
