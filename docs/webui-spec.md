@@ -102,12 +102,15 @@ Users can select individual files or multiple files across grid views to run tar
   order and page while retaining the updated selection. It does not permanently replace
   the browsing view. Bulk actions use the explicit selection and show its count in the
   preview, not just the photos visible on the current page.
-* **Acting on a hidden selection shows it first.** When Copy or Move selected is chosen
-  and any selected photo is outside the displayed view, the gallery switches to the
-  selected photos before the confirmation opens over them. **Cancel** returns to the
-  view it came from; confirming keeps those photos on screen as **the photos in the job
-  just started**, so their statuses can be watched, until **Back to results**. When
-  every selected photo is already on screen, nothing moves.
+* **Copy or Move selected is reviewed first, never confirmed over the photos.** It shows
+  every selected photo, whatever hides them, with a bar pinned above them: **"Review the
+  25 selected photos below"**, what the action does, **Copy these 25 photos** (or Move)
+  and **Cancel**. The photos can be scrolled, opened and unticked; the button's count
+  follows the ticks, and an unticked photo stays on screen. **Why not a dialog:** one
+  over the photos hid them and stopped the scrolling the review needs. **Cancel**
+  returns to the view it came from; committing keeps those photos on screen as **the
+  photos in the job just started**, so their statuses can be watched, until **Back to
+  results**. Copy all and Move all still confirm in a dialog: there is no selection to review.
 * **Date tree:** a **Dates** panel left of the gallery lists years and their months with
   counts for the current view and search, every year unfolded to start, every month with
   a photo on screen highlighted as the gallery scrolls (photos, not pages: a month of a few
@@ -865,7 +868,9 @@ log is grouped by job, newest first: each job is one line (its summary and how m
 entries match) until opened, and its entries page on their own. Filters apply inside
 every job; while any is set, a job with nothing matching is left out. A finished
 job's banner links to its log, opened on that job, and, when it failed, to **View failures**.
-A banner dismissed on one page stays dismissed on the other. The Logs page has the Library's top row,
+A dismissed banner stays dismissed on every page, in every browser, and after the
+browser's data is cleared: the dismissal is kept with the catalog (`PUT /api/v1/ui-state`),
+and covers that job and every earlier one. The Logs page has the Library's top row,
 **Actions ▾** included, so the page links never move and whole-library actions start from
 either page (Copy and Move selected are disabled there: selecting is the Library's). The
 active filters are named in one line with one reset (**"Showing: job #3 · Failed ·
@@ -1096,7 +1101,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 10 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 11 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a

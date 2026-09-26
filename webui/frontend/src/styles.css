@@ -368,3 +368,10 @@ body.dragging { cursor: col-resize; user-select: none; }
 .log-entries .col-file { width: 45%; }
 .log-entries .log-status { overflow-wrap: normal; }
 @media (max-width: 700px) { .log-entries { table-layout: auto; } }
+
+/* Reviewing a selection before Copy or Move: the action stays above the photos as they scroll. */
+.review-bar { position: sticky; top: var(--header-h, 0px); z-index: 4; background: var(--surface-2); flex-wrap: nowrap;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.08); }
+.review-text { flex: 1; min-width: 0; }
+.review-text p { margin: 4px 0 0; }
+@media (max-width: 700px) { .review-bar { flex-wrap: wrap; } }

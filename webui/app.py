@@ -102,6 +102,25 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(503, {"error": "catalog_busy", "message": f"Settings were not saved: {exc}."})
         return dict(_settings(), job_active=jobs.active() is not None)
 
+    # -- What the interface remembers (webui-spec 4.1) ------------------------
+
+    @app.get("/api/v1/ui-state")
+    def get_ui_state():
+        with catalog.connect(cfg.db_path) as conn:
+            conn.row_factory = None
+            return ns_db.read_ui_state(conn)
+
+    @app.put("/api/v1/ui-state")
+    def put_ui_state(body: dict = Body(...)):
+        """{"dismissed_run": 12}: the finished-job banner the user dismissed, kept with the
+        catalog so clearing a browser's data or opening another does not bring it back."""
+        try:
+            with catalog.connect(cfg.db_path) as conn:
+                conn.row_factory = None
+                return ns_db.save_ui_state(conn, body)
+        except ValueError as exc:
+            raise HTTPException(400, {"error": "invalid_request", "message": str(exc)})
+
     @app.post("/api/v1/settings/validate-extension")
     def validate_extension(body: dict = Body(...)):
         ext = body.get("extension")

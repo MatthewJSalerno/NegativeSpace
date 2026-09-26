@@ -45,7 +45,11 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJ
   const panel = useRef<HTMLElement>(null);
   const currentKey = current.join();
   useEffect(() => {
-    panel.current?.querySelector(".dates-row.current")?.scrollIntoView({ block: "nearest" });
+    // The months, not their year: a year's row sits above its months, and following it
+    // let the highlighted months slide out of sight in a long year.
+    const rows = panel.current?.querySelectorAll(".dates-row.month.current");
+    const target = rows && rows.length ? rows[0] : panel.current?.querySelector(".dates-row.current");
+    target?.scrollIntoView({ block: "nearest" });
   }, [currentKey]);
 
   if (!timeline) return null;

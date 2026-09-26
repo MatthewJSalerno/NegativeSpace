@@ -418,6 +418,19 @@ class LogAndErrorCenter(ApiCase):
                          "an unreadable folder must be one run-level failure, not a failed photo or nothing")
 
 
+class InterfaceState(ApiCase):
+    def test_a_dismissed_banner_is_kept_with_the_catalog(self):
+        self.create_catalog()
+        self.assertEqual(self.client.get("/api/v1/ui-state").json(), {"dismissed_run": None})
+        run_id = self.wait_for(self.start(mode="index"))["id"]
+        saved = self.client.put("/api/v1/ui-state", json={"dismissed_run": run_id})
+        self.assertEqual(saved.json(), {"dismissed_run": run_id})
+        self.assertEqual(self.client.get("/api/v1/ui-state").json(), {"dismissed_run": run_id},
+                         "a dismissal must outlive the browser that made it")
+        for bad in ({"dismissed_run": 999}, {"dismissed_run": "1"}, {"theme": "dark"}, {}):
+            self.assertEqual(self.client.put("/api/v1/ui-state", json=bad).status_code, 400, bad)
+
+
 class CatalogBackups(ApiCase):
     """webui-spec 9: the list, Back up now, and downloads."""
 

@@ -41,7 +41,9 @@ function readUrl() {
 // Showing only a set of photos, whatever the view, search and dates would hide: the
 // selection (Show only selected), or the photos a job just started on. `ids` is fixed
 // on entry, so unticking a photo there leaves it on screen, unticked.
-type Focus = { kind: "selection" | "job"; ids: number[]; auto?: boolean };
+// "review" is the selection before a Copy or Move of it: shown in full, with the action
+// in a bar above it, so every photo can be looked at and unticked before committing.
+type Focus = { kind: "selection" | "review" | "job"; ids: number[]; mode?: "copy" | "move" };
 
 export function App() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -325,7 +327,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const showSelected = () => { setFocus({ kind: "selection", ids: [...selected] }); setFocusPage(1); };
   const backToResults = () => { setFocus(null); setFocusPage(1); };
   // Clearing the selection leaves nothing to show only, so it returns to the results.
-  const clearSelection = () => { setSelected(new Set()); if (focus?.kind === "selection") backToResults(); };
+  const clearSelection = () => { setSelected(new Set()); if (focus?.kind === "selection" || focus?.kind === "review") backToResults(); };
 
   const changeDates = (next: string[]) => { setDates(next); setPage(1); };
   // All photos means every photo: it also clears No capture date, the dates and the
@@ -439,13 +441,19 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     }
   };
 
-  // Acting on a selection some of which is hidden shows the whole selection first, so
-  // what the job will touch is on screen. Cancel returns to the view it came from.
+  // Copy or Move selected first shows every selected photo, with the action in a bar
+  // above them rather than a dialog over them: scroll, open and untick, then commit.
   const transferSelected = (mode: "copy" | "move") => {
-    const ids = [...selected];
-    const auto = !focus && ids.some((id) => !loadedIds.has(id));
-    if (auto) { setFocus({ kind: "selection", ids, auto: true }); setFocusPage(1); }
-    askTransfer(mode, ids, auto ? backToResults : undefined);
+    setFocus({ kind: "review", mode, ids: [...selected] });
+    setFocusPage(1);
+  };
+  const reviewIds = focus?.kind === "review" ? focus.ids.filter((id) => selected.has(id)) : [];
+  const review = focus?.kind === "review" && focus.mode ? transferConfirm(focus.mode, status, reviewIds, start(focus.mode, reviewIds)) : null;
+  const [committing, setCommitting] = useState(false);
+  const commit = async () => {
+    if (!review) return;
+    setCommitting(true);
+    try { await review.run(); } finally { setCommitting(false); }
   };
 
   const askTransfer = (mode: "copy" | "move", ids?: number[], onCancel?: () => void) =>
@@ -533,7 +541,22 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               {" "}<button className="link" onClick={() => setNotice(null)}>Dismiss</button>
             </p>
           )}
-          {focus && (
+          {focus && review && focus.mode && (
+            <div className="focus-head review-bar" role="region" aria-label={`Review before ${focus.mode === "move" ? "moving" : "copying"}`}>
+              <div className="review-text">
+                <strong>Review the {plural(focus.ids.length, "selected photo")} below</strong>
+                <span className="muted"> · untick any you do not want; {plural(reviewIds.length, "photo")} will be {focus.mode === "move" ? "moved" : "copied"}.</span>
+                <p className="muted">{review.body[0]}</p>
+              </div>
+              <button className={review.danger ? "danger" : "primary"} onClick={commit}
+                      disabled={committing || jobRunning || reviewIds.length === 0 || reviewIds.length > MAX_SELECTION}
+                      title={reviewIds.length === 0 ? "Every photo is unticked." : jobRunning ? "A job is running." : undefined}>
+                {focus.mode === "move" ? "Move" : "Copy"} these {plural(reviewIds.length, "photo")}
+              </button>
+              <button onClick={backToResults} disabled={committing}>Cancel</button>
+            </div>
+          )}
+          {focus && !review && (
             <div className="focus-head">
               <strong>
                 {focus.kind === "job" ? `The ${plural(focus.ids.length, "photo")} in the job just started`

@@ -92,6 +92,21 @@ Saved values apply to jobs started afterwards, never to one already running.
 Whether the engine reads the extension as a photo (`ns_db.extension_support`). An
 unsupported one is never refused, only warned about (`webui-spec.md` §3.2).
 
+### `GET /api/v1/ui-state`
+
+What the interface remembers for its user, kept with the catalog rather than in the
+browser, so clearing a browser's data or opening another does not bring it back:
+
+    {"dismissed_run": 12}
+
+`dismissed_run` is the newest job whose finished banner was dismissed; it covers that job
+and every earlier one. A value that is not a recorded run id is `400 invalid_request`.
+Not a setting: settings configure jobs and are copied into each run's configuration.
+
+### `PUT /api/v1/ui-state`
+
+Saves `{"dismissed_run": 12}` and returns the state as in `GET`.
+
 ## 4. Photos
 
 ### `GET /api/v1/photos`
