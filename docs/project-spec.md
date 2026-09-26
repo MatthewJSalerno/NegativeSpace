@@ -173,32 +173,39 @@ API runs the engine as a child process and both use the catalog's SQLite files a
 the engine's lock file. Separating them would need the Docker socket or a job-relay
 service. Built and tested:
 
-*   **API** (`webui/`): the first-run catalog check and creation, settings, the gallery
-    listing and search, photo details, thumbnails and detail previews, starting and
-    cancelling jobs, and live job state over a WebSocket, with outcomes derived as
-    `webui-spec.md` §5.5 requires (`tests/webui_api_test.py`).
+*   **API** (`webui/`, `docs/api-spec.md`): the first-run catalog check and creation,
+    settings, the gallery listing, search and date filter, selection by id and Select
+    all, photo details with every recorded tag, a photo's lineage, thumbnails and
+    detail previews, starting and cancelling jobs, live job state over a WebSocket
+    with outcomes derived as `webui-spec.md` §5.5 requires, the log, catalog backups,
+    what the interface remembers (a dismissed banner), and which build is running
+    (`tests/webui_api_test.py`).
 *   **Screens** (`webui/frontend`, React + TypeScript):
-    *   the first-run screens;
-    *   settings as a window over the page;
-    *   the gallery, with its views, sorts and search;
-    *   paging for a large library: numbered pages, go-to, page size, and Jump to a month;
-    *   selection across pages (shift-click, select-page);
-    *   Scan, and Copy and Move of everything or of a selection, each confirmed;
+    *   the first-run screens, landing in the Library to Index;
+    *   settings as a window over the page, with catalog backups (list, Back up now,
+        download);
+    *   the top row: the logo, Library, the **Actions** menu (Index, Copy, Move, each for
+        the selection or all), Logs, the selection, and the build beside Settings;
+    *   the gallery, with its views, sorts and search, a **Dates** tree to jump to or
+        show only years and months, and continuous scrolling whose page number follows;
+    *   selection across views (shift-click, the Select menu, Show only selected), and
+        Copy and Move of a selection reviewed on screen before they run;
     *   the job drawer, with live counts, elapsed time and Cancel;
-    *   the split Inspector, with a movable divider and the 1024px preview. It shows
-        the file's own details, including its modified date, apart from
-        the photo's EXIF information.
+    *   the split Inspector, with a movable divider, the 1024px preview, the file's own
+        details apart from the photo's EXIF information, Show all metadata, the
+        photo's recent history, and its lineage tree in a window of its own.
 
     `tests/webui_browser_test.sh` drives them in a real browser.
 
-*   **The log and the Error Center:** filters by job, status, photo, text and date;
-    failure hints; Retry; and CSV/JSON export.
+*   **The log and the Error Center:** grouped by job, each job loading as it scrolls;
+    filters by job, status, photo, text and date, named in one line with Clear all;
+    failure hints with their fixes as buttons; Retry; and CSV/JSON export.
 
 Specified but not yet on screen:
-*   Backups, and the Dashboard's duplicate-space figures.
+*   The Dashboard's duplicate-space figures.
 *   Folder selection (`--source-subdir`).
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
-*   A photo's full history.
+*   The destination check, from a lineage tree's copy or on its own.
 *   The Rename, Similar and Undated tabs, and metadata editing.
 
 ### The catalog

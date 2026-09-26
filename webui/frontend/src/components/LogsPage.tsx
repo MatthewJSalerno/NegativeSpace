@@ -72,7 +72,7 @@ function retryModeOf(run: Run): "index" | "copy" | "move" | null {
 
 // The operations log and, filtered to failures, the Error Center (webui-spec 5.3,
 // 5.4), grouped by job: each job is one line until opened. Filters are in the
-// address bar, so a banner link, the Inspector's History button or a bookmark opens
+// address bar, so a banner link, the Inspector's Open in the log or a bookmark opens
 // exactly this view; a link to one job opens with that job expanded.
 export function LogsPage({ status, refreshStatus, onOpenSettings }: {
   status: Status;

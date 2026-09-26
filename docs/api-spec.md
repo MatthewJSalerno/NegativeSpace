@@ -457,6 +457,6 @@ These are designed in `webui-spec.md` and will be described here when they exist
     the drawer needs only the aggregate feed.
 *   `GET /api/v1/stats/duplicates`: the Dashboard's duplicate-space figures and
     coverage (`webui-spec.md` §5.9).
-*   The curation actions: rename, destination
-    check, thumbnail cache controls, and later metadata editing, all of which the
-    engine already supports or is specified to (`engine-spec.md` §9).
+*   The curation actions: rename, the destination check (offered from a lineage
+    tree's copy), thumbnail cache controls, and later metadata editing, all of which
+    the engine already supports or is specified to (`engine-spec.md` §9).

@@ -898,7 +898,7 @@ active filters are named in one line with one reset (**"Showing: job #3 · Faile
 “photo-00” · Clear all filters"**). An open job's entries load in batches of 100 as the
 list scrolls, and the job's header line, with its collapse arrow, stays at the top
 meanwhile. Status counts keep their width, as the Library's view counts do. The Inspector's
-**History** opens the log for that photo. Each failure carries a plain hint drawn from its
+**Open in the log**, under History, opens the log for that photo. Each failure carries a plain hint drawn from its
 recorded reason, and **Retry**, inside the job it belongs to, runs the same mode again over the photos behind
 that job's shown failures.
 
@@ -1157,7 +1157,7 @@ Thumbnails are not a column on `photos`: they belong to content and live in
 
 ### 6.2 Key REST API Endpoints
 
-**The implemented API is specified in [`api-spec.md`](./api-spec.md)**: catalog status and creation, settings, the gallery listing and timeline, photo details, thumbnails and previews, starting and cancelling jobs, runs and their derived outcome, and the live job feed. CI keeps it in step with the routes in `webui/app.py`. What follows are endpoints designed here and not built yet; each moves to `api-spec.md` when it is.
+**The implemented API is specified in [`api-spec.md`](./api-spec.md)**: catalog status and creation, settings, the gallery listing, timeline and date filter, selection by id and Select all, photo details, lineage, thumbnails and previews, starting and cancelling jobs, runs and their derived outcome, the live job feed, the log, catalog backups, and what the interface remembers. CI keeps it in step with the routes in `webui/app.py`. What follows are endpoints designed here and not built yet; each moves to `api-spec.md` when it is.
 
 The run history and the Error Center's failures are built: `GET /api/v1/operations` with
 `run` and `status` filters (`api-spec.md` §5a).

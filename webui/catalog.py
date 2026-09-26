@@ -226,7 +226,7 @@ def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, l
 
 def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60) -> dict:
     """The selected photos, whatever view, search or dates would hide them, one page at a
-    time (webui-spec 2, Review selection). `missing` names ids no longer in the catalog,
+    time (webui-spec 2, Show only selected and the review before Copy/Move). `missing` names ids no longer in the catalog,
     so a selection is never silently shortened."""
     _check_view("all", sort, page, page_size)
     if not isinstance(ids, list) or any(type(i) is not int or i < 1 for i in ids) or len(ids) > SELECTION_MAX:
