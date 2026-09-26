@@ -485,7 +485,16 @@ with sync_playwright() as p:
     page.get_by_role("link", name="Stats").click()
     expect(page).to_have_url(re.compile(r"/stats$"))
     tiles = page.locator(".stat-tile")
-    expect(tiles.filter(has_text="Photos")).to_contain_text(f"{PHOTOS:,}")
+    tile = lambda label: tiles.filter(has=page.locator(".tile-label", has_text=re.compile(f"^{label}$")))
+    expect(tile("Photos")).to_contain_text(f"{PHOTOS:,}")
+    # A share never rounds to all or nothing: 100% only when the counts beside it agree.
+    organized = tile("Organized")
+    done, of = (int(n.replace(",", "")) for n in
+                re.search(r"([\d,]+) of ([\d,]+)", organized.locator(".tile-sub").inner_text()).groups())
+    shown = organized.locator(".tile-value").inner_text()
+    assert (shown == "100%") == (done == of) and (shown == "0%") == (done == 0), f"Organized {shown} for {done} of {of}"
+    undated_tile = tile("No capture date")
+    expect(undated_tile).to_have_attribute("href", "/?undated=1")
     expect(page.locator(".stat-panel h3")).to_have_count(6)
     expect(page.locator(".stat-panel", has_text="Duplicates")).to_contain_text("Extra copies")
     # Aligned: fixed columns, and every panel in a row as tall as the row.
