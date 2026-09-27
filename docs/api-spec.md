@@ -331,6 +331,9 @@ One run (§6). `404 unknown_run`.
 The live feed for the job drawer. On connect it sends `{"active", "last"}` exactly as in
 `GET /jobs/active`, then sends it again whenever it changes, checked about once a second.
 A reconnect therefore restores the current state immediately and never restarts a job.
+The client sends nothing; the feed ends as soon as the connection closes, including when
+the server shuts down, so an open page never holds up `docker stop` or the shutdown that
+cancels a running job (`tests/shutdown_test.sh`).
 
 ### `GET /api/v1/runs`
 

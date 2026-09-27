@@ -62,6 +62,13 @@ jobs:
         # mounts, which the suite (running after the entrypoint) cannot see.
         run: sh tests/entrypoint_test.sh
 
+      - name: Stopping with a browser open
+        # On the host: docker stop against a running app container with a job-feed
+        # WebSocket open, as a browser tab holds one. It must stop cleanly and run the
+        # app's shutdown, which cancels a running job, rather than be killed at the
+        # grace period.
+        run: sh tests/shutdown_test.sh
+
       - name: Sampler path safety
         # Also on the host, and for the same reason: the sampler is a host-side
         # tool whose whole promise is that it never writes into the library it
