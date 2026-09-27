@@ -141,6 +141,39 @@ class FirstRunAndSettings(ApiCase):
         self.assertTrue(mov["warning"])
 
 
+class TransferScanFailures(ApiCase):
+    def check_scan_failures(self, mode, all_failed):
+        self.create_catalog()
+        for name in ("first", "second"):
+            make_photo(self.cfg.source / f"{name}.jpg", name)
+        self.wait_for(self.start(mode="index"))
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            ids = [r[0] for r in conn.execute("SELECT id FROM photos ORDER BY id")]
+        (self.cfg.source / "first.jpg").write_text("not an image anymore")
+        if all_failed:
+            (self.cfg.source / "second.jpg").unlink()
+        run = self.wait_for(self.start(mode=mode, file_ids=ids))
+        outcome = run["outcome"]
+        self.assertEqual((outcome["verdict"], outcome["succeeded"], outcome["failed"], outcome["total"]),
+                         ("failed", 0, 2, 2) if all_failed else ("partial", 1, 1, 2))
+        self.assertEqual(sum(outcome["failure_reasons"].values()), 2 if all_failed else 1)
+        failures = self.client.get("/api/v1/operations", params={"run":run["id"], "status":"Failed"}).json()
+        self.assertEqual(failures["total"], outcome["failed"])
+        self.assertEqual(len(list(self.cfg.dest.rglob("*.jpg"))), 0 if all_failed else 1)
+
+    def test_copy_mixed_prerequisite_failures(self):
+        self.check_scan_failures("copy", False)
+
+    def test_copy_all_prerequisite_failures(self):
+        self.check_scan_failures("copy", True)
+
+    def test_move_mixed_prerequisite_failures(self):
+        self.check_scan_failures("move", False)
+
+    def test_move_all_prerequisite_failures(self):
+        self.check_scan_failures("move", True)
+
+
 class JobsAndCatalog(ApiCase):
     def index_library(self):
         make_photo(self.cfg.source / "trip" / "IMG_0001.jpg", "a", mtime=1_600_000_000)

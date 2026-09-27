@@ -1023,7 +1023,9 @@ Surfacing that verbatim would show a green **Completed** for a job where nothing
 **The API derives outcomes from classified operations, not just `runs.status`.**
 Present three separate groups, each linked to its detailed logs:
 
-* **Requested work:** outcomes for the current job's requested photos.
+* **Requested work:** outcomes for the current job's requested photos. Copy/Move
+  includes prerequisite scan failures that prevented delivery, in both the failed
+  count and requested total. Successful scans do not also count as successful transfers.
 * **Earlier work reconciled:** recovery of interrupted operations from prior jobs.
   Do not credit these as files completed by the current request. Link the recovery
   record to the interrupted operation/run when known and to the run that performed

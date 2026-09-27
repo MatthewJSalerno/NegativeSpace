@@ -513,7 +513,10 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
      "kept_reasons": {"Read-only file system": 4681}}
 
 *   **Requested work only.** `counts` covers the work the job was asked to do: the scan
-    for an Index; the transfer phases for Copy and Move, whose scan is not their work.
+    for an Index; the transfer phases for Copy and Move plus prerequisite scan
+    failures that prevented delivery. These scan failures contribute `failed` to
+    `counts` and increase the requested total; successful or unchanged scans do not
+    count again as transfers. An unfinished phase may still leave `total` unknown.
     Recovery of earlier runs is `recovered_earlier_work`, and failures with no photo,
     such as an unreadable folder, are `run_level_issues`.
 *   **Verdict:** an active status is `running`. A terminal Cancelled, Interrupted or

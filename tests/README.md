@@ -201,3 +201,10 @@ required before claiming WCAG conformance for the supported desktop experience.
 Mobile support and real touch-device validation are optional; desktop zoom and reflow
 remain in scope. Existing phone-emulation checks guard implemented behavior rather than
 establishing a mobile release requirement.
+
+For audit N4, `DRIVER=transfer_outcome_browser_drive.py sh tests/webui_browser_test.sh`
+checks mixed and all-failed prerequisite scans for Copy and Move, including banner
+counts and View failures links. It modifies only the harness's disposable photos.
+The API suite also runs all four cases with a writable source to verify successful
+Move alongside scan failures. Existing verdict cases cover cancellation, copied-only,
+unchanged Index, repeated Copy and unrelated recovery.

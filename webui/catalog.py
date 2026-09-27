@@ -568,7 +568,9 @@ def _outcome(conn, run: dict, progress: list) -> dict:
 
     Requested work comes from the run's progress counts, which exclude recovery of
     earlier work and run-level issues by construction (engine-spec 4.3). For a Copy or
-    Move the transfer phases are the requested work; its scan is reported alongside.
+    Move the transfer phases are the requested work, plus prerequisite scan failures
+    that prevented a photo from reaching those phases. Successful scans are not
+    deliveries and must not count the same photo twice.
     """
     phases = {p["phase"]: p for p in progress}
     wanted = _REQUESTED_PHASES.get(run["mode"], ())
@@ -578,6 +580,13 @@ def _outcome(conn, run: dict, progress: list) -> dict:
     for p in main:
         for key, n in p["counts"].items():
             counts[key] = counts.get(key, 0) + n
+    scan_failed = 0
+    if run["mode"] in ("COPY", "MOVE"):
+        # The engine excludes failed scan results from both transfer and duplicate
+        # removal candidates. These are disjoint failed requests, not extra work.
+        scan_failed = phases.get("scanning", {}).get("counts", {}).get("failed", 0)
+        if scan_failed:
+            counts["failed"] = counts.get("failed", 0) + scan_failed
     # In a Move, Copied means the original could not be deleted: not the Move asked for,
     # and not a failure either. Counted apart, with its reasons.
     copied_only = counts.get(PhotoStatus.COPIED, 0) if run["mode"] == "MOVE" else 0
@@ -622,6 +631,8 @@ def _outcome(conn, run: dict, progress: list) -> dict:
     else:
         verdict = "no_change"
     total = sum(p["total"] or 0 for p in main) if main and all(p["total"] is not None for p in main) else None
+    if total is not None:
+        total += scan_failed
     return {"verdict": verdict, "succeeded": succeeded, "failed": failed, "skipped": skipped,
             "cancelled": cancelled, "run_level_issues": issues, "recovered_earlier_work": recovered,
             "copied_only": copied_only, "skip_reasons": skip_reasons, "failure_reasons": failure_reasons,
