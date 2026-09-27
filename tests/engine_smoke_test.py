@@ -2790,6 +2790,10 @@ def an_empty_source_asks_before_anything_is_recorded():
           "the selected photo has no outcome pointing at the question")
     run_engine(case, "--move")
     check(len(rows(case, "SELECT 1 FROM attention_issues")) == 1, "a repeat run opened a second issue")
+    refusals = rows(case, "SELECT run_id, COUNT(*) c FROM operations WHERE photo_id IS NULL "
+                          "AND status = 'Failed' GROUP BY run_id ORDER BY run_id")
+    check(len(refusals) == 2 and all(r["c"] == 1 for r in refusals),
+          f"each refused Move must record one run-level failure, not one per phase: {refusals}")
 
     run_engine(case, "--move", "--confirm-source-empty")
     check(rows(case, "SELECT status FROM photos")[0]["status"] == "Found_At_Destination",

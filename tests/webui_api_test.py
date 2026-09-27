@@ -212,6 +212,39 @@ class JobsAndCatalog(ApiCase):
                          {(own["file_id"], "source"), (copy["file_id"], "destination")})
         self.assertEqual(self.client.get("/api/v1/photos/99999/lineage").status_code, 404)
 
+    def test_repeated_empty_source_refusals_do_not_refresh_coverage(self):
+        photo = self.cfg.source / "photo.jpg"
+        make_photo(photo, "coverage")
+        self.create_catalog()
+        initial = self.wait_for(self.start(mode="index"))
+        baseline = self.client.get("/api/v1/stats").json()["duplicates"]["coverage"]
+        hidden = photo.with_suffix(".hold")
+        photo.rename(hidden)
+        refused = []
+        for attempt in range(2):
+            run = self.wait_for(self.start(mode="index"))
+            refused.append(run["id"])
+            with self.subTest(attempt=attempt):
+                coverage = self.client.get("/api/v1/stats").json()["duplicates"]["coverage"]
+                self.assertEqual(coverage["established_by_run"], initial["id"])
+                self.assertEqual(coverage["last_complete_scan"], baseline["last_complete_scan"])
+                self.assertEqual(coverage["scans_with_issues_since"], attempt + 1)
+                self.assertEqual(coverage["run_ids_since"], refused)
+                with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
+                    self.assertEqual(conn.execute("SELECT COUNT(*) FROM operations WHERE run_id = ? "
+                                                  "AND status = 'Failed' AND photo_id IS NULL",
+                                                  (run["id"],)).fetchone()[0], 1)
+                    self.assertEqual(conn.execute("SELECT COUNT(*) FROM attention_issues WHERE "
+                                                  "category = 'source_root_empty' AND resolved_at IS NULL").fetchone()[0], 1)
+                    self.assertEqual(conn.execute("SELECT status FROM photos").fetchone()[0], "Pending")
+        hidden.rename(photo)
+        restored = self.wait_for(self.start(mode="index"))
+        coverage = self.client.get("/api/v1/stats").json()["duplicates"]["coverage"]
+        self.assertEqual(coverage["established_by_run"], restored["id"])
+        self.assertEqual((coverage["scans_with_issues_since"], coverage["run_ids_since"]), (0, []))
+        with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM attention_issues WHERE resolved_at IS NULL").fetchone()[0], 0)
+
     def test_stats_count_the_library_its_dates_duplicates_and_work(self):
         self.index_library()                  # IMG_0001 + "Beach Sunset" (same content), IMG_0002
         before = self.client.get("/api/v1/stats").json()["duplicates"]

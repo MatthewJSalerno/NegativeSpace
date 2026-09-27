@@ -1261,7 +1261,7 @@ either mode (`saved_at_destination`, counted only once the original is delivered
 overlap by design, a moved duplicate appears in both of the last two, so they are returned
 separately and never totalled. `coverage` says how current they are, by these rules:
 
-**Completing is not the same as covering.** An Index whose source was detached finds nothing, correctly refuses to condemn the catalog, records a run-level `Failed` operation — and still ends `Completed`, `mode = 'INDEX'`, untargeted. It satisfies every criterion above except the one that matters, having established no new coverage at all. An Index that could not read part of the tree has the same shape. **The safeguard works and then misreports its own freshness**, which is the defect.
+**Completing is not the same as covering.** An Index whose source was detached finds nothing, correctly refuses to condemn the catalog, records a run-level `Failed` operation — and still ends `Completed`, `mode = 'INDEX'`, untargeted. It satisfies every criterion above except the one that matters, having established no new coverage at all. An Index that could not read part of the tree has the same shape. Such a run must not establish fresh coverage, including when it repeats an unresolved empty-source question.
 
 So a run advances the coverage date only if nothing under it recorded a failure belonging to the run rather than to a photo:
 
@@ -1276,7 +1276,7 @@ WHERE r.mode = 'INDEX' AND r.file_ids_filter IS NULL
 ORDER BY r.ended_at DESC LIMIT 1;
 ```
 
-`photo_id IS NULL AND status = 'Failed'` is precisely the run-level failure shape already written by the empty-scan refusal and by an unreadable folder (§5.3), so **no engine change and no new column is required** — `idx_operations_run` backs the lookup.
+`photo_id IS NULL AND status = 'Failed'` is precisely the run-level failure shape already written by the empty-scan refusal and by an unreadable folder (§5.3), and every refused run records it even when the attention issue already exists. No new column is required; `idx_operations_run` backs the lookup.
 
 **Return the excluded runs, not just the date.** Suppressing a scan silently would trade a wrong date for a missing one. Alongside `last_indexed_at`, report how many Index runs since then failed to establish coverage, and the run ids the UI needs to link into Logs (§5.4):
 

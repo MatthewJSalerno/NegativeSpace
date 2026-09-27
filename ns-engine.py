@@ -4527,7 +4527,8 @@ SOURCE_EMPTY_ISSUE = "source_root_empty"
 def open_source_empty_issue(conn, run_id: int, root: Path, rows: int):
     """Asks instead of guessing when the source root is empty but the catalog holds rows
     there: an unplugged share and a Move that took everything look the same. One open
-    issue per root; a repeat run adds nothing."""
+    issue per root, but every refused run records its own failure so it cannot
+    establish scan coverage. Scan and transfer may ask within the same run."""
     summary = (f"The source folder {root} is empty while the catalog holds {rows:,} photo(s) "
                f"from it. Is the drive unplugged or unmounted, or is the folder really empty? "
                f"If it is unplugged, reconnect it and run again. If it is really empty, run again "
@@ -4535,15 +4536,21 @@ def open_source_empty_issue(conn, run_id: int, root: Path, rows: int):
                f"destination as found there.")
     already = conn.execute("SELECT 1 FROM attention_issues WHERE category = ? AND resolved_at IS NULL "
                            "AND summary LIKE ?", (SOURCE_EMPTY_ISSUE, f"The source folder {root} is%")).fetchone()
-    if already:
-        return
     with ns_db.transaction(conn):
+        recorded = conn.execute(
+            "SELECT 1 FROM operations o JOIN operation_events e ON e.operation_id = o.id "
+            "WHERE o.run_id = ? AND o.source_path = ? AND o.photo_id IS NULL "
+            "AND e.step = 'intent' AND json_extract(e.detail_json, '$.kind') = ? LIMIT 1",
+            (run_id, str(root), SOURCE_EMPTY_ISSUE)).fetchone()
+        if recorded:
+            return
         operation_id = ns_db.begin_operation(conn, run_id=run_id, photo_id=None, source_path=str(root),
                                              dest_path=None, kind="source_root_empty")
         ns_db.settle_operation(conn, operation_id, status=PhotoStatus.FAILED, step="scan",
                                outcome="needs_attention", error_message=summary)
-        ns_db.open_attention_issue(conn, operation_id=operation_id, category=SOURCE_EMPTY_ISSUE,
-                                   summary=summary)
+        if not already:
+            ns_db.open_attention_issue(conn, operation_id=operation_id, category=SOURCE_EMPTY_ISSUE,
+                                       summary=summary)
     logger.warning(summary)
 
 
