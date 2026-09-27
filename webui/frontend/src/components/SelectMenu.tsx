@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { MenuButton } from "./ui/MenuButton";
 import { count } from "../format";
 
 // Selecting in bulk (webui-spec 2): the photos on screen, or everything the view shows,
@@ -16,19 +16,6 @@ export function SelectMenu({ onScreen, screenSelected, total, selected, max, dis
   onUnselectScreen: () => void;
   onUnselectAll: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => root.current && !root.current.contains(e.target as Node) && setOpen(false);
-    const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", key);
-    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", key); };
-  }, [open]);
-
-  const run = (fn: () => void) => () => { setOpen(false); fn(); };
   const items = [
     { label: `Select all on screen (${count(onScreen)})`, onClick: onSelectScreen,
       why: disabledWhy ?? (screenSelected === onScreen ? "Every photo on screen is selected." : null),
@@ -42,22 +29,5 @@ export function SelectMenu({ onScreen, screenSelected, total, selected, max, dis
     { label: "Unselect all", onClick: onUnselectAll, why: selected === 0 ? "Nothing is selected." : null },
   ];
 
-  return (
-    <div className="actions-menu select-menu" ref={root}>
-      <button className={open ? "active-soft" : ""} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-        Select <span aria-hidden="true">▾</span>
-      </button>
-      {open && (
-        <div className="menu" role="menu" aria-label="Select">
-          {items.map((item) => (
-            <button key={item.label} role="menuitem" className="menu-item" disabled={item.why != null}
-                    onClick={run(item.onClick)}>
-              <span className="menu-label">{item.label}</span>
-              {(item.why ?? item.hint) && <span className="menu-hint">{item.why ?? item.hint}</span>}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  return <MenuButton label="Select" items={items} className="select-menu" />;
 }

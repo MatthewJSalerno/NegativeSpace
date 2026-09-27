@@ -1,3 +1,4 @@
+import { Tip } from "./Tip";
 import { useState } from "react";
 import { count } from "../format";
 
@@ -35,9 +36,7 @@ export function TypesPanel({ types, selected, onTypes }: {
           </button>
         </h2>
         {open && (
-          <span className="dates-show-only" title="Check file types to show only those. Uncheck them all to show every type.">
-            Show only <span aria-hidden="true">ⓘ</span>
-          </span>
+          <Tip text="Check file types to show only those. Uncheck them all to show every type."><span className="dates-show-only">Show only</span></Tip>
         )}
       </div>
       {open && <>

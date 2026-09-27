@@ -1,5 +1,8 @@
 # Functional & Technical Design Specification: NegativeSpace Web Interface
 
+The shared visual and interaction contract is defined in [UI design standard](ui-design.md).
+It covers controls, keyboard focus, dialogs, help, form validation and loading/retry states.
+
 ## 1. System Overview & Architecture
 
 The NegativeSpace Web Interface provides a modern web UI for the containerized Python engine (`ns-engine.py`). It transforms the CLI engine into an interactive application supporting real-time operation monitoring, selective file processing, context-aware duplicate resolution, detailed metadata inspection, dedicated runtime settings management, extension validation, and audit logging.

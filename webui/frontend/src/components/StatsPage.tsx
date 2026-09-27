@@ -77,7 +77,7 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
         <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
       </header>
 
-      <main className="stats">
+      <main id="main-content" tabIndex={-1} className="stats">
         <h2>Stats</h2>
         {error && <p className="error">{error}</p>}
         {!stats && !error && <p className="muted">Loading…</p>}

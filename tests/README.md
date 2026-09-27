@@ -179,3 +179,8 @@ docker run --rm -v "$PWD":/app -w /app negativespace python3 tools/check-schema-
 docker run --rm -v "$PWD":/app -w /app negativespace python3 tools/check-api-spec.py
                                       # every API route is in api-spec.md, and nothing else is
 ```
+
+The browser harness also runs `ui_browser_checks.py` for shared control behavior: modal
+focus, menus, field errors, help, theme contrast, failed-page retry and narrow layouts.
+See `docs/ui-design.md` for the interaction contract and the manual accessibility checks
+required before claiming full WCAG conformance.

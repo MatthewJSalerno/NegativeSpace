@@ -14,6 +14,7 @@ set -eu
 
 IMAGE=${IMAGE:-negativespace}
 WEB_IMAGE=${WEB_IMAGE:-negativespace-web}
+DRIVER=${DRIVER:-webui_browser_drive.py}
 PLAYWRIGHT=mcr.microsoft.com/playwright/python:v1.63.0-noble
 # Enough photos for three pages of 60, dated across two years for the date tree.
 NEWER=70
@@ -82,6 +83,6 @@ if [ -n "${SHOTS:-}" ]; then SHOT_ARGS="-v $SHOTS:/shots -e SHOTS=/shots"; fi
 # shellcheck disable=SC2086
 # The source is mounted into the browser container too, so the test can make one photo
 # unreadable to the app (which runs as this user) and follow the failure through the UI.
-docker run --rm --network "$NET" $SHOT_ARGS -v "$WORK/src":/src -v "$HERE/webui_browser_drive.py":/drive.py:ro "$PLAYWRIGHT" \
+docker run --rm --network "$NET" $SHOT_ARGS -v "$WORK/src":/src -v "$HERE/$DRIVER":/drive.py:ro -v "$HERE/ui_browser_checks.py":/ui_browser_checks.py:ro "$PLAYWRIGHT" \
     sh -c "pip install -q --root-user-action=ignore playwright==1.63.0 >/dev/null 2>&1 && python3 /drive.py http://$WEB:8080 $NEWER $OLDER $DUPLICATES" \
   || { echo "--- app log ---"; docker logs "$APP" 2>&1 | tail -40; echo "--- web log ---"; docker logs "$WEB" 2>&1 | tail -20; exit 1; }

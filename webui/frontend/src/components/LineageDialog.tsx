@@ -1,3 +1,4 @@
+import { Modal } from "./ui/Modal";
 import { useEffect, useState } from "react";
 import { api, ApiError, type Lineage, type LineageFile, type LineageOperation } from "../api";
 import { bytes, instant } from "../format";
@@ -33,18 +34,6 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
       (e) => live && setError(e instanceof ApiError ? e.message : "The lineage could not be loaded."));
     return () => { live = false; };
   }, [photoId]);
-  // Escape closes this window only: taken on the way down, before the Inspector behind
-  // it (which also closes on Escape) can see it.
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.stopPropagation();
-      onClose();
-    };
-    document.addEventListener("keydown", key, true);
-    return () => document.removeEventListener("keydown", key, true);
-  }, [onClose]);
-
   const retry = async (op: LineageOperation) => {
     const mode = MODE[op.mode ?? ""];
     if (!mode || op.photo_id == null) return;
@@ -98,23 +87,21 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
   };
 
   return (
-    <div className="overlay lineage-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="dialog lineage-dialog" role="dialog" aria-modal="true" aria-labelledby="lineage-title">
+    <Modal className="dialog lineage-dialog" labelledBy="lineage-title" onClose={onClose}>
         <header className="lineage-head">
           <h2 id="lineage-title">Lineage of {filename}</h2>
           <button onClick={onClose} aria-label="Close">✕</button>
         </header>
         <p className="muted">
           Every file this photo has been, and every copy of the same content: what happened to each, in which job.
-          Hover over a path for its details.
+          Use the information button beside a path for its details.
         </p>
         {notice && <p className="notice" role="status">{notice}</p>}
         {error && <p className="error">{error}</p>}
         {!tree && !error && <p className="muted">Loading…</p>}
         {tree && <ul className="lineage-tree">{roots.map((f) => node(f))}</ul>}
         <p><a href={logUrl({ photo: photoId })} onClick={(e) => { onClose(); follow(e); }}>Open in the log</a></p>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

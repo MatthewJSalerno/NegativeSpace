@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { Modal } from "./ui/Modal";
+import { useCallback, useState } from "react";
 import type { Status } from "../api";
 import { count, plural } from "../format";
 
@@ -31,25 +32,25 @@ export function transferConfirm(mode: "copy" | "move", status: Status, ids: numb
 
 export function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const cancel = useCallback(() => { confirm.onCancel?.(); onClose(); }, [confirm, onClose]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && cancel();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [cancel]);
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && cancel()}>
-      <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+    <Modal role="alertdialog" labelledBy="confirm-title" onClose={cancel} busy={busy}>
         <h2 id="confirm-title">{confirm.title}</h2>
         {confirm.body.map((line) => <p key={line}>{line}</p>)}
+        {error && <p className="error" role="alert">{error}</p>}
         <footer className="settings-actions">
-          <button onClick={cancel} disabled={busy}>Cancel</button>
+          <button data-initial-focus onClick={cancel} disabled={busy}>Cancel</button>
           <button className={confirm.danger ? "danger" : "primary"} disabled={busy}
-                  onClick={async () => { setBusy(true); await confirm.run(); onClose(); }}>
+                  onClick={async () => {
+                    setBusy(true); setError(null);
+                    try { await confirm.run(); onClose(); }
+                    catch { setError("The action could not be completed. Check its status before trying again."); }
+                    finally { setBusy(false); }
+                  }}>
             {confirm.action}
           </button>
         </footer>
-      </div>
-    </div>
+    </Modal>
   );
 }

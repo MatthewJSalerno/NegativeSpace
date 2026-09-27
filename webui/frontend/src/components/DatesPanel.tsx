@@ -1,3 +1,4 @@
+import { Tip } from "./Tip";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Timeline } from "../api";
 import { count } from "../format";
@@ -80,9 +81,7 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJ
     <nav className="dates-panel" aria-label="Dates" ref={panel}>
       <div className="dates-head">
         <h2>Dates</h2>
-        <span className="dates-show-only" title="Check years or months to show only those. Uncheck them all to show everything.">
-          Show only <span aria-hidden="true">ⓘ</span>
-        </span>
+        <Tip text="Check years or months to show only those. Uncheck them all to show everything."><span className="dates-show-only">Show only</span></Tip>
       </div>
       <ul className="dates-tree">
         {years.map(([year, months]) => {
@@ -99,7 +98,7 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJ
                         onClick={() => setOpen((cur) => { const n = new Set(cur); if (n.has(year)) n.delete(year); else n.add(year); return n; })}>
                   {isOpen ? "▾" : "▸"}
                 </button>
-                <button className="dates-name" onClick={() => onJump(year)} title={`Go to ${year}`}>{year}</button>
+                <button className="dates-name" onClick={() => onJump(year)} title={`Go to ${year}`}>{year}<span className="date-jump-cue" aria-hidden="true">↗</span></button>
                 <span className="dates-count">{count(total)}</span>
               </div>
               {isOpen && (
@@ -109,7 +108,7 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJ
                       <input type="checkbox" aria-label={`Show only ${dateLabel(m.month)}`} checked={monthOn(m.month)}
                              onChange={() => toggleMonth(m.month, months)} />
                       <button className="dates-name" onClick={() => onJump(m.month)} title={`Go to ${dateLabel(m.month)}`}>
-                        {MONTH_NAMES[Number(m.month.slice(5, 7)) - 1]}
+                        {MONTH_NAMES[Number(m.month.slice(5, 7)) - 1]}<span className="date-jump-cue" aria-hidden="true">↗</span>
                       </button>
                       <span className="dates-count">{count(m.count)}</span>
                     </li>
@@ -123,7 +122,7 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJ
           <li className="dates-row">
             <input type="checkbox" aria-label="Show only photos with no date" checked={has("none")} onChange={toggleNone} />
             <span className="dates-caret" />
-            <button className="dates-name" onClick={() => onJump("none")}>No date</button>
+            <button className="dates-name" onClick={() => onJump("none")}>No date<span className="date-jump-cue" aria-hidden="true">↗</span></button>
             <span className="dates-count">{count(timeline.undated)}</span>
           </li>
         )}

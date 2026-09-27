@@ -75,6 +75,8 @@ with sync_playwright() as p:
     expect(menu).to_contain_text("Index your library first")
     expect(menu.get_by_role("menuitem", name=re.compile(r"^Index"))).to_be_enabled()
     page.keyboard.press("Escape")
+    expect(menu.get_by_role("menuitem", name="Move", exact=True)).to_be_focused()
+    page.keyboard.press("Escape")
     expect(page.locator(".menu")).to_have_count(0)
 
     # Index; the result shows at the top of the page, and the gallery refreshes itself.
@@ -207,9 +209,9 @@ with sync_playwright() as p:
     expect(page).not_to_have_url(re.compile(r"type="))
     # Oldest first turns the tree over: the oldest year leads.
     year_names = dates.locator(".dates-tree > li > .dates-row .dates-name")
-    expect(year_names.first).to_have_text("2023")
+    expect(year_names.first).to_have_accessible_name("2023")
     page.get_by_label("Sort").select_option("oldest")
-    expect(year_names.first).to_have_text("2019")
+    expect(year_names.first).to_have_accessible_name("2019")
     page.get_by_label("Sort").select_option("newest")
     expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS} photos")
     shot("2b-dates")
@@ -522,7 +524,7 @@ with sync_playwright() as p:
     lightbox = page.locator(".lightbox")
     lightbox.get_by_role("button", name="View lineage tree").click()
     expect(tree).to_be_visible()
-    box = tree.bounding_box()
+    box = tree.locator(".lineage-dialog").bounding_box()
     on_top = page.evaluate("([x, y]) => !!document.elementFromPoint(x, y).closest('.lineage-dialog')",
                            [box["x"] + box["width"] / 2, box["y"] + 20])
     assert on_top, "the lineage tree opened behind the enlarged photo"
@@ -667,6 +669,8 @@ with sync_playwright() as p:
     expect(phone.locator(".card").first).to_be_visible()
     overflow = phone.evaluate("document.documentElement.scrollWidth > window.innerWidth + 1")
     assert not overflow, "the page scrolls sideways at phone width"
+    from ui_browser_checks import check_ui
+    check_ui(browser, BASE, shot)
     browser.close()
 
 assert not errors, f"browser console errors: {errors}"

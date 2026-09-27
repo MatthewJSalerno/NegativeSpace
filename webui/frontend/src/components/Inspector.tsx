@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { Modal } from "./ui/Modal";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api, ApiError, type PhotoDetail } from "../api";
 import { bytes, epoch, isFallbackDate } from "../format";
@@ -28,6 +29,22 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning 
   onOpenPhoto: (id: number) => void;
   jobRunning: boolean;
 }) {
+  const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 800px)").matches);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 800px)");
+    const update = () => setNarrow(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  const panel = useRef<HTMLElement>(null);
+  const header = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (!header.current) return;
+    const observer = new ResizeObserver(([entry]) => panel.current?.style.setProperty(
+      "--inspector-head-h", `${Math.ceil(entry.target.getBoundingClientRect().height)}px`));
+    observer.observe(header.current);
+    return () => observer.disconnect();
+  }, [narrow]);
   const [detail, setDetail] = useState<PhotoDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
@@ -53,7 +70,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning 
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.closest("input, textarea, select")) return;
+      if (document.querySelector("dialog[open]") || (e.target as HTMLElement)?.closest("input, textarea, select, [role=menu]")) return;
       // Esc closes the enlarged view first, then the Inspector.
       if (e.key === "Escape") (enlarged ? setEnlarged(false) : onClose());
       if (e.key === "ArrowRight") onStep(1);
@@ -79,9 +96,9 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning 
     </>
   );
 
-  return (
-    <section className="inspector" aria-label="Photo details" style={width ? { flexBasis: `${width}px` } : undefined}>
-      <header className="inspector-head">
+  const body = (
+    <section ref={panel} className="inspector" aria-label="Photo details" style={width ? { flexBasis: `${width}px` } : undefined}>
+      <header ref={header} className="inspector-head">
         <button onClick={() => onStep(-1)} aria-label="Previous photo">‹</button>
         <h2 title={detail?.filename}>{detail?.filename ?? "…"}</h2>
         <button onClick={() => onStep(1)} aria-label="Next photo">›</button>
@@ -104,18 +121,18 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning 
       {/* Rendered at the page's top level: inside the Inspector, a size container,
           position: fixed would be relative to the panel and stay under the toolbar. */}
       {enlarged && createPortal(
-        <div className="lightbox" role="dialog" aria-modal="true" aria-label={`Enlarged: ${detail?.filename ?? ""}`}
-             onMouseDown={(e) => e.target === e.currentTarget && setEnlarged(false)}>
+        <Modal className="lightbox" label={`Enlarged: ${detail?.filename ?? ""}`} onClose={() => setEnlarged(false)}>
           <button className="lightbox-close" onClick={() => setEnlarged(false)} aria-label="Close the enlarged photo">✕</button>
           <div className="lightbox-body">
             <div className="lightbox-image">{photo}</div>
             {detail && <Details detail={detail} onLineage={() => setLineage(true)} />}
           </div>
-        </div>,
+        </Modal>,
         document.body,
       )}
     </section>
   );
+  return narrow ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body;
 }
 
 function Row({ label, children }: { label: ReactNode; children: ReactNode }) {

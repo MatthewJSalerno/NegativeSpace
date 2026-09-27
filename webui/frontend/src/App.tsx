@@ -1,3 +1,4 @@
+import { PageBoundary } from "./components/ui/PageBoundary";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Logo } from "./components/Logo";
 import { VersionTag, versionText } from "./components/VersionTag";
@@ -80,6 +81,7 @@ export function App() {
   }
   return (
     <>
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       {path === "/logs"
         ? <LogsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />
         : path === "/stats"
@@ -350,6 +352,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     if (bottomSentinel.current) observer.observe(bottomSentinel.current);
     return () => observer.disconnect();
   }, [list.first, list.last, list.load, list.ready, focus]);
+  useEffect(() => { if (list.failures.has(list.first - 1)) prepend.current = null; }, [list.failures, list.first]);
   useLayoutEffect(() => {
     const mark = prepend.current;
     if (!mark) return;
@@ -607,7 +610,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           </button>
           <nav className="views" aria-label="Views">
             {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
-              <button key={v} className={v === view && !(v === "all" && narrowed) ? "active" : ""} disabled={!!focus}
+              <button key={v} aria-pressed={v === view} className={v === view && !(v === "all" && narrowed) ? "active" : ""} disabled={!!focus}
                       onClick={() => chooseView(v)}>
                 <span>{VIEW_LABEL[v]}</span> <span className="view-count">{data ? `(${count(data.counts[v])})` : ""}</span>
               </button>
@@ -634,7 +637,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
         {actionError && <p className="error banner" role="alert">{actionError} <button onClick={() => setActionError(null)}>Dismiss</button></p>}
       </header>
 
-      <main className={`content ${datesOpen ? "dates-open" : ""}`} ref={content}>
+      <main id="main-content" tabIndex={-1} className={`content ${datesOpen ? "dates-open" : ""}`} ref={content}>
         {!focus && (
           <>
             <aside className="side-panel" ref={side} style={sideWidth ? { flexBasis: `${sideWidth}px` } : undefined}>
@@ -646,10 +649,11 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                               onJump={(key) => { jumpTo(key); setDatesOpen(false); }} />}
             </aside>
             <div className="divider side-divider" role="separator" aria-orientation="vertical" aria-label="Resize the left panel"
+                 aria-valuemin={SIDE_MIN} aria-valuemax={SIDE_MAX} aria-valuenow={Math.round(currentSide())} aria-valuetext={`${Math.round(currentSide())} pixels wide`}
                  tabIndex={0} onPointerDown={dragSide}
                  onKeyDown={(e) => {
-                   if (e.key === "ArrowLeft") setSideWidth(currentSide() - 40);
-                   if (e.key === "ArrowRight") setSideWidth(currentSide() + 40);
+                   if (e.key === "ArrowLeft") { e.preventDefault(); setSideWidth(currentSide() - 40); }
+                   if (e.key === "ArrowRight") { e.preventDefault(); setSideWidth(currentSide() + 40); }
                  }} />
           </>
         )}
@@ -743,11 +747,14 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                 {jobRunning && <span className="muted">Selection is unavailable while a job is running.</span>}
               </div>
               <Pager page={visible} pages={pages} total={list.meta.total} pageSize={pageSize} onPage={onPager} onPageSize={changePageSize} continuous />
-              {list.first > 1 && <div ref={topSentinel} className="page-sentinel muted">Loading more photos…</div>}
+              {list.refreshError && <div className="notice" role="status">Updates could not be loaded. {list.refreshError}
+                <button onClick={list.retryRefresh}>Retry updates</button></div>}
+              {list.first > 1 && <PageBoundary ref={topSentinel} previous pending={list.pending.has(list.first - 1)} error={list.failures.get(list.first - 1)}
+                onLoad={() => { prepend.current = { height: document.documentElement.scrollHeight, y: window.scrollY }; list.load(list.first - 1, true); }} />}
               <Gallery page={{ items: flat.items }} pageOf={flat.pageOf} selected={selected} selectable={!jobRunning} openId={openId}
                        onOpen={setOpenId} onToggle={toggle} onToggleMany={toggleMany} />
               {list.last < pages
-                ? <div ref={bottomSentinel} className="page-sentinel muted">Loading more photos…</div>
+                ? <PageBoundary ref={bottomSentinel} pending={list.pending.has(list.last + 1)} error={list.failures.get(list.last + 1)} onLoad={() => list.load(list.last + 1, true)} />
                 : <div className="gallery-foot">
                     <span className="muted">End of {plural(list.meta.total, "photo")}.</span>
                   </div>}
@@ -757,10 +764,12 @@ function Library({ status, refreshStatus, onOpenSettings }: {
         {openId != null && (
           <>
             <div className="divider" role="separator" aria-orientation="vertical" aria-label="Resize the photo panel"
+                 aria-valuemin={MIN_SIDE} aria-valuemax={Math.max(MIN_SIDE, (content.current?.clientWidth ?? window.innerWidth) - MIN_SIDE)}
+                 aria-valuenow={Math.round(currentWidth())} aria-valuetext={`${Math.round(currentWidth())} pixels wide`}
                  tabIndex={0} onPointerDown={drag}
                  onKeyDown={(e) => {
-                   if (e.key === "ArrowLeft") setWidth(currentWidth() + 40);
-                   if (e.key === "ArrowRight") setWidth(currentWidth() - 40);
+                   if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() + 40); }
+                   if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() - 40); }
                  }} />
             <Inspector id={openId} width={panelWidth} onClose={() => setOpenId(null)} onStep={step}
                        onOpenPhoto={setOpenId} jobRunning={jobRunning} />

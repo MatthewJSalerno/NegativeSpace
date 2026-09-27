@@ -1,3 +1,4 @@
+import { Tip } from "./Tip";
 import { useState } from "react";
 import type { FolderNode, FolderTree } from "../api";
 import { count, plural } from "../format";
@@ -98,9 +99,7 @@ export function FoldersPanel({ tree, folders, onFolders }: {
     <nav className="dates-panel folders-panel" aria-label="Folders">
       <div className="dates-head">
         <h2>Folders</h2>
-        <span className="dates-show-only" title="Check folders to show only the photos in them, subfolders included. Uncheck them all to show everything.">
-          Show only <span aria-hidden="true">ⓘ</span>
-        </span>
+        <Tip text="Check folders to show only the photos in them, subfolders included. Uncheck them all to show everything."><span className="dates-show-only">Show only</span></Tip>
       </div>
       <ul className="dates-tree">
         {tree.folders.map((node) => row(node, 0))}

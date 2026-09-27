@@ -295,7 +295,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
         <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
       </header>
 
-      <main className="logs">
+      <main id="main-content" tabIndex={-1} className="logs">
         <h2>{failuresOnly ? "Failures" : "Log"}{filters.photo != null ? ` for photo #${filters.photo}` : ""}</h2>
         {failuresOnly && (
           <p className="muted">

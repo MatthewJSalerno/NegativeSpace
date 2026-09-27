@@ -1,3 +1,5 @@
+import { Modal } from "./ui/Modal";
+import { Field } from "./ui/Field";
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, type ExtensionSupport, type Settings } from "../api";
 import { BackupsPanel } from "./BackupsPanel";
@@ -21,6 +23,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
   const [custom, setCustom] = useState("");
   const [message, setMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const load = () =>
     api.settings().then((s) => {
@@ -34,13 +37,6 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
   useEffect(() => {
     load();
   }, []);
-
-  useEffect(() => {
-    if (firstRun) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [firstRun, onClose]);
 
   // Every format the engine reads, plus any custom extension already chosen.
   const offered = useMemo(() => {
@@ -77,13 +73,19 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
   const save = async () => {
     if (!settings) return;
     setMessage(null);
+    const errors: Record<string, string> = {};
+    if (!Number.isSafeInteger(Number(workers)) || Number(workers) < 1) errors.workers = "Enter a whole number of workers, at least 1.";
+    if (!Number.isSafeInteger(Number(retention)) || Number(retention) < 1) errors.retention = "Enter a whole number of backups, at least 1.";
+    if (!exts.length) errors.exts = "Choose at least one file type.";
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) {
+      setMessage({ kind: "error", text: "Check the highlighted settings. Nothing was saved." });
+      requestAnimationFrame(() => document.getElementById(`settings-${Object.keys(errors)[0]}`)?.focus());
+      return;
+    }
     if (Object.keys(changed).length === 0) {
       if (firstRun) onSaved();
       else setMessage({ kind: "ok", text: "Nothing changed." });
-      return;
-    }
-    if (exts.length === 0) {
-      setMessage({ kind: "error", text: "Choose at least one file type." });
       return;
     }
     const revisionOf: Record<string, number> = {
@@ -112,13 +114,13 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
   };
 
   const reset = () => settings && (setWorkers(String(settings.workers.value)), setRetention(String(settings.backup_retention.value)),
-                                   setExts(settings.exts.value), setMessage(null));
+                                   setExts(settings.exts.value), setMessage(null), setFieldErrors({}));
 
   const body = (
-    <div className={firstRun ? "settings settings-page" : "settings"} role="dialog" aria-modal={!firstRun} aria-labelledby="settings-title">
+    <div className={firstRun ? "settings settings-page" : "settings-body"}>
       <header className="settings-head">
         <h2 id="settings-title">{firstRun ? "Welcome to NegativeSpace" : "Settings"}</h2>
-        {!firstRun && <button onClick={onClose} aria-label="Close settings">✕</button>}
+        {!firstRun && <button onClick={onClose} disabled={saving} aria-label="Close settings">✕</button>}
       </header>
       {firstRun && (
         <div className="notice notice-first-run">
@@ -129,15 +131,13 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
           </p>
         </div>
       )}
-      {!settings ? <p className="muted">Loading…</p> : (
+      {!settings ? <div role="status">{message ? <><p className="error">{message.text}</p><button onClick={load}>Retry loading settings</button></> : "Loading…"}</div> : (
         <>
           <section>
             <h3>Worker processes</h3>
-            <label className="field">
-              <span>Maximum worker processes</span>
-              <input type="number" min={1} value={workers} onChange={(e) => setWorkers(e.target.value)} />
-            </label>
-            <p className="muted">Controls how many photos are read and hashed at once.</p>
+            <Field id="settings-workers" label="Maximum worker processes" type="number" min={1} step={1}
+              value={workers} disabled={saving} onChange={(e) => setWorkers(e.target.value)} error={fieldErrors.workers}
+              hint="Controls how many photos are read and hashed at once." />
             <p className="notice">
               {settings.workers.limited_by
                 ? <>This container may use <strong>{settings.workers.detected}</strong> of the host's {settings.workers.host} CPU
@@ -151,32 +151,32 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
           </section>
           <section>
             <h3>File types</h3>
-            <div className="ext-grid">
+            <div className="ext-grid" id="settings-exts" role="group" aria-label="File types" tabIndex={-1}
+                 aria-invalid={!!fieldErrors.exts || undefined} aria-describedby={fieldErrors.exts ? "settings-exts-error" : undefined}>
               {offered.map((ext) => (
                 <label key={ext} className={support[ext] && !support[ext].supported ? "ext unsupported" : "ext"}>
-                  <input type="checkbox" checked={exts.includes(ext)} onChange={() => toggleExt(ext)} /> {ext}
+                  <input type="checkbox" disabled={saving} checked={exts.includes(ext)} onChange={() => toggleExt(ext)} /> {ext}
                 </label>
               ))}
             </div>
+            {fieldErrors.exts && <p id="settings-exts-error" className="error">{fieldErrors.exts}</p>}
             {exts.filter((e) => support[e] && !support[e].supported).map((e) => (
               <p key={e} className="warning">{support[e].warning}</p>
             ))}
             <div className="field-inline">
-              <input placeholder=".ext" value={custom} onChange={(e) => setCustom(e.target.value)}
+              <input disabled={saving} placeholder=".ext" value={custom} onChange={(e) => setCustom(e.target.value)}
                      onKeyDown={(e) => e.key === "Enter" && addCustom()} aria-label="Add a file type" />
-              <button onClick={addCustom}>Add file type</button>
+              <button disabled={saving} onClick={addCustom}>Add file type</button>
             </div>
           </section>
           <section>
             <h3>Catalog backups</h3>
-            <label className="field">
-              <span>Automatic backups to keep</span>
-              <input type="number" min={1} value={retention} onChange={(e) => setRetention(e.target.value)} />
-            </label>
+            <Field id="settings-retention" label="Automatic backups to keep" type="number" min={1} step={1}
+              value={retention} disabled={saving} onChange={(e) => setRetention(e.target.value)} error={fieldErrors.retention} />
             {!firstRun && <BackupsPanel retentionDraft={Number(retention)} />}
           </section>
           <p className="notice">Changes apply to future jobs. Active jobs will continue with their existing settings.</p>
-          {message && <p className={message.kind === "error" ? "error" : "ok"} role="alert">{message.text}</p>}
+          {message && <p className={message.kind === "error" ? "error" : "ok"} role={message.kind === "error" ? "alert" : "status"}>{message.text}</p>}
           <footer className="settings-actions">
             {!firstRun && <button onClick={reset} disabled={saving}>Reset</button>}
             <button className="primary" onClick={save} disabled={saving}>
@@ -189,6 +189,6 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
   );
 
   return firstRun ? body : (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>{body}</div>
+    <Modal className="settings" labelledBy="settings-title" busy={saving} onClose={onClose}>{body}</Modal>
   );
 }
