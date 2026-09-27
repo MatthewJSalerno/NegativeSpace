@@ -528,9 +528,13 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     }
   };
 
-  // Copy or Move selected first shows every selected photo, with the action in a bar
-  // above them rather than a dialog over them: scroll, open and untick, then commit.
+  // A single photo confirms in place. Multiple photos need a review where the
+  // full selection can be scrolled, opened and unticked before committing.
   const transferSelected = (mode: "copy" | "move") => {
+    if (selected.size === 1) {
+      askTransfer(mode, [...selected]);
+      return;
+    }
     setFocus({ kind: "review", mode, ids: [...selected] });
     setFocusPage(1);
   };

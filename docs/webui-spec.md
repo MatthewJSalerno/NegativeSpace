@@ -107,7 +107,9 @@ Users can select individual files or multiple files across grid views to run tar
   order and page while retaining the updated selection. It does not permanently replace
   the browsing view. Bulk actions use the explicit selection and show its count in the
   preview, not just the photos visible on the current page.
-* **Copy or Move selected is reviewed first, never confirmed over the photos.** It shows
+* **Copy or Move a single selected photo confirms in a dialog**, preserving the
+  gallery and Dates/Folders panel instead of switching into selection review.
+* **Copy or Move multiple selected photos is reviewed first, never confirmed over the photos.** It shows
   every selected photo, whatever hides them, with a bar pinned above them: **"Review the
   25 selected photos below"**, what the action does, **Copy these 25 photos** (or Move)
   and **Cancel**. The photos can be scrolled, opened and unticked; the button's count

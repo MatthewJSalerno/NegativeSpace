@@ -23,6 +23,21 @@ def check_ui(browser, base, _shot):
     assert after == before, ("Selection shifts the toolbar", before, after)
     for button in selection.get_by_role("button").all():
         assert button.bounding_box()["height"] >= 36
+    # A single photo needs confirmation without replacing the browsing context.
+    card_count = page.locator(".card").count()
+    for action in ("Copy", "Move"):
+        page.get_by_role("button", name=re.compile(r"^Actions")).click()
+        menu = page.get_by_role("menu", name="Actions", exact=True)
+        menu.get_by_role("menuitem", name=action, exact=True).click()
+        menu.get_by_role("menuitem", name=f"{action} selected (1)").click()
+        confirm_one = page.get_by_role("alertdialog")
+        expect(confirm_one).to_be_visible()
+        expect(confirm_one).to_contain_text(f"{action} 1 selected photo?")
+        expect(page.locator(".side-panel")).to_be_visible()
+        expect(page.locator(".card")).to_have_count(card_count)
+        expect(page.locator(".review-bar")).to_have_count(0)
+        confirm_one.get_by_role("button", name="Cancel", exact=True).click()
+        expect(selection).to_contain_text("1 photo selected")
     selection.get_by_role("button", name="Clear", exact=True).click()
     expect(selection).to_have_count(0)
 
