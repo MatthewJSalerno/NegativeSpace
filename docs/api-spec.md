@@ -288,7 +288,7 @@ outside the cache root is never served.
 
 `202` with the new run (§6).
 *   **Validated before anything runs:** mode, one targeting at most, ids as positive
-    integers (at most 1,000, the command-line limit; `400 selection_too_large` with
+    integers no greater than `2^63 - 1` (at most 1,000, the command-line limit; `400 selection_too_large` with
     `limit`), and a folder that stays inside the source. Everything else is
     `400 invalid_request`.
 *   **Refusals:** a missing or unusable catalog is `409 catalog_*`, and Copy or Move

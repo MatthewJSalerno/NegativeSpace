@@ -16,6 +16,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -357,6 +358,35 @@ class JobsAndCatalog(ApiCase):
             got = self.client.get("/api/v1/photos/folders", params=params)
             self.assertEqual(got.status_code, 200, f"{params}: {got.text}")
 
+    def test_folder_counts_exclude_unclassified_photos_without_crashing(self):
+        self.create_catalog()
+        for relative in ("unknown.jpg", "Trip/Day/unknown.jpg"):
+            with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
+                conn.execute("DELETE FROM photos")
+                conn.execute("INSERT INTO photos (source_path, status) VALUES (?, NULL)",
+                             (str(self.cfg.source / relative),))
+                conn.commit()
+            for view in ("all", "organized", "unorganized"):
+                for filters in ({}, {"q": "unknown"}, {"date": "2023"},
+                                {"undated": "true"}, {"type": "jpg"},
+                                {"q": "unknown", "date": "2023", "type": "jpg"}):
+                    with self.subTest(relative=relative, view=view, filters=filters):
+                        response = self.client.get("/api/v1/photos/folders",
+                                                   params={"view": view, "folder": "Trip/Day", **filters})
+                        self.assertEqual(response.status_code, 200)
+                        tree = response.json()
+                        self.assertEqual(tree["outside"], 0)
+                        self.assertEqual(tree["top_files"],
+                                         {"photos": 0, "eligible": {"copy": 0, "move": 0}})
+                        folders = list(tree["folders"])
+                        if "/" in relative:
+                            self.assertTrue(folders, "the selected empty folder must remain listed")
+                        while folders:
+                            folder = folders.pop()
+                            self.assertEqual(folder["photos"], 0)
+                            self.assertEqual(folder["eligible"], {"copy": 0, "move": 0})
+                            folders.extend(folder["folders"])
+
     def test_select_all_over_the_limit_is_refused_whole_not_cut_short(self):
         self.index_library()
         from webui import catalog
@@ -472,6 +502,27 @@ class JobsAndCatalog(ApiCase):
         with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 1,
                              "a refused request started an engine")
+
+    def test_malformed_job_fields_are_refused_without_spawning(self):
+        self.index_library()
+        bodies = [{"mode": value} for value in ([], {}, None, True, 1, "unknown")]
+        bodies += [{"mode": "copy", "file_ids": value} for value in
+                   ([], {}, "1", [True], [1.5], [0], [-1], [2**63], [2**80])]
+        with patch("webui.jobs.subprocess.Popen", side_effect=AssertionError("engine spawned")) as spawn:
+            for body in bodies:
+                with self.subTest(body=body):
+                    response = self.client.post("/api/v1/jobs/start", json=body)
+                    self.assertEqual(response.status_code, 400)
+                    self.assertEqual(response.json()["error"], "invalid_request")
+                    self.assertTrue(response.json()["message"])
+            spawn.assert_not_called()
+        with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 1)
+
+    def test_largest_sqlite_photo_id_is_a_valid_unknown_selection(self):
+        self.index_library()
+        run = self.wait_for(self.start(mode="copy", file_ids=[2**63 - 1]))
+        self.assertEqual((run["status"], run["outcome"]["verdict"]), ("Completed", "no_change"))
 
     def test_the_job_stream_sends_the_current_state_on_connect(self):
         self.index_library()

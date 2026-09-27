@@ -398,14 +398,16 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
     filtered, params = _filters(q, undated, dates, types)
     base = str(root).rstrip("/") + "/"
     # COALESCE: a filter can be NULL rather than false (a search against a photo with no
-    # destination path yet), and NULL is not a count.
+    # destination path yet), and NULL is not a count. An unclassified photo's NULL
+    # status also makes eligibility NULL: it is neither shown nor transferable yet.
     shown = f"COALESCE((p.status IN ({ns_db.sql_values(VIEWS[view])}){filtered}), 0)"
     copy_ok, move_ok = (ns_db.sql_values(ns_db.TRANSFER_ELIGIBLE[m]) for m in ("copy", "move"))
     tree = {"all": 0, "photos": 0, "copy": 0, "move": 0, "sub": {}}
     top = {"photos": 0, "copy": 0, "move": 0}
     with connect(db_path) as conn:
         rows = conn.execute(
-            f"SELECT p.source_path, {shown}, p.status IN ({copy_ok}), p.status IN ({move_ok}) FROM photos p "
+            f"SELECT p.source_path, {shown}, COALESCE(p.status IN ({copy_ok}), 0), "
+            f"COALESCE(p.status IN ({move_ok}), 0) FROM photos p "
             "WHERE p.source_path >= ? AND p.source_path < ?", params + (base, base[:-1] + "0"))
         for path, is_shown, can_copy, can_move in rows:
             parts = path[len(base):].split("/")[:-1]

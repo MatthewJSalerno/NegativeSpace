@@ -18,6 +18,8 @@ MODES = {"index": None, "copy": "--copy", "move": "--move"}
 # Each selected id becomes part of the engine's command line, which has a real
 # OS length limit; larger selections use a folder (webui-spec 2).
 MAX_FILE_IDS = 1000
+# Photo ids are SQLite signed 64-bit integers.
+MAX_PHOTO_ID = 2**63 - 1
 # How long a started engine has to create its run before the start is reported
 # as failed. It creates the run right after taking its lock, before any file work.
 RUN_APPEAR_SECONDS = 30.0
@@ -47,7 +49,7 @@ class JobRefused(Exception):
 def validate_request(cfg: Config, mode: str, file_ids=None, source_subdir=None) -> list:
     """The engine flags for a job request, validated here as well as by the engine
     (webui-spec 5.6): defence in depth, and a clean 400 instead of a failed job."""
-    if mode not in MODES:
+    if not isinstance(mode, str) or mode not in MODES:
         raise JobRefused(400, {"error": "invalid_request", "message": f"Unknown job mode: {mode!r}."})
     if file_ids is not None and source_subdir is not None:
         raise JobRefused(400, {"error": "invalid_request",
@@ -55,9 +57,9 @@ def validate_request(cfg: Config, mode: str, file_ids=None, source_subdir=None) 
     flags = [MODES[mode]] if MODES[mode] else []
     if file_ids is not None:
         if (not isinstance(file_ids, list) or not file_ids
-                or any(type(i) is not int or i < 1 for i in file_ids)):
+                or any(type(i) is not int or not 1 <= i <= MAX_PHOTO_ID for i in file_ids)):
             raise JobRefused(400, {"error": "invalid_request",
-                                   "message": "file_ids must be a non-empty list of photo ids."})
+                                   "message": "file_ids must be a non-empty list of positive 64-bit integer photo ids."})
         ids = sorted(set(file_ids))
         if len(ids) > MAX_FILE_IDS:
             raise JobRefused(400, {"error": "selection_too_large", "limit": MAX_FILE_IDS,
