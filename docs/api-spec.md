@@ -305,6 +305,30 @@ outside the cache root is never served.
     exits first is `409 engine_refused` with its own reason, or `500` for an unexpected
     exit. One that never records a run is `500 engine_start_timeout`.
 
+### `POST /api/v1/runs/{id}/answer`
+
+Answer a safety question from the latest settled run. The body contains exactly
+`question` and `answer`; scope overrides and other fields return 400.
+
+| Question | Answers |
+|---|---|
+| `source_empty` | `retry` after reconnecting storage; `confirm_empty` after verifying it is really empty |
+| `network_destination` | `copy` (recommended); `confirm_move` after explicitly confirming storage durability |
+
+Returns 202 with the new run. The server restores the original mode and exact
+photo-ID/folder/whole-source scope; `copy` changes only Move to Copy. The stored
+source and destination roots must still match configuration. An active job, stale
+or resolved question, or changed roots returns 409. Answering starts a new engine
+run; the API does not resolve attention records itself. Explicit confirmations
+carry through consecutive answers in the same retry chain, never through a new
+ordinary Start. Leave unchanged is a client dismissal and starts nothing.
+
+Run responses include `questions`, a list of `source_empty` and/or
+`network_destination` for the latest settled run with a still-open refusal. Older
+runs have an empty list. The job feed includes this field too. Ordinary job Start
+accepts only mode, file_ids and source_subdir; unsupported fields, including direct
+confirmation flags, return 400 rather than being silently ignored.
+
 ### `POST /api/v1/jobs/{id}/cancel`
 
 `202 {"id": 47, "cancel_requested": true}`: SIGTERM to the engine, which finishes the

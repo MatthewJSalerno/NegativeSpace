@@ -274,6 +274,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .focus-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 8px; padding: 10px 14px;
   border-left: 4px solid var(--accent); background: var(--surface-2); border-radius: var(--radius); }
 .focus-head .warning { flex-basis: 100%; margin: 0; }
+.safety-questions { grid-column: 1 / -1; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.safety-questions p { margin: 8px 0; }
 .dates-filter-line { margin: 0 0 8px; }
 .select-menu .menu { min-width: 320px; }
 

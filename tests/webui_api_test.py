@@ -141,6 +141,113 @@ class FirstRunAndSettings(ApiCase):
         self.assertTrue(mov["warning"])
 
 
+class SafetyQuestions(ApiCase):
+    def answer(self, run, question, answer):
+        response = self.client.post(f"/api/v1/runs/{run['id']}/answer", json={"question":question, "answer":answer})
+        self.assertEqual(response.status_code, 202, response.text)
+        return self.wait_for(response.json()["id"])
+
+    def test_empty_source_retry_and_explicit_confirmation(self):
+        self.create_catalog()
+        photo = self.cfg.source / "sample.jpg"
+        make_photo(photo, "empty-question")
+        self.wait_for(self.start(mode="index"))
+        held = self.root / "held.jpg"
+        photo.rename(held)
+        refused = self.wait_for(self.start(mode="index"))
+        self.assertEqual(refused["questions"], ["source_empty"])
+        # Retry without reconnecting asks again, rather than silently confirming.
+        again = self.answer(refused, "source_empty", "retry")
+        self.assertEqual(again["questions"], ["source_empty"])
+        held.rename(photo)
+        restored = self.answer(again, "source_empty", "retry")
+        self.assertEqual(restored["questions"], [])
+        photo.rename(held)
+        refused = self.wait_for(self.start(mode="index"))
+        confirmed = self.answer(refused, "source_empty", "confirm_empty")
+        self.assertEqual(confirmed["questions"], [])
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute("SELECT status FROM photos").fetchone()[0], "Failed")
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM attention_issues WHERE resolved_at IS NULL").fetchone()[0], 0)
+        self.assertTrue(held.is_file())
+
+    def network_case(self, scope):
+        # Real engine and filesystem actions; inject only network-type detection.
+        wrapper = self.root / "network_engine.py"
+        wrapper.write_text("import importlib,sys\n"
+            f"sys.path.insert(0, {str(self.cfg.engine.parent)!r})\n"
+            "m=importlib.import_module('ns-engine')\n"
+            "m.filesystem_type=lambda path: 'nfs'\nif __name__ == '__main__': m.main()\n")
+        from dataclasses import replace
+        self.client.close()
+        self.cfg = replace(self.cfg, engine=wrapper)
+        self.client = TestClient(create_app(self.cfg))
+        self.create_catalog()
+        chosen = self.cfg.source / "chosen" / "sample.jpg"
+        other = self.cfg.source / "other.jpg"
+        make_photo(chosen, "chosen")
+        make_photo(other, "other")
+        self.wait_for(self.start(mode="index"))
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            photo_id = conn.execute("SELECT id FROM photos WHERE source_path=?", (str(chosen),)).fetchone()[0]
+        targeting = {"file_ids":[photo_id]} if scope == "ids" else {"source_subdir":"chosen"} if scope == "folder" else {}
+        refused = self.wait_for(self.start(mode="move", **targeting))
+        self.assertEqual(refused["questions"], ["network_destination"])
+        self.assertTrue(chosen.exists() and other.exists())
+        self.assertEqual(list(self.cfg.dest.rglob('*.jpg')), [])
+        copied = self.answer(refused, "network_destination", "copy")
+        self.assertEqual(copied["mode"], "COPY")
+        self.assertEqual(copied["targeting"], targeting or None)
+        self.assertTrue(chosen.exists() and other.exists())
+        self.assertEqual(copied["questions"], [])
+        # A new Move must ask again; permission is not global.
+        refused = self.wait_for(self.start(mode="move", **targeting))
+        self.assertEqual(refused["questions"], ["network_destination"])
+        # Scope overrides, arbitrary flags and malformed answers cannot launch.
+        answer_url = f"/api/v1/runs/{refused['id']}/answer"
+        answer_body = {"question":"network_destination", "answer":"confirm_move"}
+        with self.engine_lock_held():
+            self.assertEqual(self.client.post(answer_url, json=answer_body).status_code, 409)
+        runner = self.app_jobs()
+        runner.cfg = replace(self.cfg, dest=self.root / "different-destination")
+        try:
+            response = self.client.post(answer_url, json=answer_body)
+            self.assertEqual((response.status_code, response.json()["error"]), (409, "scope_changed"))
+        finally:
+            runner.cfg = self.cfg
+        for body in ({"question":"network_destination", "answer":"confirm_move", "file_ids":[photo_id]},
+                     {"question":[], "answer":"confirm_move"},
+                     {"question":"network_destination", "answer":True}):
+            self.assertEqual(self.client.post(f"/api/v1/runs/{refused['id']}/answer", json=body).status_code, 400)
+        moved = self.answer(refused, "network_destination", "confirm_move")
+        self.assertEqual(moved["targeting"], targeting or None)
+        self.assertEqual(moved["outcome"]["verdict"], "success")
+        self.assertFalse(chosen.exists())
+        self.assertEqual(other.exists(), scope != "all")
+        self.assertEqual(moved["questions"], [])
+        self.assertEqual(self.client.post(f"/api/v1/runs/{refused['id']}/answer",
+            json={"question":"network_destination", "answer":"confirm_move"}).status_code, 409)
+
+    def test_network_answers_preserve_selected_ids(self):
+        self.network_case("ids")
+
+    def test_network_answers_preserve_folder_scope(self):
+        self.network_case("folder")
+
+    def test_network_answers_preserve_whole_source(self):
+        self.network_case("all")
+
+    def test_start_rejects_unsupported_confirmation_fields(self):
+        self.create_catalog()
+        with patch("webui.jobs.subprocess.Popen") as spawn:
+            for key in ("confirm_source_empty", "confirm_network_destination", "unexpected"):
+                self.assertEqual(self.client.post('/api/v1/jobs/start', json={"mode":"index", key:True}).status_code, 400)
+            for run_id in (0, -1, 2**63):
+                self.assertEqual(self.client.post(f'/api/v1/runs/{run_id}/answer',
+                    json={"question":"source_empty", "answer":"confirm_empty"}).status_code, 400)
+            spawn.assert_not_called()
+
+
 class TransferScanFailures(ApiCase):
     def check_scan_failures(self, mode, all_failed):
         self.create_catalog()

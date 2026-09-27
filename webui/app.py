@@ -337,8 +337,17 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def start_job(body: dict = Body(...)):
         """{"mode": "index"|"copy"|"move", "file_ids": [...]} or {"source_subdir": "..."}
         or neither for the whole source. 409 while another job runs (webui-spec 5.7)."""
+        if set(body) - {"mode", "file_ids", "source_subdir"}:
+            raise JobRefused(400, {"error": "invalid_request", "message": "Unsupported job fields. Answer safety questions through the original job."})
         run_id = jobs.start(body.get("mode"), body.get("file_ids"), body.get("source_subdir"))
         return catalog.get_run(cfg.db_path, run_id)
+
+    @app.post("/api/v1/runs/{run_id}/answer", status_code=202)
+    def answer_question(run_id: int, body: dict = Body(...)):
+        if set(body) != {"question", "answer"}:
+            raise JobRefused(400, {"error": "invalid_request", "message": "Provide only question and answer; the original job supplies the scope."})
+        new_id = jobs.answer(run_id, body["question"], body["answer"])
+        return catalog.get_run(cfg.db_path, new_id)
 
     @app.post("/api/v1/jobs/{run_id}/cancel", status_code=202)
     def cancel_job(run_id: int):

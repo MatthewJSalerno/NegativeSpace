@@ -167,6 +167,7 @@ export interface Run {
   started_at?: string;
   ended_at?: string | null;
   targeting?: Record<string, unknown> | null;
+  questions?: SafetyQuestion[];
   progress?: Phase[];
   outcome?: Outcome;
   presented_status?: string;
@@ -179,6 +180,9 @@ export interface JobState {
   active: Run | null;
   last: Run | null;
 }
+
+export type SafetyQuestion = "source_empty" | "network_destination";
+export type SafetyAnswer = "confirm_empty" | "retry" | "copy" | "confirm_move";
 
 export interface Setting<T> {
   value: T;
@@ -414,6 +418,8 @@ export const api = {
   runs: (limit = 100) => request<{ runs: Run[] }>("GET", `/api/v1/runs?limit=${limit}`),
   lineage: (id: number) => request<Lineage>("GET", `/api/v1/photos/${id}/lineage`),
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
+  answerQuestion: (id: number, question: SafetyQuestion, answer: SafetyAnswer) =>
+    request<Run>("POST", `/api/v1/runs/${id}/answer`, { question, answer }),
   startJob: (body: { mode: "index" | "copy" | "move"; file_ids?: number[]; source_subdir?: string }) =>
     request<Run>("POST", "/api/v1/jobs/start", body),
   cancelJob: (id: number) => request<{ id: number }>("POST", `/api/v1/jobs/${id}/cancel`),

@@ -202,6 +202,15 @@ Mobile support and real touch-device validation are optional; desktop zoom and r
 remain in scope. Existing phone-emulation checks guard implemented behavior rather than
 establishing a mobile release requirement.
 
+Safety questions (audit N6):
+`NETWORK_FIXTURE=1 DRIVER=safety_questions_browser_drive.py sh tests/webui_browser_test.sh`
+uses the real engine with only filesystem-type detection replaced, against the
+harness's disposable photos. It checks explicit choices, cancellation, scope,
+empty-source confirmation/reconnect and Copy versus Move confirmation. API cases
+also test writable-source removal, selected/folder/whole-source targeting, stale
+answers, changed roots, busy engine and unsupported input. No real network share
+or maintainer data is needed; network durability itself is not tested.
+
 For audit N4, `DRIVER=transfer_outcome_browser_drive.py sh tests/webui_browser_test.sh`
 checks mixed and all-failed prerequisite scans for Copy and Move, including banner
 counts and View failures links. It modifies only the harness's disposable photos.

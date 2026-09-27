@@ -62,9 +62,13 @@ for i in range($DUPLICATES):
 
 docker network create "$NET" >/dev/null
 # Named "app" on the network, as in compose: the web container's nginx proxies to it.
+set --
+if [ "${NETWORK_FIXTURE:-0}" = 1 ]; then
+    set -- -v "$HERE/network_engine_fixture.py:/network_engine_fixture.py:ro" -e NS_ENGINE=/network_engine_fixture.py
+fi
 docker run -d --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" \
     -v "$WORK/src":/data/source:ro -v "$WORK/dest":/data/dest -v "$WORK/appdata":/appdata \
-    -v "$WORK/cache":/cache -v "$WORK/backups":/backups "$IMAGE" >/dev/null
+    -v "$WORK/cache":/cache -v "$WORK/backups":/backups "$@" "$IMAGE" >/dev/null
 docker run -d --name "$WEB" --network "$NET" "$WEB_IMAGE" >/dev/null
 
 # Wait until the API answers through the web container, rather than a fixed time.

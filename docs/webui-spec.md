@@ -1012,6 +1012,17 @@ A searchable table logging every operation performed by the engine:
 
 **`runs.status` describes the run's lifecycle, not whether the work succeeded.** A run that reaches the end of its file loop is recorded `Completed` even if every single file in it failed. That is accurate for what the column means — the process ran to completion rather than crashing, being cancelled, or aborting on a pre-flight check — but it is the wrong thing to put in front of a user on its own.
 
+**Safety questions keep their original job scope.** The finished-job banner on
+Library and Logs shows the latest job's unresolved empty-source or network-Move
+question. Empty source offers retry after reconnecting, an explicit confirmation
+that the source really is empty, or Leave unchanged. Network storage recommends
+Copy instead, offers Move anyway with an explicit confirmation that the share uses
+synchronous durable writes, or Leave unchanged. Action dialogs repeat the original
+selection/folder/whole-source scope; the server reconstructs it from that run, not
+the current gallery filters. Leave unchanged starts nothing and dismisses the
+banner without claiming the issue was resolved. A new ordinary job never inherits
+these permissions. Old questions cannot be answered after another job has started.
+
 For example, a `--copy` whose every source file is unreadable fails every file and still reports:
 
 ```

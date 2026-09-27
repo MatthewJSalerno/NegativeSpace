@@ -155,34 +155,73 @@ class JobRunner:
             raise JobRefused(409, {"error": "catalog_empty",
                                    "message": "Run a Scan first - NegativeSpace acts on indexed photos."})
         with self._start_lock:
+            return self._launch(flags)
+
+    def answer(self, run_id, question, answer):
+        if type(run_id) is not int or not 1 <= run_id <= MAX_PHOTO_ID:
+            raise JobRefused(400, {"error": "invalid_request", "message": "The run id must be a positive 64-bit integer."})
+        choices = {"source_empty": {"confirm_empty", "retry"},
+                   "network_destination": {"copy", "confirm_move"}}
+        if not isinstance(question, str) or not isinstance(answer, str) or answer not in choices.get(question, set()):
+            raise JobRefused(400, {"error": "invalid_request", "message": "Unknown safety question or answer."})
+        with self._start_lock:
             if self._probe_lock():
                 raise self._busy()
-            request_id = uuid.uuid4().hex
-            log = self.cfg.base / "logs" / "engine-console.log"
-            log.parent.mkdir(parents=True, exist_ok=True)
-            with open(log, "w") as out:
-                proc = subprocess.Popen(self.cfg.engine_argv("--request-id", request_id, *flags),
-                                        stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT)
-            deadline = time.monotonic() + RUN_APPEAR_SECONDS
-            while True:
-                run_id = catalog.run_for_request(self.cfg.db_path, request_id)
-                if run_id is not None:
-                    break
-                if proc.poll() is not None:
-                    reason = _last_error(log)
-                    if "another NegativeSpace engine process is already running" in (reason or ""):
-                        raise self._busy()
-                    raise JobRefused(409 if proc.returncode == 1 else 500,
-                                     {"error": "engine_refused", "message": reason or
-                                      f"The engine stopped before starting (exit {proc.returncode})."})
-                if time.monotonic() > deadline:
-                    proc.terminate()
-                    raise JobRefused(500, {"error": "engine_start_timeout",
-                                           "message": "The engine did not start the job in time."})
-                time.sleep(0.05)
-            self._procs[run_id] = proc
-            threading.Thread(target=self._reap, args=(run_id, proc), daemon=True).start()
-            return run_id
+            with catalog.connect(self.cfg.db_path) as conn:
+                row = conn.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
+                if row is None or question not in catalog.safety_questions(conn, dict(row)):
+                    raise JobRefused(409, {"error": "stale_question", "message": "This question is no longer current. Refresh the job status."})
+                if row["source_path"] != str(self.cfg.source.resolve()) or row["dest_path"] != str(self.cfg.dest.resolve()):
+                    raise JobRefused(409, {"error": "scope_changed", "message": "The source or destination changed. Start a new job with the intended folders."})
+                mode = row["mode"].lower()
+                targeting = json.loads(row["file_ids_filter"]) if row["file_ids_filter"] else {}
+                if not isinstance(targeting, dict) or set(targeting) - {"file_ids", "source_subdir"}:
+                    raise JobRefused(409, {"error": "scope_changed", "message": "This job's scope cannot be retried safely."})
+                prior = conn.execute("SELECT submitted_request_json FROM job_requests WHERE run_id=?", (run_id,)).fetchone()
+                submitted = (json.loads(prior[0]).get("submitted") or {}) if prior else {}
+            if question == "network_destination":
+                if mode != "move":
+                    raise JobRefused(409, {"error": "stale_question", "message": "Network confirmation applies only to Move."})
+                mode = "copy" if answer == "copy" else "move"
+            flags = validate_request(self.cfg, mode, targeting.get("file_ids"), targeting.get("source_subdir"))
+            # Carry only explicit answers from the preceding request in this chain.
+            # New jobs through /start never inherit permission from an earlier run.
+            if answer == "confirm_empty" or submitted.get("confirm_source_empty") is True:
+                flags.append("--confirm-source-empty")
+            if mode == "move" and (answer == "confirm_move" or submitted.get("confirm_network_destination") is True):
+                flags.append("--confirm-network-destination")
+            return self._launch(flags)
+
+    def _launch(self, flags):
+        """Start with the API start lock held; the engine owns the filesystem lock."""
+        if self._probe_lock():
+            raise self._busy()
+        request_id = uuid.uuid4().hex
+        log = self.cfg.base / "logs" / "engine-console.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        with open(log, "w") as out:
+            proc = subprocess.Popen(self.cfg.engine_argv("--request-id", request_id, *flags),
+                                    stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT)
+        deadline = time.monotonic() + RUN_APPEAR_SECONDS
+        while True:
+            run_id = catalog.run_for_request(self.cfg.db_path, request_id)
+            if run_id is not None:
+                break
+            if proc.poll() is not None:
+                reason = _last_error(log)
+                if "another NegativeSpace engine process is already running" in (reason or ""):
+                    raise self._busy()
+                raise JobRefused(409 if proc.returncode == 1 else 500,
+                                 {"error": "engine_refused", "message": reason or
+                                  f"The engine stopped before starting (exit {proc.returncode})."})
+            if time.monotonic() > deadline:
+                proc.terminate()
+                raise JobRefused(500, {"error": "engine_start_timeout",
+                                       "message": "The engine did not start the job in time."})
+            time.sleep(0.05)
+        self._procs[run_id] = proc
+        threading.Thread(target=self._reap, args=(run_id, proc), daemon=True).start()
+        return run_id
 
     def _reap(self, run_id: int, proc: subprocess.Popen):
         proc.wait()

@@ -4,6 +4,7 @@ import { duration, instant } from "../format";
 import { activeTitle, countsLine, currentPhase, reasonsText, phaseLabel, summary, type Connection } from "../jobs";
 import { Tip } from "./Tip";
 import { follow, logUrl } from "../nav";
+import { SafetyQuestions } from "./SafetyQuestions";
 
 // The operations drawer (webui-spec 4.1): aggregate counts about once a second,
 // elapsed time from the job's recorded start, and Cancel. Per-file detail belongs
@@ -101,6 +102,7 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss }: {
   const started = run.started_at ? Date.parse(run.started_at) : null;
   return (
     <div className={`finished-banner finished-${s.tone}`} role="status">
+      <SafetyQuestions key={run.id} run={run} onLeave={() => onDismiss(run.id!)} />
       <div className="drawer-text">
         <strong>{s.headline}</strong>
         {reasonsText(run.outcome) ? <Tip text={reasonsText(run.outcome) as string}><span tabIndex={0} className="has-reasons">{s.detail}</span></Tip>

@@ -640,11 +640,37 @@ def _outcome(conn, run: dict, progress: list) -> dict:
             "total": total, "counts": counts}
 
 
+def safety_questions(conn, run) -> list:
+    """Only the latest settled request can be answered; use its recorded refusal."""
+    if run["status"] in ns_db.ACTIVE_RUN_STATUSES or run["id"] != conn.execute("SELECT MAX(id) FROM runs").fetchone()[0]:
+        return []
+    open_categories = {r[0] for r in conn.execute(
+        "SELECT category FROM attention_issues WHERE resolved_at IS NULL "
+        "AND category IN ('source_root_empty','network_destination_unconfirmed')")}
+    if not open_categories:
+        return []
+    kinds = {r[0] for r in conn.execute(
+        "SELECT json_extract(e.detail_json, '$.kind') FROM operation_events e "
+        "JOIN operations o ON o.id=e.operation_id WHERE o.run_id=? AND o.photo_id IS NULL AND e.step='intent'",
+        (run["id"],))}
+    network_refused = "network_destination_unconfirmed" in open_categories and conn.execute(
+        "SELECT 1 FROM operations WHERE run_id=? AND status='Skipped' "
+        "AND error_message LIKE 'Not attempted: the destination is a network share%' LIMIT 1",
+        (run["id"],)).fetchone() is not None
+    questions = []
+    if "source_root_empty" in kinds and "source_root_empty" in open_categories:
+        questions.append("source_empty")
+    if ("network_destination" in kinds or network_refused) and "network_destination_unconfirmed" in open_categories:
+        questions.append("network_destination")
+    return questions
+
+
 def _run_dict(conn, row) -> dict:
     run = dict(row)
     run["targeting"] = json.loads(run.pop("file_ids_filter")) if run.get("file_ids_filter") else None
     run["progress"] = ns_db.read_progress(conn, run["id"])
     run["outcome"] = _outcome(conn, run, run["progress"])
+    run["questions"] = safety_questions(conn, run)
     return run
 
 
