@@ -5,6 +5,12 @@ interface. The target is WCAG 2.2 Level AA. Automated regression checks cover th
 behaviors listed below; full conformance additionally requires assistive-technology
 and manual review. This document does not claim certification.
 
+Desktop browsers are the required product target. Mobile support and real
+touch-device validation are optional and do not block release. Existing responsive
+behavior may remain, but it does not establish a mobile support commitment.
+Desktop zoom, text scaling, keyboard access and reflow remain accessibility concerns,
+including when zoom or a resized desktop window activates a narrow layout.
+
 ## Visual language
 
 Keep photographs prominent, with neutral surfaces, restrained borders, and one blue
@@ -83,9 +89,10 @@ existing product scenario. It exercises dialog focus and nested restoration, men
 field errors, help, both-theme destructive contrast, failed loading, narrow-screen
 layout and forced-color focus. `tests/webui_browser_test.sh` is the entry point.
 
-Before making a full WCAG conformance claim, review all screens with a screen reader,
-keyboard alone, text scaling/zoom, and real touch devices; include browser coverage
-beyond Chromium. Automated checks are regression guards, not that claim.
+Before making a WCAG conformance claim for the supported desktop experience, review
+all screens with a screen reader, keyboard alone and text scaling/zoom; include
+desktop browser coverage beyond Chromium. Real touch-device checks are optional.
+Automated checks are regression guards, not a conformance claim.
 
 The gallery still retains its loaded pages. Long-session DOM/memory measurements and
 accessible virtualization need separate work; a large SQL catalog benchmark alone

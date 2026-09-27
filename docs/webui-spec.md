@@ -2,6 +2,8 @@
 
 The shared visual and interaction contract is defined in [UI design standard](ui-design.md).
 It covers controls, keyboard focus, dialogs, help, form validation and loading/retry states.
+Desktop browsers are the required target; mobile support is optional. Existing narrow-layout
+behavior is documented as implemented, not as a mobile support requirement.
 
 ## 1. System Overview & Architecture
 
