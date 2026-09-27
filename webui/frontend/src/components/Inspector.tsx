@@ -1,5 +1,5 @@
 import { Modal } from "./ui/Modal";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api, ApiError, type PhotoDetail } from "../api";
 import { bytes, epoch, isFallbackDate } from "../format";
@@ -18,7 +18,7 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // The split-screen Inspector (webui-spec 4.2): the grid thumbnail at once, the
 // 1024px preview as soon as the engine has made it, and what the catalog records.
 // When the panel is dragged wide, the details move to the right of the photo
-// (a container query in styles.css). Clicking the photo enlarges it over a blurred
+// and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
 export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning }: {
   id: number;
@@ -45,6 +45,31 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning 
     observer.observe(header.current);
     return () => observer.disconnect();
   }, [narrow]);
+  const [previewShare, setPreviewShare] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem("ns.inspectorPreviewShare"));
+      if (Number.isFinite(saved) && saved >= 20 && saved <= 75) return saved;
+    } catch { /* Browser storage is optional. */ }
+    return 50;
+  });
+  const [splitSize, setSplitSize] = useState({ wide: false, width: 640, height: 480 });
+  useLayoutEffect(() => {
+    const el = panel.current;
+    if (!el) return;
+    const update = () => setSplitSize({ wide: el.clientWidth >= 1000, width: el.clientWidth - 24,
+      height: Math.max(160, el.clientHeight - (header.current?.clientHeight ?? 0) - 24) });
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    if (header.current) observer.observe(header.current);
+    update();
+    return () => observer.disconnect();
+  }, [narrow]);
+  const splitDrag = useRef<{ position: number; share: number; extent: number } | null>(null);
+  const resizePreview = (share: number) => {
+    const value = Math.min(75, Math.max(20, Math.round(share)));
+    setPreviewShare(value);
+    try { localStorage.setItem("ns.inspectorPreviewShare", String(value)); } catch { /* Optional preference. */ }
+  };
   const [detail, setDetail] = useState<PhotoDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
@@ -104,11 +129,38 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning 
         <button onClick={() => onStep(1)} aria-label="Next photo">›</button>
         <button onClick={onClose} aria-label="Close">✕</button>
       </header>
-      <div className="inspector-main">
+      <div className="inspector-main" data-wide={splitSize.wide}
+           style={{ "--preview-share": `${previewShare}%`,
+             "--preview-size": `${Math.round(splitSize.height * (splitSize.wide ? 1 : previewShare / 100))}px` } as CSSProperties}>
         <button className="inspector-image" onClick={() => setEnlarged(true)} aria-label="Enlarge the photo"
                 title="Click to enlarge">
           {photo}
         </button>
+        <div className="preview-divider" role="separator" tabIndex={0}
+             aria-label="Resize photo preview" aria-orientation={splitSize.wide ? "vertical" : "horizontal"}
+             aria-valuemin={20} aria-valuemax={75} aria-valuenow={previewShare}
+             aria-valuetext={`${previewShare}% for the photo preview`}
+             title="Drag to resize the photo preview, or focus here and use the arrow keys"
+             onPointerDown={(e) => {
+               if (e.button !== 0) return;
+               e.preventDefault(); e.currentTarget.focus(); e.currentTarget.setPointerCapture(e.pointerId);
+               splitDrag.current = { position: splitSize.wide ? e.clientX : e.clientY, share: previewShare,
+                 extent: splitSize.wide ? splitSize.width : splitSize.height };
+             }}
+             onPointerMove={(e) => {
+               const drag = splitDrag.current;
+               if (drag) resizePreview(drag.share + 100 * ((splitSize.wide ? e.clientX : e.clientY) - drag.position) / drag.extent);
+             }}
+             onPointerUp={(e) => { splitDrag.current = null; e.currentTarget.releasePointerCapture(e.pointerId); }}
+             onLostPointerCapture={() => { splitDrag.current = null; }}
+             onPointerCancel={() => { splitDrag.current = null; }}
+             onKeyDown={(e) => {
+               const before = splitSize.wide ? "ArrowLeft" : "ArrowUp";
+               const after = splitSize.wide ? "ArrowRight" : "ArrowDown";
+               if (![before, after, "Home", "End"].includes(e.key)) return;
+               e.preventDefault(); e.stopPropagation();
+               resizePreview(e.key === "Home" ? 20 : e.key === "End" ? 75 : previewShare + (e.key === before ? -5 : 5));
+             }}><span aria-hidden="true">⋮⋮</span></div>
         <div className="inspector-side">
           {error && <p className="error">{error}</p>}
           {detail && <Details detail={detail} onLineage={() => setLineage(true)} />}

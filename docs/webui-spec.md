@@ -431,6 +431,11 @@ and confirmation say how many are already copied.
 The divider between the gallery and the Inspector can be dragged or moved with the arrow
 keys, and its position is remembered. When the Inspector is wide enough, the details sit
 beside the photo instead of below it.
+Inside the Inspector, a visible grip between the preview and the file details resizes
+their share of space: vertically when details are below, horizontally when beside.
+Drag it or focus it and use the corresponding arrow keys (5 percentage points per
+press); Home/End select the 20%/75% limits. The preview share is remembered in the
+browser independently of the overall Inspector width.
 
 ```
 +-----------------------------------------------------------------------------------+

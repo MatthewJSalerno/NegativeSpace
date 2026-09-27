@@ -68,7 +68,7 @@ button, select, input {
   font: inherit;
   color: inherit;
   background: var(--surface);
-  border: 1px solid var(--control-border);
+  border: 1px solid var(--border);
   border-radius: var(--control-radius);
   padding: 6px 12px;
 }
@@ -214,12 +214,21 @@ body.dragging { cursor: col-resize; user-select: none; }
   position: sticky; top: var(--header-offset); height: calc(100vh - var(--header-offset)); overflow-y: auto; padding-bottom: 32px;
   container-type: inline-size;
 }
-/* Dragged wide, the details sit to the right of the photo. */
-@container (min-width: 1000px) {
-  .inspector-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); align-items: start; }
-  .inspector-main .inspector-image { position: sticky; top: 53px; max-height: calc(100vh - var(--header-offset) - 60px); }
-  .inspector-main .inspector-image img { max-height: calc(100vh - var(--header-offset) - 60px); }
-}
+/* The inner divider sizes the preview above, or beside, the file details. */
+.inspector-main { display: grid; grid-template-rows: var(--preview-size) 24px auto; }
+.inspector-main > .inspector-image { min-height: 0; height: var(--preview-size); max-height: none; overflow: hidden; }
+.inspector-main > .inspector-image img { width: 100%; height: 100%; max-height: var(--preview-size); object-fit: contain; }
+.inspector-main > .inspector-image .thumb-placeholder { min-height: 0; }
+.preview-divider { display: grid; place-items: center; background: var(--surface-2); color: var(--muted);
+  border-block: 1px solid var(--border); cursor: row-resize; touch-action: none; user-select: none; }
+.preview-divider:hover, .preview-divider:focus-visible { color: var(--accent); background: var(--surface); outline: 2px solid var(--accent); outline-offset: -2px; }
+.preview-divider span { line-height: 1; transform: rotate(90deg); }
+.inspector-main[data-wide=true] { grid-template-columns: minmax(0, var(--preview-share)) 24px minmax(0, 1fr); grid-template-rows: auto; align-items: start; }
+.inspector-main[data-wide=true] > .inspector-image,
+.inspector-main[data-wide=true] > .preview-divider { position: sticky; top: var(--inspector-head-h, 46px); }
+.inspector-main[data-wide=true] > .preview-divider { height: var(--preview-size); cursor: col-resize; border-block: 0; border-inline: 1px solid var(--border); }
+.inspector-main[data-wide=true] > .preview-divider span { transform: none; }
+.inspector-side { min-width: 0; }
 .inspector-head { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 1; }
 .inspector-head h2 { flex: 1; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inspector-image { background: #000; display: grid; place-items: center; min-height: 240px; max-height: 60vh;
@@ -513,7 +522,7 @@ a.stat-tile:hover, button.stat-tile:hover { border-color: var(--accent); }
 
 /* Shared control states and density (docs/ui-design.md). */
 a { color: var(--accent); text-underline-offset: 3px; }
-a.button-link { min-height: var(--control-height); border-color: var(--control-border); }
+a.button-link { min-height: var(--control-height); border-color: var(--border); }
 input[type=checkbox] { width: 24px; height: 24px; min-height: 24px; padding: 0; flex: none; accent-color: var(--accent); cursor: pointer; }
 input:disabled, select:disabled { opacity: 0.65; cursor: not-allowed; }
 input[aria-invalid=true], [role=group][aria-invalid=true] { border: 2px solid var(--bad); }

@@ -69,6 +69,10 @@ Photo navigation shortcuts must not run behind a dialog or menu. Help's Escape i
 handled before its enclosing dialog. Native controls retain their normal keyboard
 behavior.
 
+The Inspector's inner preview/details divider has a visible grip, pointer dragging
+and keyboard resizing. Arrow keys follow its orientation; Home/End select its limits.
+It announces and remembers the preview share independently of the outer panel width.
+
 ## Validation and feedback
 
 Settings validates whole positive worker/retention counts and a nonempty extension

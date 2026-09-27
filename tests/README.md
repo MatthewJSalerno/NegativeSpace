@@ -182,6 +182,8 @@ docker run --rm -v "$PWD":/app -w /app negativespace python3 tools/check-api-spe
 
 The browser harness also runs `ui_browser_checks.py` for shared control behavior: modal
 focus, menus, field errors, help, theme contrast, failed-page retry and narrow layouts.
+It also checks the Inspector's inner preview/details divider: pointer and keyboard
+resizing, remembered proportions, and orientation changes in a wide desktop panel.
 See `docs/ui-design.md` for the interaction contract and the manual accessibility checks
 required before claiming WCAG conformance for the supported desktop experience.
 Mobile support and real touch-device validation are optional; desktop zoom and reflow

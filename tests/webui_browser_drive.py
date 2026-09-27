@@ -284,8 +284,9 @@ with sync_playwright() as p:
     page.mouse.up()
     after = inspector.bounding_box()["width"]
     assert after > before + 200, f"dragging the divider did not widen the panel ({before} -> {after})"
+    expect(inspector.locator(".inspector-main")).to_have_attribute("data-wide", "true")
     columns = inspector.locator(".inspector-main").evaluate("e => getComputedStyle(e).gridTemplateColumns")
-    assert len(columns.split()) == 2, f"a wide panel did not place the details beside the photo: {columns}"
+    assert len(columns.split()) == 3, f"a wide panel did not place the preview, divider and details side by side: {columns}"
     shot("4-inspector-wide")
     divider.focus()
     page.keyboard.press("ArrowRight")

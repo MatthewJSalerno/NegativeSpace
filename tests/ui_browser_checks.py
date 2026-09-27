@@ -101,6 +101,36 @@ def check_ui(browser, base, _shot):
 
     # Nested dialogs close one at a time and restore focus to the underlying task.
     page.locator(".card-image").first.click()
+    preview_split = page.get_by_role("separator", name="Resize photo preview", exact=True)
+    expect(preview_split).to_have_attribute("aria-orientation", "horizontal")
+    preview = page.get_by_role("button", name="Enlarge the photo")
+    initial_height = preview.bounding_box()["height"]
+    preview_split.focus()
+    page.keyboard.press("ArrowDown")
+    expect(preview_split).to_have_attribute("aria-valuenow", "55")
+    assert preview.bounding_box()["height"] > initial_height
+    handle = preview_split.bounding_box()
+    page.mouse.move(handle["x"] + handle["width"] / 2, handle["y"] + handle["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(handle["x"] + handle["width"] / 2, handle["y"] - 45, steps=5)
+    page.mouse.up()
+    saved_share = preview_split.get_attribute("aria-valuenow")
+    assert int(saved_share) < 55
+    page.reload()
+    expect(preview_split).to_have_attribute("aria-valuenow", saved_share)
+    # A wide desktop Inspector uses the same separator vertically.
+    page.set_viewport_size({"width": 2400, "height": 900})
+    outer = page.get_by_role("separator", name="Resize the photo panel", exact=True)
+    outer.focus()
+    for _ in range(20):
+        page.keyboard.press("ArrowLeft")
+    expect(preview_split).to_have_attribute("aria-orientation", "vertical")
+    preview_split.focus()
+    photo_url = page.url
+    page.keyboard.press("ArrowRight")
+    expect(preview_split).to_have_attribute("aria-valuenow", str(min(75, int(saved_share) + 5)))
+    assert page.url == photo_url, "Resizing must not navigate to another photo"
+    page.set_viewport_size({"width": 1400, "height": 900})
     page.get_by_role("button", name="Enlarge the photo").click()
     enlarged = page.get_by_role("dialog", name=re.compile(r"^Enlarged:"))
     expect(enlarged.get_by_role("button", name="Close the enlarged photo")).to_be_focused()
