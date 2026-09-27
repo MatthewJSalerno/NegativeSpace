@@ -413,13 +413,12 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const changeDates = (next: string[]) => { setDates(next); setPage(1); };
   const changeTypes = (next: string[]) => { setTypes(next); setPage(1); };
   const changeFolders = (next: string[]) => { setFolders(next); setPage(1); };
-  // All photos means every photo: it also clears No capture date, the dates and the
-  // search. The other views keep them, to narrow within them.
+  // All photos clears the other filters, but every tile preserves the search.
   const narrowed = undated || dates.length > 0 || types.length > 0 || folders.length > 0 || !!q;
   const chooseView = (v: View) => {
     setView(v);
     setPage(1);
-    if (v === "all") { setUndated(false); setDates([]); setTypes([]); setFolders([]); setSearch(""); setQ(""); }
+    if (v === "all") { setUndated(false); setDates([]); setTypes([]); setFolders([]); }
   };
   const jumpTo = (key: string) => {
     const newestFirst = sort !== "oldest";

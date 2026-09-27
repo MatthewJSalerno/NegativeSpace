@@ -10,6 +10,17 @@ def check_ui(browser, base, _shot):
     page.goto(base)
     expect(page.locator(".card").first).to_be_visible()
 
+    # Tile changes keep both a pending search draft and its applied URL query.
+    search_box = page.get_by_role("searchbox", name="Search filenames")
+    for label in ("Not yet organized", "No capture date", "Organized", "All photos"):
+        search_box.fill("photo-010")
+        page.locator(".views").get_by_role("button", name=re.compile(r"^" + label)).click()
+        expect(search_box).to_have_value("photo-010")
+        expect(page).to_have_url(re.compile(r"q=photo-010"))
+    search_box.fill("")
+    expect(page).not_to_have_url(re.compile(r"q="))
+    expect(page.locator(".card").first).to_be_visible()
+
     # Selecting photos must not make the top toolbar taller or move the gallery.
     toolbar = page.locator(".toolbar-row").first
     logs = page.get_by_role("link", name="Logs", exact=True)

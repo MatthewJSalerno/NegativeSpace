@@ -214,10 +214,11 @@ photos whose EXIF has no date taken, which are filed under Undated by their file
 modification date, counted in the current view. It combines with the view and the
 search; the views' counts ignore it, as they ignore every filter, and the filter line says
 how many are shown. Each view button keeps its width whatever its count, with room for
-**(999,999)** in even-width digits, so switching views never moves them. **All photos** means every
-photo: choosing it also clears No capture date, the date tree's Show only and the search,
-and it is not shown as chosen while any of them narrows the gallery. The other views keep
-them, to narrow within a view.
+**(999,999)** in even-width digits, so switching views never moves them. Every tile
+preserves the search text, including **No capture date** and **All photos**.
+**All photos** clears No capture date and the date, type and folder filters, but
+retains the search; it is not shown as chosen while a filter or search narrows the
+gallery. The other views keep the filters, to narrow within a view.
 
 **Main-page browsing:** default to newest first by recorded photo date, clearly
 distinguishing filesystem fallback dates from capture dates; offer size sorting.
