@@ -34,6 +34,10 @@ separate foreground/background pairs in both themes.
 These are product choices within an accessibility target, not a claim that every
 control must have the same shape or that every target must be exactly 44px.
 
+Help popups use the subdued `--surface-2` background and normal text color in both
+themes. They occupy the browser's top layer so sticky sidebars and adjacent photos
+cannot clip or cover the text.
+
 ## Shared controls
 
 | Element | Contract and implementation |

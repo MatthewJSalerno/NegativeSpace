@@ -99,6 +99,29 @@ def check_ui(browser, base, _shot):
     page.wait_for_timeout(200)  # The pointer has crossed the bubble's dismissal grace period.
     expect(help_content).to_be_visible()
 
+    # Help from the sticky sidebar must paint above the adjacent photo grid.
+    sidebar_help = page.locator(".side-panel .help-trigger:visible").first
+    for theme in ("light", "dark"):
+        page.emulate_media(color_scheme=theme)
+        actions.hover()
+        sidebar_help.hover()
+        bubble = page.locator(".side-panel .help-content")
+        expect(bubble).to_be_visible()
+        assert bubble.evaluate("""e => {
+            const r = e.getBoundingClientRect();
+            return e.contains(document.elementFromPoint(r.right - 8, r.top + r.height / 2));
+        }"""), "Sidebar help is covered by adjacent content"
+        assert bubble.evaluate("""e => {
+            const s = getComputedStyle(e);
+            const probe = document.createElement('span');
+            probe.style.backgroundColor = 'var(--surface-2)';
+            e.append(probe);
+            const matches = getComputedStyle(probe).backgroundColor === s.backgroundColor;
+            probe.remove(); return matches;
+        }"""), "Help must use the subdued theme surface"
+    page.emulate_media(color_scheme="light")
+    actions.hover()
+
     # Nested dialogs close one at a time and restore focus to the underlying task.
     page.locator(".card-image").first.click()
     preview_split = page.get_by_role("separator", name="Resize photo preview", exact=True)
