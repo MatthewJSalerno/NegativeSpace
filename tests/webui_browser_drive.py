@@ -275,7 +275,9 @@ with sync_playwright() as p:
     expect(lightbox).to_have_count(0)
 
     # The divider: drag it, and a wide panel puts the details beside the photo.
+    page.set_viewport_size({"width": 2000, "height": 900})
     divider = page.get_by_role("separator", name="Resize the photo panel")
+    expect(divider).to_have_attribute("aria-valuemax", "1324")
     before = inspector.bounding_box()["width"]
     box = divider.bounding_box()
     page.mouse.move(box["x"] + 4, box["y"] + 200)
@@ -291,6 +293,7 @@ with sync_playwright() as p:
     divider.focus()
     page.keyboard.press("ArrowRight")
     assert inspector.bounding_box()["width"] < after, "the divider did not respond to the keyboard"
+    page.set_viewport_size({"width": 1400, "height": 900})
 
     page.keyboard.press("Escape")
     expect(inspector).to_have_count(0)

@@ -124,6 +124,32 @@ def check_ui(browser, base, _shot):
 
     # Nested dialogs close one at a time and restore focus to the underlying task.
     page.locator(".card-image").first.click()
+    # The outer divider reserves the filters plus usable gallery space, including
+    # oversized saved preferences and a subsequently smaller desktop window.
+    outer = page.get_by_role("separator", name="Resize the photo panel", exact=True)
+    filters_width = page.locator(".side-panel").bounding_box()["width"]
+    handle = outer.bounding_box()
+    page.mouse.move(handle["x"] + 4, handle["y"] + 100)
+    page.mouse.down()
+    page.mouse.move(10, handle["y"] + 100, steps=8)
+    page.mouse.up()
+    assert page.locator(".gallery-pane").bounding_box()["width"] >= 419, "Inspector crushed the photo listing"
+    assert page.locator(".side-panel").bounding_box()["width"] >= filters_width - 1
+    page.evaluate("localStorage.setItem('ns.inspectorWidth', '9000')")
+    page.reload()
+    expect(outer).to_be_visible()
+    assert page.locator(".inspector").bounding_box()["width"] <= float(outer.get_attribute("aria-valuemax")) + 1
+    page.set_viewport_size({"width": 1100, "height": 900})
+    expect(outer).to_have_attribute("aria-valuemax", "424")
+    assert page.locator(".gallery-pane").bounding_box()["width"] >= 419
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.set_viewport_size({"width": 1400, "height": 900})
+    side_split = page.get_by_role("separator", name="Resize the left panel", exact=True)
+    side_split.focus()
+    page.keyboard.press("ArrowRight")
+    expect(outer).to_have_attribute("aria-valuemax", "684")
+    assert page.locator(".gallery-pane").bounding_box()["width"] >= 419
+    page.keyboard.press("ArrowLeft")
     preview_split = page.get_by_role("separator", name="Resize photo preview", exact=True)
     expect(preview_split).to_have_attribute("aria-orientation", "horizontal")
     preview = page.get_by_role("button", name="Enlarge the photo")

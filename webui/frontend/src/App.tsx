@@ -22,8 +22,9 @@ import { StatsLink, StatsPage } from "./components/StatsPage";
 import { follow, navigate, useHeaderHeight, usePath } from "./nav";
 import { SettingsDialog } from "./components/SettingsDialog";
 
-// Neither side of the gallery/Inspector divider gets narrower than this.
+// Reserve the gallery separately from the filters and the resize handles.
 const MIN_SIDE = 320;
+const MIN_GALLERY = 420;
 // The left panel's width limits when dragged.
 const SIDE_MIN = 180;
 const SIDE_MAX = 560;
@@ -214,13 +215,25 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
   const header = useRef<HTMLElement>(null);
   const content = useRef<HTMLElement>(null);
+  const [contentWidth, setContentWidth] = useState(window.innerWidth);
+  useLayoutEffect(() => {
+    const el = content.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setContentWidth(el.clientWidth));
+    observer.observe(el);
+    setContentWidth(el.clientWidth);
+    return () => observer.disconnect();
+  }, []);
   const [panelWidth, setPanelWidth] = useState<number | null>(() => {
     try { return Number(localStorage.getItem("ns.inspectorWidth")) || null; } catch { return null; }
   });
   // The left panel's width: folder paths can be wide, so it can be dragged wider.
   const side = useRef<HTMLElement>(null);
   const [sideWidth, setSideWidthState] = useState<number | null>(() => {
-    try { return Number(localStorage.getItem("ns.sideWidth")) || null; } catch { return null; }
+    try {
+      const saved = Number(localStorage.getItem("ns.sideWidth"));
+      return Number.isFinite(saved) && saved > 0 ? Math.min(SIDE_MAX, Math.max(SIDE_MIN, saved)) : null;
+    } catch { return null; }
   });
 
   useHeaderHeight(header);
@@ -475,10 +488,14 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   }, [flat, openId]);
 
   // The divider between the gallery and the Inspector: drag it, or focus it and use
-  // the arrow keys. Each side keeps at least MIN_SIDE pixels; the width is remembered.
+  // the arrow keys. Filters keep their width and the photo grid keeps MIN_GALLERY.
+  // Clamp restored preferences too, and recalculate when the window or filters resize.
+  const inspectorMax = Math.max(MIN_SIDE,
+    contentWidth - (focus ? 0 : (sideWidth ?? 240) + 8) - MIN_GALLERY - 8);
+  const boundedWidth = (px: number) => Math.round(Math.min(inspectorMax, Math.max(MIN_SIDE, px)));
+  const effectivePanelWidth = boundedWidth(Number.isFinite(panelWidth) && panelWidth != null ? panelWidth : contentWidth / 2);
   const setWidth = (px: number) => {
-    const total = content.current?.getBoundingClientRect().width ?? window.innerWidth;
-    const clamped = Math.round(Math.min(Math.max(px, MIN_SIDE), total - MIN_SIDE));
+    const clamped = boundedWidth(px);
     setPanelWidth(clamped);
     try { localStorage.setItem("ns.inspectorWidth", String(clamped)); } catch { /* per-viewer convenience only */ }
   };
@@ -495,7 +512,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
-  const currentWidth = () => panelWidth ?? (content.current?.getBoundingClientRect().width ?? window.innerWidth) / 2;
+  const currentWidth = () => effectivePanelWidth;
 
   const start = (mode: "index" | "copy" | "move", fileIds?: number[]) => async () => {
     setActionError(null);
@@ -764,14 +781,14 @@ function Library({ status, refreshStatus, onOpenSettings }: {
         {openId != null && (
           <>
             <div className="divider" role="separator" aria-orientation="vertical" aria-label="Resize the photo panel"
-                 aria-valuemin={MIN_SIDE} aria-valuemax={Math.max(MIN_SIDE, (content.current?.clientWidth ?? window.innerWidth) - MIN_SIDE)}
+                 aria-valuemin={MIN_SIDE} aria-valuemax={inspectorMax}
                  aria-valuenow={Math.round(currentWidth())} aria-valuetext={`${Math.round(currentWidth())} pixels wide`}
                  tabIndex={0} onPointerDown={drag}
                  onKeyDown={(e) => {
                    if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() + 40); }
                    if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() - 40); }
                  }} />
-            <Inspector id={openId} width={panelWidth} onClose={() => setOpenId(null)} onStep={step}
+            <Inspector id={openId} width={effectivePanelWidth} onClose={() => setOpenId(null)} onStep={step}
                        onOpenPhoto={setOpenId} jobRunning={jobRunning} />
           </>
         )}

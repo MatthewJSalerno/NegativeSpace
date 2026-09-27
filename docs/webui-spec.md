@@ -431,6 +431,11 @@ and confirmation say how many are already copied.
 The divider between the gallery and the Inspector can be dragged or moved with the arrow
 keys, and its position is remembered. When the Inspector is wide enough, the details sit
 beside the photo instead of below it.
+Its maximum width reserves the filters' chosen width, both resize handles and at
+least 420px for the photo listing. The Inspector keeps at least 320px. Restored
+widths are bounded to the current layout, and resizing the browser or filters
+recalculates the limit. If a desktop window cannot fit those minimums, the layout
+overflows horizontally instead of crushing the controls.
 Inside the Inspector, a visible grip between the preview and the file details resizes
 their share of space: vertically when details are below, horizontally when beside.
 Drag it or focus it and use the corresponding arrow keys (5 percentage points per

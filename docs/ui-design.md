@@ -76,6 +76,10 @@ behavior.
 The Inspector's inner preview/details divider has a visible grip, pointer dragging
 and keyboard resizing. Arrow keys follow its orientation; Home/End select its limits.
 It announces and remembers the preview share independently of the outer panel width.
+The outer divider reserves the filters' chosen width and at least 420px for the
+photo grid; the Inspector retains at least 320px. Saved widths and desktop window
+resizing obey those limits. Very narrow desktop windows scroll horizontally rather
+than compressing these areas below their minimums.
 
 ## Validation and feedback
 
