@@ -20,7 +20,7 @@ from starlette.concurrency import run_in_threadpool
 import ns_db
 from . import catalog
 from .config import Config, build_version
-from .jobs import JobRefused, JobRunner
+from .jobs import JobRefused, JobRunner, validate_request_id
 
 # The drawer refreshes about once a second (webui-spec 4.1); the engine writes its
 # progress snapshot at the same cadence.
@@ -337,17 +337,23 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def start_job(body: dict = Body(...)):
         """{"mode": "index"|"copy"|"move", "file_ids": [...]} or {"source_subdir": "..."}
         or neither for the whole source. 409 while another job runs (webui-spec 5.7)."""
-        if set(body) - {"mode", "file_ids", "source_subdir"}:
+        if set(body) - {"mode", "file_ids", "source_subdir", "request_id"}:
             raise JobRefused(400, {"error": "invalid_request", "message": "Unsupported job fields. Answer safety questions through the original job."})
-        run_id = jobs.start(body.get("mode"), body.get("file_ids"), body.get("source_subdir"))
+        run_id = jobs.start(body.get("mode"), body.get("file_ids"), body.get("source_subdir"), body.get("request_id"))
         return catalog.get_run(cfg.db_path, run_id)
 
     @app.post("/api/v1/runs/{run_id}/answer", status_code=202)
     def answer_question(run_id: int, body: dict = Body(...)):
-        if set(body) != {"question", "answer"}:
-            raise JobRefused(400, {"error": "invalid_request", "message": "Provide only question and answer; the original job supplies the scope."})
-        new_id = jobs.answer(run_id, body["question"], body["answer"])
+        if not {"question", "answer"} <= set(body) or set(body) - {"question", "answer", "request_id"}:
+            raise JobRefused(400, {"error": "invalid_request", "message": "Provide question, answer and an optional request_id; the original job supplies the scope."})
+        new_id = jobs.answer(run_id, body["question"], body["answer"], body.get("request_id"))
         return catalog.get_run(cfg.db_path, new_id)
+
+    @app.get("/api/v1/job-requests/{request_id}")
+    def lookup_request(request_id: str):
+        validate_request_id(request_id)
+        record = catalog.request_record(cfg.db_path, request_id)
+        return {"state": "accepted", "run": catalog.get_run(cfg.db_path, record["run_id"])} if record else {"state": "unknown", "run": None}
 
     @app.post("/api/v1/jobs/{run_id}/cancel", status_code=202)
     def cancel_job(run_id: int):

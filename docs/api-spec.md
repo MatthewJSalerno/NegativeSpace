@@ -288,7 +288,12 @@ outside the cache root is never served.
     {"mode": "move", "file_ids": [101, 102]}                   // selected photos
     {"mode": "copy", "source_subdir": "sd_card/day1"}          // a folder
 
-`202` with the new run (§6).
+`202` with the accepted run (§6). An optional `request_id` uses 1–128 ASCII
+letters, digits, underscores or hyphens. The browser always supplies a random ID
+saved before sending. Legacy callers omitting it receive a server-generated ID.
+An accepted ID with the same normalized request returns its original run without
+spawning, even during a different active job; different input returns
+`409 request_conflict`. Acceptance is durable in the engine's `job_requests` table.
 *   **Validated before anything runs:** mode, one targeting at most, ids as positive
     integers no greater than `2^63 - 1` (at most 1,000, the command-line limit; `400 selection_too_large` with
     `limit`), and a folder that stays inside the source. Everything else is
@@ -307,8 +312,10 @@ outside the cache root is never served.
 
 ### `POST /api/v1/runs/{id}/answer`
 
-Answer a safety question from the latest settled run. The body contains exactly
-`question` and `answer`; scope overrides and other fields return 400.
+Answer a safety question from the latest settled run. The body contains
+`question`, `answer` and optionally `request_id`; scope overrides and other fields
+return 400. Accepted answers support the same replay semantics as Start, including
+replay after the original question has become stale.
 
 | Question | Answers |
 |---|---|
@@ -326,8 +333,17 @@ ordinary Start. Leave unchanged is a client dismissal and starts nothing.
 Run responses include `questions`, a list of `source_empty` and/or
 `network_destination` for the latest settled run with a still-open refusal. Older
 runs have an empty list. The job feed includes this field too. Ordinary job Start
-accepts only mode, file_ids and source_subdir; unsupported fields, including direct
+accepts only mode, file_ids, source_subdir and request_id; unsupported fields, including direct
 confirmation flags, return 400 rather than being silently ignored.
+
+### `GET /api/v1/job-requests/{request_id}`
+
+Returns `{"state":"accepted","run":{...}}` for that exact durable acceptance,
+including completed jobs and jobs preceding newer submissions from other tabs.
+Otherwise returns `{"state":"unknown","run":null}`. A missing row is not proof
+that an in-flight request cannot still be accepted. No job is started by lookup.
+Invalid request-ID syntax returns 400. Database read failures are errors, not an
+unknown/no-job answer.
 
 ### `POST /api/v1/jobs/{id}/cancel`
 

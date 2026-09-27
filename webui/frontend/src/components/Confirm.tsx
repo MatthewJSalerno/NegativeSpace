@@ -2,6 +2,7 @@ import { Modal } from "./ui/Modal";
 import { useCallback, useState } from "react";
 import type { Status } from "../api";
 import { count, plural } from "../format";
+import { SubmissionStatus } from "./SubmissionStatus";
 
 export type Confirm = { title: string; body: string[]; action: string; danger?: boolean; run: () => Promise<void>; onCancel?: () => void };
 
@@ -38,6 +39,7 @@ export function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose:
     <Modal role="alertdialog" labelledBy="confirm-title" onClose={cancel} busy={busy}>
         <h2 id="confirm-title">{confirm.title}</h2>
         {confirm.body.map((line) => <p key={line}>{line}</p>)}
+        {busy && <SubmissionStatus />}
         {error && <p className="error" role="alert">{error}</p>}
         <footer className="settings-actions">
           <button data-initial-focus onClick={cancel} disabled={busy}>Cancel</button>

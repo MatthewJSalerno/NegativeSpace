@@ -65,6 +65,8 @@ docker network create "$NET" >/dev/null
 set --
 if [ "${NETWORK_FIXTURE:-0}" = 1 ]; then
     set -- -v "$HERE/network_engine_fixture.py:/network_engine_fixture.py:ro" -e NS_ENGINE=/network_engine_fixture.py
+elif [ "${SUBMISSION_FIXTURE:-0}" = 1 ]; then
+    set -- -v "$HERE/submission_engine_fixture.py:/submission_engine_fixture.py:ro" -e NS_ENGINE=/submission_engine_fixture.py
 fi
 docker run -d --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" \
     -v "$WORK/src":/data/source:ro -v "$WORK/dest":/data/dest -v "$WORK/appdata":/appdata \

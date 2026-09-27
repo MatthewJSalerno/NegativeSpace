@@ -4,6 +4,7 @@ import fcntl
 import json
 import os
 import posixpath
+import re
 import signal
 import subprocess
 import threading
@@ -20,6 +21,12 @@ MODES = {"index": None, "copy": "--copy", "move": "--move"}
 MAX_FILE_IDS = 1000
 # Photo ids are SQLite signed 64-bit integers.
 MAX_PHOTO_ID = 2**63 - 1
+
+
+def validate_request_id(value):
+    if value is not None and (not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value)):
+        raise JobRefused(400, {"error": "invalid_request", "message": "request_id must contain 1–128 letters, digits, underscores or hyphens."})
+    return value
 # How long a started engine has to create its run before the start is reported
 # as failed. It creates the run right after taking its lock, before any file work.
 RUN_APPEAR_SECONDS = 30.0
@@ -146,7 +153,8 @@ class JobRunner:
 
     # -- Starting and stopping ------------------------------------------------
 
-    def start(self, mode: str, file_ids=None, source_subdir=None) -> int:
+    def start(self, mode: str, file_ids=None, source_subdir=None, request_id=None) -> int:
+        validate_request_id(request_id)
         flags = validate_request(self.cfg, mode, file_ids, source_subdir)
         status = catalog.status(self.cfg.db_path)
         if status["state"] != "ok":
@@ -155,9 +163,10 @@ class JobRunner:
             raise JobRefused(409, {"error": "catalog_empty",
                                    "message": "Run a Scan first - NegativeSpace acts on indexed photos."})
         with self._start_lock:
-            return self._launch(flags)
+            return self._launch(flags, request_id)
 
-    def answer(self, run_id, question, answer):
+    def answer(self, run_id, question, answer, request_id=None):
+        validate_request_id(request_id)
         if type(run_id) is not int or not 1 <= run_id <= MAX_PHOTO_ID:
             raise JobRefused(400, {"error": "invalid_request", "message": "The run id must be a positive 64-bit integer."})
         choices = {"source_empty": {"confirm_empty", "retry"},
@@ -165,12 +174,11 @@ class JobRunner:
         if not isinstance(question, str) or not isinstance(answer, str) or answer not in choices.get(question, set()):
             raise JobRefused(400, {"error": "invalid_request", "message": "Unknown safety question or answer."})
         with self._start_lock:
-            if self._probe_lock():
-                raise self._busy()
             with catalog.connect(self.cfg.db_path) as conn:
                 row = conn.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
-                if row is None or question not in catalog.safety_questions(conn, dict(row)):
+                if row is None:
                     raise JobRefused(409, {"error": "stale_question", "message": "This question is no longer current. Refresh the job status."})
+                current = question in catalog.safety_questions(conn, dict(row))
                 if row["source_path"] != str(self.cfg.source.resolve()) or row["dest_path"] != str(self.cfg.dest.resolve()):
                     raise JobRefused(409, {"error": "scope_changed", "message": "The source or destination changed. Start a new job with the intended folders."})
                 mode = row["mode"].lower()
@@ -190,13 +198,42 @@ class JobRunner:
                 flags.append("--confirm-source-empty")
             if mode == "move" and (answer == "confirm_move" or submitted.get("confirm_network_destination") is True):
                 flags.append("--confirm-network-destination")
-            return self._launch(flags)
+            replay = self._replay(flags, request_id)
+            if replay is not None:
+                return replay
+            if not current:
+                raise JobRefused(409, {"error": "stale_question", "message": "This question is no longer current. Refresh the job status."})
+            return self._launch(flags, request_id)
 
-    def _launch(self, flags):
+    def _replay(self, flags, request_id):
+        if request_id is None:
+            return None
+        record = catalog.request_record(self.cfg.db_path, request_id)
+        if record is None:
+            return None
+        def argument(flag):
+            return flags[flags.index(flag) + 1] if flag in flags else None
+        targeting = ({"file_ids": [int(i) for i in argument("--file-ids").split(",")]}
+                     if "--file-ids" in flags else {"source_subdir": argument("--source-subdir")}
+                     if "--source-subdir" in flags else None)
+        expected = {"mode": "MOVE" if "--move" in flags else "COPY" if "--copy" in flags else "INDEX",
+                    "source": str(self.cfg.source.resolve()), "destination": str(self.cfg.dest.resolve()),
+                    "targeting": targeting, "overrides": {},
+                    "submitted": {"force_rehash": False, "thumbnails": True, "cache": str(self.cfg.cache.resolve()),
+                                  "confirm_source_empty": "--confirm-source-empty" in flags,
+                                  "confirm_network_destination": "--confirm-network-destination" in flags}}
+        if record["request"] != expected:
+            raise JobRefused(409, {"error": "request_conflict", "message": "This request ID was already used for different input."})
+        return record["run_id"]
+
+    def _launch(self, flags, request_id=None):
         """Start with the API start lock held; the engine owns the filesystem lock."""
+        replay = self._replay(flags, request_id)
+        if replay is not None:
+            return replay
         if self._probe_lock():
             raise self._busy()
-        request_id = uuid.uuid4().hex
+        request_id = request_id or uuid.uuid4().hex
         log = self.cfg.base / "logs" / "engine-console.log"
         log.parent.mkdir(parents=True, exist_ok=True)
         with open(log, "w") as out:
@@ -219,6 +256,14 @@ class JobRunner:
                 raise JobRefused(500, {"error": "engine_start_timeout",
                                        "message": "The engine did not start the job in time."})
             time.sleep(0.05)
+        # Another API process or CLI may bind the ID after our initial lookup.
+        # The engine refuses mismatched reuse; do not return that other payload's
+        # run merely because its ID has appeared in the acceptance table.
+        try:
+            self._replay(flags, request_id)
+        except JobRefused:
+            threading.Thread(target=proc.wait, daemon=True).start()
+            raise
         self._procs[run_id] = proc
         threading.Thread(target=self._reap, args=(run_id, proc), daemon=True).start()
         return run_id

@@ -354,9 +354,10 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, {
     method,
+    signal,
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -368,6 +369,102 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new ApiError(response.status, code, message, data ?? {});
   }
   return data as T;
+}
+
+type Submission = { id: string; path: string; body: Record<string, unknown> };
+const SUBMISSION_KEY = "ns.pendingSubmission";
+let savedSubmission: Submission | null = null;
+try {
+  const saved = JSON.parse(sessionStorage.getItem(SUBMISSION_KEY) || "null");
+  if (saved && /^[a-f0-9]{32}$/.test(saved.id) &&
+      (saved.path === "/api/v1/jobs/start" || /^\/api\/v1\/runs\/\d+\/answer$/.test(saved.path)) &&
+      saved.body && typeof saved.body === "object" && !Array.isArray(saved.body)) savedSubmission = saved;
+} catch { /* No valid saved submission. New submissions still require persistence. */ }
+let submissionState = { pending: savedSubmission, checking: !!savedSubmission, resolved: null as Run | null, error: null as string | null };
+const submissionListeners = new Set<() => void>();
+let submissionPromise: Promise<Run> | null = null;
+let resolveSubmission: ((run: Run) => void) | null = null;
+let rejectSubmission: ((error: ApiError) => void) | null = null;
+let checkingRequest: string | null = null;
+let sendingRequest: string | null = null;
+let lookupTimer: ReturnType<typeof setTimeout> | null = null;
+function notifySubmission() {
+  submissionState = { ...submissionState };
+  submissionListeners.forEach((listener) => listener());
+}
+export const submissionSnapshot = () => submissionState;
+export const subscribeSubmission = (listener: () => void) => {
+  submissionListeners.add(listener);
+  return () => { submissionListeners.delete(listener); };
+};
+function settleSubmission(run: Run | null, error?: ApiError) {
+  const wasUncertain = submissionState.checking;
+  if (lookupTimer) clearTimeout(lookupTimer);
+  lookupTimer = null;
+  try { sessionStorage.removeItem(SUBMISSION_KEY); } catch { /* already settled in memory */ }
+  const resolve = resolveSubmission, reject = rejectSubmission;
+  resolveSubmission = null; rejectSubmission = null; submissionPromise = null;
+  submissionState = { pending: null, checking: false, resolved: wasUncertain ? run : null, error: error?.message ?? null };
+  notifySubmission();
+  if (run) resolve?.(run); else if (error) reject?.(error);
+}
+export async function checkSubmission() {
+  const pending = submissionState.pending;
+  if (!pending || checkingRequest === pending.id) return;
+  checkingRequest = pending.id;
+  try {
+    const result = await request<{ state: string; run: Run | null }>("GET", `/api/v1/job-requests/${pending.id}`,
+      undefined, AbortSignal.timeout(5000));
+    if (submissionState.pending?.id === pending.id && result.state === "accepted" && result.run?.id != null) {
+      settleSubmission(result.run);
+    }
+  } catch { /* An unavailable lookup leaves acceptance unknown. */ }
+  finally {
+    if (checkingRequest === pending.id) checkingRequest = null;
+    if (submissionState.pending?.id === pending.id) {
+      submissionState.checking = true;
+      notifySubmission();
+      if (lookupTimer) clearTimeout(lookupTimer);
+      lookupTimer = setTimeout(() => void checkSubmission(), 2000);
+    }
+  }
+}
+export async function retrySubmission() {
+  const pending = submissionState.pending;
+  if (!pending || sendingRequest === pending.id) return;
+  sendingRequest = pending.id;
+  try {
+    const run = await request<Run>("POST", pending.path, { ...pending.body, request_id: pending.id }, AbortSignal.timeout(10000));
+    if (run?.id == null) throw new Error("Unrecognized acceptance response");
+    if (submissionState.pending?.id === pending.id) settleSubmission(run);
+  } catch (error) {
+    if (submissionState.pending?.id !== pending.id) return;
+    if (error instanceof ApiError && error.status >= 400 && error.status < 500 &&
+        !(submissionState.checking && error.code === "job_already_running")) {
+      settleSubmission(null, error);
+    } else {
+      submissionState.checking = true;
+      notifySubmission();
+      void checkSubmission();
+    }
+  } finally { if (sendingRequest === pending.id) sendingRequest = null; }
+}
+function submitJob(path: string, body: Record<string, unknown>): Promise<Run> {
+  if (submissionState.pending) {
+    if (submissionPromise && submissionState.pending.path === path && JSON.stringify(submissionState.pending.body) === JSON.stringify(body))
+      return submissionPromise;
+    return Promise.reject(new ApiError(409, "submission_pending", "A previous submission is still being checked. Resolve it before starting another job.", {}));
+  }
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const pending = { id, path, body };
+  try { sessionStorage.setItem(SUBMISSION_KEY, JSON.stringify(pending)); }
+  catch { return Promise.reject(new ApiError(409, "submission_storage", "Allow browser session storage so this job can be tracked before starting it.", {})); }
+  submissionState = { pending, checking: false, resolved: null, error: null };
+  const promise = new Promise<Run>((resolve, reject) => { resolveSubmission = resolve; rejectSubmission = reject; });
+  submissionPromise = promise;
+  notifySubmission();
+  void retrySubmission();
+  return promise;
 }
 
 export const api = {
@@ -419,9 +516,9 @@ export const api = {
   lineage: (id: number) => request<Lineage>("GET", `/api/v1/photos/${id}/lineage`),
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   answerQuestion: (id: number, question: SafetyQuestion, answer: SafetyAnswer) =>
-    request<Run>("POST", `/api/v1/runs/${id}/answer`, { question, answer }),
+    submitJob(`/api/v1/runs/${id}/answer`, { question, answer }),
   startJob: (body: { mode: "index" | "copy" | "move"; file_ids?: number[]; source_subdir?: string }) =>
-    request<Run>("POST", "/api/v1/jobs/start", body),
+    submitJob("/api/v1/jobs/start", body),
   cancelJob: (id: number) => request<{ id: number }>("POST", `/api/v1/jobs/${id}/cancel`),
   thumbnailUrl: (id: number, size: "grid" | "preview" = "grid") =>
     `/api/v1/photos/${id}/thumbnail${size === "preview" ? "?size=preview" : ""}`,

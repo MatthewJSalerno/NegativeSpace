@@ -548,14 +548,19 @@ browser independently of the overall Inspector width.
   or results. Checking only for an active job is insufficient. Never automatically
   resend the Start request. If it is confirmed that no job started, re-enable Start
   for an explicit user submission; if the outcome remains unknown, say so and offer
-  **View job history** and another status check without claiming it failed.
+  **View job history**, **Check again**, and **Retry same request** without claiming
+  it failed. That explicit retry preserves the request ID and original payload;
+  it cannot submit a second job for the same accepted request.
   Association is by request ID, never by timing or mode: the API passes each
   submission's ID to the engine as `--request-id`, and the engine records it with
   the run before any file work (`engine-spec.md` §4.1). A `job_requests` row for the
-  ID identifies the job. No row while the engine lock is free means no job started.
-  No row while the lock is held means the outcome is still unknown, because the
-  engine may not have accepted the request yet. Duplicate delivery of one ID never
-  runs twice.
+  ID identifies the job. No row means acceptance is still unknown: even a free lock
+  cannot prove a delayed HTTP request will not subsequently arrive. Duplicate
+  delivery of one ID never runs twice. The browser keeps the pending request in
+  session storage across reloads and resumes lookup, never automatic resubmission.
+  New submissions in that tab are blocked while unresolved; other tabs have their
+  own IDs. A submission-status notice (also inside a busy confirmation dialog)
+  links to the exact recovered run rather than assuming the newest job is its own.
 * **Lost response after confirming a photo action:** use **“Checking job status…”**
   for rename, EXIF edit and deletion as well. Look up the recorded job/action,
   including completed actions, and display its recorded outcome with **View job log**.

@@ -705,6 +705,15 @@ def last_run(db_path: Path) -> Optional[dict]:
         return None
 
 
+def request_record(db_path: Path, request_id: str):
+    """Exact durable acceptance; a missing row is unknown, never proof of refusal."""
+    if not db_path.exists():
+        return None
+    with connect(db_path) as conn:
+        row = conn.execute("SELECT run_id,submitted_request_json FROM job_requests WHERE request_id=?", (request_id,)).fetchone()
+        return {"run_id": row[0], "request": json.loads(row[1])} if row else None
+
+
 def run_for_request(db_path: Path, request_id: str) -> Optional[int]:
     """The run an engine created for a request ID, once it has (engine-spec 4.1)."""
     if not db_path.exists():

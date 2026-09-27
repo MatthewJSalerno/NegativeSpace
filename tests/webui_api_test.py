@@ -141,11 +141,83 @@ class FirstRunAndSettings(ApiCase):
         self.assertTrue(mov["warning"])
 
 
+class RequestIdentity(ApiCase):
+    def test_replay_and_lookup_keep_the_original_run_after_newer_work_and_restart(self):
+        self.create_catalog()
+        make_photo(self.cfg.source / 'sample.jpg', 'identity')
+        body = {"mode":"index", "request_id":"browser-original"}
+        original = self.wait_for(self.start(**body))
+        newer = self.wait_for(self.start(mode="index", request_id="browser-other-tab"))
+        self.assertNotEqual(original['id'], newer['id'])
+        self.client.close()
+        self.client = TestClient(create_app(self.cfg))
+        lookup = self.client.get('/api/v1/job-requests/browser-original').json()
+        self.assertEqual((lookup['state'], lookup['run']['id']), ('accepted', original['id']))
+        with self.engine_lock_held(), patch('webui.jobs.subprocess.Popen') as spawn:
+            replay = self.client.post('/api/v1/jobs/start', json=body)
+            self.assertEqual((replay.status_code, replay.json()['id']), (202, original['id']))
+            spawn.assert_not_called()
+        conflict = self.client.post('/api/v1/jobs/start', json={**body, 'mode':'copy'})
+        self.assertEqual((conflict.status_code, conflict.json()['error']), (409, 'request_conflict'))
+        self.assertEqual(len(self.client.get('/api/v1/runs').json()['runs']), 2)
+
+    def test_unknown_request_can_be_retried_with_same_id(self):
+        self.create_catalog()
+        make_photo(self.cfg.source / 'sample.jpg', 'retry')
+        body = {'mode':'index', 'request_id':'not-yet-accepted'}
+        self.assertEqual(self.client.get('/api/v1/job-requests/not-yet-accepted').json(), {'state':'unknown', 'run':None})
+        with self.engine_lock_held():
+            self.assertEqual(self.client.post('/api/v1/jobs/start', json=body).status_code, 409)
+        run = self.wait_for(self.start(**body))
+        self.assertEqual(self.client.get('/api/v1/job-requests/not-yet-accepted').json()['run']['id'], run['id'])
+
+    def test_concurrent_same_request_accepts_one_run(self):
+        from concurrent.futures import ThreadPoolExecutor
+        self.create_catalog()
+        make_photo(self.cfg.source / 'sample.jpg', 'concurrent')
+        body = {'mode':'index', 'request_id':'same-delivery'}
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            replies = list(pool.map(lambda _: self.client.post('/api/v1/jobs/start', json=body), range(2)))
+        self.assertEqual([r.status_code for r in replies], [202, 202])
+        self.assertEqual(replies[0].json()['id'], replies[1].json()['id'])
+        self.wait_for(replies[0].json()['id'])
+        self.assertEqual(len(self.client.get('/api/v1/runs').json()['runs']), 1)
+
+    def test_invalid_request_ids_never_spawn(self):
+        self.create_catalog()
+        with patch('webui.jobs.subprocess.Popen') as spawn:
+            for value in ('', 'space here', 'x'*129, [], 7, True):
+                self.assertEqual(self.client.post('/api/v1/jobs/start', json={'mode':'index', 'request_id':value}).status_code, 400)
+            spawn.assert_not_called()
+
+    def test_conflicting_acceptance_between_lookup_and_launch_is_not_returned(self):
+        from webui import catalog
+        self.create_catalog()
+        make_photo(self.cfg.source / 'sample.jpg', 'late-acceptance')
+        self.wait_for(self.start(mode='index', request_id='late-binding'))
+        original = catalog.request_record
+        calls = []
+        def appearing_record(*args):
+            calls.append(1)
+            return None if len(calls) == 1 else original(*args)
+        # Simulate another acceptor winning between the initial check and spawn.
+        with patch('webui.jobs.catalog.request_record', side_effect=appearing_record), patch('webui.jobs.subprocess.Popen'):
+            response = self.client.post('/api/v1/jobs/start', json={'mode':'copy', 'request_id':'late-binding'})
+        self.assertEqual((response.status_code, response.json()['error']), (409, 'request_conflict'))
+        self.assertGreaterEqual(len(calls), 2)
+
+
 class SafetyQuestions(ApiCase):
     def answer(self, run, question, answer):
-        response = self.client.post(f"/api/v1/runs/{run['id']}/answer", json={"question":question, "answer":answer})
+        body = {"question":question, "answer":answer, "request_id":f"answer-{run['id']}-{answer}"}
+        response = self.client.post(f"/api/v1/runs/{run['id']}/answer", json=body)
         self.assertEqual(response.status_code, 202, response.text)
-        return self.wait_for(response.json()["id"])
+        result = self.wait_for(response.json()["id"])
+        with patch('webui.jobs.subprocess.Popen') as spawn:
+            replay = self.client.post(f"/api/v1/runs/{run['id']}/answer", json=body)
+            self.assertEqual((replay.status_code, replay.json()['id']), (202, result['id']))
+            spawn.assert_not_called()
+        return result
 
     def test_empty_source_retry_and_explicit_confirmation(self):
         self.create_catalog()
