@@ -72,7 +72,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         except PermissionError as exc:
             raise HTTPException(409, {"error": "appdata_not_writable", "message": str(exc)})
 
-    # -- Settings (the API's only catalog write, through ns_db) ---------------
+    # -- Settings (revision-checked writes through ns_db) ---------------------
 
     def _settings():
         return catalog.settings(cfg.db_path, cpus=ns_db.available_cpus(),

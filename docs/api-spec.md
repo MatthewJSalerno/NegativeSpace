@@ -22,9 +22,11 @@ FastAPI also serves a generated schema at `/api/openapi.json` and an explorer at
 *   **No usable catalog** makes every catalog-reading route answer `409` with
     `catalog_missing`, `catalog_incompatible` or `catalog_error`. `GET /status` reports
     the same state without failing.
-*   **Ownership.** The API writes settings only, through `ns_db.save_settings`. Every
-    other change is made by running the engine as a child process, from an argument list
-    and never a shell string (`webui-spec.md` §5.6). The browser never touches SQLite.
+*   **Ownership.** The API creates catalogs through the engine-owned initializer and
+    writes settings and UI state through `ns_db.save_settings` and `ns_db.save_ui_state`.
+    Photo state and history changes are made by running the engine as a child process,
+    from an argument list and never a shell string (`webui-spec.md` §5.6).
+    The browser never touches SQLite.
 *   **Times.** Application events (`started_at`, `ended_at`, `updated_at`) are UTC
     instants with an offset. Photo dates (`date_taken`, EXIF values) are the wall-clock
     time the camera recorded; they carry an offset only when EXIF recorded one, and are
@@ -291,6 +293,8 @@ outside the cache root is never served.
     integers no greater than `2^63 - 1` (at most 1,000, the command-line limit; `400 selection_too_large` with
     `limit`), and a folder that stays inside the source. Everything else is
     `400 invalid_request`.
+    Folder names preserve significant whitespace, including whitespace-only components;
+    browsing and starting a folder job use the same literal names.
 *   **Refusals:** a missing or unusable catalog is `409 catalog_*`, and Copy or Move
     on an empty catalog is `409 catalog_empty`.
 *   **One job at a time:** while an engine holds its lock, `409 job_already_running`

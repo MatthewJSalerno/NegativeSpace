@@ -495,10 +495,11 @@ beside the photo instead of below it.
   stop, `docker kill <container-name>` sends SIGKILL. These are host instructions,
   not a browser-executed command. Confirm the container stopped before starting the
   web application again; do not promise an immediate stop if host storage is hung.
-  Restarting a container reruns its configured startup command: the current CLI-only
-  container may therefore start Index/Copy/Move again. Do not present restarting that
-  container as a recovery-only action. The future web deployment must start the UI
-  and reconcile/report interrupted work without resubmitting the job.
+  Restarting the app container starts the web API; it does not resubmit Index,
+  Copy or Move. The API shows recorded job state, and the engine reconciles pending
+  operations when a subsequent job runs. If the container's startup command has
+  been overridden to run the CLI directly, restarting reruns that command; do not
+  present such a restart as a recovery-only action.
   Link **Backup history** and show the last successful backup time when known (or
   state none is available), as context rather than an instruction to restore it.
   Restoring an older catalog does not undo file changes and may discard recent lineage;

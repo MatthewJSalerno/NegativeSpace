@@ -341,6 +341,54 @@ class JobsAndCatalog(ApiCase):
         statuses = {i["filename"]: i["status"] for i in self.client.get("/api/v1/photos", params={"page_size": 60}).json()["items"]}
         self.assertEqual({n for n, st in statuses.items() if st == "Completed"}, {"a.jpg", "b.jpg", "c.jpg"})
 
+    def test_folder_jobs_preserve_literal_names_and_leave_siblings_untouched(self):
+        cases = (("album ", "album"), (" album", "album"), (" ", "neighbor"),
+                 ("outer / inner ", "outer / inner"), ("café_100% ", "café_100%"),
+                 ("Album", "album"))
+        fixtures = []
+        for mode in ("copy", "move"):
+            for number, (selected, sibling) in enumerate(cases):
+                # Put leading/trailing spaces at the ends of the actual job argument,
+                # too; a prefix would hide the leading-whitespace regression.
+                target = selected if mode == "copy" else selected.replace("album", "collection").replace("Album", "Collection")
+                other = sibling if mode == "copy" else sibling.replace("album", "collection")
+                if number == 2:
+                    target, other = (" ", "copy-neighbor") if mode == "copy" else ("  ", "move-neighbor")
+                elif number not in (0, 1, 5):
+                    target, other = mode + "/" + target, mode + "/" + other
+                name = f"image-{mode}-{number}.jpg"
+                path, neighbor = self.cfg.source / target / name, self.cfg.source / other / name
+                make_photo(path, chr(33 + len(fixtures) * 2))
+                make_photo(neighbor, chr(34 + len(fixtures) * 2))
+                fixtures.append((mode, target, path, neighbor))
+        self.create_catalog()
+        self.wait_for(self.start(mode="index"))
+        original = {p: p.read_bytes() for _, _, path, neighbor in fixtures for p in (path, neighbor)}
+        removed = set()
+        for mode, target, path, neighbor in fixtures:
+            with self.subTest(mode=mode, folder=target):
+                selected = self.client.get("/api/v1/photos", params={"folder": target}).json()
+                self.assertEqual(selected["total"], 1)
+                photo_id = selected["items"][0]["id"]
+                run = self.wait_for(self.start(mode=mode, source_subdir=target))
+                self.assertEqual(run["status"], "Completed")
+                with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
+                    touched = {row[0] for row in conn.execute(
+                        "SELECT DISTINCT photo_id FROM operations WHERE run_id = ? AND photo_id IS NOT NULL",
+                        (run["id"],))}
+                    self.assertEqual(touched, {photo_id})
+                    status, dest = conn.execute("SELECT status, dest_path FROM photos WHERE id = ?",
+                                                (photo_id,)).fetchone()
+                self.assertEqual(status, "Copied" if mode == "copy" else "Completed")
+                self.assertEqual(Path(dest).read_bytes(), original[path])
+                if mode == "move":
+                    removed.add(path)
+                for source, content in original.items():
+                    if source in removed:
+                        self.assertFalse(source.exists())
+                    else:
+                        self.assertEqual(source.read_bytes(), content)
+
     def test_the_folder_tree_counts_a_photo_it_could_not_read_under_any_filter(self):
         # An unreadable photo has no date, name or destination recorded, so a date or
         # search filter is NULL for it, not false: it must count as not shown, not fail.
@@ -508,6 +556,8 @@ class JobsAndCatalog(ApiCase):
         bodies = [{"mode": value} for value in ([], {}, None, True, 1, "unknown")]
         bodies += [{"mode": "copy", "file_ids": value} for value in
                    ([], {}, "1", [True], [1.5], [0], [-1], [2**63], [2**80])]
+        bodies += [{"mode": "move", "source_subdir": value} for value in
+                   ("", "\0", [], {}, "../outside", "/outside", " folder /../../outside")]
         with patch("webui.jobs.subprocess.Popen", side_effect=AssertionError("engine spawned")) as spawn:
             for body in bodies:
                 with self.subTest(body=body):

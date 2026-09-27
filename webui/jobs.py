@@ -67,9 +67,11 @@ def validate_request(cfg: Config, mode: str, file_ids=None, source_subdir=None) 
                                               f"try Folder Selection for larger batches."})
         flags += ["--file-ids", ",".join(str(i) for i in ids)]
     if source_subdir is not None:
-        if not isinstance(source_subdir, str) or not source_subdir.strip() or "\0" in source_subdir:
+        if not isinstance(source_subdir, str) or not source_subdir or "\0" in source_subdir:
             raise JobRefused(400, {"error": "invalid_request", "message": "The folder is empty or invalid."})
-        normal = posixpath.normpath(source_subdir.strip())
+        # Spaces are legal filename characters, including an entire component.
+        # Match the gallery's literal folder filter; trimming can select a sibling.
+        normal = posixpath.normpath(source_subdir)
         if posixpath.isabs(normal) or normal == ".." or normal.startswith("../"):
             raise JobRefused(400, {"error": "invalid_request",
                                    "message": "The folder must be inside the source."})

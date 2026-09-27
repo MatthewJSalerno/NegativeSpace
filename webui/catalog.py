@@ -192,7 +192,8 @@ TOP_FILES = "."
 
 def _folder(root: Path, folder: str) -> str:
     """A folder named relative to the source, checked as the job request checks it
-    (jobs.validate_request): inside the source, no parent steps."""
+    (jobs.validate_request): normalize path steps without trimming filename
+    whitespace, and reject absolute paths or parent steps escaping the source."""
     if not isinstance(folder, str) or not folder or "\0" in folder:
         raise ValueError("folder must be a folder inside the source")
     if folder == TOP_FILES:

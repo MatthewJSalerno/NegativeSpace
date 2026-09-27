@@ -233,8 +233,8 @@ catalogue, not the tree, so relocating them is a separate action.
 
     `done` is always the sum of the counts. Counts are added where each outcome is decided rather than re-derived from `operations`, because recovery rows written during a scan are run-level issues the drawer keeps separate (`webui-spec.md` §5.5). When a phase ends, its counts equal the outcomes `operations` recorded for it, and a test proves that for Copy and Move. The scan's snapshot rides in the writer thread's commit, so it never shows more than the catalog holds. The writer commits when a result arrives and a second has passed. Results arrive in batches, so a batch of slow files holds the count still for a moment: the longest gap measured on a ~1,200-file sample was 2.7s, and the median 1.2s. The transfer loop writes it in its own commit at most once a second: one extra fsync per second on a loop that fsyncs several times per file. A cancelled transfer counts every photo it did not reach as `Cancelled`, so its bar still reaches the total; a cancelled scan stops short of it. Elapsed time comes from `runs.started_at`.
     Runtime uses the run's recorded start/end, surviving browser reconnects. This
-    complete progress contract is not implemented; no per-second database writes or
-    active-worker/queue telemetry are required merely to refresh the display.
+    progress contract is implemented through `run_progress`; active-worker and
+    queue-depth telemetry are not part of it.
 
 ## 5. Technical Infrastructure
 ### 5.1. Deployment (Docker)
@@ -732,14 +732,14 @@ CREATE TABLE IF NOT EXISTS settings (
 **No `retry_count` column.** There is no retry subsystem — re-running the
 operation is how a failed file is retried (§4.1).
 
-**Settings write ownership (shared layer implemented; API pending):** the engine owns the schema
+**Settings write ownership:** the engine owns the schema
 and photo state/history; the web UI manages settings through scoped API writes using
 shared Python database and validation code. SQLite serializes short transactions;
 use bounded waits and report failed saves without changing active job configuration.
 Settings saves must remain available during processing, separate from the job-long
 file-operation lock. Engine-owned initialization routines support creation before
-Index. The browser has no direct database access. The shared layer uses atomic revision checks and bounded writer waits; API integration
-remains implementation work.
+Index. The browser has no direct database access. The API uses the shared layer's
+atomic revision checks and bounded writer waits.
 
 **Design note — why separate state from history:** `photos` answers "what's the current state of this file?" — a single `error_message` column there could only ever hold the *most recent* attempt's outcome, and couldn't show that a file failed twice with different errors before eventually succeeding, or answer "show me everything that happened in run #47." Splitting current-state (`photos`) from historical audit log (`operations`, joined to `runs` for run-level context) answers both without overloading one table with two different jobs.
 
