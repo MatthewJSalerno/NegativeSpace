@@ -152,6 +152,7 @@ import fcntl
 import hashlib
 import io
 import json
+import stat
 import logging
 import logging.handlers
 import warnings
@@ -1181,6 +1182,44 @@ def _observe(path: Path):
         return "unreadable"
 
 
+def _recovery_observe(path: Path):
+    """A non-file (including a symlink) is not an absent or verified photo."""
+    try:
+        return "present" if stat.S_ISREG(path.lstat().st_mode) else "not_file"
+    except FileNotFoundError:
+        return "absent"
+    except OSError:
+        return "unreadable"
+
+
+def _recovery_verify(path: Path, expected):
+    """Hash a stable regular file, without following a replacement symlink or
+    blocking on a substituted FIFO. Recovery observes; it never edits this file.
+    """
+    def identity(st):
+        return st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns
+    details = {"expected_sha1": expected}
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, "rb") as stream:
+            before = os.fstat(stream.fileno())
+            if not stat.S_ISREG(before.st_mode):
+                return "not_file", details
+            digest = hashlib.sha1()
+            for chunk in iter(lambda: stream.read(SHA1_CHUNK_SIZE), b""):
+                digest.update(chunk)
+            after = os.fstat(stream.fileno())
+            details["observed_sha1"] = digest.hexdigest()
+            if identity(before) != identity(after) or identity(after) != identity(path.lstat()):
+                return "changed", details
+        if not expected:
+            return "unestablished", details
+        return ("match" if details["observed_sha1"] == expected else "mismatch"), details
+    except OSError as exc:
+        details["error"] = type(exc).__name__
+        return "unreadable", details
+
+
 def reconcile_interrupted_state(db_path: Path, run_id: int):
     """
     Settles work a previous run left mid-flight by OBSERVING, recording what it
@@ -1191,12 +1230,13 @@ def reconcile_interrupted_state(db_path: Path, run_id: int):
     that intent, looks at both locations, writes an evidence row per location,
     and settles the operation against what it found.
 
-    Four outcomes, and the two that are not simply "finished" or "never started"
-    are the point of this function:
+    A present destination must be a stable regular file whose SHA-1 matches the
+    durable intent (or indexed digest when the intent omits it). Presence alone is not
+    evidence of delivery. Mismatch or unverifiable content requires attention.
 
-      * destination present, source gone   - the move completed; settle it.
+      * destination verified, source gone - settle the Move and repair lineage.
       * destination gone, source present   - nothing was published; retry it.
-      * BOTH present                       - the copy landed and the source was
+      * BOTH present, destination verified - the copy landed and the source was
         never removed. The published file is registered as its own identity and
         the operation is recorded INCOMPLETE. Recovery never deletes the source;
         an explicit Move may, after verifying both sides live.
@@ -1248,35 +1288,64 @@ def reconcile_interrupted_state(db_path: Path, run_id: int):
                 (record_id, sha1, dst_str)
             ).fetchone() is not None
 
-            source_state, dest_state = _observe(src), _observe(dst)
+            source_state, dest_state = _recovery_observe(src), _recovery_observe(dst)
+            unsettled = ns_db.unsettled_operations(conn, record_id)
+            prior_id = unsettled[-1][0] if unsettled else None
+            intent_row = conn.execute(
+                "SELECT detail_json FROM operation_events WHERE operation_id=? AND step='intent' ORDER BY event_id LIMIT 1",
+                (prior_id,)).fetchone() if prior_id else None
+            intent = json.loads(intent_row[0]) if intent_row and intent_row[0] else {}
+            expected = intent.get("expected") or {}
+            kind = intent.get("kind")
+            if kind:
+                duplicate_removal = kind == "duplicate_removal"
+            expected_sha1 = expected.get("sha1_hash") or sha1
+            verification, verification_details = (None, None)
+            if dest_state == "present":
+                verification, verification_details = _recovery_verify(dst, expected_sha1)
 
             # One transaction per reconciled row: evidence, the settled
             # operation and the photo's new status commit together or not at
             # all. Opened explicitly: no earlier write in this loop opens one,
             # so the first evidence write would otherwise run outside it.
             conn.execute("BEGIN IMMEDIATE")
-            unsettled = ns_db.unsettled_operations(conn, record_id)
-            operation_id = unsettled[-1][0] if unsettled else ns_db.begin_operation(
+            operation_id = prior_id if prior_id is not None else ns_db.begin_operation(
                 conn, run_id=run_id, photo_id=record_id, source_path=src_str,
                 dest_path=dst_str, kind="recovered_without_intent")
 
             for role, path, state in (("source", src_str, source_state),
                                       ("destination", dst_str, dest_state)):
                 ns_db.record_evidence(conn, operation_id=operation_id, location_role=role,
-                                      observed_path=path, observation_kind="stat", result=state)
+                                      observed_path=path, observation_kind="stat",
+                                      result="unreadable" if state == "not_file" else state,
+                                      details={"state": state})
+            if verification is not None:
+                ns_db.record_evidence(conn, operation_id=operation_id, location_role="destination",
+                                      observed_path=dst_str, observation_kind="sha1",
+                                      result=verification if verification in ("match", "mismatch") else "unreadable",
+                                      details={**verification_details, "verification": verification})
             for orphan in orphans:
                 ns_db.record_evidence(conn, operation_id=operation_id, location_role="partial",
                                       observed_path=orphan, observation_kind="stat",
                                       result="present", details={"removed": True})
 
-            if "unreadable" in (source_state, dest_state) or (
-                    source_state == "absent" and dest_state == "absent"):
+            if (any(state in ("unreadable", "not_file") for state in (source_state, dest_state))
+                    or (source_state == "absent" and dest_state == "absent")
+                    or (dest_state == "present" and verification != "match")
+                    or (kind == "copy" and source_state == "absent")):
                 # Neither guess is honest. The source is gone or unexaminable and
                 # nothing verifiable stands at the destination, so this run cannot
                 # say whether the photo was delivered.
                 final = PhotoStatus.FAILED
+                if source_state == "absent":
+                    # Absence is observed, but removal by this operation is not
+                    # established without a verified delivery.
+                    conn.execute("UPDATE file_states SET presence_state='missing',revision=revision+1 "
+                                 "WHERE file_id=(SELECT file_id FROM photo_files WHERE photo_id=?) "
+                                 "AND location_role='source'", (record_id,))
                 note = (f"Recovery could not establish what happened: the source is "
-                        f"{source_state} and the destination is {dest_state}. The file's "
+                        f"{source_state} and the destination is {dest_state} "
+                        f"(content verification: {verification or 'unavailable'}). The file's "
                         f"recorded history is kept and this needs attention.")
                 ns_db.settle_operation(conn, operation_id, status=final, step="recovery",
                                        outcome="unestablished", error_message=note)
@@ -1290,9 +1359,16 @@ def reconcile_interrupted_state(db_path: Path, run_id: int):
                                           (record_id,)).fetchone() or [None])[0],
                     evidence_ids=evidence_ids)
             elif dest_state == "present" and source_state == "absent":
+                already_recorded = conn.execute(
+                    "SELECT 1 FROM file_states WHERE current_path=? AND location_role='destination' "
+                    "AND presence_state='present'", (dst_str,)).fetchone() is not None
+                ns_db.record_delivery(conn, operation_id=operation_id, photo_id=record_id,
+                                      run_id=run_id, destination=dst_str, source_removed=True,
+                                      created=bool(expected.get("created")) and not already_recorded,
+                                      sha1_hash=expected_sha1)
                 final = PhotoStatus.REMOVED_DUPLICATE if duplicate_removal else PhotoStatus.COMPLETED
                 note = (f"Recovered after an interrupted run: the source is gone and the "
-                        f"destination copy is present at {dst}.")
+                        f"destination content is verified at {dst}.")
                 ns_db.settle_operation(conn, operation_id, status=final, step="recovery",
                                        outcome="completed", error_message=note)
             elif dest_state == "present" and source_state == "present":
@@ -1304,22 +1380,13 @@ def reconcile_interrupted_state(db_path: Path, run_id: int):
                 note = ("File delivered; source not removed. The destination copy is present "
                         "and the source is still here, so the Move did not finish. Run Move "
                         "again for this source to verify both copies and remove it.")
-                if not duplicate_removal:
-                    # created= must describe what recovery OBSERVED, not assert an
-                    # event. The crashed run published this file; whether it also
-                    # RECORDED it decides the flag. If a destination identity
-                    # already exists, passing created=True would apply the
-                    # "a fresh publication proves the previous occupant absent"
-                    # rule to a file nothing replaced - superseding a live
-                    # identity and minting a duplicate for the same bytes.
-                    already_recorded = conn.execute(
-                        "SELECT 1 FROM file_states WHERE current_path=? AND location_role='destination' "
-                        "AND presence_state='present'", (dst_str,)).fetchone() is not None
-                    with contextlib.suppress(ns_db.SchemaError):
-                        ns_db.record_delivery(conn, operation_id=operation_id, photo_id=record_id,
-                                              run_id=run_id, destination=dst_str,
-                                              source_removed=False, created=not already_recorded,
-                                              sha1_hash=sha1)
+                already_recorded = conn.execute(
+                    "SELECT 1 FROM file_states WHERE current_path=? AND location_role='destination' "
+                    "AND presence_state='present'", (dst_str,)).fetchone() is not None
+                ns_db.record_delivery(conn, operation_id=operation_id, photo_id=record_id,
+                                      run_id=run_id, destination=dst_str, source_removed=False,
+                                      created=bool(expected.get("created")) and not already_recorded,
+                                      sha1_hash=expected_sha1)
                 ns_db.settle_operation(conn, operation_id, status=final, step="move",
                                        outcome="incomplete", error_message=note)
             else:
@@ -1337,6 +1404,9 @@ def reconcile_interrupted_state(db_path: Path, run_id: int):
             recovery_id = ns_db.begin_operation(
                 conn, run_id=run_id, photo_id=record_id, source_path=src_str,
                 dest_path=dst_str, kind="recovery", reconciles=operation_id)
+            conn.execute("INSERT OR IGNORE INTO operation_files(operation_id,file_id,role) "
+                         "SELECT ?,file_id,role FROM operation_files WHERE operation_id=? AND role<>'source'",
+                         (recovery_id, operation_id))
             ns_db.settle_operation(conn, recovery_id, status=final, step="recovery",
                                    outcome="recorded", error_message=note)
             cursor.execute("UPDATE photos SET status = ? WHERE id = ?", (final, record_id))

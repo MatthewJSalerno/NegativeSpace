@@ -2051,10 +2051,186 @@ def recovery_that_cannot_establish_an_outcome_opens_an_attention_issue():
     check(not blamed, f"the engine's own deletion was reported as an outside change: {blamed}")
 
 
+def _interrupted_recovery_case(label, *, remove_source, existing=False, duplicate=False):
+    engine = _load_engine()
+    case = new_case(label)
+    make_photo(case / "src" / "a.jpg", "RECOVERY-CONTENT")
+    if duplicate:
+        make_photo(case / "src" / "b.jpg", "RECOVERY-CONTENT")
+    run_engine(case, *(["--copy"] if existing else []))
+    if duplicate:
+        anchor = rows(case, "SELECT id FROM photos WHERE status='Pending'")[0]["id"]
+        run_engine(case, "--move", "--file-ids", anchor)
+    real_remove = engine._remove_verified_source
+    def crash(*args, **kwargs):
+        if remove_source:
+            real_remove(*args, **kwargs)
+        raise KeyboardInterrupt("simulated interruption at source removal")
+    engine._remove_verified_source = crash
+    try:
+        args = argparse.Namespace(move=True, copy=False, source=str(case / "src"),
+                                  source_subdir=None, file_ids=None)
+        try:
+            _run_fixture_move(engine, args, case / "appdata/db/ns_sqlite.db", case / "dest", 999)
+        except KeyboardInterrupt:
+            pass
+        else:
+            raise Fail("the interruption was not reached")
+    finally:
+        engine._remove_verified_source = real_remove
+    photo = rows(case, "SELECT * FROM photos WHERE status='Processing'")[0]
+    with sqlite3.connect(case / "appdata/db/ns_sqlite.db") as conn:
+        conn.execute("INSERT INTO runs(id,mode,started_at,status) VALUES(1000,'INDEX','test','Preparing')")
+    return engine, case, photo
+
+
+@test
+def verified_recovery_repairs_delivery_lineage():
+    for name, existing, duplicate in (("fresh", False, False), ("existing", True, False),
+                                      ("duplicate", False, True)):
+        engine, case, photo = _interrupted_recovery_case("recover_lineage_" + name,
+            remove_source=True, existing=existing, duplicate=duplicate)
+        db = case / "appdata/db/ns_sqlite.db"
+        before = rows(case, "SELECT COUNT(*) n FROM files")[0]["n"]
+        engine.reconcile_interrupted_state(db, 1000)
+        state = rows(case, "SELECT s.* FROM file_states s JOIN photo_files pf USING(file_id) WHERE pf.photo_id=?",
+                     (photo["id"],))[0]
+        if name == "fresh":
+            check(state["location_role"] == "destination" and state["current_path"] == photo["dest_path"]
+                  and state["presence_state"] == "present", "fresh Move recovery did not relocate the original identity")
+        else:
+            check(state["presence_state"] == "removed", "recovered removal still presents its source as present")
+        check(rows(case, "SELECT COUNT(*) n FROM files")[0]["n"] == before,
+              "recovery minted an extra identity for an already recorded file")
+        for run in (999, 1000):
+            links = rows(case, "SELECT of.* FROM operation_files of JOIN operations o ON o.id=of.operation_id "
+                         "WHERE o.run_id=? AND o.photo_id=? AND of.role IN ('destination','retained_copy')",
+                         (run, photo["id"]))
+            check(links, "recovered delivery has no destination participant")
+        check(rows(case, "SELECT 1 FROM operation_evidence WHERE observation_kind='sha1' AND result='match'"),
+              "successful recovery has no content verification evidence")
+        _assert_lineage_complete(case, name)
+        engine.reconcile_interrupted_state(db, 1000)
+        check(rows(case, "SELECT COUNT(*) n FROM files")[0]["n"] == before, "repeat recovery duplicated identity")
+
+
+@test
+def verified_recovery_refuses_unverified_destinations():
+    for remove_source in (False, True):
+        for outcome in ("match", "mismatch", "unreadable", "not_file"):
+            engine, case, photo = _interrupted_recovery_case(f"recover_{remove_source}_{outcome}",
+                                                            remove_source=remove_source)
+            dest = Path(photo["dest_path"])
+            if outcome == "mismatch":
+                make_photo(dest, "REPLACEMENT-CONTENT")
+            elif outcome == "unreadable":
+                dest.chmod(0)
+            elif outcome == "not_file":
+                dest.unlink()
+                dest.mkdir()
+            try:
+                engine.reconcile_interrupted_state(case / "appdata/db/ns_sqlite.db", 1000)
+                final = rows(case, "SELECT status FROM photos WHERE id=?", (photo["id"],))[0]["status"]
+                check(Path(photo["source_path"]).exists() == (not remove_source), "recovery changed source existence")
+                if outcome == "match":
+                    check(final == ("Completed" if remove_source else "Pending"), "matching recovery has wrong status")
+                    _assert_lineage_complete(case, outcome)
+                else:
+                    check(final == "Failed", f"{outcome} destination was treated as delivered: {final}")
+                    check(rows(case, "SELECT 1 FROM attention_issues WHERE resolved_at IS NULL"),
+                          "unverified recovery opened no attention issue")
+                    check(not rows(case, "SELECT 1 FROM operation_files of JOIN operations o ON o.id=of.operation_id "
+                                         "WHERE o.run_id IN (999,1000) AND of.role IN ('destination','retained_copy')"),
+                          "unverified destination was assigned a delivery identity")
+                    check(rows(case, "SELECT 1 FROM operation_evidence WHERE result=? OR json_extract(details_json,'$.state')=?",
+                               (outcome, outcome)),
+                          "recovery did not distinguish the verification failure")
+            finally:
+                if outcome == "unreadable":
+                    dest.chmod(0o644)
+
+
+@test
+def verified_recovery_rolls_back_an_incomplete_lineage_repair():
+    engine, case, photo = _interrupted_recovery_case("recovery_atomic", remove_source=True)
+    original = engine.ns_db.record_delivery
+    def fail_after_repair(*args, **kwargs):
+        original(*args, **kwargs)
+        raise RuntimeError("injected failure after lineage update")
+    engine.ns_db.record_delivery = fail_after_repair
+    try:
+        try:
+            engine.reconcile_interrupted_state(case / "appdata/db/ns_sqlite.db", 1000)
+        except RuntimeError as exc:
+            check("injected failure" in str(exc), "unexpected recovery failure")
+        else:
+            raise Fail("the injected repair failure was swallowed")
+    finally:
+        engine.ns_db.record_delivery = original
+    check(rows(case, "SELECT status FROM photos WHERE id=?", (photo["id"],))[0]["status"] == "Processing",
+          "a failed repair settled the photo")
+    check(not rows(case, "SELECT 1 FROM operation_evidence"), "failed repair committed partial evidence")
+    state = rows(case, "SELECT s.* FROM file_states s JOIN photo_files pf USING(file_id) WHERE pf.photo_id=?",
+                 (photo["id"],))[0]
+    check(state["location_role"] == "source" and state["presence_state"] == "present",
+          "a failed repair committed lineage updates")
+    engine.reconcile_interrupted_state(case / "appdata/db/ns_sqlite.db", 1000)
+    _assert_lineage_complete(case, "retry after failed repair")
+
+
+@test
+def verified_recovery_rejects_special_or_changing_files():
+    import hashlib
+    engine = _load_engine()
+    case = new_case("recovery_special_files")
+    candidate = case / "dest" / "candidate"
+    candidate.parent.mkdir(exist_ok=True)
+    candidate.write_bytes(b"original")
+    expected = hashlib.sha1(b"original").hexdigest()
+    # Identity checks cover replacement even when the new bytes happen to match.
+    real_stat = engine.os.stat
+    replaced = []
+    def replace_before_final_observation(path, *args, **kwargs):
+        if str(path) == str(candidate) and kwargs.get("follow_symlinks") is False:
+            other = candidate.with_name("replacement")
+            other.write_bytes(b"original")
+            os.replace(other, candidate)
+            replaced.append(True)
+        return real_stat(path, *args, **kwargs)
+    engine.os.stat = replace_before_final_observation
+    try:
+        result, _ = engine._recovery_verify(candidate, expected)
+        check(replaced, "the file-replacement injection was not reached")
+        check(result == "changed", "a replaced file was accepted from an old open descriptor")
+    finally:
+        engine.os.stat = real_stat
+    candidate.unlink()
+    os.mkfifo(candidate)
+    check(engine._recovery_observe(candidate) == "not_file", "FIFO was treated as a photo")
+    check(engine._recovery_verify(candidate, expected)[0] == "not_file", "FIFO verification did not refuse")
+    candidate.unlink()
+    target = case / "src" / "target"
+    target.write_bytes(b"original")
+    candidate.symlink_to(target)
+    check(engine._recovery_observe(candidate) == "not_file", "symlink was treated as a regular destination")
+    check(engine._recovery_verify(candidate, expected)[0] != "match", "verification followed a replacement symlink")
+
+
 def _assert_lineage_complete(case, label):
-    """Every structural guarantee a history view depends on, for one catalog."""
+    """Required history links and settled-delivery semantics for one catalog."""
     def one(sql, params=()):
         return rows(case, sql, params)[0]["n"]
+
+    check(one("SELECT COUNT(*) n FROM photos p JOIN photo_files pf ON pf.photo_id=p.id "
+              "JOIN file_states s USING(file_id) WHERE p.status IN ('Completed','Removed_Duplicate') "
+              "AND s.location_role='source' AND s.presence_state='present'") == 0,
+          f"[{label}] a settled removal still records the original source as present")
+    check(one("SELECT COUNT(*) n FROM operations o WHERE o.status IN ('Completed','Copied','Removed_Duplicate') "
+              "AND EXISTS(SELECT 1 FROM operation_events e WHERE e.operation_id=o.id AND e.step='intent' "
+              "AND json_extract(e.detail_json,'$.kind') IN ('move','copy','move_already_present','duplicate_removal')) "
+              "AND NOT EXISTS(SELECT 1 FROM operation_files f WHERE f.operation_id=o.id "
+              "AND f.role IN ('destination','retained_copy'))") == 0,
+          f"[{label}] a successful transfer has no destination participant")
 
     check(one("SELECT COUNT(*) n FROM photos p WHERE NOT EXISTS("
               "  SELECT 1 FROM photo_files pf WHERE pf.photo_id=p.id)") == 0,

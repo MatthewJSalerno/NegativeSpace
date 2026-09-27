@@ -43,6 +43,12 @@ authoritative reference.
 The suite does **not** run under pytest: pytest mis-collects its `@test` registration
 decorator and errors without running anything.
 
+The `verified_recovery` tests interrupt real Moves around source deletion and check
+fresh delivery, existing-copy reuse and duplicate cleanup. They verify destination
+content before success, reject unreadable/non-file/changed candidates, check both
+operations' destination participation, and inject a lineage-write failure to prove
+the recovery transaction rolls back. Run this subset with `--filter verified_recovery`.
+
 ## Catalog contract suite — `database_test.py`
 
 The catalog's contracts — schema initialization, settings revisions, concurrent
