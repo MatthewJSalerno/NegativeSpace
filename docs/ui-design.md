@@ -21,6 +21,8 @@ separate foreground/background pairs in both themes.
 - Spacing: 4, 8, 12, 16 and 24px tokens for shared controls and panels.
 - Controls: 36px minimum height, increasing to 44px for coarse pointers; compact
   information and disclosure buttons remain distinct from primary actions.
+- The toolbar selection summary fits the existing row height when its content
+  fits on one line, retaining full-height button targets. Longer content may wrap.
 - Typography: system font at the user's default root size, with relative text sizes.
 - Controls share borders, corner radius, native disabled states and visible focus.
 - Native checkboxes use 24px glyph targets; labels expand the selectable area.

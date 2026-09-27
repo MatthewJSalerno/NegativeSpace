@@ -265,8 +265,11 @@ body.dragging { cursor: col-resize; user-select: none; }
 .copies li:first-child { border-top: 0; }
 
 /* The selection, in the top row after the page links (webui-spec 2). */
-.selection-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 6px 12px;
-  border: 1px solid var(--accent); border-radius: var(--radius); background: var(--surface-2); }
+/* Keep full-height button targets without adding height to the toolbar row.
+   An inset outline draws the frame without enlarging the control box. */
+.selection-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 0 12px;
+  min-height: var(--control-height); outline: 1px solid var(--accent); outline-offset: -1px;
+  border-radius: var(--radius); background: var(--surface-2); }
 .toolbar-browse.is-muted .views, .toolbar-browse.is-muted .search { opacity: 0.5; }
 .focus-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 8px; padding: 10px 14px;
   border-left: 4px solid var(--accent); background: var(--surface-2); border-radius: var(--radius); }

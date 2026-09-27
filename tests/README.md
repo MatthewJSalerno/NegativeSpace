@@ -182,6 +182,8 @@ docker run --rm -v "$PWD":/app -w /app negativespace python3 tools/check-api-spe
 
 The browser harness also runs `ui_browser_checks.py` for shared control behavior: modal
 focus, menus, field errors, help, theme contrast, failed-page retry and narrow layouts.
+Selection checks preserve the toolbar height and navigation position while keeping
+the selection actions' full-height click targets.
 It also checks the Inspector's inner preview/details divider: pointer and keyboard
 resizing, remembered proportions, and orientation changes in a wide desktop panel.
 Outer-divider checks cover the gallery minimum, preserved filter width, oversized
