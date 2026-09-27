@@ -10,6 +10,22 @@ def check_ui(browser, base, _shot):
     page.goto(base)
     expect(page.locator(".card").first).to_be_visible()
 
+    # Selecting photos must not make the top toolbar taller or move the gallery.
+    toolbar = page.locator(".toolbar-row").first
+    logs = page.get_by_role("link", name="Logs", exact=True)
+    before = (toolbar.bounding_box(), logs.bounding_box(),
+              page.locator(".toolbar-browse").bounding_box())
+    page.locator(".card-check input").first.check()
+    selection = page.get_by_role("region", name="Selection", exact=True)
+    expect(selection).to_be_visible()
+    after = (toolbar.bounding_box(), logs.bounding_box(),
+             page.locator(".toolbar-browse").bounding_box())
+    assert after == before, ("Selection shifts the toolbar", before, after)
+    for button in selection.get_by_role("button").all():
+        assert button.bounding_box()["height"] >= 36
+    selection.get_by_role("button", name="Clear", exact=True).click()
+    expect(selection).to_have_count(0)
+
     # A modal owns focus, contains both Tab directions and returns to its opener.
     settings = page.get_by_role("button", name="Settings", exact=True)
     settings.click()
