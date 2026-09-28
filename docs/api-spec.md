@@ -218,8 +218,9 @@ of the normal filters. POST keeps that selection out of URL length limits.
     -> {"position": 80, "page": 2, "previous_id": 8, "next_id": 6}
 
 All four values are null if the photo is absent from that scope. A missing neighbor
-is null at the first/last photo. Invalid body types/ranges return 422; invalid filter
-or sort values return 400. The server computes rank without returning preceding pages.
+is null at the first/last photo. Invalid body types, photo/page-size bounds, and
+selection length return 422. Invalid filter/sort values or nonpositive selection
+IDs return 400. The server computes rank without returning preceding pages.
 
 ### `POST /api/v1/photos/selection`
 
