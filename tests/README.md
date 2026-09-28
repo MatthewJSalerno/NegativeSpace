@@ -77,6 +77,12 @@ mount the copy as `/app`: the API is imported in-process, so `--engine` cannot r
 
 ## Web interface in a browser — `webui_browser_test.sh`
 
+`DRIVER=appearance_browser_drive.py SHOTS=/tmp/ns-shots sh tests/webui_browser_test.sh`
+checks both neutral palettes in light/dark modes, text and input contrast, local
+preference persistence, cross-tab updates, blocked storage, and narrow controls.
+Create the screenshot directory before mounting it. These screenshots use only
+generated test photos. The normal browser driver also captures each main screen.
+
 Both containers as `docker/compose.yml` arranges them (`app`, and `web` proxying `/api`
 to it), driven by headless Chromium (Playwright) against generated photos. It covers first run, settings, Scan, the gallery,
 the Inspector, selection, Copy, search and the phone-width layout, and fails on any

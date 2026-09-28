@@ -3,6 +3,7 @@ import { Field } from "./ui/Field";
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, type ExtensionSupport, type Settings } from "../api";
 import { BackupsPanel } from "./BackupsPanel";
+import { setPalette, usePalette } from "../appearance";
 
 const QUEUE_SIZE = 1000; // DB_QUEUE_SIZE, fixed in the engine (engine-spec 4.1)
 
@@ -15,6 +16,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const palette = usePalette();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [workers, setWorkers] = useState("");
   const [retention, setRetention] = useState("");
@@ -174,6 +176,16 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
             <Field id="settings-retention" label="Automatic backups to keep" type="number" min={1} step={1}
               value={retention} disabled={saving} onChange={(e) => setRetention(e.target.value)} error={fieldErrors.retention} />
             {!firstRun && <BackupsPanel retentionDraft={Number(retention)} />}
+          </section>
+          <section className="appearance-settings" aria-labelledby="appearance-title">
+            <h3 id="appearance-title">Appearance</h3>
+            <label htmlFor="settings-palette">Color palette</label>
+            <select id="settings-palette" value={palette} aria-describedby="palette-hint"
+                    onChange={(event) => setPalette(event.target.value === "warm" ? "warm" : "cool")}>
+              <option value="cool">Cool neutral</option>
+              <option value="warm">Warm neutral</option>
+            </select>
+            <p id="palette-hint" className="muted">Applies immediately and is remembered in this browser. Light and dark mode follow your system setting.</p>
           </section>
           <p className="notice">Changes apply to future jobs. Active jobs will continue with their existing settings.</p>
           {message && <p className={message.kind === "error" ? "error" : "ok"} role={message.kind === "error" ? "alert" : "status"}>{message.text}</p>}
