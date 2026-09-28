@@ -105,7 +105,7 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss }: {
       <SafetyQuestions key={run.id} run={run} onLeave={() => onDismiss(run.id!)} />
       <div className="drawer-text">
         <strong>{s.headline}</strong>
-        {reasonsText(run.outcome) ? <Tip text={reasonsText(run.outcome) as string}><span tabIndex={0} className="has-reasons">{s.detail}</span></Tip>
+        {reasonsText(run.outcome) ? <Tip text={reasonsText(run.outcome) as string}><span>{s.detail}</span></Tip>
                                   : <span>{s.detail}</span>}
         <span className="muted">
           {started && ended ? `Took ${duration(ended - started)}` : run.status === "Interrupted" ? "Duration unavailable" : ""}

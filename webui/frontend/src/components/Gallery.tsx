@@ -8,10 +8,11 @@ const STATUS_BADGE: Record<string, string> = {
   Processing: "In progress",
 };
 
-export function Gallery({ page, pageOf, selected, selectable, openId, onOpen, onToggle, onToggleMany }: {
+export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId, onOpen, onToggle, onToggleMany }: {
   page: { items: PhotoItem[] };
   // The page each photo came from, so scrolling can tell which page is on top.
   pageOf?: number[];
+  refreshKey: number;
   selected: Set<number>;
   selectable: boolean;
   openId: number | null;
@@ -41,7 +42,7 @@ export function Gallery({ page, pageOf, selected, selectable, openId, onOpen, on
         return (
           <li key={item.id} data-page={pageOf?.[index]} data-id={item.id} className={`card ${isSelected ? "selected" : ""} ${openId === item.id ? "open" : ""}`}>
             <button className="card-image" onClick={() => onOpen(item.id)} aria-label={`Open ${item.filename}`}>
-              <Thumb id={item.id} alt={item.filename} />
+              <Thumb refreshKey={refreshKey} id={item.id} alt={item.filename} />
             </button>
             <label className="card-check" title={selectable ? undefined : "Selection is unavailable while a job is running."}>
               <input

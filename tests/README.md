@@ -207,6 +207,12 @@ Navigation (audit N8):
 checks same-page log and Library links, Back/Forward, open-photo restoration,
 continuous scrolling and preservation of selection when leaving a focused view.
 
+Preview refresh:
+`DRIVER=preview_refresh_browser_drive.py sh tests/webui_browser_test.sh`
+checks open Inspector details/history after transfers, recovery from a temporary
+grid 404, bounded retries of persistent misses, unchanged healthy image elements,
+selection/scroll retention and the non-link job-result help control.
+
 Request identity (audit N7):
 `SUBMISSION_FIXTURE=1 DRIVER=submission_browser_drive.py sh tests/webui_browser_test.sh`
 drops responses after actual acceptance, including a fast finished job followed by

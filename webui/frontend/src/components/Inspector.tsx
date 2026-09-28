@@ -20,7 +20,7 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning }: {
+export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey }: {
   id: number;
   width: number | null;
   onClose: () => void;
@@ -28,6 +28,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning 
   // Opens another photo in the panel: a duplicate, from the lineage tree.
   onOpenPhoto: (id: number) => void;
   jobRunning: boolean;
+  refreshKey: number;
 }) {
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 800px)").matches);
   useEffect(() => {
@@ -79,11 +80,15 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning 
   useEffect(() => setLineage(false), [id]);
 
   useEffect(() => {
-    let live = true;
     setDetail(null);
-    setError(null);
     setPreviewReady(false);
     setPreviewFailed(false);
+  }, [id]);
+
+  // Refresh metadata without replacing the preview or closing the panel.
+  useEffect(() => {
+    let live = true;
+    setError(null);
     api.inspect(id).then(
       (d) => live && setDetail(d),
       (e) => live && setError(e instanceof ApiError ? e.message : "The photo could not be loaded."),
@@ -91,7 +96,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning 
     return () => {
       live = false;
     };
-  }, [id]);
+  }, [id, refreshKey]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -107,7 +112,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning 
 
   const photo = (
     <>
-      {!previewReady && <Thumb id={id} alt={detail?.filename ?? ""} />}
+      {!previewReady && <Thumb refreshKey={refreshKey} id={id} alt={detail?.filename ?? ""} />}
       {!previewFailed && (
         <img
           key={id}
@@ -163,7 +168,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning 
              }}><span aria-hidden="true">⋮⋮</span></div>
         <div className="inspector-side">
           {error && <p className="error">{error}</p>}
-          {detail && <Details detail={detail} onLineage={() => setLineage(true)} />}
+          {detail && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />}
         </div>
       </div>
       {lineage && detail && createPortal(
@@ -177,7 +182,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning 
           <button className="lightbox-close" onClick={() => setEnlarged(false)} aria-label="Close the enlarged photo">✕</button>
           <div className="lightbox-body">
             <div className="lightbox-image">{photo}</div>
-            {detail && <Details detail={detail} onLineage={() => setLineage(true)} />}
+            {detail && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />}
           </div>
         </Modal>,
         document.body,
@@ -215,7 +220,7 @@ function exifTime(value: string) {
   return `${date.replace(/:/g, "-")} ${time}`.trim();
 }
 
-function Details({ detail: d, onLineage }: { detail: PhotoDetail; onLineage: () => void }) {
+function Details({ detail: d, onLineage, refreshKey }: { detail: PhotoDetail; onLineage: () => void; refreshKey: number }) {
   const fallback = isFallbackDate(d.date_source);
   const exposure = [d.iso != null ? `ISO ${d.iso}` : null, d.aperture != null ? `f/${d.aperture}` : null,
                     d.shutter != null ? `${d.shutter}s` : null].filter(Boolean).join(" · ");
@@ -246,7 +251,7 @@ function Details({ detail: d, onLineage }: { detail: PhotoDetail; onLineage: () 
           {fallback && <div className="muted">* Files it under Undated: no EXIF date taken.</div>}
         </Row>
       </Section>
-      <PhotoHistory id={d.id} onLineage={onLineage} />
+      <PhotoHistory refreshKey={refreshKey} id={d.id} onLineage={onLineage} />
       <Section title="Photo EXIF information" note={zoneNote}>
         {!taken && <Row label="Date taken"><span className="muted">Not in the photo's EXIF</span></Row>}
         {dates.map((x) => (
@@ -333,7 +338,7 @@ const EVENT_LABEL: Record<string, string> = {
 // lineage tree, as does View lineage tree. The log is the other way to the full record.
 const RECENT = 3;
 
-function PhotoHistory({ id, onLineage }: { id: number; onLineage: () => void }) {
+function PhotoHistory({ id, onLineage, refreshKey }: { id: number; onLineage: () => void; refreshKey: number }) {
   const [page, setPage] = useState<{ items: { id: number; run_id: number; mode: string | null; status: string; timestamp: string }[]; total: number } | null>(null);
   useEffect(() => {
     let live = true;
@@ -341,7 +346,7 @@ function PhotoHistory({ id, onLineage }: { id: number; onLineage: () => void }) 
     api.operations({ run: [], status: [], photo: id, q: "", since: "", until: "" }, 1, RECENT)
       .then((d) => live && setPage(d), () => live && setPage({ items: [], total: 0 }));
     return () => { live = false; };
-  }, [id]);
+  }, [id, refreshKey]);
   const events = page ? [...page.items].reverse() : [];
   return (
     <section className="info-section photo-history">

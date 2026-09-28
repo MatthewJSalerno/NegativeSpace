@@ -11,14 +11,14 @@ const REASONS: Record<string, string> = {
 
 // A thumbnail, or a placeholder that says why there is none (webui-spec 4.2.1): a
 // cache miss is "not made yet", not a failure; a recorded failure names its cause.
-export function Thumb({ id, size = "grid", alt }: { id: number; size?: "grid" | "preview"; alt: string }) {
+export function Thumb({ id, size = "grid", alt, refreshKey = 0 }: { id: number; size?: "grid" | "preview"; alt: string; refreshKey?: number }) {
   const [failed, setFailed] = useState(false);
   const [reason, setReason] = useState<string | null>(null);
 
   useEffect(() => {
     setFailed(false);
     setReason(null);
-  }, [id, size]);
+  }, [id, size, refreshKey]);
 
   useEffect(() => {
     if (!failed) return;

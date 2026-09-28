@@ -721,6 +721,12 @@ what happened and make manual corrections; there is no undo operation.
 
 #### 4.2.1 Thumbnail Generation (Media Preview backing)
 
+When a job finishes, the mounted Inspector refreshes its photo details and recent
+history without closing or resetting a healthy preview. The gallery retries failed
+grid images once per completed-job refresh; healthy images are retained. A persistent
+miss keeps its reason placeholder without continuous retries. Retrying an image
+request does not rebuild a genuinely missing cache file.
+
 The Gallery grid and Inspector's "Media Preview" both need something to actually render. The engine generates it, since it is the only component with RAW decoding (`rawpy`) loaded.
 
 **Status — grid generation is implemented.** The scan writes one 320px JPEG per
