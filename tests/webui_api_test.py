@@ -457,6 +457,23 @@ class JobsAndCatalog(ApiCase):
         with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM attention_issues WHERE resolved_at IS NULL").fetchone()[0], 0)
 
+    def test_stats_accept_numeric_camera_and_lens_metadata(self):
+        self.index_library()
+        for make, model, lens, camera, lens_name in (
+            ("Example", 123, 50, "Example 123", "50"),
+            (7, 0, 0, "7 0", "0"),
+            (None, "Example", None, "Example", None),
+        ):
+            with self.subTest(make=make, model=model, lens=lens):
+                with sqlite3.connect(self.cfg.db_path) as conn:
+                    conn.execute("UPDATE photos SET metadata_json = json_set(metadata_json, "
+                                 "'$.Make', ?, '$.Model', ?, '$.LensModel', ?)", (make, model, lens))
+                response = self.client.get("/api/v1/stats")
+                self.assertEqual(response.status_code, 200)
+                library = response.json()["library"]
+                self.assertEqual(library["cameras"], [{"name": camera, "photos": 2}])
+                self.assertEqual(library["lenses"], [{"name": lens_name, "photos": 2}] if lens_name else [])
+
     def test_stats_count_the_library_its_dates_duplicates_and_work(self):
         self.index_library()                  # IMG_0001 + "Beach Sunset" (same content), IMG_0002
         before = self.client.get("/api/v1/stats").json()["duplicates"]

@@ -1182,6 +1182,8 @@ entries behind it. Figures that need unbuilt features say so rather than guess. 
 tiles across the top are Photos, Organized, No capture date, Duplicate copies, Failed
 attempts and Last backup. **A share never rounds to all or nothing:** 100% means every
 photo and 0% none, so 4,681 of 4,684 reads 99.9%, not 100%.
+Camera and lens identifiers are displayed and grouped as text, including numeric
+metadata values; missing or empty identifiers are omitted without altering stored metadata.
 
 "How much space are my duplicates wasting?" is a headline figure for the Stats page, and the catalog already answers it without any engine change. Deduplication acts on two different volumes, though, and conflating them produces a number that is wrong in whichever direction the user's mode does not apply:
 

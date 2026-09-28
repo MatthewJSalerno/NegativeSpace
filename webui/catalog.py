@@ -1132,10 +1132,14 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
     def top(values, n=8):
         counts = {}
         for v in values:
-            if v:
+            if v is not None and v != "":
+                v = str(v)
                 counts[v] = counts.get(v, 0) + 1
         return [{"name": k, "photos": v} for k, v in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:n]]
-    cameras = top(" ".join(x for x in (p["make"], p["model"]) if x) or None for p in photos)
+    # Metadata JSON may contain numeric model/lens identifiers; display labels
+    # are text, while zero is a valid identifier rather than missing metadata.
+    cameras = top(" ".join(str(x) for x in (p["make"], p["model"]) if x is not None and x != "") or None
+                  for p in photos)
     bands = {label: 0 for _, label in _MEGAPIXEL_BANDS}
     portrait = landscape = square = 0
     for p in photos:
