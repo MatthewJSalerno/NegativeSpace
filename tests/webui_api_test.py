@@ -457,6 +457,32 @@ class JobsAndCatalog(ApiCase):
         with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM attention_issues WHERE resolved_at IS NULL").fetchone()[0], 0)
 
+    def test_photo_position_matches_gallery_sort_filters_and_selection(self):
+        self.index_library()
+        for sort in ("newest", "oldest", "largest", "smallest", "name"):
+            for filters in ({}, {"q": "IMG"}, {"date": "2020"}, {"type": "jpg"},
+                            {"folder": "."}, {"undated": True}, {"view": "organized"}):
+                with self.subTest(sort=sort, filters=filters):
+                    items = self.client.get("/api/v1/photos", params={"sort": sort, **filters}).json()["items"]
+                    body_filters = { {"date": "dates", "type": "types", "folder": "folders"}.get(k, k):
+                        [v] if k in ("date", "type", "folder") else v for k, v in filters.items() }
+                    for index, photo in enumerate(items):
+                        response = self.client.post("/api/v1/photos/position", json={
+                            "photo_id": photo["id"], "sort": sort, "page_size": 1, **body_filters})
+                        self.assertEqual(response.status_code, 200, response.text)
+                        self.assertEqual(response.json(), {"position": index, "page": index + 1,
+                            "previous_id": items[index - 1]["id"] if index else None,
+                            "next_id": items[index + 1]["id"] if index + 1 < len(items) else None})
+        ids = self.client.get("/api/v1/photos/ids").json()["ids"]
+        hidden = self.client.post("/api/v1/photos/position", json={"photo_id": ids[0], "q": "no-match"})
+        self.assertIsNone(hidden.json()["page"])
+        selected = self.client.post("/api/v1/photos/position", json={"photo_id": ids[0], "ids": [ids[0]], "q": "no-match"})
+        self.assertEqual(selected.json()["page"], 1)
+        for body in ({"photo_id": True}, {"photo_id": ids[0], "page_size": 0},
+                     {"photo_id": ids[0], "ids": [True]}, {"photo_id": ids[0], "ids": [1] * 1001}):
+            self.assertEqual(self.client.post("/api/v1/photos/position", json=body).status_code, 422)
+        self.assertEqual(self.client.post("/api/v1/photos/position", json={"photo_id": ids[0], "sort": "invalid"}).status_code, 400)
+
     def test_stats_accept_numeric_camera_and_lens_metadata(self):
         self.index_library()
         for make, model, lens, camera, lens_name in (

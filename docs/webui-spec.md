@@ -581,6 +581,19 @@ browser independently of the overall Inspector width.
   must cover curation actions as well as Index, Copy and Move.
 
 ### 4.2 Split-Screen Photo Inspector Panel
+
+Opening a photo from Logs locates its page and reveals its highlighted gallery card.
+During in-app navigation, photo links reuse this tab's most recent Library filters and ordering. A photo outside
+that scope offers **Show in gallery**, a temporary single-photo view with **Back to
+results**; the original filters and explicit selection are preserved. Inspector
+previous/next follows the active ordering, including page boundaries, and scrolls
+only when the target card is offscreen. Clicking a gallery card does not reposition
+the gallery, and later manual scrolling is not forced back to the Inspector photo.
+Position lookups return rank and neighbors without downloading earlier pages.
+Failed lookups offer a retry while leaving the Inspector open.
+
+History's **Open in the log** and **View lineage tree** actions share text size and
+alignment, retaining their link and button semantics respectively.
 Clicking an image opens a right-side 50% detail panel.
 
 **The file's modification time** is the time the file carried when the first Index read

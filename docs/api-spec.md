@@ -205,6 +205,22 @@ Over the 1,000-photo selection limit (the engine's `--file-ids`), `ids` is empty
 `over_limit` true: refused whole, never cut short, because a partial Select all would
 act on only some of what was shown.
 
+### `POST /api/v1/photos/position`
+
+Read-only lookup of one photo's zero-based position, one-based page and adjacent
+IDs in the gallery's ordering. The JSON body requires positive integer `photo_id`;
+optional fields are `view`, `sort`, `page_size` (1–240, default 60), `q`, `undated`,
+`dates`, `types` and `folders`, with the same filter meanings as the gallery.
+An optional `ids` list (at most 1,000 positive integers) scopes a selection instead
+of the normal filters. POST keeps that selection out of URL length limits.
+
+    {"photo_id": 7, "sort": "newest", "page_size": 60}
+    -> {"position": 80, "page": 2, "previous_id": 8, "next_id": 6}
+
+All four values are null if the photo is absent from that scope. A missing neighbor
+is null at the first/last photo. Invalid body types/ranges return 422; invalid filter
+or sort values return 400. The server computes rank without returning preceding pages.
+
 ### `POST /api/v1/photos/selection`
 
 The selected photos, whatever view, search or dates would hide them (Show only selected):

@@ -3,6 +3,16 @@
 // or the back button lands in the same place.
 import { useEffect, useState, type MouseEvent, type RefObject } from "react";
 
+// Retain this tab's Library filters while it visits Logs or Stats. Explicit
+// Library navigation still follows its URL; only photo links reuse this context.
+let libraryQuery = window.location.pathname === "/" ? window.location.search : "";
+export function rememberLibraryQuery(query: string) { libraryQuery = query; }
+export function photoUrl(id: number) {
+  const params = new URLSearchParams(libraryQuery);
+  params.set("photo", String(id));
+  return `/?${params}`;
+}
+
 export function navigate(url: string) {
   window.history.pushState(null, "", url);
   window.dispatchEvent(new PopStateEvent("popstate"));

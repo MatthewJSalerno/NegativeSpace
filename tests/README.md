@@ -77,6 +77,11 @@ mount the copy as `/app`: the API is imported in-process, so `--engine` cannot r
 
 ## Web interface in a browser — `webui_browser_test.sh`
 
+`DRIVER=gallery_position_browser_drive.py sh tests/webui_browser_test.sh` checks
+Logs photo positioning, offscreen Inspector navigation, retained filters, explicit
+hidden-photo display, retry, ordinary gallery clicks, manual scrolling and History
+action alignment. Its fixtures are generated photos in isolated containers.
+
 `DRIVER=appearance_browser_drive.py SHOTS=/tmp/ns-shots sh tests/webui_browser_test.sh`
 checks both neutral palettes in light/dark modes, text and input contrast, local
 preference persistence, cross-tab updates, blocked storage, and narrow controls.

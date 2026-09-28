@@ -60,6 +60,9 @@ jobs:
       - name: Appearance palettes in a browser
         run: DRIVER=appearance_browser_drive.py sh tests/webui_browser_test.sh
 
+      - name: Gallery photo positioning in a browser
+        run: DRIVER=gallery_position_browser_drive.py sh tests/webui_browser_test.sh
+
       - name: Entrypoint ownership
         # Runs on the host: it checks what the entrypoint does to real bind
         # mounts, which the suite (running after the entrypoint) cannot see.

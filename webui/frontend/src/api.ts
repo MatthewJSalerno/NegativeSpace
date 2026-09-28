@@ -45,6 +45,13 @@ export interface PhotoPage {
   matches: Record<View, number>;
 }
 
+export interface PhotoPosition {
+  position: number | null;
+  page: number | null;
+  previous_id: number | null;
+  next_id: number | null;
+}
+
 // What narrows the gallery: the view, the search, No capture date, and the date tree's
 // "Show only" years and months ("2023", "2023-06", "none").
 export interface BrowseFilters {
@@ -482,6 +489,8 @@ export const api = {
     query.set("page_size", String(params.page_size));
     return request<PhotoPage>("GET", `/api/v1/photos?${query}`);
   },
+  photoPosition: (params: BrowseFilters & { photo_id: number; sort: Sort; page_size: number; ids?: number[] }) =>
+    request<PhotoPosition>("POST", "/api/v1/photos/position", params),
   // Without `dates` for the date tree's counts; with them for the page a jump lands on.
   timeline: (params: BrowseFilters) => request<Timeline>("GET", `/api/v1/photos/timeline?${browseQuery(params)}`),
   types: (params: BrowseFilters) =>

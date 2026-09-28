@@ -19,7 +19,7 @@ import { Tip } from "./components/Tip";
 import { ActionsMenu } from "./components/ActionsMenu";
 import { LogsPage } from "./components/LogsPage";
 import { StatsLink, StatsPage } from "./components/StatsPage";
-import { follow, navigate, useHeaderHeight, useNavigation, usePath } from "./nav";
+import { follow, navigate, rememberLibraryQuery, useHeaderHeight, useNavigation, usePath } from "./nav";
 import { SettingsDialog } from "./components/SettingsDialog";
 
 // Reserve the gallery separately from the filters and the resize handles.
@@ -55,7 +55,7 @@ function readUrl() {
 // on entry, so unticking a photo there leaves it on screen, unticked.
 // "review" is the selection before a Copy or Move of it: shown in full, with the action
 // in a bar above it, so every photo can be looked at and unticked before committing.
-type Focus = { kind: "selection" | "review" | "job"; ids: number[]; mode?: "copy" | "move" };
+type Focus = { kind: "selection" | "review" | "job" | "photo"; ids: number[]; mode?: "copy" | "move" };
 
 export function App() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -190,6 +190,11 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [browseBy, setBrowseBy] = useState<BrowseBy>(() => initialBrowseBy(initial.folders, initial.dates));
   const [typeCounts, setTypeCounts] = useState<{ type: string; photos: number }[] | null>(null);
   const [openId, setOpenId] = useState<number | null>(initial.photo);
+  const [locate, setLocate] = useState<{ id: number; delta: number } | null>(
+    initial.photo == null ? null : { id: initial.photo, delta: 0 });
+  const [revealId, setRevealId] = useState<number | null>(null);
+  const openFromGallery = (id: number) => { setLocate(null); setRevealId(null); setOpenId(id); };
+  const openAndLocate = (id: number) => { setOpenId(id); setLocate({ id, delta: 0 }); setRevealId(null); };
   const [timeline, setTimeline] = useState<Timeline | null>(null);
   const [jumpTimeline, setJumpTimeline] = useState<Timeline | null>(null);
   const [focus, setFocus] = useState<Focus | null>(null);
@@ -217,6 +222,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     setPage(next.page); setPageSize(next.size);
     setUndated(next.undated); setDates(next.dates);
     setTypes(next.types); setFolders(next.folders); setOpenId(next.photo);
+    setLocate(next.photo == null ? null : { id: next.photo, delta: 0 }); setRevealId(null);
     if (next.folders.length || next.dates.length) setBrowseBy(initialBrowseBy(next.folders, next.dates));
     // A link names normal results, not the transient selection/review view.
     // Keep the explicit selection available to the user after navigating.
@@ -288,6 +294,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     if (openId != null) p.set("photo", String(openId));
     const url = `${window.location.pathname}${p.size ? `?${p}` : ""}`;
     window.history.replaceState(null, "", url);
+    rememberLibraryQuery(p.toString());
   }, [view, sort, q, page, pageSize, undated, dates, types, folders, openId]);
 
   const results = usePaged((p) => api.photos({ view, sort, q, page: p, page_size: pageSize, undated, dates, types, folders }),
@@ -338,6 +345,60 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     }
     return { items, pageOf };
   }, [list.pages]);
+  // Explicit navigation resolves one rank on the server; ordinary gallery clicks
+  // and later manual scrolling never continually track the open Inspector photo.
+  useEffect(() => {
+    if (!locate) return;
+    let live = true;
+    api.photoPosition({ photo_id: locate.id, view, sort, q, undated, dates, types, folders,
+                        page_size: pageSize, ids: focus?.ids }).then((found) => {
+      if (!live) return;
+      setLocate(null);
+      setNotice(null);
+      if (found.position == null) {
+        setNotice("This photo is outside the current gallery results.", [{ label: "Show in gallery", run: () => {
+          setNotice(null); setFocus({ kind: "photo", ids: [locate.id] }); setFocusPage(1); setRevealId(locate.id);
+        } }]);
+        return;
+      }
+      const id = locate.delta < 0 ? found.previous_id : locate.delta > 0 ? found.next_id : locate.id;
+      if (id == null) return;
+      setOpenId(id);
+      setRevealId(id);
+      if (!flat.items.some(item => item.id === id)) {
+        const destination = Math.floor((found.position + locate.delta) / pageSize) + 1;
+        if (focus) setFocusPage(destination); else setPage(destination);
+      }
+    }, () => {
+      if (!live) return;
+      setLocate(null);
+      setNotice("The photo's gallery position could not be loaded.", [
+        { label: "Retry locating photo", run: () => setLocate({ ...locate }) }]);
+    });
+    return () => { live = false; };
+  }, [locate, view, sort, q, undated, dates, types, folders, pageSize, focus, refreshKey]);
+
+  useEffect(() => {
+    if (revealId == null || !list.ready || !flat.items.some(item => item.id === revealId)) return;
+    const frame = requestAnimationFrame(() => {
+      const card = document.querySelector<HTMLElement>(`.grid .card[data-id="${revealId}"]`);
+      if (!card) return;
+      const box = card.getBoundingClientRect();
+      const top = Math.max(0, header.current?.getBoundingClientRect().bottom ?? 0) + 12;
+      if (box.top < top || box.bottom > window.innerHeight) {
+        window.scrollTo({ top: Math.max(0, window.scrollY + box.top - top), behavior: "instant" });
+      }
+      setRevealId(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [revealId, flat, list.ready]);
+
+  useEffect(() => {
+    const cancel = () => { setLocate(null); setRevealId(null); };
+    window.addEventListener("wheel", cancel, { passive: true });
+    window.addEventListener("touchmove", cancel, { passive: true });
+    return () => { window.removeEventListener("wheel", cancel); window.removeEventListener("touchmove", cancel); };
+  }, []);
   // The photos on screen, for Select all on screen; until first measured, the page.
   const screenItems = useMemo(() => {
     const ids = new Set(onScreen);
@@ -366,6 +427,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   useEffect(() => {
     const observer = new IntersectionObserver((entries) => {
       for (const entry of entries) {
+        if (locate || revealId != null) continue;
         if (!entry.isIntersecting) continue;
         if (entry.target === bottomSentinel.current) list.load(list.last + 1);
         if (entry.target === topSentinel.current && list.first > 1 && !prepend.current) {
@@ -377,7 +439,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     if (topSentinel.current) observer.observe(topSentinel.current);
     if (bottomSentinel.current) observer.observe(bottomSentinel.current);
     return () => observer.disconnect();
-  }, [list.first, list.last, list.load, list.ready, focus]);
+  }, [list.first, list.last, list.load, list.ready, focus, locate, revealId]);
   useEffect(() => { if (list.failures.has(list.first - 1)) prepend.current = null; }, [list.failures, list.first]);
   useLayoutEffect(() => {
     const mark = prepend.current;
@@ -496,7 +558,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     if (openId == null) return;
     const index = flat.items.findIndex((i) => i.id === openId);
     const next = flat.items[index + delta];
-    if (next) setOpenId(next.id);
+    if (index >= 0 && next) { setOpenId(next.id); setRevealId(next.id); setLocate(null); }
+    else { setLocate({ id: openId, delta }); setRevealId(null); }
   }, [flat, openId]);
 
   // The divider between the gallery and the Inspector: drag it, or focus it and use
@@ -620,7 +683,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                                            : scope === "folder" ? askFolder(mode) : askTransfer(mode))} />
             <a className="button-link" href="/logs" onClick={follow}>Logs</a>
           </nav>
-          {(selected.size > 0 || focus) && (
+          {(selected.size > 0 || (focus && focus.kind !== "photo")) && (
             <div className="selection-line" role="region" aria-label="Selection">
               <strong>{plural(selected.size, "photo")} selected</strong>
               {!focus && outside > 0 && <span> · {count(outside)} outside this view</span>}
@@ -718,6 +781,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             <div className="focus-head">
               <strong>
                 {focus.kind === "job" ? `The ${plural(focus.ids.length, "photo")} in the job just started`
+                  : focus.kind === "photo" ? "Showing the inspected photo"
                   : `Showing only the ${plural(focus.ids.length, "selected photo")}`}
               </strong>
               <span className="muted">
@@ -726,8 +790,10 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               <button onClick={backToResults}>Back to results</button>
               {focusData && focusData.missing.length > 0 && (
                 <p className="warning">
-                  {plural(focusData.missing.length, "selected photo is", "selected photos are")} no longer in the catalog.{" "}
-                  <button className="link" onClick={() => toggleIds(focusData.missing, false)}>Remove from the selection</button>
+                  {focus.kind === "photo" ? "This photo is no longer in the catalog." : <>
+                    {plural(focusData.missing.length, "selected photo is", "selected photos are")} no longer in the catalog.{" "}
+                    <button className="link" onClick={() => toggleIds(focusData.missing, false)}>Remove from the selection</button>
+                  </>}
                 </p>
               )}
             </div>
@@ -785,7 +851,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               {list.first > 1 && <PageBoundary ref={topSentinel} previous pending={list.pending.has(list.first - 1)} error={list.failures.get(list.first - 1)}
                 onLoad={() => { prepend.current = { height: document.documentElement.scrollHeight, y: window.scrollY }; list.load(list.first - 1, true); }} />}
               <Gallery refreshKey={refreshKey} page={{ items: flat.items }} pageOf={flat.pageOf} selected={selected} selectable={!jobRunning} openId={openId}
-                       onOpen={setOpenId} onToggle={toggle} onToggleMany={toggleMany} />
+                       onOpen={openFromGallery} onToggle={toggle} onToggleMany={toggleMany} />
               {list.last < pages
                 ? <PageBoundary ref={bottomSentinel} pending={list.pending.has(list.last + 1)} error={list.failures.get(list.last + 1)} onLoad={() => list.load(list.last + 1, true)} />
                 : <div className="gallery-foot">
@@ -804,8 +870,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                    if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() + 40); }
                    if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() - 40); }
                  }} />
-            <Inspector refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => setOpenId(null)} onStep={step}
-                       onOpenPhoto={setOpenId} jobRunning={jobRunning} />
+            <Inspector refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
+                       onOpenPhoto={openAndLocate} jobRunning={jobRunning} />
           </>
         )}
       </main>

@@ -614,7 +614,10 @@ a.button-link.active {background: var(--surface-2);border-color: transparent;col
 .info-section + .info-section {border-top: 1px solid var(--border);margin-top: var(--space-6);padding-top: var(--space-1);}
 .info-empty {border: 0;padding: var(--space-2) 0;}
 .history-list {gap: var(--space-2);}
-.history-links,.section-note,.history-detail {font-size: var(--type-xs);}
+.section-note,.history-detail {font-size: var(--type-xs);}
+.history-links { align-items: center; font-size: var(--type-sm); }
+.history-links > a, .history-links > button.link { display: inline-flex; align-items: center;
+  min-height: var(--control-height); padding: 0; border: 0; font: inherit; line-height: inherit; }
 .help-trigger {color: var(--muted);background: transparent;}
 .finished-banner {padding: var(--space-3) var(--space-4);margin: 0 var(--space-6) var(--space-4);}
 @media(max-width:800px){button,input,select,a.button-link,.help-trigger {min-height: 44px;}.help-trigger{min-width: 44px;}.toolbar-row{padding: var(--space-3) var(--space-4);}.gallery-pane{padding: var(--space-4);}}

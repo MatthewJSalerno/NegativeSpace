@@ -5,7 +5,7 @@ import { VersionTag } from "./VersionTag";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
 import { reasonsText, modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
-import { follow, useHeaderHeight, useNavigation } from "../nav";
+import { follow, photoUrl, useHeaderHeight, useNavigation } from "../nav";
 import { usePaged } from "../paged";
 import { ActionsMenu } from "./ActionsMenu";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./Confirm";
@@ -315,7 +315,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
         {filters.photo != null && (
           <p className="muted">
             Everything recorded for this photo across jobs, including its copies and moves.{" "}
-            <a href={`/?photo=${filters.photo}`} onClick={follow}>Open the photo</a>
+            <a href={photoUrl(filters.photo)} onClick={follow}>Open the photo</a>
             {" · "}<a href="/logs" onClick={follow}>Show all</a>
           </p>
         )}
@@ -484,7 +484,7 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
                       {op.dest_path && <div className="muted">→ <code>{op.dest_path}</code></div>}
                       {op.photo_id != null && (
                         <div className="row-links">
-                          <a href={`/?photo=${op.photo_id}`} onClick={follow}>Photo #{op.photo_id}</a>
+                          <a href={photoUrl(op.photo_id)} onClick={follow}>Photo #{op.photo_id}</a>
                           {activePhoto !== op.photo_id && (
                             <button className="link" onClick={() => onPhoto(op.photo_id as number)}>its history</button>
                           )}

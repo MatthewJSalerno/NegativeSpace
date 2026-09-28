@@ -320,6 +320,28 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             "matches": matches}
 
 
+def photo_position(db_path: Path, photo_id: int, *, view="all", sort="newest", page_size=60,
+                   q=None, undated=False, dates=None, types=None, folders=None, root=None, ids=None) -> dict:
+    """Locate one photo and its neighbors without transferring preceding gallery pages."""
+    _check_view(view, sort, 1, page_size)
+    filtered, params = _filters(q, undated, dates, types, folders, root)
+    where = f"p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered
+    if ids is not None:
+        if len(ids) > SELECTION_MAX or any(type(i) is not int or i < 1 for i in ids):
+            raise ValueError("ids must contain at most 1000 positive photo ids")
+        where, params = "p.id IN (SELECT value FROM json_each(?))", (json.dumps(ids),)
+    with connect(db_path) as conn:
+        row = conn.execute(
+            f"WITH candidates AS (SELECT {_LIST_COLUMNS} FROM photos p WHERE {where}), "
+            f"ranked AS (SELECT p.id, ROW_NUMBER() OVER (ORDER BY {SORTS[sort]}) - 1 AS position, "
+            f"LAG(p.id) OVER (ORDER BY {SORTS[sort]}) AS previous_id, "
+            f"LEAD(p.id) OVER (ORDER BY {SORTS[sort]}) AS next_id FROM candidates p) "
+            "SELECT * FROM ranked WHERE id = ?", tuple(params) + (photo_id,)).fetchone()
+    return ({"position": row["position"], "page": row["position"] // page_size + 1,
+             "previous_id": row["previous_id"], "next_id": row["next_id"]} if row else
+            {"position": None, "page": None, "previous_id": None, "next_id": None})
+
+
 def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,
               folders=None, root=None, limit=SELECTION_MAX) -> dict:
     """Every photo id the gallery would show for these filters, across all pages, for

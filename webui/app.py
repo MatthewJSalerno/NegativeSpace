@@ -16,6 +16,7 @@ from fastapi import Body, FastAPI, HTTPException, Query, WebSocket, WebSocketDis
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 import ns_db
 from . import catalog
@@ -25,6 +26,20 @@ from .jobs import JobRefused, JobRunner, validate_request_id
 # The drawer refreshes about once a second (webui-spec 4.1); the engine writes its
 # progress snapshot at the same cadence.
 PUSH_INTERVAL_SECONDS = 1.0
+
+
+class PhotoPositionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    photo_id: int = Field(ge=1)
+    view: str = "all"
+    sort: str = "newest"
+    page_size: int = Field(default=60, ge=1, le=240)
+    q: Optional[str] = None
+    undated: bool = False
+    dates: Optional[List[str]] = None
+    types: Optional[List[str]] = None
+    folders: Optional[List[str]] = None
+    ids: Optional[List[StrictInt]] = Field(default=None, max_length=1000)
 
 
 def create_app(cfg: Optional[Config] = None) -> FastAPI:
@@ -208,6 +223,13 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         try:
             return catalog.photo_ids(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
                                      folders=folder, root=cfg.source)
+        except ValueError as exc:
+            raise _bad_request(exc)
+
+    @app.post("/api/v1/photos/position")
+    def get_photo_position(body: PhotoPositionRequest):
+        try:
+            return catalog.photo_position(cfg.db_path, root=cfg.source, **body.model_dump())
         except ValueError as exc:
             raise _bad_request(exc)
 
