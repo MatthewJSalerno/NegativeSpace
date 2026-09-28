@@ -202,6 +202,11 @@ Mobile support and real touch-device validation are optional; desktop zoom and r
 remain in scope. Existing phone-emulation checks guard implemented behavior rather than
 establishing a mobile release requirement.
 
+Navigation (audit N8):
+`DRIVER=navigation_browser_drive.py sh tests/webui_browser_test.sh`
+checks same-page log and Library links, Back/Forward, open-photo restoration,
+continuous scrolling and preservation of selection when leaving a focused view.
+
 Request identity (audit N7):
 `SUBMISSION_FIXTURE=1 DRIVER=submission_browser_drive.py sh tests/webui_browser_test.sh`
 drops responses after actual acceptance, including a fast finished job followed by

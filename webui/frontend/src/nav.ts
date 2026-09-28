@@ -18,6 +18,16 @@ export function usePath(): string {
   return path;
 }
 
+// Explicit navigation (including same-path links and Back/Forward) reads the URL.
+// Local controls use replaceState without an event, so recording their state does
+// not reset selection, interrupt scrolling, or feed stale state back into the URL.
+export function useNavigation(onNavigate: () => void) {
+  useEffect(() => {
+    window.addEventListener("popstate", onNavigate);
+    return () => window.removeEventListener("popstate", onNavigate);
+  }, [onNavigate]);
+}
+
 // For <a href> links: a plain click navigates in place; a middle or ctrl-click still
 // opens a new tab.
 export function follow(e: MouseEvent<HTMLAnchorElement>) {

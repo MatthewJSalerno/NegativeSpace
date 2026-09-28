@@ -5,7 +5,7 @@ import { VersionTag } from "./VersionTag";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
 import { reasonsText, modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
-import { follow, useHeaderHeight } from "../nav";
+import { follow, useHeaderHeight, useNavigation } from "../nav";
 import { usePaged } from "../paged";
 import { ActionsMenu } from "./ActionsMenu";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./Confirm";
@@ -104,6 +104,15 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
   const { jobs, connection } = useJobFeed();
   const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
   const [confirm, setConfirm] = useState<Confirm | null>(null);
+  useNavigation(() => {
+    if (window.location.pathname !== "/logs") return;
+    const next = readFilters();
+    const p = new URLSearchParams(window.location.search);
+    setFilters(next); setSearch(next.q);
+    setDates({ from: p.get("from") ?? "", to: p.get("to") ?? "" });
+    setExpanded(new Set(next.run.length === 1 ? next.run : []));
+    setNotice(null); setRetryNote(null);
+  });
   const header = useRef<HTMLElement>(null);
   useHeaderHeight(header);
 

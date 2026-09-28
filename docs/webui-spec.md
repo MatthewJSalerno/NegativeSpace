@@ -208,6 +208,13 @@ because selection was defined per page; the selection is now an explicit list ke
 across pages, and a page count that the grid's columns did not divide left gaps. The date
 tree jumps to a year or month by the page it starts on (`GET /api/v1/photos/timeline`).
 The page, page size, sort, view, search, dates and open photo live in the URL.
+In-app links and browser Back/Forward apply the destination URL even on the same
+screen. The Library link resets browsing filters and closes the Inspector; within
+the mounted Library it keeps the explicit selection but exits selection-only or
+transfer-review mode. History restores the recorded page and photo, not an exact
+scroll pixel position or a transient review. Logs links replace the log's filters
+and expand the single linked job. Recording local control or scroll changes in the
+address does not itself count as navigation or reset the current selection.
 
 **No capture date** is a quick filter beside the views, with its count. It shows the
 photos whose EXIF has no date taken, which are filed under Undated by their file's

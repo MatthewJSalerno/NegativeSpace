@@ -19,7 +19,7 @@ import { Tip } from "./components/Tip";
 import { ActionsMenu } from "./components/ActionsMenu";
 import { LogsPage } from "./components/LogsPage";
 import { StatsLink, StatsPage } from "./components/StatsPage";
-import { follow, navigate, useHeaderHeight, usePath } from "./nav";
+import { follow, navigate, useHeaderHeight, useNavigation, usePath } from "./nav";
 import { SettingsDialog } from "./components/SettingsDialog";
 
 // Reserve the gallery separately from the filters and the resize handles.
@@ -209,6 +209,19 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  useNavigation(() => {
+    if (window.location.pathname !== "/") return;
+    const next = readUrl();
+    setView(next.view); setSort(next.sort);
+    setQ(next.q); setSearch(next.q);
+    setPage(next.page); setPageSize(next.size);
+    setUndated(next.undated); setDates(next.dates);
+    setTypes(next.types); setFolders(next.folders); setOpenId(next.photo);
+    if (next.folders.length || next.dates.length) setBrowseBy(initialBrowseBy(next.folders, next.dates));
+    // A link names normal results, not the transient selection/review view.
+    // Keep the explicit selection available to the user after navigating.
+    setFocus(null); setPendingJump(null); setNoticeState(null); setActionError(null);
+  });
   const [refreshKey, setRefreshKey] = useState(0);
   const [dismissedId, dismissRun] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
