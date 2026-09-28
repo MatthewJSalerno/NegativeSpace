@@ -57,6 +57,9 @@ jobs:
         # host because it starts the containers and a Playwright container.
         run: sh tests/webui_browser_test.sh
 
+      - name: Appearance palettes in a browser
+        run: DRIVER=appearance_browser_drive.py sh tests/webui_browser_test.sh
+
       - name: Entrypoint ownership
         # Runs on the host: it checks what the entrypoint does to real bind
         # mounts, which the suite (running after the entrypoint) cannot see.

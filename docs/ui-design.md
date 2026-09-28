@@ -18,13 +18,17 @@ accent. Use semantic CSS custom properties in `webui/frontend/src/styles.css` ra
 than choosing new colors in a screen. Error text and destructive button fills have
 separate foreground/background pairs in both themes.
 
-- Spacing: 4, 8, 12, 16 and 24px tokens for shared controls and panels.
-- Controls: 36px minimum height, increasing to 44px for coarse pointers; compact
+- Spacing: 4, 8, 12, 16, 24, 32 and 48px tokens for controls, panels and section gaps.
+- Controls: 36px minimum height, increasing to 44px below 800px and for coarse pointers; compact
   information and disclosure buttons remain distinct from primary actions.
 - The toolbar selection summary fits the existing row height when its content
   fits on one line, retaining full-height button targets. Longer content may wrap.
-- Typography: system font at the user's default root size, with relative text sizes.
-- Controls share borders, corner radius, native disabled states and visible focus.
+- Typography: locally bundled Inter with 400/600 weights; 12, 14, 16 and 20px sizes
+  expressed in rem against the user's default root size. Counts use tabular numerals.
+- Controls use 6px corners; panels use 10px corners. Inputs retain distinct outlines;
+  secondary buttons use neutral hover surfaces. Keep hairlines for content divisions
+  rather than framing each label, filter or metadata row. Native disabled states and
+  visible focus remain intact.
 - Native checkboxes use 24px glyph targets; labels expand the selectable area.
 - Focus must remain visible below sticky headers. Forced colors retain outlines and
   borders; reduced motion suppresses nonessential animated progress effects.
@@ -35,6 +39,13 @@ separate foreground/background pairs in both themes.
 
 These are product choices within an accessibility target, not a claim that every
 control must have the same shape or that every target must be exactly 44px.
+
+The first Settings section, Appearance, offers Cool neutral (default) and Warm neutral palettes. The choice applies
+immediately, is stored per browser under `ns.palette`, and follows across tabs;
+it is independent of catalog settings and does not require Save settings. System
+light/dark preference applies to either palette. If browser storage is unavailable,
+the choice still works for the current page. All colors come from the shared root
+tokens; the font is served with the app, with no external font request.
 
 Help popups use the subdued `--surface-2` background and normal text color in both
 themes. They occupy the browser's top layer so sticky sidebars and adjacent photos
@@ -57,11 +68,13 @@ cannot clip or cover the text.
 
 ## Keyboard and focus
 
+A modal shows subdued More above/More below cues at its edges when its content can
+scroll in those directions. Cues are noninteractive and disappear at the corresponding end.
 A modal moves focus inside, wraps Tab/Shift+Tab, and restores the opener on close
 (or a logical surviving control). Nested dialogs close one at a time. Destructive
 confirmations start on Cancel. Settings and confirmation cannot be dismissed while
 their submission is pending. Closing a window is not cancellation of a running job;
-use the job's Cancel command for that. Settings drafts are discarded on close;
+use the job's Cancel command for that. Engine settings drafts are discarded on close;
 Reset restores the saved values. Saving preserves server revision checks.
 
 Menu Enter/Space opens on the first command. Arrow keys, Home/End and initial-letter
