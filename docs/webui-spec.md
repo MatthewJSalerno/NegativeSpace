@@ -2,7 +2,7 @@
 
 The shared visual and interaction contract is defined in [UI design standard](ui-design.md).
 Appearance uses shared spacing, type and surface tokens with locally served Inter.
-Settings includes an immediate, browser-local Cool neutral / Warm neutral preference;
+Settings starts with Appearance, an immediate, browser-local Cool neutral / Warm neutral preference;
 both palettes follow the system light/dark setting, independently of saved engine settings.
 It covers controls, keyboard focus, dialogs, help, form validation and loading/retry states.
 Desktop browsers are the required target; mobile support is optional. Existing narrow-layout

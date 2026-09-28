@@ -135,6 +135,16 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
       )}
       {!settings ? <div role="status">{message ? <><p className="error">{message.text}</p><button onClick={load}>Retry loading settings</button></> : "Loading…"}</div> : (
         <>
+          <section className="appearance-settings" aria-labelledby="appearance-title">
+            <h3 id="appearance-title">Appearance</h3>
+            <label htmlFor="settings-palette">Color palette</label>
+            <select id="settings-palette" value={palette} aria-describedby="palette-hint"
+                    onChange={(event) => setPalette(event.target.value === "warm" ? "warm" : "cool")}>
+              <option value="cool">Cool neutral</option>
+              <option value="warm">Warm neutral</option>
+            </select>
+            <p id="palette-hint" className="muted">Applies immediately and is remembered in this browser. Light and dark mode follow your system setting.</p>
+          </section>
           <section>
             <h3>Worker processes</h3>
             <Field id="settings-workers" label="Maximum worker processes" type="number" min={1} step={1}
@@ -176,16 +186,6 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
             <Field id="settings-retention" label="Automatic backups to keep" type="number" min={1} step={1}
               value={retention} disabled={saving} onChange={(e) => setRetention(e.target.value)} error={fieldErrors.retention} />
             {!firstRun && <BackupsPanel retentionDraft={Number(retention)} />}
-          </section>
-          <section className="appearance-settings" aria-labelledby="appearance-title">
-            <h3 id="appearance-title">Appearance</h3>
-            <label htmlFor="settings-palette">Color palette</label>
-            <select id="settings-palette" value={palette} aria-describedby="palette-hint"
-                    onChange={(event) => setPalette(event.target.value === "warm" ? "warm" : "cool")}>
-              <option value="cool">Cool neutral</option>
-              <option value="warm">Warm neutral</option>
-            </select>
-            <p id="palette-hint" className="muted">Applies immediately and is remembered in this browser. Light and dark mode follow your system setting.</p>
           </section>
           <p className="notice">Changes apply to future jobs. Active jobs will continue with their existing settings.</p>
           {message && <p className={message.kind === "error" ? "error" : "ok"} role={message.kind === "error" ? "alert" : "status"}>{message.text}</p>}

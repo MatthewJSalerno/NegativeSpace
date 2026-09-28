@@ -80,6 +80,8 @@ mount the copy as `/app`: the API is imported in-process, so `--engine` cannot r
 `DRIVER=appearance_browser_drive.py SHOTS=/tmp/ns-shots sh tests/webui_browser_test.sh`
 checks both neutral palettes in light/dark modes, text and input contrast, local
 preference persistence, cross-tab updates, blocked storage, and narrow controls.
+It also checks that Appearance is first in Settings and that dialog scroll cues
+appear and disappear at the corresponding scroll boundaries.
 Create the screenshot directory before mounting it. These screenshots use only
 generated test photos. The normal browser driver also captures each main screen.
 

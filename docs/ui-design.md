@@ -40,7 +40,7 @@ separate foreground/background pairs in both themes.
 These are product choices within an accessibility target, not a claim that every
 control must have the same shape or that every target must be exactly 44px.
 
-Settings offers Cool neutral (default) and Warm neutral palettes. The choice applies
+The first Settings section, Appearance, offers Cool neutral (default) and Warm neutral palettes. The choice applies
 immediately, is stored per browser under `ns.palette`, and follows across tabs;
 it is independent of catalog settings and does not require Save settings. System
 light/dark preference applies to either palette. If browser storage is unavailable,
@@ -68,6 +68,8 @@ cannot clip or cover the text.
 
 ## Keyboard and focus
 
+A modal shows subdued More above/More below cues at its edges when its content can
+scroll in those directions. Cues are noninteractive and disappear at the corresponding end.
 A modal moves focus inside, wraps Tab/Shift+Tab, and restores the opener on close
 (or a logical surviving control). Nested dialogs close one at a time. Destructive
 confirmations start on Cancel. Settings and confirmation cannot be dismissed while
