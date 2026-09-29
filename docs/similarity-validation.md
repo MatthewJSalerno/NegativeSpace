@@ -71,7 +71,8 @@ after the progress fix. Two genuine-RAW fixture tests were unavailable in that
 earlier full run.
 
 Schema version 14 includes saved judgments. Older catalogs remain refused under
-the existing no-migration policy. No real photo library was modified or measured.
+the existing no-migration policy. That synthetic checkpoint did not modify or
+measure a real photo library.
 
 ## Destination-only review validation
 
@@ -82,6 +83,21 @@ links, projected destinations, and missing or changed destination copies while t
 source remains present. Existing judgments survive loss of destination availability.
 A 1,000-record delivered synthetic catalog smoke check verified nonempty benchmark
 scope at all thresholds. This is not a replacement for the 250,000-record scale run.
+
+## Maintainer validation — 2026-09-29
+
+Reported against the validation branch after the destination and UI updates:
+
+| Check | Reported result |
+| --- | --- |
+| Index and Copy | Completed without errors |
+| Destination files | Present |
+| Similar threshold filtering | Adjusts results as expected |
+| Page refresh | Selection remained |
+
+These are manual functional results, not measurements of match accuracy or query
+performance. Lower-than-90% thresholds and destination-query performance at
+250,000 records remain unvalidated.
 
 ## Next validation
 
