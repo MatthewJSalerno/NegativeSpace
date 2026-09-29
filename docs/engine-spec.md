@@ -146,7 +146,7 @@ catalogue, not the tree, so relocating them is a separate action.
 *   **Deduplication:**
     *   **Exact Match:** Files with identical SHA1 hashes (excluding the file's own row, and excluding other rows already flagged `Duplicate`/`Removed_Duplicate`, to prevent a duplicate pair from cascading into mutually flagging each other across repeated scans) are flagged `status = 'Duplicate'`.
     *   **Duplicate removal (`--move` only):** After all targeted `Pending` files are processed, the engine looks up each `Duplicate`-flagged file's matching `Completed` row. **Scoped to the same targeting as the run itself** (`--file-ids` / `--source-subdir` / whole library) — a selective operation never deletes duplicate source files outside the user's selection. Only if a verified copy is confirmed present on disk at that row's `dest_path` is the duplicate's source file deleted (status becomes `Removed_Duplicate`). If no verified copy is found, the source file is left in place and a warning is logged — this prevents data loss in the case where the "kept" copy's own migration failed. Skipped entirely if the run was cancelled (see below).
-    *   **Fuzzy Match:** pHash is generated and stored for every file, but no fuzzy-matching/clustering logic acts on it yet. What acts on it — the precomputed pair table, and the similarity review it backs — is specified in §9.3 and `webui-spec.md` §7.
+    *   **Visual matching:** after scanning, Index compares usable perceptual hashes across the catalog (§9.3). Stored relationships support read-only review in the Similar tab; they never trigger file changes.
 *   **Source Enumeration:** the directory walk uses `os.scandir` over an explicit stack rather than `Path.rglob` plus `is_file()`/`is_symlink()`. `scandir` returns an entry's type from the directory read itself, so the extension test happens before any `stat`; the `rglob` form cost two extra `stat` calls per entry, each a network round trip on a network-mounted source. Hidden files and directories (leading `.`) are skipped and hidden subtrees pruned rather than descended — this is what excludes macOS `.DS_Store`, AppleDouble `._` sidecars and `.Trashes`. A directory that cannot be read is logged and skipped rather than aborting the scan.
 
 *   **Unchanged-File Skip:** before any file is read, the engine compares each candidate's current `stat()` against the `file_size` and `file_mtime` recorded in the catalog. A file whose size and mtime both still match is not re-read — no SHA-1, no pixel decode, no ExifTool pass — because the existing row is already correct. SHA-1 cannot serve this purpose: it is the *result* of reading the file, not something knowable beforehand. This applies to **all three targeting modes**, not only the full scan; the targeted modes are the ones a web UI issues, and re-reading a scoped selection in full was measured costing about seven minutes of network transfer on a ~9,500-file selection before any file was copied. Rows in a non-settled state are always rescanned rather than trusted on the strength of a stat, and a row with no recorded size/mtime reads as "unknown" and is read in full. `--force-rehash` bypasses the comparison entirely.
@@ -230,6 +230,7 @@ catalogue, not the tree, so relocating them is a separate action.
     *   `transferring` for Copy and Move, and `removing_duplicates` for Move: counts are keyed by the outcome recorded for each photo (`Copied`, `Completed`, `Found_At_Destination`, `Skipped`, `Failed`, `Cancelled`, `Removed_Duplicate`, and `Already_Gone` for a duplicate whose source was already gone, which records nothing). A Copy's skipped duplicates and already-copied photos join its total when they are recorded, in the same commit.
     *   `rebuilding_thumbnails`: `made`, `already`, `kept` and `failed`.
     *   `checking_destination` (§9.1), after a `discovering` walk of `--dest`: `ok`, `missing`, `changed`, `unreadable` and `unknown`.
+    *   `matching` (§9.3), after a successful scan: `Compared` counts newly compared distinct hashes. Its final snapshot is flushed before any transfer phase starts.
 
     `done` is always the sum of the counts. Counts are added where each outcome is decided rather than re-derived from `operations`, because recovery rows written during a scan are run-level issues the drawer keeps separate (`webui-spec.md` §5.5). When a phase ends, its counts equal the outcomes `operations` recorded for it, and a test proves that for Copy and Move. The scan's snapshot rides in the writer thread's commit, so it never shows more than the catalog holds. The writer commits when a result arrives and a second has passed. Results arrive in batches, so a batch of slow files holds the count still for a moment: the longest gap measured on a ~1,200-file sample was 2.7s, and the median 1.2s. The transfer loop writes it in its own commit at most once a second: one extra fsync per second on a loop that fsyncs several times per file. A cancelled transfer counts every photo it did not reach as `Cancelled`, so its bar still reaches the total; a cancelled scan stops short of it. Elapsed time comes from `runs.started_at`.
     Runtime uses the run's recorded start/end, surviving browser reconnects. This
@@ -315,7 +316,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 12 and refuses incompatible catalogs before processing.
+initializes schema version 14 and refuses incompatible catalogs before processing.
 No migration exists: preserve an older catalog and use a fresh one. Index cannot
 reconstruct settings, past edits, or deleted-file lineage. Never describe deleting a
 user catalog as routine repair.
@@ -543,7 +544,7 @@ CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id);
 **Recovery, content, cache, discovery and backup records.** The first five are
 written by recovery (4.2), `contents` and `thumbnail_cache` by the scan,
 `run_discovery` by a full Index (4.3), `run_progress` by every job (4.3), `destination_findings` by the destination check (9.1), and the backup records by catalog backups
-(4.1); `file_changes` and `content_similarity` are defined but not yet written.
+(4.1); `file_changes` is defined but not yet written. Index writes `content_similarity`.
 Statement order matters here too:
 `contents` precedes everything referencing it, `operation_events` precedes
 `attention_issues`, and both `operation_evidence` and `attention_issues` precede
@@ -597,8 +598,8 @@ CREATE TABLE attention_evidence (
     PRIMARY KEY(issue_id, evidence_id)
 );
 
--- file_changes and content_similarity: defined, not yet written. thumbnail_cache
--- is written by the scan and the backup records by catalog backups (4.1).
+-- file_changes: defined, not yet written. Index writes content_similarity and
+-- thumbnail_cache; catalog backups (4.1) write the backup records.
 CREATE TABLE file_changes (
     change_id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id INTEGER NOT NULL REFERENCES operation_events(event_id),
@@ -609,14 +610,23 @@ CREATE TABLE file_changes (
     before_values_json TEXT, after_values_json TEXT
 );
 
--- One row per unordered pair; the CHECK is what prevents a reversed duplicate.
+-- Distinct visual hashes only; equal hashes share an implicit zero-distance bucket.
 CREATE TABLE content_similarity (
+    low_hash TEXT NOT NULL, high_hash TEXT NOT NULL,
+    distance INTEGER NOT NULL CHECK(distance BETWEEN 1 AND 6),
+    PRIMARY KEY(low_hash, high_hash), CHECK(low_hash < high_hash)
+);
+CREATE INDEX idx_similarity_reverse ON content_similarity(high_hash, distance, low_hash);
+CREATE TABLE similarity_hashes (phash TEXT PRIMARY KEY);
+CREATE TABLE similarity_reviews (
     low_content_id INTEGER NOT NULL REFERENCES contents(content_id),
     high_content_id INTEGER NOT NULL REFERENCES contents(content_id),
-    distance INTEGER NOT NULL, computed_at TEXT NOT NULL,
-    PRIMARY KEY(low_content_id, high_content_id),
-    CHECK(low_content_id < high_content_id)
+    verdict TEXT NOT NULL CHECK(verdict IN ('same','related','unrelated')),
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY(low_content_id, high_content_id), CHECK(low_content_id < high_content_id)
 );
+CREATE INDEX idx_contents_phash ON contents(phash);
+CREATE INDEX idx_file_states_path ON file_states(current_path, presence_state);
 
 -- Cache state, not lineage: generation never modifies the photo. Keyed on
 -- (content_id, size) because a photo has a grid thumbnail and may also have a
@@ -652,7 +662,7 @@ CREATE TABLE run_progress (
     run_id INTEGER NOT NULL REFERENCES runs(id),
     phase TEXT NOT NULL CHECK(phase IN ('discovering','scanning','transferring',
                                         'removing_duplicates','rebuilding_thumbnails',
-                                        'checking_destination')),
+                                        'checking_destination','matching')),
     seq INTEGER NOT NULL, total INTEGER CHECK(total IS NULL OR total >= 0),
     done INTEGER NOT NULL CHECK(done >= 0), counts_json TEXT NOT NULL,
     started_at TEXT NOT NULL, updated_at TEXT NOT NULL,
@@ -844,8 +854,8 @@ The destination check (§9.1) detects differences without modifying photos. When
 
 ### 9.3. Similarity: Perceptual Pairs
 
-pHash is computed and stored for every file already (§4.2), including RAW. What
-does not exist is anything that compares them.
+pHash is computed and stored during Index (§4.2), including RAW. After scanning,
+Index compares distinct usable hashes across all catalogued content.
 
 **The comparison must be precomputed, not computed per view.** The user-facing
 control is a match-percentage slider (`webui-spec.md` §7), and a slider that
@@ -876,8 +886,29 @@ actionable files without an available copy. Width and height are already capture
 during Index on `contents`, from the same decode that makes the thumbnail, and are
 NULL when unavailable.
 
-**Not implemented.** Needs: pair storage, initial backfill, incremental refresh,
-and the comparison pass during Index.
+**Implemented for read-only review.** The slider offers 90–100%; its score is
+`100 * (64 - Hamming distance) / 64`, so storage covers distances 1–6. Equal
+hashes share an implicit zero-distance bucket without quadratic pair storage.
+The exact candidate index splits hashes into four 16-bit blocks and probes each
+block and its one-bit neighbors before checking the full distance. Every pair
+within six bits must have at least one such block.
+
+`similarity_hashes` records completed hash comparisons. Index backfills all
+unrecorded hashes, including delivered content, then publishes batches of 256
+hashes with their relationships in one transaction. Cancellation rolls back the
+current batch; the next Index resumes it. Readers join current content hashes,
+so changed content membership cannot inherit relationships from its old hash.
+Old hash relationships may remain cached. Missing hashes and incomplete
+comparisons are reported separately by the API. This is schema version 14;
+older development catalogs remain refused under the existing no-migration policy.
+
+`similarity_reviews` stores the user's latest same/related/unrelated judgment for
+an unordered pair of distinct byte identities. These labels do not change matching
+or authorize file operations. The API validates submitted SHA-1 identities inside
+the write transaction, commits at FULL synchronous, and refuses changed or
+unavailable photos. Moves, renames and recomputed visual hashes retain feedback;
+different bytes do not inherit it. Reviews are included in catalog backups;
+saving feedback does not start a backup job.
 
 ### 9.4. Renaming a Delivered File
 

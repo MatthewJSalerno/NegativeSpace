@@ -615,6 +615,64 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
 | `engine_start_timeout` | 500 | The engine recorded no run in time |
 | `backup_timeout` | 500 | Back up now did not finish in 10 minutes |
 
+### `GET /api/v1/similar`
+
+Read-only matching queue. Query: `mode=similar|exact` (default `similar`),
+`threshold=90..100` (default 90), `sort=matches|newest|oldest|name|largest`,
+`q` (literal filename substring), `page` (positive, default 1), `page_size`
+(1–60, default 30). Unknown mode/sort returns 400; numeric validation errors return 422.
+
+Returns `items`, `total`, `page`, `page_size`, `query_ms` (server query duration), and `state` with counts `photos`,
+`unavailable` (no usable visual hash), and `pending` (awaiting comparison).
+Each item contains `id`, `filename`, `file_size`, `date_taken`, `status`, `width`,
+`height`, and `matches`. Only recorded available photos with matches appear;
+visual mode collapses identical bytes to one representative, exact mode retains
+available photo records. Exact mode ignores the visual threshold. File availability
+is catalog evidence, not a live filesystem verification. Missing/incompatible catalogs
+use the existing 409 errors.
+
+### `GET /api/v1/similar/{id}`
+
+Reference-based results with the same mode, threshold, and pagination parameters.
+Returns `reference`, `items`, `total`, `page`, `page_size`, `state`, and
+`availability` (`available`, `hash_unavailable`, or `not_available`). Unknown or
+historical-only references return 200 with `reference: null`, empty items and
+`not_available`. Each match has `score` (visual percentage rounded to two decimals,
+100 for exact copies); filtering uses the unrounded Hamming distance. Available
+results also include `largest_pixels` over the reference and all matching pages,
+or null for unknown dimensions. Matches are relative to the reference, never
+transitive. A direct link to an exact duplicate resolves its content in visual mode.
+Incomplete comparisons are reported through `state.pending`; no results with
+pending work do not establish uniqueness.
+
+### `GET /api/v1/similar/diagnostics`
+
+Returns `state` (as in the matching queue), `distinct_hashes` (usable visual hashes
+across all content), `stored_pairs`, `reviews` (counts by verdict across all saved
+content pairs), `query_ms`, and `last_comparison`. The latter is null if no matching
+progress exists, otherwise `{run_id, started_at, updated_at, elapsed_seconds}`;
+elapsed is the interval covered by the latest reported phase snapshot, not CPU time.
+Equal hashes do not need stored pairs. Review counts are not unbiased quality estimates.
+
+### `GET /api/v1/similar/{id}/review/{other_id}`
+
+Compare any two different available photo IDs, including below-threshold pairs.
+Returns `reference` and `candidate` (matching item fields plus `sha1`), `exact`
+(same content identity), `distance` (0–64, null without usable hashes), `score`
+(hash percentage or null), and `feedback` (null or `{verdict, updated_at}`).
+Unknown, identical-ID or unavailable references return 409 `review_changed`.
+
+### `PUT /api/v1/similar/{id}/review/{other_id}`
+
+Body: `{reference_sha1, candidate_sha1, verdict}`. Verdict is `same`, `related`,
+`unrelated`, or null to clear. Returns the same shape as GET after persistence.
+Labels are keyed by an unordered pair of content identities, so swapping references,
+renaming and moving do not lose feedback. The transaction verifies submitted hashes
+against current available photos; changed content returns 409 `review_changed`.
+Byte-identical content returns 400 `invalid_request`; malformed bodies return 422;
+lock contention returns 503 `catalog_busy`. Feedback changes no photos or match
+results. The catalog retains only the latest judgment for each content pair.
+
 ## 8. Designed, not built
 
 These are designed in `webui-spec.md` and will be described here when they exist:

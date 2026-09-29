@@ -18,6 +18,7 @@ import { ConfirmDialog, transferConfirm, type Confirm } from "./components/Confi
 import { Tip } from "./components/Tip";
 import { ActionsMenu } from "./components/ActionsMenu";
 import { LogsPage } from "./components/LogsPage";
+import { SimilarPage } from "./components/SimilarPage";
 import { StatsLink, StatsPage } from "./components/StatsPage";
 import { follow, navigate, rememberLibraryQuery, useHeaderHeight, useNavigation, usePath } from "./nav";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -87,7 +88,9 @@ export function App() {
         ? <LogsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />
         : path === "/stats"
           ? <StatsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />
-          : <Library status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />}
+          : path === "/similar"
+            ? <SimilarPage status={status} onOpenSettings={() => setSettingsOpen(true)} />
+            : <Library status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />}
       {settingsOpen && <SettingsDialog firstRun={false} onClose={() => setSettingsOpen(false)} onSaved={() => undefined} />}
     </>
   );
@@ -682,6 +685,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               onTransfer={(mode, scope) => (scope === "selected" ? transferSelected(mode)
                                            : scope === "folder" ? askFolder(mode) : askTransfer(mode))} />
             <a className="button-link" href="/logs" onClick={follow}>Logs</a>
+            <a className="button-link" href="/similar" onClick={follow}>Similar</a>
           </nav>
           {(selected.size > 0 || (focus && focus.kind !== "photo")) && (
             <div className="selection-line" role="region" aria-label="Selection">

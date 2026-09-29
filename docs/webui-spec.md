@@ -1280,7 +1280,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 12 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 14 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -1406,8 +1406,8 @@ Everything above is about getting files *in*. This section is about curating
 what is already there — a different activity, with a different safety story.
 
 **These workflows depend on engine capabilities in `engine-spec.md` §9.** The
-destination check and renaming a delivered file are built; the perceptual pair table,
-deleting under `--dest`, and writing EXIF are not. This
+destination check, renaming a delivered file, and read-only similarity review are built;
+deleting under `--dest` and writing EXIF are not. This
 section specifies what the user does; that one specifies what the engine must be
 able to do first.
 
@@ -1489,7 +1489,7 @@ A match-mode control distinguishes them, and the UI must not blur them:
   run, with no new engine work.
 * **Similar (perceptual).** Visually alike but different bytes — the same
   photograph as RAW and JPEG, or full-size and thumbnail. Requires the pair
-  table in `engine-spec.md` §9.3, which does not exist.
+  table in `engine-spec.md` §9.3, populated during Index.
 
 **Every photo's info box states its exact-duplicate count and carries a "find
 similar photos" link** scoped to it.
@@ -1539,6 +1539,33 @@ would decide the name as the file is written, but it is an engine change and it
 asks for naming decisions before the library is organized.
 
 ### 7.4 The Similar tab
+
+**Built:** read-only review at `/similar`, exact/visual mode, a 90–100% visual
+threshold, most-matches/date/filename/file-size sort, filename search, paginated
+queue and reference results, dimensions and largest-dimensions labels, and an
+Inspector link into the review. Visual mode represents each byte identity once;
+exact mode includes its still-available photo records. Equal visual hashes of
+different byte identities remain visual matches, including at 100%.
+Availability is recorded evidence, not a fresh filesystem check. Missing hashes
+and pending comparisons are explicit, and Index resumes unfinished comparisons.
+URL state preserves filters, reference and pages on reload or browser navigation.
+Primary selection, discard and EXIF actions below remain future work; the current
+review does not select targets or modify files.
+
+**Validation:** each match offers **Review side by side**, with shared zoom and
+horizontal/vertical position controls. Zoom magnifies the generated previews (up
+to 1024 pixels), not original-resolution pixels. The dialog shows dimensions,
+file sizes, exact-content status and visual hash distance. It explains that hash
+percentages are not confidence estimates, including at 100%.
+For different byte identities users can save **Same photograph**, **Related
+photograph**, or **Unrelated**, or clear the judgment. Feedback never changes
+photos or matching results. Stale-content refusals require refresh and another
+review. Exact copies do not need a visual judgment.
+The expandable **Validation and performance** panel shows distinct usable hashes,
+stored pairs, incomplete/unavailable counts, server queue time, the most recently
+reported comparison-phase elapsed time, and counts of saved judgments. These
+selected judgments are not presented as whole-library accuracy. Missing timing is
+shown as not recorded; reported phase time is not a dedicated CPU benchmark.
 
 Matching compares against the full catalog, including delivered photos; it needs an
 initial backfill and refresh when perceptual hashes change (`engine-spec.md` §9.3).

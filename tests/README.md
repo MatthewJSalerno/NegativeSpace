@@ -77,6 +77,39 @@ mount the copy as `/app`: the API is imported in-process, so `--engine` cannot r
 
 ## Web interface in a browser — `webui_browser_test.sh`
 
+`tools/validate-similarity.py` creates deterministic original/resize/recompression/
+brightness/crop image pairs, unrelated scenes and a flat-color collision. Run it
+inside the app image, with a writable output mount:
+
+```bash
+docker run --rm --user "$(id -u):$(id -g)" --entrypoint python3 \
+  -v "$PWD":/app:ro -v /tmp:/output -w /app negativespace \
+  tools/validate-similarity.py --output /output/ns-similarity-validation --benchmark-photos 10000
+```
+
+The output directory must be new. Open its `index.html` for a threshold slider,
+side-by-side known pairs and an errors-only filter; `report.json` contains metrics.
+The synthetic catalog benchmark measures initial/unchanged/incremental comparisons,
+queue timings at three thresholds, logical database bytes and whole-process peak
+RSS (KiB on Linux). Its clustered hashes and geometric fixtures are reproducible
+diagnostics, not real-library quality or capacity claims. No real library is read.
+The library may exceed 200,000 photos: use `--benchmark-photos 250000` for capacity
+validation with headroom (the tool accepts up to 500,000). It measures both queue
+and reference queries, seven times per threshold. Fixture creation and photo decode
+are outside the comparison timings; whole-process peak RSS includes fixture setup.
+Results describe the local temporary Docker catalog and its caches, not network
+storage performance. Hash distribution and match density also affect scale.
+Actual Similar-page query timings and human judgments provide the next validation
+step on a representative catalog. Side-by-side feedback never modifies photos.
+
+`DRIVER=similar_browser_drive.py sh tests/webui_browser_test.sh` checks real Index
+comparisons, the visual/exact modes, threshold filtering, pagination, Inspector
+navigation, reload, search, refresh and narrow-screen layout using generated photos.
+It also checks shared preview zoom, persistent content-pair judgments, and diagnostics.
+The database suite verifies the hash index against brute force and interrupted
+comparison recovery; the API suite checks reference-only matches, hash changes,
+availability, exact copies, thresholds and pagination.
+
 `DRIVER=gallery_position_browser_drive.py sh tests/webui_browser_test.sh` checks
 Logs photo positioning, offscreen Inspector navigation, retained filters, explicit
 hidden-photo display, retry, ordinary gallery clicks, manual scrolling and History

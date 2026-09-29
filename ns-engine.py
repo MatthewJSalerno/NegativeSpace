@@ -284,6 +284,7 @@ from ns_db import (PhotoStatus, RunStatus, PHOTO_STATUSES, RUN_STATUSES,
                    OPERATION_STATUSES, OPERATION_CANCELLED, OPERATION_SKIPPED, OPERATION_RENAMED,
                    RAW_EXTENSIONS, RASTER_EXTENSIONS, SUPPORTED_EXTENSIONS)
 import ns_db
+import ns_similarity
 
 # The CPUs this container may really use, not the host's count: a --cpus quota or
 # --cpuset-cpus set is invisible to os.cpu_count() (ns_db.available_cpus).
@@ -4490,7 +4491,20 @@ def main():
                     f"Pending (their original changed, failed or disappeared), {demoted} marked "
                     f"Duplicate (their content is already delivered or queued)."
                 )
-            if args.move or args.copy:
+            run_progress.start("matching", None)
+            def matching_progress(done, total):
+                run_progress.set_total(total)
+                run_progress.set_count("Compared", done)
+                if run_progress.due():
+                    run_progress.write_now()
+            with contextlib.closing(get_db_connection(str(db_path))) as matching_conn:
+                matching_complete = ns_similarity.refresh(matching_conn, cancelled=cancel_requested.is_set,
+                                                          progress=matching_progress)
+            run_progress.write_now()
+            if not matching_complete:
+                run_outcome = RunStatus.CANCELLED
+                logger.info("Similarity comparison cancelled; the next Index will resume it.")
+            elif args.move or args.copy:
                 run_outcome = _run_move_or_copy(args, db_path, dest_path, run_id)
             else:
                 run_outcome = RunStatus.COMPLETED

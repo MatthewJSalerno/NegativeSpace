@@ -16,7 +16,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 14
 
 class PhotoStatus:
     """State of one source file in the catalog. A path is unique among files still in the
@@ -458,13 +458,22 @@ FOUNDATION_DDL = (
         after_content_id INTEGER REFERENCES contents(content_id),
         before_path TEXT, after_path TEXT,
         before_values_json TEXT, after_values_json TEXT)""",
-    # One row per unordered pair; the CHECK is what prevents a reversed duplicate.
+    # Equal visual hashes share an implicit zero-distance bucket. Store only
+    # distinct-hash pairs, so visually identical content does not grow quadratically.
     """CREATE TABLE content_similarity (
+        low_hash TEXT NOT NULL, high_hash TEXT NOT NULL,
+        distance INTEGER NOT NULL CHECK(distance BETWEEN 1 AND 6),
+        PRIMARY KEY(low_hash, high_hash), CHECK(low_hash < high_hash))""",
+    "CREATE INDEX idx_similarity_reverse ON content_similarity(high_hash, distance, low_hash)",
+    "CREATE TABLE similarity_hashes (phash TEXT PRIMARY KEY)",
+    """CREATE TABLE similarity_reviews (
         low_content_id INTEGER NOT NULL REFERENCES contents(content_id),
         high_content_id INTEGER NOT NULL REFERENCES contents(content_id),
-        distance INTEGER NOT NULL, computed_at TEXT NOT NULL,
-        PRIMARY KEY(low_content_id, high_content_id),
-        CHECK(low_content_id < high_content_id))""",
+        verdict TEXT NOT NULL CHECK(verdict IN ('same','related','unrelated')),
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(low_content_id, high_content_id), CHECK(low_content_id < high_content_id))""",
+    "CREATE INDEX idx_contents_phash ON contents(phash)",
+    "CREATE INDEX idx_file_states_path ON file_states(current_path, presence_state)",
     # Cache state, not lineage: a thumbnail failure is a diagnostic, and
     # generation never modifies the photo.
     # Keyed on (content_id, size): a photo has a grid thumbnail and may also have a
@@ -499,7 +508,7 @@ FOUNDATION_DDL = (
         run_id INTEGER NOT NULL REFERENCES runs(id),
         phase TEXT NOT NULL CHECK(phase IN ('discovering','scanning','transferring',
                                             'removing_duplicates','rebuilding_thumbnails',
-                                            'checking_destination')),
+                                            'checking_destination','matching')),
         seq INTEGER NOT NULL, total INTEGER CHECK(total IS NULL OR total >= 0),
         done INTEGER NOT NULL CHECK(done >= 0), counts_json TEXT NOT NULL,
         started_at TEXT NOT NULL, updated_at TEXT NOT NULL,
@@ -582,7 +591,7 @@ def require_schema(conn):
         required = {'photos','runs','operations','files','photo_files','source_snapshots',
                     'file_observations','operation_files','settings','run_configs','job_requests',
                     'file_origins','file_states','contents','operation_events','operation_evidence',
-                    'attention_issues','attention_evidence','file_changes','content_similarity',
+                    'attention_issues','attention_evidence','file_changes','content_similarity','similarity_hashes','similarity_reviews',
                     'thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state'}
         present = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if not required <= present:

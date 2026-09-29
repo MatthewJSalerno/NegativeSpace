@@ -135,12 +135,11 @@ files under `Undated/<year>/`, the year taken from the source's modification tim
 as captured at its original Index; `CreateDate` and `DateTime` are kept as review
 evidence but never place a file. See `engine-spec.md` §4.2.
 
-**Three capabilities the web UI depends on do not exist yet**, each specified
+**Two capabilities the web UI depends on do not exist yet**, each specified
 with what it needs:
 
 | Gap | Where | Blocks |
 | :--- | :--- | :--- |
-| Precomputed perceptual pairs | `engine-spec.md` §9.3 | Similar-photo review and its slider |
 | Delete under `--dest`, with an extended record | `engine-spec.md` §9.5 | Discarding redundant copies; needs `width`/`height` too |
 | Writing embedded EXIF (sidecars remain a future option) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
 
@@ -201,6 +200,11 @@ service. Built and tested:
     *   the **Stats** page: the library in figures (formats, cameras, resolution, dates,
         duplicate space with its coverage, activity, catalog health), each leading to
         the photos or log entries behind it.
+    *   the **Similar** page: read-only exact/visual matching, a 90–100% threshold,
+        search and sorting, paginated reference comparisons, dimensions, and links
+        to photo details. Index precomputes comparisons and resumes interrupted work.
+        A side-by-side review dialog provides linked zoom and saved content-pair
+        judgments; the validation panel shows coverage, timings and review counts.
 
     `tests/webui_browser_test.sh` drives them in a real browser.
 
@@ -214,12 +218,12 @@ Specified but not yet on screen:
 *   Each folder's last-scanned time in the Folders tree.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
-*   The Rename, Similar and Undated tabs, and metadata editing.
+*   The Rename and Undated tabs, similarity curation actions, and metadata editing.
 
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 12; older catalogs are refused, never migrated. It stores immutable
+at schema version 14; older catalogs are refused, never migrated. It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its
 identity, and reuse of an existing destination keeps both identities and links the

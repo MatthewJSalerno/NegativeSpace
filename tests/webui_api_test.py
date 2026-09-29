@@ -370,6 +370,13 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual((page["total"], page["counts"]["organized"], page["counts"]["unorganized"]), (2, 0, 2))
         self.assertEqual([i["date_taken"][:4] for i in page["items"]], ["2023", "2020"], "not newest first")
         self.assertEqual(sorted(i["duplicates"] for i in page["items"]), [0, 1])
+        matching = self.client.get('/api/v1/similar').json()
+        self.assertEqual(matching['state']['pending'], 0, 'Index did not complete its comparisons')
+        self.assertEqual(matching['total'], 2)
+        diagnostics = self.client.get('/api/v1/similar/diagnostics').json()
+        self.assertEqual(diagnostics['last_comparison']['run_id'], run['id'])
+        self.assertGreaterEqual(diagnostics['last_comparison']['elapsed_seconds'], 0)
+        self.assertEqual(self.client.get('/api/v1/similar?mode=exact').json()['total'], 2)
 
         timeline = self.client.get("/api/v1/photos/timeline").json()
         self.assertEqual(timeline, {"months": [{"month": "2023-11", "count": 1}, {"month": "2020-09", "count": 1}],
@@ -1171,6 +1178,163 @@ class DerivedOutcome(ApiCase):
         cancelled = self.run_with("MOVE", [scan, ("transferring", 3, {"Completed": 1, "Cancelled": 2})],
                                   status=ns_db.RunStatus.CANCELLED)
         self.assertEqual((cancelled["verdict"], cancelled["succeeded"], cancelled["cancelled"]), ("cancelled", 1, 2))
+
+
+class MatchingTests(ApiCase):
+    def setUp(self):
+        super().setUp()
+        self.create_catalog()
+        self.conn = ns_db.connect(self.cfg.db_path)
+        self.run = ns_db.create_run(self.conn, mode='INDEX', source='/source', destination='/destination')[0]
+
+    def tearDown(self):
+        self.conn.close()
+        super().tearDown()
+
+    def photo(self, name, digest, phash, status='Pending', width=640):
+        with ns_db.transaction(self.conn):
+            path = f'/source/{name}.jpg'
+            photo = self.conn.execute('INSERT INTO photos(source_path,status,sha1_hash,file_size) VALUES(?,?,?,10)',
+                                      (path,status,digest)).lastrowid
+            ns_db.record_source_observation(self.conn, photo_id=photo, run_id=self.run, source_path=path,
+                sha1_hash=digest, file_size=10, file_mtime=100, birthtime=None, metadata={}, error=None)
+            ns_db.content_for_digest(self.conn, digest=digest, phash=phash, phash_state='ok' if phash else 'failed', width=width, height=480)
+        return photo
+
+    def refresh(self):
+        import ns_similarity
+        self.assertTrue(ns_similarity.refresh(self.conn))
+
+    def test_review_is_symmetric_persistent_and_bound_to_content(self):
+        a = self.photo('first', 'a', '0000000000000000')
+        b = self.photo('second', 'b', 'ffffffffffffffff')
+        route = f'/api/v1/similar/{a}/review/{b}'
+        before = self.conn.execute('SELECT id,source_path,status,sha1_hash FROM photos ORDER BY id').fetchall()
+        pair = self.client.get(route).json()
+        self.assertEqual((pair['distance'], pair['score'], pair['exact']), (64, 0, False))
+        body = {'verdict':'same','reference_sha1':'a','candidate_sha1':'b'}
+        self.assertEqual(self.client.put(route,json=body).status_code, 200)
+        reverse = self.client.get(f'/api/v1/similar/{b}/review/{a}').json()
+        self.assertEqual(reverse['feedback']['verdict'], 'same')
+        self.assertEqual(self.client.get('/api/v1/similar/diagnostics').json()['reviews'], {'same':1})
+        self.assertEqual(before, self.conn.execute('SELECT id,source_path,status,sha1_hash FROM photos ORDER BY id').fetchall())
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE contents SET phash='0000000000000001' WHERE digest='b'")
+        self.assertEqual(self.client.get(route).json()['feedback']['verdict'], 'same', 'recomputed hash lost content feedback')
+        replacement = self.photo('replacement', 'c', '0000000000000001')
+        self.assertIsNone(self.client.get(f'/api/v1/similar/{a}/review/{replacement}').json()['feedback'])
+        body['candidate_sha1'] = 'old-content'
+        self.assertEqual(self.client.put(route,json=body).status_code, 409)
+        self.assertEqual(self.client.get(route).json()['feedback']['verdict'], 'same')
+        body.update(candidate_sha1='b', verdict=None)
+        self.assertIsNone(self.client.put(route,json=body).json()['feedback'])
+        self.assertEqual(self.client.get('/api/v1/similar/diagnostics').json()['reviews'], {})
+
+    def test_review_rejects_unavailable_photos_bad_labels_and_exact_content(self):
+        a = self.photo('first', 'a', None)
+        b = self.photo('duplicate', 'a', None, status='Duplicate')
+        route = f'/api/v1/similar/{a}/review/{b}'
+        pair = self.client.get(route).json()
+        self.assertTrue(pair['exact'])
+        self.assertIsNone(pair['distance'])
+        body = {'verdict':'same','reference_sha1':'a','candidate_sha1':'a'}
+        self.assertEqual(self.client.put(route,json=body).status_code, 400)
+        body['verdict'] = 'delete'
+        self.assertEqual(self.client.put(route,json=body).status_code, 422)
+        self.assertEqual(self.client.get(f'/api/v1/similar/{a}/review/999999').status_code, 409)
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE current_path='/source/duplicate.jpg'")
+        self.assertEqual(self.client.get(route).status_code, 409)
+
+    def test_diagnostics_counts_hashes_and_pairs_without_inventing_a_timing(self):
+        self.photo('first','a','FFFFFFFFFFFFFFFF')
+        self.photo('second','b','fffffffffffffffe')
+        self.photo('invalid','c','bad')
+        before = self.client.get('/api/v1/similar/diagnostics').json()
+        self.assertEqual(before['distinct_hashes'], 2)
+        self.assertIsNone(before['last_comparison'])
+        self.assertEqual(before['state']['pending'], 2)
+        self.refresh()
+        after = self.client.get('/api/v1/similar/diagnostics').json()
+        self.assertEqual(after['stored_pairs'], 1)
+        self.assertEqual(after['state']['pending'], 0)
+        self.assertEqual(after['state']['unavailable'], 1)
+        self.assertGreaterEqual(after['query_ms'], 0)
+
+    def test_reference_matches_are_not_transitive_and_thresholds_are_exact(self):
+        a = self.photo('reference', 'a', '0000000000000000')
+        b = self.photo('near', 'b', '000000000000003f', width=1280)
+        c = self.photo('chain-only', 'c', '0000000000000fff')
+        self.refresh()
+        result = self.client.get(f'/api/v1/similar/{a}').json()
+        self.assertEqual([p['id'] for p in result['items']], [b])
+        self.assertEqual(result['items'][0]['score'], 90.62)
+        self.assertEqual(result['largest_pixels'], 1280*480)
+        self.assertEqual(self.client.get(f'/api/v1/similar/{a}?threshold=91').json()['total'], 0)
+        self.assertEqual(self.client.get(f'/api/v1/similar/{b}').json()['total'], 2)
+        self.assertNotEqual(a, c)
+
+    def test_equal_hashes_collapse_exact_content_but_exact_mode_keeps_copies(self):
+        a = self.photo('original', 'a', 'FFFFFFFFFFFFFFFF')
+        duplicate = self.photo('copy', 'a', 'ffffffffffffffff', status='Duplicate')
+        b = self.photo('other-bytes', 'b', 'ffffffffffffffff')
+        self.refresh()
+        result = self.client.get('/api/v1/similar?threshold=100').json()
+        self.assertEqual({p['id'] for p in result['items']}, {a,b})
+        result = self.client.get(f'/api/v1/similar/{duplicate}?threshold=100').json()
+        self.assertEqual([p['id'] for p in result['items']], [b])
+        result = self.client.get(f'/api/v1/similar/{a}?mode=exact').json()
+        self.assertEqual([p['id'] for p in result['items']], [duplicate])
+
+    def test_changed_hash_missing_hash_and_missing_file_do_not_claim_matches(self):
+        a = self.photo('first', 'a', '0000000000000000')
+        b = self.photo('second', 'b', '0000000000000001')
+        missing = self.photo('unreadable', 'missing', None)
+        self.refresh()
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE contents SET phash='ffffffffffffffff' WHERE digest='b'")
+        self.assertEqual(self.client.get(f'/api/v1/similar/{a}').json()['total'], 0)
+        self.assertEqual(self.client.get('/api/v1/similar').json()['state'], {'photos':3,'unavailable':1,'pending':1})
+        self.assertEqual(self.client.get(f'/api/v1/similar/{missing}').json()['availability'], 'hash_unavailable')
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE sha1_hash='b'")
+        self.assertEqual(self.client.get(f'/api/v1/similar/{b}').json()['availability'], 'not_available')
+
+    def test_search_pagination_and_input_validation(self):
+        for i in range(7):
+            self.photo(f'item-{i}', str(i), '0000000000000000')
+        self.refresh()
+        first = self.client.get('/api/v1/similar?page_size=3').json()
+        second = self.client.get('/api/v1/similar?page_size=3&page=2').json()
+        self.assertEqual(first['total'], 7)
+        self.assertEqual(len(first['items']), 3)
+        self.assertTrue({p['id'] for p in first['items']}.isdisjoint(p['id'] for p in second['items']))
+        self.assertEqual(self.client.get('/api/v1/similar?q=item-2').json()['total'], 1)
+        self.assertEqual(self.client.get('/api/v1/similar?q=%25').json()['total'], 0)
+        for query in ('threshold=89', 'threshold=101', 'threshold=nan', 'page=0', 'page_size=61'):
+            self.assertEqual(self.client.get('/api/v1/similar?'+query).status_code, 422, query)
+        for query in ('mode=other', 'sort=other'):
+            self.assertEqual(self.client.get('/api/v1/similar?'+query).status_code, 400, query)
+
+    def test_delivered_content_matches_but_a_missing_duplicate_source_is_not_a_copy(self):
+        original = self.photo('original', 'a', '0000000000000000')
+        duplicate = self.photo('copy', 'a', '0000000000000000', status='Duplicate')
+        other = self.photo('other', 'b', '0000000000000001')
+        self.refresh()
+        with ns_db.transaction(self.conn):
+            op = self.conn.execute("INSERT INTO operations(run_id,photo_id,status,timestamp) VALUES(?,?,'Completed','test')",
+                                   (self.run, original)).lastrowid
+            ns_db.link_operation(self.conn, op, original)
+            ns_db.record_delivery(self.conn, operation_id=op, photo_id=original, run_id=self.run,
+                                  destination='/destination/original.jpg', source_removed=True,
+                                  created=True, sha1_hash='a')
+            self.conn.execute("UPDATE photos SET status='Completed',dest_path='/destination/original.jpg' WHERE id=?", (original,))
+            self.conn.execute("UPDATE photos SET dest_path='/destination/original.jpg' WHERE id=?", (duplicate,))
+            self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE current_path='/source/copy.jpg'")
+        result = self.client.get(f'/api/v1/similar/{original}').json()
+        self.assertEqual([p['id'] for p in result['items']], [other])
+        self.assertEqual(self.client.get('/api/v1/similar?mode=exact').json()['total'], 0)
+        self.assertEqual(self.client.get(f'/api/v1/similar/{duplicate}?mode=exact').json()['availability'], 'not_available')
 
 
 if __name__ == "__main__":

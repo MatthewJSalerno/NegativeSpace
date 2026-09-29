@@ -52,7 +52,7 @@ const MODE_NAME: Record<string, string> = {
 const PHASE: Record<string, string> = {
   discovering: "Looking for photos", scanning: "Reading photos", transferring: "Transferring",
   removing_duplicates: "Removing duplicate sources", rebuilding_thumbnails: "Making thumbnails",
-  checking_destination: "Checking files",
+  checking_destination: "Checking files", matching: "Comparing photos",
 };
 // Outcome keys from the engine's progress counts (engine-spec 4.3), as the user reads them.
 const OUTCOME: Record<string, string> = {

@@ -34,7 +34,7 @@ ARG NS_BRANCH=
 ARG NS_COMMIT=
 ENV NS_BRANCH=$NS_BRANCH NS_COMMIT=$NS_COMMIT
 COPY VERSION ./
-COPY ns-engine.py ns_db.py ./
+COPY ns-engine.py ns_db.py ns_similarity.py ./
 COPY webui/*.py ./webui/
 RUN chmod 644 ns-engine.py
 

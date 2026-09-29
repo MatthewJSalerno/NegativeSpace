@@ -66,6 +66,7 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
               onIndex={startJob("index")}
               onTransfer={(mode) => setConfirm(transferConfirm(mode, status, undefined, startJob(mode)))} />
             <a className="button-link" href="/logs" onClick={follow}>Logs</a>
+            <a className="button-link" href="/similar" onClick={follow}>Similar</a>
           </nav>
           <div className="toolbar-actions">
             <VersionTag version={status.version} />
@@ -179,7 +180,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
             ["Saved at the destination", <Tipped key="s" tip="Extra copies of photos already copied or moved: the destination holds one copy, not two. A duplicate of a photo not yet delivered has saved nothing so far.">{`${bytes(s.duplicates.saved_at_destination)} · ${plural(s.duplicates.copies_not_written, "duplicate file")} not copied`}</Tipped>],
             ["A Move would free in the source", <Tipped key="m" tip="Extra copies still in the source: a Move removes each once a copy of its content is verified at the destination.">{bytes(s.duplicates.move_would_free)}</Tipped>],
             ["Freed by earlier Moves", bytes(s.duplicates.freed_by_moves)],
-            ["Near-duplicates (resized, re-saved)", <span key="nd" className="muted">Not recorded yet: they arrive with the Similar tab</span>],
+            ["Near-duplicates (resized, re-saved)", <a key="nd" href="/similar" onClick={follow}>Review similar photos</a>],
           ]} />
           <Coverage c={s.duplicates.coverage} />
           {s.duplicates.by_folder.length > 1 && (

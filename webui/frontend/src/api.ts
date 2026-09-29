@@ -474,7 +474,40 @@ function submitJob(path: string, body: Record<string, unknown>): Promise<Run> {
   return promise;
 }
 
+export interface MatchPhoto {
+  id: number; filename: string; file_size: number | null; date_taken: string | null;
+  status: string; width: number | null; height: number | null; matches?: number; score?: number;
+}
+export interface MatchPage {
+  items: MatchPhoto[]; total: number; page: number; page_size: number;
+  state: { photos: number; unavailable: number; pending: number };
+  reference?: MatchPhoto | null;
+  availability?: "available" | "not_available" | "hash_unavailable";
+  largest_pixels?: number | null;
+  query_ms?: number;
+}
+
+export type MatchVerdict = "same" | "related" | "unrelated";
+export interface MatchReview {
+  reference: MatchPhoto & { sha1: string }; candidate: MatchPhoto & { sha1: string };
+  exact: boolean; distance: number | null; score: number | null;
+  feedback: { verdict: MatchVerdict; updated_at: string } | null;
+}
+export interface MatchDiagnostics {
+  state: MatchPage["state"]; distinct_hashes: number; stored_pairs: number;
+  reviews: Partial<Record<MatchVerdict, number>>; query_ms: number;
+  last_comparison: { run_id: number; started_at: string; updated_at: string; elapsed_seconds: number } | null;
+}
+
 export const api = {
+  matchDiagnostics: () => request<MatchDiagnostics>("GET", "/api/v1/similar/diagnostics"),
+  matchReview: (reference: number, candidate: number) =>
+    request<MatchReview>("GET", `/api/v1/similar/${reference}/review/${candidate}`),
+  saveMatchReview: (review: MatchReview, verdict: MatchVerdict | null) =>
+    request<MatchReview>("PUT", `/api/v1/similar/${review.reference.id}/review/${review.candidate.id}`,
+      { verdict, reference_sha1: review.reference.sha1, candidate_sha1: review.candidate.sha1 }),
+  matches: (query: URLSearchParams, photo: number | null = null) =>
+    request<MatchPage>("GET", `/api/v1/similar${photo == null ? "" : `/${photo}`}?${query}`),
   status: () => request<Status>("GET", "/api/v1/status"),
   createCatalog: () => request<Status>("POST", "/api/v1/catalog"),
   settings: () => request<Settings>("GET", "/api/v1/settings"),

@@ -569,4 +569,61 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn('Copy and Move would carry them into the destination', mov['warning'])
         self.assertEqual(db.SUPPORTED_EXTENSIONS, db.RASTER_EXTENSIONS | db.RAW_EXTENSIONS)
 
+class SimilarityTests(unittest.TestCase):
+    setUp = DatabaseTests.setUp
+    tearDown = DatabaseTests.tearDown
+
+    def test_hash_index_matches_brute_force_at_every_supported_distance(self):
+        import random
+        from ns_similarity import HashIndex
+        rng = random.Random(73)
+        values = {rng.getrandbits(64) for _ in range(150)}
+        for base in list(values)[:20]:
+            for distance in range(1, 9):
+                mask = sum(1 << bit for bit in rng.sample(range(64), distance))
+                values.add(base ^ mask)
+        index = HashIndex()
+        for value in values:
+            index.add(value)
+        for value in values:
+            expected = {(other, (value ^ other).bit_count()) for other in values if (value ^ other).bit_count() <= 6}
+            self.assertEqual(set(index.near(value)), expected)
+
+    def test_comparisons_resume_atomically_and_equal_hashes_need_no_pairs(self):
+        import ns_similarity
+        with db.transaction(self.conn):
+            for i in range(300):
+                db.content_for_digest(self.conn, digest=str(i), phash=f'{i:016x}', phash_state='ok')
+            for i in range(1000):
+                db.content_for_digest(self.conn, digest=f'equal-{i}', phash='0000000000000000', phash_state='ok')
+            db.content_for_digest(self.conn, digest='invalid', phash='bad', phash_state='ok')
+        checkpoints = []
+        self.assertFalse(ns_similarity.refresh(self.conn, cancelled=lambda: bool(checkpoints and checkpoints[-1][0] == 256),
+                                               progress=lambda *p: checkpoints.append(p)))
+        self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM similarity_hashes').fetchone()[0], 256)
+        self.assertTrue(ns_similarity.refresh(self.conn))
+        pairs = {tuple(row) for row in self.conn.execute('SELECT low_hash,high_hash,distance FROM content_similarity')}
+        expected = {(f'{a:016x}', f'{b:016x}', (a ^ b).bit_count()) for a in range(300) for b in range(a+1, 300)
+                    if (a ^ b).bit_count() <= 6}
+        self.assertEqual(pairs, expected)
+        self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM similarity_hashes').fetchone()[0], 300)
+        self.assertTrue(ns_similarity.refresh(self.conn))
+        self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM content_similarity').fetchone()[0], len(expected))
+
+    def test_cancel_during_a_hash_rolls_back_its_pairs_and_completion_marker(self):
+        import ns_similarity
+        with db.transaction(self.conn):
+            for i in range(12):
+                db.content_for_digest(self.conn, digest=str(i), phash=f'{i:016x}', phash_state='ok')
+        calls = 0
+        def cancel():
+            nonlocal calls
+            calls += 1
+            return calls == 8
+        self.assertFalse(ns_similarity.refresh(self.conn, cancelled=cancel))
+        self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM similarity_hashes').fetchone()[0], 0)
+        self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM content_similarity').fetchone()[0], 0)
+        self.assertTrue(ns_similarity.refresh(self.conn))
+
+
 if __name__ == '__main__':unittest.main()
