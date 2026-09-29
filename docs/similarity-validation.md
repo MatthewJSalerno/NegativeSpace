@@ -8,7 +8,8 @@ implementation at that scale.
 ## What is implemented
 
 - Incremental, resumable visual-hash comparisons in SQLite during Index.
-- Exact and visual match review, threshold filtering, and reference comparisons.
+- Visual match review, threshold filtering, and reference comparisons. Exact-copy
+  information remains in photo details, history and Stats.
 - Side-by-side generated previews with linked zoom and position controls.
 - Same/related/unrelated judgments stored against pairs of content identities.
 - Coverage, comparison timing, query timing, and judgment-count diagnostics.

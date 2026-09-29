@@ -622,6 +622,9 @@ Read-only matching queue. Query: `mode=similar|exact` (default `similar`),
 `q` (literal filename substring), `page` (positive, default 1), `page_size`
 (1–60, default 30). Unknown mode/sort returns 400; numeric validation errors return 422.
 
+The Similar screen uses visual matching only. The API retains exact mode for
+compatibility and diagnostic use; exact-copy details remain in the Inspector.
+
 Returns `items`, `total`, `page`, `page_size`, `query_ms` (server query duration), and `state` with counts `photos`,
 `unavailable` (no usable visual hash), and `pending` (awaiting comparison).
 Each item contains `id`, `filename`, `file_size`, `date_taken`, `status`, `width`,

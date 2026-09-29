@@ -103,7 +103,7 @@ Actual Similar-page query timings and human judgments provide the next validatio
 step on a representative catalog. Side-by-side feedback never modifies photos.
 
 `DRIVER=similar_browser_drive.py sh tests/webui_browser_test.sh` checks real Index
-comparisons, the visual/exact modes, threshold filtering, pagination, Inspector
+comparisons, visual review (including old exact-mode bookmarks), threshold filtering, pagination, Inspector
 navigation, reload, search, refresh and narrow-screen layout using generated photos.
 It also checks shared preview zoom, persistent content-pair judgments, and diagnostics.
 The database suite verifies the hash index against brute force and interrupted

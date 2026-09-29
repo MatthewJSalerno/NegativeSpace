@@ -16,7 +16,6 @@ function read() {
   const p = new URLSearchParams(location.search);
   const positive = (key: string) => Math.max(1, Math.floor(Number(p.get(key)) || 1));
   return {
-    mode: p.get("mode") === "exact" ? "exact" : "similar",
     threshold: Math.min(100, Math.max(90, Number(p.get("threshold") ?? 90) || 90)),
     sort: ["matches", "newest", "oldest", "name", "largest"].includes(p.get("sort") || "") ? p.get("sort")! : "matches",
     q: p.get("q") || "", page: positive("page"),
@@ -109,7 +108,7 @@ export function SimilarPage({ status, onOpenSettings }: { status: Status; onOpen
       {detail && matches?.largest_pixels != null && photo.width && photo.height && photo.width * photo.height === matches.largest_pixels
         ? <span className="badge">Largest dimensions</span> : null}
       {photo.matches != null && <span>{plural(photo.matches, "match", "matches")}</span>}
-      {photo.score != null && <span>{filters.mode === "exact" ? "Identical bytes" : `${photo.score}% visual match`}</span>}
+      {photo.score != null && <span>{photo.score}% visual match</span>}
       {detail && <a href={photoUrl(photo.id)} onClick={follow}>Photo details and history</a>}
       {detail && matches?.reference && photo.id !== matches.reference.id && <button
         onClick={() => setReviewPair([matches.reference!.id, photo.id])}>Review side by side</button>}
@@ -135,20 +134,17 @@ export function SimilarPage({ status, onOpenSettings }: { status: Status; onOpen
       <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
     </header>
     <main id="main-content" tabIndex={-1} className="similar-page">
-      <h2>{filters.mode === "exact" ? "Photos with exact copies" : "Photos with visual matches"}</h2>
+      <h2>Photos with visual matches</h2>
       <p className="muted">Compare photos and inspect their history. File availability is recorded from the last observation.</p>
-      {filters.mode === "similar" && <p className="muted">The percentage measures hash similarity, not confidence. A 100% score does not mean identical pictures.</p>}
+      <p className="muted">The percentage measures hash similarity, not confidence. A 100% score does not mean identical pictures.</p>
       <details onToggle={(e) => setDiagnosticsOpen(e.currentTarget.open)}><summary>Validation and performance</summary>
         {diagnosticsOpen && <MatchDiagnosticsPanel refreshKey={`${jobKey}:${refresh}:${reviewsChanged}`} queueMs={queue?.query_ms} />}
       </details>
       <div className="match-controls">
-        <label>Match mode <select aria-label="Match mode" value={filters.mode} onChange={(e) => update({ mode: e.target.value, page: 1, match_page: 1 })}>
-          <option value="similar">Similar (visual)</option><option value="exact">Exact (identical bytes)</option>
-        </select></label>
-        {filters.mode === "similar" && <label>Minimum visual match: {filters.threshold}%
+        <label>Minimum visual match: {filters.threshold}%
           <input type="range" min="90" max="100" step="1" value={filters.threshold} aria-label="Minimum visual match"
             onChange={(e) => update({ threshold: Number(e.target.value), page: 1, match_page: 1 })} />
-        </label>}
+        </label>
         <label>Sort <select aria-label="Sort" value={filters.sort} onChange={(e) => update({ sort: e.target.value, page: 1 })}>
           <option value="matches">Most matches</option><option value="newest">Newest</option><option value="oldest">Oldest</option>
           <option value="name">Filename</option><option value="largest">File size</option>
@@ -160,7 +156,7 @@ export function SimilarPage({ status, onOpenSettings }: { status: Status; onOpen
       {error && <p role="alert" className="error">{error} <button onClick={reload}>Retry</button></p>}
       {loading && <p role="status">Loading matches…</p>}
       <div aria-busy={loading} inert={loading}>
-      {queue && filters.mode === "similar" && <p className="muted">
+      {queue && <p className="muted">
         {plural(queue.state.unavailable, "photo")} without a usable visual hash. {plural(queue.state.pending, "photo")} awaiting comparison.
         {queue.state.pending > 0 && " Run Index from the Library to finish comparing; these results are partial."}
       </p>}

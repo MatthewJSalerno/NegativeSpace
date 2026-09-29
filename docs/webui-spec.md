@@ -1483,13 +1483,20 @@ filtered to failures and introduces no action Logs lacks.
 
 ### 7.2 Exact duplicates and similar photos are different things
 
-A match-mode control distinguishes them, and the UI must not blur them:
+The UI must not blur them:
 
 * **Exact (SHA-1).** Byte-for-byte identical. Available as soon as an Index has
   run, with no new engine work.
 * **Similar (perceptual).** Visually alike but different bytes — the same
   photograph as RAW and JPEG, or full-size and thumbnail. Requires the pair
   table in `engine-spec.md` §9.3, populated during Index.
+
+The Similar page reviews visually similar, different-content photos. It has no
+exact-copy mode: Copy and Move already avoid writing exact duplicates to the
+destination. Exact-copy counts and recorded outcomes remain in photo details,
+history and Stats. Destination curation is the eventual purpose of Similar.
+During read-only validation, indexed source photos remain available for comparison.
+Old `mode=exact` page bookmarks open visual review; the dropdown is removed.
 
 **Every photo's info box states its exact-duplicate count and carries a "find
 similar photos" link** scoped to it.
@@ -1540,11 +1547,11 @@ asks for naming decisions before the library is organized.
 
 ### 7.4 The Similar tab
 
-**Built:** read-only review at `/similar`, exact/visual mode, a 90–100% visual
+**Built:** read-only visual review at `/similar`, a 90–100% visual
 threshold, most-matches/date/filename/file-size sort, filename search, paginated
 queue and reference results, dimensions and largest-dimensions labels, and an
-Inspector link into the review. Visual mode represents each byte identity once;
-exact mode includes its still-available photo records. Equal visual hashes of
+Inspector link into the review. Each byte identity is represented once.
+Equal visual hashes of
 different byte identities remain visual matches, including at 100%.
 Availability is recorded evidence, not a fresh filesystem check. Missing hashes
 and pending comparisons are explicit, and Index resumes unfinished comparisons.
