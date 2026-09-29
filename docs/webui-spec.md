@@ -1200,6 +1200,9 @@ attempts and Last backup. **A share never rounds to all or nothing:** 100% means
 photo and 0% none, so 4,681 of 4,684 reads 99.9%, not 100%.
 Camera and lens identifiers are displayed and grouped as text, including numeric
 metadata values; missing or empty identifiers are omitted without altering stored metadata.
+The Dates chart stays within its panel: long year ranges scroll horizontally, with
+readable year labels and keyboard-accessible year links. The complete counts remain
+available under **As a table**.
 
 "How much space are my duplicates wasting?" is a headline figure for the Stats page, and the catalog already answers it without any engine change. Deduplication acts on two different volumes, though, and conflating them produces a number that is wrong in whichever direction the user's mode does not apply:
 
@@ -1591,14 +1594,36 @@ An ordinary Index may skip unchanged files and is not a general repair for faile
 hash generation; unsupported formats need an explanation rather than a futile retry.
 See `TODO.md` and the validation and feedback contract in `ui-design.md`.
 URL state preserves filters, reference and pages on reload or browser navigation.
-Primary selection, discard and EXIF actions below remain future work; the current
+Donor/keeper selection, discard and EXIF actions below remain future work; the current
 review does not select targets or modify files.
 
-**Validation:** each match offers **Review side by side**, with shared zoom and
-horizontal/vertical position controls. Zoom magnifies the generated previews (up
-to 1024 pixels), not original-resolution pixels. The dialog shows dimensions,
-file sizes, exact-content status and visual hash distance. It explains that hash
-percentages are not confidence estimates, including at 100%.
+**Expanded review:** each match offers **Review side by side**, opening the
+workspace with the Inspector's reference, threshold and candidate page. Two large
+previews have independent rotation, zoom and horizontal/vertical position controls;
+optional linked zoom/position keeps rotation independent. Reset view restores the
+individual preview. Viewing transforms follow the photo while browsing candidates
+and reset on close. Zoom magnifies generated previews (up to 1024 pixels), not
+original-resolution pixels. Dimensions, file sizes and exact-content status are
+shown. Hash percentages are not confidence estimates, including at 100%.
+
+Candidates are paged, with previous/next candidate navigation across pages. A
+resizable information panel compares recorded metadata in aligned columns; users
+can inspect all tags, search fields, or show only differences. Missing values,
+file-modification fallback dates and unknown timezone offsets are labelled.
+The Saved review tab shows the current pair's latest saved judgment. All,
+Unreviewed and Reviewed filters apply before pagination; progress counts are for
+all candidates at the chosen threshold. Judgments shown on thumbnails belong to
+the reference/candidate content pair. Saving prevents navigation until it settles.
+Metadata, candidate and pair failures expose retry rather than invented empty data.
+
+Back to gallery retains the chosen threshold and unfiltered page, or page one when
+a review filter was used. Gallery selection remains unchanged. Review decisions
+survive reopening; temporary transforms and the open workspace do not persist
+across reload. Deferred queues remain future work.
+Guidance beside the threshold controls explains that results below 90% are more
+likely to be unrelated: compare photos side by side before using them as clues for
+dates or other details. The comparison dialog repeats this for pairs scoring below
+90%; the actual pair score, not the chosen list threshold, controls that reminder.
 For different byte identities users can save **Same photograph**, **Related
 photograph**, or **Unrelated**, or clear the judgment. Feedback never changes
 photos or matching results. Stale-content refusals require refresh and another
@@ -1617,31 +1642,22 @@ records remain accessible without being offered as actionable missing files. The
 stored comparisons must support every offered threshold. Dimensions are captured during
 Index; unreadable dimensions display as unknown.
 
-**Future expanded review workspace:** open it from the Inspector for focused work
-on one reference and its matches, with enough room for candidate metadata, explicit
-target selection and action previews. The current Inspector is a browsing/review
-view; it does not implement EXIF copy/edit or deletion.
+**Future curation actions:** target selection, EXIF copy/edit and deletion extend
+the built comparison workspace. Current browsing and judgments never select action
+targets or clear the gallery's explicit selection. Future action selection must be
+distinct from opening a reference or choosing a threshold; changing the offered
+match set must not leave hidden action targets armed.
 
-**Future curation actions:** the rules below apply when EXIF editing and discard
-are built. Current match browsing never selects action targets and never clears the
-gallery's explicit selection. Future action selection must be distinct from opening
-a reference or choosing a similarity threshold; changing the offered match set must
-not leave hidden action targets armed.
-
-**One explicit primary per group drives both actions.** The group has a single
-designated primary, chosen deliberately rather than inferred from what was
-clicked last, and that one designation serves both verbs: **copy EXIF** from the
-primary onto the selected targets, and **discard** — keep the primary, delete
-the selected targets. One concept, two actions, rather than two mental models.
-No action is armed until a primary exists, and the primary is visually distinct
-— a border and a label, not merely focus.
-
-**The primary is swappable via "Make Primary".** Any photo in the group can be
-promoted; the previous primary demotes back into the group. In practice you do
-not know which photo should win until you have compared several, and a primary
-fixed at the moment you opened the group would make an accident of navigation
-feel like a decision. Its real consequence: **the photo you originally clicked
-becomes deletable**, losing a protection nobody chose to give it.
+**Reference, metadata donor and keepers are separate choices.** The reference
+anchors comparisons. A donor supplies only explicitly selected metadata fields;
+one or more keepers are photographs the user intends to retain. A smaller export
+may have the correct metadata while a larger original is worth keeping, so a single
+"primary" must not control both verbs. No role is inferred from the last photo
+clicked, resolution or file size. Each designation is explicit and visibly labelled.
+A user can choose another donor or keeper after comparison; the original reference
+has no implicit protection from a later explicit deletion selection. Deletion
+previews must exclude explicit keepers; metadata previews identify the donor, chosen
+fields and target photographs separately.
 
 **Select all exists, and is always guarded.** Deleting twenty-nine of thirty by
 hand is not a workflow. But a select-all never acts directly — it raises a
@@ -1828,7 +1844,16 @@ validity does not prove decoder behavior or pixel integrity; a matching pHash is
 not proof of exact pixel equality. Define and test consistent decoding/orientation
 rules for supported formats before implementing this verification path.
 
-**Rotate is an EXIF edit, never a pixel edit.** The Inspector and bulk edit offer
+**Built comparison-only rotation:** the expanded review workspace lets users rotate the
+reference preview and each candidate independently, in 90° steps, with a reset and
+visible temporary-orientation state. It must compose with zoom/pan and never carry
+one candidate's rotation onto a different photo. These viewing controls
+do not write files, edit EXIF, regenerate hashes or recalculate match scores.
+They help assess returned candidates; retrieval of rotated photos missed by the
+current matcher is a separate concern. The expanded workspace (§7.4) is the
+side-by-side review surface.
+
+**A saved rotation is an EXIF edit, never a pixel edit.** The Inspector and bulk edit offer
 **Rotate left**, **Rotate right** and **Rotate 180°**. Each changes only the EXIF
 `Orientation` tag, which viewers and galleries apply when displaying the photo.
 The pixel data is never decoded and re-saved: re-encoding a JPEG loses quality on

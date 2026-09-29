@@ -269,7 +269,7 @@ The three transfer tables below — current state, runs, and the audit log — e
 | `sha1_hash` | Text | Exact content hash |
 | `phash` | Text | Perceptual hash. `"not_supported"` if the required optional library isn't installed for that format; `"error"` if hashing was attempted but failed (e.g. corrupt file). |
 | `collision_group` | Integer | Reserved for fuzzy-match clustering (§9.3). Not populated yet. |
-| `is_master` | Boolean | Reserved for collision resolution. Not populated yet, and its future is genuinely open: the similarity review keeps the user's chosen primary as client state (§9.3), which needs no column — but lineage and EXIF history need *persisted* provenance (§9.8), which may. Decide when one of those is built, not before. |
+| `is_master` | Boolean | Reserved for collision resolution. Not populated yet, and its future is genuinely open: the planned similarity actions keep donor/keeper choices as client state (§9.3), which needs no column — but lineage and EXIF history need *persisted* provenance (§9.8), which may. Decide when one of those is built, not before. |
 | `status` | String | `Pending`, `Processing`, `Completed`, `Failed`, `Duplicate`, `Removed_Duplicate`, `Copied`, `Found_At_Destination` (source gone, exact content observed on the destination; §4.2). Constrained by `CHECK`; `NULL` permitted, since a row can exist before its scan result lands. |
 | `metadata_json` | JSON | Full captured metadata (camera, ISO, aperture, shutter, etc. — whatever the source/method exposed), always including a `date_taken` key. |
 | `has_name_collision` | Boolean | Whether the destination filename had to be suffixed (`_1`, `_2`, ...) to avoid overwriting an existing file. |
@@ -868,8 +868,8 @@ offers, once, during Index, and store them; the slider then filters a table
 rather than scanning one.
 
 **This is what `collision_group` was reserved for** (§6.1). `is_master` is a
-separate question and still open: the similarity review holds the user's chosen
-primary as client state, which needs no column, because the engine has no basis
+separate question and still open: the planned similarity actions hold the user's chosen
+donor and keepers as client state, which needs no column, because the engine has no basis
 for picking a winner among visually similar files and must not appear to. But
 persisted provenance for lineage and EXIF history (§9.8) might use it. Nothing
 should populate it on the engine's own initiative either way.

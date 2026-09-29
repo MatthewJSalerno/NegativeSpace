@@ -59,6 +59,7 @@ export function PhotoMatches({ id, delivered, view, onView, refreshKey, onReview
           </button>)}
         </div>
         <p className="section-note">Counts include all matches at or above each percentage. These measure visual hash similarity, not confidence; even 100% can be different pictures.</p>
+        <p className="section-note">Below 90%, results are more likely to be unrelated. Review photos side by side before using them as clues for dates or other details.</p>
         {summary.pending > 0 && <p className="muted">Results are partial: {plural(summary.pending, "destination photo")} awaiting comparison. Index resumes comparisons; a dedicated recovery flow is not yet available.</p>}
       </>}
       {view && <div className="inspector-matches" aria-label="Matches for this photo" role="region">

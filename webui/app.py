@@ -192,9 +192,9 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/api/v1/similar/{photo_id}")
     def similar_matches(photo_id: int, mode: str = "similar", threshold: float = Query(90, ge=ns_similarity.MIN_SCORE, le=100),
-                        page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=60)):
+                        page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=60), review_state: str = "all"):
         try:
-            return matching.matches(cfg.db_path, photo_id, mode=mode, threshold=threshold, page=page, page_size=page_size)
+            return matching.matches(cfg.db_path, photo_id, mode=mode, threshold=threshold, page=page, page_size=page_size, review_state=review_state)
         except ValueError as exc:
             raise HTTPException(400, {"error":"invalid_request", "message":str(exc)})
 

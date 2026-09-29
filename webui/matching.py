@@ -170,8 +170,10 @@ def diagnostics(db: Path):
             'query_ms':round((time.perf_counter()-started)*1000,2)}
 
 
-def matches(db: Path, photo_id: int, *, mode='similar', threshold=90., page=1, page_size=30):
+def matches(db: Path, photo_id: int, *, mode='similar', threshold=90., page=1, page_size=30, review_state='all'):
     _check(mode, threshold, 'matches', page, page_size)
+    if review_state not in ('all', 'reviewed', 'unreviewed'):
+        raise ValueError('Unknown review state')
     distance = int(math.floor((100-threshold)*64/100 + 1e-9))
     with catalog.connect(db) as conn:
         conn.execute('BEGIN')
@@ -194,8 +196,13 @@ def matches(db: Path, photo_id: int, *, mode='similar', threshold=90., page=1, p
                          WHERE a.content_id!=:content AND a.phash_state='ok')"""
         params={'content':reference['content_id'],'hash':reference['phash'],'id':photo_id,'distance':distance,
                 'limit':page_size,'offset':(page-1)*page_size}
-        stats=conn.execute('WITH '+scope+scored+' SELECT COUNT(*),MAX(width*height) FROM scored',params).fetchone()
-        rows=conn.execute('WITH '+scope+scored+' SELECT * FROM scored ORDER BY distance,id LIMIT :limit OFFSET :offset',params).fetchall()
+        scored += """, judged AS (SELECT s.*,r.verdict FROM scored s LEFT JOIN similarity_reviews r
+          ON r.low_content_id=MIN(s.content_id,:content) AND r.high_content_id=MAX(s.content_id,:content))"""
+        where = {'all': '', 'reviewed': ' WHERE verdict IS NOT NULL', 'unreviewed': ' WHERE verdict IS NULL'}[review_state]
+        stats=conn.execute('WITH '+scope+scored+' SELECT COUNT(*),MAX(width*height),COUNT(verdict) FROM judged',params).fetchone()
+        total = stats[0] if review_state == 'all' else stats[2] if review_state == 'reviewed' else stats[0]-stats[2]
+        rows=conn.execute('WITH '+scope+scored+' SELECT * FROM judged'+where+' ORDER BY distance,id LIMIT :limit OFFSET :offset',params).fetchall()
         largest=max(reference['width']*reference['height'] if reference['width'] and reference['height'] else 0,stats[1] or 0) or None
-    return {'reference':_item(reference),'items':[{**_item(r),'score':round((64-r['distance'])*100/64,2)} for r in rows],
-            'total':stats[0],'page':page,'page_size':page_size,'state':state,'availability':'available','largest_pixels':largest}
+    return {'reference':_item(reference),'items':[{**_item(r),'score':round((64-r['distance'])*100/64,2), 'verdict':r['verdict']} for r in rows],
+            'total':total,'reviewed_total':stats[2],'unfiltered_total':stats[0],
+            'page':page,'page_size':page_size,'state':state,'availability':'available','largest_pixels':largest}

@@ -220,8 +220,9 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
     </section>
   );
   return <>
-    {narrow ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
-    {candidate != null && <MatchReviewDialog key={`${id}:${candidate}:${narrow}`} reference={id} candidate={candidate}
+    {narrow && candidate == null ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
+    {candidate != null && <MatchReviewDialog key={`${id}:${candidate}`} reference={id} candidate={candidate}
+      initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}
       onClose={() => setCandidate(null)} onSaved={() => setReviewsChanged((n) => n + 1)} />}
   </>;
 }

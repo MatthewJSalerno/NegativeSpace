@@ -1401,6 +1401,31 @@ class MatchingTests(ApiCase):
         self.assertIn(a, [p['id'] for p in self.client.get('/api/v1/similar?threshold=75').json()['items']])
         self.assertNotIn(a, [p['id'] for p in self.client.get('/api/v1/similar?threshold=76').json()['items']])
 
+    def test_review_progress_is_pair_specific_filtered_before_paging(self):
+        a = self.photo('reference', 'a', '0000000000000000')
+        b = self.photo('reviewed', 'b', '0000000000000000')
+        c = self.photo('unreviewed', 'c', '0000000000000001')
+        self.refresh()
+        # Save in the opposite direction: the judgment still belongs to this pair.
+        response = self.client.put(f'/api/v1/similar/{b}/review/{a}', json={
+            'verdict': 'related', 'reference_sha1': 'b', 'candidate_sha1': 'a'})
+        self.assertEqual(response.status_code, 200)
+        route = f'/api/v1/similar/{a}?threshold=75&page_size=1'
+        all_matches = self.client.get(route).json()
+        self.assertEqual((all_matches['total'], all_matches['unfiltered_total'], all_matches['reviewed_total']), (2, 2, 1))
+        reviewed = self.client.get(route + '&review_state=reviewed').json()
+        self.assertEqual(reviewed['total'], 1)
+        self.assertEqual([(p['id'], p['verdict']) for p in reviewed['items']], [(b, 'related')])
+        unreviewed = self.client.get(route + '&review_state=unreviewed').json()
+        self.assertEqual(unreviewed['total'], 1)
+        self.assertEqual([p['id'] for p in unreviewed['items']], [c])
+        self.assertEqual(self.client.get(f'/api/v1/similar/{c}?review_state=reviewed').json()['total'], 0)
+        self.assertEqual(self.client.get(route + '&review_state=other').status_code, 400)
+        self.assertEqual(self.client.get(route + '&threshold=100&review_state=unreviewed').json()['total'], 0)
+        self.client.put(f'/api/v1/similar/{a}/review/{b}', json={
+            'verdict': None, 'reference_sha1': 'a', 'candidate_sha1': 'b'})
+        self.assertEqual(self.client.get(route).json()['reviewed_total'], 0)
+
     def test_only_delivered_photos_can_be_matched_or_reviewed(self):
         delivered = [self.photo(status, status, '0000000000000000', status=status)
                      for status in ('Copied', 'Completed', 'Found_At_Destination')]

@@ -103,6 +103,10 @@ filters and explicit checkbox selection intact. Opening a match offers side-by-s
 review. Match browsing does not designate files for deletion or metadata edits.
 Association may help identify dates, events or other information, but proves none
 of them. A 100% visual score still does not mean identical bytes.
+Keep guidance beside the threshold controls explaining that results below 90% are
+more likely to be unrelated and need side-by-side review before being used as
+metadata clues. Repeat it in the comparison dialog for a pair scoring below 90%.
+This is review guidance, not a measured error rate or a guarantee above 90%.
 
 Persist the open photo, tab, chosen threshold and match page in the gallery URL.
 Opening Similar photos initially uses 90%; subsequently retain the chosen threshold
@@ -113,16 +117,46 @@ A failed or unavailable hash lookup must never appear as zero matches. Show load
 retry for request failures, and incomplete comparison states explicitly. Missing-hash
 repair remains unfinished as recorded in TODO.md.
 
-### Planned expanded review workspace
+### Expanded review workspace
 
-Future curation needs a dedicated expanded view opened from the Inspector: a visible
-reference/donor photo, inspectable candidate metadata and selectable matching photos,
-with room for EXIF copy/edit and cleanup controls. Reuse the Inspector's match scope
-and threshold, but keep action targets separate from the gallery selection, reference
-navigation and side-by-side judgments. Choosing a reference is not choosing a donor
-or a file to keep. Show the proposed metadata changes or deletion targets before
-execution and record each result. This workspace and its write actions are unbuilt;
-do not show nonfunctional action buttons in the current review UI.
+**Built:** opening a candidate from the Inspector expands into a comparison
+workspace with a fixed reference, a browsable candidate, a paged thumbnail strip,
+and a resizable information panel. It starts at the Inspector's threshold and
+page. Back to gallery restores its threshold/page (page one after filtering by
+review status), leaves gallery selection intact, and restores focus to the opener
+when it remains present. The reference is the photo the user opened, not a donor
+or a file chosen to keep.
+
+Each preview has independent viewing rotation in 90° steps, zoom, position and
+Reset view. A visible note identifies temporary rotation. Rotation fits inside
+the preview even for portrait photos. Link zoom and position is optional; it never
+links rotation. Viewing transforms stay associated with their photo during the
+open workspace and reset on closing; they never write files, EXIF or hash scores.
+A saved orientation correction remains a separate future edit.
+
+The Information tab compares recorded metadata in aligned columns, labels missing
+values and differences, and offers all recorded tags, field search and differences
+only. File-modification fallback dates are labelled; unknown timezones are not
+invented. Metadata errors have a retry and do not appear as missing values.
+
+The Saved review tab shows the latest judgment for this content pair. All,
+Unreviewed and Reviewed filters apply before server pagination. Progress counts
+reviewed pairs at the chosen threshold, not photos in the entire catalog. Each
+thumbnail shows its pair judgment. Saving is explicit, survives reopening, and
+never marks other pairs reviewed. Moving on without a judgment leaves the pair
+unreviewed. Busy saves prevent candidate/filter navigation; failures retain the
+comparison and require refresh before another judgment. Candidate loads cannot
+replace a newer navigation choice. Deferred queues and restoring an open workspace
+across reload remain future work.
+
+**Next stage:** metadata edits/copy and deletion with explicit target selection,
+per-file previews and results. The reference, metadata donor and photographs to
+keep are separate roles: a smaller copy can supply metadata for a larger keeper.
+Opening or comparing a photo does not assign those roles. Future action targets
+must remain separate from gallery selection and pair judgments; changing the
+reference or offered match set must not leave hidden targets armed. Show proposed
+metadata changes or deletion targets before execution and record each result.
+Do not show nonfunctional edit/delete controls while those actions are unbuilt.
 
 ## Keyboard and focus
 

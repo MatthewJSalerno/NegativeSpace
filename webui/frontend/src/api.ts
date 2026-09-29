@@ -477,6 +477,7 @@ function submitJob(path: string, body: Record<string, unknown>): Promise<Run> {
 export interface MatchPhoto {
   id: number; filename: string; file_size: number | null; date_taken: string | null;
   status: string; width: number | null; height: number | null; matches?: number; score?: number;
+  verdict?: MatchVerdict | null;
 }
 export interface MatchPage {
   items: MatchPhoto[]; total: number; page: number; page_size: number;
@@ -485,6 +486,8 @@ export interface MatchPage {
   availability?: "available" | "not_available" | "hash_unavailable";
   largest_pixels?: number | null;
   query_ms?: number;
+  reviewed_total?: number;
+  unfiltered_total?: number;
 }
 
 export const MATCH_THRESHOLDS = [75, 80, 85, 90, 95, 100];

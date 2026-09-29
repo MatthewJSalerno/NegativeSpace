@@ -2,15 +2,16 @@
 
 ## Expanded destination review workspace
 
-- [ ] Open a dedicated workspace from the Inspector for one reference photo and
-  its similar destination photos. Keep the reference visible, let users inspect
-  candidate EXIF and select explicit targets, then preview and execute EXIF copy,
-  EXIF edits or deletion with per-file history and results. Define reference,
-  donor/primary and action-target roles separately. Preserve threshold/context on
-  entry and return; never implicitly use gallery checkboxes or saved match judgments
-  as action targets. The Inspector tabs and resizable thumbnail grid are built;
-  this expanded workspace and its write actions are not. Follow webui-spec §7.4
-  and §7.6 and the shared UI design contract.
+- [x] Expanded comparison workspace with independent temporary rotation, zoom and
+  position; optional linked zoom; candidate paging; metadata comparison; saved
+  pair judgments and server-filtered reviewed/unreviewed progress.
+- [ ] Add EXIF copy/edit and deletion with explicit target selection, previews and
+  per-file history/results. Reference, metadata donor, keepers and action targets
+  are distinct roles. Do not infer them from navigation or gallery checkboxes.
+  Follow webui-spec §7.4 and §7.6 and the shared UI design contract.
+- [ ] Add deferred review queues and restoration of the open candidate/workspace
+  across reload. Saved pair judgments already survive reopening.
+- [ ] Add saved orientation edits separately from temporary viewing rotation.
 
 ## Actionable warning workflows
 

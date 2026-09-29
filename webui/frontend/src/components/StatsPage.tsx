@@ -308,14 +308,16 @@ function YearChart({ years }: { years: { year: string; photos: number }[] }) {
   return (
     <figure className="year-chart">
       <figcaption>Photos per year (date taken)</figcaption>
-      <div className="year-bars" role="list">
-        {years.map((y) => (
-          <a key={y.year} role="listitem" className="year-bar" href={`/?date=${y.year}`} onClick={follow}
-             title={`${y.year}: ${plural(y.photos, "photo")}`} aria-label={`${y.year}: ${plural(y.photos, "photo")}`}>
-            <span className="year-fill" style={{ height: `${Math.max(2, (100 * y.photos) / max)}%` }} />
-            <span className="year-label">{years.length > 16 && Number(y.year) % 5 ? "" : y.year}</span>
-          </a>
-        ))}
+      <div className="year-scroll" role="region" aria-label="Photos per year" tabIndex={0}>
+        <div className="year-bars" role="list">
+          {years.map((y) => (
+            <a key={y.year} role="listitem" className="year-bar" href={`/?date=${y.year}`} onClick={follow}
+               title={`${y.year}: ${plural(y.photos, "photo")}`} aria-label={`${y.year}: ${plural(y.photos, "photo")}`}>
+              <span className="year-fill" style={{ height: `${Math.max(2, (100 * y.photos) / max)}%` }} />
+              <span className="year-label">{y.year}</span>
+            </a>
+          ))}
+        </div>
       </div>
       <details>
         <summary>As a table</summary>

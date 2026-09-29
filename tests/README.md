@@ -331,5 +331,20 @@ move to the next photo: the tab/threshold should remain, with match paging reset
 Reload should restore the recorded tab and match page. The provided scenario set
 contains intentional unreadable/invalid files; those are expected test outcomes.
 
-The future expanded workspace for selecting matches and applying EXIF or cleanup
-operations is tracked in TODO.md; current review does not implement those actions.
+Open a candidate using **Review side by side** to enter the expanded workspace:
+
+1. Rotate and zoom each preview separately; then enable linked zoom/position.
+   Rotation stays independent. Switch candidates and return: viewing transforms
+   follow their photo until the workspace closes. No file orientation is saved.
+2. Compare information, show all recorded tags, and filter to differences.
+   Missing values and fallback dates should remain clearly labelled.
+3. Record a pair judgment. Check Reviewed and Unreviewed, switch pages, then close
+   and reopen: the saved judgment and progress survive. Browsing alone never saves
+   a judgment or changes gallery checkboxes.
+4. Resize the comparison/information divider and the browser window. Candidate
+   browsing remains available; Back to gallery restores the Inspector context.
+
+The generated-catalog browser check is `DRIVER=similar_browser_drive.py sh
+tests/webui_browser_test.sh` (set `IMAGE`/`WEB_IMAGE` to the builds under test).
+Metadata writes, deletion, deferred queues and workspace restoration across reload
+are tracked in TODO.md; the current workspace implements comparison and judgments.

@@ -1,9 +1,59 @@
 """Shared UI behavior, against the built app and synthetic browser-suite catalog."""
+import os
 import re
 from playwright.sync_api import expect
 
 
+def check_stats_dates(browser, base):
+    """Many dated years stay inside the Dates panel, including its end labels."""
+    page = browser.new_page(viewport={"width": 1400, "height": 900})
+    years = [{"year": str(year), "photos": 1 + year % 70} for year in range(1800, 2027)]
+
+    def wide_dates(route):
+        response = route.fetch()
+        data = response.json()
+        data["dates"]["per_year"] = years
+        route.fulfill(response=response, json=data)
+
+    page.route("**/api/v1/stats", wide_dates)
+    page.goto(f"{base}/stats")
+    chart = page.locator(".year-chart")
+    panel = page.locator(".stat-panel").filter(has=chart)
+    scroll = page.get_by_role("region", name="Photos per year", exact=True)
+    bars = chart.locator(".year-bar")
+    expect(bars).to_have_count(len(years))
+    for width in (1400, 900, 390):
+        page.set_viewport_size({"width": width, "height": 900})
+        scroll.scroll_into_view_if_needed()
+        panel_box, chart_box = panel.bounding_box(), chart.bounding_box()
+        assert chart_box["x"] >= panel_box["x"]
+        assert chart_box["x"] + chart_box["width"] <= panel_box["x"] + panel_box["width"]
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), width
+        assert scroll.evaluate("e => e.scrollWidth > e.clientWidth"), width
+        scroll.focus()
+        expect(scroll).to_be_focused()
+        # Keyboard focus reveals either end without clipping the year labels.
+        for bar in (bars.first, bars.last):
+            bar.focus()
+            expect(bar).to_be_focused()
+            label = bar.locator(".year-label").bounding_box()
+            viewport = scroll.bounding_box()
+            assert label["x"] >= viewport["x"] - 1, (width, label, viewport)
+            assert label["x"] + label["width"] <= viewport["x"] + viewport["width"] + 1
+            assert label["y"] + label["height"] <= viewport["y"] + viewport["height"]
+        if os.environ.get("SHOTS"):
+            page.screenshot(path=f"{os.environ['SHOTS']}/stats-wide-dates-{width}.png")
+    chart.get_by_text("As a table", exact=True).click()
+    expect(chart.locator("tbody tr")).to_have_count(len(years))
+    expect(chart.locator("tbody tr").last).to_contain_text("2026")
+    chart.locator('a[href="/?date=2023"]').click()
+    expect(page).to_have_url(re.compile(r"[?&]date=2023(?:&|$)"))
+    page.close()
+    print("Stats Dates: 227 years contained, scrollable and linked at desktop and narrow widths")
+
+
 def check_ui(browser, base, _shot):
+    check_stats_dates(browser, base)
     page = browser.new_page(viewport={"width": 1400, "height": 900})
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
