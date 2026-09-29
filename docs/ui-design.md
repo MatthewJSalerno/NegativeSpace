@@ -148,6 +148,12 @@ links rotation. Viewing transforms stay associated with their photo during the
 open workspace and reset on closing; they never write files, EXIF or hash scores.
 A saved orientation correction remains a separate future edit.
 
+The two-photo comparison grows to fit its controls, resolution, file sizes and
+linked-zoom option. Do not add an inner vertical scroller or clip those details to
+reserve space for the candidate strip. When the content exceeds the window height,
+scroll the review window as a whole, with the shared More above/below cues. The
+metadata panel may scroll independently for long tag lists.
+
 The Information tab compares recorded metadata in aligned columns, labels missing
 values and differences, and offers all recorded tags, field search and differences
 only. File-modification fallback dates are labelled; unknown timezones are not

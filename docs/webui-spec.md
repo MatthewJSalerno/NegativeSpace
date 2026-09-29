@@ -1605,6 +1605,10 @@ individual preview. Viewing transforms follow the photo while browsing candidate
 and reset on close. Zoom magnifies generated previews (up to 1024 pixels), not
 original-resolution pixels. Dimensions, file sizes and exact-content status are
 shown. Hash percentages are not confidence estimates, including at 100%.
+The comparison area expands to fit both previews and all their controls/details,
+including dimensions, file sizes and linked zoom. It has no inner vertical scroll.
+If needed, the whole review window scrolls, with the shared More above/below cues;
+the candidate strip follows the comparison in normal flow.
 The reference preview has an accent border and a filled **Reference photo** label;
 the candidate remains neutral. This marks the comparison reference, not a file
 chosen to keep or a metadata donor.

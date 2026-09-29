@@ -118,6 +118,21 @@ with sync_playwright() as p:
     dialog.get_by_role('slider', name='Reference horizontal position', exact=True).fill('75')
     expect(dialog.get_by_role('slider', name='Candidate horizontal position', exact=True)).to_have_value('75')
     expect(candidate_preview).to_contain_text('Viewing rotation: 270°')
+    # Expanded pan controls and details grow the comparison rather than creating
+    # a second vertical scroll area inside the review window.
+    def full_comparison():
+        assert dialog.locator('.review-previews, .review-comparison').evaluate_all('''els => els.every(e => {
+            const bounds = e.getBoundingClientRect();
+            return e.scrollHeight <= e.clientHeight + 1 && [...e.querySelectorAll('.review-preview-controls, .review-pair-options')].every(child =>
+                child.getBoundingClientRect().bottom <= bounds.bottom + 1);
+        })'''), 'Photo controls or details are clipped inside the comparison'
+    for height in (700, 1000):
+        page.set_viewport_size({'width': 1440, 'height': height})
+        full_comparison()
+        dialog.get_by_role('checkbox', name='Link zoom and position').scroll_into_view_if_needed()
+        expect(dialog.get_by_role('checkbox', name='Link zoom and position')).to_be_in_viewport()
+        assert dialog.locator('.review-previews').evaluate('e => e.scrollTop') == 0
+        assert dialog.locator('.match-review-dialog').evaluate('e => e.scrollTop') > 0
     dialog.get_by_role('button', name='Next candidate', exact=True).click()
     expect(candidate_preview).not_to_contain_text('Viewing rotation:')
     expect(reference_preview).to_contain_text('Viewing rotation: 90°')
@@ -154,9 +169,11 @@ with sync_playwright() as p:
     expect(dialog.get_by_role('button', name='Related photograph', exact=True)).to_have_attribute('aria-pressed', 'true')
     dialog.get_by_role('button', name='Reset reference view').click()
     dialog.get_by_role('button', name='Reset candidate view').click()
+    full_comparison()
+    dialog.locator('.review-filmstrip').scroll_into_view_if_needed()
     expect(dialog.get_by_role('button', name='Next candidate', exact=True)).to_be_in_viewport()
-    expect(dialog.locator('.review-filmstrip')).to_be_in_viewport()
-    expect(dialog.get_by_role('button', name='Related photograph', exact=True)).to_be_in_viewport()
+    assert dialog.locator('.review-previews').evaluate('e => e.scrollTop') == 0
+    dialog.locator('.match-review-dialog').evaluate('e => e.scrollTop = 0')
     page.wait_for_function("[...document.querySelectorAll('.review-rotation img')].length === 2 && [...document.querySelectorAll('.review-rotation img')].every(e => e.complete && e.naturalWidth > 0)")
     shot('match-review-desktop')
     dialog.get_by_role('button', name='Back to gallery', exact=True).click()
@@ -228,6 +245,7 @@ with sync_playwright() as p:
     page.set_viewport_size({'width': 700, 'height': 844})
     dialog.get_by_role('button', name='Rotate reference right', exact=True).click()
     expect(reference_preview).to_contain_text('Viewing rotation: 90°')
+    full_comparison()
     assert dialog.evaluate('e => e.scrollWidth <= e.clientWidth + 1'), 'review overflow at narrow width'
     shot('match-review-narrow')
     page.set_viewport_size({'width': 1440, 'height': 1000})
