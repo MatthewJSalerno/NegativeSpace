@@ -618,7 +618,7 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
 ### `GET /api/v1/similar`
 
 Read-only destination matching queue. Query: `mode=similar|exact` (default `similar`),
-`threshold=90..100` (default 90), `sort=matches|newest|oldest|name|largest`,
+`threshold=75..100` (default 90), `sort=matches|newest|oldest|name|largest`,
 `q` (literal filename substring), `page` (positive, default 1), `page_size`
 (1–60, default 30). Unknown mode/sort returns 400; numeric validation errors return 422.
 

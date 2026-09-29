@@ -16,7 +16,7 @@ function read() {
   const p = new URLSearchParams(location.search);
   const positive = (key: string) => Math.max(1, Math.floor(Number(p.get(key)) || 1));
   return {
-    threshold: Math.min(100, Math.max(90, Number(p.get("threshold") ?? 90) || 90)),
+    threshold: Math.min(100, Math.max(75, Number(p.get("threshold") ?? 90) || 90)),
     sort: ["matches", "newest", "oldest", "name", "largest"].includes(p.get("sort") || "") ? p.get("sort")! : "matches",
     q: p.get("q") || "", page: positive("page"),
     photo: p.has("photo") ? positive("photo") : null, match_page: positive("match_page"),
@@ -136,14 +136,14 @@ export function SimilarPage({ status, onOpenSettings }: { status: Status; onOpen
     <main id="main-content" tabIndex={-1} className="similar-page">
       <h2>Photos with visual matches</h2>
       <p className="muted">Review visually similar photos at the destination. Index your photos, then Copy or Move them before reviewing matches.</p>
-      <p className="muted">Destination availability is recorded from the last observation.</p>
+      <p className="muted">Matches can help you find related photographs and clues about dates, events, or other details. Check those clues before applying information to another photo. Destination availability is recorded from the last observation.</p>
       <p className="muted">The percentage measures hash similarity, not confidence. A 100% score does not mean identical pictures.</p>
       <details onToggle={(e) => setDiagnosticsOpen(e.currentTarget.open)}><summary>Validation and performance</summary>
         {diagnosticsOpen && <MatchDiagnosticsPanel refreshKey={`${jobKey}:${refresh}:${reviewsChanged}`} queueMs={queue?.query_ms} />}
       </details>
       <div className="match-controls">
         <label>Minimum visual match: {filters.threshold}%
-          <input type="range" min="90" max="100" step="1" value={filters.threshold} aria-label="Minimum visual match"
+          <input type="range" min="75" max="100" step="1" value={filters.threshold} aria-label="Minimum visual match"
             onChange={(e) => update({ threshold: Number(e.target.value), page: 1, match_page: 1 })} />
         </label>
         <label>Sort <select aria-label="Sort" value={filters.sort} onChange={(e) => update({ sort: e.target.value, page: 1 })}>

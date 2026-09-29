@@ -200,7 +200,7 @@ service. Built and tested:
     *   the **Stats** page: the library in figures (formats, cameras, resolution, dates,
         duplicate space with its coverage, activity, catalog health), each leading to
         the photos or log entries behind it.
-    *   the **Similar** page: read-only visual matching of destination photos after Copy or Move, a 90–100% threshold,
+    *   the **Similar** page: read-only visual matching of destination photos after Copy or Move, a 75–100% threshold,
         search and sorting, paginated reference comparisons, dimensions, and links
         to photo details. Index precomputes comparisons and resumes interrupted work.
         A side-by-side review dialog provides linked zoom and saved content-pair
@@ -223,7 +223,10 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 14; older catalogs are refused, never migrated. It stores immutable
+at schema version 15; automatic upgrades remain disabled. The explicit
+`tools/prepare-similarity-catalog.py` tool prepares a separate schema-15 catalog
+from schema 14, preserving history and judgments while rebuilding derived
+comparisons. Other incompatible versions remain refused. It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its
 identity, and reuse of an existing destination keeps both identities and links the

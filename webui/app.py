@@ -19,6 +19,7 @@ from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 import ns_db
+import ns_similarity
 from . import catalog
 from . import matching
 from .config import Config, build_version
@@ -153,7 +154,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         return ns_db.extension_support(ext.strip())
 
     @app.get("/api/v1/similar")
-    def similar_queue(mode: str = "similar", threshold: float = Query(90, ge=90, le=100),
+    def similar_queue(mode: str = "similar", threshold: float = Query(90, ge=ns_similarity.MIN_SCORE, le=100),
                       sort: str = "matches", q: str = "", page: int = Query(1, ge=1),
                       page_size: int = Query(30, ge=1, le=60)):
         try:
@@ -186,7 +187,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(503, {'error':'catalog_busy', 'message':'The catalog is busy. Retry saving your review.'})
 
     @app.get("/api/v1/similar/{photo_id}")
-    def similar_matches(photo_id: int, mode: str = "similar", threshold: float = Query(90, ge=90, le=100),
+    def similar_matches(photo_id: int, mode: str = "similar", threshold: float = Query(90, ge=ns_similarity.MIN_SCORE, le=100),
                         page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=60)):
         try:
             return matching.matches(cfg.db_path, photo_id, mode=mode, threshold=threshold, page=page, page_size=page_size)

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 class PhotoStatus:
     """State of one source file in the catalog. A path is unique among files still in the
@@ -462,7 +462,7 @@ FOUNDATION_DDL = (
     # distinct-hash pairs, so visually identical content does not grow quadratically.
     """CREATE TABLE content_similarity (
         low_hash TEXT NOT NULL, high_hash TEXT NOT NULL,
-        distance INTEGER NOT NULL CHECK(distance BETWEEN 1 AND 6),
+        distance INTEGER NOT NULL CHECK(distance BETWEEN 1 AND 16),
         PRIMARY KEY(low_hash, high_hash), CHECK(low_hash < high_hash))""",
     "CREATE INDEX idx_similarity_reverse ON content_similarity(high_hash, distance, low_hash)",
     "CREATE TABLE similarity_hashes (phash TEXT PRIMARY KEY)",

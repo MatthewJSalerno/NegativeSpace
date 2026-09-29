@@ -7,7 +7,8 @@ implementation at that scale.
 
 ## What is implemented
 
-- Incremental, resumable visual-hash comparisons in SQLite during Index.
+- Incremental, resumable visual-hash comparisons in SQLite during Index, covering
+  the 75–100% review range (90% initial slider value).
 - Destination-only visual match review after Copy or Move, threshold filtering, and reference comparisons. Exact-copy
   information remains in photo details, history and Stats.
 - Side-by-side generated previews with linked zoom and position controls.
@@ -24,7 +25,7 @@ its zoom is not original-resolution inspection.
 
 ## Recorded synthetic scale result
 
-Historical baseline before destination-only review: one development-host run with
+Historical baseline before destination-only review and the 75% comparison floor: one development-host run with
 250,000 source photo records, seeded clusters of five
 hashes (0–4 bit flips from each seed), and seven query samples per threshold.
 This uses a temporary local Docker catalog. It excludes file discovery, source
@@ -96,8 +97,42 @@ Reported against the validation branch after the destination and UI updates:
 | Page refresh | Selection remained |
 
 These are manual functional results, not measurements of match accuracy or query
-performance. Lower-than-90% thresholds and destination-query performance at
-250,000 records remain unvalidated.
+performance. These checks preceded the 75% floor. Destination-query performance at
+250,000 records remains unvalidated.
+
+## 75% floor — single-catalog check
+
+The chosen floor is 75% (up to 16 differing hash bits). Association can help a user
+investigate dates, events, or other metadata; matches do not prove shared metadata
+and never authorize edits or deletion. No 75/80/85 threshold benchmark sweep was run.
+
+A separate SQLite snapshot of the completed validation catalog was prepared for
+schema 15. Existing hashes were reused without reading photos. One complete 75%
+comparison pass and one queue query produced these measurements:
+
+| Measurement | Result |
+| --- | ---: |
+| Distinct usable hashes | 20,357 |
+| Destination content identities | 26,057 |
+| Comparison pass, including pair writes | 0.283 s |
+| Stored distinct-hash pairs, old 90% range | 2,142 |
+| Stored distinct-hash pairs, 75% range | 53,169 |
+| Pair table and indexes, old range | 303,104 bytes |
+| Pair table and indexes, 75% range | 7,409,664 bytes |
+| Single 75% queue query | 1,286.53 ms |
+| Destination representatives with matches at 75% | 25,456 |
+
+This is a single warm-host observation, not a capacity or accuracy claim. Query
+cost remains relevant even when hash calculation is fast. The vectorized comparison
+uses bounded chunks and linear hash memory, but initial calculation and worst-case
+pair storage can grow quadratically with distinct hashes. A 200,000+ photo library
+still requires separate scale validation.
+
+The schema-14 preparation tool preserves all non-derived tables in a separate file;
+startup never upgrades a catalog automatically. Correctness checks cover distances
+through the floor, rejection below it, chunk boundaries, interrupted work, source
+catalog preservation and review/history retention. The API suite and focused Similar
+browser workflow passed, including setting 75% and retaining it after refresh.
 
 ## Next validation
 

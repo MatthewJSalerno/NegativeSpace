@@ -1321,10 +1321,21 @@ class MatchingTests(ApiCase):
         self.assertTrue({p['id'] for p in first['items']}.isdisjoint(p['id'] for p in second['items']))
         self.assertEqual(self.client.get('/api/v1/similar?q=item-2').json()['total'], 1)
         self.assertEqual(self.client.get('/api/v1/similar?q=%25').json()['total'], 0)
-        for query in ('threshold=89', 'threshold=101', 'threshold=nan', 'page=0', 'page_size=61'):
+        for query in ('threshold=74', 'threshold=101', 'threshold=nan', 'page=0', 'page_size=61'):
             self.assertEqual(self.client.get('/api/v1/similar?'+query).status_code, 422, query)
         for query in ('mode=other', 'sort=other'):
             self.assertEqual(self.client.get('/api/v1/similar?'+query).status_code, 400, query)
+
+    def test_75_floor_includes_sixteen_bits_but_excludes_seventeen(self):
+        a = self.photo('reference', 'a', '0000000000000000')
+        edge = self.photo('at-floor', 'b', '000000000000ffff')
+        self.photo('below-floor', 'c', '000000000001ffff')
+        self.refresh()
+        result = self.client.get(f'/api/v1/similar/{a}?threshold=75').json()
+        self.assertEqual([(p['id'], p['score']) for p in result['items']], [(edge, 75.0)])
+        self.assertEqual(self.client.get(f'/api/v1/similar/{a}?threshold=76').json()['total'], 0)
+        self.assertIn(a, [p['id'] for p in self.client.get('/api/v1/similar?threshold=75').json()['items']])
+        self.assertNotIn(a, [p['id'] for p in self.client.get('/api/v1/similar?threshold=76').json()['items']])
 
     def test_only_delivered_photos_can_be_matched_or_reviewed(self):
         delivered = [self.photo(status, status, '0000000000000000', status=status)

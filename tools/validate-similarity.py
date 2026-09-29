@@ -74,7 +74,7 @@ def fixtures(out, samples):
     for value in set(hashes.values()):
         index.add(value)
     for value in set(hashes.values()):
-        expected = {(other,(value ^ other).bit_count()) for other in hashes.values() if (value ^ other).bit_count() <= 6}
+        expected = {(other,(value ^ other).bit_count()) for other in hashes.values() if (value ^ other).bit_count() <= ns_similarity.MAX_DISTANCE}
         if set(index.near(value)) != expected:
             raise AssertionError('Candidate index disagrees with exhaustive comparison')
     return pairs
@@ -127,7 +127,7 @@ def benchmark(size):
             logical_bytes = conn.execute('PRAGMA page_count').fetchone()[0]*conn.execute('PRAGMA page_size').fetchone()[0]
             timings = {}
             reference_timings = {}
-            for threshold in (90,95,100):
+            for threshold in (ns_similarity.MIN_SCORE,90,100):
                 print(f'Measuring queue and reference queries at {threshold}%…', file=sys.stderr, flush=True)
                 elapsed = []
                 for _ in range(7):
@@ -164,7 +164,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=False)
     pairs = fixtures(args.output, args.samples)
     metrics = {}
-    for threshold in (90,95,100):
+    for threshold in (ns_similarity.MIN_SCORE,90,100):
         tp = sum(p['expected']=='same' and p['score']>=threshold for p in pairs)
         fp = sum(p['expected']=='unrelated' and p['score']>=threshold for p in pairs)
         fn = sum(p['expected']=='same' and p['score']<threshold for p in pairs)
@@ -185,7 +185,7 @@ def main():
       pre{overflow:auto}label{display:block;margin:12px 0}@media(max-width:600px){.pair{grid-template-columns:1fr}}</style>
       <main><h1>Similarity validation</h1><p>Synthetic fixtures, not a real-library accuracy estimate. Crops expose missed matches;
       flat colors expose false positives. Hash similarity is not confidence.</p>
-      <label>Minimum similarity <input id="threshold" type="range" min="90" max="100" value="90"> <output id="value">90%</output></label>
+      <label>Minimum similarity <input id="threshold" type="range" min="75" max="100" value="90"> <output id="value">90%</output></label>
       <label><input id="errors" type="checkbox"> Show only missed matches and false positives</label>
       <p id="summary" role="status"></p><details><summary>Benchmark and threshold metrics</summary><pre>'''
       + html.escape(json.dumps({k:v for k,v in report.items() if k!='pairs'}, indent=2))+'</pre></details>'+cards+'''

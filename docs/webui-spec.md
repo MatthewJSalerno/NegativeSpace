@@ -1280,11 +1280,13 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 14 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 15 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
-user catalog. Development uses fresh catalogs until migration support is provided.
+user catalog. The explicit schema-14 preparation tool described in `engine-spec.md` §9.3
+preserves history in a separate schema-15 copy; other versions require a fresh
+development catalog without discarding the old one.
 
 
 Note the asymmetry this creates for the UI: deleting the catalog is cheap for Index state, but it discards the record of which files a previous Move already migrated. Where the UI offers a rebuild, it should say so.
@@ -1549,8 +1551,8 @@ asks for naming decisions before the library is organized.
 
 ### 7.4 The Similar tab
 
-**Built:** read-only visual review at `/similar`, a 90–100% visual
-threshold, most-matches/date/filename/file-size sort, filename search, paginated
+**Built:** read-only visual review at `/similar`, a 75–100% visual
+threshold (initially 90%), most-matches/date/filename/file-size sort, filename search, paginated
 queue and reference results, dimensions and largest-dimensions labels, and an
 Inspector link into the review for delivered photos. Each byte identity is represented once.
 Queue, references and saved-review endpoints require a delivered status and a
@@ -1559,6 +1561,9 @@ photos, projected destinations and missing destination copies are excluded, even
 when their source remains available.
 Equal visual hashes of
 different byte identities remain visual matches, including at 100%.
+The review also supports finding related photographs and clues about dates, events,
+and other metadata. Association does not prove shared metadata or authorize copying
+it; users must inspect the evidence. Metadata editing remains future work.
 Availability is recorded evidence, not a fresh filesystem check. Missing hashes
 and pending comparisons are explicit, and Index resumes unfinished comparisons.
 **Still to build:** actionable hash warnings: a view of affected destination photos,

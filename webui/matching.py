@@ -29,8 +29,8 @@ def _scope(mode):
 def _check(mode, threshold, sort, page, page_size):
     if mode not in ('similar', 'exact') or sort not in ('matches','newest','oldest','name','largest'):
         raise ValueError('Unknown matching mode or sort')
-    if not math.isfinite(threshold) or not 90 <= threshold <= 100:
-        raise ValueError('Visual match must be between 90 and 100')
+    if not math.isfinite(threshold) or not ns_similarity.MIN_SCORE <= threshold <= 100:
+        raise ValueError(f'Visual match must be between {ns_similarity.MIN_SCORE} and 100')
     if page < 1 or not 1 <= page_size <= 60:
         raise ValueError('page must be positive and page_size between 1 and 60')
 

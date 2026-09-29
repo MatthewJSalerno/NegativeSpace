@@ -1,9 +1,10 @@
 """Exact, incremental 64-bit pHash comparisons; no photo reads or file changes."""
-from collections import defaultdict
 import re
 
-MAX_DISTANCE = 6
-MIN_SCORE = 90
+import numpy as np
+
+MAX_DISTANCE = 16
+MIN_SCORE = 75
 VALID_HASH = re.compile(r'^[0-9a-fA-F]{16}$')
 
 
@@ -12,30 +13,31 @@ def usable(value):
 
 
 class HashIndex:
-    """Four 16-bit blocks. At distance <=6, one block differs in at most one bit.
+    """Exact vectorized Hamming comparisons over compact uint64 hashes.
 
-    Probe that block and its 16 one-bit neighbors, then verify the whole hash.
-    This candidate reduction is exact over the entire supported slider range.
-    Identical hashes share a bucket; callers insert each distinct hash once.
+    A wider radius defeats the old four-block candidate shortcut. Compare bounded
+    chunks in NumPy instead of constructing a quadratic distance matrix or Python
+    candidate sets. Initial work is O(n²); each new hash scans the known hashes.
+    Equal hashes share a bucket; refresh inserts each distinct hash once.
     """
     def __init__(self):
-        self.tables = [defaultdict(list) for _ in range(4)]
+        self.values = np.empty(1024, dtype=np.uint64)
+        self.size = 0
 
     def add(self, value):
-        for i, table in enumerate(self.tables):
-            table[(value >> (16 * i)) & 65535].append(value)
+        if self.size == len(self.values):
+            grown = np.empty(2 * len(self.values), dtype=np.uint64)
+            grown[:self.size] = self.values
+            self.values = grown
+        self.values[self.size] = value
+        self.size += 1
 
     def near(self, value):
-        candidates = set()
-        for i, table in enumerate(self.tables):
-            block = (value >> (16 * i)) & 65535
-            candidates.update(table.get(block, ()))
-            for bit in range(16):
-                candidates.update(table.get(block ^ (1 << bit), ()))
-        for other in candidates:
-            distance = (value ^ other).bit_count()
-            if distance <= MAX_DISTANCE:
-                yield other, distance
+        for start in range(0, self.size, 65536):
+            values = self.values[start:min(start + 65536, self.size)]
+            distances = np.bitwise_count(values ^ np.uint64(value))
+            for i in np.flatnonzero(distances <= MAX_DISTANCE):
+                yield int(values[i]), int(distances[i])
 
 
 def refresh(conn, *, cancelled=lambda: False, progress=lambda done, total: None):

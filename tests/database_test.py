@@ -573,21 +573,80 @@ class SimilarityTests(unittest.TestCase):
     setUp = DatabaseTests.setUp
     tearDown = DatabaseTests.tearDown
 
+    def test_prepare_75_catalog_preserves_history_and_reviews_without_modifying_source(self):
+        import runpy
+        prepare = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'tools/prepare-similarity-catalog.py'))['prepare']
+        run = db.create_run(self.conn, mode='COPY', source='/source', destination='/destination')[0]
+        with db.transaction(self.conn):
+            photo = self.conn.execute("INSERT INTO photos(source_path,status,sha1_hash) VALUES('/source/a.jpg','Copied','a')").lastrowid
+            db.record_source_observation(self.conn, photo_id=photo, run_id=run, source_path='/source/a.jpg',
+                sha1_hash='a', file_size=10, file_mtime=100, birthtime=None, metadata={}, error=None)
+            op = self.conn.execute("INSERT INTO operations(run_id,photo_id,status,timestamp) VALUES(?,?,'Copied','test')", (run,photo)).lastrowid
+            db.link_operation(self.conn,op,photo)
+            db.record_delivery(self.conn,operation_id=op,photo_id=photo,run_id=run,destination='/destination/a.jpg',
+                source_removed=False,created=True,sha1_hash='a')
+        with db.transaction(self.conn):
+            a = db.content_for_digest(self.conn, digest='review-a', phash='0000000000000000', phash_state='ok')
+            b = db.content_for_digest(self.conn, digest='review-b', phash='000000000000ffff', phash_state='ok')
+            self.conn.execute("INSERT INTO similarity_reviews VALUES(?,?,'related','test')", (a, b))
+            self.conn.execute('DROP TABLE content_similarity')
+            self.conn.execute("CREATE TABLE content_similarity(low_hash TEXT NOT NULL,high_hash TEXT NOT NULL,distance INTEGER NOT NULL CHECK(distance BETWEEN 1 AND 6),PRIMARY KEY(low_hash,high_hash),CHECK(low_hash<high_hash))")
+            self.conn.execute("CREATE INDEX idx_similarity_reverse ON content_similarity(high_hash,distance,low_hash)")
+            self.conn.execute("INSERT INTO similarity_hashes VALUES('0000000000000000')")
+            self.conn.execute('DROP TABLE catalog_schema')
+            self.conn.execute('CREATE TABLE catalog_schema(version INTEGER NOT NULL CHECK(version=14))')
+            self.conn.execute('INSERT INTO catalog_schema VALUES(14)')
+        before = list(self.conn.iterdump())
+        out = self.path.with_name('prepared.db')
+        result = prepare(self.path, out, compare=True)
+        self.assertEqual(list(self.conn.iterdump()), before)
+        self.assertGreaterEqual(result['stored_pairs'], 1)
+        with sqlite3.connect(out) as other:
+            db.require_schema(other)
+            tables = [r[0] for r in self.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+            for table in tables:
+                if table not in ('catalog_schema', 'content_similarity', 'similarity_hashes'):
+                    self.assertEqual(self.conn.execute(f'SELECT * FROM "{table}"').fetchall(),
+                                     other.execute(f'SELECT * FROM "{table}"').fetchall(), table)
+            self.assertEqual(other.execute("SELECT distance FROM content_similarity WHERE low_hash='0000000000000000' AND high_hash='000000000000ffff'").fetchone(), (16,))
+        with self.assertRaises(FileExistsError):
+            prepare(self.path, out)
+        with self.assertRaises(FileExistsError):
+            prepare(self.path, self.path)
+        invalid = self.path.with_name('invalid.db')
+        with self.assertRaises(ValueError):
+            prepare(out, invalid)
+        self.assertFalse(invalid.exists())
+
     def test_hash_index_matches_brute_force_at_every_supported_distance(self):
         import random
         from ns_similarity import HashIndex
         rng = random.Random(73)
         values = {rng.getrandbits(64) for _ in range(150)}
         for base in list(values)[:20]:
-            for distance in range(1, 9):
+            for distance in range(1, 19):
                 mask = sum(1 << bit for bit in rng.sample(range(64), distance))
                 values.add(base ^ mask)
         index = HashIndex()
         for value in values:
             index.add(value)
         for value in values:
-            expected = {(other, (value ^ other).bit_count()) for other in values if (value ^ other).bit_count() <= 6}
+            expected = {(other, (value ^ other).bit_count()) for other in values if (value ^ other).bit_count() <= 16}
             self.assertEqual(set(index.near(value)), expected)
+
+    def test_hash_index_grows_and_checks_across_chunk_boundaries(self):
+        from ns_similarity import HashIndex
+        index = HashIndex()
+        for value in range(65540):
+            index.add(value)
+        query = 0xffff
+        expected = {(other, (query ^ other).bit_count()) for other in range(65540)
+                    if (query ^ other).bit_count() <= 16}
+        self.assertEqual(set(index.near(query)), expected)
+        # Four differing bits in every old index block must not be missed.
+        wide = HashIndex()
+        wide.add(0x000f000f000f000f)
+        self.assertEqual(list(wide.near(0)), [(0x000f000f000f000f, 16)])
 
     def test_comparisons_resume_atomically_and_equal_hashes_need_no_pairs(self):
         import ns_similarity
@@ -604,7 +663,7 @@ class SimilarityTests(unittest.TestCase):
         self.assertTrue(ns_similarity.refresh(self.conn))
         pairs = {tuple(row) for row in self.conn.execute('SELECT low_hash,high_hash,distance FROM content_similarity')}
         expected = {(f'{a:016x}', f'{b:016x}', (a ^ b).bit_count()) for a in range(300) for b in range(a+1, 300)
-                    if (a ^ b).bit_count() <= 6}
+                    if (a ^ b).bit_count() <= 16}
         self.assertEqual(pairs, expected)
         self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM similarity_hashes').fetchone()[0], 300)
         self.assertTrue(ns_similarity.refresh(self.conn))

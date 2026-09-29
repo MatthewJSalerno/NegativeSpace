@@ -316,8 +316,11 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 14 and refuses incompatible catalogs before processing.
-No migration exists: preserve an older catalog and use a fresh one. Index cannot
+initializes schema version 15 and refuses incompatible catalogs before processing.
+No automatic migration occurs. A schema-14 catalog can be prepared as a separate
+schema-15 copy with `tools/prepare-similarity-catalog.py`; it preserves history and
+judgments and rebuilds only derived comparisons. Other incompatible versions remain
+refused: preserve the older catalog. Index cannot
 reconstruct settings, past edits, or deleted-file lineage. Never describe deleting a
 user catalog as routine repair.
 
@@ -613,7 +616,7 @@ CREATE TABLE file_changes (
 -- Distinct visual hashes only; equal hashes share an implicit zero-distance bucket.
 CREATE TABLE content_similarity (
     low_hash TEXT NOT NULL, high_hash TEXT NOT NULL,
-    distance INTEGER NOT NULL CHECK(distance BETWEEN 1 AND 6),
+    distance INTEGER NOT NULL CHECK(distance BETWEEN 1 AND 16),
     PRIMARY KEY(low_hash, high_hash), CHECK(low_hash < high_hash)
 );
 CREATE INDEX idx_similarity_reverse ON content_similarity(high_hash, distance, low_hash);
@@ -886,12 +889,19 @@ actionable files without an available copy. Width and height are already capture
 during Index on `contents`, from the same decode that makes the thumbnail, and are
 NULL when unavailable.
 
-**Implemented for read-only review.** The slider offers 90–100%; its score is
-`100 * (64 - Hamming distance) / 64`, so storage covers distances 1–6. Equal
-hashes share an implicit zero-distance bucket without quadratic pair storage.
-The exact candidate index splits hashes into four 16-bit blocks and probes each
-block and its one-bit neighbors before checking the full distance. Every pair
-within six bits must have at least one such block.
+**Implemented for read-only review and association.** The slider offers 75–100%,
+with 90% as the initial value; its score is `100 * (64 - Hamming distance) / 64`,
+so storage covers distances 1–16. Matches can help users investigate dates, events,
+and other metadata as well as visual duplicates. Scores are not confidence or
+proof that photos share a date or event; metadata edits require human review.
+Equal hashes share an implicit zero-distance bucket without quadratic pair storage.
+
+Comparison uses NumPy uint64 XOR and bit counts, scanning at most 65,536 known
+hashes per chunk. This is exact through the 75% floor and avoids a full distance
+matrix. The hash array grows linearly; the initial comparison work is quadratic in
+distinct hashes, and each newly added hash scans the known hashes. The old four-block
+shortcut was valid only for the narrower range. Pair storage depends on how many
+distinct hashes match and can itself become quadratic in a dense collection.
 
 `similarity_hashes` records completed hash comparisons. Index backfills all
 unrecorded hashes, including delivered content, then publishes batches of 256
@@ -899,8 +909,14 @@ hashes with their relationships in one transaction. Cancellation rolls back the
 current batch; the next Index resumes it. Readers join current content hashes,
 so changed content membership cannot inherit relationships from its old hash.
 Old hash relationships may remain cached. Missing hashes and incomplete
-comparisons are reported separately by the API. This is schema version 14;
-older development catalogs remain refused under the existing no-migration policy.
+comparisons are reported separately by the API. Schema 15 widens the pair-distance
+constraint. Normal startup still refuses incompatible catalogs. The explicit
+schema-14 preparation tool creates a new catalog through SQLite backup, replaces
+only the pair table, completion markers and schema marker, and retains all other
+data. It refuses an existing output and can precompute the range using `--compare`.
+Stop the app before preparing and switching its catalog to avoid losing writes made
+after the snapshot. Keep the original catalog for rollback. No photos are read or
+modified. Manual preparation does not invent an engine comparison-phase timing.
 
 `similarity_reviews` stores the user's latest same/related/unrelated judgment for
 an unordered pair of distinct byte identities. These labels do not change matching

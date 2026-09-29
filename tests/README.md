@@ -287,3 +287,14 @@ counts and View failures links. It modifies only the harness's disposable photos
 The API suite also runs all four cases with a writable source to verify successful
 Move alongside scan failures. Existing verdict cases cover cancellation, copied-only,
 unchanged Index, repeated Copy and unrelated recovery.
+
+### Preparing an existing similarity validation catalog
+
+The 75% floor uses schema 15. Automatic startup upgrades remain disabled. To retain
+schema-14 history and review judgments, stop the app and run the explicit
+`tools/prepare-similarity-catalog.py --source <old-catalog> --output <new-catalog> --compare`
+with the updated app dependencies. Output must be a new file. The tool uses SQLite
+backup, widens and rebuilds only the derived comparison cache, and checks integrity
+and foreign keys. Retain the original catalog before switching to the prepared copy;
+do not switch a snapshot made before later user writes. It reads existing hashes,
+not photo files. Other schema versions are refused.
