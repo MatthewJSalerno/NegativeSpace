@@ -89,6 +89,7 @@ def benchmark(size):
         conn = ns_db.connect(path)
         try:
             run = ns_db.create_run(conn, mode='INDEX', source='/synthetic', destination='/destination')[0]
+            delivery_run = ns_db.create_run(conn, mode='COPY', source='/synthetic', destination='/destination')[0]
             with ns_db.transaction(conn):
                 for i in range(size):
                     if i % 5 == 0:
@@ -100,6 +101,13 @@ def benchmark(size):
                     ns_db.record_source_observation(conn, photo_id=photo,run_id=run,source_path=source,sha1_hash=digest,
                         file_size=1000,file_mtime=100,birthtime=None,metadata={},error=None)
                     ns_db.content_for_digest(conn,digest=digest,phash=f'{value:016x}',phash_state='ok',width=640,height=480)
+                    destination = f'/destination/photo-{i:06d}.jpg'
+                    op = conn.execute("INSERT INTO operations(run_id,photo_id,status,timestamp) VALUES(?,?,'Copied','test')",
+                                      (delivery_run, photo)).lastrowid
+                    ns_db.link_operation(conn, op, photo)
+                    ns_db.record_delivery(conn, operation_id=op, photo_id=photo, run_id=delivery_run,
+                        destination=destination, source_removed=False, created=True, sha1_hash=digest)
+                    conn.execute("UPDATE photos SET status='Copied',dest_path=? WHERE id=?", (destination, photo))
             started = time.perf_counter()
             print('Comparing hashes…', file=sys.stderr, flush=True)
             ns_similarity.refresh(conn)
@@ -124,7 +132,8 @@ def benchmark(size):
                 elapsed = []
                 for _ in range(7):
                     start = time.perf_counter()
-                    matching.queue(path, threshold=threshold)
+                    result = matching.queue(path, threshold=threshold)
+                    assert result['state']['photos'] == size, 'benchmark must include all delivered photos'
                     elapsed.append((time.perf_counter()-start)*1000)
                 timings[str(threshold)] = {'first_ms':round(elapsed[0],2), 'median_ms':round(statistics.median(elapsed),2),
                                           'max_ms':round(max(elapsed),2)}
@@ -135,7 +144,7 @@ def benchmark(size):
                     elapsed.append((time.perf_counter()-start)*1000)
                 reference_timings[str(threshold)] = {'first_ms':round(elapsed[0],2),
                     'median_ms':round(statistics.median(elapsed),2), 'max_ms':round(max(elapsed),2)}
-            return {'photos':size,'distribution':'seeded clusters of five hashes, each 0–4 bit flips from its seed',
+            return {'photos':size,'scope':'destination','distribution':'seeded clusters of five hashes, each 0–4 bit flips from its seed',
                     'initial_comparison_seconds':round(initial,3),'unchanged_comparison_seconds':round(unchanged,3),
                     'one_new_hash_seconds':round(incremental,3),'stored_pairs':stored,'catalog_logical_bytes':logical_bytes,
                     'queue_ms':timings, 'reference_ms':reference_timings,

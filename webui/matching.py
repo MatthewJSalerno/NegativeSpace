@@ -12,13 +12,11 @@ from . import catalog
 _BASE = f"""raw AS (
  SELECT {catalog._LIST_COLUMNS}, c.content_id, lower(c.phash) AS phash,
         c.phash_state, c.width, c.height,
-        ROW_NUMBER() OVER (PARTITION BY c.content_id ORDER BY
-            CASE WHEN p.status='Duplicate' THEN 1 ELSE 0 END, p.id) AS representative
+        ROW_NUMBER() OVER (PARTITION BY c.content_id ORDER BY p.id) AS representative
  FROM photos p JOIN contents c ON c.digest=p.sha1_hash AND c.hash_algorithm='sha1'
- WHERE p.status IN ({ns_db.sql_values(catalog.VIEWS['all'] + (ns_db.PhotoStatus.DUPLICATE,))})
+ WHERE p.status IN ({ns_db.sql_values(catalog.DELIVERED)})
  AND EXISTS (SELECT 1 FROM file_states fs WHERE fs.presence_state='present'
-     AND fs.sha1_hash=p.sha1_hash AND (fs.current_path=p.source_path
-         OR (p.status!='Duplicate' AND fs.current_path=p.dest_path)))
+     AND fs.sha1_hash=p.sha1_hash AND fs.current_path=p.dest_path)
 )"""
 _VALID = "phash_state='ok' AND length(phash)=16 AND phash NOT GLOB '*[^0-9a-f]*'"
 
@@ -89,7 +87,7 @@ def _pair(conn, reference_id, candidate_id):
                         (reference_id, candidate_id)).fetchall()
     by_id = {r['id']: r for r in rows}
     if reference_id == candidate_id or reference_id not in by_id or candidate_id not in by_id:
-        raise ReviewChanged('Both photos must still have recorded available copies. Refresh the comparison.')
+        raise ReviewChanged('Both photos must have recorded available destination copies. Refresh the comparison.')
     return by_id[reference_id], by_id[candidate_id]
 
 
@@ -150,8 +148,8 @@ def matches(db: Path, photo_id: int, *, mode='similar', threshold=90., page=1, p
     with catalog.connect(db) as conn:
         conn.execute('BEGIN')
         state = _state(conn)
-        # A direct Inspector link may name an exact duplicate, so resolve the
-        # reference from raw, even when the similar queue collapses equal content.
+        # Resolve only delivered references, including a second delivered record
+        # of the same content when the queue uses a different representative.
         reference = conn.execute('WITH '+_BASE+' SELECT * FROM raw WHERE id=?',(photo_id,)).fetchone()
         if reference is None:
             return {'reference':None,'items':[],'total':0,'page':page,'page_size':page_size,'state':state,'availability':'not_available'}

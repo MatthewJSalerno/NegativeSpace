@@ -100,10 +100,13 @@ are outside the comparison timings; whole-process peak RSS includes fixture setu
 Results describe the local temporary Docker catalog and its caches, not network
 storage performance. Hash distribution and match density also affect scale.
 Actual Similar-page query timings and human judgments provide the next validation
-step on a representative catalog. Side-by-side feedback never modifies photos.
+step on a representative destination catalog after Index and Copy or Move. An
+Index-only catalog has no reviewable destination photos. Side-by-side feedback
+never modifies photos. Synthetic benchmarks create recorded destination copies
+and assert that all requested photos are included in query measurements.
 
-`DRIVER=similar_browser_drive.py sh tests/webui_browser_test.sh` checks real Index
-comparisons, visual review (including old exact-mode bookmarks), threshold filtering, pagination, Inspector
+`DRIVER=similar_browser_drive.py sh tests/webui_browser_test.sh` checks the empty review after Index, then Copies
+the isolated generated fixtures and checks destination comparisons, visual review (including old exact-mode bookmarks), threshold filtering, pagination, Inspector
 navigation, reload, search, refresh and narrow-screen layout using generated photos.
 It also checks shared preview zoom, persistent content-pair judgments, and diagnostics.
 The database suite verifies the hash index against brute force and interrupted

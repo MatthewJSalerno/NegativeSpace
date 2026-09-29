@@ -200,7 +200,7 @@ service. Built and tested:
     *   the **Stats** page: the library in figures (formats, cameras, resolution, dates,
         duplicate space with its coverage, activity, catalog health), each leading to
         the photos or log entries behind it.
-    *   the **Similar** page: read-only visual matching, a 90–100% threshold,
+    *   the **Similar** page: read-only visual matching of destination photos after Copy or Move, a 90–100% threshold,
         search and sorting, paginated reference comparisons, dimensions, and links
         to photo details. Index precomputes comparisons and resumes interrupted work.
         A side-by-side review dialog provides linked zoom and saved content-pair

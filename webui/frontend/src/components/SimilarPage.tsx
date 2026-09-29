@@ -135,7 +135,8 @@ export function SimilarPage({ status, onOpenSettings }: { status: Status; onOpen
     </header>
     <main id="main-content" tabIndex={-1} className="similar-page">
       <h2>Photos with visual matches</h2>
-      <p className="muted">Compare photos and inspect their history. File availability is recorded from the last observation.</p>
+      <p className="muted">Review visually similar photos at the destination. Index your photos, then Copy or Move them before reviewing matches.</p>
+      <p className="muted">Destination availability is recorded from the last observation.</p>
       <p className="muted">The percentage measures hash similarity, not confidence. A 100% score does not mean identical pictures.</p>
       <details onToggle={(e) => setDiagnosticsOpen(e.currentTarget.open)}><summary>Validation and performance</summary>
         {diagnosticsOpen && <MatchDiagnosticsPanel refreshKey={`${jobKey}:${refresh}:${reviewsChanged}`} queueMs={queue?.query_ms} />}
@@ -163,7 +164,7 @@ export function SimilarPage({ status, onOpenSettings }: { status: Status; onOpen
       {matches && <section className="match-detail" aria-label="Photo comparison">
         <div className="match-heading"><h3>Compare with {matches.reference?.filename ?? "unavailable photo"}</h3>
           <button onClick={() => update({ photo: null, match_page: 1 }, true)}>Close comparison</button></div>
-        {matches.availability === "not_available" && <p>This photo has no recorded available copy. Its history remains in the Library.</p>}
+        {matches.availability === "not_available" && <p>This photo has no recorded available destination copy. Copy or Move it before reviewing matches. Its history remains in the Library.</p>}
         {matches.availability === "hash_unavailable" && <p>Visual matching is unavailable for this photo because it has no usable visual hash.</p>}
         {matches.reference && <div className="match-reference">{picture(matches.reference, true)}</div>}
         {matches.availability === "available" && <>
@@ -173,7 +174,9 @@ export function SimilarPage({ status, onOpenSettings }: { status: Status; onOpen
         </>}
       </section>}
       {queue && <section aria-label="Matching photos">
-        {queue.total === 0 && <p>No photos with matches for these filters.</p>}
+        {queue.state.photos === 0
+          ? <p>No destination photos are available for review. <a href="/" onClick={follow}>Open the Library</a> to Copy or Move indexed photos.</p>
+          : queue.total === 0 && <p>No destination photos with matches for these filters.</p>}
         <div className="match-grid">{queue.items.map((photo) => picture(photo))}</div>{pager(queue)}
       </section>}
       </div>

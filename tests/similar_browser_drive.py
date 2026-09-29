@@ -1,4 +1,4 @@
-"""Read-only similarity review against generated photos and the real Index."""
+"""Read-only similarity review against generated photos and real Index/Copy jobs."""
 import os
 import re
 import sys
@@ -18,12 +18,24 @@ with sync_playwright() as p:
         time.sleep(.2)
     assert outcome['status'] == 'Completed', outcome
     queue = request.get('/api/v1/similar').json()
-    assert queue['total'] > 60 and queue['state']['pending'] == 0, queue
+    assert queue['total'] == 0 and queue['state']['photos'] == 0, queue
     page = browser.new_page(viewport={'width': 1440, 'height': 1000})
     errors = []
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.goto(sys.argv[1])
     page.get_by_role('link', name='Similar', exact=True).click()
+    expect(page.get_by_text('No destination photos are available for review.', exact=False)).to_be_visible()
+    # Copy only the generated fixtures in this isolated test catalog.
+    run = request.post('/api/v1/jobs/start', data={'mode': 'copy'}).json()['id']
+    for _ in range(600):
+        outcome = request.get(f'/api/v1/runs/{run}').json()
+        if outcome['status'] not in ('Preparing', 'Running', 'Cancelling'):
+            break
+        time.sleep(.2)
+    assert outcome['status'] == 'Completed', outcome
+    queue = request.get('/api/v1/similar').json()
+    assert queue['total'] > 60 and queue['state']['pending'] == 0, queue
+    page.get_by_role('button', name='Refresh', exact=True).click()
     queue_region = page.get_by_role('region', name='Matching photos', exact=True)
     expect(queue_region.locator('.match-card')).to_have_count(30)
     queue_region.get_by_role('button', name='Next page', exact=True).click()

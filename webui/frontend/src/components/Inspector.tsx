@@ -269,7 +269,8 @@ function Details({ detail: d, onLineage, refreshKey }: { detail: PhotoDetail; on
       )}
       <section className="info-section">
         <h3>Exact duplicates ({d.duplicates.length})</h3>
-        <p><a href={`/similar?photo=${d.id}`} onClick={follow}>Find similar photos</a></p>
+        {["Completed", "Copied", "Found_At_Destination"].includes(d.status) &&
+          <p><a href={`/similar?photo=${d.id}`} onClick={follow}>Find similar photos</a></p>}
         {d.duplicates.length === 0 ? (
           <p className="muted info-empty">No other catalogued file has identical content.</p>
         ) : (

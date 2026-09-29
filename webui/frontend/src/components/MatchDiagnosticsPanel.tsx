@@ -20,8 +20,8 @@ export function MatchDiagnosticsPanel({ refreshKey, queueMs }: { refreshKey: str
       <dl>
         <dt>Usable distinct visual hashes in catalog</dt><dd>{count(data.distinct_hashes)}</dd>
         <dt>Stored pairs of different hashes</dt><dd>{count(data.stored_pairs)}</dd>
-        <dt>Available photos awaiting comparison</dt><dd>{count(data.state.pending)}</dd>
-        <dt>Available photos without usable hashes</dt><dd>{count(data.state.unavailable)}</dd>
+        <dt>Destination photos awaiting comparison</dt><dd>{count(data.state.pending)}</dd>
+        <dt>Destination photos without usable hashes</dt><dd>{count(data.state.unavailable)}</dd>
         <dt>Last queue query on server</dt><dd>{queueMs == null ? "Not recorded" : `${queueMs} ms`}</dd>
         <dt>Last comparison phase, reported elapsed</dt><dd>{data.last_comparison ? `${data.last_comparison.elapsed_seconds.toFixed(2)} s (job ${data.last_comparison.run_id})` : "Not recorded"}</dd>
         <dt>Same photograph judgments</dt><dd>{count(data.reviews.same ?? 0)}</dd>

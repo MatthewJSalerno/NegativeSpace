@@ -1494,12 +1494,14 @@ The UI must not blur them:
 The Similar page reviews visually similar, different-content photos. It has no
 exact-copy mode: Copy and Move already avoid writing exact duplicates to the
 destination. Exact-copy counts and recorded outcomes remain in photo details,
-history and Stats. Destination curation is the eventual purpose of Similar.
-During read-only validation, indexed source photos remain available for comparison.
+history and Stats. Similar reviews destination photos only. The workflow is
+**Index → Copy or Move → review and curate destination photos**; EXIF editing and
+match cleanup remain future work. Before delivery, the page explains the Copy or
+Move step and links to the Library.
 Old `mode=exact` page bookmarks open visual review; the dropdown is removed.
 
-**Every photo's info box states its exact-duplicate count and carries a "find
-similar photos" link** scoped to it.
+**Every photo's info box states its exact-duplicate count. Delivered photos carry
+a "find similar photos" link** scoped to them.
 
 **The count must say whether they have been dealt with.** On a catalog that has
 only been indexed, the duplicates are flagged but still on disk; a bare number
@@ -1550,7 +1552,11 @@ asks for naming decisions before the library is organized.
 **Built:** read-only visual review at `/similar`, a 90–100% visual
 threshold, most-matches/date/filename/file-size sort, filename search, paginated
 queue and reference results, dimensions and largest-dimensions labels, and an
-Inspector link into the review. Each byte identity is represented once.
+Inspector link into the review for delivered photos. Each byte identity is represented once.
+Queue, references and saved-review endpoints require a delivered status and a
+recorded present file at that photo's destination with matching SHA-1. Source-only
+photos, projected destinations and missing destination copies are excluded, even
+when their source remains available.
 Equal visual hashes of
 different byte identities remain visual matches, including at 100%.
 Availability is recorded evidence, not a fresh filesystem check. Missing hashes
@@ -1574,8 +1580,8 @@ reported comparison-phase elapsed time, and counts of saved judgments. These
 selected judgments are not presented as whole-library accuracy. Missing timing is
 shown as not recorded; reported phase time is not a dedicated CPU benchmark.
 
-Matching compares against the full catalog, including delivered photos; it needs an
-initial backfill and refresh when perceptual hashes change (`engine-spec.md` §9.3).
+Hash precomputation covers the full catalog; review results include only destination
+photos. Precomputation needs an initial backfill and refresh when perceptual hashes change (`engine-spec.md` §9.3).
 Find Similar results are measured against the selected reference, not chained through
 other matches. Missing hashes are labelled unavailable rather than unique; historical
 records remain accessible without being offered as actionable missing files. The

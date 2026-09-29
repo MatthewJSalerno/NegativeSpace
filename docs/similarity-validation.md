@@ -8,7 +8,7 @@ implementation at that scale.
 ## What is implemented
 
 - Incremental, resumable visual-hash comparisons in SQLite during Index.
-- Visual match review, threshold filtering, and reference comparisons. Exact-copy
+- Destination-only visual match review after Copy or Move, threshold filtering, and reference comparisons. Exact-copy
   information remains in photo details, history and Stats.
 - Side-by-side generated previews with linked zoom and position controls.
 - Same/related/unrelated judgments stored against pairs of content identities.
@@ -24,11 +24,14 @@ its zoom is not original-resolution inspection.
 
 ## Recorded synthetic scale result
 
-One development-host run with 250,000 photo records, seeded clusters of five
+Historical baseline before destination-only review: one development-host run with
+250,000 source photo records, seeded clusters of five
 hashes (0–4 bit flips from each seed), and seven query samples per threshold.
 This uses a temporary local Docker catalog. It excludes file discovery, source
 I/O, image decoding and thumbnail generation from comparison timings. It does
-not establish real-library or network-storage performance.
+not establish real-library or network-storage performance. The benchmark now creates
+delivered records and checks that every record is eligible; rerun it to measure the
+current destination scope. The figures below are the earlier baseline.
 
 | Measurement | Result |
 | --- | ---: |
@@ -70,9 +73,21 @@ earlier full run.
 Schema version 14 includes saved judgments. Older catalogs remain refused under
 the existing no-migration policy. No real photo library was modified or measured.
 
+## Destination-only review validation
+
+The destination scope change passed all 64 API tests, the browser workflow from
+Index's empty review through Copy to destination comparisons, both container builds,
+and specification checks. API cases cover delivered statuses, source-only direct
+links, projected destinations, and missing or changed destination copies while the
+source remains present. Existing judgments survive loss of destination availability.
+A 1,000-record delivered synthetic catalog smoke check verified nonempty benchmark
+scope at all thresholds. This is not a replacement for the 250,000-record scale run.
+
 ## Next validation
 
-- Run the documented tests on this branch and inspect the Similar page.
+- Run the documented tests on this branch. Index and Copy a sample catalog, then
+  inspect the destination photos on the Similar page. An Index-only catalog shows
+  the Copy/Move guidance instead of source comparisons.
 - Check match quality against varied real photographs, especially crops, RAW/JPEG
   pairs, rotations, edits, and images with little detail.
 - Profile queue and reference queries at 250,000 records; measure again after each

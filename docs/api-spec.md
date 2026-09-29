@@ -617,7 +617,7 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
 
 ### `GET /api/v1/similar`
 
-Read-only matching queue. Query: `mode=similar|exact` (default `similar`),
+Read-only destination matching queue. Query: `mode=similar|exact` (default `similar`),
 `threshold=90..100` (default 90), `sort=matches|newest|oldest|name|largest`,
 `q` (literal filename substring), `page` (positive, default 1), `page_size`
 (1–60, default 30). Unknown mode/sort returns 400; numeric validation errors return 422.
@@ -628,7 +628,11 @@ compatibility and diagnostic use; exact-copy details remain in the Inspector.
 Returns `items`, `total`, `page`, `page_size`, `query_ms` (server query duration), and `state` with counts `photos`,
 `unavailable` (no usable visual hash), and `pending` (awaiting comparison).
 Each item contains `id`, `filename`, `file_size`, `date_taken`, `status`, `width`,
-`height`, and `matches`. Only recorded available photos with matches appear;
+`height`, and `matches`. Only destination photos with matches appear. Eligibility
+requires status `Copied`, `Completed` or `Found_At_Destination` and a recorded
+present file at `dest_path` with matching SHA-1. Source-only photos and projected
+destinations are excluded; `state` counts only eligible destination content. The
+legacy exact mode uses the same destination eligibility;
 visual mode collapses identical bytes to one representative, exact mode retains
 available photo records. Exact mode ignores the visual threshold. File availability
 is catalog evidence, not a live filesystem verification. Missing/incompatible catalogs
@@ -639,12 +643,12 @@ use the existing 409 errors.
 Reference-based results with the same mode, threshold, and pagination parameters.
 Returns `reference`, `items`, `total`, `page`, `page_size`, `state`, and
 `availability` (`available`, `hash_unavailable`, or `not_available`). Unknown or
-historical-only references return 200 with `reference: null`, empty items and
+source-only or historical-only references return 200 with `reference: null`, empty items and
 `not_available`. Each match has `score` (visual percentage rounded to two decimals,
 100 for exact copies); filtering uses the unrounded Hamming distance. Available
 results also include `largest_pixels` over the reference and all matching pages,
 or null for unknown dimensions. Matches are relative to the reference, never
-transitive. A direct link to an exact duplicate resolves its content in visual mode.
+transitive. A direct link to another eligible destination copy resolves its content in visual mode.
 Incomplete comparisons are reported through `state.pending`; no results with
 pending work do not establish uniqueness.
 
@@ -659,7 +663,7 @@ Equal hashes do not need stored pairs. Review counts are not unbiased quality es
 
 ### `GET /api/v1/similar/{id}/review/{other_id}`
 
-Compare any two different available photo IDs, including below-threshold pairs.
+Compare any two different eligible destination photo IDs, including below-threshold pairs.
 Returns `reference` and `candidate` (matching item fields plus `sha1`), `exact`
 (same content identity), `distance` (0–64, null without usable hashes), `score`
 (hash percentage or null), and `feedback` (null or `{verdict, updated_at}`).
@@ -671,7 +675,8 @@ Body: `{reference_sha1, candidate_sha1, verdict}`. Verdict is `same`, `related`,
 `unrelated`, or null to clear. Returns the same shape as GET after persistence.
 Labels are keyed by an unordered pair of content identities, so swapping references,
 renaming and moving do not lose feedback. The transaction verifies submitted hashes
-against current available photos; changed content returns 409 `review_changed`.
+against current eligible destination photos; changed content or unavailable
+destination copies return 409 `review_changed`, even if the source remains present.
 Byte-identical content returns 400 `invalid_request`; malformed bodies return 422;
 lock contention returns 503 `catalog_busy`. Feedback changes no photos or match
 results. The catalog retains only the latest judgment for each content pair.
