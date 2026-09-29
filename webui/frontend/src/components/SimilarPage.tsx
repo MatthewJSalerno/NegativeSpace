@@ -157,9 +157,9 @@ export function SimilarPage({ status, onOpenSettings }: { status: Status; onOpen
       {error && <p role="alert" className="error">{error} <button onClick={reload}>Retry</button></p>}
       {loading && <p role="status">Loading matches…</p>}
       <div aria-busy={loading} inert={loading}>
-      {queue && <p className="muted">
-        {plural(queue.state.unavailable, "photo")} without a usable visual hash. {plural(queue.state.pending, "photo")} awaiting comparison.
-        {queue.state.pending > 0 && " Run Index from the Library to finish comparing; these results are partial."}
+      {queue && (queue.state.unavailable > 0 || queue.state.pending > 0) && <p className="muted">
+        {queue.state.unavailable > 0 && <>{plural(queue.state.unavailable, "destination photo")} could not be included because no usable visual hash is recorded. </>}
+        {queue.state.pending > 0 && <>{plural(queue.state.pending, "destination photo")} awaiting comparison. Run Index from the Library to finish comparing; these results are partial.</>}
       </p>}
       {matches && <section className="match-detail" aria-label="Photo comparison">
         <div className="match-heading"><h3>Compare with {matches.reference?.filename ?? "unavailable photo"}</h3>
