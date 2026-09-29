@@ -859,6 +859,15 @@ The destination check (§9.1) detects differences without modifying photos. When
 
 pHash is computed and stored during Index (§4.2), including RAW. After scanning,
 Index compares distinct usable hashes across all catalogued content.
+`compute_phash` opens the indexed photo file, not a cached gallery thumbnail or
+detail preview. Standard images use Pillow; RAW files use rawpy half-size demosaicing
+before hashing. The small visual fingerprint does not require a full-resolution
+render. Preview rotation in the browser never recomputes the hash.
+
+The SHA-1 content identity and its perceptual hash are already associated in the
+SQLite catalog's `contents` table, alongside derived comparison tables. There is
+no separate DuckDB mapping. A second database is not required by the current review
+workflow; any proposed change needs measured query, storage or comparison evidence.
 
 **The comparison must be precomputed, not computed per view.** The user-facing
 control is a match-percentage slider (`webui-spec.md` §7), and a slider that

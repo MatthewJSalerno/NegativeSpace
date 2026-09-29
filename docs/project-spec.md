@@ -203,8 +203,13 @@ service. Built and tested:
     *   gallery **Has similar photos** and Inspector matching: read-only visual review
         of destination photos after Copy or Move, separate Photo information/Similar photos Inspector tabs, cumulative
         75/80/85/90/95/100% counts and a responsive, paged match grid. Index precomputes comparisons and resumes interrupted work.
-        A side-by-side review dialog provides linked zoom and saved content-pair
-        judgments; the validation panel shows coverage, timings and review counts.
+        The expanded side-by-side workspace provides independent temporary rotation,
+        linked zoom/position, candidate promotion to reference, file/image and metadata
+        differences with scrolling column headings, and saved content-pair judgments.
+        Preview dimensions follow viewing rotation; recorded dimensions stay unchanged.
+        The validation panel shows coverage, timings and review counts. General EXIF
+        editing, end-of-review orientation saving, deletion and gallery sorting by
+        match count remain future work tracked in [TODO.md](../TODO.md).
 
     `tests/webui_browser_test.sh` drives them in a real browser.
 

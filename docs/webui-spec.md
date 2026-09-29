@@ -1563,6 +1563,13 @@ existing view controls. It contains destination photos with at least one recorde
 visual match at the 75% floor and uses the gallery's existing sort, search, date,
 type, folder and selection behavior. The top navigation has no Similar button.
 
+**Proposed, not built:** a Most similar photos sort with an At or above percentage
+could rank destination photos by qualifying direct-match count and show that count
+on gallery cards. Opening one would carry the threshold into the Inspector. The
+layout, whether gallery filters restrict counted matches, and treatment of zero or
+incomplete counts remain design decisions in `TODO.md`. Current gallery membership
+stays at the 75% floor; changing an Inspector threshold does not reorder the gallery.
+
 The Inspector's **Similar photos** tab shows cumulative potential-match counts at **75%, 80%, 85%, 90%,
 95% and 100%** in the Inspector. “85%+” means all matches at or above 85%; these are
 not independent buckets. Selecting a count displays 12 candidates at a time inside
@@ -1883,7 +1890,18 @@ They help assess returned candidates; retrieval of rotated photos missed by the
 current matcher is a separate concern. The expanded workspace (§7.4) is the
 side-by-side review surface.
 
-**A saved rotation is an EXIF edit, never a pixel edit.** The Inspector and bulk edit offer
+**Future end-of-review save:** after a verified orientation-write path exists,
+offer one decision for remaining rotation changes when the user finishes reviewing,
+not on individual Rotate clicks. Show affected photos and their final orientations,
+with choices to save selected changes, discard viewing changes, or return to review.
+Track photos across candidate navigation and reference promotion; do not assume the
+currently displayed pair is the only pair rotated. Define consistent exit handling
+for Back, Escape and dialog close before shipping. Resetting to the original
+orientation leaves no rotation change to save. General EXIF edits open the shared
+editor rather than being entered in the comparison table. None of this save flow is
+implemented; closing today's workspace discards its viewing transforms.
+
+**Future saved rotation is an EXIF edit, never a pixel edit.** The Inspector and bulk edit will offer
 **Rotate left**, **Rotate right** and **Rotate 180°**. Each changes only the EXIF
 `Orientation` tag, which viewers and galleries apply when displaying the photo.
 The pixel data is never decoded and re-saved: re-encoding a JPEG loses quality on

@@ -5,6 +5,11 @@
 - [x] Expanded comparison workspace with independent temporary rotation, zoom and
   position; optional linked zoom; candidate paging; metadata comparison; saved
   pair judgments and server-filtered reviewed/unreviewed progress.
+- [x] Plain Reference photo heading with an accent preview border and explicit
+  candidate promotion. File/image properties appear above capture information;
+  differences filtering covers all sections, column headings follow scrolling,
+  and preview dimensions follow temporary rotation while recorded dimensions stay
+  unchanged. See the [UI design contract](docs/ui-design.md#expanded-review-workspace).
 - [ ] Add EXIF copy/edit and deletion with explicit target selection, previews and
   per-file history/results. Reference, metadata donor, keepers and action targets
   are distinct roles. Do not infer them from navigation or gallery checkboxes.
@@ -12,6 +17,35 @@
 - [ ] Add deferred review queues and restoration of the open candidate/workspace
   across reload. Saved pair judgments already survive reopening.
 - [ ] Add saved orientation edits separately from temporary viewing rotation.
+  Offer one end-of-review decision for photos with a remaining rotation change,
+  not a write or prompt on each Rotate click. Identify the affected reference and
+  candidates by photo, preview their final orientations, and allow saving selected
+  changes, discarding them, or returning to review. Keep changes attached to photo
+  identities when candidates or the reference change; decide how leaving via Back,
+  Escape or closing the window reaches the same decision. Build the verified EXIF
+  Orientation write path first (webui-spec §7.6); do not show a save promise until it
+  works. General EXIF editing belongs in the shared editor, reached from review.
+- [ ] Assess finding rotated matches that the current pHash search misses.
+  Rotating a returned preview helps human comparison but does not change retrieval
+  or scores. Keep this separate from viewing controls and saved orientation edits.
+- [ ] Design gallery ordering that helps users start with destination photos having
+  the most similar photos. Future proposal, not implemented or a settled layout:
+  within **Has similar photos**, offer **Most similar photos** in the gallery sort
+  control beside an **At or above** threshold (75/80/85/90/95/100%). Rank by the
+  number of direct matches meeting that threshold, highest first, and show a card
+  count such as **12 matches at or above 90%**. Opening a photo should carry that
+  threshold into its Inspector matches. Counts are cumulative, not confidence or
+  disjoint percentage buckets. Decide whether gallery filters also restrict the
+  counted matches, and how photos with zero qualifying or incomplete matches appear.
+  Plan server-side counting/sorting before pagination for 200,000+ photos using
+  stored match results; changing the sort should not trigger image comparisons.
+- [ ] Validate representative 200,000+ photo workloads with headroom: initial and
+  incremental comparisons, stored-pair growth, memory, gallery/Inspector response
+  times and long-session browser behavior. Include dense match sets, not only
+  synthetic sparse hashes. See [validation guidance](tests/README.md#web-interface-in-a-browser--webui_browser_testsh).
+  The 75% floor is the chosen range; capacity validation is not a request to choose
+  between 75/80/85% floors. A separate DuckDB hash mapping is not part of the current
+  architecture; measure a concrete bottleneck before proposing another database.
 
 ## Actionable warning workflows
 

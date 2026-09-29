@@ -109,6 +109,9 @@ and assert that all requested photos are included in query measurements.
 the isolated generated fixtures and checks cumulative Inspector counts, inline match
 pagination, gallery selection preservation, side-by-side review and saved judgments,
 reload/Back state, request failure retries, legacy bookmarks and narrow Inspector dialogs.
+It also checks independent rotation and displayed dimensions, unchanged recorded
+dimensions, reference promotion, file-format fallbacks, exact-byte differences,
+missing dimensions, and sticky column headings in desktop and narrow layouts.
 
 For manual validation after Copy, open a destination photo in the gallery and choose
 **Similar photos** in the Inspector. Click a 75/80/85/90/95/100% count to browse
@@ -116,7 +119,6 @@ its matches in the thumbnail grid. Use
 **Has similar photos** to narrow the gallery; the count buttons narrow only the
 Inspector results. Reload and return from Logs to confirm the reference and threshold
 remain. No new Index or Copy is needed for this UI change on a prepared schema-15 catalog.
-It also checks shared preview zoom, persistent content-pair judgments, and diagnostics.
 The database suite verifies the hash index against brute force and interrupted
 comparison recovery; the API suite checks reference-only matches, hash changes,
 availability, exact copies, thresholds and pagination.
@@ -307,6 +309,28 @@ and foreign keys. Retain the original catalog before switching to the prepared c
 do not switch a snapshot made before later user writes. It reads existing hashes,
 not photo files. Other schema versions are refused.
 
+### Choosing a source for manual validation
+
+Use generated or sample photos for short checks and the shareable demo. Use a
+representative real library over NFS for larger read/performance checks in a separate
+private instance. Mount either source read-only and run **Index → Copy → destination
+review**. Do not use Move against the real validation source. An indexed source alone
+does not populate destination similarity review.
+
+Give each instance its own catalog/appdata, cache, backups and writable destination;
+keep the destination on the intended local storage volume with enough room for the
+test. Before Copy, verify the running app's bind mounts with `docker inspect`: check
+the host source behind `/data/dest` and confirm `/data/source` is read-only. Changing
+an environment file alone does not remount an existing container. Recreate the app
+after it is idle to apply mount changes; do not assume this migrates an existing
+destination or updates recorded paths.
+
+Keep host-specific paths, private filenames and raw reports in ignored local files.
+The LAN demo should use only its sample source and separate destination. Share
+aggregate timings and generated-fixture screenshots in tracked documentation.
+The sampler below makes hard links; those are suitable for read-only input, not
+isolated files for future in-place EXIF editing tests.
+
 ### Shareable sample instance
 
 `docker/compose.sample.yml` runs a separate app, web server and Docker network.
@@ -336,20 +360,39 @@ Open a candidate using **Review side by side** to enter the expanded workspace:
 1. Rotate and zoom each preview separately; then enable linked zoom/position.
    Rotation stays independent. Switch candidates and return: viewing transforms
    follow their photo until the workspace closes. No file orientation is saved.
-2. Compare information, show all recorded tags, and filter to differences.
-   Missing values and fallback dates should remain clearly labelled.
+   At 90°/270°, dimensions beneath the preview swap width and height and read
+   **Displayed**; at 180° they keep the original width/height order. Reset restores
+   the original view. Zoom never changes these dimensions. The information pane
+   retains recorded dimensions, megapixels and file size throughout.
+2. In Information, check **File and image properties** above **Capture information**:
+   format, extension, pixel dimensions, megapixels, file size and aspect ratio.
+   Missing values and fallback dates remain labelled; a format inferred only from
+   the filename says **extension only**. Differences are neutral, with no automatic
+   winner based on format or size. Differences only applies to every section;
+   All recorded tags adds the full metadata table, with search scoped to that table.
+   Scroll each table: **Field / Reference / Candidate** stays visible while its rows
+   scroll, including narrow reflow. The heading background should be opaque in both
+   light and dark themes.
 3. Record a pair judgment. Check Reviewed and Unreviewed, switch pages, then close
    and reopen: the saved judgment and progress survive. Browsing alone never saves
    a judgment or changes gallery checkboxes.
 4. Resize the comparison/information divider and the browser window. Candidate
    browsing remains available; Back to gallery restores the Inspector context.
+   Both previews' dimensions, sizes and linked-zoom controls fit their comparison
+   area without an inner vertical scroll; the whole review window scrolls when
+   needed. The information pane can scroll independently on desktop.
 5. Choose **Use as reference** above a candidate. Its blue reference frame moves
    with the photo, its matches reload at the same threshold, and the previous
    reference appears beside it. Review status resets to All candidates on page
    one. Saved pair judgments and each photo's viewing rotation remain attached to
    the right photos. Back to gallery returns to the originally opened photo.
+   **Reference photo** is a plain heading, not a button; the blue preview border
+   distinguishes it from the candidate. Promotion does not select a keeper or donor.
 
 The generated-catalog browser check is `DRIVER=similar_browser_drive.py sh
 tests/webui_browser_test.sh` (set `IMAGE`/`WEB_IMAGE` to the builds under test).
-Metadata writes, deletion, deferred queues and workspace restoration across reload
-are tracked in TODO.md; the current workspace implements comparison and judgments.
+Metadata writes, end-of-review orientation saving, deletion, match-count gallery
+sorting, deferred queues and workspace restoration across reload are tracked in
+[TODO.md](../TODO.md#expanded-destination-review-workspace). These are not current
+validation steps. The current workspace implements comparison and judgments, and
+closing it discards temporary rotation without a save prompt.

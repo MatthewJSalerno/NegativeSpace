@@ -191,6 +191,20 @@ reference or offered match set must not leave hidden targets armed. Show propose
 metadata changes or deletion targets before execution and record each result.
 Do not show nonfunctional edit/delete controls while those actions are unbuilt.
 
+**Future orientation-save interaction:** rotation remains temporary throughout
+comparison. Once verified orientation writes exist, offer one decision at the end
+of review for photos whose final orientation differs from their starting state.
+Identify the affected reference/candidates by photo and show their final orientation;
+allow saving selected changes, discarding them, or returning to review. Never save
+or prompt on each Rotate click. General EXIF editing uses the shared editor rather
+than turning this comparison into an inline editor. The current workspace has no
+rotation-save prompt and closing it discards viewing transforms.
+
+**Future gallery prioritization:** sorting Has similar photos by the count of
+direct matches at a chosen percentage is a proposal, not current behavior. The
+possible controls, unresolved count scope and scale requirements are tracked in
+[TODO.md](../TODO.md#expanded-destination-review-workspace).
+
 ## Keyboard and focus
 
 A modal shows subdued More above/More below cues at its edges when its content can
