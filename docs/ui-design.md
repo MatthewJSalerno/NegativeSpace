@@ -120,12 +120,26 @@ repair remains unfinished as recorded in TODO.md.
 ### Expanded review workspace
 
 **Built:** opening a candidate from the Inspector expands into a comparison
-workspace with a fixed reference, a browsable candidate, a paged thumbnail strip,
+workspace with an explicit reference, a browsable candidate, a paged thumbnail strip,
 and a resizable information panel. It starts at the Inspector's threshold and
 page. Back to gallery restores its threshold/page (page one after filtering by
 review status), leaves gallery selection intact, and restores focus to the opener
 when it remains present. The reference is the photo the user opened, not a donor
 or a file chosen to keep.
+Identify the reference with a filled **Reference photo** label and an accent border
+around its preview. Keep the candidate treatment neutral and the previews aligned.
+The explicit label accompanies color so the distinction survives forced colors
+and does not imply the reference is a source-folder file, donor or keeper.
+
+The candidate offers **Use as reference**. It loads direct matches for that photo,
+retains the threshold, and resets to All candidates on page one. The previous
+reference becomes the displayed candidate, even if it is outside the new first
+page. Viewing transforms follow photo identities and saved judgments stay with
+their content pairs. Focus moves to the new reference. Disable promotion during
+saving or after a failed/stale pair request until refreshed. This action assigns
+no keeper, donor or edit targets. Back to gallery returns to the original Inspector
+photo and its entry page after exploring another reference; gallery selection
+stays intact. Changing the reference is local to the open workspace.
 
 Each preview has independent viewing rotation in 90° steps, zoom, position and
 Reset view. A visible note identifies temporary rotation. Rotation fits inside

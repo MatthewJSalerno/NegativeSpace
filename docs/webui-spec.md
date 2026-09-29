@@ -1605,6 +1605,19 @@ individual preview. Viewing transforms follow the photo while browsing candidate
 and reset on close. Zoom magnifies generated previews (up to 1024 pixels), not
 original-resolution pixels. Dimensions, file sizes and exact-content status are
 shown. Hash percentages are not confidence estimates, including at 100%.
+The reference preview has an accent border and a filled **Reference photo** label;
+the candidate remains neutral. This marks the comparison reference, not a file
+chosen to keep or a metadata donor.
+
+**Use as reference** on the candidate loads that photo's direct matches at the
+current threshold, resetting to page one and All candidates. Keep the previous
+reference displayed as the candidate (it may lie outside the new first page).
+Rotate/zoom state follows each photo; the pair's saved judgment is unchanged.
+Move keyboard focus to the new reference and disable promotion while saving or
+while the pair needs refresh after an error. Promotion does not select a keeper,
+metadata donor or action targets. The gallery's reference and selection are
+unchanged: Back to gallery returns to the original Inspector and entry page after
+exploring another reference, keeping the chosen threshold.
 
 Candidates are paged, with previous/next candidate navigation across pages. A
 resizable information panel compares recorded metadata in aligned columns; users

@@ -343,6 +343,11 @@ Open a candidate using **Review side by side** to enter the expanded workspace:
    a judgment or changes gallery checkboxes.
 4. Resize the comparison/information divider and the browser window. Candidate
    browsing remains available; Back to gallery restores the Inspector context.
+5. Choose **Use as reference** above a candidate. Its blue reference frame moves
+   with the photo, its matches reload at the same threshold, and the previous
+   reference appears beside it. Review status resets to All candidates on page
+   one. Saved pair judgments and each photo's viewing rotation remain attached to
+   the right photos. Back to gallery returns to the originally opened photo.
 
 The generated-catalog browser check is `DRIVER=similar_browser_drive.py sh
 tests/webui_browser_test.sh` (set `IMAGE`/`WEB_IMAGE` to the builds under test).

@@ -12,10 +12,11 @@ const VERDICTS: [MatchVerdict, string][] = [
 const verdictName = (value: MatchVerdict | null | undefined) => VERDICTS.find(([key]) => key === value)?.[1] ?? "Unreviewed";
 const PAGE_SIZE = 12;
 
-export function MatchReviewDialog({ reference, candidate, initialView, onView, onClose, onSaved }: {
+export function MatchReviewDialog({ reference: initialReference, candidate, initialView, onView, onClose, onSaved }: {
   reference: number; candidate: number; initialView: { threshold: number; page: number };
   onView: (view: { threshold: number; page: number }) => void; onClose: () => void; onSaved: () => void;
 }) {
+  const [reference, setReference] = useState(initialReference);
   const [active, setActive] = useState<number | null>(candidate);
   const [threshold, setThreshold] = useState(initialView.threshold);
   const [page, setPage] = useState(initialView.page);
@@ -32,6 +33,7 @@ export function MatchReviewDialog({ reference, candidate, initialView, onView, o
   const [share, setShare] = useState(72);
   const layout = useRef<HTMLDivElement>(null);
   const selectLast = useRef(false);
+  const focusReference = useRef(false);
   const [tab, setTab] = useState<"information" | "review">("information");
 
   useEffect(() => {
@@ -57,6 +59,13 @@ export function MatchReviewDialog({ reference, candidate, initialView, onView, o
     return () => { live = false; };
   }, [reference, active, reload]);
 
+  useEffect(() => {
+    if (focusReference.current && review?.reference.id === reference && review.candidate.id === active) {
+      layout.current?.querySelector<HTMLElement>('[data-reference=true]')?.focus({ preventScroll: true });
+      focusReference.current = false;
+    }
+  }, [review, reference, active]);
+
   const save = async (verdict: MatchVerdict | null) => {
     if (!review || busy) return;
     setBusy(true); setError(null);
@@ -64,7 +73,12 @@ export function MatchReviewDialog({ reference, candidate, initialView, onView, o
     catch (e) { setError(e instanceof Error ? e.message : "Your review could not be saved. Refresh and try again."); }
     finally { setBusy(false); }
   };
-  const close = () => { onView({ threshold, page: filter === "all" ? page : 1 }); onClose(); };
+  const close = () => {
+    // The gallery still shows its original reference. Pages from another photo's
+    // match set cannot be applied to that original Inspector.
+    onView({ threshold, page: reference === initialReference ? (filter === "all" ? page : 1) : initialView.page });
+    onClose();
+  };
   const changeView = (id: number, next: PreviewView) => setViews(old => {
     const other = id === reference ? active : reference;
     return { ...old, [id]: next, ...(linked && other != null ? { [other]: {
@@ -85,6 +99,15 @@ export function MatchReviewDialog({ reference, candidate, initialView, onView, o
   const referenceView = views[reference] ?? DEFAULT_VIEW;
   const candidateView = active == null ? DEFAULT_VIEW : views[active] ?? DEFAULT_VIEW;
   const displayedCandidateView = linked ? { ...candidateView, zoom: referenceView.zoom, x: referenceView.x, y: referenceView.y } : candidateView;
+  const useAsReference = () => {
+    if (busy || error || active == null || review?.reference.id !== reference || review.candidate.id !== active) return;
+    setViews(old => ({ ...old, [active]: displayedCandidateView }));
+    setReference(active);
+    setActive(reference);
+    setPage(1); setFilter("all"); selectLast.current = false;
+    setReview(null); setMatches(null); setError(null); setListError(null);
+    focusReference.current = true;
+  };
   return <Modal label="Review photo match" className="dialog match-review-dialog" onClose={close} busy={busy}>
     <header className="review-header">
       <div><h2>Review similar photos</h2><p className="section-note">Compare destination photos and record what you find.</p></div>
@@ -104,14 +127,15 @@ export function MatchReviewDialog({ reference, candidate, initialView, onView, o
       {threshold < 90 && " Below 90%, results are more likely to be unrelated. Review photos before using them as metadata clues."}</p>
     {error && <p className="error" role="alert">{error} <button disabled={busy} onClick={() => setReload(n => n + 1)}>Retry comparison</button></p>}
     {!review && active != null && !error && <p role="status">Loading comparison…</p>}
-    {review && review.candidate.id === active && <>
+    {review && review.reference.id === reference && review.candidate.id === active && <>
       <div className="review-layout" ref={layout} style={{ "--review-share": `${share}%` } as CSSProperties}>
         <div className="review-comparison">
           <div className="review-previews">
           <div className="review-pair">
-            <ReviewPreview label="Reference" photo={review.reference} view={referenceView}
+            <ReviewPreview label="Reference" isReference photo={review.reference} view={referenceView}
               onChange={next => changeView(reference, next)} refreshKey={reload} />
             <ReviewPreview label="Candidate" photo={review.candidate} view={displayedCandidateView}
+              onUseAsReference={useAsReference} referenceDisabled={busy || !!error}
               onChange={next => changeView(active, next)} refreshKey={reload} />
           </div>
           <div className="review-pair-options">
