@@ -29,7 +29,7 @@
 body { margin: 0; background: var(--bg); }
 h1, h2, h3 { margin: 0; font-weight: var(--weight-strong); }
 h3 { font-size: var(--type-sm); text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: var(--space-4) 0 var(--space-2); }
-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-sm); word-break: break-all; }
+code { font: inherit; word-break: break-all; }
 .muted { color: var(--muted); }
 .error { color: var(--bad); }
 .ok { color: var(--good); }
@@ -102,7 +102,8 @@ a.button-link:hover { border-color: var(--accent); }
 a.button-link.active { border-color: var(--accent); color: var(--accent); }
 .banner-links { display: inline-flex; align-items: center; gap: var(--space-3); }
 .banner-links a { color: var(--accent); }
-button.link { border: 0; padding: 0; background: none; color: var(--accent); text-decoration: underline; cursor: pointer; }
+button.link { border: 0; padding: 0; background: none; color: var(--accent); text-decoration: underline; cursor: pointer;
+  font-size: inherit; line-height: inherit; text-underline-offset: 3px; }
 
 /* The log and the Error Center. */
 .logs { padding: var(--space-3) var(--space-4) 60px; display: grid; gap: var(--space-3); }
@@ -118,7 +119,7 @@ button.link { border: 0; padding: 0; background: none; color: var(--accent); tex
 .status-check label { display: inline-flex; align-items: center; gap: var(--space-1); cursor: pointer; }
 .status-check.check-failed label { color: var(--bad); }
 .status-check.check-warn label { color: var(--warn); }
-.status-only { font-size: var(--type-xs); }
+button.link.status-only { font-size: var(--type-xs); }
 .status-checks .view-count { font-variant-numeric: tabular-nums; }
 .log-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: var(--control-radius); }
 .log-table th, .log-table td { padding: var(--space-2) var(--space-2); text-align: left; vertical-align: top; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
@@ -438,7 +439,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 /* The lineage tree, in its own window. */
 .lineage-dialog { width: min(900px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
 .lineage-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.lineage-head h2 { margin: 0; font-size: var(--type-md); overflow-wrap: anywhere; }
+.lineage-head h2 { margin: 0; font-size: var(--type-lg); overflow-wrap: anywhere; }
 .lineage-tree, .lineage-children { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
 .lineage-children { margin: var(--space-2) 0 0 var(--space-6); padding-left: var(--space-3); border-left: 2px dashed var(--border); }
 .lineage-node { display: grid; gap: var(--space-1); }
@@ -619,7 +620,6 @@ a.button-link.active {background: var(--surface-2);border-color: transparent;col
 .history-links > a, .history-links > button.link,
 .row-links > a, .row-links > button.link { display: inline-flex; align-items: center;
   min-height: var(--control-height); padding: 0; border: 0; font: inherit; line-height: inherit; }
-@media (max-width: 800px) { .row-links > a, .row-links > button.link { min-height: 44px; } }
 .help-trigger {color: var(--muted);background: transparent;}
 .finished-banner {padding: var(--space-3) var(--space-4);margin: 0 var(--space-6) var(--space-4);}
 @media(max-width:800px){button,input,select,a.button-link,.help-trigger {min-height: 44px;}.help-trigger{min-width: 44px;}.toolbar-row{padding: var(--space-3) var(--space-4);}.gallery-pane{padding: var(--space-4);}}
@@ -640,6 +640,9 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .log-table th, .log-table td { padding: var(--space-3) var(--space-4); }
 .log-table thead th { font-weight: var(--weight-strong); background: var(--surface-2); }
 .log-table tbody tr:hover { background: var(--surface-2); }
+/* Settings tables have less room than the full-page log. Keep words intact. */
+.backup-table th, .backup-table td { padding: var(--space-2); }
+.backup-table thead th { overflow-wrap: normal; }
 .stat-tile, .stat-panel { padding: var(--space-4); gap: var(--space-2); }
 .stat-tile:hover { background: var(--surface-2); }
 .tile-value { font-weight: var(--weight-strong); }
@@ -687,6 +690,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 }
 .similar-page { padding: 1.5rem; max-width: 1600px; margin: 0 auto; }
 .match-controls, .match-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
+.match-heading h3 { margin: 0; }
 .match-controls label { display: flex; flex-direction: column; gap: .4rem; }
 .match-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 1rem; }
 .match-card { min-width: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }

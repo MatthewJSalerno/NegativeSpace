@@ -1,5 +1,20 @@
 # TODO
 
+## Actionable warning workflows
+
+- [ ] Build the resolution flow for missing visual hashes and unfinished similarity
+  comparisons. Show affected destination photos and distinguish unsupported formats,
+  decode/read failures, and interrupted comparison work. Offer a supported, scoped
+  retry or resume action with progress and a verified outcome; explain permanent
+  limitations without suggesting an ineffective retry. An unchanged-file Index can
+  skip hash generation, so do not assume it repairs every missing hash. Account for
+  delivered photos whose original source has been moved away. Keep actions unavailable
+  with an explanation while another job is running. Current Similar notices and
+  diagnostic counts do not complete this workflow.
+- [ ] Audit warnings throughout the app for a working action or direct route to the
+  affected items. Track missing actions as unfinished features under the shared
+  [validation and feedback contract](docs/ui-design.md#validation-and-feedback).
+
 ## Durability claims: stated vs enforced
 
 Every durability claim resolves to either **enforced and tested** or **a documented limitation** — never something the prose asserts and the code only usually does. **A claim that cannot be enforced is raised with the maintainer before it is weakened:** weakening a guarantee is his decision, not an editorial fix. Until he decides, mark it **Unresolved** here with what fails and why.

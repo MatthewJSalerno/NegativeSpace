@@ -1561,6 +1561,11 @@ Equal visual hashes of
 different byte identities remain visual matches, including at 100%.
 Availability is recorded evidence, not a fresh filesystem check. Missing hashes
 and pending comparisons are explicit, and Index resumes unfinished comparisons.
+**Still to build:** actionable hash warnings: a view of affected destination photos,
+reasons, and a supported retry/resume flow with progress and refreshed results.
+An ordinary Index may skip unchanged files and is not a general repair for failed
+hash generation; unsupported formats need an explanation rather than a futile retry.
+See `TODO.md` and the validation and feedback contract in `ui-design.md`.
 URL state preserves filters, reference and pages on reload or browser navigation.
 Primary selection, discard and EXIF actions below remain future work; the current
 review does not select targets or modify files.

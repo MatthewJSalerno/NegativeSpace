@@ -40,6 +40,22 @@ separate foreground/background pairs in both themes.
 These are product choices within an accessibility target, not a claim that every
 control must have the same shape or that every target must be exactly 44px.
 
+Use the same text roles on every screen:
+
+| Role | Size and weight |
+| :--- | :--- |
+| Page and dialog titles | 20px / 600 |
+| Section titles, including filter trees | 16px / 600; compact subsections and Inspector headers use 14px / 600 |
+| Body, labels and standalone controls | 14px / 400; emphasis uses 600 |
+| Supporting details, badges and counts | 12px / 400; emphasis uses 600 |
+
+Text buttons embedded in a sentence inherit its size and line height, just like
+anchors. A file path inherits its surrounding text size rather than introducing a
+second font or larger text into a compact history line. Adjacent navigation and
+action links share alignment and target height even when one is an anchor and the
+other is a button. Preserve these roles at desktop zoom and narrow widths; do not
+add screen-specific font sizes to repair a shared control.
+
 The first Settings section, Appearance, offers Cool neutral (default) and Warm neutral palettes. The choice applies
 immediately, is stored per browser under `ns.palette`, and follows across tabs;
 it is independent of catalog settings and does not require Save settings. System
@@ -106,6 +122,14 @@ Settings validates whole positive worker/retention counts and a nonempty extensi
 selection before saving. It keeps drafts, marks affected fields, describes their
 errors and focuses the first invalid control. Server errors remain visible. Success
 uses a polite status, not an urgent alert. Loading failures offer an explicit retry.
+
+Warnings that require user action must have a working resolution path. Say what is
+affected, what the user can do, and provide the action or a direct link to the
+relevant filtered view. A count alone is not a completed workflow. While another
+job prevents the action, keep the explanation visible and explain when the action
+becomes available. If the condition cannot be fixed by the app, state the limitation
+instead of offering a retry that cannot help. Verify the remedy changes the reported
+state; refreshing the message alone does not count as recovery.
 
 Continuous scrolling keeps the existing page and URL model. An appended/prepended
 failure stops announcing loading, shows a readable error and waits for Retry. Retry
