@@ -139,12 +139,53 @@ with sync_playwright() as p:
     dialog.get_by_role('button', name='Previous candidate', exact=True).click()
     expect(candidate_preview).to_contain_text('Viewing rotation: 270°')
     metadata = dialog.get_by_role('region', name='Metadata comparison')
-    expect(metadata.get_by_role('columnheader', name='Reference', exact=True)).to_be_visible()
+    file_table = metadata.get_by_role('table', name='File and image properties', exact=True)
+    expect(file_table.get_by_role('columnheader', name='Reference', exact=True)).to_be_visible()
+    # Recorded formats and dimensions describe image properties, not inferred
+    # winners. Compare exact byte counts before rounding the displayed size.
+    property_case = 'different'
+    def inspect_properties(route):
+        response = route.fetch()
+        data = response.json()
+        is_reference = data['id'] == reference
+        if property_case == 'different':
+            data.update(width=6000 if is_reference else 9000, height=4000 if is_reference else 6000,
+                        file_size=25000000 if is_reference else 25000001,
+                        metadata=[['FileType', 'NEF' if is_reference else 'JPEG']])
+        else:
+            data.update(width=None, height=None, file_size=None, metadata=[],
+                        filename='unknown' if is_reference else 'candidate.NEF')
+        route.fulfill(response=response, json=data)
+    page.route('**/api/v1/photos/*/inspect', inspect_properties)
+    dialog.get_by_role('button', name='Refresh comparison', exact=True).click()
+    expect(file_table.get_by_role('row', name=re.compile('^Format'))).to_contain_text('NEF')
+    expect(file_table.get_by_role('row', name=re.compile('^Format'))).to_contain_text('JPEG')
+    expect(file_table.get_by_role('row', name=re.compile('^Megapixels'))).to_contain_text('24 MP')
+    expect(file_table.get_by_role('row', name=re.compile('^Megapixels'))).to_contain_text('54 MP')
+    size_row = file_table.get_by_role('row', name=re.compile('^File size'))
+    expect(size_row).to_have_attribute('data-different', 'true')
+    expect(size_row).to_contain_text('25,000,001 bytes')
+    expect(file_table.get_by_role('row', name=re.compile('^Aspect ratio'))).to_contain_text('3:2')
+    metadata.get_by_role('checkbox', name='Differences only').check()
+    expect(file_table.get_by_role('row', name=re.compile('^Aspect ratio'))).to_have_count(0)
+    expect(file_table.get_by_role('row', name=re.compile('^Pixel dimensions'))).to_be_visible()
+    shot('file-image-differences')
+    metadata.get_by_role('checkbox', name='Differences only').uncheck()
+    property_case = 'missing'
+    dialog.get_by_role('button', name='Refresh comparison', exact=True).click()
+    expect(file_table.get_by_role('row', name=re.compile('^Format'))).to_contain_text('NEF (extension only)')
+    expect(file_table.get_by_role('row', name=re.compile('^Pixel dimensions')).get_by_role('cell').first).to_have_text('Not recorded')
+    expect(file_table.get_by_role('row', name=re.compile('^Aspect ratio')).get_by_role('cell').last).to_have_text('Not recorded')
+    page.unroute('**/api/v1/photos/*/inspect', inspect_properties)
+    dialog.get_by_role('button', name='Refresh comparison', exact=True).click()
+    expect(file_table.get_by_role('row', name=re.compile('^Format'))).to_contain_text('JPEG')
     metadata.get_by_role('checkbox', name='All recorded tags').check()
     metadata.get_by_role('searchbox', name='Find metadata field').fill('ImageWidth')
-    expect(metadata.locator('tbody tr').first).to_contain_text('ImageWidth')
+    tags_table = metadata.get_by_role('table', name='All recorded metadata', exact=True)
+    expect(tags_table.locator('tbody tr').first).to_contain_text('ImageWidth')
     metadata.get_by_role('checkbox', name='Differences only').check()
-    expect(metadata.get_by_text('No fields match these filters.')).to_be_visible()
+    expect(tags_table.locator('tbody tr')).to_have_count(0)
+    expect(tags_table.locator('..').get_by_text('No fields match these filters.')).to_be_visible()
     metadata.get_by_role('checkbox', name='Differences only').uncheck()
     metadata.get_by_role('checkbox', name='All recorded tags').uncheck()
     # Keyboard resizing and view-only transforms never navigate the main gallery.
@@ -191,7 +232,7 @@ with sync_playwright() as p:
     expect(metadata.get_by_role('alert')).to_be_visible()
     page.unroute('**/api/v1/photos/*/inspect')
     metadata.get_by_role('button', name='Retry metadata').click()
-    expect(metadata.get_by_role('table')).to_be_visible()
+    expect(file_table).to_be_visible()
     page.route('**/api/v1/similar/*?*', lambda route: route.fulfill(status=503, json={'detail': {'message': 'Candidates temporarily unavailable'}}))
     dialog.get_by_role('button', name='Refresh comparison', exact=True).click()
     candidates = dialog.get_by_role('region', name='Candidate photos')

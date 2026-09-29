@@ -712,12 +712,10 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .review-photo figcaption { display: grid; gap: var(--space-1); padding-bottom: var(--space-2); }
 .review-photo-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: calc(var(--control-height) + var(--space-1)); }
 .review-photo figcaption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-xs); }
-.review-photo-role { justify-self: start; padding: var(--space-1) var(--space-2); border-radius: var(--control-radius); }
-.review-photo[data-reference=true] .review-photo-role { background: var(--accent); color: var(--accent-text); }
+.review-photo-role { font-weight: var(--weight-strong); }
 .review-viewport { height: clamp(160px, 25vh, 440px); overflow: hidden; background: var(--preview-bg); border: 3px solid transparent; }
 .review-photo[data-reference=true] .review-viewport { border-color: var(--accent); }
 @media (forced-colors: active) {
-  .review-photo[data-reference=true] .review-photo-role { background: Highlight; color: HighlightText; forced-color-adjust: none; }
   .review-photo[data-reference=true] .review-viewport { border-color: Highlight; }
 }
 .review-zoom { width: 100%; height: 100%; position: relative; }
@@ -744,6 +742,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .review-metadata { display: grid; gap: var(--space-2); }
 .review-metadata input[type=search] { min-width: 0; width: 100%; }
 .review-metadata-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: var(--type-xs); }
+.review-metadata-table caption { text-align: left; font-size: var(--type-sm); font-weight: var(--weight-strong); padding: var(--space-2) 0; }
 .review-metadata-table th, .review-metadata-table td { text-align: left; vertical-align: top; padding: var(--space-2) var(--space-1); overflow-wrap: anywhere; border-bottom: 1px solid var(--border); }
 .review-metadata-table tbody th { font-weight: var(--weight-normal); }
 .review-metadata-table small { display: block; color: var(--muted); font-size: inherit; }

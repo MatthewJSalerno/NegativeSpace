@@ -126,8 +126,9 @@ page. Back to gallery restores its threshold/page (page one after filtering by
 review status), leaves gallery selection intact, and restores focus to the opener
 when it remains present. The reference is the photo the user opened, not a donor
 or a file chosen to keep.
-Identify the reference with a filled **Reference photo** label and an accent border
+Identify the reference with a plain bold **Reference photo** heading and an accent border
 around its preview. Keep the candidate treatment neutral and the previews aligned.
+The heading is informational: do not give it a button-like fill or rounded badge.
 The explicit label accompanies color so the distinction survives forced colors
 and does not imply the reference is a source-folder file, donor or keeper.
 
@@ -154,9 +155,15 @@ reserve space for the candidate strip. When the content exceeds the window heigh
 scroll the review window as a whole, with the shared More above/below cues. The
 metadata panel may scroll independently for long tag lists.
 
-The Information tab compares recorded metadata in aligned columns, labels missing
-values and differences, and offers all recorded tags, field search and differences
-only. File-modification fallback dates are labelled; unknown timezones are not
+The Information tab starts with **File and image properties**: recorded format,
+extension, pixel dimensions, megapixels, file size and aspect ratio. Prefer the
+recorded file type; label a filename-only fallback as extension only. Missing
+dimensions stay unknown. Compare exact values before display rounding and show
+exact byte counts beside rounded sizes. Mark differences neutrally, without
+choosing a winner or implying larger files or dimensions guarantee quality.
+**Capture information** follows, with **All recorded metadata** available below.
+Differences only applies to every section; the tag search filters only the full tag
+list. File-modification fallback dates are labelled; unknown timezones are not
 invented. Metadata errors have a retry and do not appear as missing values.
 
 The Saved review tab shows the latest judgment for this content pair. All,

@@ -1609,7 +1609,7 @@ The comparison area expands to fit both previews and all their controls/details,
 including dimensions, file sizes and linked zoom. It has no inner vertical scroll.
 If needed, the whole review window scrolls, with the shared More above/below cues;
 the candidate strip follows the comparison in normal flow.
-The reference preview has an accent border and a filled **Reference photo** label;
+The reference preview has an accent border and a plain bold **Reference photo** heading;
 the candidate remains neutral. This marks the comparison reference, not a file
 chosen to keep or a metadata donor.
 
@@ -1627,6 +1627,14 @@ Candidates are paged, with previous/next candidate navigation across pages. A
 resizable information panel compares recorded metadata in aligned columns; users
 can inspect all tags, search fields, or show only differences. Missing values,
 file-modification fallback dates and unknown timezone offsets are labelled.
+**File and image properties** comes first: format, extension, pixel dimensions,
+megapixels, file size and aspect ratio. Recorded file type takes precedence over
+the extension; an extension-only fallback is labelled. Differences use the exact
+values, not rounded display strings; file sizes include exact bytes. Unknown
+dimensions never become zero megapixels or a fabricated ratio. No format or size
+is labelled an automatic winner. **Capture information** follows, and the optional
+**All recorded metadata** table retains field search. Differences only applies to
+all sections; field search applies only to the full metadata table.
 The Saved review tab shows the current pair's latest saved judgment. All,
 Unreviewed and Reviewed filters apply before pagination; progress counts are for
 all candidates at the chosen threshold. Judgments shown on thumbnails belong to
