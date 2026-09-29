@@ -148,6 +148,9 @@ the preview even for portrait photos. Link zoom and position is optional; it nev
 links rotation. Viewing transforms stay associated with their photo during the
 open workspace and reset on closing; they never write files, EXIF or hash scores.
 A saved orientation correction remains a separate future edit.
+Dimensions beneath a preview follow its viewing rotation: swap width and height
+at 90° and 270°, and label rotated dimensions **Displayed**. The information pane
+continues to show recorded dimensions; zoom does not change either value.
 
 The two-photo comparison grows to fit its controls, resolution, file sizes and
 linked-zoom option. Do not add an inner vertical scroller or clip those details to
@@ -165,6 +168,9 @@ choosing a winner or implying larger files or dimensions guarantee quality.
 Differences only applies to every section; the tag search filters only the full tag
 list. File-modification fallback dates are labelled; unknown timezones are not
 invented. Metadata errors have a retry and do not appear as missing values.
+Keep each table's **Field**, **Reference**, and **Candidate** headings visible while
+its rows scroll, with an opaque theme surface. In narrow layouts they follow the
+review window's scroll instead of introducing another scroll area.
 
 The Saved review tab shows the latest judgment for this content pair. All,
 Unreviewed and Reviewed filters apply before server pagination. Progress counts

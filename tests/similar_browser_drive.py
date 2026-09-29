@@ -111,6 +111,11 @@ with sync_playwright() as p:
     dialog.get_by_role('button', name='Rotate candidate left', exact=True).click()
     expect(reference_preview).to_contain_text('Viewing rotation: 90°')
     expect(candidate_preview).to_contain_text('Viewing rotation: 270°')
+    expect(reference_preview).to_contain_text('Displayed: 240 × 320')
+    expect(candidate_preview).to_contain_text('Displayed: 240 × 320')
+    dialog.get_by_role('button', name='Rotate reference right', exact=True).click()
+    expect(reference_preview).to_contain_text('Displayed: 320 × 240')
+    dialog.get_by_role('button', name='Rotate reference left', exact=True).click()
     dialog.get_by_role('slider', name='Zoom reference', exact=True).fill('2')
     expect(dialog.get_by_role('slider', name='Zoom candidate', exact=True)).to_have_value('1')
     dialog.get_by_role('checkbox', name='Link zoom and position').check()
@@ -180,6 +185,30 @@ with sync_playwright() as p:
     dialog.get_by_role('button', name='Refresh comparison', exact=True).click()
     expect(file_table.get_by_role('row', name=re.compile('^Format'))).to_contain_text('JPEG')
     metadata.get_by_role('checkbox', name='All recorded tags').check()
+    expect(file_table.get_by_role('row', name=re.compile('^Pixel dimensions')).get_by_role('cell').first).to_have_text('320 × 240')
+    # Column context remains visible while scrolling each section. In narrow
+    # reflow the containing review window takes over scrolling from the pane.
+    def sticky_headings(table, scroll_selector):
+        result = table.evaluate('''async (table, selector) => {
+            const scroller = table.closest(selector), head = table.querySelector('thead');
+            scroller.scrollTop = 0;
+            scroller.scrollTop = head.getBoundingClientRect().top - scroller.getBoundingClientRect().top + 40;
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            return {delta: head.getBoundingClientRect().top - scroller.getBoundingClientRect().top - parseFloat(getComputedStyle(scroller).paddingTop),
+                scroll: scroller.scrollTop, background: getComputedStyle(head).backgroundColor};
+        }''', scroll_selector)
+        assert result['scroll'] > 0 and abs(result['delta']) < 2, result
+        assert result['background'] != 'rgba(0, 0, 0, 0)', result
+        expect(table.get_by_role('columnheader', name='Candidate', exact=True)).to_be_in_viewport()
+    tags_table = metadata.get_by_role('table', name='All recorded metadata', exact=True)
+    for table in (file_table, metadata.get_by_role('table', name='Capture information', exact=True), tags_table):
+        sticky_headings(table, '.review-information')
+    shot('sticky-metadata-headings')
+    page.set_viewport_size({'width': 700, 'height': 844})
+    sticky_headings(tags_table, '.match-review-dialog')
+    shot('sticky-metadata-headings-narrow')
+    page.set_viewport_size({'width': 1440, 'height': 1000})
+    dialog.locator('.review-information, .match-review-dialog').evaluate_all('els => els.forEach(e => e.scrollTop = 0)')
     metadata.get_by_role('searchbox', name='Find metadata field').fill('ImageWidth')
     tags_table = metadata.get_by_role('table', name='All recorded metadata', exact=True)
     expect(tags_table.locator('tbody tr').first).to_contain_text('ImageWidth')

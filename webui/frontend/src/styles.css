@@ -743,6 +743,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .review-metadata input[type=search] { min-width: 0; width: 100%; }
 .review-metadata-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: var(--type-xs); }
 .review-metadata-table caption { text-align: left; font-size: var(--type-sm); font-weight: var(--weight-strong); padding: var(--space-2) 0; }
+.review-metadata-table thead { position: sticky; top: 0; z-index: 1; background: var(--surface); box-shadow: 0 1px var(--border); }
 .review-metadata-table th, .review-metadata-table td { text-align: left; vertical-align: top; padding: var(--space-2) var(--space-1); overflow-wrap: anywhere; border-bottom: 1px solid var(--border); }
 .review-metadata-table tbody th { font-weight: var(--weight-normal); }
 .review-metadata-table small { display: block; color: var(--muted); font-size: inherit; }
@@ -764,7 +765,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 @media (max-width: 1050px) {
   .review-layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
   .review-divider { display: none; }
-  .review-information { max-height: none; padding-left: 0; }
+  .review-information { max-height: none; padding-left: 0; overflow: visible; }
 }
 @media (max-width: 600px) {
   .review-pair { grid-template-columns: minmax(0, 1fr); }

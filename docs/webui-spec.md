@@ -1635,6 +1635,11 @@ dimensions never become zero megapixels or a fabricated ratio. No format or size
 is labelled an automatic winner. **Capture information** follows, and the optional
 **All recorded metadata** table retains field search. Differences only applies to
 all sections; field search applies only to the full metadata table.
+Each table's Field, Reference and Candidate headings stay visible while scrolling
+its rows, including when narrow layouts scroll the review window as a whole.
+Dimensions beneath previews follow temporary rotation (width and height swap at
+90°/270°) and are labelled Displayed when rotated. Recorded dimensions in the
+information pane, megapixels and file size remain unchanged by viewing transforms.
 The Saved review tab shows the current pair's latest saved judgment. All,
 Unreviewed and Reviewed filters apply before pagination; progress counts are for
 all candidates at the chosen threshold. Judgments shown on thumbnails belong to

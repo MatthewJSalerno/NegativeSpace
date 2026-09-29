@@ -47,7 +47,9 @@ export function ReviewPreview({ photo, label, view, onChange, refreshKey, isRefe
         <label>Vertical<input aria-label={`${label} vertical position`} type="range" min="0" max="100" value={view.y}
           onChange={(e) => onChange({ ...view, y: Number(e.target.value) })} /></label>
       </div>}
-      <p className="section-note">{photo.width && photo.height ? `${photo.width} × ${photo.height}` : "Dimensions unknown"} · {bytes(photo.file_size)}
+      <p className="section-note">{photo.width && photo.height
+        ? `${view.rotation !== 0 ? "Displayed: " : ""}${sideways ? photo.height : photo.width} × ${sideways ? photo.width : photo.height}`
+        : "Dimensions unknown"} · {bytes(photo.file_size)}
         {view.rotation !== 0 && <span className="review-rotation-note">Viewing rotation: {view.rotation}° · not saved to file</span>}</p>
     </div>
   </figure>;
