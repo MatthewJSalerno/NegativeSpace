@@ -183,3 +183,22 @@ The existing full gallery browser scenario and shared UI checks also passed,
 including Index/Copy, selection, metadata, lineage, dialogs, keyboard focus,
 request retries, theme contrast and narrow reflow. Both image builds and the
 specification/API/schema checks passed.
+
+## Tabbed Inspector and sample sharing — 2026-09-29
+
+Photo information and Similar photos now occupy separate Inspector tabs, with a
+shared preview and divider. The match tab remembers its threshold across reference
+navigation (resetting the match page), uses a responsive thumbnail grid, and scrolls
+independently so the reference stays visible. Initial information browsing avoids
+match requests. URL state includes the tab and restores hidden matching context.
+An expanded workspace for EXIF and cleanup actions remains explicitly unbuilt.
+
+A separate sample-only instance was indexed and copied with its source read-only:
+4,745 destination photos, 110 duplicate records, 3,179 destination representatives
+with visual matches, and three intentional invalid/unreadable scenario fixtures.
+It has its own catalog, destination, cache, backups and network. No real-library
+catalog was copied into it. The Compose recipe is `docker/compose.sample.yml`.
+
+The full gallery browser workflow and shared control checks passed with the new
+tabs. Dedicated matching checks cover keyboard tab navigation, remembered threshold,
+URL restoration, match paging, side-by-side judgments, retries and narrow dialogs.

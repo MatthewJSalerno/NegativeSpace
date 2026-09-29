@@ -42,25 +42,63 @@ with sync_playwright() as p:
     gallery_photo.get_by_role('checkbox').check()
     gallery_photo.get_by_role('button', name=re.compile('^Open ')).click()
     inspector = page.get_by_role('region', name='Photo details', exact=True)
+    information_tab = inspector.get_by_role('tab', name='Photo information', exact=True)
+    similar_tab = inspector.get_by_role('tab', name='Similar photos', exact=True)
+    expect(information_tab).to_have_attribute('aria-selected', 'true')
+    expect(inspector.locator('.photo-matches')).to_have_count(0)
+    information_tab.focus()
+    page.keyboard.press('ArrowRight')
+    expect(similar_tab).to_be_focused()
+    expect(similar_tab).to_have_attribute('aria-selected', 'true')
+    assert f'photo={reference}' in page.url
     summary = inspector.get_by_role('region', name='Similar photos', exact=True)
     counts = request.get(f'/api/v1/similar/{reference}/counts').json()['counts']
     assert len(counts) == 6
     for c in counts:
         label = f'{c["threshold"]}% or higher: {c["count"]} matches'
         expect(summary.get_by_role('button', name=label, exact=True)).to_be_visible()
+    # Make room for the grid using the existing preview divider; the reference
+    # remains visible while the match panel scrolls independently.
+    preview_divider = inspector.get_by_role('separator', name='Resize photo preview')
+    preview_divider.focus()
+    page.keyboard.press('Home')
+    expect(preview_divider).to_have_attribute('aria-valuenow', '20')
+    expect(inspector.get_by_role('button', name='Enlarge the photo')).to_be_in_viewport()
     shot('gallery-match-counts')
+    assert summary.locator('.inspector-match-list').evaluate('e => getComputedStyle(e).gridTemplateColumns.split(" ").length') >= 2
     gallery_ids = page.locator('.card').evaluate_all('els => els.map(e => e.dataset.id)')
     summary.get_by_role('button', name=re.compile('^75% or higher:')).click()
     matches = summary.get_by_role('region', name='Matches for this photo', exact=True)
     expect(matches.locator('.inspector-match')).to_have_count(12)
     expect(page).to_have_url(re.compile('match=75'))
     matches.get_by_role('button', name='Next matches', exact=True).click()
+    expect(inspector.get_by_role('button', name='Enlarge the photo')).to_be_in_viewport()
     expect(page).to_have_url(re.compile('match_page=2'))
     expect(matches.get_by_text('Page 2 of', exact=False)).to_be_visible()
     assert page.locator('.card').evaluate_all('els => els.map(e => e.dataset.id)') == gallery_ids
     expect(page.locator(f'.card[data-id="{reference}"] input')).to_be_checked()
     shot('gallery-inspector-matches')
+    page.set_viewport_size({'width': 1920, 'height': 1000})
+    inspector_divider = page.get_by_role('separator', name='Resize the photo panel')
+    page.wait_for_function("Number(document.querySelector('[aria-label=\"Resize the photo panel\"]').getAttribute('aria-valuemax')) > 1000")
+    inspector_divider.focus()
+    for _ in range(12):
+        before_width = int(inspector_divider.get_attribute('aria-valuenow'))
+        max_width = int(inspector_divider.get_attribute('aria-valuemax'))
+        page.keyboard.press('ArrowLeft')
+        expect(inspector_divider).to_have_attribute('aria-valuenow', str(min(max_width, before_width + 40)))
+    expect(inspector.locator('.inspector-main')).to_have_attribute('data-wide', 'true')
+    inspector.get_by_role('tabpanel', name='Similar photos', exact=True).evaluate('e => e.scrollTop = 0')
+    expect(inspector.get_by_role('button', name='Enlarge the photo')).to_be_in_viewport()
+    assert matches.locator('.inspector-match-list').evaluate('e => getComputedStyle(e).gridTemplateColumns.split(" ").length') >= 2
+    shot('inspector-matches-expanded')
+    page.set_viewport_size({'width': 1440, 'height': 1000})
+    information_tab.click()
+    expect(inspector.get_by_role('tabpanel', name='Photo information')).to_be_visible()
+    expect(matches).to_have_count(0)
     page.reload()
+    expect(information_tab).to_have_attribute('aria-selected', 'true')
+    similar_tab.click()
     expect(matches.get_by_text('Page 2 of', exact=False)).to_be_visible()
     expect(summary.get_by_role('button', name=re.compile('^75% or higher:'))).to_have_attribute('aria-pressed', 'true')
     matches.get_by_role('button', name=re.compile('^Review side by side:')).first.click()
@@ -120,9 +158,16 @@ with sync_playwright() as p:
     expect(page.get_by_role('dialog', name='Photo details', exact=True)).to_be_visible()
     shot('gallery-matches-narrow')
     page.set_viewport_size({'width': 1440, 'height': 1000})
+    # Browsing photos retains the tab and threshold, with match paging reset.
+    old_title = inspector.locator('.inspector-head h2').inner_text()
+    inspector.get_by_role('button', name='Next photo', exact=True).click()
+    expect(inspector.locator('.inspector-head h2')).not_to_have_text(old_title)
+    expect(similar_tab).to_have_attribute('aria-selected', 'true')
+    expect(summary.get_by_role('button', name=re.compile('^100% or higher:'))).to_have_attribute('aria-pressed', 'true')
+    expect(page).not_to_have_url(re.compile('match_page='))
     # Old standalone/exact-mode bookmarks redirect into the same gallery workflow.
     page.goto(f'{sys.argv[1]}/similar?mode=exact&photo={reference}&threshold=85')
-    expect(page).to_have_url(re.compile(r'/\?view=similar&photo=\d+&match=85'))
+    expect(page).to_have_url(re.compile(r'/\?view=similar&photo=\d+&tab=similar&match=85'))
     expect(summary.get_by_role('button', name=re.compile('^85% or higher:'))).to_have_attribute('aria-pressed', 'true')
     expect(matches.locator('.inspector-match')).to_have_count(12)
     # A saved page beyond the remaining candidates returns to the last valid page.

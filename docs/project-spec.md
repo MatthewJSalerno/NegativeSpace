@@ -201,8 +201,8 @@ service. Built and tested:
         duplicate space with its coverage, activity, catalog health), each leading to
         the photos or log entries behind it.
     *   gallery **Has similar photos** and Inspector matching: read-only visual review
-        of destination photos after Copy or Move, cumulative 75/80/85/90/95/100% counts,
-        and paged matches inside the information pane. Index precomputes comparisons and resumes interrupted work.
+        of destination photos after Copy or Move, separate Photo information/Similar photos Inspector tabs, cumulative
+        75/80/85/90/95/100% counts and a responsive, paged match grid. Index precomputes comparisons and resumes interrupted work.
         A side-by-side review dialog provides linked zoom and saved content-pair
         judgments; the validation panel shows coverage, timings and review counts.
 

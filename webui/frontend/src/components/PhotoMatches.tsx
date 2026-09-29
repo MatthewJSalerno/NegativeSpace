@@ -44,7 +44,6 @@ export function PhotoMatches({ id, delivered, view, onView, refreshKey, onReview
   }, [id, delivered, threshold, page, refreshKey, retry]);
 
   return <section className="info-section photo-matches" aria-label="Similar photos">
-    <h3>Similar photos</h3>
     {!delivered ? <p className="muted">Copy or Move this photo to the destination to review visual matches.</p> : <>
       <p className="section-note">Potential matches at the destination, measured against this photo. Choose a percentage to view them.</p>
       {summaryError && <p className="error" role="alert">{summaryError} <button onClick={() => setRetry((n) => n + 1)}>Retry match counts</button></p>}

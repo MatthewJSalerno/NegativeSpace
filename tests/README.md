@@ -110,8 +110,9 @@ the isolated generated fixtures and checks cumulative Inspector counts, inline m
 pagination, gallery selection preservation, side-by-side review and saved judgments,
 reload/Back state, request failure retries, legacy bookmarks and narrow Inspector dialogs.
 
-For manual validation after Copy, open a destination photo in the gallery. Click a
-75/80/85/90/95/100% count to browse its matches inside the information pane. Use
+For manual validation after Copy, open a destination photo in the gallery and choose
+**Similar photos** in the Inspector. Click a 75/80/85/90/95/100% count to browse
+its matches in the thumbnail grid. Use
 **Has similar photos** to narrow the gallery; the count buttons narrow only the
 Inspector results. Reload and return from Logs to confirm the reference and threshold
 remain. No new Index or Copy is needed for this UI change on a prepared schema-15 catalog.
@@ -305,3 +306,30 @@ backup, widens and rebuilds only the derived comparison cache, and checks integr
 and foreign keys. Retain the original catalog before switching to the prepared copy;
 do not switch a snapshot made before later user writes. It reads existing hashes,
 not photo files. Other schema versions are refused.
+
+### Shareable sample instance
+
+`docker/compose.sample.yml` runs a separate app, web server and Docker network.
+Provide an environment file with `SAMPLE_SOURCE`, `SAMPLE_DEST`, `SAMPLE_APPDATA`,
+`SAMPLE_CACHE` and `SAMPLE_BACKUPS` pointing to distinct, existing directories.
+Use a sample source (for example, the scenario generator's `library`), and new
+writable directories. The source is always mounted read-only. Set `PUID`/`PGID`
+to the directory owner and choose the built `SAMPLE_APP_IMAGE`/`SAMPLE_WEB_IMAGE`.
+
+The default bind is localhost port 8082. For LAN sharing set `SAMPLE_BIND=0.0.0.0`
+and open `http://<host-LAN-address>:8082`; `SAMPLE_PORT` can change the port.
+Only the web port is published. The sample app has access only to its sample mounts.
+
+```bash
+docker compose --env-file <sample-env-file> -f docker/compose.sample.yml up -d
+```
+
+Create the catalog, run Index and Copy in this new instance. Then open a photo:
+Photo information should appear first. Similar photos opens the counts and thumbnail
+grid, initially at 90%. Resize the Inspector, switch tabs with the keyboard, and
+move to the next photo: the tab/threshold should remain, with match paging reset.
+Reload should restore the recorded tab and match page. The provided scenario set
+contains intentional unreadable/invalid files; those are expected test outcomes.
+
+The future expanded workspace for selecting matches and applying EXIF or cleanup
+operations is tracked in TODO.md; current review does not implement those actions.

@@ -1,5 +1,17 @@
 # TODO
 
+## Expanded destination review workspace
+
+- [ ] Open a dedicated workspace from the Inspector for one reference photo and
+  its similar destination photos. Keep the reference visible, let users inspect
+  candidate EXIF and select explicit targets, then preview and execute EXIF copy,
+  EXIF edits or deletion with per-file history and results. Define reference,
+  donor/primary and action-target roles separately. Preserve threshold/context on
+  entry and return; never implicitly use gallery checkboxes or saved match judgments
+  as action targets. The Inspector tabs and resizable thumbnail grid are built;
+  this expanded workspace and its write actions are not. Follow webui-spec §7.4
+  and §7.6 and the shared UI design contract.
+
 ## Actionable warning workflows
 
 - [ ] Build the resolution flow for missing visual hashes and unfinished similarity

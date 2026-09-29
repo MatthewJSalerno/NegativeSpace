@@ -1,5 +1,5 @@
 import { Modal } from "./ui/Modal";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api, ApiError, type PhotoDetail } from "../api";
 import { bytes, epoch, isFallbackDate } from "../format";
@@ -22,7 +22,7 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView }: {
+export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab }: {
   id: number;
   width: number | null;
   onClose: () => void;
@@ -31,6 +31,8 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   onOpenPhoto: (id: number) => void;
   jobRunning: boolean;
   refreshKey: number;
+  tab: "information" | "similar";
+  onTab: (tab: "information" | "similar") => void;
   matchView: MatchView;
   onMatchView: (view: MatchView) => void;
 }) {
@@ -41,6 +43,8 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+  const tabId = useId();
+  const tabs = ["information", "similar"] as const;
   const panel = useRef<HTMLElement>(null);
   const header = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -133,7 +137,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   );
 
   const body = (
-    <section ref={panel} className="inspector" aria-label="Photo details" style={width ? { flexBasis: `${width}px` } : undefined}>
+    <section ref={panel} className="inspector" data-tab={tab} aria-label="Photo details" style={width ? { flexBasis: `${width}px` } : undefined}>
       <header ref={header} className="inspector-head">
         <button onClick={() => onStep(-1)} aria-label="Previous photo">‹</button>
         <h2 title={detail?.filename}>{detail?.filename ?? "…"}</h2>
@@ -174,12 +178,27 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
              }}><span aria-hidden="true">⋮⋮</span></div>
         <div className="inspector-side">
           {error && <p className="error">{error}</p>}
-          {detail && <>
-            <div className="inspector-body"><PhotoMatches key={id} id={id} delivered={["Completed", "Copied", "Found_At_Destination"].includes(detail.status)}
+          <div className="inspector-tabs" role="tablist" aria-label="Photo inspector">
+            {tabs.map((value, i) => <button key={value} role="tab" id={`${tabId}-${value}`}
+              aria-controls={`${tabId}-${value}-panel`} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1}
+              onClick={() => onTab(value)} onKeyDown={(e) => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+                e.preventDefault(); e.stopPropagation();
+                const next = e.key === "Home" ? 0 : e.key === "End" ? 1 : (i + 1) % 2;
+                onTab(tabs[next]); document.getElementById(`${tabId}-${tabs[next]}`)?.focus();
+              }}>{value === "information" ? "Photo information" : "Similar photos"}</button>)}
+          </div>
+          <div className="inspector-tab-panel" role="tabpanel" id={`${tabId}-information-panel`}
+            aria-labelledby={`${tabId}-information`} hidden={tab !== "information"} tabIndex={0}>
+            {detail && tab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />}
+          </div>
+          <div className="inspector-tab-panel" role="tabpanel" id={`${tabId}-similar-panel`}
+            aria-labelledby={`${tabId}-similar`} hidden={tab !== "similar"} tabIndex={0}>
+            {detail && tab === "similar" && <div className="inspector-body"><PhotoMatches key={id} id={id}
+              delivered={["Completed", "Copied", "Found_At_Destination"].includes(detail.status)}
               view={matchView} onView={onMatchView} refreshKey={refreshKey}
-              onReview={setCandidate} reviewsChanged={reviewsChanged} /></div>
-            <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />
-          </>}
+              onReview={setCandidate} reviewsChanged={reviewsChanged} /></div>}
+          </div>
         </div>
       </div>
       {lineage && detail && createPortal(

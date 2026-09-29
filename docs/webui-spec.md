@@ -594,7 +594,10 @@ Failed lookups offer a retry while leaving the Inspector open.
 
 History's **Open in the log** and **View lineage tree** actions share text size and
 alignment, retaining their link and button semantics respectively.
-Clicking an image opens a right-side 50% detail panel.
+Clicking an image opens a right-side 50% detail panel. **Photo information** is the
+default tab; **Similar photos** holds the matching controls and thumbnails (§7.4).
+Both tabs share the reference preview and its resize divider. The active tab and
+chosen match threshold remain selected when navigating to another photo.
 
 **The file's modification time** is the time the file carried when the first Index read
 it, not a date the photo was scanned; its label says so on hover (**"As recorded when
@@ -1557,14 +1560,18 @@ existing view controls. It contains destination photos with at least one recorde
 visual match at the 75% floor and uses the gallery's existing sort, search, date,
 type, folder and selection behavior. The top navigation has no Similar button.
 
-Opening a photo shows cumulative potential-match counts at **75%, 80%, 85%, 90%,
+The Inspector's **Similar photos** tab shows cumulative potential-match counts at **75%, 80%, 85%, 90%,
 95% and 100%** in the Inspector. “85%+” means all matches at or above 85%; these are
 not independent buckets. Selecting a count displays 12 candidates at a time inside
 the information pane, ordered by similarity, with dimensions and side-by-side review.
 The open photo stays the reference; threshold/page changes leave the main gallery
 and explicit checkbox selection intact. Matches can lie outside the gallery's current
-filters. Closing the match list leaves the counts visible. The initial list is folded.
-The URL records `photo`, `match` (threshold) and `match_page` alongside gallery filters,
+filters. Closing the match list leaves the counts visible. First entering the tab
+selects 90%; subsequent photo navigation keeps the tab and threshold, resets match
+paging to one and does not copy a review judgment to another pair. Information-only
+browsing loads no match data. Left/Right and Home/End on the tab controls move between
+tabs; they do not navigate photos.
+The URL records `photo`, `tab`, `match` (threshold) and `match_page` alongside gallery filters,
 so reload and Back/Forward restore the Inspector's match context. Legacy `/similar`
 bookmarks redirect here. Each byte identity is represented once.
 Queue, references and saved-review endpoints require a delivered status and a
@@ -1609,6 +1616,11 @@ other matches. Missing hashes are labelled unavailable rather than unique; histo
 records remain accessible without being offered as actionable missing files. The
 stored comparisons must support every offered threshold. Dimensions are captured during
 Index; unreadable dimensions display as unknown.
+
+**Future expanded review workspace:** open it from the Inspector for focused work
+on one reference and its matches, with enough room for candidate metadata, explicit
+target selection and action previews. The current Inspector is a browsing/review
+view; it does not implement EXIF copy/edit or deletion.
 
 **Future curation actions:** the rules below apply when EXIF editing and discard
 are built. Current match browsing never selects action targets and never clears the

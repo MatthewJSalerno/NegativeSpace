@@ -90,20 +90,39 @@ separate Similar navigation button or a second gallery of matching groups.
 it includes photos with at least one recorded destination match at 75% or higher.
 It combines with existing search, date, type and folder filters.
 
-Opening a photo shows cumulative counts at **75%, 80%, 85%, 90%, 95% and 100%**
+The Inspector has **Photo information** and **Similar photos** tabs. Default to
+Photo information; remember the active tab and threshold while browsing photos.
+The preview and its resize divider are shared by both tabs. Tab arrow keys and
+Home/End switch tabs without triggering previous/next photo navigation.
+
+The Similar photos tab shows cumulative counts at **75%, 80%, 85%, 90%, 95% and 100%**
 in its information pane. Label thresholds as “at or above”: these are overlapping
 counts, not separate buckets or confidence estimates. Choosing one reveals a small,
-paged list of direct matches in the same pane, leaving the reference photo, gallery
+paged thumbnail grid of direct matches in the same pane, leaving the reference photo, gallery
 filters and explicit checkbox selection intact. Opening a match offers side-by-side
 review. Match browsing does not designate files for deletion or metadata edits.
 Association may help identify dates, events or other information, but proves none
 of them. A 100% visual score still does not mean identical bytes.
 
-Persist the open photo, chosen threshold and match page in the gallery URL. Keep
-counts folded from their results initially; load candidate images only when asked.
+Persist the open photo, tab, chosen threshold and match page in the gallery URL.
+Opening Similar photos initially uses 90%; subsequently retain the chosen threshold
+for other reference photos and reset their match page to one. Information-only
+browsing does not load matching data. Match thumbnails use more columns as the
+details area widens, and scroll separately so the reference preview stays visible.
 A failed or unavailable hash lookup must never appear as zero matches. Show loading,
 retry for request failures, and incomplete comparison states explicitly. Missing-hash
 repair remains unfinished as recorded in TODO.md.
+
+### Planned expanded review workspace
+
+Future curation needs a dedicated expanded view opened from the Inspector: a visible
+reference/donor photo, inspectable candidate metadata and selectable matching photos,
+with room for EXIF copy/edit and cleanup controls. Reuse the Inspector's match scope
+and threshold, but keep action targets separate from the gallery selection, reference
+navigation and side-by-side judgments. Choosing a reference is not choosing a donor
+or a file to keep. Show the proposed metadata changes or deletion targets before
+execution and record each result. This workspace and its write actions are unbuilt;
+do not show nonfunctional action buttons in the current review UI.
 
 ## Keyboard and focus
 
