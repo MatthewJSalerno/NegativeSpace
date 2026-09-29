@@ -99,15 +99,22 @@ and reference queries, seven times per threshold. Fixture creation and photo dec
 are outside the comparison timings; whole-process peak RSS includes fixture setup.
 Results describe the local temporary Docker catalog and its caches, not network
 storage performance. Hash distribution and match density also affect scale.
-Actual Similar-page query timings and human judgments provide the next validation
+Actual gallery/Inspector query timings and human judgments provide the next validation
 step on a representative destination catalog after Index and Copy or Move. An
 Index-only catalog has no reviewable destination photos. Side-by-side feedback
 never modifies photos. Synthetic benchmarks create recorded destination copies
 and assert that all requested photos are included in query measurements.
 
 `DRIVER=similar_browser_drive.py sh tests/webui_browser_test.sh` checks the empty review after Index, then Copies
-the isolated generated fixtures and checks destination comparisons, visual review (including old exact-mode bookmarks), threshold filtering, pagination, Inspector
-navigation, reload, search, refresh and narrow-screen layout using generated photos.
+the isolated generated fixtures and checks cumulative Inspector counts, inline match
+pagination, gallery selection preservation, side-by-side review and saved judgments,
+reload/Back state, request failure retries, legacy bookmarks and narrow Inspector dialogs.
+
+For manual validation after Copy, open a destination photo in the gallery. Click a
+75/80/85/90/95/100% count to browse its matches inside the information pane. Use
+**Has similar photos** to narrow the gallery; the count buttons narrow only the
+Inspector results. Reload and return from Logs to confirm the reference and threshold
+remain. No new Index or Copy is needed for this UI change on a prepared schema-15 catalog.
 It also checks shared preview zoom, persistent content-pair judgments, and diagnostics.
 The database suite verifies the hash index against brute force and interrupted
 comparison recovery; the API suite checks reference-only matches, hash changes,

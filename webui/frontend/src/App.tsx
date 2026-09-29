@@ -2,7 +2,7 @@ import { PageBoundary } from "./components/ui/PageBoundary";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Logo } from "./components/Logo";
 import { VersionTag, versionText } from "./components/VersionTag";
-import { api, ApiError, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Sort, type Status, type Timeline, type View } from "./api";
+import { api, ApiError, MATCH_THRESHOLDS, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Sort, type Status, type Timeline, type View } from "./api";
 import { count, plural } from "./format";
 import { useDismissedRun, useJobFeed } from "./jobs";
 import { Gallery } from "./components/Gallery";
@@ -18,7 +18,8 @@ import { ConfirmDialog, transferConfirm, type Confirm } from "./components/Confi
 import { Tip } from "./components/Tip";
 import { ActionsMenu } from "./components/ActionsMenu";
 import { LogsPage } from "./components/LogsPage";
-import { SimilarPage } from "./components/SimilarPage";
+import { SimilarRedirect } from "./components/SimilarRedirect";
+import type { MatchView } from "./components/PhotoMatches";
 import { StatsLink, StatsPage } from "./components/StatsPage";
 import { follow, navigate, rememberLibraryQuery, useHeaderHeight, useNavigation, usePath } from "./nav";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -30,14 +31,15 @@ const MIN_GALLERY = 420;
 const SIDE_MIN = 180;
 const SIDE_MAX = 560;
 const MAX_SELECTION = 1000; // mirrors the API's --file-ids limit (webui-spec 2)
-const VIEW_LABEL: Record<View, string> = { all: "All photos", unorganized: "Not yet organized", organized: "Organized" };
+const VIEW_LABEL: Record<View, string> = { all: "All photos", unorganized: "Not yet organized", organized: "Organized", similar: "Has similar photos" };
 
 // Browsing state lives in the URL, so a refresh or a shared link keeps the place.
 function readUrl() {
   const p = new URLSearchParams(window.location.search);
   const view = (p.get("view") as View) || "all";
+  const matchPage = Number(p.get("match_page"));
   return {
-    view: (["all", "unorganized", "organized"] as View[]).includes(view) ? view : "all",
+    view: (["all", "unorganized", "organized", "similar"] as View[]).includes(view) ? view : "all",
     sort: (p.get("sort") as Sort) || "newest",
     q: p.get("q") || "",
     page: Math.max(1, Number(p.get("page")) || 1),
@@ -47,6 +49,8 @@ function readUrl() {
     types: p.getAll("type"),
     folders: p.getAll("folder"),
     photo: p.get("photo") ? Number(p.get("photo")) : null,
+    match: MATCH_THRESHOLDS.includes(Number(p.get("match"))) ? { threshold: Number(p.get("match")),
+      page: Number.isSafeInteger(matchPage) && matchPage > 0 ? matchPage : 1 } : null,
   };
 }
 
@@ -89,7 +93,7 @@ export function App() {
         : path === "/stats"
           ? <StatsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />
           : path === "/similar"
-            ? <SimilarPage status={status} onOpenSettings={() => setSettingsOpen(true)} />
+            ? <SimilarRedirect />
             : <Library status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />}
       {settingsOpen && <SettingsDialog firstRun={false} onClose={() => setSettingsOpen(false)} onSaved={() => undefined} />}
     </>
@@ -193,6 +197,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [browseBy, setBrowseBy] = useState<BrowseBy>(() => initialBrowseBy(initial.folders, initial.dates));
   const [typeCounts, setTypeCounts] = useState<{ type: string; photos: number }[] | null>(null);
   const [openId, setOpenId] = useState<number | null>(initial.photo);
+  const [matchState, setMatchState] = useState<{ photo: number | null; view: MatchView }>({ photo: initial.photo, view: initial.match });
+  const matchView = matchState.photo === openId ? matchState.view : null;
   const [locate, setLocate] = useState<{ id: number; delta: number } | null>(
     initial.photo == null ? null : { id: initial.photo, delta: 0 });
   const [revealId, setRevealId] = useState<number | null>(null);
@@ -225,6 +231,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     setPage(next.page); setPageSize(next.size);
     setUndated(next.undated); setDates(next.dates);
     setTypes(next.types); setFolders(next.folders); setOpenId(next.photo);
+    setMatchState({ photo: next.photo, view: next.match });
     setLocate(next.photo == null ? null : { id: next.photo, delta: 0 }); setRevealId(null);
     if (next.folders.length || next.dates.length) setBrowseBy(initialBrowseBy(next.folders, next.dates));
     // A link names normal results, not the transient selection/review view.
@@ -294,11 +301,17 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     dates.forEach((d) => p.append("date", d));
     types.forEach((t) => p.append("type", t));
     folders.forEach((f) => p.append("folder", f));
-    if (openId != null) p.set("photo", String(openId));
+    if (openId != null) {
+      p.set("photo", String(openId));
+      if (matchView) {
+        p.set("match", String(matchView.threshold));
+        if (matchView.page > 1) p.set("match_page", String(matchView.page));
+      }
+    }
     const url = `${window.location.pathname}${p.size ? `?${p}` : ""}`;
     window.history.replaceState(null, "", url);
     rememberLibraryQuery(p.toString());
-  }, [view, sort, q, page, pageSize, undated, dates, types, folders, openId]);
+  }, [view, sort, q, page, pageSize, undated, dates, types, folders, openId, matchView]);
 
   const results = usePaged((p) => api.photos({ view, sort, q, page: p, page_size: pageSize, undated, dates, types, folders }),
                            JSON.stringify([view, sort, q, undated, dates, types, folders]), jump, pageSize, refreshKey, setLoadError);
@@ -685,7 +698,6 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               onTransfer={(mode, scope) => (scope === "selected" ? transferSelected(mode)
                                            : scope === "folder" ? askFolder(mode) : askTransfer(mode))} />
             <a className="button-link" href="/logs" onClick={follow}>Logs</a>
-            <a className="button-link" href="/similar" onClick={follow}>Similar</a>
           </nav>
           {(selected.size > 0 || (focus && focus.kind !== "photo")) && (
             <div className="selection-line" role="region" aria-label="Selection">
@@ -712,7 +724,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
               <button key={v} aria-pressed={v === view} className={v === view && !(v === "all" && narrowed) ? "active" : ""} disabled={!!focus}
                       onClick={() => chooseView(v)}>
-                <span>{VIEW_LABEL[v]}</span> <span className="view-count">{data ? `(${count(data.counts[v])})` : ""}</span>
+                <span title={v === "similar" ? "Destination photos with at least one visual match at 75% or higher" : undefined}>{VIEW_LABEL[v]}</span> <span className="view-count">{data ? `(${count(data.counts[v])})` : ""}</span>
               </button>
             ))}
             <Tip text="Photos whose EXIF has no date taken. They are filed under Undated, by their file's modification date.">
@@ -722,15 +734,17 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               </button>
             </Tip>
           </nav>
-          <input className="search" type="search" placeholder="Search filenames" value={search} disabled={!!focus}
-                 onChange={(e) => setSearch(e.target.value)} aria-label="Search filenames" />
-          <select value={sort} onChange={(e) => { setSort(e.target.value as Sort); setPage(1); setFocusPage(1); }} aria-label="Sort">
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="largest">Largest first</option>
-            <option value="smallest">Smallest first</option>
-            <option value="name">Name</option>
-          </select>
+          <div className="browse-search">
+            <input className="search" type="search" placeholder="Search filenames" value={search} disabled={!!focus}
+                   onChange={(e) => setSearch(e.target.value)} aria-label="Search filenames" />
+            <select value={sort} onChange={(e) => { setSort(e.target.value as Sort); setPage(1); setFocusPage(1); }} aria-label="Sort">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="largest">Largest first</option>
+              <option value="smallest">Smallest first</option>
+              <option value="name">Name</option>
+            </select>
+          </div>
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
         <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
@@ -802,6 +816,10 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               )}
             </div>
           )}
+          {!focus && view === "similar" && <p className="dates-filter-line">
+            Destination photos with a recorded visual match at 75% or higher. Open a photo to review its matches in the information pane.
+            {data?.counts.organized === 0 && <> Copy or Move indexed photos to the destination first.</>}
+          </p>}
           {!focus && data && (dates.length > 0 || types.length > 0 || folders.length > 0 || !!q || undated) && (
             <p className="dates-filter-line">
               {/* What is shown, against the library the view buttons count. */}
@@ -875,7 +893,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                    if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() - 40); }
                  }} />
             <Inspector refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
-                       onOpenPhoto={openAndLocate} jobRunning={jobRunning} />
+                       onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView}
+                       onMatchView={(v) => setMatchState({ photo: openId, view: v })} />
           </>
         )}
       </main>

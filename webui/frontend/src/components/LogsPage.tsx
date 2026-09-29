@@ -293,7 +293,6 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
               onIndex={startJob("index")}
               onTransfer={(mode) => setConfirm(transferConfirm(mode, status, undefined, startJob(mode)))} />
             <a className="button-link active" href="/logs" onClick={follow} aria-current="page">Logs</a>
-            <a className="button-link" href="/similar" onClick={follow}>Similar</a>
           </nav>
           <div className="toolbar-actions">
             <VersionTag version={status.version} />

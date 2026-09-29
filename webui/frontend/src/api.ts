@@ -17,7 +17,7 @@ export interface Status {
   active_job: Run | null;
 }
 
-export type View = "all" | "unorganized" | "organized";
+export type View = "all" | "unorganized" | "organized" | "similar";
 export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name";
 
 export interface PhotoItem {
@@ -487,6 +487,13 @@ export interface MatchPage {
   query_ms?: number;
 }
 
+export const MATCH_THRESHOLDS = [75, 80, 85, 90, 95, 100];
+export interface MatchCounts {
+  availability: "available" | "not_available" | "hash_unavailable";
+  counts: { threshold: number; count: number }[];
+  pending: number;
+}
+
 export type MatchVerdict = "same" | "related" | "unrelated";
 export interface MatchReview {
   reference: MatchPhoto & { sha1: string }; candidate: MatchPhoto & { sha1: string };
@@ -500,6 +507,7 @@ export interface MatchDiagnostics {
 }
 
 export const api = {
+  matchCounts: (photo: number) => request<MatchCounts>("GET", `/api/v1/similar/${photo}/counts`),
   matchDiagnostics: () => request<MatchDiagnostics>("GET", "/api/v1/similar/diagnostics"),
   matchReview: (reference: number, candidate: number) =>
     request<MatchReview>("GET", `/api/v1/similar/${reference}/review/${candidate}`),

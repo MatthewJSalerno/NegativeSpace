@@ -166,6 +166,10 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def similarity_diagnostics():
         return matching.diagnostics(cfg.db_path)
 
+    @app.get("/api/v1/similar/{photo_id}/counts")
+    def similarity_counts(photo_id: int):
+        return matching.counts(cfg.db_path, photo_id)
+
     @app.get("/api/v1/similar/{photo_id}/review/{other_id}")
     def similarity_review(photo_id: int, other_id: int):
         try:

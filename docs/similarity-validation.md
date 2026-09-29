@@ -8,9 +8,11 @@ implementation at that scale.
 ## What is implemented
 
 - Incremental, resumable visual-hash comparisons in SQLite during Index, covering
-  the 75–100% review range (90% initial slider value).
-- Destination-only visual match review after Copy or Move, threshold filtering, and reference comparisons. Exact-copy
-  information remains in photo details, history and Stats.
+  the 75–100% review range.
+- Destination-only visual review in the gallery Inspector after Copy or Move,
+  cumulative 75/80/85/90/95/100% counts and paged reference matches. A gallery
+  **Has similar photos** filter uses the 75% floor. Exact-copy information remains
+  in photo details, history and Stats.
 - Side-by-side generated previews with linked zoom and position controls.
 - Same/related/unrelated judgments stored against pairs of content identities.
 - Coverage, comparison timing, query timing, and judgment-count diagnostics.
@@ -145,3 +147,39 @@ browser workflow passed, including setting 75% and retaining it after refresh.
   optimization and retain the same fixtures for comparison.
 - Keep judgments separate from any future file actions. They do not authorize
   deletion or metadata edits.
+
+## Gallery and Inspector integration — 2026-09-29
+
+Similarity review now starts with an ordinary gallery photo. Its Inspector shows
+six cumulative counts from one aggregate request; choosing a count loads at most
+12 direct matches at a time in the information pane. The standalone Similar
+navigation/page is replaced by **Has similar photos**, with old bookmarks redirected.
+Gallery selection, search and date/type/folder behavior remain separate from match
+browsing. The reference, threshold and match page survive URL navigation and reload.
+
+One read-only query sample against a local backup of the prepared catalog measured:
+
+| Measurement | Result |
+| --- | ---: |
+| Destination gallery photos | 26,057 |
+| Gallery photos with matches at 75%+ | 25,456 |
+| Normal gallery query, including view counts | 0.465 s |
+| Has similar photos query, including view counts | 0.788 s |
+| All six counts for one reference | 0.493 s |
+
+These are individual server-side samples, excluding thumbnails, network and browser
+rendering; no full threshold benchmark or 200,000-photo capacity claim is made.
+Membership uses indexed set lookups: joining grouped hash lists twice caused a
+catalog-wide scan per pair and was rejected during validation. No new hashing,
+comparison backfill, photo transfer or catalog migration is required for this UI.
+
+Validation: 68 API tests passed, including cumulative boundary counts, direct rather
+than transitive matching, destination availability, exact-content collapsing and
+agreement among gallery/selection/sidebar queries. The dedicated browser workflow
+covers generated Index/Copy, Inspector paging, side-by-side saved judgments,
+selection preservation, URL restoration, failures/retries and narrow dialogs.
+
+The existing full gallery browser scenario and shared UI checks also passed,
+including Index/Copy, selection, metadata, lineage, dialogs, keyboard focus,
+request retries, theme contrast and narrow reflow. Both image builds and the
+specification/API/schema checks passed.

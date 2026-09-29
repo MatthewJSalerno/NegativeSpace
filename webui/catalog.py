@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 import ns_db
+from .similarity_sql import MATCHED_IDS
 from ns_db import PhotoStatus, RunStatus, OPERATION_SKIPPED, OPERATION_CANCELLED, OPERATION_RENAMED
 
 GRID_SIZE = 320
@@ -25,7 +26,7 @@ NOT_ORGANIZED = (PhotoStatus.PENDING, PhotoStatus.PROCESSING, PhotoStatus.FAILED
 # A duplicate's content is shown once, on its anchor, with a duplicate count: the
 # gallery lists photographs, not every copy of one (webui-spec 7.2).
 COPIES = (PhotoStatus.DUPLICATE, PhotoStatus.REMOVED_DUPLICATE)
-VIEWS = {"all": DELIVERED + NOT_ORGANIZED, "organized": DELIVERED, "unorganized": NOT_ORGANIZED}
+VIEWS = {"all": DELIVERED + NOT_ORGANIZED, "organized": DELIVERED, "unorganized": NOT_ORGANIZED, "similar": DELIVERED}
 SORTS = {
     # Undated rows carry their modification-time fallback in date_taken, labelled by
     # date_source (webui-spec 3.1); a row with no date at all sorts last either way.
@@ -235,6 +236,12 @@ def _filters(q, undated, dates, types=None, folders=None, root=None):
             tuple(search_params) + date_params + type_params + folder_params)
 
 
+def _view_clause(view):
+    if view == "similar":
+        return f"p.id IN ({MATCHED_IDS})"
+    return f"p.status IN ({ns_db.sql_values(VIEWS[view])})"
+
+
 def _check_view(view, sort=None, page=None, page_size=None):
     if view not in VIEWS:
         raise ValueError(f"unknown view: {view}")
@@ -300,19 +307,18 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
         # each view under every filter, for suggesting another view when a search finds
         # nothing in this one.
         counts, matches = {}, {}
-        for name, statuses in VIEWS.items():
-            base = f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(statuses)})"
+        for name in VIEWS:
+            base = f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(name)}"
             counts[name] = conn.execute(base).fetchone()[0]
-            matches[name] = conn.execute(base + filtered, filtered_params).fetchone()[0]
-        total = conn.execute(
-            f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered,
-            filtered_params).fetchone()[0]
+            matches[name] = (conn.execute(base + filtered, filtered_params).fetchone()[0]
+                             if filtered else counts[name])
+        total = matches[view]
         # How many photos in this view have no capture date, whatever else is on, for its label.
         counts["undated"] = conn.execute(
-            f"SELECT COUNT(*) FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])}) AND {_UNDATED}"
+            f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view)} AND {_UNDATED}"
         ).fetchone()[0]
         rows = conn.execute(
-            f"SELECT {_LIST_COLUMNS} FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})"
+            f"SELECT {_LIST_COLUMNS} FROM photos p WHERE {_view_clause(view)}"
             + filtered + f" ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?",
             filtered_params + (page_size, (page - 1) * page_size)).fetchall()
         items = _items(conn, rows)
@@ -325,7 +331,7 @@ def photo_position(db_path: Path, photo_id: int, *, view="all", sort="newest", p
     """Locate one photo and its neighbors without transferring preceding gallery pages."""
     _check_view(view, sort, 1, page_size)
     filtered, params = _filters(q, undated, dates, types, folders, root)
-    where = f"p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered
+    where = _view_clause(view) + filtered
     if ids is not None:
         if len(ids) > SELECTION_MAX or any(type(i) is not int or i < 1 for i in ids):
             raise ValueError("ids must contain at most 1000 positive photo ids")
@@ -349,7 +355,7 @@ def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, t
     partial Select all would silently act on some of what the user saw."""
     _check_view(view)
     filtered, params = _filters(q, undated, dates, types, folders, root)
-    base = f"FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered
+    base = f"FROM photos p WHERE {_view_clause(view)}" + filtered
     with connect(db_path) as conn:
         total = conn.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
         ids = [] if total > limit else [r[0] for r in conn.execute(f"SELECT p.id {base} ORDER BY p.id", params)]
@@ -384,7 +390,7 @@ def timeline(db_path: Path, *, view="all", q=None, undated=False, dates=None, ty
     an unticked month keeps its count; jumping asks with them, to land on the right page."""
     _check_view(view)
     filtered, params = _filters(q, undated, dates, types, folders, root)
-    base = f"FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})" + filtered
+    base = f"FROM photos p WHERE {_view_clause(view)}" + filtered
     with connect(db_path) as conn:
         months = [{"month": r[0], "count": r[1]} for r in conn.execute(
             f"SELECT substr(json_extract(p.metadata_json, '$.date_taken'), 1, 7) AS month, COUNT(*) {base} "
@@ -402,7 +408,7 @@ def file_types(db_path: Path, *, view="all", q=None, undated=False, dates=None, 
     filtered, params = _filters(q, undated, dates, None, folders, root)
     with connect(db_path) as conn:
         return [{"type": r[0], "photos": r[1]} for r in conn.execute(
-            f"SELECT {_TYPE_OF} AS t, COUNT(*) AS n FROM photos p WHERE p.status IN ({ns_db.sql_values(VIEWS[view])})"
+            f"SELECT {_TYPE_OF} AS t, COUNT(*) AS n FROM photos p WHERE {_view_clause(view)}"
             + filtered + " GROUP BY t ORDER BY n DESC, t", params)]
 
 
@@ -423,7 +429,7 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
     # COALESCE: a filter can be NULL rather than false (a search against a photo with no
     # destination path yet), and NULL is not a count. An unclassified photo's NULL
     # status also makes eligibility NULL: it is neither shown nor transferable yet.
-    shown = f"COALESCE((p.status IN ({ns_db.sql_values(VIEWS[view])}){filtered}), 0)"
+    shown = f"COALESCE(({_view_clause(view)}{filtered}), 0)"
     copy_ok, move_ok = (ns_db.sql_values(ns_db.TRANSFER_ELIGIBLE[m]) for m in ("copy", "move"))
     tree = {"all": 0, "photos": 0, "copy": 0, "move": 0, "sub": {}}
     top = {"photos": 0, "copy": 0, "move": 0}

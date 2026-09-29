@@ -1215,6 +1215,70 @@ class MatchingTests(ApiCase):
         import ns_similarity
         self.assertTrue(ns_similarity.refresh(self.conn))
 
+    def test_inspector_counts_are_cumulative_direct_and_deduplicated(self):
+        a = self.photo('reference', 'a', '0000000000000000')
+        duplicate = self.photo('reference-copy', 'a', '0000000000000000')
+        distances = (0, 3, 4, 6, 7, 9, 10, 12, 13, 16, 17)
+        for d in distances:
+            self.photo(f'distance-{d}', f'content-{d}', f'{(1 << d)-1:016x}')
+        self.photo('source-only', 'source', '0000000000000000', status='Pending')
+        self.refresh()
+        counts = self.client.get(f'/api/v1/similar/{a}/counts').json()
+        self.assertEqual(counts['availability'], 'available')
+        self.assertEqual(counts['pending'], 0)
+        self.assertEqual([c['count'] for c in counts['counts']], [10, 8, 6, 4, 2, 1])
+        self.assertEqual(counts, self.client.get(f'/api/v1/similar/{duplicate}/counts').json())
+        for c in counts['counts']:
+            result = self.client.get(f'/api/v1/similar/{a}?threshold={c["threshold"]}').json()
+            self.assertEqual(result['total'], c['count'])
+
+    def test_count_availability_is_not_reported_as_zero_matches(self):
+        source = self.photo('source', 'a', '0000000000000000', status='Pending')
+        failed = self.photo('failed-hash', 'b', None)
+        pending = self.photo('pending-comparison', 'c', '0000000000000001')
+        self.assertEqual(self.client.get(f'/api/v1/similar/{source}/counts').json()['availability'], 'not_available')
+        result = self.client.get(f'/api/v1/similar/{failed}/counts').json()
+        self.assertEqual((result['availability'], result['counts']), ('hash_unavailable', []))
+        self.assertEqual(self.client.get(f'/api/v1/similar/{pending}/counts').json()['pending'], 1)
+        self.refresh()
+        self.assertEqual(self.client.get(f'/api/v1/similar/{pending}/counts').json()['pending'], 0)
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE sha1_hash='c'")
+        self.assertEqual(self.client.get(f'/api/v1/similar/{pending}/counts').json()['availability'], 'not_available')
+
+    def test_gallery_similarity_view_shares_scope_with_filters_and_selection(self):
+        a = self.photo('first', 'a', '0000000000000000')
+        self.photo('exact-copy', 'a', '0000000000000000')
+        b = self.photo('at-floor', 'b', '000000000000ffff')
+        self.photo('isolated', 'c', 'ffffffffffffffff')
+        self.photo('source-only', 'd', '0000000000000000', status='Pending')
+        self.photo('failed-hash', 'e', None)
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE photos SET source_path=? WHERE id=?", (str(self.cfg.source / 'trip/first.jpg'), a))
+            self.conn.execute("UPDATE photos SET metadata_json=? WHERE id=?", ('{"date_taken":"2023-01-01","date_source":"exif"}', a))
+        self.refresh()
+        listing = self.client.get('/api/v1/photos?view=similar').json()
+        self.assertEqual({r['id'] for r in listing['items']}, {a, b})
+        self.assertEqual(listing['counts']['similar'], 2)
+        self.assertEqual(self.client.get('/api/v1/photos/ids?view=similar').json()['ids'], [a, b])
+        for filters in ('q=first', 'date=2023', 'folder=trip'):
+            got = self.client.get('/api/v1/photos?view=similar&'+filters).json()
+            self.assertEqual([r['id'] for r in got['items']], [a], filters)
+            self.assertEqual(got['matches']['similar'], 1)
+            self.assertEqual(self.client.get('/api/v1/photos/ids?view=similar&'+filters).json()['ids'], [a])
+        self.assertEqual(self.client.get('/api/v1/photos?view=similar&type=png').json()['total'], 0)
+        self.assertEqual(self.client.get('/api/v1/photos?view=similar&undated=true').json()['total'], 1)
+        self.assertEqual(self.client.get('/api/v1/photos/timeline?view=similar').json(),
+                         {'months': [{'month': '2023-01', 'count': 1}], 'undated': 1})
+        self.assertEqual(self.client.get('/api/v1/photos/types?view=similar').json()['types'], [{'type':'jpg', 'photos':2}])
+        self.assertEqual(self.client.get('/api/v1/photos/folders?view=similar').json()['folders'][0]['photos'], 1)
+        position = self.client.post('/api/v1/photos/position', json={'photo_id':a,'view':'similar','sort':'newest','page_size':1}).json()
+        self.assertEqual((position['position'], position['page'], position['next_id']), (0, 1, b))
+        # A recorded missing candidate removes both ends of the only relationship.
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE sha1_hash='b'")
+        self.assertEqual(self.client.get('/api/v1/photos?view=similar').json()['total'], 0)
+
     def test_review_is_symmetric_persistent_and_bound_to_content(self):
         a = self.photo('first', 'a', '0000000000000000')
         b = self.photo('second', 'b', 'ffffffffffffffff')

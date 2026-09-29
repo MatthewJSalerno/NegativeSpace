@@ -123,7 +123,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 
 | Parameter | Values | Default |
 | :--- | :--- | :--- |
-| `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed) | `all` |
+| `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed), `similar` (destination photos with visual matches at 75%+) | `all` |
 | `sort` | `newest`, `oldest`, `largest`, `smallest`, `name` | `newest` |
 | `q` | filename search: current and original names, including removed duplicates' names; never folder names | none |
 | `undated` | `true` for only photos with no EXIF date taken, the ones filed under Undated | `false` |
@@ -651,6 +651,22 @@ or null for unknown dimensions. Matches are relative to the reference, never
 transitive. A direct link to another eligible destination copy resolves its content in visual mode.
 Incomplete comparisons are reported through `state.pending`; no results with
 pending work do not establish uniqueness.
+
+### `GET /api/v1/similar/{id}/counts`
+
+Cumulative direct-match counts for a delivered reference at thresholds
+75, 80, 85, 90, 95 and 100. Returns `availability` (`available`, `not_available`,
+`hash_unavailable`), `counts: [{threshold, count}]`, and `pending` (number of
+eligible destination content identities awaiting comparison). Unavailable references
+return an empty counts array, not six misleading zero counts. Counts exclude the
+reference byte identity and collapse exact copies; they include equal visual hashes
+of different content. One aggregate over stored pairs supplies all thresholds.
+
+The gallery's `view=similar` uses the same destination availability and content
+representation rules, at the 75% floor. Search/date/type/folder filters narrow the
+reference photos, not their potential matches. Timeline, type/folder counts, photo
+positions and selection IDs use the same view predicate. Gallery `counts` and
+`matches` include the `similar` key.
 
 ### `GET /api/v1/similar/diagnostics`
 

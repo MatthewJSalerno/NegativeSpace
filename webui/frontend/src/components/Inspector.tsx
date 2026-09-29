@@ -6,6 +6,8 @@ import { bytes, epoch, isFallbackDate } from "../format";
 import { follow, logUrl } from "../nav";
 import { LineageDialog } from "./LineageDialog";
 import { Thumb } from "./Thumb";
+import { PhotoMatches, type MatchView } from "./PhotoMatches";
+import { MatchReviewDialog } from "./MatchReviewDialog";
 
 const STATUS: Record<string, string> = {
   Pending: "Not yet organized", Processing: "In progress", Completed: "Moved to the destination",
@@ -20,7 +22,7 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey }: {
+export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView }: {
   id: number;
   width: number | null;
   onClose: () => void;
@@ -29,6 +31,8 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   onOpenPhoto: (id: number) => void;
   jobRunning: boolean;
   refreshKey: number;
+  matchView: MatchView;
+  onMatchView: (view: MatchView) => void;
 }) {
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 800px)").matches);
   useEffect(() => {
@@ -77,7 +81,9 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   const [previewFailed, setPreviewFailed] = useState(false);
   const [enlarged, setEnlarged] = useState(false);
   const [lineage, setLineage] = useState(false);
-  useEffect(() => setLineage(false), [id]);
+  const [candidate, setCandidate] = useState<number | null>(null);
+  const [reviewsChanged, setReviewsChanged] = useState(0);
+  useEffect(() => { setLineage(false); setCandidate(null); }, [id]);
 
   useEffect(() => {
     setDetail(null);
@@ -168,7 +174,12 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
              }}><span aria-hidden="true">⋮⋮</span></div>
         <div className="inspector-side">
           {error && <p className="error">{error}</p>}
-          {detail && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />}
+          {detail && <>
+            <div className="inspector-body"><PhotoMatches key={id} id={id} delivered={["Completed", "Copied", "Found_At_Destination"].includes(detail.status)}
+              view={matchView} onView={onMatchView} refreshKey={refreshKey}
+              onReview={setCandidate} reviewsChanged={reviewsChanged} /></div>
+            <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />
+          </>}
         </div>
       </div>
       {lineage && detail && createPortal(
@@ -189,7 +200,11 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
       )}
     </section>
   );
-  return narrow ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body;
+  return <>
+    {narrow ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
+    {candidate != null && <MatchReviewDialog key={`${id}:${candidate}:${narrow}`} reference={id} candidate={candidate}
+      onClose={() => setCandidate(null)} onSaved={() => setReviewsChanged((n) => n + 1)} />}
+  </>;
 }
 
 function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
@@ -269,8 +284,6 @@ function Details({ detail: d, onLineage, refreshKey }: { detail: PhotoDetail; on
       )}
       <section className="info-section">
         <h3>Exact duplicates ({d.duplicates.length})</h3>
-        {["Completed", "Copied", "Found_At_Destination"].includes(d.status) &&
-          <p><a href={`/similar?photo=${d.id}`} onClick={follow}>Find similar photos</a></p>}
         {d.duplicates.length === 0 ? (
           <p className="muted info-empty">No other catalogued file has identical content.</p>
         ) : (

@@ -1458,7 +1458,7 @@ shape is stated once.
   greyed out, since a disabled button invites a hunt for the permission that
   would enable it when the real answer is "organize this photo first". The test
   is the engine's delivered-status set.
-* **Navigation preserves your place.** Following a link into the Similar tab or
+* **Navigation preserves your place.** Following a link into Inspector matches or
   a detail view and coming back returns the user where they were, not to the
   top. This is what makes "just check this one thing" cheap on a list of
   thousands rather than a punishment for curiosity.
@@ -1478,10 +1478,11 @@ shape is stated once.
 
 **Tab or filter?** A population that comes with its own job to do gets a tab; a
 population that is merely a subset of an existing view, with no action that view
-lacks, gets a filter. The Rename, Similar and Undated tabs each have a distinct
-task — choose a better name, resolve a near-duplicate group, recover a missing
-date — so each is a tab. A "failed operations" screen is *not* a tab: it is Logs
-filtered to failures and introduces no action Logs lacks.
+lacks, gets a filter. Similarity uses the gallery filter and Inspector because review
+begins with a particular photo. Rename and Undated remain planned curation tasks,
+with their eventual placement separate from the current gallery matching workflow.
+A "failed operations" screen is Logs filtered to failures and introduces no action
+Logs lacks.
 
 ### 7.2 Exact duplicates and similar photos are different things
 
@@ -1493,17 +1494,17 @@ The UI must not blur them:
   photograph as RAW and JPEG, or full-size and thumbnail. Requires the pair
   table in `engine-spec.md` §9.3, populated during Index.
 
-The Similar page reviews visually similar, different-content photos. It has no
+The gallery Inspector reviews visually similar, different-content photos. It has no
 exact-copy mode: Copy and Move already avoid writing exact duplicates to the
 destination. Exact-copy counts and recorded outcomes remain in photo details,
-history and Stats. Similar reviews destination photos only. The workflow is
+history and Stats. Visual review includes destination photos only. The workflow is
 **Index → Copy or Move → review and curate destination photos**; EXIF editing and
-match cleanup remain future work. Before delivery, the page explains the Copy or
-Move step and links to the Library.
-Old `mode=exact` page bookmarks open visual review; the dropdown is removed.
+match cleanup remain future work. Before delivery, the Inspector explains the Copy or
+Move step. Old `/similar` bookmarks redirect into the gallery; an existing reference
+opens its Inspector matches. There is no exact-copy matching dropdown.
 
-**Every photo's info box states its exact-duplicate count. Delivered photos carry
-a "find similar photos" link** scoped to them.
+**Every photo's info box states its exact-duplicate count. Delivered photos show
+cumulative visual-match counts and inline results** scoped to them.
 
 **The count must say whether they have been dealt with.** On a catalog that has
 only been indexed, the duplicates are flagged but still on disk; a bare number
@@ -1549,12 +1550,23 @@ job. Its outcome and the actual resulting name are its `Renamed` (or `Failed`) o
 would decide the name as the file is written, but it is an engine change and it
 asks for naming decisions before the library is organized.
 
-### 7.4 The Similar tab
+### 7.4 Similar photos in the gallery
 
-**Built:** read-only visual review at `/similar`, a 75–100% visual
-threshold (initially 90%), most-matches/date/filename/file-size sort, filename search, paginated
-queue and reference results, dimensions and largest-dimensions labels, and an
-Inspector link into the review for delivered photos. Each byte identity is represented once.
+**Built:** the ordinary gallery has a **Has similar photos** view alongside its
+existing view controls. It contains destination photos with at least one recorded
+visual match at the 75% floor and uses the gallery's existing sort, search, date,
+type, folder and selection behavior. The top navigation has no Similar button.
+
+Opening a photo shows cumulative potential-match counts at **75%, 80%, 85%, 90%,
+95% and 100%** in the Inspector. “85%+” means all matches at or above 85%; these are
+not independent buckets. Selecting a count displays 12 candidates at a time inside
+the information pane, ordered by similarity, with dimensions and side-by-side review.
+The open photo stays the reference; threshold/page changes leave the main gallery
+and explicit checkbox selection intact. Matches can lie outside the gallery's current
+filters. Closing the match list leaves the counts visible. The initial list is folded.
+The URL records `photo`, `match` (threshold) and `match_page` alongside gallery filters,
+so reload and Back/Forward restore the Inspector's match context. Legacy `/similar`
+bookmarks redirect here. Each byte identity is represented once.
 Queue, references and saved-review endpoints require a delivered status and a
 recorded present file at that photo's destination with matching SHA-1. Source-only
 photos, projected destinations and missing destination copies are excluded, even
@@ -1585,7 +1597,7 @@ photograph**, or **Unrelated**, or clear the judgment. Feedback never changes
 photos or matching results. Stale-content refusals require refresh and another
 review. Exact copies do not need a visual judgment.
 The expandable **Validation and performance** panel shows distinct usable hashes,
-stored pairs, incomplete/unavailable counts, server queue time, the most recently
+stored pairs, incomplete/unavailable counts, the most recently
 reported comparison-phase elapsed time, and counts of saved judgments. These
 selected judgments are not presented as whole-library accuracy. Missing timing is
 shown as not recorded; reported phase time is not a dedicated CPU benchmark.
@@ -1595,20 +1607,14 @@ photos. Precomputation needs an initial backfill and refresh when perceptual has
 Find Similar results are measured against the selected reference, not chained through
 other matches. Missing hashes are labelled unavailable rather than unique; historical
 records remain accessible without being offered as actionable missing files. The
-stored comparisons must support the full slider range. Dimensions are captured during
+stored comparisons must support every offered threshold. Dimensions are captured during
 Index; unreadable dimensions display as unknown.
 
-The same shape as the Rename tab, with four differences:
-
-* **A match % slider at the top**, so the user sets what counts as similar.
-* **Moving the slider clears the current selection, after warning that it
-  will.** The division of labour is the point: *the slider filters what is
-  offered; the selection is what is acted on.* Clearing on movement makes it
-  impossible for an action to reach a photo the user has stopped looking at.
-* **The photo with the most matches is listed first.**
-* **Each member shows its dimensions, and the largest in the group is marked —
-  as information only.** Nothing is pre-selected on that basis; we do not assume
-  the user wants to keep the highest resolution.
+**Future curation actions:** the rules below apply when EXIF editing and discard
+are built. Current match browsing never selects action targets and never clears the
+gallery's explicit selection. Future action selection must be distinct from opening
+a reference or choosing a similarity threshold; changing the offered match set must
+not leave hidden action targets armed.
 
 **One explicit primary per group drives both actions.** The group has a single
 designated primary, chosen deliberately rather than inferred from what was

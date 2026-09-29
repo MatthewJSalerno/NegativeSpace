@@ -82,6 +82,29 @@ cannot clip or cover the text.
 | Supplemental help | `Tip.tsx`: hover/focus plus an explicit information button for touch; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. |
 | Paged loading | `ui/PageBoundary.tsx` and `paged.ts`: idle/load, pending, failed/retry and end states. Keep already-loaded photos and selection on failure. |
 
+## Similarity belongs in the gallery
+
+Review destination photos in the ordinary gallery and its Inspector. Do not add a
+separate Similar navigation button or a second gallery of matching groups.
+**Has similar photos** sits alongside All photos, Organized and No capture date;
+it includes photos with at least one recorded destination match at 75% or higher.
+It combines with existing search, date, type and folder filters.
+
+Opening a photo shows cumulative counts at **75%, 80%, 85%, 90%, 95% and 100%**
+in its information pane. Label thresholds as “at or above”: these are overlapping
+counts, not separate buckets or confidence estimates. Choosing one reveals a small,
+paged list of direct matches in the same pane, leaving the reference photo, gallery
+filters and explicit checkbox selection intact. Opening a match offers side-by-side
+review. Match browsing does not designate files for deletion or metadata edits.
+Association may help identify dates, events or other information, but proves none
+of them. A 100% visual score still does not mean identical bytes.
+
+Persist the open photo, chosen threshold and match page in the gallery URL. Keep
+counts folded from their results initially; load candidate images only when asked.
+A failed or unavailable hash lookup must never appear as zero matches. Show loading,
+retry for request failures, and incomplete comparison states explicitly. Missing-hash
+repair remains unfinished as recorded in TODO.md.
+
 ## Keyboard and focus
 
 A modal shows subdued More above/More below cues at its edges when its content can

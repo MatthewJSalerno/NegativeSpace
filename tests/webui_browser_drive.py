@@ -85,7 +85,9 @@ with sync_playwright() as p:
     expect(banner).to_contain_text("Index finished", timeout=180_000)
     expect(banner).to_contain_text(f"{PHOTOS + DUPLICATES:,} new or changed, including {DUPLICATES:,} duplicate")
     top = banner.bounding_box()["y"]
-    assert top < 150, f"the finished-job banner is not at the top of the page (y={top})"
+    browse = page.locator(".toolbar-browse").bounding_box()
+    assert 0 <= top - (browse["y"] + browse["height"]) <= 24, \
+        f"the finished-job banner is not immediately below the browsing toolbar (y={top})"
     expect(page.locator(".card")).to_have_count(60)
     expect(page.locator(".views")).to_contain_text(f"Not yet organized ({PHOTOS:,})")
     time.sleep(1)
@@ -649,7 +651,8 @@ with sync_playwright() as p:
     expect(page.locator(".card")).to_have_count(1, timeout=5_000)
     page.locator(".card-image").first.click()
     expect(inspector).to_contain_text("2023-01-15 09:30:00")
-    expect(inspector.locator(".section-note")).to_contain_text("recorded no time zone")
+    expect(inspector.locator(".info-section", has=page.get_by_role("heading", name="Photo EXIF information"))
+           .locator(".section-note")).to_contain_text("recorded no time zone")
     expect(inspector.locator("th", has_text="*")).to_have_count(0)
     # Its lineage has a duplicate branch; the duplicate's path opens that photo.
     inspector.get_by_role("button", name="View lineage tree").click()

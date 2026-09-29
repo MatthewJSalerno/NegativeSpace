@@ -6,6 +6,34 @@ from pathlib import Path
 import ns_db
 import ns_similarity
 from . import catalog
+from .similarity_sql import AVAILABLE, VALID
+
+THRESHOLDS = (75, 80, 85, 90, 95, 100)
+
+
+def counts(db: Path, photo_id: int):
+    """Cumulative direct-match counts in one snapshot, without six queue queries."""
+    with catalog.connect(db) as conn:
+        conn.execute('BEGIN')
+        reference = conn.execute('WITH '+_BASE+' SELECT * FROM raw WHERE id=?', (photo_id,)).fetchone()
+        if reference is None:
+            return {'availability': 'not_available', 'counts': [], 'pending': 0}
+        if reference['phash_state'] != 'ok' or not ns_similarity.usable(reference['phash']):
+            return {'availability': 'hash_unavailable', 'counts': [], 'pending': 0}
+        pending = conn.execute(f"""WITH {AVAILABLE} SELECT COUNT(*) FROM available
+          WHERE {VALID} AND NOT EXISTS
+          (SELECT 1 FROM similarity_hashes h WHERE h.phash=available.phash)""").fetchone()[0]
+        histogram = conn.execute(f"""WITH {AVAILABLE}, near AS (
+          SELECT :hash AS phash,0 AS distance UNION ALL
+          SELECT high_hash,distance FROM content_similarity WHERE low_hash=:hash AND distance<=:distance UNION ALL
+          SELECT low_hash,distance FROM content_similarity WHERE high_hash=:hash AND distance<=:distance)
+          SELECT distance,COUNT(*) FROM available a JOIN near n ON n.phash=a.phash
+          WHERE a.content_id!=:content AND a.phash_state='ok' GROUP BY distance""",
+          {'hash': reference['phash'], 'content': reference['content_id'],
+           'distance': ns_similarity.MAX_DISTANCE}).fetchall()
+    return {'availability': 'available', 'pending': pending,
+            'counts': [{'threshold': t, 'count': sum(n for d, n in histogram if d <= (100-t)*64//100)}
+                       for t in THRESHOLDS]}
 
 # Availability is recorded evidence, not a fresh filesystem verification. Destructive
 # curation is deliberately absent; its future preview must verify files independently.
