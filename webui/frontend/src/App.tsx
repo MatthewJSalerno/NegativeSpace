@@ -214,7 +214,10 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [revealId, setRevealId] = useState<number | null>(null);
   const openFromGallery = (id: number) => {
     setLocate(null); setRevealId(null); setOpenId(id);
-    if (view === "similar") setMatchState({ photo: id, view: { threshold: matchMin, page: 1 } });
+    if (view === "similar") {
+      setInspectorTab("similar");
+      setMatchState({ photo: id, view: { threshold: matchMin, page: 1 } });
+    }
   };
   const openAndLocate = (id: number) => { setOpenId(id); setLocate({ id, delta: 0 }); setRevealId(null); };
   const [timeline, setTimeline] = useState<Timeline | null>(null);
@@ -364,6 +367,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                                           : Promise.resolve({ items: [], total: 0, page: p, page_size: pageSize, missing: [] } as SelectionPage)),
                            JSON.stringify([focus, sort, galleryMinimum]), focusJump, pageSize, refreshKey, setLoadError);
   const focusData: SelectionPage | null = focus ? focused.meta : null;
+  const gallerySummary = focus ? focusData : data;
 
   // What the gallery shows: the results, or only the selection. Every loaded page in
   // order, each photo tagged with its page so scrolling can say which page is on top.
@@ -760,14 +764,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               <option value="largest">Largest first</option>
               <option value="smallest">Smallest first</option>
               <option value="name">Name</option>
-              {view === "similar" && <option value="matches">Most similar photos</option>}
+              {view === "similar" && <option value="matches">Most matches first</option>}
             </select>
-            {view === "similar" && <label className="gallery-match-threshold">Matches at or above
-              <select aria-label="Gallery match threshold" value={matchMin} disabled={!!focus}
-                      onChange={e => { setMatchMin(Number(e.target.value)); setPage(1); }}>
-                {MATCH_THRESHOLDS.map(t => <option key={t} value={t}>{t}%</option>)}
-              </select>
-            </label>}
           </div>
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
@@ -840,35 +838,47 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               )}
             </div>
           )}
-          {!focus && view === "similar" && <p className="dates-filter-line">
-            Destination photos with a recorded visual match at or above {data?.similarity?.threshold ?? matchMin}%.
-            {" "}Counts include matches across the destination library, including outside these filters. Open a photo to review its matches.
-            {matchMin < 90 && <> Below 90%, results are more likely to be unrelated; review photos before using them as clues.</>}
-            {data?.similarity && (data.similarity.pending > 0 || data.similarity.unavailable > 0) && <>
-              {" "}Counts may be incomplete: {plural(data.similarity.pending, "photo awaiting comparison", "photos awaiting comparison")};
-              {" "}{plural(data.similarity.unavailable, "photo without a usable visual hash", "photos without a usable visual hash")}.
+          <div className="gallery-summary">
+            <span>{gallerySummary ? plural(gallerySummary.total, "photo") : "Loading photos…"}</span>
+            {view === "similar" && <>
+              <label className="gallery-match-threshold">Matches at or above
+                <select aria-label="Gallery match threshold" value={matchMin} disabled={!!focus}
+                        onChange={e => { setMatchMin(Number(e.target.value)); setPage(1); }}>
+                  {MATCH_THRESHOLDS.map(t => <option key={t} value={t}>{t}%</option>)}
+                </select>
+              </label>
+              <button className={sort === "matches" ? "active" : "primary"} aria-pressed={sort === "matches"}
+                      onClick={() => { setSort("matches"); setPage(1); setFocusPage(1); }}>Most matches first</button>
+              <Tip text="Counts include direct matches across the destination library, including outside these filters. Open a photo to review its matches. Percentages measure visual similarity, not confidence; 100% does not mean identical files.">
+                <span className="muted">{matchMin < 90 ? "Below 90%, matches are more likely to be unrelated." : "Counts cover the destination library."}</span>
+              </Tip>
             </>}
-            {data?.counts.organized === 0 && <> Copy or Move indexed photos to the destination first.</>}
-          </p>}
-          {!focus && data && (dates.length > 0 || types.length > 0 || folders.length > 0 || !!q || undated) && (
-            <p className="dates-filter-line">
-              {/* What is shown, against the library the view buttons count. */}
-              Showing {count(data.total)} of {plural(data.counts[view], "photo")}
-              {dates.length + types.length + folders.length > 0 && <> · only {[...folders.map(folderLabel), ...dates.map(dateLabel), ...types.map(typeLabel)].join(", ")}</>}
-              {q && <> · matching “{q}”</>}
-              {undated && <> · no capture date</>}
-              {data && data.total > 0 && (
-                <> · <button className="link" onClick={selectAll} disabled={jobRunning || data.total > MAX_SELECTION}
-                             title={data.total > MAX_SELECTION ? `More than the ${count(MAX_SELECTION)}-photo selection limit.`
-                                    : jobRunning ? "Selection is unavailable while a job is running." : undefined}>
-                  Select these {count(data.total)}
-                </button></>
-              )}
+            {!focus && data && (dates.length > 0 || types.length > 0 || folders.length > 0 || !!q || undated) && (
+              <span className="gallery-filters">
+                {/* What is shown, against the library the view buttons count. */}
+                <Tip text={`Only ${[...folders.map(folderLabel), ...dates.map(dateLabel), ...types.map(typeLabel), ...(q ? [`filenames matching “${q}”`] : []), ...(undated ? ["photos without a capture date"] : [])].join(", ")}`}>
+                  <span>Showing {count(data.total)} of {plural(data.counts[view], "photo")}</span>
+                </Tip>
+                {data && data.total > 0 && (
+                  <> · <button className="link" onClick={selectAll} disabled={jobRunning || data.total > MAX_SELECTION}
+                               title={data.total > MAX_SELECTION ? `More than the ${count(MAX_SELECTION)}-photo selection limit.`
+                                      : jobRunning ? "Selection is unavailable while a job is running." : undefined}>
+                    Select these {count(data.total)}
+                  </button></>
+                )}
               {dates.length > 0 && <>{" · "}<button className="link" onClick={() => changeDates([])}>Show all dates</button></>}
               {types.length > 0 && <>{" · "}<button className="link" onClick={() => changeTypes([])}>Show all types</button></>}
               {folders.length > 0 && <>{" · "}<button className="link" onClick={() => changeFolders([])}>Show all folders</button></>}
-            </p>
+            </span>
           )}
+          </div>
+          {!focus && view === "similar" && data?.similarity && (data.similarity.pending > 0 || data.similarity.unavailable > 0) && <p className="dates-filter-line">
+            Counts may be incomplete: {plural(data.similarity.pending, "photo awaiting comparison", "photos awaiting comparison")};
+            {" "}{plural(data.similarity.unavailable, "photo without a usable visual hash", "photos without a usable visual hash")}.
+          </p>}
+          {!focus && view === "similar" && data?.counts.organized === 0 && <p className="dates-filter-line">
+            Copy or Move indexed photos to the destination first.
+          </p>}
           {!focus && data && data.total === 0 && (
             <div className="empty">
               {noPhotos ? (

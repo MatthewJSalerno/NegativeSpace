@@ -50,9 +50,9 @@ Open **http://localhost:8080** (or the host's address). `docker compose -f docke
 - **First visit:** there is no catalog yet, so the page offers to create one, then shows the settings. Save them to reach the library.
 - **Index** reads your photos into the catalog. It moves and copies nothing.
 - **Copy** or **Move** everything not yet organized, or select photos first. Both ask before they start.
-- After Copy or Move, choose **Has similar photos** in the gallery and open the
-  Inspector's **Similar photos** tab. Choose **Most similar photos** in the gallery
-  sort control and a **Matches at or above** percentage to start with photos having
+- After Copy or Move, choose **Has similar photos** in the gallery; opening a photo selects the
+  Inspector's **Similar photos** tab. Use the visible **Most matches first** shortcut
+  (also in Sort) and a **Matches at or above** percentage to start with photos having
   the most qualifying matches; cards show counts across the destination library.
   Browse matches at 75–100% and review them side
   by side, comparing format, dimensions, file size and metadata. Percentages measure

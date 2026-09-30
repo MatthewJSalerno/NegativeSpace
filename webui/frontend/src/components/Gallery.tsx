@@ -42,9 +42,14 @@ export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId
         const isSelected = selected.has(item.id);
         return (
           <li key={item.id} data-page={pageOf?.[index]} data-id={item.id} className={`card ${isSelected ? "selected" : ""} ${openId === item.id ? "open" : ""}`}>
-            <button className="card-image" onClick={() => onOpen(item.id)} aria-label={`Open ${item.filename}`}>
-              <Thumb refreshKey={refreshKey} id={item.id} alt={item.filename} />
-            </button>
+            <div className="card-preview">
+              <button className="card-image" onClick={() => onOpen(item.id)} aria-label={`Open ${item.filename}`}>
+                <Thumb refreshKey={refreshKey} id={item.id} alt={item.filename} />
+              </button>
+              {matchThreshold != null && item.similar_count != null && <span className="card-match-count" title={`${plural(item.similar_count, "match", "matches")} at or above ${matchThreshold}%`}>
+                {plural(item.similar_count, "match", "matches")}
+              </span>}
+            </div>
             <label className="card-check" title={selectable ? undefined : "Selection is unavailable while a job is running."}>
               <input
                 type="checkbox"
@@ -57,9 +62,6 @@ export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId
             </label>
             <div className="card-meta">
               <span className="card-name" title={item.filename}>{item.filename}</span>
-              {matchThreshold != null && item.similar_count != null && <span className="card-sub">
-                {plural(item.similar_count, "match", "matches")} at or above {matchThreshold}%
-              </span>}
               <span className="card-sub">
                 <span title={isFallbackDate(item.date_source) ? "No capture date: this is the file's modification date" : undefined}>
                   {photoDate(item.date_taken, false)}

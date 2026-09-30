@@ -595,7 +595,8 @@ Failed lookups offer a retry while leaving the Inspector open.
 History's **Open in the log** and **View lineage tree** actions share text size and
 alignment, retaining their link and button semantics respectively.
 Clicking an image opens a right-side 50% detail panel. **Photo information** is the
-default tab; **Similar photos** holds the matching controls and thumbnails (§7.4).
+default tab outside Has similar photos; opening a gallery card in that view selects
+**Similar photos**, which holds the matching controls and thumbnails (§7.4).
 Both tabs share the reference preview and its resize divider. The active tab and
 chosen match threshold remain selected when navigating to another photo.
 
@@ -1286,12 +1287,12 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 15 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 16 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
-user catalog. The explicit schema-14 preparation tool described in `engine-spec.md` §9.3
-preserves history in a separate schema-15 copy; other versions require a fresh
+user catalog. The explicit schema-14/15 preparation tool described in `engine-spec.md` §9.3
+preserves history in a separate schema-16 copy; other versions require a fresh
 development catalog without discarding the old one.
 
 
@@ -1562,11 +1563,14 @@ asks for naming decisions before the library is organized.
 existing view controls. It contains destination photos with at least one recorded
 visual match at the selected gallery percentage (75% by default), with the gallery's
 existing search, date, type, folder and selection behavior. The top navigation has
-no Similar button. **Most similar photos** in the sort dropdown orders qualifying
+no Similar button. **Most matches first** in the sort dropdown orders qualifying
 match counts highest first, with ascending photo ID as the tie-breaker, before
-pagination. **Matches at or above** offers 75/80/85/90/95/100% beside the sort control
+pagination. The gallery summary also exposes a **Most matches first** shortcut.
+**Matches at or above** offers 75/80/85/90/95/100% in that summary
 whenever this view is active; the percentage also applies to date/name/size sorts.
-Cards show the count and percentage. Counts cover direct matches across the entire
+Cards show compact count badges over the preview; their tooltip includes the percentage.
+All views use the same card geometry and summary row. Long filter descriptions
+use shared help while filter actions stay visible. Counts cover direct matches across the entire
 destination library, including outside the gallery's filters, matching the Inspector
 scope. Equal visual hashes count, exact byte copies are represented once, and the
 reference itself is excluded. No new image comparisons run when controls change.
@@ -1576,8 +1580,8 @@ Changes reset gallery paging to one but retain explicit selection; sidebar count
 Select all and photo positioning use the same membership. Show only selected keeps
 all selected files even without qualifying matches, with the percentage disabled;
 known counts sort first, then zero and unavailable counts. Leaving this view resets
-Most similar photos to Newest first. Clicking a gallery card carries the gallery
-percentage into its matches without switching the Inspector tab. Later Inspector
+Most matches first to Newest first. Clicking a gallery card carries the gallery
+percentage into its matches and opens the Similar photos tab. Later Inspector
 threshold changes remain local; previous/next retains that Inspector choice.
 Photos without qualifying recorded matches are omitted. A coverage note appears
 when destination hashes are unavailable or comparisons unfinished; absence from this

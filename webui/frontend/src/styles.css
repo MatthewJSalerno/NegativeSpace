@@ -138,7 +138,6 @@ button.link.status-only { font-size: var(--type-xs); }
   .log-table tr { display: grid; border-top: 1px solid var(--border); }
   .log-table td { border-top: 0; padding: var(--space-1) var(--space-2); }
 }
-.views .filter.active { border-style: solid; background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 
 .browse-search { display: flex; flex-wrap: wrap; align-items: center; flex: 1 1 320px; min-width: 0; gap: var(--space-3); }
 .gallery-match-threshold { display: flex; align-items: center; gap: var(--space-2); }
@@ -579,7 +578,6 @@ a.button-link.active {background: var(--surface-2);border-color: transparent;col
 .views button, .views .filter {border: 1px solid transparent;background: transparent;border-radius: var(--control-radius);padding: var(--space-2) var(--space-3);font-weight: var(--weight-strong);}
 .views button.active {background: var(--surface-2);color: var(--accent);border-color: transparent;font-weight: var(--weight-strong);}
 .views .filter {margin-left: var(--space-2);}
-.views .filter.active {background: var(--accent);color: var(--accent-text);}
 .view-count,.pager,.card-sub {font-variant-numeric: tabular-nums;}
 .version-tag {font-size: var(--type-xs);}
 .gallery-pane {padding: var(--space-4) var(--space-6) var(--space-8);}
@@ -800,3 +798,13 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 @container inspector-details (min-width: 520px) {
   .match-thresholds { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
+
+/* Keep ordinary and similarity browsing in the same gallery geometry. */
+.gallery-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-height: 36px; margin-bottom: var(--space-2); }
+.gallery-summary > span:first-child { font-variant-numeric: tabular-nums; }
+.gallery-summary button[aria-pressed="true"] { background: var(--surface-2); color: var(--accent); border-color: var(--accent); }
+.gallery-summary .muted { font-size: var(--type-xs); }
+.gallery-filters { font-size: var(--type-sm); }
+.card-preview { position: relative; }
+.card-match-count { position: absolute; bottom: var(--space-2); left: var(--space-2); right: var(--space-2); width: fit-content; padding: var(--space-1) var(--space-2); border-radius: var(--control-radius); background: var(--surface); color: var(--text); font-size: var(--type-xs); pointer-events: none; font-variant-numeric: tabular-nums; }
+@media (max-width: 800px) { .gallery-summary { min-height: 44px; } }

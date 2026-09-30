@@ -230,10 +230,11 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 15; automatic upgrades remain disabled. The explicit
-`tools/prepare-similarity-catalog.py` tool prepares a separate schema-15 catalog
-from schema 14, preserving history and judgments while rebuilding derived
-comparisons. Other incompatible versions remain refused. It stores immutable
+at schema version 16; automatic upgrades remain disabled. The explicit
+`tools/prepare-similarity-catalog.py` tool prepares a separate schema-16 catalog
+from schema 14 or 15, preserving history and judgments. It rebuilds the widened
+comparison range for schema 14 and prepares six cached gallery counts for either
+version. Schema-15 relationships are retained. Other incompatible versions remain refused. It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its
 identity, and reuse of an existing destination keeps both identities and links the

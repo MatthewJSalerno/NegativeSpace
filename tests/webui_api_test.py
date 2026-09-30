@@ -361,6 +361,17 @@ class JobsAndCatalog(ApiCase):
         self.create_catalog()
         return self.wait_for(self.start(mode="index"))
 
+    def test_engine_publishes_count_cache_after_index_and_copy(self):
+        self.index_library()
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM similarity_count_cache').fetchone(), (0,))
+        run = self.wait_for(self.start(mode='copy'))
+        self.assertEqual(run['status'], 'Completed')
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM similarity_count_cache').fetchone(), (2,))
+
     def test_an_index_through_the_api_reports_a_derived_outcome_and_fills_the_gallery(self):
         run = self.index_library()
         self.assertEqual((run["mode"], run["status"], run["outcome"]["verdict"]), ("INDEX", "Completed", "success"))
@@ -1215,6 +1226,67 @@ class MatchingTests(ApiCase):
         import ns_similarity
         self.assertTrue(ns_similarity.refresh(self.conn))
 
+    def test_cached_counts_equal_live_reads_and_invalidate_transactionally(self):
+        import ns_similarity_cache as cache
+        a = self.photo('reference', 'a', '0000000000000000')
+        self.photo('byte-copy', 'a', '0000000000000000')
+        for d in (0, 3, 4, 6, 7, 9, 10, 12, 13, 16, 17):
+            self.photo(f'distance-{d}', f'content-{d}', f'{(1 << d)-1:016x}')
+        self.photo('unavailable', 'bad', None)
+        self.refresh()
+        def responses():
+            return [self.client.get(f'/api/v1/photos?view=similar&sort=matches&match_min={t}').json()
+                    for t in (*cache.THRESHOLDS, 76)]
+        live = responses()
+        self.assertTrue(cache.refresh(self.conn))
+        self.assertEqual(responses(), live)
+        self.assertEqual(self.conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+        # Unrelated metadata and a no-op membership update leave the cache usable.
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE photos SET file_size=20,status=status WHERE id=?", (a,))
+        self.assertEqual(self.conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+        before = responses()
+        # Rolled-back changes must not invalidate; existing readers keep a coherent snapshot.
+        reader = ns_db.connect(self.cfg.db_path)
+        reader.execute('BEGIN')
+        self.assertEqual(reader.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+        self.conn.execute('BEGIN')
+        self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE current_path='/destination/distance-0.jpg'")
+        self.assertEqual(self.conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (1,))
+        self.conn.rollback()
+        self.assertEqual(self.conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE current_path='/destination/distance-0.jpg'")
+        self.assertEqual(reader.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+        reader.close()
+        dirty = responses()
+        self.assertNotEqual(dirty, before)
+        old_cache = self.conn.execute('SELECT * FROM similarity_count_cache').fetchall()
+        calls = 0
+        def cancel():
+            nonlocal calls
+            calls += 1
+            return calls >= 2
+        self.assertFalse(cache.refresh(self.conn, cancelled=cancel))
+        self.assertEqual(self.conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (1,))
+        self.assertEqual(self.conn.execute('SELECT * FROM similarity_count_cache').fetchall(), old_cache)
+        self.assertEqual(responses(), dirty)
+        self.assertTrue(cache.refresh(self.conn))
+        self.assertEqual(responses(), dirty)
+        # Representative replacement, hash and pair changes must never serve old rows.
+        for statement in (
+            f"UPDATE photos SET status='Pending' WHERE id={a}",
+            "UPDATE contents SET phash='ffffffffffffffff' WHERE digest='content-3'",
+            "DELETE FROM content_similarity",
+            "DELETE FROM similarity_hashes",
+        ):
+            with ns_db.transaction(self.conn):
+                self.conn.execute(statement)
+            self.assertEqual(self.conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (1,))
+            current = responses()
+            self.assertTrue(cache.refresh(self.conn))
+            self.assertEqual(responses(), current)
+
     def test_inspector_counts_are_cumulative_direct_and_deduplicated(self):
         a = self.photo('reference', 'a', '0000000000000000')
         duplicate = self.photo('reference-copy', 'a', '0000000000000000')
@@ -1279,7 +1351,10 @@ class MatchingTests(ApiCase):
             self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE sha1_hash='b'")
         self.assertEqual(self.client.get('/api/v1/photos?view=similar').json()['total'], 0)
 
-    def test_gallery_ranks_by_direct_count_before_paging_and_preserves_filter_scope(self):
+    def test_warm_cache_preserves_gallery_paging_filters_selection_and_position(self):
+        self.test_gallery_ranks_by_direct_count_before_paging_and_preserves_filter_scope(warm=True)
+
+    def test_gallery_ranks_by_direct_count_before_paging_and_preserves_filter_scope(self, warm=False):
         a = self.photo('reference', 'a', '0000000000000000')
         b = self.photo('near', 'b', '0000000000000007')
         c = self.photo('further', 'c', '00000000000001ff')
@@ -1288,6 +1363,9 @@ class MatchingTests(ApiCase):
         source = self.photo('source-only', 'source', '0000000000000000', status='Pending')
         failed = self.photo('unavailable', 'failed', None)
         self.refresh()
+        if warm:
+            import ns_similarity_cache
+            self.assertTrue(ns_similarity_cache.refresh(self.conn))
         query = '/api/v1/photos?view=similar&sort=matches&match_min=90'
         result = self.client.get(query).json()
         # b links the other three; a/twin do not directly match c at this threshold.

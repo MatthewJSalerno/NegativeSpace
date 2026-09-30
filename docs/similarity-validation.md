@@ -202,3 +202,85 @@ catalog was copied into it. The Compose recipe is `docker/compose.sample.yml`.
 The full gallery browser workflow and shared control checks passed with the new
 tabs. Dedicated matching checks cover keyboard tab navigation, remembered threshold,
 URL restoration, match paging, side-by-side judgments, retries and narrow dialogs.
+
+## Branch status — 2026-09-30
+
+Current scope on `feat/similarity-validation`:
+
+- **Built:** original-file pHashes, resumable comparison through the 75% floor,
+  destination-only review after Index → Copy/Move, exact-content collapsing,
+  cumulative Inspector counts and paged direct matches. There is no separate
+  Similar navigation or identical-byte mode in visual review.
+- **Built:** expanded comparison workspace, temporary independent rotation/zoom,
+  linked zoom/position, reference emphasis and promotion, file/format/dimension/
+  size comparison, EXIF differences, sticky comparison headings, rotation-aware
+  displayed dimensions, and saved pair judgments with reviewed/unreviewed filters.
+  The two-preview frame grows to fit its controls. Recorded dimensions stay unchanged.
+- **Built:** gallery match-count sorting at six chosen percentages, URL restoration,
+  selection retention, a visible **Most matches first** shortcut, compact preview
+  badges and consistent gallery summary/card styling. A similar-gallery card opens
+  the Inspector's matching tab at that gallery percentage. Explicit tab changes
+  remain available and survive previous/next and reload.
+- **Built:** shared text/link styling and documented design rules in
+  `docs/ui-design.md`, linked from `AGENTS.md`; empty zero/zero coverage notices
+  suppressed; below-90% review guidance; Stats chart containment; an isolated
+  sample-sharing Compose recipe with read-only input and separate writable data.
+- **Built:** schema-16 SQLite count cache and explicit schema-14/15 preparation,
+  with atomic invalidation/publication and correct live-query fallback. Counts are
+  derived state in the existing catalog; a second DuckDB database is not required.
+
+Pending work is tracked in [TODO.md](../TODO.md): actionable missing-hash repair and
+comparison resume, EXIF copy/edit, deletion with explicit targets/results/history,
+verified saved-orientation writes and a single end-of-review decision, deferred
+review queues and workspace restoration, rotated-match retrieval, and representative
+large-library validation. Reference, metadata donor, keeper and action target remain
+separate roles. No edit/delete/save-rotation controls promise unimplemented actions.
+Manual preview rotation never changes retrieval or hash scores.
+
+The sample library is **not representative of the maintainer's full library**.
+Neither its results nor synthetic SQL timings establish match quality, dense-pair
+storage, NFS performance, initial/incremental hashing/comparison capacity, or browser
+behavior for 200,000+ photos. Full-library and long-session validation remain pending.
+
+### Count-cache cost: bounded synthetic query check
+
+One generated catalog contained 250,000 delivered content identities, 50,000 visual
+hash buckets of five photos, and 49,999 prepared neighbor relationships. Relationships
+were supplied for query testing, not discovered by an exhaustive matching pass.
+No photographs or NFS source were read. Reproduce with
+`python3 tools/benchmark-similarity-counts.py` using the app dependencies.
+Single warm-host measurements:
+
+| Measurement | Result |
+| --- | ---: |
+| Build all six counts | 1.296 s |
+| Count/state table pages, measured with SQLite dbstat | 5,025,792 bytes (4.79 MiB) |
+| Gallery sorted by match count, including view counts | 0.121 s |
+| Similar gallery sorted newest first | 0.265 s |
+| Photo position in match ordering | 0.227 s |
+| 1,000 explicitly selected photos, match ordered | 0.028 s |
+
+This count storage excludes the existing catalog/pair tables, temporary aggregation
+memory and WAL. Storage grows linearly with representatives and integer widths; a
+rebuild also uses a write transaction, temporary working space and WAL writes.
+An unchanged job skips rebuilding. Dirty caches use slower live queries until an
+uncancelled engine job publishes new counts. These figures are a query/cache check,
+not an end-to-end capacity benchmark or a comparison against DuckDB.
+
+### Validation and sample handoff
+
+Database suite: 46 tests passed. API suite: 73 tests ran successfully, with four
+intentional skips. The focused history-settle durability regression passed.
+Both image builds, the similarity browser workflow, the complete gallery/shared-UI
+browser workflow, and specification-reference/whitespace checks passed. Rendered
+checks included desktop and narrow layouts, compact match badges, comparison
+headings, keyboard/focus behavior, theme contrast and the Stats Dates chart.
+These are functional/regression checks, not a full engine-suite or capacity claim.
+
+For this development sample, the maintainer chose a **fresh catalog rebuild**;
+no upgraded catalog was installed. The updated sample instance starts with empty
+appdata, ready for Create catalog → save settings → Index → Copy. The existing
+sample source and destination mounts are retained. Rebuilding requires new settings
+and creates new catalog history/judgments; transfer destinations already present are
+handled by normal engine verification. No further migration/history work is planned
+for this sample. General release migration policy remains a separate TODO item.

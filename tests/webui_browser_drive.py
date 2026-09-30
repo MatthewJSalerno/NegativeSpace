@@ -119,7 +119,7 @@ with sync_playwright() as p:
     expect(trip.locator(".dates-count")).to_have_text("10")
     expect(folders_nav.locator(".folder-row", has_text="Files in the source folder").locator(".dates-count")).to_have_text(f"{PHOTOS - 10:,}")
     trip.get_by_role("checkbox").check()
-    expect(page.locator(".dates-filter-line")).to_contain_text(f"Showing 10 of {PHOTOS} photos · only trip / day 1")
+    expect(page.locator(".gallery-filters")).to_contain_text(f"Showing 10 of {PHOTOS} photos")
     expect(page).to_have_url(re.compile(r"folder=trip"))
     # One folder shown: Actions offers it, however many photos it holds.
     item = open_actions(page, "Copy").get_by_role("menuitem", name=re.compile(r"^Copy this folder: trip \/ day 1 \(10\)"))
@@ -133,7 +133,7 @@ with sync_playwright() as p:
     expect(item).to_be_disabled()
     expect(item).to_contain_text("Show one folder to act on it.")
     page.keyboard.press("Escape")
-    page.locator(".dates-filter-line").get_by_role("button", name="Show all folders").click()
+    page.locator(".gallery-filters").get_by_role("button", name="Show all folders").click()
     expect(page).not_to_have_url(re.compile(r"folder="))
     # The left panel widens for long folder paths: drag its edge, or use the arrow keys.
     before = page.locator(".side-panel").bounding_box()["width"]
@@ -174,9 +174,9 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(rf"page={NEWER // 60 + 1}\b"))
     expect(page.locator(".card-sub", has_text="2019").first).to_be_visible()
     dates.get_by_label("Show only 2019").check()
-    expect(page.locator(".dates-filter-line")).to_contain_text(f"Showing {OLDER} of {PHOTOS} photos · only 2019")
+    expect(page.locator(".gallery-filters")).to_contain_text(f"Showing {OLDER} of {PHOTOS} photos")
     # Select these: the photos the date filter shows, in one click.
-    page.locator(".dates-filter-line").get_by_role("button", name=f"Select these {OLDER}").click()
+    page.locator(".gallery-filters").get_by_role("button", name=f"Select these {OLDER}").click()
     expect(page.locator(".selection-line")).to_contain_text(f"{OLDER} photos selected")
     page.locator(".selection-line").get_by_role("button", name="Clear").click()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
@@ -189,11 +189,11 @@ with sync_playwright() as p:
     notice = page.locator(".notice")
     expect(notice).to_contain_text("2023 is outside the dates shown.")
     notice.get_by_role("button", name="Show 2023 too").click()
-    expect(page.locator(".dates-filter-line")).to_contain_text("2019, 2023")
+    expect(page.locator(".gallery-filters .tip")).to_have_attribute("data-tip", "Only 2019, 2023")
     expect(page.locator(".card-sub", has_text="2023").first).to_be_visible()
     expect(notice).to_have_count(0)
     dates.get_by_label("Show only 2023").uncheck()
-    page.locator(".dates-filter-line").get_by_role("button", name="Show all dates").click()
+    page.locator(".gallery-filters").get_by_role("button", name="Show all dates").click()
     # Types, above Dates and folded until opened: only the types the library holds (here, JPEG).
     types = page.get_by_role("navigation", name="Types")
     side = page.locator(".side-panel nav").evaluate_all("ns => ns.map(n => n.getAttribute('aria-label'))")
@@ -203,11 +203,11 @@ with sync_playwright() as p:
     expect(types.locator(".type-row")).to_have_count(1)
     expect(types.locator(".type-row")).to_contain_text(f"JPG{PHOTOS:,}")
     types.get_by_label("Show only JPG").check()
-    expect(page.locator(".dates-filter-line")).to_contain_text("only JPG")
+    expect(page.locator(".gallery-filters .tip")).to_have_attribute("data-tip", "Only JPG")
     expect(page).to_have_url(re.compile(r"type=jpg"))
     types.get_by_role("button", name=re.compile(r"Types")).click()           # folded, it still names the filter
     expect(types.get_by_role("button", name=re.compile(r"Types"))).to_contain_text("JPG")
-    page.locator(".dates-filter-line").get_by_role("button", name="Show all types").click()
+    page.locator(".gallery-filters").get_by_role("button", name="Show all types").click()
     expect(page).not_to_have_url(re.compile(r"type="))
     # Oldest first turns the tree over: the oldest year leads.
     year_names = dates.locator(".dates-tree > li > .dates-row .dates-name")
@@ -589,7 +589,7 @@ with sync_playwright() as p:
     # A format row opens the Library showing only that type.
     page.locator(".stat-bars a.bar-label", has_text="JPG").click()
     expect(page).to_have_url(re.compile(r"type=jpg"))
-    expect(page.locator(".dates-filter-line")).to_contain_text("only JPG")
+    expect(page.locator(".gallery-filters .tip")).to_have_attribute("data-tip", "Only JPG")
     page.go_back()
     tiles.filter(has_text="Failed attempts").click()
     expect(page).to_have_url(re.compile(r"/logs\?status=Failed"))
@@ -598,8 +598,8 @@ with sync_playwright() as p:
     expect(page.locator(".year-bar")).to_have_count(1)
     page.locator(".year-bar", has_text="2023").click()
     expect(page).to_have_url(re.compile(r"date=2023"))
-    expect(page.locator(".dates-filter-line")).to_contain_text("only 2023")
-    page.locator(".dates-filter-line").get_by_role("button", name="Show all dates").click()
+    expect(page.locator(".gallery-filters .tip")).to_have_attribute("data-tip", "Only 2023")
+    page.locator(".gallery-filters").get_by_role("button", name="Show all dates").click()
 
     page.get_by_role("button", name="Settings").click()
     expect(page.get_by_role("dialog")).to_contain_text("Changes apply to future jobs")

@@ -765,10 +765,16 @@ def finish_run(db_path: str, run_id: int, status: str):
     At synchronous=FULL, which makes this commit fsync the WAL. That is one fsync
     of the whole file, so it also makes durable every earlier NORMAL commit in it:
     the scan path's batched results and audit rows. A settled run's history is
-    therefore durable for the price of one fsync per run, where FULL on the scan
+    therefore durable for one history-settle fsync (a dirty count-cache rebuild
+    has its own preceding commit), where FULL on the scan
     path itself would cost the ~4.4x it was measured at.
     """
     conn = get_db_connection(db_path, synchronous="FULL")
+    try:
+        import ns_similarity_cache
+        ns_similarity_cache.refresh(conn, cancelled=cancel_requested.is_set)
+    except Exception as exc:
+        logger.warning(f"Similarity count cache not refreshed; queries will use current catalog data: {exc}")
     if not ns_db.transition_run(conn, run_id, status):
         # Only another run's reconciliation settles a run, and it cannot while
         # this process holds the lock — so this is a defect, not a race.

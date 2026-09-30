@@ -316,10 +316,10 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 15 and refuses incompatible catalogs before processing.
-No automatic migration occurs. A schema-14 catalog can be prepared as a separate
-schema-15 copy with `tools/prepare-similarity-catalog.py`; it preserves history and
-judgments and rebuilds only derived comparisons. Other incompatible versions remain
+initializes schema version 16 and refuses incompatible catalogs before processing.
+No automatic migration occurs. A schema-14 or schema-15 catalog can be prepared as a separate
+schema-16 copy with `tools/prepare-similarity-catalog.py`; it preserves history and
+judgments and prepares only derived comparisons/counts. Other incompatible versions remain
 refused: preserve the older catalog. Index cannot
 reconstruct settings, past edits, or deleted-file lineage. Never describe deleting a
 user catalog as routine repair.
@@ -621,6 +621,21 @@ CREATE TABLE content_similarity (
 );
 CREATE INDEX idx_similarity_reverse ON content_similarity(high_hash, distance, low_hash);
 CREATE TABLE similarity_hashes (phash TEXT PRIMARY KEY);
+-- Derived counts: no history or photo bytes; see §9.3 for invalidation/publication.
+CREATE TABLE similarity_count_state (
+    id INTEGER PRIMARY KEY CHECK(id=1),
+    dirty INTEGER NOT NULL CHECK(dirty IN (0,1)),
+    unavailable INTEGER NOT NULL DEFAULT 0, pending INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE similarity_count_cache (
+    photo_id INTEGER PRIMARY KEY,
+    count_75 INTEGER NOT NULL CHECK(count_75>=0),
+    count_80 INTEGER NOT NULL CHECK(count_80>=0),
+    count_85 INTEGER NOT NULL CHECK(count_85>=0),
+    count_90 INTEGER NOT NULL CHECK(count_90>=0),
+    count_95 INTEGER NOT NULL CHECK(count_95>=0),
+    count_100 INTEGER NOT NULL CHECK(count_100>=0)
+);
 CREATE TABLE similarity_reviews (
     low_content_id INTEGER NOT NULL REFERENCES contents(content_id),
     high_content_id INTEGER NOT NULL REFERENCES contents(content_id),
@@ -726,7 +741,8 @@ CREATE INDEX idx_open_attention ON attention_issues(file_id) WHERE resolved_at I
 `operation_evidence`, `file_changes` and `attention_evidence` reject `UPDATE` and
 `DELETE` alongside the version 2 tables. `attention_issues` is deliberately
 excluded — resolving an issue must update it — as are `thumbnail_cache`,
-`content_similarity` and `backup_artifacts`, whose availability is current state
+`content_similarity`, `similarity_count_cache`, `similarity_count_state` and
+`backup_artifacts`, whose availability is current state
 rather than history.
 
 The implemented settings table belongs in the same database as the catalog and history,
@@ -918,14 +934,44 @@ hashes with their relationships in one transaction. Cancellation rolls back the
 current batch; the next Index resumes it. Readers join current content hashes,
 so changed content membership cannot inherit relationships from its old hash.
 Old hash relationships may remain cached. Missing hashes and incomplete
-comparisons are reported separately by the API. Schema 15 widens the pair-distance
-constraint. Normal startup still refuses incompatible catalogs. The explicit
-schema-14 preparation tool creates a new catalog through SQLite backup, replaces
-only the pair table, completion markers and schema marker, and retains all other
-data. It refuses an existing output and can precompute the range using `--compare`.
-Stop the app before preparing and switching its catalog to avoid losing writes made
-after the snapshot. Keep the original catalog for rollback. No photos are read or
-modified. Manual preparation does not invent an engine comparison-phase timing.
+comparisons are reported separately by the API. Schema 15 widened the pair-distance
+constraint; schema 16 adds disposable gallery count tables. Normal startup still
+refuses incompatible catalogs. The explicit preparation tool accepts schema 14
+or 15 and creates a separate schema-16 SQLite backup. For schema 14 it replaces
+pairs/completion markers and can precompute the wider range with `--compare`;
+for schema 15 it retains existing relationships. It creates and builds the six
+count cache for either version, retains all history/settings/judgments, refuses an
+existing output, and checks integrity and foreign keys. Stop the app before taking
+and installing the snapshot; retain the original for rollback. No photos are read
+or modified. Manual preparation does not invent an engine comparison-phase timing.
+
+**Gallery count cache (schema 16).** `similarity_count_cache` stores one integer
+`photo_id` primary key and six nonnegative integer columns `count_75`, `count_80`,
+`count_85`, `count_90`, `count_95`, `count_100`. Rows represent usable, delivered
+content identities, including zero counts. Equal-hash bucket sizes and weighted
+stored relationships produce all six cumulative counts together, without storing
+photo-to-photo cross products. `similarity_count_state` has singleton `id=1`, a
+`dirty` flag and aggregate `unavailable` / `pending` counts.
+
+Database triggers invalidate in the same transaction as inserts/deletes or relevant
+updates to photos, contents, destination file states, stored relationships or hash
+completion markers. Metadata-only and no-op updates do not invalidate. Review
+judgments never invalidate counts. A live SQLite snapshot reads either the fresh
+cache or current catalog relationships; dirty counts are never used. Arbitrary API
+percentages between the six cached thresholds use live aggregation. External file
+changes become visible only when the engine records them; the cache adds no watcher.
+
+The engine attempts a rebuild before settling a job; a fresh cache costs only a
+state check. A dirty rebuild holds one write transaction and atomically replaces
+counts plus coverage. Cancellation/failure rolls it back; the API keeps using live
+queries until a later uncancelled job refreshes it. This derived-cache failure does
+not fail otherwise completed file work. API reads never build or write the cache.
+A dirty rebuild adds an SQL aggregation, temporary working space, WAL traffic and
+one FULL commit before the existing FULL history-settle commit. No history durability
+barrier is removed. No additional hashes, image reads or comparisons are required.
+On-disk count storage is linear in destination identities; comparison-pair storage
+remains separate and can be quadratic. See the measured, limited fixture results in
+`similarity-validation.md`; a representative 200,000+ library remains unvalidated.
 
 `similarity_reviews` stores the user's latest same/related/unrelated judgment for
 an unordered pair of distinct byte identities. These labels do not change matching

@@ -118,9 +118,9 @@ For manual validation after Copy, open a destination photo in the gallery and ch
 its matches in the thumbnail grid. Use
 **Has similar photos** to narrow the gallery; the count buttons narrow only the
 Inspector results. The gallery's separate **Matches at or above** selector changes
-its membership, and **Most similar photos** sorts counts highest first. Reload and
+its membership, and **Most matches first** sorts counts highest first. Reload and
 return from Logs to confirm the reference and threshold
-remain. No new Index or Copy is needed for this UI change on a prepared schema-15 catalog.
+remain. No new Index or Copy is needed after explicitly preparing a schema-16 catalog.
 The database suite verifies the hash index against brute force and interrupted
 comparison recovery; the API suite checks reference-only matches, hash changes,
 availability, exact copies, thresholds and pagination.
@@ -302,14 +302,38 @@ unchanged Index, repeated Copy and unrelated recovery.
 
 ### Preparing an existing similarity validation catalog
 
-The 75% floor uses schema 15. Automatic startup upgrades remain disabled. To retain
-schema-14 history and review judgments, stop the app and run the explicit
-`tools/prepare-similarity-catalog.py --source <old-catalog> --output <new-catalog> --compare`
-with the updated app dependencies. Output must be a new file. The tool uses SQLite
-backup, widens and rebuilds only the derived comparison cache, and checks integrity
-and foreign keys. Retain the original catalog before switching to the prepared copy;
-do not switch a snapshot made before later user writes. It reads existing hashes,
-not photo files. Other schema versions are refused.
+For this branch's current sample handoff, the maintainer chose to rebuild the
+catalog. With fresh appdata, use **Create catalog → save settings → Index → Copy**,
+then validate the gallery controls and Inspector. Keep the source read-only and the
+existing sample destination. No upgrade step is required for this route.
+
+Optional preservation route for an existing development catalog:
+
+The current count cache uses schema 16 (the 75% floor was introduced in schema 15).
+Automatic startup upgrades remain disabled. To preserve schema-14/15 history and
+judgments, stop the app and run
+`tools/prepare-similarity-catalog.py --source <old-catalog> --output <new-catalog>`
+with the updated dependencies. Add `--compare` when preparing schema 14 to fill the
+wider comparison range. Output must be a new file. The tool uses SQLite backup,
+preserves schema-15 comparisons, builds all six gallery counts, and checks integrity
+and foreign keys. Retain the original catalog and use the matching old app image
+for rollback; never install a snapshot taken before later user writes. It reads
+stored hashes, not photos. Other input schema versions are refused.
+
+Cache checks in the database/API suites cover schema-14/15 preparation, unchanged
+source/history/judgments, all six thresholds and an uncached intermediate threshold,
+missing destination files, representative changes, changed hashes/relationships,
+rollback, old reader snapshots, cancelled publication and live fallback. Engine
+settlement retains its FULL durability check. A cancelled cache build is not a
+request to re-copy photos; subsequent reads remain correct using live aggregation.
+
+Manual UI checks: switch All photos / Has similar photos / No capture date and
+compare card geometry, summary placement and filter actions. At narrow desktop
+widths, controls should wrap without clipping. Open a card from Has similar photos:
+Similar photos should be selected at the gallery percentage. Switch to information,
+use next/previous (retain that choice), then click another similar-gallery card
+(reopen Similar photos). Reload preserves the explicit tab. Check the shortcut's
+pressed state against Sort. Long filter descriptions remain in More information.
 
 ### Choosing a source for manual validation
 
@@ -351,18 +375,19 @@ docker compose --env-file <sample-env-file> -f docker/compose.sample.yml up -d
 ```
 
 Create the catalog, run Index and Copy in this new instance. Then open a photo:
-Photo information should appear first. Similar photos opens the counts and thumbnail
+From All photos, Photo information should appear first. Similar photos opens the counts and thumbnail
 grid, initially at 90%. Resize the Inspector, switch tabs with the keyboard, and
 move to the next photo: the tab/threshold should remain, with match paging reset.
 Reload should restore the recorded tab and match page. The provided scenario set
 contains intentional unreadable/invalid files; those are expected test outcomes.
 
-Before opening a candidate, choose **Most similar photos** in the gallery sort and
+Before opening a candidate, enter **Has similar photos**, click the visible
+**Most matches first** shortcut (also available in Sort), and
 change **Matches at or above**. Check card counts against the Inspector at that same
 percentage. Search/date/type/folder filters narrow references, not their counted
 matches. Zero-match photos disappear; explicit checkbox selection remains. Reload
 and return from Logs: sort and gallery threshold persist. Opening a gallery card
-carries the threshold into Inspector matches; later Inspector changes do not reorder
+opens Similar photos at the gallery threshold; later Inspector changes do not reorder
 the gallery. Leaving Has similar photos resets its special sort to Newest first.
 The API checks ranking before pagination, tie ordering, matching facet/selection
 scope, exact-copy deduplication, threshold boundaries and partial coverage. Browser

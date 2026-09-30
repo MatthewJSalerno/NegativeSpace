@@ -16,7 +16,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 class PhotoStatus:
     """State of one source file in the catalog. A path is unique among files still in the
@@ -575,6 +575,9 @@ def initialize(db_path):
             _create_legacy_tables(conn)
             for statement in FOUNDATION_DDL:
                 conn.execute(statement)
+            import ns_similarity_cache
+            for statement in ns_similarity_cache.DDL:
+                conn.execute(statement)
             for table in ('files', 'file_origins', 'source_snapshots', 'file_observations', 'operation_files',
                           'run_configs', 'job_requests', 'operation_events', 'operation_evidence',
                           'file_changes', 'attention_evidence'):
@@ -592,6 +595,7 @@ def require_schema(conn):
                     'file_observations','operation_files','settings','run_configs','job_requests',
                     'file_origins','file_states','contents','operation_events','operation_evidence',
                     'attention_issues','attention_evidence','file_changes','content_similarity','similarity_hashes','similarity_reviews',
+                    'similarity_count_cache','similarity_count_state',
                     'thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state'}
         present = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if not required <= present:

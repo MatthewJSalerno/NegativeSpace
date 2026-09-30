@@ -589,6 +589,10 @@ class SimilarityTests(unittest.TestCase):
             a = db.content_for_digest(self.conn, digest='review-a', phash='0000000000000000', phash_state='ok')
             b = db.content_for_digest(self.conn, digest='review-b', phash='000000000000ffff', phash_state='ok')
             self.conn.execute("INSERT INTO similarity_reviews VALUES(?,?,'related','test')", (a, b))
+            for row in self.conn.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'invalidate_similarity_counts_%'").fetchall():
+                self.conn.execute(f'DROP TRIGGER {row[0]}')
+            self.conn.execute('DROP TABLE similarity_count_cache')
+            self.conn.execute('DROP TABLE similarity_count_state')
             self.conn.execute('DROP TABLE content_similarity')
             self.conn.execute("CREATE TABLE content_similarity(low_hash TEXT NOT NULL,high_hash TEXT NOT NULL,distance INTEGER NOT NULL CHECK(distance BETWEEN 1 AND 6),PRIMARY KEY(low_hash,high_hash),CHECK(low_hash<high_hash))")
             self.conn.execute("CREATE INDEX idx_similarity_reverse ON content_similarity(high_hash,distance,low_hash)")
@@ -617,6 +621,33 @@ class SimilarityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             prepare(out, invalid)
         self.assertFalse(invalid.exists())
+
+    def test_prepare_schema_15_preserves_all_existing_tables(self):
+        import runpy
+        import ns_similarity
+        prepare = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'tools/prepare-similarity-catalog.py'))['prepare']
+        with db.transaction(self.conn):
+            a = db.content_for_digest(self.conn, digest='a', phash='0000000000000000', phash_state='ok')
+            b = db.content_for_digest(self.conn, digest='b', phash='000000000000ffff', phash_state='ok')
+            self.conn.execute("INSERT INTO similarity_reviews VALUES(?,?,'related','test')", (a,b))
+        ns_similarity.refresh(self.conn)
+        with db.transaction(self.conn):
+            for row in self.conn.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'invalidate_similarity_counts_%'").fetchall():
+                self.conn.execute(f'DROP TRIGGER {row[0]}')
+            self.conn.execute('DROP TABLE similarity_count_cache')
+            self.conn.execute('DROP TABLE similarity_count_state')
+            self.conn.execute('DROP TABLE catalog_schema')
+            self.conn.execute('CREATE TABLE catalog_schema(version INTEGER NOT NULL CHECK(version=15))')
+            self.conn.execute('INSERT INTO catalog_schema VALUES(15)')
+        before = list(self.conn.iterdump())
+        out = self.path.with_name('prepared16.db')
+        self.assertEqual(prepare(self.path, out)['schema'], 16)
+        self.assertEqual(list(self.conn.iterdump()), before)
+        with sqlite3.connect(out) as other:
+            db.require_schema(other)
+            for (table,) in self.conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name!='catalog_schema'"):
+                self.assertEqual(self.conn.execute(f'SELECT * FROM "{table}"').fetchall(), other.execute(f'SELECT * FROM "{table}"').fetchall(), table)
+            self.assertEqual(other.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
 
     def test_hash_index_matches_brute_force_at_every_supported_distance(self):
         import random

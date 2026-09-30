@@ -89,13 +89,21 @@ separate Similar navigation button or a second gallery of matching groups.
 **Has similar photos** sits alongside All photos, Organized and No capture date;
 it includes photos with at least one recorded destination match at the gallery's
 chosen percentage (75% initially). It combines with existing search, date, type and
-folder filters. **Most similar photos** in the existing sort control ranks direct
+folder filters. **Most matches first** in the existing sort control ranks direct
 match counts highest first; ties use ascending photo ID. **Matches at or above**
-beside it offers 75/80/85/90/95/100%, also available with the other gallery sorts.
-Cards show “12 matches at or above 90%”. Count matches across the whole destination
-library, including outside gallery filters, and explain that scope beside results.
+in the gallery summary offers 75/80/85/90/95/100%, also available with the other gallery sorts.
+A visible **Most matches first** shortcut applies the same sort. Cards show compact
+match-count badges over the preview, with the percentage in their tooltip. Count matches across the whole destination
+library, including outside gallery filters, and explain that scope in the shared help beside results.
 Photos with no qualifying recorded match are excluded; incomplete comparisons and
 unavailable hashes are reported separately, not presented as proof of uniqueness.
+
+Keep the same card geometry and shared summary row in All photos, Has similar
+photos and No capture date. Match badges must not add a metadata row to cards.
+Use the same active-view surface for No capture date. Put long filter descriptions
+and count-scope explanations in shared help, keeping filter-reset/selection actions
+visible. Similarity controls and essential below-90% guidance may wrap at smaller
+widths; never hide them behind a help control or clip them for a fixed row height.
 
 Persist gallery percentage as `match_min` and ordering as `sort=matches` in the URL.
 Changing either starts at page one and preserves explicit selection. Sidebar counts,
@@ -103,12 +111,14 @@ Select all and photo positioning use the same percentage. Show only selected ret
 all chosen files, including those without matches; disable the gallery percentage
 while that scope is open. Leaving Has similar photos resets its special sort to
 Newest first. Clicking a gallery card carries the gallery percentage into Inspector
-matches, while the active Inspector tab remains unchanged. Users can subsequently
+matches and opens the **Similar photos** tab. Users can subsequently
 choose another Inspector percentage without changing gallery order; previous/next
 photo navigation retains that Inspector choice.
 
 The Inspector has **Photo information** and **Similar photos** tabs. Default to
-Photo information; remember the active tab and threshold while browsing photos.
+Photo information outside Has similar photos; remember the active tab and threshold
+when using previous/next. A gallery-card click in Has similar photos always opens
+Similar photos, even after the user switched to Photo information.
 The preview and its resize divider are shared by both tabs. Tab arrow keys and
 Home/End switch tabs without triggering previous/next photo navigation.
 
