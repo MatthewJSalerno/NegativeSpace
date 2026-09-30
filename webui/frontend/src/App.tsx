@@ -1,3 +1,5 @@
+import { readComparison, type ComparisonState } from "./comparisonState";
+import { SimilarityRecovery } from "./components/SimilarityRecovery";
 import { PageBoundary } from "./components/ui/PageBoundary";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Logo } from "./components/Logo";
@@ -50,6 +52,7 @@ function readUrl() {
     types: p.getAll("type"),
     folders: p.getAll("folder"),
     photo: p.get("photo") ? Number(p.get("photo")) : null,
+    comparison: readComparison(p),
     inspectorTab: (p.get("tab") === "similar" || (!p.has("tab") && p.has("match"))) ? "similar" as const : "information" as const,
     match: MATCH_THRESHOLDS.includes(Number(p.get("match"))) ? { threshold: Number(p.get("match")),
       page: Number.isSafeInteger(matchPage) && matchPage > 0 ? matchPage : 1 } : null,
@@ -203,6 +206,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [openId, setOpenId] = useState<number | null>(initial.photo);
   const [matchState, setMatchState] = useState<{ photo: number | null; view: MatchView }>({ photo: initial.photo, view: initial.match });
   const [inspectorTab, setInspectorTab] = useState(initial.inspectorTab);
+  const [comparison, setComparison] = useState<ComparisonState | null>(initial.comparison);
+  const [comparisonNavigation, setComparisonNavigation] = useState(0);
+  useEffect(() => { if (comparison && comparison.origin !== openId) setComparison(null); }, [openId, comparison]);
   const matchView = useMemo(() => matchState.view && ({ ...matchState.view,
     page: matchState.photo === openId ? matchState.view.page : 1 }), [matchState, openId]);
   useEffect(() => {
@@ -249,6 +255,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     setTypes(next.types); setFolders(next.folders); setOpenId(next.photo);
     setMatchState({ photo: next.photo, view: next.match });
     setInspectorTab(next.inspectorTab);
+    setComparison(next.comparison); setComparisonNavigation(n => n + 1);
     setLocate(next.photo == null ? null : { id: next.photo, delta: 0 }); setRevealId(null);
     if (next.folders.length || next.dates.length) setBrowseBy(initialBrowseBy(next.folders, next.dates));
     // A link names normal results, not the transient selection/review view.
@@ -321,6 +328,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     folders.forEach((f) => p.append("folder", f));
     if (openId != null) {
       p.set("photo", String(openId));
+      if (comparison?.origin === openId) p.set("review", JSON.stringify(comparison));
       if (inspectorTab === "similar" || matchView) p.set("tab", inspectorTab);
       if (matchView) {
         p.set("match", String(matchView.threshold));
@@ -330,7 +338,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     const url = `${window.location.pathname}${p.size ? `?${p}` : ""}`;
     window.history.replaceState(null, "", url);
     rememberLibraryQuery(p.toString());
-  }, [view, sort, matchMin, q, page, pageSize, undated, dates, types, folders, openId, matchView, inspectorTab]);
+  }, [view, sort, matchMin, q, page, pageSize, undated, dates, types, folders, openId, matchView, inspectorTab, comparison]);
 
   const results = usePaged((p) => api.photos({ view, sort, match_min: galleryMinimum, q, page: p, page_size: pageSize, undated, dates, types, folders }),
                            JSON.stringify([view, sort, galleryMinimum, q, undated, dates, types, folders]), jump, pageSize, refreshKey, setLoadError);
@@ -876,6 +884,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             Counts may be incomplete: {plural(data.similarity.pending, "photo awaiting comparison", "photos awaiting comparison")};
             {" "}{plural(data.similarity.unavailable, "photo without a usable visual hash", "photos without a usable visual hash")}.
           </p>}
+          <SimilarityRecovery visible={!focus && view === "similar" && !!data?.similarity && (data.similarity.pending > 0 || data.similarity.unavailable > 0)} />
           {!focus && view === "similar" && data?.counts.organized === 0 && <p className="dates-filter-line">
             Copy or Move indexed photos to the destination first.
           </p>}
@@ -933,7 +942,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                    if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() + 40); }
                    if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() - 40); }
                  }} />
-            <Inspector refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
+            <Inspector key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
                        onTab={(tab) => { setInspectorTab(tab);
                          if (tab === "similar" && !matchView) setMatchState({ photo: openId, view: { threshold: view === "similar" ? matchMin : 90, page: 1 } }); }}

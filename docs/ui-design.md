@@ -141,8 +141,14 @@ for other reference photos and reset their match page to one. Information-only
 browsing does not load matching data. Match thumbnails use more columns as the
 details area widens, and scroll separately so the reference preview stays visible.
 A failed or unavailable hash lookup must never appear as zero matches. Show loading,
-retry for request failures, and incomplete comparison states explicitly. Missing-hash
-repair remains unfinished as recorded in TODO.md.
+retry for request failures, and incomplete comparison states explicitly. **Resolve matching issues** opens a paged recovery dialog from coverage notices
+or the Inspector. Show affected destination photos with photo links and distinct
+missing/read/decode/changed-file reasons. Offer per-photo retry, repair of missing
+hashes in the scope, and a separate Resume comparisons action. Explain prerequisites
+for retrying changed/missing/unreadable files; unsupported formats have no futile
+retry. Actions wait while another job runs. Show progress, cancellation and verified
+remaining issues; resolving a warning must not close its open results dialog.
+Recovery reads verified destination originals and changes only matching data.
 
 ### Expanded review workspace
 
@@ -206,10 +212,21 @@ thumbnail shows its pair judgment. Saving is explicit, survives reopening, and
 never marks other pairs reviewed. Moving on without a judgment leaves the pair
 unreviewed. Busy saves prevent candidate/filter navigation; failures retain the
 comparison and require refresh before another judgment. Candidate loads cannot
-replace a newer navigation choice. Deferred queues and restoring an open workspace
-across reload remain future work.
+replace a newer navigation choice. Deferred queues remain future work.
 
-**Next stage:** metadata edits/copy and deletion with explicit target selection,
+The gallery URL's validated `review` state restores the comparison reference and
+candidate, threshold, page, reviewed filter, active information/review tab, divider
+share, linked zoom and current-pair viewing transforms. Keep the original Inspector
+context separately so Back to gallery returns there after reference promotion.
+Only the current pair's transforms are bookmarked; other candidate transforms last
+for the open session. Reload restores controls but fetches photo data and judgments
+again; it never replays a save. Malformed bookmarks are ignored, unavailable photos
+show errors, and excessive candidate pages clamp to the current last page. Closing
+removes the workspace state and discards viewing transforms. Return keyboard focus
+to the opener, or a surviving match thumbnail/tab when restoring from a bookmark.
+Photo links to another Inspector photo clear the prior comparison state.
+
+**Separate workstream (not a dependency of similarity matching):** metadata edits/copy and deletion with explicit target selection,
 per-file previews and results. The reference, metadata donor and photographs to
 keep are separate roles: a smaller copy can supply metadata for a larger keeper.
 Opening or comparing a photo does not assign those roles. Future action targets

@@ -592,12 +592,12 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
 # Per phase: which progress outcomes are the work the user asked for having
 # happened, which are failures, and which are deliberate non-actions.
 _SUCCESS = {"indexed", "duplicates", PhotoStatus.COPIED, PhotoStatus.COMPLETED,
-            PhotoStatus.FOUND_AT_DESTINATION, PhotoStatus.REMOVED_DUPLICATE, "made", "ok", OPERATION_RENAMED}
+            PhotoStatus.FOUND_AT_DESTINATION, PhotoStatus.REMOVED_DUPLICATE, "made", "ok", "Compared", OPERATION_RENAMED}
 _FAILURE = {"failed", PhotoStatus.FAILED, "missing", "changed", "unreadable"}
 _SKIPPED = {"unchanged", OPERATION_SKIPPED, "already", "kept", "Already_Gone", "unknown"}
 _REQUESTED_PHASES = {"INDEX": ("scanning",), "COPY": ("scanning", "transferring"),
                      "MOVE": ("scanning", "transferring", "removing_duplicates"),
-                     "REBUILD": ("rebuilding_thumbnails",), "CHECK": ("checking_destination",)}
+                     "SIMILARITY": ("scanning", "matching"), "REBUILD": ("rebuilding_thumbnails",), "CHECK": ("checking_destination",)}
 _TERMINAL_WINS = {RunStatus.CANCELLED: "cancelled", RunStatus.INTERRUPTED: "interrupted",
                   RunStatus.FAILED: "failed"}
 
@@ -632,7 +632,7 @@ def _outcome(conn, run: dict, progress: list) -> dict:
     phases = {p["phase"]: p for p in progress}
     wanted = _REQUESTED_PHASES.get(run["mode"], ())
     main = [phases[name] for name in wanted if name in phases and
-            (run["mode"] in ("INDEX", "REBUILD", "CHECK") or name != "scanning")]
+            (run["mode"] in ("INDEX", "REBUILD", "CHECK", "SIMILARITY") or name != "scanning")]
     counts = {}
     for p in main:
         for key, n in p["counts"].items():

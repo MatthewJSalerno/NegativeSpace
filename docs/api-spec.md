@@ -563,7 +563,7 @@ the original, so a later archive carries the duplicates.
 
 ## 6. The run object and its outcome
 
-    {"id": 47, "mode": "INDEX" | "COPY" | "MOVE" | "REBUILD" | "CHECK" | "RENAME",
+    {"id": 47, "mode": "INDEX" | "COPY" | "MOVE" | "REBUILD" | "CHECK" | "RENAME" | "SIMILARITY",
      "status": "Preparing" | "Running" | "Cancelling" | "Completed" | "Cancelled" |
                "Failed" | "Interrupted",
      "started_at", "ended_at", "reconciled_by_run_id",
@@ -695,6 +695,30 @@ content pairs), `query_ms`, and `last_comparison`. The latter is null if no matc
 progress exists, otherwise `{run_id, started_at, updated_at, elapsed_seconds}`;
 elapsed is the interval covered by the latest reported phase snapshot, not CPU time.
 Equal hashes do not need stored pairs. Review counts are not unbiased quality estimates.
+
+### `GET /api/v1/similar/recovery`
+
+Paged affected destination identities: `page` (positive, default 1), `page_size`
+(1–60, default 30), optional positive 64-bit `photo_id` for one content identity.
+Returns `items: [{id,filename,kind,reason,message,retryable}]`, `total`, `retryable`
+(the count in this scope), `page`, `page_size`, and global destination
+`state: {unavailable,pending}`. `kind` is `missing_hash` or `pending`; reasons
+separate unsupported formats, decoding/read errors, missing/changed/out-of-root
+files and unperformed comparisons. Recorded destination availability is the scope;
+physical verification happens in the recovery job. Source-only photos are excluded.
+
+### `POST /api/v1/similar/recovery`
+
+Body: `{scope: "missing" | "comparisons", photo_id?: integer, request_id?: string}`.
+`photo_id` applies only to missing-hash recovery. Unknown options/invalid scopes
+return 400. The response is 202 with the accepted `SIMILARITY` run. Engine locking,
+409 busy refusal, durable request-ID replay/conflicts, job lookup and cancellation
+use the existing job protocol. The UI uses the existing uncertain-submission tracker.
+Missing-hash recovery reads verified destination originals, updates matching data,
+then resumes unfinished stored-hash comparisons. Comparison-only recovery reads no
+photos. Counts/progress and per-photo reasons show unsuccessful attempts; a settled
+job is not a claim that all affected photos were repaired. Nothing edits or deletes
+photo files, and interrupted filesystem mutations are not resumed by this job.
 
 ### `GET /api/v1/similar/{id}/review/{other_id}`
 

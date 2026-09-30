@@ -15,21 +15,11 @@ migration/history work for that sample is out of scope.
   differences filtering covers all sections, column headings follow scrolling,
   and preview dimensions follow temporary rotation while recorded dimensions stay
   unchanged. See the [UI design contract](docs/ui-design.md#expanded-review-workspace).
-- [ ] Add EXIF copy/edit and deletion with explicit target selection, previews and
-  per-file history/results. Reference, metadata donor, keepers and action targets
-  are distinct roles. Do not infer them from navigation or gallery checkboxes.
-  Follow webui-spec §7.4 and §7.6 and the shared UI design contract.
-- [ ] Add deferred review queues and restoration of the open candidate/workspace
-  across reload. Saved pair judgments already survive reopening.
-- [ ] Add saved orientation edits separately from temporary viewing rotation.
-  Offer one end-of-review decision for photos with a remaining rotation change,
-  not a write or prompt on each Rotate click. Identify the affected reference and
-  candidates by photo, preview their final orientations, and allow saving selected
-  changes, discarding them, or returning to review. Keep changes attached to photo
-  identities when candidates or the reference change; decide how leaving via Back,
-  Escape or closing the window reaches the same decision. Build the verified EXIF
-  Orientation write path first (webui-spec §7.6); do not show a save promise until it
-  works. General EXIF editing belongs in the shared editor, reached from review.
+- [x] Restore the open comparison after refresh/bookmark navigation: original Inspector
+  context, promoted reference, candidate, threshold, candidate page, review filter,
+  information/review tab, panel width and current-pair viewing adjustments. Close
+  clears the workspace bookmark; missing/stale photos still require a fresh lookup.
+- [ ] Add deferred review queues. Saved pair judgments already survive reopening.
 - [ ] Assess finding rotated matches that the current pHash search misses.
   Rotating a returned preview helps human comparison but does not change retrieval
   or scores. Keep this separate from viewing controls and saved orientation edits.
@@ -55,17 +45,50 @@ migration/history work for that sample is out of scope.
   between 75/80/85% floors. A separate DuckDB hash mapping is not part of the current
   architecture; measure a concrete bottleneck before proposing another database.
 
+## Further review ideas (not implemented)
+
+- [ ] Flag suspicious capture dates, including placeholder-like ancient years and
+  dates far in the future. Preserve recorded values and identify their metadata
+  source; provide a route to affected photos. Define the date policy before
+  implementation, allowing legitimate historical scans. Similar photos may supply
+  clues, never automatic replacement dates. Editing belongs to the separate workstream.
+- [ ] Explore an optional grouped Has similar photos view to reduce repetitive
+  review. Keep all matching photos visible in the current view. A group card could
+  show a representative and total photo count, with every member accessible; the
+  representative is not a keeper recommendation. Define grouping at the chosen
+  percentage: A–B and B–C matches do not establish A–C, so connected groups must not
+  imply every pair matches. Resolve overlapping groups, filters, counts and selection
+  semantics before implementation.
+
+## Separate workstream: photo changes
+
+EXIF editing/copy, saved orientation writes and deletion are outside this similarity
+matching branch. These planning items do not block hash recovery, comparison
+restoration, match quality work or performance validation. No functional edit/delete
+controls are promised in the current review UI.
+
+- [ ] Add EXIF copy/edit and deletion with explicit target selection, previews and
+  per-file history/results. Reference, metadata donor, keepers and action targets
+  are distinct roles. Do not infer them from navigation or gallery checkboxes.
+  Follow webui-spec §7.4 and §7.6 and the shared UI design contract.
+- [ ] Add saved orientation edits separately from temporary viewing rotation.
+  Offer one end-of-review decision for photos with a remaining rotation change,
+  not a write or prompt on each Rotate click. Identify the affected reference and
+  candidates by photo, preview their final orientations, and allow saving selected
+  changes, discarding them, or returning to review. Keep changes attached to photo
+  identities when candidates or the reference change; decide how leaving via Back,
+  Escape or closing the window reaches the same decision. Build the verified EXIF
+  Orientation write path first (webui-spec §7.6); do not show a save promise until it
+  works. General EXIF editing belongs in the shared editor, reached from review.
 ## Actionable warning workflows
 
-- [ ] Build the resolution flow for missing visual hashes and unfinished similarity
-  comparisons. Show affected destination photos and distinguish unsupported formats,
-  decode/read failures, and interrupted comparison work. Offer a supported, scoped
-  retry or resume action with progress and a verified outcome; explain permanent
-  limitations without suggesting an ineffective retry. An unchanged-file Index can
-  skip hash generation, so do not assume it repairs every missing hash. Account for
-  delivered photos whose original source has been moved away. Keep actions unavailable
-  with an explanation while another job is running. Current Similar notices and
-  diagnostic counts do not complete this workflow.
+- [x] Missing-hash recovery and comparison resume: paged affected destination photos,
+  supported per-photo/all-missing retry, explicit unsupported/decode/read/missing/
+  changed-file reasons, busy-job gating, progress/cancellation and refreshed outcomes.
+  Recovery verifies destination SHA-1 before and after decoding and works when the
+  source is gone. It changes only matching data. Changed/missing/unreadable files
+  require the stated external correction before retry; unsupported formats remain
+  a decoder limitation. Ordinary unchanged-file Index is not the recovery path.
 - [ ] Audit warnings throughout the app for a working action or direct route to the
   affected items. Track missing actions as unfinished features under the shared
   [validation and feedback contract](docs/ui-design.md#validation-and-feedback).

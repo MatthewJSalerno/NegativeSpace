@@ -125,6 +125,26 @@ The database suite verifies the hash index against brute force and interrupted
 comparison recovery; the API suite checks reference-only matches, hash changes,
 availability, exact copies, thresholds and pagination.
 
+`python3 -m unittest discover -s tests -p similarity_recovery_test.py` checks
+cancellation during decoding, concurrent byte changes, distinct read/decode failures,
+destination boundaries, unsupported formats and source-only exclusion. The API suite
+runs real Index/Copy/recovery, repairs with the source gone, verifies unchanged bytes,
+checks busy/idempotent requests, and resumes comparisons without photo reads.
+
+`SIMILARITY_RECOVERY_FIXTURE=1 DRIVER=similarity_recovery_browser_drive.py sh tests/webui_browser_test.sh`
+opts into mounting **only the harness's disposable generated catalog** to arrange
+missing/unsupported hashes. It exercises warning-to-recovery navigation, disabled
+busy actions, real repair and comparison-only jobs, refreshed results, failed-load
+retry, unsupported-format limitations and narrow reflow. It never accesses a real
+library. `similar_browser_drive.py` additionally checks comparison refresh with
+rotation/zoom/position, filtered review/tab restoration, and malformed bookmarks.
+
+Manual checks after Index/Copy: use Resolve matching issues for any affected photos;
+review the reason, run the appropriate action, and check the remaining count. In
+comparison, rotate or zoom, choose a review filter, and refresh: the same comparison
+should reopen. Back to gallery clears it. EXIF edits, saved orientation writes and
+deletion belong to a separate workstream and do not block these checks.
+
 `DRIVER=gallery_position_browser_drive.py sh tests/webui_browser_test.sh` checks
 Logs photo positioning, offscreen Inspector navigation, retained filters, explicit
 hidden-photo display, retry, ordinary gallery clicks, manual scrolling and History

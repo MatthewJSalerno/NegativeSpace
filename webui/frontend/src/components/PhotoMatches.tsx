@@ -1,3 +1,4 @@
+import { SimilarityRecovery } from "./SimilarityRecovery";
 import { useEffect, useState } from "react";
 import { api, type MatchCounts, type MatchPage } from "../api";
 import { count, plural } from "../format";
@@ -49,7 +50,7 @@ export function PhotoMatches({ id, delivered, view, onView, refreshKey, onReview
       {summaryError && <p className="error" role="alert">{summaryError} <button onClick={() => setRetry((n) => n + 1)}>Retry match counts</button></p>}
       {!summary && !summaryError && <p role="status">Loading match counts…</p>}
       {summary?.availability === "not_available" && <p>No available destination copy is recorded for this photo.</p>}
-      {summary?.availability === "hash_unavailable" && <p>Visual matching is unavailable: this photo has no usable visual hash. Hash repair is not yet available in the app.</p>}
+      {summary?.availability === "hash_unavailable" && <p>Visual matching is unavailable: this photo has no usable visual hash. </p>}
       {summary?.availability === "available" && <>
         <div className="match-thresholds" role="group" aria-label="Minimum visual similarity">
           {summary.counts.map((c) => <button key={c.threshold} aria-pressed={threshold === c.threshold}
@@ -60,8 +61,10 @@ export function PhotoMatches({ id, delivered, view, onView, refreshKey, onReview
         </div>
         <p className="section-note">Counts include all matches at or above each percentage. These measure visual hash similarity, not confidence; even 100% can be different pictures.</p>
         <p className="section-note">Below 90%, results are more likely to be unrelated. Review photos side by side before using them as clues for dates or other details.</p>
-        {summary.pending > 0 && <p className="muted">Results are partial: {plural(summary.pending, "destination photo")} awaiting comparison. Index resumes comparisons; a dedicated recovery flow is not yet available.</p>}
+        {summary.pending > 0 && <p className="muted">Results are partial: {plural(summary.pending, "destination photo")} awaiting comparison. </p>}
       </>}
+      <SimilarityRecovery visible={summary?.availability === "hash_unavailable" || (summary?.pending ?? 0) > 0}
+        photoId={summary?.availability === "hash_unavailable" ? id : undefined} onRecovered={() => setRetry(n => n + 1)} />
       {view && <div className="inspector-matches" aria-label="Matches for this photo" role="region">
         <div className="match-heading"><h4>Matches at {threshold}% or higher</h4>
           <button className="link" onClick={() => onView(null)}>Hide matches</button></div>

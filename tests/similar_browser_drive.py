@@ -1,10 +1,15 @@
 """Gallery/Inspector similarity review using generated photos and real Index/Copy."""
 import os
+import json
+from urllib.parse import parse_qs, urlsplit
 import re
 import sys
 import time
 
 from playwright.sync_api import expect, sync_playwright
+
+def gallery_context(url):
+    return {k:v for k,v in parse_qs(urlsplit(url).query).items() if k != 'review'}
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
@@ -163,6 +168,16 @@ with sync_playwright() as p:
     dialog.get_by_role('slider', name='Reference horizontal position', exact=True).fill('75')
     expect(dialog.get_by_role('slider', name='Candidate horizontal position', exact=True)).to_have_value('75')
     expect(candidate_preview).to_contain_text('Viewing rotation: 270°')
+    # The address records current-pair transforms and navigation, not file edits.
+    page.wait_for_function("JSON.parse(new URLSearchParams(location.search).get('review')).views[JSON.parse(new URLSearchParams(location.search).get('review')).candidate].rotation === 270")
+    saved_workspace = parse_qs(urlsplit(page.url).query)['review'][0]
+    page.reload()
+    expect(dialog).to_be_visible()
+    expect(reference_preview).to_contain_text('Viewing rotation: 90°')
+    expect(candidate_preview).to_contain_text('Viewing rotation: 270°')
+    expect(dialog.get_by_role('slider', name='Candidate horizontal position', exact=True)).to_have_value('75')
+    assert json.loads(parse_qs(urlsplit(page.url).query)['review'][0]) == json.loads(saved_workspace)
+    shot('comparison-restored')
     # Expanded pan controls and details grow the comparison rather than creating
     # a second vertical scroll area inside the review window.
     def full_comparison():
@@ -263,13 +278,20 @@ with sync_playwright() as p:
     resize.focus()
     page.keyboard.press('ArrowLeft')
     expect(resize).to_have_attribute('aria-valuenow', '70')
-    assert page.url == before_url
+    assert gallery_context(page.url) == gallery_context(before_url)
     dialog.get_by_role('button', name='Related photograph', exact=True).click()
     expect(dialog.locator('.review-save-status')).to_contain_text('Saved: Related photograph')
     expect(dialog.get_by_text('1 of', exact=False).first).to_be_visible()
     dialog.get_by_role('combobox', name='Review progress').select_option('reviewed')
     expect(dialog.locator('.review-filmstrip button')).to_have_count(1)
     expect(dialog.locator('.review-filmstrip button').first).to_contain_text('Related photograph')
+    dialog.get_by_role('tab', name='Saved review', exact=True).click()
+    page.wait_for_function("JSON.parse(new URLSearchParams(location.search).get('review')).filter === 'reviewed' && JSON.parse(new URLSearchParams(location.search).get('review')).tab === 'review'")
+    page.reload()
+    expect(dialog.get_by_role('combobox', name='Review progress')).to_have_value('reviewed')
+    expect(dialog.get_by_role('tab', name='Saved review', exact=True)).to_have_attribute('aria-selected','true')
+    expect(dialog.locator('.review-filmstrip button')).to_have_count(1)
+    dialog.get_by_role('tab', name='Information', exact=True).click()
     dialog.get_by_role('combobox', name='Review progress').select_option('unreviewed')
     expect(dialog.locator('.review-filmstrip button')).to_have_count(12)
     expect(dialog.get_by_role('button', name='Related photograph', exact=True)).to_have_attribute('aria-pressed', 'false')
@@ -344,12 +366,20 @@ with sync_playwright() as p:
     expected = request.get(f'/api/v1/similar/{promoted}?threshold=75&page_size=12').json()['items']
     expect(dialog.locator('.review-filmstrip button')).to_have_count(len(expected))
     assert dialog.locator('.review-filmstrip button').evaluate_all('els => els.map(e => e.getAttribute("aria-label"))') == [f'Compare {p["filename"]}' for p in expected]
-    assert page.url == original_url
+    assert gallery_context(page.url) == gallery_context(original_url)
+    expect(page.locator(f'.card[data-id="{reference}"] input')).to_be_checked()
+    page.reload()
+    expect(reference_preview.locator('figcaption > span')).to_have_text(promoted_name)
+    expect(candidate_preview.locator('figcaption > span')).to_have_text(original_name)
+    expect(reference_preview).to_contain_text('Viewing rotation: 270°')
+    expect(dialog.get_by_role('button', name='Related photograph', exact=True)).to_have_attribute('aria-pressed', 'true')
     shot('match-new-reference')
     dialog.get_by_role('button', name='Back to gallery', exact=True).click()
     expect(inspector.locator('.inspector-head h2')).to_have_text(original_name)
-    expect(page).to_have_url(original_url)
-    expect(page.locator(f'.card[data-id="{reference}"] input')).to_be_checked()
+    expect(page).not_to_have_url(re.compile("review="))
+    assert gallery_context(page.url) == gallery_context(original_url)
+    # Explicit gallery selection is session-only and is not part of the bookmark.
+    expect(page.locator(f'.card[data-id="{reference}"] input')).not_to_be_checked()
     matches.get_by_role('button', name=re.compile('^Review side by side:')).first.click()
     expect(reference_preview.locator('figcaption > span')).to_have_text(original_name)
     page.set_viewport_size({'width': 700, 'height': 844})
@@ -419,6 +449,10 @@ with sync_playwright() as p:
     page.reload()
     expect(summary.locator('.match-thresholds button')).to_have_count(6)
     expect(matches).to_have_count(0)
+    # Invalid bookmarks cannot open an unrelated or malformed comparison.
+    page.goto(page.url + '&review=%7B%22origin%22%3A-1%7D')
+    expect(dialog).to_have_count(0)
+    expect(page).not_to_have_url(re.compile('review='))
     assert not errors, errors
     browser.close()
     print('Gallery similarity browser checks passed')

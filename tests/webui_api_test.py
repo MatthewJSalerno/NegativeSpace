@@ -361,6 +361,76 @@ class JobsAndCatalog(ApiCase):
         self.create_catalog()
         return self.wait_for(self.start(mode="index"))
 
+    def test_similarity_recovery_uses_destination_originals_and_resumes_comparisons(self):
+        self.index_library()
+        self.wait_for(self.start(mode='copy'))
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            photo, digest, dest, old_hash = conn.execute("SELECT p.id,p.sha1_hash,p.dest_path,c.phash FROM photos p JOIN contents c ON c.digest=p.sha1_hash WHERE p.status='Copied' ORDER BY p.id LIMIT 1").fetchone()
+            before = Path(dest).read_bytes()
+            with ns_db.transaction(conn):
+                conn.execute("UPDATE contents SET phash=NULL,phash_state='error' WHERE digest=?", (digest,))
+                conn.execute('DELETE FROM similarity_hashes')
+                conn.execute('DELETE FROM content_similarity')
+        # After Move, the original source may no longer exist. Recovery needs only dest.
+        for source in self.cfg.source.rglob('*.jpg'):
+            source.unlink()
+        report = self.client.get(f'/api/v1/similar/recovery?photo_id={photo}').json()
+        self.assertEqual((report['total'],report['retryable']), (1,1))
+        self.assertEqual(report['items'][0]['reason'], 'decode_failed')
+        body = {'scope':'missing','photo_id':photo,'request_id':'recover-one'}
+        response = self.client.post('/api/v1/similar/recovery',json=body)
+        self.assertEqual(response.status_code,202,response.text)
+        run = self.wait_for(response.json()['id'])
+        self.assertEqual((run['mode'],run['status']), ('SIMILARITY','Completed'))
+        self.assertEqual(self.client.get('/api/v1/similar/recovery').json()['total'],0)
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute('SELECT phash,phash_state FROM contents WHERE digest=?',(digest,)).fetchone(),(old_hash,'ok'))
+            self.assertEqual(conn.execute('SELECT dirty FROM similarity_count_state').fetchone(),(0,))
+        self.assertEqual(Path(dest).read_bytes(),before)
+        self.assertEqual(self.client.post('/api/v1/similar/recovery',json=body).json()['id'],run['id'])
+        self.assertEqual(self.client.post('/api/v1/similar/recovery',json={**body,'scope':'comparisons','photo_id':None}).status_code,409)
+
+    def test_similarity_recovery_reports_changed_and_missing_destination_without_edits(self):
+        self.index_library()
+        self.wait_for(self.start(mode='copy'))
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            photos = conn.execute("SELECT id,sha1_hash,dest_path FROM photos WHERE status='Copied' ORDER BY id").fetchall()
+            with ns_db.transaction(conn):
+                conn.execute("UPDATE contents SET phash=NULL,phash_state='error'")
+        Path(photos[0][2]).write_bytes(b'changed destination')
+        Path(photos[1][2]).unlink()
+        result = self.client.post('/api/v1/similar/recovery',json={'scope':'missing'})
+        self.assertEqual(result.status_code,202,result.text)
+        run = self.wait_for(result.json()['id'])
+        self.assertEqual(run['outcome']['failed'],2)
+        report = self.client.get('/api/v1/similar/recovery').json()
+        self.assertEqual({item['reason'] for item in report['items']},{'changed','missing'})
+        self.assertEqual(report['retryable'],2)
+        self.assertEqual(Path(photos[0][2]).read_bytes(),b'changed destination')
+        self.assertFalse(Path(photos[1][2]).exists())
+        for body in ({'scope':'bad'}, {'scope':'comparisons','photo_id':1}, {'scope':'missing','photo_id':True}, {'scope':'missing','extra':1}):
+            self.assertEqual(self.client.post('/api/v1/similar/recovery',json=body).status_code,400)
+        self.assertEqual(self.client.get('/api/v1/similar/recovery?page=0').status_code,422)
+        with self.engine_lock_held():
+            self.assertEqual(self.client.post('/api/v1/similar/recovery',json={'scope':'missing'}).status_code,409)
+
+    def test_resume_similarity_comparisons_does_not_read_photos(self):
+        self.index_library()
+        self.wait_for(self.start(mode='copy'))
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            with ns_db.transaction(conn):
+                conn.execute('DELETE FROM similarity_hashes')
+                conn.execute('DELETE FROM content_similarity')
+            before = conn.execute('SELECT phash,phash_state FROM contents').fetchall()
+        for dest in self.cfg.dest.rglob('*.jpg'):
+            dest.unlink()
+        result = self.client.post('/api/v1/similar/recovery',json={'scope':'comparisons'})
+        self.assertEqual(result.status_code,202,result.text)
+        self.assertEqual(self.wait_for(result.json()['id'])['status'],'Completed')
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute('SELECT phash,phash_state FROM contents').fetchall(),before)
+        self.assertEqual(self.client.get('/api/v1/similar/recovery').json()['state']['pending'],0)
+
     def test_engine_publishes_count_cache_after_index_and_copy(self):
         self.index_library()
         with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:

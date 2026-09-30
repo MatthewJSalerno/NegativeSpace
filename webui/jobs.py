@@ -165,6 +165,20 @@ class JobRunner:
         with self._start_lock:
             return self._launch(flags, request_id)
 
+    def repair_similarity(self, scope, photo_id=None, request_id=None):
+        validate_request_id(request_id)
+        if scope not in ('missing','comparisons') or (photo_id is not None and
+                (scope != 'missing' or type(photo_id) is not int or not 1 <= photo_id <= MAX_PHOTO_ID)):
+            raise JobRefused(400, {'error':'invalid_request', 'message':'Choose missing hashes or comparisons and a valid optional photo ID.'})
+        status = catalog.status(self.cfg.db_path)
+        if status['state'] != 'ok':
+            raise JobRefused(409, {'error':'catalog_unavailable', 'message':status['detail']})
+        flags = ['--repair-similarity',scope]
+        if photo_id is not None:
+            flags += ['--repair-photo',str(photo_id)]
+        with self._start_lock:
+            return self._launch(flags,request_id)
+
     def answer(self, run_id, question, answer, request_id=None):
         validate_request_id(request_id)
         if type(run_id) is not int or not 1 <= run_id <= MAX_PHOTO_ID:
@@ -222,6 +236,12 @@ class JobRunner:
                     "submitted": {"force_rehash": False, "thumbnails": True, "cache": str(self.cfg.cache.resolve()),
                                   "confirm_source_empty": "--confirm-source-empty" in flags,
                                   "confirm_network_destination": "--confirm-network-destination" in flags}}
+        if '--repair-similarity' in flags:
+            expected = {'mode':'SIMILARITY', 'source':None, 'destination':None,
+                        'targeting':None, 'overrides':{}, 'submitted':{
+                            'scope':argument('--repair-similarity'),
+                            'photo_id':int(argument('--repair-photo')) if '--repair-photo' in flags else None,
+                            'dest':str(self.cfg.dest.resolve())}}
         if record["request"] != expected:
             raise JobRefused(409, {"error": "request_conflict", "message": "This request ID was already used for different input."})
         return record["run_id"]

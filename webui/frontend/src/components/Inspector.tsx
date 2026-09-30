@@ -1,3 +1,4 @@
+import type { ComparisonState } from "../comparisonState";
 import { Modal } from "./ui/Modal";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -22,7 +23,9 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab }: {
+export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison }: {
+  comparison: ComparisonState | null;
+  onComparison: (state: ComparisonState | null) => void;
   id: number;
   width: number | null;
   onClose: () => void;
@@ -85,9 +88,23 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   const [previewFailed, setPreviewFailed] = useState(false);
   const [enlarged, setEnlarged] = useState(false);
   const [lineage, setLineage] = useState(false);
-  const [candidate, setCandidate] = useState<number | null>(null);
+  const candidate = comparison?.candidate ?? null;
+  const comparisonOpener = useRef<HTMLElement | null>(null);
+  const closeComparison = () => {
+    onComparison(null);
+    requestAnimationFrame(() => {
+      const target = comparisonOpener.current;
+      (target?.isConnected ? target : panel.current?.querySelector<HTMLElement>('.inspector-match') ?? panel.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]'))?.focus({ preventScroll:true });
+    });
+  };
+  const openComparison = (candidate: number) => {
+    comparisonOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    onComparison({ origin:id, reference:id, candidate,
+    threshold:matchView?.threshold ?? 90, page:matchView?.page ?? 1, filter:"all", tab:"information",
+    views:{}, linked:false, share:72 });
+  };
   const [reviewsChanged, setReviewsChanged] = useState(0);
-  useEffect(() => { setLineage(false); setCandidate(null); }, [id]);
+  useEffect(() => { setLineage(false); }, [id]);
 
   useEffect(() => {
     setDetail(null);
@@ -197,7 +214,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
             {detail && tab === "similar" && <div className="inspector-body"><PhotoMatches key={id} id={id}
               delivered={["Completed", "Copied", "Found_At_Destination"].includes(detail.status)}
               view={matchView} onView={onMatchView} refreshKey={refreshKey}
-              onReview={setCandidate} reviewsChanged={reviewsChanged} /></div>}
+              onReview={openComparison} reviewsChanged={reviewsChanged} /></div>}
           </div>
         </div>
       </div>
@@ -220,10 +237,11 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
     </section>
   );
   return <>
-    {narrow && candidate == null ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
-    {candidate != null && <MatchReviewDialog key={`${id}:${candidate}`} reference={id} candidate={candidate}
+    {narrow && comparison == null ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
+    {comparison != null && <MatchReviewDialog reference={id} candidate={candidate}
+      workspace={comparison} onWorkspace={onComparison}
       initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}
-      onClose={() => setCandidate(null)} onSaved={() => setReviewsChanged((n) => n + 1)} />}
+      onClose={closeComparison} onSaved={() => setReviewsChanged((n) => n + 1)} />}
   </>;
 }
 

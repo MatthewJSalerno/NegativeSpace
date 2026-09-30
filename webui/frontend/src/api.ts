@@ -513,7 +513,15 @@ export interface MatchDiagnostics {
   last_comparison: { run_id: number; started_at: string; updated_at: string; elapsed_seconds: number } | null;
 }
 
+export type SimilarityRecoveryPage = {
+  items: { id: number; filename: string; kind: string; reason: string; message: string; retryable: boolean }[];
+  total: number; retryable: number; state: { unavailable: number; pending: number }; page: number; page_size: number;
+};
+
 export const api = {
+  similarityRecovery: (page = 1, photoId?: number) => request<SimilarityRecoveryPage>("GET", `/api/v1/similar/recovery?page=${page}${photoId == null ? "" : `&photo_id=${photoId}`}`),
+  repairSimilarity: (scope: "missing" | "comparisons", photo_id?: number) => submitJob("/api/v1/similar/recovery", { scope, ...(photo_id == null ? {} : { photo_id }) }),
+  run: (id: number) => request<Run>("GET", `/api/v1/runs/${id}`),
   matchCounts: (photo: number) => request<MatchCounts>("GET", `/api/v1/similar/${photo}/counts`),
   matchDiagnostics: () => request<MatchDiagnostics>("GET", "/api/v1/similar/diagnostics"),
   matchReview: (reference: number, candidate: number) =>

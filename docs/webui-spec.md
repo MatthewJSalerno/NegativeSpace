@@ -1612,11 +1612,16 @@ and other metadata. Association does not prove shared metadata or authorize copy
 it; users must inspect the evidence. Metadata editing remains future work.
 Availability is recorded evidence, not a fresh filesystem check. Missing hashes
 and pending comparisons are explicit, and Index resumes unfinished comparisons.
-**Still to build:** actionable hash warnings: a view of affected destination photos,
-reasons, and a supported retry/resume flow with progress and refreshed results.
-An ordinary Index may skip unchanged files and is not a general repair for failed
-hash generation; unsupported formats need an explanation rather than a futile retry.
-See `TODO.md` and the validation and feedback contract in `ui-design.md`.
+**Built:** Resolve matching issues opens a paged list of affected destination
+photos with reasons and direct photo links. Users can retry a missing hash for one
+photo, repair retryable missing hashes in the scope, or resume stored comparisons.
+The engine verifies destination content before/after decoding; it does not depend
+on a source still existing, and does not edit photos. Unsupported formats explain
+the limitation. Missing/unreadable/changed files explain the required correction
+before retry. Busy jobs disable starting recovery; progress, cancellation, request
+failure retry and refreshed remaining counts are available. Successful recovery
+keeps its results dialog open even when the originating warning disappears.
+An ordinary Index may skip unchanged files and is not a general hash repair.
 URL state preserves filters, reference and pages on reload or browser navigation.
 Donor/keeper selection, discard and EXIF actions below remain future work; the current
 review does not select targets or modify files.
@@ -1672,8 +1677,14 @@ Metadata, candidate and pair failures expose retry rather than invented empty da
 
 Back to gallery retains the chosen threshold and unfiltered page, or page one when
 a review filter was used. Gallery selection remains unchanged. Review decisions
-survive reopening; temporary transforms and the open workspace do not persist
-across reload. Deferred queues remain future work.
+survive reopening. The validated `review` URL state restores the current reference,
+candidate, threshold, candidate page, review filter, active pane tab, divider share,
+linked zoom and current-pair viewing transforms across reload. Other candidates'
+transforms last only in the open session. Restoring fetches fresh photo/judgment
+state and never saves a judgment automatically. Invalid state is ignored; missing
+photos expose errors; pages clamp to the remaining results. Back/Escape clears the
+workspace bookmark and returns focus to the opener or a surviving match control.
+Deferred queues remain future work.
 Guidance beside the threshold controls explains that results below 90% are more
 likely to be unrelated: compare photos side by side before using them as clues for
 dates or other details. The comparison dialog repeats this for pairs scoring below
@@ -1696,7 +1707,7 @@ records remain accessible without being offered as actionable missing files. The
 stored comparisons must support every offered threshold. Dimensions are captured during
 Index; unreadable dimensions display as unknown.
 
-**Future curation actions:** target selection, EXIF copy/edit and deletion extend
+**Separate curation workstream:** target selection, EXIF copy/edit and deletion extend
 the built comparison workspace. Current browsing and judgments never select action
 targets or clear the gallery's explicit selection. Future action selection must be
 distinct from opening a reference or choosing a threshold; changing the offered

@@ -973,6 +973,34 @@ On-disk count storage is linear in destination identities; comparison-pair stora
 remains separate and can be quadratic. See the measured, limited fixture results in
 `similarity-validation.md`; a representative 200,000+ library remains unvalidated.
 
+**Read-only matching recovery.** `--repair-similarity missing|comparisons` runs a
+locked, cancellable `SIMILARITY` maintenance job. Optional `--repair-photo ID`
+limits missing-hash reads to one destination content identity; it is invalid for
+comparison-only work. The missing scope reads only usable destination memberships
+whose hash is unavailable and whose format can be retried. It verifies regular-file
+status, the configured destination boundary, SHA-1 before and after decoding, and
+stable identity/size/mtime/ctime around the decode. A replacement or concurrent edit
+never receives a hash attributed to the old content. Successful repair updates the
+content pHash/state and legacy photo pHash, then resumes stored comparisons. SHA-1
+identity, photo status, source snapshots, EXIF and photo bytes are unchanged.
+
+Failures retain distinct states: `repair_missing`, `repair_unreadable`,
+`repair_changed`, `repair_outside`, `repair_decode`, or `not_supported`. The recovery
+API explains the required correction; unsupported formats do not expose retry.
+Per-file completion commits independently. Cancellation stops before publishing a
+partially read hash and preserves completed work. A subsequent repair resumes what
+is still missing. Comparisons retain their existing atomic batches; a cancelled
+comparison leaves pending markers for Resume comparisons. The two progress phases
+are `scanning` (made/failed hashes) and `matching` (Compared hashes); partial failures
+remain visible in the run outcome and recovery list.
+
+Recovery does not invoke filesystem reconciliation from an interrupted transfer or
+rename: it must not complete a file mutation as a side effect. It may mark an older
+interrupted SIMILARITY job accordingly under the engine lock. Other recovery remains
+with the existing file-operation workflows. The count cache refreshes on settlement.
+No schema change from version 16, catalog migration, photo copy, EXIF edit or deletion
+is needed for this feature.
+
 `similarity_reviews` stores the user's latest same/related/unrelated judgment for
 an unordered pair of distinct byte identities. These labels do not change matching
 or authorize file operations. The API validates submitted SHA-1 identities inside

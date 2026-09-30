@@ -284,3 +284,40 @@ sample source and destination mounts are retained. Rebuilding requires new setti
 and creates new catalog history/judgments; transfer destinations already present are
 handled by normal engine verification. No further migration/history work is planned
 for this sample. General release migration policy remains a separate TODO item.
+
+
+## Matching recovery and comparison restoration — 2026-09-30
+
+This branch remains focused on similarity matching. Missing-hash recovery now reads
+verified destination originals, including after the source is gone; a separate
+comparison-only action resumes stored hashes. The recovery dialog names affected
+photos and reasons, offers scoped actions, reports jobs and cancellation, and keeps
+its results open after a warning clears. Unsupported decoder formats remain an
+explicit limitation; missing, changed or unreadable files need the stated correction
+before retry. Catalog schema remains 16 and no migration is required.
+
+The open comparison is bookmarked in the gallery URL: original Inspector context,
+promoted reference, candidate, threshold, page, review filter, pane tab, divider share,
+linked zoom and the current pair's temporary rotation/zoom/position. Restoring fetches
+fresh data; it does not replay judgments or modify files. Closing clears the bookmark.
+Other candidate transforms are session-only; deferred review queues remain pending.
+
+EXIF copy/edit, saved orientation writes and file deletion are a separate workstream,
+recorded as planning items in TODO.md. They are not prerequisites for these matching
+features. Representative 200,000+ library and long-session validation remain pending.
+
+Validation: the API suite ran 76 tests successfully (four intentional skips), and
+five focused recovery safety tests passed. Recovery browser checks covered real
+repairs against generated destination files, scoped retry, unsupported formats,
+comparison resume, busy-job gating, failed status requests and narrow reflow. The
+full gallery/shared-UI browser workflow passed. Comparison checks covered restored
+rotation/zoom/position, review filters and tabs, and reference promotion across
+refresh. Explicit gallery checkbox selection remains session-only and is not part
+of the comparison bookmark. Both images built and specification/whitespace checks
+passed. Rendered recovery and comparison screens were inspected at desktop and
+narrow sizes. These are functional checks, not large-library capacity validation.
+
+The sample instance was updated with its existing schema-16 catalog and mounts
+preserved; no Index, Copy or recovery job was started as part of deployment.
+Suspicious-date detection and an optional grouped gallery are documented as pending
+ideas in TODO.md; neither changes current dates or gallery membership.

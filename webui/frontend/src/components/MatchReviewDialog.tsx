@@ -1,3 +1,5 @@
+import type { ComparisonState } from "../comparisonState";
+import { SimilarityRecovery } from "./SimilarityRecovery";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { api, MATCH_THRESHOLDS, type MatchPage, type MatchReview, type MatchVerdict } from "../api";
 import { count, instant } from "../format";
@@ -12,15 +14,16 @@ const VERDICTS: [MatchVerdict, string][] = [
 const verdictName = (value: MatchVerdict | null | undefined) => VERDICTS.find(([key]) => key === value)?.[1] ?? "Unreviewed";
 const PAGE_SIZE = 12;
 
-export function MatchReviewDialog({ reference: initialReference, candidate, initialView, onView, onClose, onSaved }: {
-  reference: number; candidate: number; initialView: { threshold: number; page: number };
+export function MatchReviewDialog({ reference: initialReference, candidate, initialView, onView, onClose, onSaved, workspace, onWorkspace }: {
+  workspace: ComparisonState; onWorkspace: (state: ComparisonState) => void;
+  reference: number; candidate: number | null; initialView: { threshold: number; page: number };
   onView: (view: { threshold: number; page: number }) => void; onClose: () => void; onSaved: () => void;
 }) {
-  const [reference, setReference] = useState(initialReference);
+  const [reference, setReference] = useState(workspace.reference);
   const [active, setActive] = useState<number | null>(candidate);
-  const [threshold, setThreshold] = useState(initialView.threshold);
-  const [page, setPage] = useState(initialView.page);
-  const [filter, setFilter] = useState("all");
+  const [threshold, setThreshold] = useState(workspace.threshold);
+  const [page, setPage] = useState(workspace.page);
+  const [filter, setFilter] = useState<ComparisonState["filter"]>(workspace.filter);
   const [matches, setMatches] = useState<MatchPage | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [review, setReview] = useState<MatchReview | null>(null);
@@ -28,13 +31,22 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
   const [revision, setRevision] = useState(0);
-  const [views, setViews] = useState<Record<number, PreviewView>>({});
-  const [linked, setLinked] = useState(false);
-  const [share, setShare] = useState(72);
+  const [views, setViews] = useState<Record<number, PreviewView>>(workspace.views);
+  const [linked, setLinked] = useState(workspace.linked);
+  const [share, setShare] = useState(workspace.share);
   const layout = useRef<HTMLDivElement>(null);
   const selectLast = useRef(false);
   const focusReference = useRef(false);
-  const [tab, setTab] = useState<"information" | "review">("information");
+  const [tab, setTab] = useState<"information" | "review">(workspace.tab);
+
+  useEffect(() => {
+    // Keep only the current pair's transforms in the bounded bookmark. Other
+    // candidates retain their local views until this workspace closes/reloads.
+    const current: Record<number, PreviewView> = { [reference]: views[reference] ?? DEFAULT_VIEW };
+    if (active != null) current[active] = views[active] ?? DEFAULT_VIEW;
+    onWorkspace({ origin:initialReference, reference, candidate:active, threshold, page, filter, tab,
+      views:current, linked, share });
+  }, [initialReference, reference, active, threshold, page, filter, tab, views, linked, share, onWorkspace]);
 
   useEffect(() => {
     let live = true;
@@ -118,7 +130,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
         setThreshold(Number(e.target.value)); setPage(1); setActive(null);
       }}>{MATCH_THRESHOLDS.map(t => <option key={t} value={t}>{t}% or higher</option>)}</select></label>
       <label>Review progress<select aria-label="Review progress" disabled={busy} value={filter} onChange={e => {
-        setFilter(e.target.value); setPage(1); setActive(null);
+        setFilter(e.target.value as ComparisonState["filter"]); setPage(1); setActive(null);
       }}><option value="all">All candidates</option><option value="unreviewed">Unreviewed</option><option value="reviewed">Reviewed</option></select></label>
       <p className="section-note">{matches?.availability === "available" ? `${count(matches.reviewed_total ?? 0)} of ${count(matches.unfiltered_total ?? matches.total)} pairs reviewed at this threshold` : "Loading review progress…"}</p>
       <button disabled={busy} onClick={() => setReload(n => n + 1)}>Refresh comparison</button>
@@ -197,6 +209,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       {listError && <p className="error" role="alert">{listError} <button disabled={busy} onClick={() => setReload(n => n + 1)}>Retry candidates</button></p>}
       {!matches && !listError && <p role="status">Loading candidates…</p>}
       {matches?.availability && matches.availability !== "available" && <p>Matching is unavailable. A recorded destination copy and usable visual hash are required.</p>}
+      <SimilarityRecovery visible={matches?.availability === "available" && matches.state.pending > 0} onRecovered={() => setReload(n => n + 1)} />
       {matches?.availability === "available" && <>
         {matches.state.pending > 0 && <p className="section-note">Results are incomplete: {count(matches.state.pending)} destination photos awaiting comparison.</p>}
         {matches.total === 0 && <p>No {filter === "all" ? "" : `${filter} `}candidates at this threshold.</p>}

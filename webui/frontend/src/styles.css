@@ -808,3 +808,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .card-preview { position: relative; }
 .card-match-count { position: absolute; bottom: var(--space-2); left: var(--space-2); right: var(--space-2); width: fit-content; padding: var(--space-1) var(--space-2); border-radius: var(--control-radius); background: var(--surface); color: var(--text); font-size: var(--type-xs); pointer-events: none; font-variant-numeric: tabular-nums; }
 @media (max-width: 800px) { .gallery-summary { min-height: 44px; } }
+
+.recovery-photos { list-style: none; padding: 0; }
+.recovery-photos li { padding: var(--space-3) 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.recovery-photos p { margin: var(--space-1) 0; }

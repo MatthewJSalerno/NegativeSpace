@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 import ns_db
 import ns_similarity
+import ns_similarity_recovery
 from . import catalog
 from . import matching
 from .config import Config, build_version
@@ -166,6 +167,19 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/similar/diagnostics")
     def similarity_diagnostics():
         return matching.diagnostics(cfg.db_path)
+
+    @app.get('/api/v1/similar/recovery')
+    def similarity_recovery(page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=60),
+                            photo_id: Optional[int] = Query(None, ge=1, le=2**63-1)):
+        with catalog.connect(cfg.db_path) as conn:
+            return ns_similarity_recovery.report(conn, page=page, page_size=page_size, photo_id=photo_id)
+
+    @app.post('/api/v1/similar/recovery', status_code=202)
+    def start_similarity_recovery(body: dict = Body(...)):
+        if set(body) - {'scope','photo_id','request_id'}:
+            raise HTTPException(400, {'error':'invalid_request', 'message':'Unknown recovery option.'})
+        run_id = jobs.repair_similarity(body.get('scope'), body.get('photo_id'), body.get('request_id'))
+        return catalog.get_run(cfg.db_path, run_id)
 
     @app.get("/api/v1/similar/{photo_id}/counts")
     def similarity_counts(photo_id: int):
