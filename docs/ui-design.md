@@ -326,3 +326,22 @@ visual standard. Engine transfer safety and filesystem behavior are unchanged.
 - [Menu buttons](https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/)
 - [Native dialog behavior](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/dialog)
 - [Design tokens](https://designsystem.digital.gov/design-tokens/)
+
+## Suspicious dates
+
+The **Suspicious dates** gallery view flags the recorded gallery date when its year
+is before 1800 or more than one year ahead of the current UTC year. This is a
+conservative review heuristic, not proof of an error. It includes EXIF-derived dates
+and file-modification fallbacks, with their source identified in the Inspector and
+comparison pane. Missing dates remain covered by No capture date; raw malformed or
+conflicting EXIF tags are outside this first policy. Never infer an offset or replace
+a recorded value. Legitimate historical material may still be flagged.
+
+Use existing gallery controls, card geometry, selection, pagination and URL state
+(`view=suspicious`). Counts, sidebar filters and Select all use the same membership.
+Explain the policy beside results. The Inspector shows the reason, recorded value,
+source and a link to the affected view. Similar photos offer clues, not automatic
+corrections. The comparison Capture information table includes a Date review row
+when either photo is flagged. State clearly that date editing is not yet available.
+No schema changes, reindex or file writes are needed; the upper bound advances with
+the server's UTC year when the catalog is read.

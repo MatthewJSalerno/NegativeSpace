@@ -45,13 +45,16 @@ migration/history work for that sample is out of scope.
   between 75/80/85% floors. A separate DuckDB hash mapping is not part of the current
   architecture; measure a concrete bottleneck before proposing another database.
 
-## Further review ideas (not implemented)
+## Date review and further gallery ideas
 
-- [ ] Flag suspicious capture dates, including placeholder-like ancient years and
-  dates far in the future. Preserve recorded values and identify their metadata
-  source; provide a route to affected photos. Define the date policy before
-  implementation, allowing legitimate historical scans. Similar photos may supply
-  clues, never automatic replacement dates. Editing belongs to the separate workstream.
+- [x] Suspicious dates: read-only gallery view, Inspector explanation and comparison
+  date-review row. Flag recorded gallery-date years before 1800 or more than one
+  year beyond the current UTC year, including labelled file-time fallbacks. Preserve
+  all dates; legitimate historical dates remain review hints, not confirmed errors.
+  Missing dates stay in No capture date. No schema change or reindex is required.
+- [ ] Extend date review to malformed/raw EXIF fields, conflicting capture tags,
+  configurable bounds and dismissing known-valid dates if users need these. Current
+  flags inspect only the recorded gallery date. Date editing remains separate.
 - [ ] Explore an optional grouped Has similar photos view to reduce repetitive
   review. Keep all matching photos visible in the current view. A group card could
   show a representative and total photo count, with every member accessible; the

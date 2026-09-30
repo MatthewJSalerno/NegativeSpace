@@ -319,5 +319,21 @@ narrow sizes. These are functional checks, not large-library capacity validation
 
 The sample instance was updated with its existing schema-16 catalog and mounts
 preserved; no Index, Copy or recovery job was started as part of deployment.
-Suspicious-date detection and an optional grouped gallery are documented as pending
-ideas in TODO.md; neither changes current dates or gallery membership.
+An optional grouped gallery remains a pending idea in TODO.md. Suspicious-date
+review was subsequently implemented as described below.
+
+## Suspicious-date review — 2026-09-30
+
+Added the Suspicious dates gallery view, Inspector reason/source and comparison
+Date review row. The rule flags recorded years before 1800 or more than one year
+ahead of the current UTC year; the upper bound is evaluated by SQLite at query
+time. It covers the recorded gallery date, including file-time fallbacks, without
+changing metadata, file placement or schema. Malformed raw EXIF, conflicting tags,
+configurable bounds and dismissals remain future work.
+
+The 76-test API suite and targeted policy/API test passed. Generated browser checks
+covered filtering, refresh, Inspector and comparison warnings and narrow layouts;
+the shared gallery/UI workflow also passed. Desktop and narrow screenshots were
+inspected. Builds and spec-reference/whitespace checks passed. Sample deployment
+preserved the existing catalog and mounts. No Index or transfer was started.
+Large-library performance remains unmeasured for this additional view count.

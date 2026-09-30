@@ -750,3 +750,12 @@ These are designed in `webui-spec.md` and will be described here when they exist
 *   The curation actions: rename, the destination check (offered from a lineage
     tree's copy), thumbnail cache controls, and later metadata editing, all of which
     the engine already supports or is specified to (`engine-spec.md` §9).
+
+### Suspicious-date browsing
+
+Gallery browse endpoints accept `view=suspicious` with their existing filters.
+Photo list/selection items and Inspector details expose nullable `date_warning`.
+The view selects ordinary visible photos whose recorded `date_taken` year is before
+1800 or greater than the current UTC year plus one. Null dates are not flagged.
+Counts, IDs, positioning and sidebar endpoints share this predicate. This is a
+read-time hint; neither metadata nor catalog schema changes.

@@ -289,6 +289,7 @@ function Details({ detail: d, onLineage, refreshKey }: { detail: PhotoDetail; on
   const taken = dates.find((x) => x.field === "taken");
   return (
     <div className="inspector-body">
+      {d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. The value is unchanged; date editing is not yet available. <a href="/?view=suspicious">View suspicious dates</a></p>}
       <Section title="File">
         <Row label="Status">{STATUS[d.status] ?? d.status}</Row>
         <Row label={d.dest_path_is_projection ? "Proposed destination path" : "Destination path"}>

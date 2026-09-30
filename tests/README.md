@@ -453,3 +453,13 @@ Metadata writes, end-of-review orientation saving, deletion, deferred queues and
 [TODO.md](../TODO.md#expanded-destination-review-workspace). These are not current
 validation steps. The current workspace implements comparison and judgments, and
 closing it discards temporary rotation without a save prompt.
+
+### Suspicious-date checks
+
+Run `python3 -m unittest discover -s tests -p suspicious_dates_test.py` with app
+dependencies. It verifies boundary years, missing/fallback dates, paged membership,
+selection IDs, browse endpoints and unchanged metadata. For the generated browser
+fixture use `DRIVER=suspicious_dates_browser_drive.py SIMILARITY_RECOVERY_FIXTURE=1`
+with `tests/webui_browser_test.sh` and the built IMAGE/WEB_IMAGE. The opt-in catalog
+mount contains only disposable generated data. Checks cover the view, reload,
+Inspector reasons, comparison date review and narrow reflow.

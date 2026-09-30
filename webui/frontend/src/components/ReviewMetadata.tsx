@@ -64,7 +64,8 @@ export function ReviewMetadata({ reference, candidate, refreshKey }: { reference
     row("File size", d => d.file_size, v => `${bytes(Number(v))}${Number(v) >= 1000 ? ` (${count(Number(v))} bytes)` : ""}`),
     row("Aspect ratio", aspectRatio),
   ];
-  const captureRows = [row("Recorded date", date), row("Date source", dateSource), row("Camera", d => d.camera),
+  const captureRows = [row("Recorded date", date), row("Date source", dateSource),
+    ...(details?.some(d => d.date_warning) ? [row("Date review", d => d.date_warning ?? "No date warning")] : []), row("Camera", d => d.camera),
     row("ISO", d => d.iso), row("Aperture", d => d.aperture), row("Shutter", d => d.shutter)];
   const tagRows: ComparisonRow[] = details && allTags
     ? [...new Set(details.flatMap(d => d.metadata.map(([key]) => key)))].sort()

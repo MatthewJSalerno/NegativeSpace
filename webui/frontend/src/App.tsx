@@ -33,7 +33,7 @@ const MIN_GALLERY = 420;
 const SIDE_MIN = 180;
 const SIDE_MAX = 560;
 const MAX_SELECTION = 1000; // mirrors the API's --file-ids limit (webui-spec 2)
-const VIEW_LABEL: Record<View, string> = { all: "All photos", unorganized: "Not yet organized", organized: "Organized", similar: "Has similar photos" };
+const VIEW_LABEL: Record<View, string> = { all: "All photos", unorganized: "Not yet organized", organized: "Organized", similar: "Has similar photos", suspicious: "Suspicious dates" };
 
 // Browsing state lives in the URL, so a refresh or a shared link keeps the place.
 function readUrl() {
@@ -41,7 +41,7 @@ function readUrl() {
   const view = (p.get("view") as View) || "all";
   const matchPage = Number(p.get("match_page"));
   return {
-    view: (["all", "unorganized", "organized", "similar"] as View[]).includes(view) ? view : "all",
+    view: (["all", "unorganized", "organized", "similar", "suspicious"] as View[]).includes(view) ? view : "all",
     sort: p.get("sort") === "matches" && view !== "similar" ? "newest" as Sort : (p.get("sort") as Sort) || "newest",
     matchMin: MATCH_THRESHOLDS.includes(Number(p.get("match_min"))) ? Number(p.get("match_min")) : 75,
     q: p.get("q") || "",
@@ -846,6 +846,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               )}
             </div>
           )}
+          {!focus && view === "suspicious" && <p className="dates-filter-line">Recorded years before 1800 or more than one year ahead. Open a photo to inspect its date and source. These are review hints; dates remain unchanged. Date editing is not yet available.</p>}
           <div className="gallery-summary">
             <span>{gallerySummary ? plural(gallerySummary.total, "photo") : "Loading photos…"}</span>
             {view === "similar" && <>

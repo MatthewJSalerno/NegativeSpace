@@ -26,7 +26,7 @@ NOT_ORGANIZED = (PhotoStatus.PENDING, PhotoStatus.PROCESSING, PhotoStatus.FAILED
 # A duplicate's content is shown once, on its anchor, with a duplicate count: the
 # gallery lists photographs, not every copy of one (webui-spec 7.2).
 COPIES = (PhotoStatus.DUPLICATE, PhotoStatus.REMOVED_DUPLICATE)
-VIEWS = {"all": DELIVERED + NOT_ORGANIZED, "organized": DELIVERED, "unorganized": NOT_ORGANIZED, "similar": DELIVERED}
+VIEWS = {"all": DELIVERED + NOT_ORGANIZED, "organized": DELIVERED, "unorganized": NOT_ORGANIZED, "similar": DELIVERED, "suspicious": DELIVERED + NOT_ORGANIZED}
 SORTS = {
     "matches": "similar_count DESC, p.id ASC",
     # Undated rows carry their modification-time fallback in date_taken, labelled by
@@ -119,10 +119,22 @@ def create(db_path: Path) -> dict:
     return status(db_path)
 
 
+def _date_warning_sql():
+    # Inspect only the recorded gallery date. Do not reinterpret timezones or
+    # mutate EXIF. SQL keeps membership, counts and pagination in agreement.
+    value = "json_extract(p.metadata_json, '$.date_taken')"
+    year = f"CAST(substr({value},1,4) AS INTEGER)"
+    latest = "(CAST(strftime('%Y','now') AS INTEGER) + 1)"
+    return (f"CASE WHEN {value} GLOB '[0-9][0-9][0-9][0-9]-*' THEN CASE "
+            f"WHEN {year}<1800 THEN 'Recorded year is before 1800.' "
+            f"WHEN {year}>{latest} THEN 'Recorded year is more than one year ahead of the current year.' END END")
+
+
 _LIST_COLUMNS = f"""
     p.id, p.status, p.file_size, p.sha1_hash,
     json_extract(p.metadata_json, '$.date_taken') AS date_taken,
     json_extract(p.metadata_json, '$.date_source') AS date_source,
+    {_date_warning_sql()} AS date_warning,
     basename(COALESCE(CASE WHEN p.status IN ({ns_db.sql_values(DELIVERED)}) THEN p.dest_path END,
                       p.source_path)) AS filename
 """
@@ -239,6 +251,8 @@ def _filters(q, undated, dates, types=None, folders=None, root=None):
 
 def _view_clause(view, match_min=75):
     match_distance(match_min)
+    if view == "suspicious":
+        return f"p.status IN ({ns_db.sql_values(VIEWS[view])}) AND ({_date_warning_sql()}) IS NOT NULL"
     if view == "similar":
         return f"p.id IN ({matched_ids(match_min)})"
     return f"p.status IN ({ns_db.sql_values(VIEWS[view])})"
@@ -541,7 +555,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
     """The Inspector's details (webui-spec 4.2, 6.2): paths, dates with their source,
     hashes, dimensions, camera, and every catalogued copy of the same content."""
     with connect(db_path) as conn:
-        p = conn.execute("SELECT * FROM photos WHERE id = ?", (photo_id,)).fetchone()
+        p = conn.execute(f"SELECT p.*, {_date_warning_sql()} AS date_warning FROM photos p WHERE id = ?", (photo_id,)).fetchone()
         if p is None:
             return None
         meta = json.loads(p["metadata_json"]) if p["metadata_json"] else {}
@@ -566,6 +580,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         "file_size": p["file_size"],
         "file_modified": snapshot["file_mtime"] if snapshot else p["file_mtime"],
         "date_taken": meta.get("date_taken"), "date_source": meta.get("date_source"),
+        "date_warning": p["date_warning"],
         "camera": camera,
         # A capture time's offset, when the camera recorded one; without it the
         # time zone is unknown and must not be shown as UTC (webui-spec 10).

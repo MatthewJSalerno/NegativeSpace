@@ -17,7 +17,7 @@ export interface Status {
   active_job: Run | null;
 }
 
-export type View = "all" | "unorganized" | "organized" | "similar";
+export type View = "all" | "unorganized" | "organized" | "similar" | "suspicious";
 export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name" | "matches";
 
 export interface PhotoItem {
@@ -26,6 +26,7 @@ export interface PhotoItem {
   file_size: number | null;
   date_taken: string | null;
   date_source: string | null;
+  date_warning: string | null;
   filename: string;
   duplicates: number;
   similar_count?: number | null;
@@ -126,6 +127,7 @@ export interface PhotoDetail {
   file_modified: number | null;
   date_taken: string | null;
   date_source: string | null;
+  date_warning: string | null;
   date_offset: string | null;
   exif_dates: { field: "taken" | "digitized" | "modified"; value: string; offset: string | null }[];
   camera: string | null;
