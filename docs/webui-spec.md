@@ -2191,3 +2191,12 @@ corrections. The comparison Capture information table includes a Date review row
 when either photo is flagged. State clearly that date editing is not yet available.
 No schema changes, reindex or file writes are needed; the upper bound advances with
 the server's UTC year when the catalog is read.
+
+### Planned reference-based grouping
+
+The agreed optional grouped similarity view uses overlapping reference-based sets,
+not disjoint clusters. Review this set, Explore related sets and explicit Show
+together are session-only display operations. Direct and indirect relationships
+must remain distinguishable. See [the design contract](ui-design.md#reference-based-sets-agreed-not-implemented)
+for the agreed example, notices and expansion limits. This remains unimplemented;
+review-later queues are deferred pending broader catalog-tagging discussion.

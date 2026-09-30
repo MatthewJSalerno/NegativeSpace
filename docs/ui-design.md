@@ -345,3 +345,27 @@ corrections. The comparison Capture information table includes a Date review row
 when either photo is flagged. State clearly that date editing is not yet available.
 No schema changes, reindex or file writes are needed; the upper bound advances with
 the server's UTC year when the catalog is read.
+
+### Reference-based sets (agreed, not implemented)
+
+Offer optional grouping within Has similar photos, retaining the ordinary per-photo
+view. A set consists of its reference and every direct match at the chosen percentage.
+If A matches B and B matches C but A does not match C, A's set contains A/B and B's
+set contains B/A/C. A representative is a navigation reference, never a keeper.
+
+Show inline overlap notices: A's set can say “B has additional matches outside this
+set”; B's can say “Overlaps with A's set.” Offer **Review this set** to open its
+reference and direct matches in comparison, and **Explore related sets** to display
+related sets with their references and membership intact. Avoid repeated decision
+prompts. Within exploration, **Show together** combines only sets the user chooses,
+showing each photo once while preserving its relationship to the references.
+Clearly distinguish indirect photos, for example “Related through B · below your
+threshold for A”; never present C as a qualifying direct match to A.
+
+These are session-only display choices, not saved groups or tags. Changing the
+percentage recomputes membership and overlap. Expand only sets explicitly chosen
+by the user, never automatically traverse the full connected network. Selection
+and keeper decisions must not be inferred from expansion. Pagination, counts,
+filter/selection behavior and collapsing equivalent sets still need implementation
+specification. Review-later tagging is deferred for a separate discussion of broader
+catalog annotations. No EXIF editing or deletion is required by this design.

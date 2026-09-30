@@ -19,7 +19,8 @@ migration/history work for that sample is out of scope.
   context, promoted reference, candidate, threshold, candidate page, review filter,
   information/review tab, panel width and current-pair viewing adjustments. Close
   clears the workspace bookmark; missing/stale photos still require a fresh lookup.
-- [ ] Add deferred review queues. Saved pair judgments already survive reopening.
+- [ ] Deferred: discuss review-later queues alongside broader catalog tagging needs
+  before implementing a dedicated marker. Saved pair judgments already survive reopening.
 - [ ] Assess finding rotated matches that the current pHash search misses.
   Rotating a returned preview helps human comparison but does not change retrieval
   or scores. Keep this separate from viewing controls and saved orientation edits.
@@ -55,13 +56,18 @@ migration/history work for that sample is out of scope.
 - [ ] Extend date review to malformed/raw EXIF fields, conflicting capture tags,
   configurable bounds and dismissing known-valid dates if users need these. Current
   flags inspect only the recorded gallery date. Date editing remains separate.
-- [ ] Explore an optional grouped Has similar photos view to reduce repetitive
-  review. Keep all matching photos visible in the current view. A group card could
-  show a representative and total photo count, with every member accessible; the
-  representative is not a keeper recommendation. Define grouping at the chosen
-  percentage: A–B and B–C matches do not establish A–C, so connected groups must not
-  imply every pair matches. Resolve overlapping groups, filters, counts and selection
-  semantics before implementation.
+- [ ] Implement the agreed optional reference-based sets in Has similar photos.
+  Each reference retains all direct matches at the chosen percentage. With A–B
+  and B–C but no A–C, A's set contains A/B and B's set contains B/A/C. Overlap is
+  intentional; do not partition photos into disjoint groups or imply all members
+  match each other. See the [agreed design](docs/ui-design.md#reference-based-sets-agreed-not-implemented).
+  Add inline overlap notices, Review this set and Explore related sets. Users may
+  explicitly choose related sets and Show together, deduplicating photos while
+  retaining reference/membership context and identifying indirect relationships.
+  Keep display choices session-only; recompute sets/overlap when the percentage
+  changes. No automatic recursive expansion, persisted group membership, tags,
+  keeper decisions or photo writes. Resolve pagination, filter/count/selection
+  semantics and equivalent-set collapsing before implementation.
 
 ## Separate workstream: photo changes
 
