@@ -51,7 +51,10 @@ Open **http://localhost:8080** (or the host's address). `docker compose -f docke
 - **Index** reads your photos into the catalog. It moves and copies nothing.
 - **Copy** or **Move** everything not yet organized, or select photos first. Both ask before they start.
 - After Copy or Move, choose **Has similar photos** in the gallery and open the
-  Inspector's **Similar photos** tab. Browse matches at 75–100% and review them side
+  Inspector's **Similar photos** tab. Choose **Most similar photos** in the gallery
+  sort control and a **Matches at or above** percentage to start with photos having
+  the most qualifying matches; cards show counts across the destination library.
+  Browse matches at 75–100% and review them side
   by side, comparing format, dimensions, file size and metadata. Percentages measure
   visual similarity, not confidence; below 90%, results are more likely to be unrelated.
   Review judgments are saved, but viewing rotation is temporary. EXIF editing,

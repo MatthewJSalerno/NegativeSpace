@@ -117,7 +117,9 @@ For manual validation after Copy, open a destination photo in the gallery and ch
 **Similar photos** in the Inspector. Click a 75/80/85/90/95/100% count to browse
 its matches in the thumbnail grid. Use
 **Has similar photos** to narrow the gallery; the count buttons narrow only the
-Inspector results. Reload and return from Logs to confirm the reference and threshold
+Inspector results. The gallery's separate **Matches at or above** selector changes
+its membership, and **Most similar photos** sorts counts highest first. Reload and
+return from Logs to confirm the reference and threshold
 remain. No new Index or Copy is needed for this UI change on a prepared schema-15 catalog.
 The database suite verifies the hash index against brute force and interrupted
 comparison recovery; the API suite checks reference-only matches, hash changes,
@@ -355,6 +357,17 @@ move to the next photo: the tab/threshold should remain, with match paging reset
 Reload should restore the recorded tab and match page. The provided scenario set
 contains intentional unreadable/invalid files; those are expected test outcomes.
 
+Before opening a candidate, choose **Most similar photos** in the gallery sort and
+change **Matches at or above**. Check card counts against the Inspector at that same
+percentage. Search/date/type/folder filters narrow references, not their counted
+matches. Zero-match photos disappear; explicit checkbox selection remains. Reload
+and return from Logs: sort and gallery threshold persist. Opening a gallery card
+carries the threshold into Inspector matches; later Inspector changes do not reorder
+the gallery. Leaving Has similar photos resets its special sort to Newest first.
+The API checks ranking before pagination, tie ordering, matching facet/selection
+scope, exact-copy deduplication, threshold boundaries and partial coverage. Browser
+checks exercise the controls, card counts, selection preservation and narrow reflow.
+
 Open a candidate using **Review side by side** to enter the expanded workspace:
 
 1. Rotate and zoom each preview separately; then enable linked zoom/position.
@@ -391,8 +404,7 @@ Open a candidate using **Review side by side** to enter the expanded workspace:
 
 The generated-catalog browser check is `DRIVER=similar_browser_drive.py sh
 tests/webui_browser_test.sh` (set `IMAGE`/`WEB_IMAGE` to the builds under test).
-Metadata writes, end-of-review orientation saving, deletion, match-count gallery
-sorting, deferred queues and workspace restoration across reload are tracked in
+Metadata writes, end-of-review orientation saving, deletion, deferred queues and workspace restoration across reload are tracked in
 [TODO.md](../TODO.md#expanded-destination-review-workspace). These are not current
 validation steps. The current workspace implements comparison and judgments, and
 closing it discards temporary rotation without a save prompt.

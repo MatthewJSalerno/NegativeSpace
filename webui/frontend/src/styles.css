@@ -140,7 +140,8 @@ button.link.status-only { font-size: var(--type-xs); }
 }
 .views .filter.active { border-style: solid; background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 
-.browse-search { display: flex; flex: 1 1 320px; min-width: 0; gap: var(--space-3); }
+.browse-search { display: flex; flex-wrap: wrap; align-items: center; flex: 1 1 320px; min-width: 0; gap: var(--space-3); }
+.gallery-match-threshold { display: flex; align-items: center; gap: var(--space-2); }
 .search { flex: 1 1 180px; min-width: 140px; }
 .toolbar-actions { display: flex; gap: var(--space-1); margin-left: auto; }
 .banner { margin: 0 var(--space-4) var(--space-2); }

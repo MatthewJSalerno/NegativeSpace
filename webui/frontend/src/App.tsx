@@ -40,7 +40,8 @@ function readUrl() {
   const matchPage = Number(p.get("match_page"));
   return {
     view: (["all", "unorganized", "organized", "similar"] as View[]).includes(view) ? view : "all",
-    sort: (p.get("sort") as Sort) || "newest",
+    sort: p.get("sort") === "matches" && view !== "similar" ? "newest" as Sort : (p.get("sort") as Sort) || "newest",
+    matchMin: MATCH_THRESHOLDS.includes(Number(p.get("match_min"))) ? Number(p.get("match_min")) : 75,
     q: p.get("q") || "",
     page: Math.max(1, Number(p.get("page")) || 1),
     size: PAGE_SIZES.includes(Number(p.get("size"))) ? Number(p.get("size")) : PAGE_SIZES[0],
@@ -182,6 +183,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const initial = useRef(readUrl()).current;
   const [view, setView] = useState<View>(initial.view);
   const [sort, setSort] = useState<Sort>(initial.sort);
+  const [matchMin, setMatchMin] = useState(initial.matchMin);
+  const galleryMinimum = view === "similar" ? matchMin : 75;
   const [q, setQ] = useState(initial.q);
   const [search, setSearch] = useState(initial.q);
   // `jump` is where loading starts (the pager, a date, a filter change); `page` is the
@@ -209,7 +212,10 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [locate, setLocate] = useState<{ id: number; delta: number } | null>(
     initial.photo == null ? null : { id: initial.photo, delta: 0 });
   const [revealId, setRevealId] = useState<number | null>(null);
-  const openFromGallery = (id: number) => { setLocate(null); setRevealId(null); setOpenId(id); };
+  const openFromGallery = (id: number) => {
+    setLocate(null); setRevealId(null); setOpenId(id);
+    if (view === "similar") setMatchState({ photo: id, view: { threshold: matchMin, page: 1 } });
+  };
   const openAndLocate = (id: number) => { setOpenId(id); setLocate({ id, delta: 0 }); setRevealId(null); };
   const [timeline, setTimeline] = useState<Timeline | null>(null);
   const [jumpTimeline, setJumpTimeline] = useState<Timeline | null>(null);
@@ -233,7 +239,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   useNavigation(() => {
     if (window.location.pathname !== "/") return;
     const next = readUrl();
-    setView(next.view); setSort(next.sort);
+    setView(next.view); setSort(next.sort); setMatchMin(next.matchMin);
     setQ(next.q); setSearch(next.q);
     setPage(next.page); setPageSize(next.size);
     setUndated(next.undated); setDates(next.dates);
@@ -302,6 +308,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     const p = new URLSearchParams();
     if (view !== "all") p.set("view", view);
     if (sort !== "newest") p.set("sort", sort);
+    if (view === "similar") p.set("match_min", String(matchMin));
     if (q) p.set("q", q);
     if (page > 1) p.set("page", String(page));
     if (pageSize !== PAGE_SIZES[0]) p.set("size", String(pageSize));
@@ -320,42 +327,42 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     const url = `${window.location.pathname}${p.size ? `?${p}` : ""}`;
     window.history.replaceState(null, "", url);
     rememberLibraryQuery(p.toString());
-  }, [view, sort, q, page, pageSize, undated, dates, types, folders, openId, matchView, inspectorTab]);
+  }, [view, sort, matchMin, q, page, pageSize, undated, dates, types, folders, openId, matchView, inspectorTab]);
 
-  const results = usePaged((p) => api.photos({ view, sort, q, page: p, page_size: pageSize, undated, dates, types, folders }),
-                           JSON.stringify([view, sort, q, undated, dates, types, folders]), jump, pageSize, refreshKey, setLoadError);
+  const results = usePaged((p) => api.photos({ view, sort, match_min: galleryMinimum, q, page: p, page_size: pageSize, undated, dates, types, folders }),
+                           JSON.stringify([view, sort, galleryMinimum, q, undated, dates, types, folders]), jump, pageSize, refreshKey, setLoadError);
   const data: PhotoPage | null = results.meta;
 
   // The tree's counts ignore its own filter, so an unticked month keeps its number;
   // jumping needs the filtered months, to land on the right page.
   useEffect(() => {
     let live = true;
-    api.timeline({ view, q, undated, types, folders }).then((t) => live && setTimeline(t), () => live && setTimeline(null));
+    api.timeline({ view, match_min: galleryMinimum, q, undated, types, folders }).then((t) => live && setTimeline(t), () => live && setTimeline(null));
     return () => { live = false; };
-  }, [view, q, undated, types, folders, refreshKey]);
+  }, [view, galleryMinimum, q, undated, types, folders, refreshKey]);
   useEffect(() => {
     let live = true;
     if (dates.length === 0) { setJumpTimeline(null); return; }
-    api.timeline({ view, q, undated, dates, types, folders }).then((t) => live && setJumpTimeline(t), () => live && setJumpTimeline(null));
+    api.timeline({ view, match_min: galleryMinimum, q, undated, dates, types, folders }).then((t) => live && setJumpTimeline(t), () => live && setJumpTimeline(null));
     return () => { live = false; };
-  }, [view, q, undated, dates, types, folders, refreshKey]);
+  }, [view, galleryMinimum, q, undated, dates, types, folders, refreshKey]);
   // The Types section's counts follow the view, search, dates and folders, never its own filter.
   useEffect(() => {
     let live = true;
-    api.types({ view, q, undated, dates, folders }).then((t) => live && setTypeCounts(t.types), () => live && setTypeCounts(null));
+    api.types({ view, match_min: galleryMinimum, q, undated, dates, folders }).then((t) => live && setTypeCounts(t.types), () => live && setTypeCounts(null));
     return () => { live = false; };
-  }, [view, q, undated, dates, folders, refreshKey]);
+  }, [view, galleryMinimum, q, undated, dates, folders, refreshKey]);
   // The Folders tree's counts follow the view, search, dates and types, never its own
   // filter; the ticked folders are sent so they stay listed at 0.
   useEffect(() => {
     let live = true;
-    api.folders({ view, q, undated, dates, types, folders }).then((t) => live && setFolderTree(t), () => live && setFolderTree(null));
+    api.folders({ view, match_min: galleryMinimum, q, undated, dates, types, folders }).then((t) => live && setFolderTree(t), () => live && setFolderTree(null));
     return () => { live = false; };
-  }, [view, q, undated, dates, types, folders, refreshKey]);
+  }, [view, galleryMinimum, q, undated, dates, types, folders, refreshKey]);
 
-  const focused = usePaged((p) => (focus ? api.selection(focus.ids, sort, p, pageSize)
+  const focused = usePaged((p) => (focus ? api.selection(focus.ids, sort, p, pageSize, galleryMinimum)
                                           : Promise.resolve({ items: [], total: 0, page: p, page_size: pageSize, missing: [] } as SelectionPage)),
-                           JSON.stringify([focus, sort]), focusJump, pageSize, refreshKey, setLoadError);
+                           JSON.stringify([focus, sort, galleryMinimum]), focusJump, pageSize, refreshKey, setLoadError);
   const focusData: SelectionPage | null = focus ? focused.meta : null;
 
   // What the gallery shows: the results, or only the selection. Every loaded page in
@@ -375,7 +382,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   useEffect(() => {
     if (!locate) return;
     let live = true;
-    api.photoPosition({ photo_id: locate.id, view, sort, q, undated, dates, types, folders,
+    api.photoPosition({ photo_id: locate.id, view, sort, match_min: galleryMinimum, q, undated, dates, types, folders,
                         page_size: pageSize, ids: focus?.ids }).then((found) => {
       if (!live) return;
       setLocate(null);
@@ -401,7 +408,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
         { label: "Retry locating photo", run: () => setLocate({ ...locate }) }]);
     });
     return () => { live = false; };
-  }, [locate, view, sort, q, undated, dates, types, folders, pageSize, focus, refreshKey]);
+  }, [locate, view, sort, galleryMinimum, q, undated, dates, types, folders, pageSize, focus, refreshKey]);
 
   useEffect(() => {
     if (revealId == null || !list.ready || !flat.items.some(item => item.id === revealId)) return;
@@ -517,6 +524,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const narrowed = undated || dates.length > 0 || types.length > 0 || folders.length > 0 || !!q;
   const chooseView = (v: View) => {
     setView(v);
+    if (v !== "similar" && sort === "matches") setSort("newest");
     setPage(1);
     if (v === "all") { setUndated(false); setDates([]); setTypes([]); setFolders([]); }
   };
@@ -568,7 +576,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const selectAll = async () => {
     if (focus) { toggleIds(focus.ids, true); return; }
     try {
-      const got = await api.photoIds({ view, q, undated, dates, types, folders });
+      const got = await api.photoIds({ view, match_min: galleryMinimum, q, undated, dates, types, folders });
       if (got.over_limit) {
         setNotice(`${count(got.total)} photos are shown: more than the ${count(got.limit)}-photo selection limit. Use Actions for all photos, or narrow the view.`);
         return;
@@ -733,7 +741,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
               <button key={v} aria-pressed={v === view} className={v === view && !(v === "all" && narrowed) ? "active" : ""} disabled={!!focus}
                       onClick={() => chooseView(v)}>
-                <span title={v === "similar" ? "Destination photos with at least one visual match at 75% or higher" : undefined}>{VIEW_LABEL[v]}</span> <span className="view-count">{data ? `(${count(data.counts[v])})` : ""}</span>
+                <span title={v === "similar" ? `Destination photos with at least one visual match at ${galleryMinimum}% or higher` : undefined}>{VIEW_LABEL[v]}</span> <span className="view-count">{data ? `(${count(data.counts[v])})` : ""}</span>
               </button>
             ))}
             <Tip text="Photos whose EXIF has no date taken. They are filed under Undated, by their file's modification date.">
@@ -752,7 +760,14 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               <option value="largest">Largest first</option>
               <option value="smallest">Smallest first</option>
               <option value="name">Name</option>
+              {view === "similar" && <option value="matches">Most similar photos</option>}
             </select>
+            {view === "similar" && <label className="gallery-match-threshold">Matches at or above
+              <select aria-label="Gallery match threshold" value={matchMin} disabled={!!focus}
+                      onChange={e => { setMatchMin(Number(e.target.value)); setPage(1); }}>
+                {MATCH_THRESHOLDS.map(t => <option key={t} value={t}>{t}%</option>)}
+              </select>
+            </label>}
           </div>
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
@@ -826,7 +841,13 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             </div>
           )}
           {!focus && view === "similar" && <p className="dates-filter-line">
-            Destination photos with a recorded visual match at 75% or higher. Open a photo to review its matches in the information pane.
+            Destination photos with a recorded visual match at or above {data?.similarity?.threshold ?? matchMin}%.
+            {" "}Counts include matches across the destination library, including outside these filters. Open a photo to review its matches.
+            {matchMin < 90 && <> Below 90%, results are more likely to be unrelated; review photos before using them as clues.</>}
+            {data?.similarity && (data.similarity.pending > 0 || data.similarity.unavailable > 0) && <>
+              {" "}Counts may be incomplete: {plural(data.similarity.pending, "photo awaiting comparison", "photos awaiting comparison")};
+              {" "}{plural(data.similarity.unavailable, "photo without a usable visual hash", "photos without a usable visual hash")}.
+            </>}
             {data?.counts.organized === 0 && <> Copy or Move indexed photos to the destination first.</>}
           </p>}
           {!focus && data && (dates.length > 0 || types.length > 0 || folders.length > 0 || !!q || undated) && (
@@ -860,7 +881,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                 <>
                   <p>No {VIEW_LABEL[view].toLowerCase()} match “{q}”.</p>
                   {(Object.keys(VIEW_LABEL) as View[]).filter((v) => v !== view && v !== "all" && data.matches[v] > 0).map((v) => (
-                    <button key={v} onClick={() => setView(v)}>{count(data.matches[v])} in {VIEW_LABEL[v]}</button>
+                    <button key={v} onClick={() => chooseView(v)}>{count(data.matches[v])} in {VIEW_LABEL[v]}</button>
                   ))}
                 </>
               ) : <p>Nothing in this view.</p>}
@@ -882,7 +903,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               {list.first > 1 && <PageBoundary ref={topSentinel} previous pending={list.pending.has(list.first - 1)} error={list.failures.get(list.first - 1)}
                 onLoad={() => { prepend.current = { height: document.documentElement.scrollHeight, y: window.scrollY }; list.load(list.first - 1, true); }} />}
               <Gallery refreshKey={refreshKey} page={{ items: flat.items }} pageOf={flat.pageOf} selected={selected} selectable={!jobRunning} openId={openId}
-                       onOpen={openFromGallery} onToggle={toggle} onToggleMany={toggleMany} />
+                       onOpen={openFromGallery} onToggle={toggle} onToggleMany={toggleMany}
+                       matchThreshold={focus ? galleryMinimum : data?.similarity?.threshold} />
               {list.last < pages
                 ? <PageBoundary ref={bottomSentinel} pending={list.pending.has(list.last + 1)} error={list.failures.get(list.last + 1)} onLoad={() => list.load(list.last + 1, true)} />
                 : <div className="gallery-foot">
@@ -904,7 +926,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             <Inspector refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
                        onTab={(tab) => { setInspectorTab(tab);
-                         if (tab === "similar" && !matchView) setMatchState({ photo: openId, view: { threshold: 90, page: 1 } }); }}
+                         if (tab === "similar" && !matchView) setMatchState({ photo: openId, view: { threshold: view === "similar" ? matchMin : 90, page: 1 } }); }}
                        onMatchView={(v) => setMatchState({ photo: openId, view: v })} />
           </>
         )}

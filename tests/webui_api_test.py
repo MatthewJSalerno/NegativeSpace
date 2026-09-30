@@ -1279,6 +1279,61 @@ class MatchingTests(ApiCase):
             self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE sha1_hash='b'")
         self.assertEqual(self.client.get('/api/v1/photos?view=similar').json()['total'], 0)
 
+    def test_gallery_ranks_by_direct_count_before_paging_and_preserves_filter_scope(self):
+        a = self.photo('reference', 'a', '0000000000000000')
+        b = self.photo('near', 'b', '0000000000000007')
+        c = self.photo('further', 'c', '00000000000001ff')
+        twin = self.photo('same-visual', 'twin', '0000000000000000')
+        duplicate = self.photo('same-bytes', 'a', '0000000000000000')
+        source = self.photo('source-only', 'source', '0000000000000000', status='Pending')
+        failed = self.photo('unavailable', 'failed', None)
+        self.refresh()
+        query = '/api/v1/photos?view=similar&sort=matches&match_min=90'
+        result = self.client.get(query).json()
+        # b links the other three; a/twin do not directly match c at this threshold.
+        self.assertEqual([(p['id'], p['similar_count']) for p in result['items']], [(b,3), (a,2), (twin,2), (c,1)])
+        self.assertEqual(result['similarity'], {'threshold':90, 'pending':0, 'unavailable':1})
+        for i, photo in enumerate((b,a,twin,c)):
+            page = self.client.get(query + f'&page_size=1&page={i+1}').json()
+            self.assertEqual([p['id'] for p in page['items']], [photo])
+            position = self.client.post('/api/v1/photos/position', json={
+                'photo_id':photo, 'view':'similar', 'sort':'matches', 'match_min':90, 'page_size':1}).json()
+            self.assertEqual((position['position'],position['page']), (i,i+1))
+            self.assertEqual(position['next_id'], (b,a,twin,c)[i+1] if i < 3 else None)
+        filtered = self.client.get(query + '&q=reference').json()
+        self.assertEqual([(p['id'],p['similar_count']) for p in filtered['items']], [(a,2)])
+        # Counts match the Inspector at every UI threshold, independent of gallery filters.
+        for threshold in (75,80,85,90,95,100):
+            listing = self.client.get(f'/api/v1/photos?view=similar&sort=matches&match_min={threshold}').json()
+            for item in listing['items']:
+                count = self.client.get(f'/api/v1/similar/{item["id"]}?threshold={threshold}').json()['total']
+                self.assertEqual(item['similar_count'], count)
+        at100 = self.client.get('/api/v1/photos?view=similar&match_min=100').json()
+        self.assertEqual({p['id'] for p in at100['items']}, {a,twin})
+        self.assertEqual(self.client.get('/api/v1/photos/ids?view=similar&match_min=100').json()['ids'], [a,twin])
+        self.assertEqual(self.client.get('/api/v1/photos/types?view=similar&match_min=100').json()['types'], [{'type':'jpg','photos':2}])
+        self.assertEqual(self.client.get('/api/v1/photos/timeline?view=similar&match_min=100').json()['undated'], 2)
+        selected = self.client.post('/api/v1/photos/selection', json={
+            'ids':[source,failed,a,b,c], 'sort':'matches', 'match_min':100}).json()
+        self.assertEqual(selected['total'], 5, 'Selection must retain photos without qualifying matches')
+        self.assertEqual(selected['items'][0]['id'], a)
+        position = self.client.post('/api/v1/photos/position', json={
+            'photo_id':a, 'ids':[source,failed,a,b,c], 'sort':'matches', 'match_min':100}).json()
+        self.assertEqual(position['position'], 0)
+        self.assertNotIn(duplicate, [p['id'] for p in result['items']])
+        # Relationships are joined to current membership; stale hashes/files cannot rank.
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE sha1_hash='twin'")
+        self.assertEqual(self.client.get('/api/v1/photos?view=similar&match_min=100').json()['total'], 0)
+        self.photo('pending-new', 'pending-new', '000000000000ffff')
+        self.assertEqual(self.client.get(query).json()['similarity']['pending'], 1)
+        for path in ('photos','photos/ids','photos/types','photos/timeline','photos/folders'):
+            self.assertEqual(self.client.get(f'/api/v1/{path}?view=similar&match_min=74').status_code, 422)
+        self.assertEqual(self.client.post('/api/v1/photos/selection', json={'ids':[a],'sort':'matches','match_min':'90'}).status_code, 400)
+        self.assertEqual(self.client.get('/api/v1/photos?view=all&sort=matches').status_code, 400)
+        self.assertEqual(self.client.post('/api/v1/photos/position', json={
+            'photo_id':a,'view':'invalid','sort':'matches','ids':[a]}).status_code, 400)
+
     def test_review_is_symmetric_persistent_and_bound_to_content(self):
         a = self.photo('first', 'a', '0000000000000000')
         b = self.photo('second', 'b', 'ffffffffffffffff')

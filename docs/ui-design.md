@@ -87,8 +87,25 @@ cannot clip or cover the text.
 Review destination photos in the ordinary gallery and its Inspector. Do not add a
 separate Similar navigation button or a second gallery of matching groups.
 **Has similar photos** sits alongside All photos, Organized and No capture date;
-it includes photos with at least one recorded destination match at 75% or higher.
-It combines with existing search, date, type and folder filters.
+it includes photos with at least one recorded destination match at the gallery's
+chosen percentage (75% initially). It combines with existing search, date, type and
+folder filters. **Most similar photos** in the existing sort control ranks direct
+match counts highest first; ties use ascending photo ID. **Matches at or above**
+beside it offers 75/80/85/90/95/100%, also available with the other gallery sorts.
+Cards show “12 matches at or above 90%”. Count matches across the whole destination
+library, including outside gallery filters, and explain that scope beside results.
+Photos with no qualifying recorded match are excluded; incomplete comparisons and
+unavailable hashes are reported separately, not presented as proof of uniqueness.
+
+Persist gallery percentage as `match_min` and ordering as `sort=matches` in the URL.
+Changing either starts at page one and preserves explicit selection. Sidebar counts,
+Select all and photo positioning use the same percentage. Show only selected retains
+all chosen files, including those without matches; disable the gallery percentage
+while that scope is open. Leaving Has similar photos resets its special sort to
+Newest first. Clicking a gallery card carries the gallery percentage into Inspector
+matches, while the active Inspector tab remains unchanged. Users can subsequently
+choose another Inspector percentage without changing gallery order; previous/next
+photo navigation retains that Inspector choice.
 
 The Inspector has **Photo information** and **Similar photos** tabs. Default to
 Photo information; remember the active tab and threshold while browsing photos.
@@ -109,7 +126,7 @@ metadata clues. Repeat it in the comparison dialog for a pair scoring below 90%.
 This is review guidance, not a measured error rate or a guarantee above 90%.
 
 Persist the open photo, tab, chosen threshold and match page in the gallery URL.
-Opening Similar photos initially uses 90%; subsequently retain the chosen threshold
+Outside Has similar photos, opening Similar photos initially uses 90%; subsequently retain the chosen threshold
 for other reference photos and reset their match page to one. Information-only
 browsing does not load matching data. Match thumbnails use more columns as the
 details area widens, and scroll separately so the reference preview stays visible.
@@ -200,10 +217,6 @@ or prompt on each Rotate click. General EXIF editing uses the shared editor rath
 than turning this comparison into an inline editor. The current workspace has no
 rotation-save prompt and closing it discards viewing transforms.
 
-**Future gallery prioritization:** sorting Has similar photos by the count of
-direct matches at a chosen percentage is a proposal, not current behavior. The
-possible controls, unresolved count scope and scale requirements are tracked in
-[TODO.md](../TODO.md#expanded-destination-review-workspace).
 
 ## Keyboard and focus
 

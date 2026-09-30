@@ -123,8 +123,9 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 
 | Parameter | Values | Default |
 | :--- | :--- | :--- |
-| `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed), `similar` (destination photos with visual matches at 75%+) | `all` |
-| `sort` | `newest`, `oldest`, `largest`, `smallest`, `name` | `newest` |
+| `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed), `similar` (destination photos with visual matches at `match_min` or higher) | `all` |
+| `sort` | `newest`, `oldest`, `largest`, `smallest`, `name`, `matches` (`view=similar` only) | `newest` |
+| `match_min` | integer percentage 75–100, applies to similarity membership/counts | 75 |
 | `q` | filename search: current and original names, including removed duplicates' names; never folder names | none |
 | `undated` | `true` for only photos with no EXIF date taken, the ones filed under Undated | `false` |
 | `date` | repeatable: a year (`2023`), a month (`2023-06`) or `none` (no date at all); the date tree's "Show only". Several add up | none: every date |
@@ -151,6 +152,19 @@ whose latest delivery was a Move that could not delete the original, why (a run'
 date label. `total` is what this request shows, every filter applied. `matches` counts
 each view with every filter applied, for offering another view when a search finds
 nothing in this one. The date sorts put undatable rows last.
+
+For `view=similar`, each item includes `similar_count`, and the response includes
+`similarity: {threshold, pending, unavailable}`. The coverage counts describe all
+eligible destination content identities, not just the filtered page. Other views
+return `similarity: null`. Match counts cover direct matches across the whole
+available destination library, independent of gallery search/date/type/folder filters.
+Zero-count references are omitted. `sort=matches` sorts descending count, ascending
+photo ID before pagination; it is invalid with other views (400). Reads never
+recompute pHashes or pair distances. Counts, items and coverage share one snapshot.
+
+`match_min` also applies to `/photos/timeline`, `/photos/types`, `/photos/folders`,
+`/photos/ids` and the JSON body of `/photos/position`, so facets, selection and
+navigation agree. Invalid query/position percentages return 422.
 
 ### `GET /api/v1/photos/timeline`
 
@@ -210,7 +224,7 @@ act on only some of what was shown.
 Read-only lookup of one photo's zero-based position, one-based page and adjacent
 IDs in the gallery's ordering. The JSON body requires positive integer `photo_id`;
 optional fields are `view`, `sort`, `page_size` (1–240, default 60), `q`, `undated`,
-`dates`, `types` and `folders`, with the same filter meanings as the gallery.
+`dates`, `types`, `folders` and `match_min`, with the same filter meanings as the gallery.
 An optional `ids` list (at most 1,000 positive integers) scopes a selection instead
 of the normal filters. POST keeps that selection out of URL length limits.
 
@@ -232,6 +246,11 @@ The selected photos, whatever view, search or dates would hide them (Show only s
 It reads; it is a POST because 1,000 ids is too long for a URL. `missing` names ids no
 longer in the catalog, so a selection is never silently shortened. More than 1,000 ids
 is `400 invalid_request`.
+`sort=matches` with optional integer `match_min` (default 75) orders an explicit
+selection by library-wide counts without filtering out selected files. This also
+works for `/photos/position` when `ids` is supplied. Items without an available
+representative/usable hash have `similar_count: null` and sort after known zero
+counts; ties use ascending ID. An invalid selection percentage returns 400.
 
 ### `GET /api/v1/photos/{id}/inspect`
 
@@ -663,7 +682,7 @@ reference byte identity and collapse exact copies; they include equal visual has
 of different content. One aggregate over stored pairs supplies all thresholds.
 
 The gallery's `view=similar` uses the same destination availability and content
-representation rules, at the 75% floor. Search/date/type/folder filters narrow the
+representation rules, at `match_min` (75% by default). Search/date/type/folder filters narrow the
 reference photos, not their potential matches. Timeline, type/folder counts, photo
 positions and selection IDs use the same view predicate. Gallery `counts` and
 `matches` include the `similar` key.

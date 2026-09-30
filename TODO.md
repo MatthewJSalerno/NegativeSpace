@@ -28,17 +28,13 @@
 - [ ] Assess finding rotated matches that the current pHash search misses.
   Rotating a returned preview helps human comparison but does not change retrieval
   or scores. Keep this separate from viewing controls and saved orientation edits.
-- [ ] Design gallery ordering that helps users start with destination photos having
-  the most similar photos. Future proposal, not implemented or a settled layout:
-  within **Has similar photos**, offer **Most similar photos** in the gallery sort
-  control beside an **At or above** threshold (75/80/85/90/95/100%). Rank by the
-  number of direct matches meeting that threshold, highest first, and show a card
-  count such as **12 matches at or above 90%**. Opening a photo should carry that
-  threshold into its Inspector matches. Counts are cumulative, not confidence or
-  disjoint percentage buckets. Decide whether gallery filters also restrict the
-  counted matches, and how photos with zero qualifying or incomplete matches appear.
-  Plan server-side counting/sorting before pagination for 200,000+ photos using
-  stored match results; changing the sort should not trigger image comparisons.
+- [x] Gallery **Most similar photos** sort and **Matches at or above** selector
+  (75/80/85/90/95/100%). Cards show direct-match counts; sorting happens before
+  pagination and ties use photo ID. Gallery filters narrow references, while counts
+  include the full destination library. Zero-match photos are excluded at the chosen
+  threshold; incomplete comparison coverage is shown separately. Opening a gallery
+  card carries its threshold into the Inspector. Sort/threshold survive reload and
+  browser navigation; selection membership is preserved. No hashes are recalculated.
 - [ ] Validate representative 200,000+ photo workloads with headroom: initial and
   incremental comparisons, stored-pair growth, memory, gallery/Inspector response
   times and long-session browser behavior. Include dense match sets, not only

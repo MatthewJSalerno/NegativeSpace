@@ -1560,15 +1560,28 @@ asks for naming decisions before the library is organized.
 
 **Built:** the ordinary gallery has a **Has similar photos** view alongside its
 existing view controls. It contains destination photos with at least one recorded
-visual match at the 75% floor and uses the gallery's existing sort, search, date,
-type, folder and selection behavior. The top navigation has no Similar button.
+visual match at the selected gallery percentage (75% by default), with the gallery's
+existing search, date, type, folder and selection behavior. The top navigation has
+no Similar button. **Most similar photos** in the sort dropdown orders qualifying
+match counts highest first, with ascending photo ID as the tie-breaker, before
+pagination. **Matches at or above** offers 75/80/85/90/95/100% beside the sort control
+whenever this view is active; the percentage also applies to date/name/size sorts.
+Cards show the count and percentage. Counts cover direct matches across the entire
+destination library, including outside the gallery's filters, matching the Inspector
+scope. Equal visual hashes count, exact byte copies are represented once, and the
+reference itself is excluded. No new image comparisons run when controls change.
 
-**Proposed, not built:** a Most similar photos sort with an At or above percentage
-could rank destination photos by qualifying direct-match count and show that count
-on gallery cards. Opening one would carry the threshold into the Inspector. The
-layout, whether gallery filters restrict counted matches, and treatment of zero or
-incomplete counts remain design decisions in `TODO.md`. Current gallery membership
-stays at the 75% floor; changing an Inspector threshold does not reorder the gallery.
+The URL saves `match_min` separately from Inspector `match`, alongside `sort=matches`.
+Changes reset gallery paging to one but retain explicit selection; sidebar counts,
+Select all and photo positioning use the same membership. Show only selected keeps
+all selected files even without qualifying matches, with the percentage disabled;
+known counts sort first, then zero and unavailable counts. Leaving this view resets
+Most similar photos to Newest first. Clicking a gallery card carries the gallery
+percentage into its matches without switching the Inspector tab. Later Inspector
+threshold changes remain local; previous/next retains that Inspector choice.
+Photos without qualifying recorded matches are omitted. A coverage note appears
+when destination hashes are unavailable or comparisons unfinished; absence from this
+view does not establish uniqueness. Counts, sort and coverage are read in one snapshot.
 
 The Inspector's **Similar photos** tab shows cumulative potential-match counts at **75%, 80%, 85%, 90%,
 95% and 100%** in the Inspector. “85%+” means all matches at or above 85%; these are
@@ -1576,7 +1589,7 @@ not independent buckets. Selecting a count displays 12 candidates at a time insi
 the information pane, ordered by similarity, with dimensions and side-by-side review.
 The open photo stays the reference; threshold/page changes leave the main gallery
 and explicit checkbox selection intact. Matches can lie outside the gallery's current
-filters. Closing the match list leaves the counts visible. First entering the tab
+filters. Closing the match list leaves the counts visible. Outside the similarity gallery, first entering the tab
 selects 90%; subsequent photo navigation keeps the tab and threshold, resets match
 paging to one and does not copy a review judgment to another pair. Information-only
 browsing loads no match data. Left/Right and Home/End on the tab controls move between

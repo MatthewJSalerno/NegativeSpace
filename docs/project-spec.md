@@ -208,8 +208,10 @@ service. Built and tested:
         differences with scrolling column headings, and saved content-pair judgments.
         Preview dimensions follow viewing rotation; recorded dimensions stay unchanged.
         The validation panel shows coverage, timings and review counts. General EXIF
-        editing, end-of-review orientation saving, deletion and gallery sorting by
-        match count remain future work tracked in [TODO.md](../TODO.md).
+        editing, end-of-review orientation saving and deletion remain future work
+        tracked in [TODO.md](../TODO.md). The similarity gallery can sort by direct
+        match count at a chosen percentage, with card counts and consistent filters,
+        selection and photo navigation.
 
     `tests/webui_browser_test.sh` drives them in a real browser.
 

@@ -18,7 +18,7 @@ export interface Status {
 }
 
 export type View = "all" | "unorganized" | "organized" | "similar";
-export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name";
+export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name" | "matches";
 
 export interface PhotoItem {
   id: number;
@@ -28,6 +28,7 @@ export interface PhotoItem {
   date_source: string | null;
   filename: string;
   duplicates: number;
+  similar_count?: number | null;
   // A Failed photo's latest failure reason, for its badge's hover.
   failure?: string | null;
   // Why a Move kept this Copied photo's original in the source, when one did.
@@ -41,6 +42,7 @@ export interface PhotoPage {
   total: number;
   // The whole library per view (and No capture date within this view), for the buttons.
   counts: Record<View | "undated", number>;
+  similarity: { threshold: number; pending: number; unavailable: number } | null;
   // Each view under every filter now on, for suggesting another view.
   matches: Record<View, number>;
 }
@@ -55,6 +57,7 @@ export interface PhotoPosition {
 // What narrows the gallery: the view, the search, No capture date, and the date tree's
 // "Show only" years and months ("2023", "2023-06", "none").
 export interface BrowseFilters {
+  match_min?: number;
   view: View;
   q: string;
   undated: boolean;
@@ -81,6 +84,7 @@ export interface FolderTree {
 
 function browseQuery(f: BrowseFilters): URLSearchParams {
   const query = new URLSearchParams({ view: f.view });
+  if (f.match_min != null) query.set("match_min", String(f.match_min));
   if (f.q) query.set("q", f.q);
   if (f.undated) query.set("undated", "true");
   (f.dates ?? []).forEach((d) => query.append("date", d));
@@ -543,8 +547,8 @@ export const api = {
   folders: (params: BrowseFilters) => request<FolderTree>("GET", `/api/v1/photos/folders?${browseQuery(params)}`),
   photoIds: (params: BrowseFilters) =>
     request<{ ids: number[]; total: number; limit: number; over_limit: boolean }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
-  selection: (ids: number[], sort: Sort, page: number, page_size: number) =>
-    request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size }),
+  selection: (ids: number[], sort: Sort, page: number, page_size: number, match_min = 75) =>
+    request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size, match_min }),
   operations: (f: LogFilters, page: number, pageSize: number) => {
     const p = logQuery(f);
     p.set("page", String(page));

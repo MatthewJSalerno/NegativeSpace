@@ -8,10 +8,11 @@ const STATUS_BADGE: Record<string, string> = {
   Processing: "In progress",
 };
 
-export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId, onOpen, onToggle, onToggleMany }: {
+export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold }: {
   page: { items: PhotoItem[] };
   // The page each photo came from, so scrolling can tell which page is on top.
   pageOf?: number[];
+  matchThreshold?: number;
   refreshKey: number;
   selected: Set<number>;
   selectable: boolean;
@@ -56,6 +57,9 @@ export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId
             </label>
             <div className="card-meta">
               <span className="card-name" title={item.filename}>{item.filename}</span>
+              {matchThreshold != null && item.similar_count != null && <span className="card-sub">
+                {plural(item.similar_count, "match", "matches")} at or above {matchThreshold}%
+              </span>}
               <span className="card-sub">
                 <span title={isFallbackDate(item.date_source) ? "No capture date: this is the file's modification date" : undefined}>
                   {photoDate(item.date_taken, false)}
