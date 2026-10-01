@@ -38,6 +38,7 @@ class PhotoPositionRequest(BaseModel):
     sort: str = "newest"
     match_min: int = Field(default=75, ge=75, le=100)
     group_sets: bool = False
+    set_reference: Optional[int] = Field(default=None, ge=1, le=2**63-1)
     page_size: int = Field(default=60, ge=1, le=240)
     q: Optional[str] = None
     undated: bool = False
@@ -259,10 +260,10 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_photos(view: str = "all", sort: str = "newest", q: Optional[str] = None,
                    page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=240), undated: bool = False,
                    date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                   folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False):
+                   folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1)):
         try:
             return catalog.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size,
-                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets)
+                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference)
         except ValueError as exc:
             raise _bad_request(exc)
 
@@ -300,10 +301,10 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/photos/ids")
     def get_photo_ids(view: str = "all", q: Optional[str] = None, undated: bool = False,
                       date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                      folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False):
+                      folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1)):
         try:
             return catalog.photo_ids(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
-                                     folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets)
+                                     folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference)
         except ValueError as exc:
             raise _bad_request(exc)
 

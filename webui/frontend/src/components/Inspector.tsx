@@ -1,3 +1,4 @@
+import type { SetActions } from "./ReviewActions";
 import type { ComparisonState } from "../comparisonState";
 import { Modal } from "./ui/Modal";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
@@ -23,7 +24,7 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false }: {
+export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet }: SetActions & {
   coveredByDialog?: boolean;
   comparison: ComparisonState | null;
   onComparison: (state: ComparisonState | null) => void;
@@ -240,7 +241,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   return <>
     {narrow && comparison == null && !coveredByDialog ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
     {comparison != null && <MatchReviewDialog reference={id} candidate={candidate}
-      workspace={comparison} onWorkspace={onComparison}
+      workspace={comparison} onWorkspace={onComparison} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet}
       initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}
       onClose={closeComparison} onSaved={() => setReviewsChanged((n) => n + 1)} />}
   </>;

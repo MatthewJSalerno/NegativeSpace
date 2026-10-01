@@ -434,3 +434,22 @@ waiting for pan state to reach the URL before testing reload. TypeScript, image
 builds, 41 API route contracts, specification checks and whitespace checks passed.
 The idle sample instance was updated with its catalog and mounts preserved. The
 grouped endpoint responded successfully and the source remains read-only.
+
+## Review actions validation
+
+Implemented Copy review link with clipboard-success and manual-copy fallback,
+previous/next grouped-gallery set navigation, and temporary paged browsing of a
+set's direct members. No matching engine or schema changes were required; backend
+work is confined to read-only catalog filtering through set_reference.
+
+Passed: 76 general API tests, seven reference-set tests, reference-set/actions and
+full similarity-review browser workflows, TypeScript/image builds, 41 API route
+contracts, specification and whitespace checks. Browser checks cover copied-link
+restoration with rotation, LAN clipboard fallback, neighboring sets, preservation
+of selection, a 126-member gallery across pages, and narrow review reflow. Rendered
+desktop/narrow layouts were inspected. The API retains a usable reference even when
+no candidates meet the threshold. All test photo operations used disposable fixtures.
+
+The idle sample instance was updated with its catalog/mounts preserved. Health,
+the read-only member-gallery endpoint, and read-only source mounting were checked.
+No real-library copy, move, repair, EXIF editing or deletion was performed.

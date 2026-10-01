@@ -2222,3 +2222,29 @@ changes in browser storage (`ns.matchMin`). An explicit `match_min` URL value wi
 without overwriting that preference. Gallery and reference-set threshold controls
 update the preference; Inspector/comparison thresholds remain local to their review.
 The 75% floor remains available. Identical-set collapsing is implemented for the grouped gallery.
+
+### Review links and set navigation
+
+Copy review link serializes the current comparison directly, including reference,
+candidate, threshold, review filter/tab, current-pair viewing transforms and linked
+zoom. It does not depend on a pending URL update or replay a saved judgment. Report
+success only after the clipboard write succeeds. If clipboard access is unavailable
+or rejected (including local-network HTTP), expose a labelled, selectable read-only
+link for manual copy. Recipients need access to the same instance and catalog.
+
+Previous set / Next set in review follows the grouped gallery's percentage, filters
+and sort, anchored on the entry reference even after Use as reference. Disable
+unavailable boundaries and loading navigation; request failures offer Retry set
+navigation. Do not navigate during a judgment save. Entering another set starts a
+fresh comparison with temporary viewing transforms reset; no judgment is implied.
+Navigation is offered only from the grouped gallery, not an expanded union or a
+set-member scope whose ordering has a different meaning.
+
+Show this set in gallery is available from comparison and each reference in set
+exploration. It shows the reference and direct members at that set's percentage as
+ordinary, individually selectable cards, with server paging and normal sort controls.
+This temporary scope bypasses the saved gallery filters and does not auto-select,
+expand or clear the existing selection. Filters are disabled while it is open;
+Back to results restores the previous gallery filters/page. Reload leaves this
+session-only scope. Selection limits still apply, but browsing is not limited to
+1,000 members. No EXIF edit, deletion, image processing or persisted group is implied.

@@ -159,6 +159,6 @@ overlapping sets remain distinct.
 
 - [x] Collapse identical full-membership reference sets before gallery pagination;
   maintain filtered representatives, set counts, selection, and photo positioning.
-- [ ] Optional small follow-ups to discuss: copy a review link; navigate directly
-  between gallery sets from review; show a set’s members in the ordinary gallery.
-  These are suggestions, not part of the identical-set implementation.
+- [x] Copy review link with manual fallback, previous/next grouped-gallery set
+  navigation, and a paged temporary gallery of one set’s direct members.
+  Preserve selection and gallery return context; no engine changes.

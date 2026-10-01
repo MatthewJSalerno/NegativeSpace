@@ -141,3 +141,27 @@ reference-set and full similarity-review browser workflows, TypeScript/image bui
 API/specification/whitespace checks, and the sparse 250,000-photo grouped query
 measurement (1.738 seconds). The sample is deployed and healthy; source read-only
 was verified. No actual library transfers or repair jobs ran.
+
+## Review actions follow-up
+
+All three suggested actions are implemented: Copy review link (with a manual-copy
+fallback for LAN HTTP/clipboard rejection), Previous/next set in grouped-gallery
+order, and Show this set in gallery from comparison/exploration. Link serialization
+uses current component state so immediate copying does not race URL synchronization.
+Navigation uses existing photo-position reads, respects gallery context and save
+busy state, and resets transient comparison transforms on the next set. Navigation
+uses the entry reference after reference promotion; expanded unions have no gallery
+set navigation. New UI lives in ReviewActions.tsx.
+
+The only backend addition is read-only set_reference filtering on photo list, IDs
+and position. The temporary member scope is paged and does not materialize every
+member or constrain browsing to the selection limit. Existing selection stays
+explicit; returning restores the gallery context, while reload exits the scope.
+No engine, schema, EXIF, deletion, or catalog migration changes were made.
+
+Review-actions validation passed: 76 general API tests, seven reference-set tests,
+both reference-set/actions and full comparison browser workflows, TypeScript/image
+builds, API contracts and documentation checks. Desktop/narrow layouts inspected.
+The sample is deployed and healthy with its source read-only. The member gallery
+retains its reference even with no qualifying candidates; see the latest validation
+entry and tests/README.md for evidence and reproducible fixtures.

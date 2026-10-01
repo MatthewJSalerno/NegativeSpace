@@ -1,5 +1,7 @@
 """Reference sets with generated files and an explicit A–B–C–D chain."""
 import os
+import json
+from urllib.parse import urlsplit, parse_qs
 import re
 import sqlite3
 import sys
@@ -133,6 +135,50 @@ with sync_playwright() as p:
     expect(review).to_be_visible()
     expect(review.locator('.review-score')).to_contain_text('90.62%')
     review.get_by_role('button',name='Back to gallery',exact=True).click()
+    # Browse neighboring distinct sets using the active gallery order.
+    card.get_by_role('button',name='Review this set',exact=True).click()
+    position=request.post('/api/v1/photos/position',data={'photo_id':a,'view':'similar',
+        'sort':'name','group_sets':True,'match_min':90,'page_size':60}).json()
+    next_id=position['next_id']
+    assert next_id is not None
+    expect(review.get_by_role('button',name='Next set',exact=True)).to_be_enabled()
+    review.get_by_role('button',name='Next set',exact=True).click()
+    page.wait_for_function('(id) => JSON.parse(new URLSearchParams(location.search).get("review"))?.origin === id',arg=next_id)
+    expect(review.get_by_role('button',name='Previous set',exact=True)).to_be_enabled()
+    review.get_by_role('button',name='Previous set',exact=True).click()
+    page.wait_for_function('(id) => JSON.parse(new URLSearchParams(location.search).get("review"))?.origin === id',arg=a)
+    review.get_by_role('button',name='Rotate reference right',exact=True).click()
+    # LAN HTTP commonly lacks clipboard access; offer a usable manual link.
+    page.evaluate('Object.defineProperty(navigator, "clipboard", {configurable:true, value:undefined})')
+    review.get_by_role('button',name='Copy review link',exact=True).click()
+    manual=review.get_by_role('textbox',name='Review link',exact=True)
+    expect(manual).to_be_visible()
+    page.set_viewport_size({'width':700,'height':844})
+    assert review.evaluate('e => e.scrollWidth <= e.clientWidth+1')
+    shot('review-actions-narrow')
+    page.set_viewport_size({'width':1440,'height':1000})
+    copied=manual.input_value()
+    bookmark=json.loads(parse_qs(urlsplit(copied).query)['review'][0])
+    assert bookmark['origin']==a and bookmark['reference']==a
+    assert bookmark['views'][str(a)]['rotation']==90
+    # Successful clipboard writes report success, too.
+    page.evaluate('Object.defineProperty(navigator, "clipboard", {configurable:true, value:{writeText: async text => {window.copiedReview = text}}})')
+    review.get_by_role('button',name='Copy review link',exact=True).click()
+    expect(review.get_by_text('Review link copied.',exact=False)).to_be_visible()
+    assert page.evaluate('window.copiedReview') == copied
+    shot('review-actions')
+    review.get_by_role('button',name='Show this set in gallery',exact=True).click()
+    expect(review).to_have_count(0)
+    expect(page.locator('.card')).to_have_count(2)
+    expect(page.locator(f'.card[data-id="{a}"] .card-check input')).to_be_checked()
+    expect(page.locator(f'.card[data-id="{b}"] .card-check input')).not_to_be_checked()
+    page.locator('.focus-head').get_by_role('button',name='Back to results',exact=True).click()
+    expect(page.locator('.card')).to_have_count(5)
+    # Copied links restore the comparison without replaying writes.
+    page.goto(copied)
+    expect(review).to_be_visible()
+    expect(review.locator('.review-score')).to_contain_text('90.62%')
+    review.get_by_role('button',name='Back to gallery',exact=True).click()
     # Failure has an explicit retry; successful retry restores the same set.
     page.route('**/api/v1/similar/*/sets?*',lambda route: route.fulfill(status=503,json={'message':'Fixture temporary failure'}))
     card.get_by_role('button',name='Explore related sets',exact=True).click()
@@ -155,6 +201,14 @@ with sync_playwright() as p:
     expect(dialog.get_by_role('navigation',name='Set photo pages')).to_contain_text('Page 2 of 11')
     dialog.get_by_role('button',name='Next sets',exact=True).click()
     expect(dialog.get_by_role('navigation',name='Related set pages')).to_contain_text('Page 2 of 11')
+    dialog.get_by_role('button',name='Show this set in gallery',exact=True).first.click()
+    expect(dialog).to_have_count(0)
+    expect(page.locator('.gallery-summary')).to_contain_text('126 photos')
+    expect(page.locator('.card')).to_have_count(60)
+    page.get_by_role('button',name='Next page',exact=True).click()
+    expect(page.locator('.pager button[aria-current="page"]')).to_have_text('2')
+    shot('set-members-gallery')
+    page.locator('.focus-head').get_by_role('button',name='Back to results',exact=True).click()
     page.reload()
     expect(group).to_be_checked()
     expect(dialog).to_have_count(0)

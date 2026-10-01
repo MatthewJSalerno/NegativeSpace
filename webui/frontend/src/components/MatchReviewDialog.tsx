@@ -1,3 +1,4 @@
+import { ReviewActions, type SetActions } from "./ReviewActions";
 import type { ComparisonState } from "../comparisonState";
 import { SimilarityRecovery } from "./SimilarityRecovery";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
@@ -14,7 +15,7 @@ const VERDICTS: [MatchVerdict, string][] = [
 const verdictName = (value: MatchVerdict | null | undefined) => VERDICTS.find(([key]) => key === value)?.[1] ?? "Unreviewed";
 const PAGE_SIZE = 12;
 
-export function MatchReviewDialog({ reference: initialReference, candidate, initialView, onView, onClose, onSaved, workspace, onWorkspace }: {
+export function MatchReviewDialog({ reference: initialReference, candidate, initialView, onView, onClose, onSaved, workspace, onWorkspace, setBrowse, onOpenSet, onShowSet }: SetActions & {
   workspace: ComparisonState; onWorkspace: (state: ComparisonState) => void;
   reference: number; candidate: number | null; initialView: { threshold: number; page: number };
   onView: (view: { threshold: number; page: number }) => void; onClose: () => void; onSaved: () => void;
@@ -125,6 +126,9 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       <div><h2>Review similar photos</h2><p className="section-note">Compare destination photos and record what you find.</p></div>
       <button disabled={busy} onClick={close}>Back to gallery</button>
     </header>
+    <ReviewActions workspace={{ origin: initialReference, reference, candidate: active, threshold, page, filter, tab,
+      views: { [reference]: referenceView, ...(active == null ? {} : { [active]: displayedCandidateView }) }, linked, share }}
+      busy={busy || !review} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet} />
     <div className="review-toolbar">
       <label>Minimum similarity<select aria-label="Minimum similarity" disabled={busy} value={threshold} onChange={e => {
         setThreshold(Number(e.target.value)); setPage(1); setActive(null);

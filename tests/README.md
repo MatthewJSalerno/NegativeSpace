@@ -495,3 +495,9 @@ The reference-set browser driver expects five grouped tiles for the 130-photo
 fixture, including one 126-member set, and verifies ungrouping restores photo cards.
 tools/benchmark-reference-sets.py also measures a full grouped-gallery query on its
 250,000-photo sparse prepared fixture; this is not dense-library capacity evidence.
+
+The reference-set fixture also checks manual and successful clipboard paths,
+copied comparison restoration including rotation, previous/next gallery sets,
+selection preservation in the temporary set-member gallery, and paging a 126-photo
+set. reference_sets_test.py verifies set_reference membership/paging/IDs/position
+and rejects invalid IDs. Clipboard output is only a local generated-fixture link.

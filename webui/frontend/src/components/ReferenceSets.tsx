@@ -4,9 +4,10 @@ import { plural } from "../format";
 import { Thumb } from "./Thumb";
 import { Modal } from "./ui/Modal";
 
-export function ReferenceSets({ reference, threshold, refreshKey, suspended, onThreshold, onClose, onReview }: {
+export function ReferenceSets({ reference, threshold, refreshKey, suspended, onThreshold, onClose, onReview, onShowSet }: {
   reference: number; threshold: number; refreshKey: number; suspended: boolean;
   onThreshold: (threshold: number) => void; onClose: () => void;
+  onShowSet: (reference: number, threshold: number) => void;
   onReview: (reference: number, candidate: number | null) => void;
 }) {
   const [included, setIncluded] = useState<number[]>([]);
@@ -48,6 +49,7 @@ export function ReferenceSets({ reference, threshold, refreshKey, suspended, onT
         <ul className="set-reference-list">{data.references.map(r => <li key={r.id}>
           <Thumb id={r.id} alt="" refreshKey={refreshKey} />
           <div><strong>{r.id === reference ? "Starting reference: " : "Related reference: "}{r.filename}</strong><p>{plural(r.total, "photo")} in this set</p></div>
+          <button onClick={() => onShowSet(r.id, threshold)}>Show this set in gallery</button>
           <button aria-label={`Review this set: ${r.filename}`} disabled={r.total < 2} onClick={() => onReview(r.id, null)}>Review this set</button>
         </li>)}</ul>
         <p>{plural(data.total, "distinct photo")} across the displayed sets. A photo appears once below, even when it belongs to several sets.</p>
@@ -83,6 +85,7 @@ export function ReferenceSets({ reference, threshold, refreshKey, suspended, onT
             onChange={e => setDraft(old => e.target.checked ? [...old,r.id] : old.filter(i => i !== r.id))} aria-label={`Include set: ${r.filename}`} /></label>
           <Thumb id={r.id} alt="" refreshKey={refreshKey} />
           <div><strong>{r.filename}</strong><p className="section-note">{plural(r.total, "photo")} · {r.additional > 0 ? `${plural(r.additional, "additional match", "additional matches")} outside the starting set` : "All members are already in the starting set"}.</p></div>
+          <button onClick={() => onShowSet(r.id, threshold)}>Show this set in gallery</button>
           <button aria-label={`Review this set: ${r.filename}`} onClick={() => onReview(r.id, null)}>Review this set</button>
         </li>)}</ul>
         <nav className="match-pages" aria-label="Related set pages">

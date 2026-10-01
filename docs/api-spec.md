@@ -805,3 +805,18 @@ library photo counts. Sidebar queries count representatives in their normal filt
 scope. `matches` for other views retains normal photo-filter semantics. No photo,
 EXIF, persisted group, or catalog schema is changed. Without `group_sets`, existing
 API behavior is unchanged.
+
+### Direct-set member gallery filter
+
+GET /api/v1/photos, GET /api/v1/photos/ids and POST /api/v1/photos/position accept
+optional `set_reference` (positive signed-64-bit photo ID). It intersects the normal
+browse scope with that reference plus its recorded direct destination matches at
+`match_min`. It excludes source-only/unavailable identities and does not recursively
+expand related sets. The UI uses this filter without grouped collapse or saved
+gallery filters for its temporary member scope. Pagination, sorting, photo positioning
+and existing Select all limits apply normally. Unknown or unavailable references
+produce an empty scope. This is a read-only catalog filter, not an engine command.
+
+For `set_reference`, `view=all` also permits `sort=matches`, retaining a usable
+reference with zero qualifying candidates. The member-gallery UI uses this scope;
+it does not accidentally drop the reference through the Has similar photos filter.

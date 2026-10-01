@@ -238,7 +238,7 @@ def _folders_clause(folders, root):
     return " AND (" + " OR ".join(parts) + ")", tuple(params)
 
 
-def _filters(q, undated, dates, types=None, folders=None, root=None, *, group_sets=False, match_min=75):
+def _filters(q, undated, dates, types=None, folders=None, root=None, *, group_sets=False, match_min=75, set_reference=None):
     """Search, no-capture-date, date-tree, type and folder filters, shared by the list,
     its ids and its counts, so Select all takes exactly what the gallery shows."""
     search, search_params = _search_clause(q)
@@ -247,6 +247,13 @@ def _filters(q, undated, dates, types=None, folders=None, root=None, *, group_se
     folder_sql, folder_params = _folders_clause(folders, root) if folders else ("", ())
     filtered = search + (f" AND {_UNDATED}" if undated else "") + date_sql + type_sql + folder_sql
     params = tuple(search_params) + date_params + type_params + folder_params
+    if set_reference is not None:
+        if type(set_reference) is not int or not 1 <= set_reference <= 2**63-1:
+            raise ValueError("set_reference must be a positive photo ID")
+        from .reference_sets import _membership
+        distance = match_distance(match_min)
+        filtered += " AND p.id IN (" + _membership([set_reference]) + "SELECT id FROM members)"
+        params += (set_reference, distance, distance)
     if group_sets:
         from .equivalent_sets import representatives
         return " AND p.id IN (" + representatives(match_min, filtered) + ")", params
@@ -332,9 +339,9 @@ def _counted_list(sort, match_min, *, include=False, ids=None):
 
 
 def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, page_size=60, undated=False,
-                dates=None, types=None, folders=None, root=None, match_min=75, group_sets=False) -> dict:
-    _check_view(view, sort, page, page_size)
-    filtered, filtered_params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min)
+                dates=None, types=None, folders=None, root=None, match_min=75, group_sets=False, set_reference=None) -> dict:
+    _check_view("similar" if set_reference is not None and sort == "matches" else view, sort, page, page_size)
+    filtered, filtered_params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, set_reference=set_reference)
     with connect(db_path) as conn:
         conn.execute('BEGIN')
         # The view buttons count the whole library: "All photos" is every photo, whatever
@@ -342,7 +349,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
         # Selective File Processing); `total` is what this request shows. `matches` counts
         # each view under every filter, for suggesting another view when a search finds
         # nothing in this one.
-        raw_filtered, raw_params = _filters(q, undated, dates, types, folders, root)
+        raw_filtered, raw_params = _filters(q, undated, dates, types, folders, root, match_min=match_min, set_reference=set_reference)
         counts, matches = {}, {}
         for name in VIEWS:
             base = f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(name, match_min)}"
@@ -368,11 +375,11 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
 
 
 def photo_position(db_path: Path, photo_id: int, *, view="all", sort="newest", page_size=60,
-                   q=None, undated=False, dates=None, types=None, folders=None, root=None, ids=None, match_min=75, group_sets=False) -> dict:
+                   q=None, undated=False, dates=None, types=None, folders=None, root=None, ids=None, match_min=75, group_sets=False, set_reference=None) -> dict:
     """Locate one photo and its neighbors without transferring preceding gallery pages."""
     _check_view(view)
-    _check_view("similar" if ids is not None and sort == "matches" else view, sort, 1, page_size)
-    filtered, params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min)
+    _check_view("similar" if (ids is not None or set_reference is not None) and sort == "matches" else view, sort, 1, page_size)
+    filtered, params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, set_reference=set_reference)
     where = _view_clause(view, match_min) + filtered
     if ids is not None:
         if len(ids) > SELECTION_MAX or any(type(i) is not int or i < 1 for i in ids):
@@ -396,12 +403,12 @@ def photo_position(db_path: Path, photo_id: int, *, view="all", sort="newest", p
 
 
 def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,
-              folders=None, root=None, limit=SELECTION_MAX, match_min=75, group_sets=False) -> dict:
+              folders=None, root=None, limit=SELECTION_MAX, match_min=75, group_sets=False, set_reference=None) -> dict:
     """Every photo id the gallery would show for these filters, across all pages, for
     Select all. More than `limit` is refused with the total, never cut short: a
     partial Select all would silently act on some of what the user saw."""
     _check_view(view)
-    filtered, params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min)
+    filtered, params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, set_reference=set_reference)
     base = f"FROM photos p WHERE {_view_clause(view, match_min)}" + filtered
     with connect(db_path) as conn:
         total = conn.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]

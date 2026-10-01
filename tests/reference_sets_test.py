@@ -112,3 +112,28 @@ class ReferenceSetsTests(fixtures.ApiCase):
         narrow=self.client.get(base+'90').json()
         self.assertEqual(narrow['total'], 3)
         self.assertEqual(self.client.get(base+'100').json()['total'], 0)
+
+    def test_set_gallery_pages_selects_and_positions_only_direct_members(self):
+        endpoint=f'/api/v1/photos?view=similar&match_min=90&set_reference={self.a}&sort=name'
+        result=self.client.get(endpoint).json()
+        self.assertEqual({r['id'] for r in result['items']},{self.a,self.b})
+        self.assertEqual(result['total'],2)
+        self.assertEqual(len(self.client.get(endpoint+'&page_size=1&page=2').json()['items']),1)
+        selected=self.client.get(f'/api/v1/photos/ids?view=similar&match_min=90&set_reference={self.a}').json()
+        self.assertEqual(set(selected['ids']),{self.a,self.b})
+        position=self.client.post('/api/v1/photos/position',json={'view':'similar','sort':'name',
+            'match_min':90,'set_reference':self.a,'photo_id':self.a}).json()
+        self.assertEqual(position['next_id'],self.b)
+        self.assertIsNone(self.client.post('/api/v1/photos/position',json={'view':'similar','sort':'name',
+            'match_min':90,'set_reference':self.a,'photo_id':self.c}).json()['position'])
+        self.assertEqual(self.client.get(endpoint.replace(f'set_reference={self.a}','set_reference=-1')).status_code,422)
+
+    def test_set_gallery_keeps_reference_when_no_candidates_meet_threshold(self):
+        base=f'/api/v1/photos?view=all&match_min=100&set_reference={self.a}&sort=matches'
+        response=self.client.get(base)
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual([p['id'] for p in response.json()['items']],[self.a])
+        position=self.client.post('/api/v1/photos/position',json={'view':'all','sort':'matches',
+            'match_min':100,'set_reference':self.a,'photo_id':self.a})
+        self.assertEqual(position.status_code,200,position.text)
+        self.assertEqual(position.json()['position'],0)

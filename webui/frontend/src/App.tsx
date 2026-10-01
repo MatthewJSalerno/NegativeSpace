@@ -84,7 +84,7 @@ function readUrl() {
 // on entry, so unticking a photo there leaves it on screen, unticked.
 // "review" is the selection before a Copy or Move of it: shown in full, with the action
 // in a bar above it, so every photo can be looked at and unticked before committing.
-type Focus = { kind: "selection" | "review" | "job" | "photo"; ids: number[]; mode?: "copy" | "move" };
+type Focus = { kind: "selection" | "review" | "job" | "photo" | "set"; ids: number[]; reference?: number; threshold?: number; mode?: "copy" | "move" };
 
 export function App() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -251,7 +251,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     setLocate(null); setRevealId(null); setOpenId(id);
     if (view === "similar") {
       setInspectorTab("similar");
-      setMatchState({ photo: id, view: { threshold: matchMin, page: 1 } });
+      setMatchState({ photo: id, view: { threshold: focus?.kind === "set" ? focus.threshold! : matchMin, page: 1 } });
     }
   };
   const openAndLocate = (id: number) => { setOpenId(id); setLocate({ id, delta: 0 }); setRevealId(null); };
@@ -402,7 +402,17 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     return () => { live = false; };
   }, [view, galleryMinimum, grouped, q, undated, dates, types, folders, refreshKey]);
 
-  const focused = usePaged((p) => (focus ? api.selection(focus.ids, sort, p, pageSize, galleryMinimum)
+  const memberBrowse = focus?.kind === "set" ? { view: "all" as const, q: "", undated: false,
+    set_reference: focus.reference!, match_min: focus.threshold!, dates: [], types: [], folders: [] } : null;
+  const setBrowse = useMemo(() => grouped && exploreReference == null ? ({ view, sort, match_min: galleryMinimum,
+    group_sets: true, q, undated, dates, types, folders, page_size: pageSize }) : undefined,
+    [grouped, exploreReference, view, sort, galleryMinimum, q, undated, dates, types, folders, pageSize, refreshKey]);
+  const showSet = (reference: number, threshold: number) => {
+    setComparison(null); setExploreReference(null); setOpenId(null); setLocate(null); setRevealId(null);
+    setFocus({ kind: "set", ids: [], reference, threshold }); setFocusPage(1);
+  };
+  const focused = usePaged((p) => (memberBrowse ? api.photos({ ...memberBrowse, sort, page:p, page_size:pageSize }).then(r => ({...r, missing: []}))
+                                        : focus ? api.selection(focus.ids, sort, p, pageSize, galleryMinimum)
                                           : Promise.resolve({ items: [], total: 0, page: p, page_size: pageSize, missing: [] } as SelectionPage)),
                            JSON.stringify([focus, sort, galleryMinimum]), focusJump, pageSize, refreshKey, setLoadError);
   const focusData: SelectionPage | null = focus ? focused.meta : null;
@@ -426,7 +436,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     if (!locate) return;
     let live = true;
     api.photoPosition({ photo_id: locate.id, view, sort, match_min: galleryMinimum, group_sets: grouped, q, undated, dates, types, folders,
-                        page_size: pageSize, ids: focus?.ids }).then((found) => {
+                        ...(memberBrowse ?? {}), page_size: pageSize, ids: memberBrowse ? undefined : focus?.ids }).then((found) => {
       if (!live) return;
       setLocate(null);
       setNotice(null);
@@ -615,9 +625,10 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
   const changePageSize = (size: number) => {
     // Keep the first photo on screen in view: land on the page that holds it.
-    const first = (page - 1) * pageSize;
+    const first = ((focus ? focusPage : page) - 1) * pageSize;
     setPageSize(size);
-    setPage(Math.floor(first / size) + 1);
+    if (focus) setFocusPage(Math.floor(first / size) + 1);
+    else setPage(Math.floor(first / size) + 1);
   };
 
   const toggleIds = (ids: number[], on: boolean) => setSelected((cur) => {
@@ -628,9 +639,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const toggle = (item: PhotoItem, on: boolean) => toggleIds([item.id], on);
   const toggleMany = (items: PhotoItem[], on: boolean) => toggleIds(items.map((i) => i.id), on);
   const selectAll = async () => {
-    if (focus) { toggleIds(focus.ids, true); return; }
+    if (focus && !memberBrowse) { toggleIds(focus.ids, true); return; }
     try {
-      const got = await api.photoIds({ view, match_min: galleryMinimum, group_sets: grouped, q, undated, dates, types, folders });
+      const got = await api.photoIds(memberBrowse ?? { view, match_min: galleryMinimum, group_sets: grouped, q, undated, dates, types, folders });
       if (got.over_limit) {
         setNotice(`${count(got.total)} photos are shown: more than the ${count(got.limit)}-photo selection limit. Use Actions for all photos, or narrow the view.`);
         return;
@@ -870,12 +881,12 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           {focus && !review && (
             <div className="focus-head">
               <strong>
-                {focus.kind === "job" ? `The ${plural(focus.ids.length, "photo")} in the job just started`
+                {focus.kind === "set" ? `Photos in this reference set at ${focus.threshold}% or higher` : focus.kind === "job" ? `The ${plural(focus.ids.length, "photo")} in the job just started`
                   : focus.kind === "photo" ? "Showing the inspected photo"
                   : `Showing only the ${plural(focus.ids.length, "selected photo")}`}
               </strong>
               <span className="muted">
-                {focus.kind === "job" ? " · their status updates when the job ends." : " · whatever the view, search or dates would hide."}
+                {focus.kind === "set" ? "Selection is unchanged; all direct members are shown." : focus.kind === "job" ? " · their status updates when the job ends." : " · whatever the view, search or dates would hide."}
               </span>
               <button onClick={backToResults}>Back to results</button>
               {focusData && focusData.missing.length > 0 && (
@@ -891,7 +902,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           {!focus && view === "suspicious" && <p className="dates-filter-line">Recorded years before 1800 or more than one year ahead. Open a photo to inspect its date and source. These are review hints; dates remain unchanged. Date editing is not yet available.</p>}
           <div className="gallery-summary">
             <span>{gallerySummary ? plural(gallerySummary.total, grouped ? "set" : "photo") : "Loading photos…"}</span>
-            {view === "similar" && <>
+            {view === "similar" && focus?.kind !== "set" && <>
               <label><input type="checkbox" checked={groupSets} disabled={!!focus}
                 onChange={e => { setGroupSets(e.target.checked); setPage(1); savePreference("ns.groupSets", String(e.target.checked)); setExploreReference(null); }} />Group similar photos</label>
               <label className="gallery-match-threshold">Matches at or above
@@ -971,7 +982,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                        onOpen={openFromGallery} onToggle={toggle} onToggleMany={toggleMany}
                        onReviewSet={!focus && view === "similar" && groupSets ? id => reviewSet(id, null) : undefined}
                        onExploreSet={!focus && view === "similar" && groupSets ? setExploreReference : undefined}
-                       matchThreshold={focus ? galleryMinimum : data?.similarity?.threshold} />
+                       matchThreshold={focus?.kind === "set" ? focus.threshold : focus ? galleryMinimum : data?.similarity?.threshold} />
               {list.last < pages
                 ? <PageBoundary ref={bottomSentinel} pending={list.pending.has(list.last + 1)} error={list.failures.get(list.last + 1)} onLoad={() => list.load(list.last + 1, true)} />
                 : <div className="gallery-foot">
@@ -990,7 +1001,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                    if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() + 40); }
                    if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() - 40); }
                  }} />
-            <Inspector coveredByDialog={exploreReference != null && view === "similar" && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
+            <Inspector setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && view === "similar" && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
                        onTab={(tab) => { setInspectorTab(tab);
                          if (tab === "similar" && !matchView) setMatchState({ photo: openId, view: { threshold: view === "similar" ? matchMin : 90, page: 1 } }); }}
@@ -1001,7 +1012,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
       {exploreReference != null && view === "similar" && !focus && <ReferenceSets key={exploreReference}
         reference={exploreReference} threshold={matchMin} refreshKey={refreshKey} suspended={comparison != null}
-        onThreshold={chooseMatchMinimum} onClose={() => setExploreReference(null)} onReview={reviewSet} />}
+        onShowSet={showSet} onThreshold={chooseMatchMinimum} onClose={() => setExploreReference(null)} onReview={reviewSet} />}
       {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
     </div>
   );
