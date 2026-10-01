@@ -15,7 +15,7 @@ def counts(db: Path, photo_id: int):
     """Cumulative direct-match counts in one snapshot, without six queue queries."""
     with catalog.connect(db) as conn:
         conn.execute('BEGIN')
-        reference = conn.execute('WITH '+_BASE+' SELECT * FROM raw WHERE id=?', (photo_id,)).fetchone()
+        reference = conn.execute('WITH '+_REFERENCE+' SELECT * FROM raw WHERE id=?', (photo_id,)).fetchone()
         if reference is None:
             return {'availability': 'not_available', 'counts': [], 'pending': 0}
         if reference['phash_state'] != 'ok' or not ns_similarity.usable(reference['phash']):
@@ -48,9 +48,22 @@ _BASE = f"""raw AS (
 )"""
 _VALID = "phash_state='ok' AND length(phash)=16 AND phash NOT GLOB '*[^0-9a-f]*'"
 
+# A single reference (including a noncanonical copy) does not need a window over
+# the catalog. Removing that window lets SQLite seek by the requested photo IDs.
+_REFERENCE = _BASE.replace(',\n        ROW_NUMBER() OVER (PARTITION BY c.content_id ORDER BY p.id) AS representative', '')
 
-def _scope(mode):
-    return _BASE + (", available AS (SELECT * FROM raw WHERE representative=1)" if mode == 'similar'
+
+def _scope(mode, *, candidates=False):
+    base = _BASE
+    if candidates:
+        # Hash/content eligibility precedes ranking and metadata projection.
+        # Every copy of one content has the same hash, so canonical selection is
+        # unchanged. Keep lower() to support historical mixed-case hashes.
+        restricted = ("c.content_id=:content" if mode == 'exact' else """lower(c.phash) IN (
+            SELECT :hash UNION SELECT high_hash FROM content_similarity WHERE low_hash=:hash AND distance<=:distance
+            UNION SELECT low_hash FROM content_similarity WHERE high_hash=:hash AND distance<=:distance)""")
+        base = base.replace('WHERE p.status', f'WHERE {restricted} AND p.status')
+    return base + (", available AS (SELECT * FROM raw WHERE representative=1)" if mode == 'similar'
                     else ", available AS (SELECT * FROM raw)")
 
 
@@ -64,7 +77,7 @@ def _check(mode, threshold, sort, page, page_size):
 
 
 def _state(conn):
-    row = conn.execute(f"""WITH {_scope('similar')}
+    row = conn.execute(f"""WITH {AVAILABLE}
       SELECT COUNT(*) AS photos,
         COALESCE(SUM(NOT ({_VALID}) OR phash IS NULL OR phash_state IS NULL),0) AS unavailable,
         COALESCE(SUM(CASE WHEN {_VALID} AND NOT EXISTS
@@ -111,7 +124,7 @@ class ReviewChanged(ValueError):
 
 
 def _pair(conn, reference_id, candidate_id):
-    rows = conn.execute('WITH '+_BASE+' SELECT * FROM raw WHERE id IN (?,?)',
+    rows = conn.execute('WITH '+_REFERENCE+' SELECT * FROM raw WHERE id IN (?,?)',
                         (reference_id, candidate_id)).fetchall()
     by_id = {r['id']: r for r in rows}
     if reference_id == candidate_id or reference_id not in by_id or candidate_id not in by_id:
@@ -180,12 +193,12 @@ def matches(db: Path, photo_id: int, *, mode='similar', threshold=90., page=1, p
         state = _state(conn)
         # Resolve only delivered references, including a second delivered record
         # of the same content when the queue uses a different representative.
-        reference = conn.execute('WITH '+_BASE+' SELECT * FROM raw WHERE id=?',(photo_id,)).fetchone()
+        reference = conn.execute('WITH '+_REFERENCE+' SELECT * FROM raw WHERE id=?',(photo_id,)).fetchone()
         if reference is None:
             return {'reference':None,'items':[],'total':0,'page':page,'page_size':page_size,'state':state,'availability':'not_available'}
-        if mode=='similar' and not conn.execute(f'WITH {_BASE} SELECT 1 FROM raw WHERE id=? AND {_VALID}',(photo_id,)).fetchone():
+        if mode=='similar' and not conn.execute(f'WITH {_REFERENCE} SELECT 1 FROM raw WHERE id=? AND {_VALID}',(photo_id,)).fetchone():
             return {'reference':_item(reference),'items':[],'total':0,'page':page,'page_size':page_size,'state':state,'availability':'hash_unavailable'}
-        scope = _scope(mode)
+        scope = _scope(mode, candidates=True)
         if mode=='exact':
             scored = ", scored AS (SELECT *,0 AS distance FROM available WHERE content_id=:content AND id!=:id)"
         else:

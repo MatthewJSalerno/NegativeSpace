@@ -125,6 +125,20 @@ class SyntheticQueryTests(unittest.TestCase):
         self.assertIn('readonly',pipe.send.call_args.args[0]['error'])
         self.assertTrue(benchmark.fixture_unchanged(db,manifest))
 
+    def test_statement_profiler_uses_unchanged_fixture(self):
+        db, manifest = self.fixture('sparse')
+        output = self.root/'profile.json'
+        result = subprocess.run([sys.executable,str(ROOT/'tools/profile-synthetic-queries.py'),
+            '--fixture',str(db.parent),'--output',str(output)],capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,0,result.stderr)
+        report = json.loads(output.read_text())
+        self.assertTrue(report['database_unchanged'])
+        self.assertEqual(len(report['workloads']),4)
+        for workload in report['workloads'].values():
+            self.assertTrue(workload['statements'])
+            self.assertTrue(all(s['plan'] for s in workload['statements']))
+        self.assertTrue(benchmark.fixture_unchanged(db,manifest))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -61,13 +61,20 @@ migration/history work for that sample is out of scope.
   distinct-hash dense and mixed-eligibility fixtures; repeated timings, worker
   deadlines and reusable fingerprinted inputs. A 250k sparse baseline completed
   all eight workloads with 30 warm samples each; Inspector counts + candidates
-  (5.71 s p95) and related discovery + expansion (4.58 s p95) need profiling.
-  Dense/overlap-rich large datasets remain unmeasured. See [benchmark commands](tests/README.md#synthetic-catalog-query-benchmark).
+  (5.71 s p95) and related discovery + expansion (4.58 s p95) were the initial
+  profiling targets. See [benchmark commands](tests/README.md#synthetic-catalog-query-benchmark).
+- [x] Profile and narrow Inspector/reference-set SQLite queries: resolve requested
+  identities directly, filter candidate hashes before ranking/metadata reads, and
+  avoid grouping unrelated destination rows. Preserve canonical copies, overlap
+  behavior, historical hash casing and exact API results. Same-fixture A/B checks
+  passed at 250k (30 warm samples) and 500k sparse/bounded dense (three warm
+  samples); measured results are in the performance plan. No DuckDB layer added.
 - [ ] Follow the separate [large-library measurement plan](docs/large-library-performance.md)
-  on `perf/large-library-validation`. Validate representative 200,000+ photo workloads with headroom: initial and
-  incremental comparisons, stored-pair growth, memory, gallery/Inspector response
-  times and long-session browser behavior. Include dense match sets, not only
-  synthetic sparse hashes. See [validation guidance](tests/README.md#web-interface-in-a-browser--webui_browser_testsh).
+  on `perf/large-library-validation`: query performance at 250k/500k, dense and
+  overlapping sets, memory, invalidated caches and response times. Repeat A/B runs
+  before claiming supported capacity. Original-file processing, initial/incremental
+  hash comparison build costs and long-session browser work remain separate
+  follow-ups; this branch does not benchmark filesystem latency. See [validation guidance](tests/README.md#web-interface-in-a-browser--webui_browser_testsh).
   The 75% floor is the chosen range; capacity validation is not a request to choose
   between 75/80/85% floors. A separate DuckDB hash mapping is not part of the current
   architecture; measure a concrete bottleneck before proposing another database.

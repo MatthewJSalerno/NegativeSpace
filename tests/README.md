@@ -530,7 +530,7 @@ The manual fallback is expected behavior when clipboard access is unavailable.
 The manual functional checklist is complete. Representative capacity work is scoped
 separately on `perf/large-library-validation`; see
 [the measurement plan](../docs/large-library-performance.md) for isolated inputs,
-processing/query/browser scenarios, comparable A/B runs and pending automation.
+query scenarios, comparable A/B runs and pending coverage.
 Existing synthetic tools do not establish real NFS or dense-library capacity.
 
 
@@ -593,3 +593,19 @@ These check known memberships and identical-group collapse, destination/hash
 eligibility, high thresholds, edge limits, repeated results, fixture reuse,
 modified-fixture rejection (including pending WAL changes), query-only enforcement,
 A/B compatibility checks and timeout reporting.
+
+
+To attribute the Inspector/set workload to individual SQL statements, use the same
+container/mount setup with:
+
+```text
+tools/profile-synthetic-queries.py --fixture /output/baseline-sparse/fixture
+--output /output/profile-baseline.json
+```
+
+The output file must be new. It includes `EXPLAIN QUERY PLAN` and execution/fetch
+timing for each read statement. Plan collection adds overhead: use this to locate
+expensive work, and use `benchmark-synthetic-queries.py` for A/B measurements.
+For a short 500k trial use `--photos 500000 --scenarios inspector related --repeats 3`;
+this deliberately produces no p95. Keep repeat settings identical for its candidate
+run, and use a new output directory for every profile/revision.

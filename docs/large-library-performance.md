@@ -5,8 +5,7 @@ Workstream: `perf/large-library-validation`. The merged functional baseline is
 photo capacity remains unverified. The current work is **synthetic catalog query
 performance**, using the existing SQLite schema and application query functions.
 Original-file processing, network storage and browser rendering are outside this
-benchmark. The broader plan below records future coverage, not authorization for
-a library transfer.
+benchmark. No library transfer is needed for these tests.
 
 ## Synthetic query runner
 
@@ -60,7 +59,8 @@ change only the mounted code revision, and alternate run order. Compare fixture 
 per-scenario result fingerprints before comparing timings. Record dirty revisions
 explicitly with `--revision` when the runtime lacks Git. `--baseline` compares a
 prior report and rejects changed inputs, failed scenarios or changed result fingerprints before producing candidate/baseline latency ratios.
-There is no optimized B revision or automatic latency acceptance gate yet.
+The SQLite candidate measurements are recorded below. There is no automatic
+latency acceptance gate yet.
 
 ## Initial synthetic query baseline — 2026-10-01
 
@@ -94,174 +94,152 @@ the database unchanged; maximum observed worker VmHWM was 72.6 MiB. This short
 check is memory/correctness evidence, not a second percentile run. All six harness
 tests passed, including A/B rejection, read-only enforcement and timeout handling.
 
-The next optimization investigation should split Inspector counts and candidates,
-and related-set discovery and expansion, then inspect their SQL plans. No product
-query has been optimized yet. Large equal-hash, distinct-hash dense and mixed
-profiles, overlap-rich fixtures, 75% browsing, and HTTP/browser-visible latency
-remain to be measured. Small fixture tests cover all four profile constructions;
-they do not establish their large-library performance.
+This baseline selected Inspector counts/candidates and related-set discovery/
+expansion for statement-level profiling. The follow-up below records those SQL
+changes and a bounded dense trial. Large equal-hash and mixed profiles, overlap-rich
+fixtures, 75% browsing and HTTP/browser-visible latency remain unmeasured. Small
+fixture tests cover all four constructions; they do not establish their large-library
+performance.
 
-## Questions to answer
+## First SQLite A/B results
 
-Measure three layers separately before optimizing:
+All eight 250k sparse scenarios passed automatic response-fingerprint comparison
+against the saved baseline, with 30 measured warm requests per scenario. The same
+fixture, image dependencies and 2 GiB memory limit were used; code was labelled
+`a3d31d1-sql-candidate` during development.
 
-1. Original-file processing: directory traversal, NFS reads, SHA-1, metadata,
-   original-image decoding/pHash, and thumbnail generation where performed.
-2. Similarity maintenance: initial comparisons at the existing 75% floor,
-   unchanged reruns, incremental additions, and count-cache refresh/publication.
-3. Browsing: grouped/ungrouped gallery, sorting, Inspector, related-set exploration,
-   member gallery, thumbnails and sustained browser use.
-
-A fast SQL query does not establish fast indexing. A fast local synthetic run does
-not establish NFS performance. A 200,000-file library can also have very different
-costs depending on unique contents, unique visual hashes and match density.
-
-## Isolation and comparable inputs
-
-Use a dedicated instance and separate writable catalog, destination, thumbnail
-cache, backup and output directories on the intended storage volume. Bind the real
-source read-only. Do not run Move, recovery or a transfer against the existing
-sample/private instances. Index is sufficient for measuring input processing, but
-destination gallery tests need real recorded destination copies. Plan disk capacity
-before a test Copy; never fabricate destination availability for a real catalog.
-
-Keep personal filenames, machine details, paths and raw logs in local untracked
-artifacts only. Publish aggregate measurements and generated-fixture results.
-Record hardware, filesystem/mount characteristics, container memory/CPU limits,
-image digests, commit IDs and decoder dependencies privately so comparisons can
-be reproduced. Keep them constant within an A/B comparison.
-
-For read-query comparisons, give both revisions the same consistent SQLite backup,
-created with the backup API rather than copying a live database file. Restore a
-separate disposable copy per revision/run. For initial indexing/comparisons use
-independent fresh catalogs; otherwise B can benefit from work already done by A.
-Do not clear caches or delete matching data in a live catalog. Schema differences
-require an explicit compatible fixture plan, not an ad hoc migration.
-
-## Dataset ladder
-
-Use fixed, nested samples at approximately 10k, 50k, 100k, 200k and 250k photos,
-as available. Retain a private manifest/seed and exactly the same files for A and B.
-Sample across folders, dates, formats and file sizes rather than taking the first
-N directory entries. Include RAW/high-resolution files and burst/edited sequences
-in realistic proportions. Track unsupported/failed files separately from success.
-
-Record these aggregate properties for every dataset:
-
-- File count and total input bytes; format and size distributions.
-- Unique byte identities, usable unique visual hashes and failed-hash count.
-- Same-hash bucket sizes and median/p95/maximum direct-match counts.
-- Stored hash-pair rows, catalog/WAL/count-cache bytes and thumbnail-cache bytes.
-
-Use two deliberately different synthetic stress cases: a large equal-hash bucket
-and many distinct hashes that are close enough to match. The former exercises
-bucket handling; the latter exercises pair growth and cannot be substituted by the
-former. Prepared sparse edges are a query fixture, not a complete matching run.
-Bound distinct-hash dense tests before approaching a full-library size: the number
-of qualifying distinct-hash pairs can grow quadratically.
-
-## Workload and measurement matrix
-
-| Workload | Repeatable action | Record |
+| 250k workload | Baseline warm p95 | Candidate warm p95 |
 | --- | --- | --- |
-| Initial processing | Fresh catalog, Index fixed read-only subset | Total/phase elapsed time, files/s, input bytes/s, failures, CPU, peak process/container RSS, disk/network IO |
-| Initial comparisons | Fresh matching state in isolated synthetic catalog; separately observe real Index comparison phase | Comparison elapsed time, unique hashes, stored pairs, pair growth, cache-refresh time, peak RSS |
-| Unchanged run | Repeat the same Index after settling | Elapsed time, reads and comparison work avoided, cache work |
-| Incremental addition | Add a fixed disjoint 1% batch, then a 10% batch in separate restored baseline copies | Added bytes/identities/hashes, elapsed time, new pairs, cache time, failures |
-| Destination preparation | One deliberate Copy to the dedicated destination | Transfer duration/throughput, destination bytes and errors; keep separate from query timing |
-| Gallery | Grouped and ungrouped; match-count/date sort; first, middle and last page; search and representative filters | API and visible-page latency, returned/total counts, memory |
-| Inspector/review | Low-, medium- and high-match references; candidate paging, reference promotion, previous/next set | API and visible-interaction latency, correctness, browser memory |
-| Related/member galleries | One set, overlapping sets, up to six expansions, large member-set paging | Latency, unique member counts, server/browser memory |
-| Sustained use | Fixed 30–60 minute sequence of browsing, threshold changes and comparisons | Latency trend, browser/container memory trend, errors and retained state |
+| gallery | 0.289 s | 0.296 s |
+| grouped | 2.126 s | 2.156 s |
+| last_page | 0.922 s | 0.903 s |
+| filtered | 2.278 s | 2.244 s |
+| inspector | 5.707 s | 1.392 s |
+| related | 4.583 s | 0.449 s |
+| members | 2.012 s | 0.593 s |
+| position | 1.531 s | 0.970 s |
 
-Use 90% for normal review traffic. Include a separately labelled 75% browsing
-stress case because it exposes the broadest recorded candidate set. Keep matching's
-75% calculation floor fixed: this is not another 75/80/85 implementation-floor sweep.
-Copy may trigger matching maintenance; report its phase work separately rather
-than interpreting all Copy time as storage throughput.
+Inspector, related sets and the member gallery improved substantially. Other
+workloads were not changed; their differences are run-to-run observations, not
+claimed optimizations. The member gallery benefits from the same narrowed set
+membership SQL. No response fields, counts or members were dropped.
 
-## A/B procedure
+The 500k trials used one warm-up and three measured warm requests per scenario;
+these are **medians, not p95**. Both sparse and bounded dense comparisons passed
+all response-fingerprint checks and left their fixtures unchanged.
 
-1. Establish baseline A at `b6cc1b3` before any optimization. Record absolute behavior
-   first: there is currently no measured performance improvement to claim.
-2. Choose one concrete change for B, and keep dataset, limits, storage and dependencies
-   unchanged. Different storage is its own experiment, not a code-speedup result.
-3. Run the small dataset first. Confirm membership/counts, errors and output are
-   correct before moving up the size ladder. Investigate unexplained errors or
-   sharply growing resource use before increasing size.
-4. Collect three independent fresh-catalog runs for expensive processing workloads
-   where practical. Report individual results and their range; do not invent a p95
-   from three samples.
-5. For queries, record the first request after process restart separately, then at
-   least 30 measured warm requests per scenario after warm-up. Report p50, p95 and
-   maximum. Alternate A/B run order to reduce background-load and cache bias.
-6. A restarted process is not a truly cold disk or NFS cache. Label it accurately.
-   Do not drop host-wide caches on the working machine. Truly cold-storage trials
-   need an isolated environment and explicit cache control.
-7. Test idle browsing separately from browsing during a controlled job on the
-   dedicated instance. Measure server request time and browser-visible completion
-   separately so thumbnail reads and rendering are not hidden by a fast API result.
-8. Compare both absolute times and B/A ratios, including failures, pair counts,
-   disk growth and memory. A quicker run that omitted photos or matches fails.
+| 500k profile | Workload | Baseline warm median | Candidate warm median |
+| --- | --- | --- | --- |
+| Sparse | inspector | 11.714 s | 2.809 s |
+| Sparse | related | 9.696 s | 0.896 s |
+| Bounded dense | inspector | 11.539 s | 2.814 s |
+| Bounded dense | related | 9.528 s | 1.000 s |
 
-Before running, choose and record memory, disk, pair-growth and elapsed-time stop
-limits appropriate to the host. Container memory limits alone are not graceful
-cancellation. A harness should monitor limits, request normal cancellation and
-preserve aggregate progress/results. Such a harness is not implemented by this plan.
-Never automatically retry a run killed by a limit.
+The sparse fixture has five-photo equal-hash buckets and no cross-hash edges. The
+dense fixture uses 16,384 distinct hashes in groups of 64, yielding 516,096 stored
+edges; the other 483,616 photos use sparse buckets. This is bounded dense coverage,
+not an assertion that 500k mutually matching photos are supported. Both references
+and their candidate sets were preserved exactly. No timeout or query failure occurred.
 
-## Provisional acceptance targets
+Validation: 76 API tests, eight reference-set tests and seven synthetic/profiler
+tests passed. Canonical-copy replacement after a missing destination, historical
+hash casing, saved judgments, thresholds, overlap expansion and exact mode remain
+covered. The SQL profiler confirmed primary-key reference lookup in place of
+catalog-wide window ranking. SQLite improvements are sufficient to defer a DuckDB
+experiment for these workloads; no second database or synchronization path was added.
 
-Agree on these targets before calling a library size supported; they are proposed
-planning targets, not established product guarantees:
+## Current query-performance workstream
 
-- Normal warm gallery/Inspector API p95 at or below 2 seconds; grouped/related/member
-  queries at or below 5 seconds on the agreed host and dataset.
-- No dropped members, incorrect group collapse, stale selection or saved-judgment
-  loss, even in the densest test sets.
-- No sustained upward memory trend across repeated browser cycles, no swapping/OOM,
-  and measured RAM/disk headroom against the chosen limits.
-- Initial and incremental processing fit a maintainer-agreed time budget. Derive
-  that budget from real input measurements rather than declaring an arbitrary
-  photos-per-second requirement across RAW/JPEG and NFS/local storage.
+The objective is application query behavior on large photo datasets: filtering,
+sorting, grouping, match counts, candidate retrieval and related-set navigation.
+NFS throughput, Index/Copy/Move, original decoding and hash construction are not
+part of this workstream. Database storage still affects elapsed time, so keep it
+constant within comparisons; filesystem latency is not the quantity being tested.
 
-If correctness passes but latency misses a target, record the supported scope and
-bottleneck. Do not substitute the existing sample or sparse fixture for the failed
-workload. Discuss DuckDB or another architecture only after profiling demonstrates
-which operation dominates and what a proposed change would remove.
+Use 250k and 500k generated catalogs, with small correctness fixtures first. Keep
+90% as the normal review threshold. A later 75% trial tests broader recorded
+relationships, not a change to the matching calculation floor. Different degrees,
+equal-hash buckets, dense distinct-hash relationships and overlapping sets matter
+at least as much as the number of photo rows.
 
-## Existing tools and missing automation
+### Profiling and first SQLite optimization
 
-Run existing tools with app dependencies and isolated local output; commands and
-fixture details are in [tests/README.md](../tests/README.md).
+`tools/profile-synthetic-queries.py` records execution/fetch time and
+`EXPLAIN QUERY PLAN` for Inspector counts, Inspector candidates, related-set
+lookup and one expansion. It accepts only unchanged generated fixtures and uses
+query-only connections. Its own plan collection adds overhead, so use the benchmark
+runner for latency comparisons. Reports contain synthetic SQL and stay in local
+output directories.
 
-| Tool | Useful evidence | Limitation |
-| --- | --- | --- |
-| `tools/validate-similarity.py` | Generated known image pairs; synthetic initial/unchanged/incremental comparisons and query timings; JSON report | Synthetic distribution; fixture/decode setup outside comparison timings; process peak RSS includes setup; not an NFS benchmark |
-| `tools/benchmark-similarity-counts.py` | 250k prepared-row count-cache, gallery, position and selection queries | Sparse prepared relationships; single timings rather than repeated percentiles |
-| `tools/benchmark-reference-sets.py` | 250k prepared-row exploration and full grouped-gallery query | Sparse prepared relationships; no original reads or end-to-end matching capacity claim |
-| Browser fixture drivers | Workflow correctness, paging, clipboard and reflow | Small generated catalog, not a sustained load generator |
+The baseline plans showed full-catalog window ranking even when resolving one
+photo, repeated metadata-bearing scans for candidates, and repeated full-catalog
+canonical grouping during related-set queries. The candidate implementation:
 
-Next implementation tasks on this branch:
+- Resolves requested photo IDs without catalog-wide window ranking. Noncanonical
+  copies remain valid Inspector/review references.
+- Restricts candidate hashes or exact content before canonical ranking and metadata
+  projection. Historical hash casing remains supported through normalization.
+- Counts availability using the lightweight shared destination scope.
+- Resolves set roots within requested byte identities, preserving canonical-copy
+  validation; restricts member grouping to hashes adjacent to those roots.
 
-- [x] Add a repeatable read-only query runner with scenario seeds, warm-up, repeated
-  timings and machine-readable aggregate results for identical catalog snapshots.
-- [x] Add sparse/equal-hash/dense-distinct-hash fixtures with explicit size/edge limits.
-- [ ] Extend query fixtures with overlapping chains, saved judgments and varied
-  reference degrees; measure 75% queries separately and capture SQL query plans
-  for slow scenarios before selecting an optimization.
-- [ ] Add monitored phase/resource collection and normal-cancellation stop limits
-  for isolated processing runs; separate child-process memory from fixture setup.
-- [ ] Add a reproducible long-session browser sequence and capture visible latency.
-- [ ] Prepare private real-source manifests and storage/capacity plan; obtain the
-  maintainer's chosen processing budget before starting large Index/Copy jobs.
-- [ ] Run A/B at increasing sizes and publish sanitized aggregate findings.
+These are SQL changes in `webui/matching.py` and `webui/reference_sets.py`. There is
+no schema change, new database, index migration or alteration to matching rules,
+thresholds, saved judgments or API response shapes.
 
-Suggested aggregate result columns:
+### A/B comparison procedure
 
-`revision, dataset_label, photos, unique_contents, unique_phashes, workload,
-cache_condition, repetition, elapsed_ms, p50_ms, p95_ms, max_ms, peak_rss_bytes,
-database_bytes, wal_bytes, count_cache_bytes, pair_rows, failures, outcome`
+1. Use the same generated fixture, dependencies, storage and container limits for
+   both versions. The application baseline is `a3d31d1`; the earlier 250k report
+   uses the same application query implementation. Keep a disposable baseline
+   checkout so candidate edits cannot change the running baseline.
+2. Start small and verify result membership before increasing size or edge density.
+   Use separate new output directories; never overwrite a previous report.
+3. Reuse `--fixture` and pass `--baseline` for automatic input/result checks and
+   candidate/baseline ratios. Any failed query or changed response rejects the
+   speed comparison. Record code revision or explicit dirty label.
+4. Report first-request time separately. At least 30 warm samples are required for
+   p95; short trials report individual samples and median only. They establish
+   preliminary direction, not a percentile or capacity guarantee.
+5. Alternate A/B ordering and repeat independently before claiming a stable
+   performance guarantee. Existing measurements are local observations, with
+   uncontrolled background load and warm OS caches.
+6. Record query-worker memory, catalog size, edge count and timeouts alongside
+   latency. The runner bounds photos, dense edges and per-query time; use a
+   container memory limit as a hard backstop. Do not retry automatically after OOM.
 
-Leave inapplicable fields empty. Store raw private artifacts separately; use a
-fresh output directory for each run so a failed attempt cannot overwrite evidence.
+Provisional targets remain 2 seconds warm p95 for ordinary individual API queries
+and 5 seconds for grouped/related/member queries. Composite Inspector and related
+workloads each time two helper calls; profile their components before comparing
+against a single-endpoint target. HTTP, thumbnails and browser rendering are outside
+these helper timings.
+
+### DuckDB decision
+
+Keep SQLite authoritative. The first question is whether unnecessary work in the
+existing SQL explains slow queries, not whether a second database is faster in
+isolation. Consider a bounded DuckDB experiment only if profiling still identifies
+an expensive bulk aggregation after these changes. Compare identical results and
+include the cost of exporting/synchronizing derived data, rebuilding it, invalidating
+stale counts and storing it. Hash computation/candidate-search algorithms are a
+separate concern that this prepared-relationship query benchmark does not measure.
+
+### Completed and pending
+
+- [x] Bounded sparse/equal/dense/mixed synthetic catalogs; query-only runner with
+  repeated measurements, result fingerprints, deadlines and A/B compatibility checks.
+- [x] Statement-level SQL profiling and regression-covered narrowed SQLite queries.
+- [x] Same-fixture A/B comparisons: all eight 250k sparse workloads with 30 warm
+  samples, and Inspector/related workloads at 500k sparse and bounded dense with
+  three warm samples. Exact responses and unchanged databases verified.
+- [ ] Extend fixtures with overlapping chains, varied reference degrees and saved
+  judgments; exercise both clean and invalidated count caches at large scale.
+- [ ] Measure broad 75% browsing with a suitably varied edge-distance distribution.
+- [ ] Repeat alternating A/B runs before establishing supported capacity or latency
+  guarantees; investigate any workload whose time or memory grows sharply.
+- [ ] Add HTTP/browser-visible measurements separately if helper-query improvements
+  do not translate into responsive interactions.
+
+No production library, deployed instance, or original file is modified by these
+benchmarks. Keep personal paths, machine details and raw private run logs out of
+tracked documentation; publish generated-fixture aggregates only.
