@@ -459,7 +459,8 @@ No real-library copy, move, repair, EXIF editing or deletion was performed.
 The maintainer reports all steps validated for defaults/preferences, identical and
 partially overlapping sets, filtering/counts, comparison, saved judgments and
 restoration, and selection. Previous/next set and Show this set in gallery also work.
-Copy review link remains unconfirmed: clearer execution instructions were requested.
+After receiving the detailed instructions, the maintainer confirmed all Copy review
+link steps validated.
 Recovery/action explanations and desktop zoom/reflow from the manual checklist
 have not yet been reported as validated in this pass. Automated results above are
 separate evidence and do not replace these remaining manual checks.

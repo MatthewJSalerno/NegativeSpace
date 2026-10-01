@@ -169,8 +169,9 @@ entry and tests/README.md for evidence and reproducible fixtures.
 ## Maintainer sign-off progress — 2026-10-01
 
 Manually passed: defaults/preferences, grouping/overlap, filters/counts, comparison,
-saved judgments/restoration, selection, previous/next set, and set-member gallery.
-Still awaiting manual confirmation: Copy review link; recovery explanations/actions
+saved judgments/restoration, selection, previous/next set, set-member gallery, and
+all Copy review link steps.
+Still awaiting manual confirmation: recovery explanations/actions
 where affected files exist; desktop zoom/reflow. Detailed link-test instructions are
 in tests/README.md. Representative 200,000+ dense-library/long-session capacity
 remains unverified; deferred EXIF/delete/tagging work is not part of this sign-off.

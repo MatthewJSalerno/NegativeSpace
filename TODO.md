@@ -166,6 +166,7 @@ overlapping sets remain distinct.
 - [ ] Future discussion: make selected-photo gallery access clear, including grouped
   sets. Show only selected already exists in the selection bar; discuss desired
   discoverability/behavior before changing or duplicating it.
-- [ ] Finish maintainer manual sign-off: Copy review link, recovery explanations/actions
+- [x] Maintainer validated all Copy review link steps.
+- [ ] Finish maintainer manual sign-off: recovery explanations/actions
   where issues exist, and desktop zoom/reflow. Other checklist categories and both
   set-navigation/member-gallery actions were reported validated on 2026-10-01.
