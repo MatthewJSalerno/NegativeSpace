@@ -92,7 +92,7 @@ security concern, specified in `webui-spec.md` §5.6.
     *   `--rename PHOTO_ID --name NAME [--dry-run]` and `--rename-candidates PHOTO_ID` — renaming a delivered file (§9.4). The rename is a `RENAME` job under the engine lock that backs up the catalog first; `--dry-run` and `--rename-candidates` answer in one line of JSON, take no lock and change nothing.
     *   The database write-queue size is intentionally **not** configurable — left as a hardcoded internal constant rather than exposed, since there was no concrete need identified for tuning it separately from `--workers`.
 *   **Targeted Processing** (mutually exclusive with each other — pick at most one, or omit both for a full directory scan):
-    *   `--file-ids <id1,id2,...>` — comma-separated `photos.id` values from a prior Index. Bypasses the directory scan entirely; looks up each ID's `source_path` directly and processes exactly those files. IDs not found in the database are logged as a warning and skipped, not treated as fatal. This is what a web UI's individual/multi-select maps onto, but works identically from the CLI.
+    *   `--file-ids <id1,id2,...>` — comma-separated `photos.id` values from a prior Index. Bypasses the directory scan entirely; looks up each ID's `source_path` directly and processes exactly those files. IDs not found in the database are logged as a warning and skipped, not treated as fatal. This is what a web UI's individual/multi-select maps onto, but works identically from the CLI. **Planned** (decided 2026-10-01): the web interface will always pass ids in a file instead (`--file-ids-from <path>`), lifting the 1,000-photo selection limit that the command line's length imposes. The engine refuses the whole job, touching no file, unless the file was written atomically, carries the job's request ID, its header count and checksum match, every entry is a unique positive integer, and every id is still catalogued inside the source. The file is kept with the job's record.
     *   `--source-subdir <path>` — scopes the operation to every already-indexed file whose `source_path` falls under this directory, recursively. Queries the existing `photos` catalog by prefix rather than re-walking the filesystem, which means it inherently excludes symlinks (they were already excluded at the original Index that populated those rows) and — critically — avoids passing a large ID list as a command-line argument at all. This is the mechanism behind the web UI's "select a folder" option, and the recommended path for large selections instead of enumerating thousands of individual `--file-ids` (see `webui-spec.md` §2 for the UI-side selection-size limit this replaces for bulk operations). Only reflects files known as of the last Index over that path — newly added files need a rescan first, same as the whole-library case. The prefix match is a literal, case-sensitive range comparison on the path, not SQL `LIKE`: `LIKE` treats `%` and `_` as wildcards (`My_Photos` would match `MyXPhotos`) and ignores letter case (`Album` would match `album`), and under `--move` either one would delete sources the user never selected. Both the Index-mode rescan and the Move/Copy targeting share one builder so they cannot disagree about which files a subdirectory contains.
     *   **Every run is bounded by its own `--source` root** — full, `--file-ids` or `--source-subdir` alike. One catalog can hold rows from several source roots; an unbounded run would act on every `Pending` row in the catalog and move another root's photos. `--file-ids` recorded under a different root are left out with a warning.
 *   **Operational Modes** (mutually exclusive — at most one flag; the engine will refuse to start if more than one is given):
@@ -1058,44 +1058,43 @@ The rename itself is recorded after its pre-action backup, so the next start rep
 ### 9.5. Superseding a Delivered File
 
 Choosing between files that *differ* — a JPEG versus the RAW it came from, a
-thumbnail versus its original — means one file leaves the library.
+thumbnail versus its original, a website download or a blurry shot the user does
+not want — means one file leaves the library.
 
-**The rule: a superseded file is deleted, and the deletion is recorded.** There is no quarantine area. The user asked for that file to go;
-the engine removes it and writes an operation recording what was there.
+**The rule: a superseded file is moved to Rejects, never deleted by the engine.**
+Rejecting moves the file from `dest/library/` to `dest/rejects/` (§9.9), records the
+operation, and marks the photo `Rejected`; its lineage ends at Rejects. The user
+empties `dest/rejects/` themselves, outside the application. The engine never
+destroys a photograph.
 
-**Why not a quarantine instead?** A `.superseded/` area holding removed files,
-emptied only by a separate explicit act, is the obvious alternative, and the
-argument for it is real: a careless decision should be recoverable. It is
-rejected on two grounds. **Quarantine does not buy reversibility where it
-matters** — it defers a deletion the user already chose, and the person who
-empties it carelessly is the same person. **And the
-protection it offers is available upstream, with no engine complexity**: a user
-worried about losing destination files can keep the source and mount it `:ro`,
-which protects the pixels themselves rather than a copy of them.
+**Why not delete with a record, as this section once decided?** The case for deleting
+was real: a holding area only defers a deletion the user already chose, the person who
+empties it carelessly is the same person, and keeping the source read-only protects the
+pixels upstream. It was set aside (maintainer's decision, 2026-10-01) because by the time
+curation happens the sources are often gone, so a destination file may be the last copy
+of a photograph, and an application that can never destroy it is easier to trust.
+Emptying Rejects is a deliberate act the user performs on the host, after seeing
+everything rejected together. Rejects sits on the same filesystem as the library, so a
+reject is an atomic rename with nothing to copy or verify across disks.
 
-**So the record carries more than any other operation**, because it is the only
-record that will outlive the thing it describes: path, filename, `sha1_hash`,
-`phash`, dimensions, file size, and the full EXIF as of deletion. Enough to
-identify the file by content anywhere a copy might still exist — an old drive,
-an unmoved source — rather than by a name that no longer resolves.
-
-**Say plainly what this costs.** By the time curation happens the sources are
-typically gone, so the destination copy may be the only copy in existence: this
-capability can destroy the last copy of a photograph. That is why it requires
-explicit per-file consent, and why a bulk selection must state its count and be
-confirmed before acting (`webui-spec.md` §7). We cannot recover pixels; we can
-refuse to remove them quietly.
+**The catalog remembers every reject after its file is gone:** path, filename,
+`sha1_hash`, `phash`, dimensions, file size, the full EXIF as of rejection, and the grid
+thumbnail (kept because the row stays catalogued). Enough to recognise the content
+anywhere it reappears. **A byte-identical file arriving later** (same SHA-1) goes
+straight to Rejects in a Move and is skipped in a Copy, with the job saying so ("12
+already rejected"). **A file only similar to a reject** (a small pHash distance) is
+flagged for the user, never rejected automatically, because perceptual hashes can pair
+different photographs that look alike.
 
 **Recorded source information is not proof of a surviving copy.** A `Copied` row
 records that the engine left a source in place at that time; it does not establish
 that the file still exists. Only claim an available matching copy after checking it.
-Each deletion requires an irreversible-deletion warning, even when a catalog backup
-exists. Keep the extended record accessible in history and remove deleted files
-from actionable lists. Record per-file failures. Stop on a detected destination
-mismatch and present the repair guidance in `webui-spec.md` §7.6.
+Record per-file failures. Stop on a detected destination mismatch and present the
+repair guidance in `webui-spec.md` §7.6.
 
-**Not implemented.** Needs: the first engine path that removes a file under
-`--dest`, and the extended deletion record above (dimensions come from `contents`).
+**Not implemented.** Needs: the `Rejected` status, the move into `dest/rejects/` with its
+record, the destination layout of §9.9, and the reject checks at Index and Move/Copy.
+The screens are `webui-spec.md` §7.8.
 
 ### 9.6. Writing Metadata Into Files
 
@@ -1140,17 +1139,36 @@ Keep successful edits and leave unstarted files unchanged. Record per-photo outc
 and batch membership, preserving full lineage for manual correction. No automatic
 rollback of completed photos or resumption of the remaining batch is permitted.
 
-Preserve the provenance of metadata values so future sidecar support can distinguish
-embedded values from companion-file values. Dates inferred from filenames or file
-attributes are reference information, not embedded EXIF. Sidecar reading, writing,
-publication, precedence and synchronization remain future options, not prerequisites
-for implementing embedded edits.
+Dates inferred from filenames or file attributes are reference information, not
+embedded EXIF. **Export sidecars are not read** (decided 2026-10-01): JSON files from
+services such as Google Takeout often hold dates a photo lacks, but mature tools exist to
+write them into the photos (Google Photos Takeout Helper, immich-go, ExifTool recipes),
+and each service's format keeps changing. Index detects `.json` files paired with photos
+and tells the user to run such a tool before indexing (`webui-spec.md` §7.5); the engine
+writes no sidecars either.
 
-An edit and any required refile form one user action: preserve before/after values,
-paths and content identities; update current catalog references; do not report success
-with corrected metadata at an incorrect location. Failure handling must restore the
-prior state where possible and report any incomplete recovery. This is write-failure
-handling, not a user-facing undo feature.
+An edit and any required refile are one user action recording before/after values,
+paths and content identities. **A failed write leaves the file unchanged. A failed
+refile does not undo the written edit** (decided 2026-10-01): the edit stands, the photo
+is marked as needing its move, the user is told why, and **Try the move again** repeats
+only the move; the mark stays in the Inspector and log until resolved. An edited photo
+stays the same photo: the edit is a step in its lineage, its earlier SHA-1 values are
+kept, and saved similarity judgments stay attached (§10). There is no user-facing undo:
+each file's history holds every previous value, and a correction is a new recorded edit.
+
+**Catalog backups for edits** are kept apart from job backups (their own retention,
+default 20 each), so a run of single-photo edits never pushes out a job's backup. The
+backup list names each kind and what triggered it.
+
+**RAW files are read-only unless the user enables RAW editing** in Settings, after a
+warning that manufacturers do not follow the standard consistently. Enabling it asks
+whether to keep a copy of each RAW file before its first edit, in `dest/raw-originals/`
+(§9.9); with copies on, a failed copy stops the edit with nothing changed. Both choices
+can change at any time and affect only later edits. **pHash after a rotation:** for
+JPEG, HEIC and TIFF the pHash is computed from stored pixels without applying the
+Orientation tag (`compute_phash`), so an orientation edit leaves it and the photo's
+matches unchanged; the RAW decoder applies rotation, so after a RAW orientation edit
+the photo's pHash and matches are recomputed (to be confirmed with real RAW samples).
 
 **Not implemented.** Needs: the embedded write and verification path, coordinated
 refiling, provenance and change records, and failure recovery.
@@ -1250,6 +1268,30 @@ the UI side — each looks like a screen until you ask what it reads from.
 
 **Two of these want a schema change**: field-level before/after and a batch
 identity.
+
+### 9.9. Destination layout
+
+**Planned, not implemented** (decided 2026-10-01). The destination today holds the date
+tree directly (`dest/YYYY/MM/DD/…`, `dest/Undated/<year>/…`). It becomes:
+
+```
+dest/
+  library/          the organized photos: YYYY/MM/DD/… and Undated/<year>/…
+  rejects/          photos the user turned down (§9.5), emptied by the user
+  raw-originals/    untouched copies of RAW files made before their first EXIF edit (§9.6)
+```
+
+*   **Gallery applications import `dest/library` only**, never `dest`, so rejects and RAW
+    copies never reach them. Undated photos stay inside `library/`: they are still the
+    library.
+*   **One mount, not three.** Rejects and RAW copies live on the destination's filesystem,
+    so the container keeps four user mounts (source, destination, application data,
+    backups), and a reject is an atomic rename.
+*   **Source, backups and application data stay separate**: originals never mix with
+    output, and backups stay off the catalog's disk.
+*   **Existing destinations change shape** (`dest/YYYY/…` to `dest/library/YYYY/…`). While
+    development catalogs are disposable that needs nothing; before a release it needs a
+    one-time move recorded in each file's lineage.
 
 ## 10. Full Lineage and File Identity
 

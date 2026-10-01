@@ -140,7 +140,7 @@ with what it needs:
 
 | Gap | Where | Blocks |
 | :--- | :--- | :--- |
-| Delete under `--dest`, with an extended record | `engine-spec.md` §9.5 | Discarding redundant copies; needs `width`/`height` too |
+| Rejects: moving a delivered photo to `dest/rejects/`, with an extended record (never deleting) | `engine-spec.md` §9.5, §9.9 | Discarding redundant copies; needs `width`/`height` too |
 | Writing embedded EXIF (sidecars remain a future option) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
 
 Further gaps between the documented web workflows and what the engine can answer
@@ -230,7 +230,14 @@ Specified but not yet on screen:
 *   Each folder's last-scanned time in the Folders tree.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
-*   The Rename and Undated tabs, similarity curation actions, and metadata editing.
+*   The Rename and Undated tabs, similarity curation actions, and metadata editing
+    (`webui-spec.md` §7.5, with its decided details).
+*   Workspaces, Rejects and Needs review (`webui-spec.md` §7.7–7.9); the destination
+    layout `dest/library`, `dest/rejects`, `dest/raw-originals` (`engine-spec.md` §9.9);
+    selections passed in a file, lifting the 1,000-photo limit (`engine-spec.md` §4.1);
+    the export-sidecar notice at Index.
+*   Videos and other non-photo formats are deliberately deferred until photo organizing
+    is complete.
 
 ### The catalog
 

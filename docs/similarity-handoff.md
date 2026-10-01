@@ -56,8 +56,9 @@ failure logs without changing delivery status or photo bytes. Old jobs are not
 backfilled. Missing EXIF or decoder support alone does not prove file corruption.
 
 No EXIF editing, saved orientation writes, deletion, quarantine or persistent group
-membership is implemented by this work. Review-later tagging awaits broader design
-discussion. Catalog schema is 16. The maintainer chose a fresh sample catalog;
+membership is implemented by this work. Review-later was since settled as decision
+notes, not general tagging (`webui-spec.md` §7.9); Rejects replaces deletion
+(`engine-spec.md` §9.5). Catalog schema is 16. The maintainer chose a fresh sample catalog;
 additional migration/history-preservation work is outside this handoff.
 
 ## Implementation map

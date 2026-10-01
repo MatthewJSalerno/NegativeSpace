@@ -236,7 +236,7 @@ Search matches current and original filenames, including names of related remove
 duplicates, without merging their histories. Folder paths are not filename-search
 matches. Distinguish not-yet-organized and organized photos; when a search has matches
 in the other view, show its count and a link rather than implying no matches exist.
-* **Selection size limit:** Individual multi-select (including "Select all on page") is capped at a configurable maximum (default: 1,000 files) per job submission — this isn't an arbitrary UX restriction, it's because each selected file becomes an integer in the `--file-ids` command-line argument passed to the engine, and there's a real OS limit on total command-line length. Exceeding the cap shows a clear message (e.g. *"1,000 file limit for individual selection — try Folder Selection below for larger batches"*) rather than silently truncating the selection or attempting a job that might fail at spawn time.
+* **Selection size limit** *(planned to be lifted, decided 2026-10-01: selections will always be passed to the engine in a validated file, `engine-spec.md` §4.1, removing this cap and its messages; until then the rule below holds)*: Individual multi-select (including "Select all on page") is capped at a configurable maximum (default: 1,000 files) per job submission — this isn't an arbitrary UX restriction, it's because each selected file becomes an integer in the `--file-ids` command-line argument passed to the engine, and there's a real OS limit on total command-line length. Exceeding the cap shows a clear message (e.g. *"1,000 file limit for individual selection — try Folder Selection below for larger batches"*) rather than silently truncating the selection or attempting a job that might fail at spawn time.
 * **Folder Selection (for large batches):** Instead of "select all matching current filter" against individual files, users can select a source folder (recursive) and scope the operation to everything currently indexed under it. This maps directly to the engine's `--source-subdir <path>` flag (`engine-spec.md` §4.1) rather than enumerating individual IDs, which sidesteps the command-line length limit entirely — there's no practical upper bound on how many files a folder selection can cover. Symlinks are excluded automatically, inherited from the original Index that populated the catalog (a symlink was never indexed as a row in the first place). If a folder hasn't been indexed yet (zero matching rows), show *"No indexed files found under this folder — run an Index first."*
 * **Actions on a selection:** **Actions ▾ → Copy ▸ / Move ▸ → selected (n)** (§4.1); on a
   folder, **this folder (n)**, from the Folders tree (above).
@@ -1762,10 +1762,13 @@ unsaved-change warning where available; its wording and buttons are browser-cont
 Record the intended tag/group, permitted representation and values, and write support
 for supported photo formats. Validate in the UI and again before writing in the
 backend; translate friendly controls to the required metadata representation.
-Editable metadata includes writable photo-descriptive EXIF fields supported by the
-writer and format; filesystem stat, structural image properties and computed catalog
-fields are read-only. Do not confuse ExifTool writability with permission to edit
-derived properties. Keep capture date/time and its
+**Editable metadata is organizational fields only: text, numbers and dates** (decided
+2026-10-01), where the writer and format support them. Lists (keywords), GPS and other
+structured values are read-only, labelled "Can't be edited here yet". *Why not every
+writable tag:* tools built for detailed metadata, such as Immich, already cover that, and
+a wrong-but-valid structured value (latitude and longitude swapped) passes any check.
+Filesystem stat, structural image properties and computed catalog fields are never
+editable. Do not confuse ExifTool writability with permission to edit derived properties. Keep capture date/time and its
 optional timezone offset distinct, consistent with §10.
 
 **An edit can create an exact duplicate.** If the edited file's resulting content
@@ -1952,9 +1955,11 @@ the correct folder is computed, not judged. And sorting photos into date folders
 is what this tool does: if its own output disagrees with the metadata it used to
 build that output, the product contradicts itself. Finding the file afterwards
 is the log's job, since a refile records both old and new path. Editing and refiling
-are one confirmed action with no second prompt. Do not report success if metadata
-changed but required placement failed; restore prior state where possible and show
-any incomplete recovery.
+are one confirmed action with no second prompt, and the form warns in advance that a
+date change may move the photo. **If the refile fails, the edit stands** (decided
+2026-10-01): the result says the date was saved but the photo could not be moved, with
+the reason, where it still is, and **Try the move again**, which repeats only the move;
+the photo shows "needs moving" in the Inspector and the log until resolved.
 
 **Correction is manual; there are no undo operations.** History shows original
 indexed information and all subsequent changes, including per-file previous values
@@ -1962,6 +1967,42 @@ for bulk edits. The user consults that evidence and explicitly makes a new edit 
 rename against the current state. Later actions may have reused a name or changed
 placement, so reversing an old operation is not a supported recovery mechanism.
 Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
+
+**Decided details (2026-10-01), for the screens above:**
+
+* **Single photo:** an organized photo's Inspector offers **Edit EXIF**, opening the editor
+  as a workspace (§7.7). The form lists date taken, orientation (↺ ↻, as in comparison),
+  camera and lens first, and **Show all EXIF data** for the rest. Columns: field, current
+  value, new value; an empty new value means unchanged, a changed row is highlighted with
+  **Reset**, and **Clear** is separate. Read-only tags say why on hover.
+* **Dates are never invented:** the user types the full date and time; with no date at
+  all, the time is still required (no midnight or noon convention). The offset is
+  optional and never added. Input and the file's ability to store each field are checked
+  before Save, with the error beside the field.
+* **Donor to targets:** any photo can be pinned with **Use as donor**; targets are gathered
+  by any means (similar matches, a folder, a date, a search, ticks, mixed across views),
+  and any target can become the donor. A selection is trusted whatever view it came from.
+  Each field applies as **Fill empty only** (the default) or **Replace existing**; one
+  confirmation for the whole operation, only when something is replaced, naming fields
+  and counts. Never one prompt per photo.
+* **One date for many photos keeps each photo's own time of day by default,** so their
+  order survives (scans stay in scanning order), with the reason stated under the field;
+  **Use one time for all** applies one time instead. Times are never spaced out
+  automatically.
+* **Shift date and time:** **Shift by…**, or **I know when one of these was taken** (the
+  app derives the difference from one photo). Time-zone tags are never added or changed;
+  the screen says the amount is the user's responsibility. The preview flags photos
+  landing in the future.
+* **RAW files** are read-only unless RAW editing is enabled (`engine-spec.md` §9.6). With
+  it off, the editor says RAW editing is possible but needs consent and offers **Review
+  and turn on RAW editing…**, the same consent step as Settings, returning to the
+  editable form.
+* **An unedited original arriving later** (its bytes match an edited photo's earlier
+  SHA-1) is not organized again: it goes to Needs review (§7.9) as "old version of a photo
+  you fixed", with **Don't keep it** and **Keep it as its own photo**.
+* **Export sidecars:** when Index finds `.json` files paired with photos, its result says
+  how many, that they often hold dates the photos lack and that a Move leaves them behind,
+  and links README guidance naming tools that write them into photos before indexing.
 
 ### 7.6 Re-processing a disordered destination
 
@@ -1995,6 +2036,58 @@ until it bites:
   carrying a real EXIF date are unaffected.
 
 The destination check (`engine-spec.md` §9.1) reads files without modifying them; when it detects a mismatch, present the fresh-destination workflow above.
+
+### 7.7 Workspaces
+
+**Planned** (decided 2026-10-01). The Library is for finding photos; a **workspace** is
+for working on them. Deep tasks (comparison, EXIF editing, donor to targets, bulk edits,
+reviewing Needs review) open in a full-window view without the filter pane and gallery,
+with its own address so reload and links work. The Inspector stays the quick look
+beside the gallery.
+
+* **One frame:** a header (**Back to Library**, the task and what it works on, **‹ n of
+  N ›**, the main action), the task's content, and a footer status line for unsaved
+  changes, errors and progress. Each task changes only the content.
+* **Back to Library** restores the exact Library state: filters, scroll and selection.
+  Leaving with unsaved changes asks first (§7.5).
+* **Built from the comparison workspace** (§7.4), which already restores its address and
+  returns to the gallery; it becomes the frame's first user. A single-photo edit is the
+  same workspace with one column.
+* **Still to decide by trying it:** what ‹ › steps through (candidate: whatever the
+  workspace was opened from, named in the header, e.g. "3 of 24 selected").
+* Follows `ui-design.md`; the frame's patterns are added there when built. Visual options
+  are chosen from a mockup first.
+
+### 7.8 Rejects
+
+**Planned** (decided 2026-10-01; engine side `engine-spec.md` §9.5). **Reject**, from a
+selection or a folder, moves photos to `dest/rejects/`; the application never deletes a
+photo, and the user empties Rejects on the host. A photo identical to a reject is sent
+there again by a later Move and skipped by a Copy; one only similar to a reject goes to
+Needs review (§7.9), shown beside the reject, and is never rejected automatically.
+
+**Rejects' size stays in view without noise:** a Stats tile ("340 photos · 1.2 GB · oldest
+rejected 3 months ago"); each Reject result gives the running total; and a line under the
+top row on every page **only past a threshold set in Settings** (default 1 GB, or anything
+rejected more than 30 days ago), naming `dest/rejects/` with **How to empty Rejects**,
+gone once it is emptied.
+
+### 7.9 Needs review
+
+**Planned** (decided 2026-10-01). One **Needs review** screen lists photos waiting for a
+decision. Each carries a **note**: a reason, the job that raised it, when, and optionally a
+related photo, opened side by side in comparison. **Notes are for decisions only**, not a
+general tagging system: personal labels (people, albums) belong to gallery applications.
+
+* **Each reason brings its own actions,** e.g. old version of a photo you fixed: Don't keep
+  it · Keep it as its own photo; looks like a reject: Reject it too · Keep it; suspicious
+  date: Edit date · It's correct; couldn't be read: Recheck after fixing · Leave it;
+  review later: Done. A new kind of review is a new reason, not a new screen.
+* **Filter by reason; bulk within one reason** (preview and one confirmation). A mixed
+  selection offers only shared actions.
+* **A note exists only when a person must decide.** Facts the catalog can compute (every
+  similar pair) stay live queries, so the list cannot grow into a copy of the library.
+* **A resolved note leaves the list;** the decision goes into the photo's history.
 
 ## 8. Explicitly Out of Scope
 
