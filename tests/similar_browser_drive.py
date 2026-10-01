@@ -204,6 +204,28 @@ with sync_playwright() as p:
     expect(reference_preview).to_contain_text('Viewing rotation: 90°')
     dialog.get_by_role('button', name='Previous candidate', exact=True).click()
     expect(candidate_preview).to_contain_text('Viewing rotation: 270°')
+    # The workspace frame: the header stays in view while the window scrolls, names the
+    # position, and ← → step through candidates, stopping at the first one.
+    expect(dialog.locator('.workspace-header')).to_be_in_viewport()
+    # It opens where the Inspector was (here its second page), so read the start.
+    position = dialog.locator('.workspace-step span')
+    expect(position).to_have_text(re.compile(r'^Candidate \d+ of \d+$'))
+    start = int(re.match(r'Candidate (\d+)', position.inner_text()).group(1))
+    at = lambda n: re.compile(rf'^Candidate {n} of ')
+    dialog.get_by_role('button', name='Next candidate', exact=True).focus()
+    page.keyboard.press('ArrowRight')
+    expect(position).to_have_text(at(start + 1))
+    page.keyboard.press('ArrowLeft')
+    expect(position).to_have_text(at(start))
+    # Controls that use the arrows keep them: on a tab, ← → switch tabs, not candidates.
+    information = dialog.get_by_role('tab', name='Information', exact=True)
+    information.focus()
+    page.keyboard.press('ArrowRight')
+    expect(dialog.get_by_role('tab', name='Saved review', exact=True)).to_have_attribute('aria-selected', 'true')
+    expect(position).to_have_text(at(start))
+    page.keyboard.press('ArrowLeft')
+    expect(information).to_have_attribute('aria-selected', 'true')
+    expect(candidate_preview).to_contain_text('Viewing rotation: 270°')
     metadata = dialog.get_by_role('region', name='Metadata comparison')
     file_table = metadata.get_by_role('table', name='File and image properties', exact=True)
     expect(file_table.get_by_role('columnheader', name='Reference', exact=True)).to_be_visible()
@@ -395,7 +417,12 @@ with sync_playwright() as p:
     assert dialog.evaluate('e => e.scrollWidth <= e.clientWidth + 1'), 'review overflow at narrow width'
     shot('match-review-narrow')
     page.set_viewport_size({'width': 1440, 'height': 1000})
-    dialog.get_by_role('button', name='Back to gallery', exact=True).click()
+    # Esc in a workspace returns to the gallery, as Back to gallery does.
+    page.keyboard.press('Escape')
+    expect(dialog).to_be_hidden()
+    # Focus returns to the control that opened the comparison, so the keyboard carries on
+    # from where the user was (Immich once lost keyboard scrolling after its viewer).
+    expect(page.locator(':focus')).to_have_attribute('aria-label', re.compile('^Review side by side:'))
     # Threshold changes are local to the Inspector; a failed request has a retry.
     page.route('**/api/v1/similar/*?*', lambda route: route.fulfill(status=503, content_type='application/json', body='{}'))
     summary.get_by_role('button', name=re.compile('^100% or higher:')).click()

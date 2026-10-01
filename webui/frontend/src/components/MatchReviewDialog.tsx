@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { api, MATCH_THRESHOLDS, type MatchPage, type MatchReview, type MatchVerdict } from "../api";
 import { count, instant } from "../format";
 import { Thumb } from "./Thumb";
-import { Modal } from "./ui/Modal";
+import { Workspace } from "./ui/Workspace";
 import { ReviewPreview, DEFAULT_VIEW, type PreviewView } from "./ReviewPreview";
 import { ReviewMetadata } from "./ReviewMetadata";
 
@@ -121,11 +121,22 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
     setReview(null); setMatches(null); setError(null); setListError(null);
     focusReference.current = true;
   };
-  return <Modal label="Review photo match" className="dialog match-review-dialog" onClose={close} busy={busy}>
-    <header className="review-header">
-      <div><h2>Review similar photos</h2><p className="section-note">Compare destination photos and record what you find.</p></div>
-      <button disabled={busy} onClick={close}>Back to gallery</button>
-    </header>
+  // Candidate position across pages, for the frame's ‹ n of N ›.
+  const position = matches && index >= 0 ? (page - 1) * PAGE_SIZE + index + 1 : null;
+  const progress = matches?.availability === "available"
+    ? `${count(matches.reviewed_total ?? 0)} of ${count(matches.unfiltered_total ?? matches.total)} pairs reviewed at this threshold`
+    : "Loading review progress…";
+  return <Workspace label="Review photo match" className="match-review-dialog" onBack={close} busy={busy}
+    title="Review similar photos"
+    subject={review?.reference.id === reference ? `Reference: ${review.reference.filename}` : "Compare destination photos and record what you find."}
+    step={{
+      position: position == null ? "Candidates" : `Candidate ${count(position)} of ${count(matches!.total)}`,
+      previousLabel: "Previous candidate", nextLabel: "Next candidate",
+      onPrevious: () => step(-1), onNext: () => step(1),
+      previousDisabled: !matches || (index <= 0 && page === 1),
+      nextDisabled: !matches?.items.length || (index === matches.items.length - 1 && page === pages),
+    }}
+    status={progress}>
     <ReviewActions workspace={{ origin: initialReference, reference, candidate: active, threshold, page, filter, tab,
       views: { [reference]: referenceView, ...(active == null ? {} : { [active]: displayedCandidateView }) }, linked, share }}
       busy={busy || !review} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet} />
@@ -136,7 +147,6 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       <label>Review progress<select aria-label="Review progress" disabled={busy} value={filter} onChange={e => {
         setFilter(e.target.value as ComparisonState["filter"]); setPage(1); setActive(null);
       }}><option value="all">All candidates</option><option value="unreviewed">Unreviewed</option><option value="reviewed">Reviewed</option></select></label>
-      <p className="section-note">{matches?.availability === "available" ? `${count(matches.reviewed_total ?? 0)} of ${count(matches.unfiltered_total ?? matches.total)} pairs reviewed at this threshold` : "Loading review progress…"}</p>
       <button disabled={busy} onClick={() => setReload(n => n + 1)}>Refresh comparison</button>
     </div>
     <p className="section-note">Scores measure visual similarity, not confidence. Even 100% can describe different pictures.
@@ -206,10 +216,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       </div>
     </>}
     <section className="review-candidates" aria-label="Candidate photos">
-      <div className="review-candidate-heading"><h3>Candidates</h3>
-        <button disabled={busy || !matches || (index <= 0 && page === 1)} onClick={() => step(-1)}>Previous candidate</button>
-        <button disabled={busy || !matches?.items.length || (index === matches.items.length - 1 && page === pages)} onClick={() => step(1)}>Next candidate</button>
-      </div>
+      <div className="review-candidate-heading"><h3>Candidates</h3></div>
       {listError && <p className="error" role="alert">{listError} <button disabled={busy} onClick={() => setReload(n => n + 1)}>Retry candidates</button></p>}
       {!matches && !listError && <p role="status">Loading candidates…</p>}
       {matches?.availability && matches.availability !== "available" && <p>Matching is unavailable. A recorded destination copy and usable visual hash are required.</p>}
@@ -230,5 +237,5 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
         </nav>}
       </>}
     </section>
-  </Modal>;
+  </Workspace>;
 }

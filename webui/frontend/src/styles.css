@@ -314,6 +314,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .modal-shell { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none;
   margin: 0; border: 0; padding: var(--space-4); background: transparent; color: var(--text); overflow: hidden; }
 .modal-shell[open] { display: grid; place-items: center; }
+/* A workspace fills the window: no gutter around it (ui-design.md "Workspaces"). */
+.modal-shell:has(> .workspace) { padding: 0; }
 .modal-shell::backdrop { background: rgb(0 0 0 / 0.5); backdrop-filter: blur(2px); }
 .modal-scroll-cue { position: fixed; transform: translateX(-50%); pointer-events: none;
   padding: var(--space-1) var(--space-3); border-radius: var(--control-radius);
@@ -692,13 +694,34 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .match-controls, .match-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
 .match-heading h3 { margin: 0; }
 .match-controls label { display: flex; flex-direction: column; gap: .4rem; }
-/* Expanded destination comparison workspace. */
-.match-review-dialog { width: calc(100vw - var(--space-8)); max-width: 1800px; display: flex; flex-direction: column; gap: var(--space-2); }
-.match-review-dialog > * { flex-shrink: 0; }
+/* Workspaces (ui-design.md "Workspaces"): one full-window frame for deep work. The whole
+   frame scrolls as one container (no inner scroller), with its header and status line
+   kept in view; scroll padding keeps focused controls clear of both. */
+.workspace { width: 100%; height: 100%; max-width: none; max-height: none; box-sizing: border-box;
+  padding: 0; border: 0; border-radius: 0; overflow-y: auto; background: var(--bg);
+  scroll-padding-top: 72px; scroll-padding-bottom: 56px; }
+.workspace-frame { min-height: 100%; display: flex; flex-direction: column; }
+.workspace-header { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center;
+  gap: var(--space-2) var(--space-4); padding: var(--space-2) var(--space-4);
+  background: var(--surface); border-bottom: 1px solid var(--border); }
+.workspace-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); min-width: 0; }
+.workspace-title h2 { margin: 0; font-size: var(--type-lg); font-weight: var(--weight-strong); }
+.workspace-subject { color: var(--muted); font-size: var(--type-sm); overflow-wrap: anywhere; }
+.workspace-step { margin-left: auto; display: flex; align-items: center; gap: var(--space-1); }
+.workspace-step span { font-size: var(--type-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.workspace-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.workspace-content { flex: 1; padding: var(--space-4) var(--space-6); display: flex; flex-direction: column; gap: var(--space-2); }
+.workspace-status { position: sticky; bottom: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center;
+  gap: var(--space-2) var(--space-4); padding: var(--space-2) var(--space-4); font-size: var(--type-sm);
+  background: var(--surface); border-top: 1px solid var(--border); }
+.workspace-keys { margin-left: auto; color: var(--muted); font-size: var(--type-xs); }
+
+/* Expanded destination comparison workspace, inside the workspace frame. */
+.match-review-dialog .workspace-content { max-width: 1800px; }
+.match-review-dialog .workspace-content > * { flex-shrink: 0; }
 .match-review-dialog p { margin: var(--space-1) 0; }
-.match-review-dialog h2, .match-review-dialog h3 { margin: 0; }
-.review-header, .review-toolbar, .review-candidate-heading, .review-pair-options { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
-.review-header { justify-content: space-between; }
+.match-review-dialog h3 { margin: 0; }
+.review-toolbar, .review-candidate-heading, .review-pair-options { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .review-toolbar { padding: var(--space-3) 0; border-block: 1px solid var(--border); }
 .review-toolbar > label { display: grid; gap: var(--space-1); }
 .review-toolbar > p { flex: 1; }
@@ -769,7 +792,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 @media (max-width: 600px) {
   .review-pair { grid-template-columns: minmax(0, 1fr); }
   .review-viewport { height: 240px; }
-  .match-review-dialog { width: calc(100vw - var(--space-4)); }
+  .workspace-content { padding: var(--space-3); }
 }
 
 .match-thresholds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }

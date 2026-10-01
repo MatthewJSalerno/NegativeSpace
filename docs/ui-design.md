@@ -82,6 +82,41 @@ cannot clip or cover the text.
 | Supplemental help | `Tip.tsx`: hover/focus plus an explicit information button for touch; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. |
 | Paged loading | `ui/PageBoundary.tsx` and `paged.ts`: idle/load, pending, failed/retry and end states. Keep already-loaded photos and selection on failure. |
 
+## Workspaces
+
+The Library is for finding photos; a **workspace** is for working on them. Deep tasks
+(comparison now; EXIF editing, copying details, bulk edits and Needs review later) use
+the shared frame in `ui/Workspace.tsx`, never a screen-specific layout. *Why a full window
+rather than a large dialog:* a task too big for a modal belongs on a page of its own
+([Carbon](https://carbondesignsystem.com/patterns/dialog-pattern/)), and photo tools give
+their editing view the whole window (Lightroom's Develop, Immich's viewer).
+
+- **One frame.** A header with **← Back to gallery**, the task title (20px / 600) and its
+  subject in supporting text, a **‹ n of N ›** step control naming the position, and the
+  task's main actions on the right; then the task's content; then a status line for
+  progress, counts, unsaved changes and errors, with the keyboard hint at its end. The
+  task supplies only the content, the subject, the step labels and the status.
+- **Full window, one scroll.** The frame fills the window with no gutter and scrolls as a
+  single container; the header and status line stay in view (sticky), with scroll padding
+  so focused controls never hide behind them. No inner vertical scroller is added for the
+  content.
+- **Over the Library, not instead of it.** The frame is a native modal (`ui/Modal.tsx`) over
+  the mounted Library, so Back returns to exactly the filters, scroll position and
+  selection the user left, the Library is inert while the workspace is open, and focus
+  returns to the control that opened it. Its state belongs in the address so reload and
+  links restore it (the comparison's `review` state).
+- **Keyboard, in every workspace:** Esc goes back, as Back does. ← → step through the
+  task's items (candidates in comparison), stop at the ends, and never act while focus is
+  in a control that uses the arrows itself (fields, selects, tabs, sliders, dividers,
+  menus) or while a dialog over the workspace is open. Step buttons carry the item's name
+  ("Previous candidate") and the shortcut in their tooltip. *From:* Immich's viewer (Esc
+  leaves, arrows step and stop at the ends) and Lightroom's single key back to the grid.
+- **Leaving with unsaved changes** (with the first editing workspace): "Leave without
+  saving?" / "All unsaved changes will be lost." / **Keep editing** (initial focus) ·
+  **Discard**. Never save automatically.
+- **Narrow windows:** the header wraps (title and subject, then the step control and
+  actions); the frame never scrolls sideways.
+
 ## Similarity belongs in the gallery
 
 Review destination photos in the ordinary gallery and its Inspector. Do not add a
@@ -156,7 +191,7 @@ Recovery reads verified destination originals and changes only matching data.
 ### Expanded review workspace
 
 **Built:** opening a candidate from the Inspector expands into a comparison
-workspace with an explicit reference, a browsable candidate, a paged thumbnail strip,
+workspace (the shared workspace frame, "Workspaces" above) with an explicit reference, a browsable candidate, a paged thumbnail strip,
 and a resizable information panel. It starts at the Inspector's threshold and
 page. Back to gallery restores its threshold/page (page one after filtering by
 review status), leaves gallery selection intact, and restores focus to the opener
