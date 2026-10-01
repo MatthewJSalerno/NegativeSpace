@@ -51,13 +51,16 @@ Open **http://localhost:8080** (or the host's address). `docker compose -f docke
 - **Index** reads your photos into the catalog. It moves and copies nothing.
 - **Copy** or **Move** everything not yet organized, or select photos first. Both ask before they start.
 - After Copy or Move, choose **Has similar photos** in the gallery; opening a photo selects the
-  Inspector's **Similar photos** tab. Use the visible **Most matches first** shortcut
+  Inspector's **Similar photos** tab. The initial view uses **90%**, **Most matches
+  first**, and grouping; your changes are remembered. Identical sets appear once,
+  while partially overlapping sets remain separate. Use the **Most matches first** shortcut
   (also in Sort) and a **Matches at or above** percentage to start with photos having
   the most qualifying matches; cards show counts across the destination library.
   Browse matches at 75–100% and review them side
   by side, comparing format, dimensions, file size and metadata. Percentages measure
   visual similarity, not confidence; below 90%, results are more likely to be unrelated.
-  Review judgments are saved, but viewing rotation is temporary. EXIF editing,
+  Copy a review link, step between gallery sets, or show one set’s members in the
+  gallery. Review judgments are saved, but viewing rotation is temporary. EXIF editing,
   saved rotation and deleting unwanted matches remain future work.
 - The drawer at the bottom shows a running job's progress and lets you cancel it. Closing the browser does not stop a job.
 - **Move needs a writable source.** It deletes each source file after its copy is verified. With a read-only source a Move can only copy: each photo is shown as **Copied only**, with the reason, and nothing is lost. To Move, set `read_only: false` on the source volume in `docker/compose.yml`, then Move those photos again to remove the originals.

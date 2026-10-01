@@ -1,4 +1,21 @@
-# Similarity validation checkpoint
+# Similarity validation record
+
+## Current status — 2026-10-01
+
+The maintainer completed the agreed manual functional checklist, including all
+three review actions, recovery/logging explanations and 200% desktop zoom/reflow.
+Documentation cleanup, merge into main and push are authorized. Current behavior
+and remaining work are consolidated in [the handoff](similarity-handoff.md).
+Defaults are 90%, Most matches first, and identical-set grouping; 75% remains the
+available floor. Representative 200,000+ dense-library and long-session capacity
+remains unverified follow-up work, not a completed validation claim.
+
+The entries below preserve development-stage measurements and decisions. Earlier
+statements about defaults, pending features or merge authorization describe their
+checkpoint, not the final state. Later entries and the consolidated handoff take
+precedence.
+
+## Initial development checkpoint
 
 The expected library may exceed 200,000 pictures. Use at least 250,000 synthetic
 photo records for scale validation, then verify with a representative real catalog.
@@ -466,7 +483,8 @@ why. Desktop zoom/reflow also passes: the screen scales to 200% and windows adap
 This completes the agreed manual functional checklist. Automated results above
 remain separate evidence. Representative 200,000+ photo capacity, dense matching
 and long-session performance remain outstanding; this sign-off does not establish
-those limits or authorize a merge.
+those limits. The maintainer subsequently authorized documentation cleanup, merge
+into main and push.
 
 Future discussion requested: presenting selected photos in the gallery. The existing
 Show only selected command already provides a temporary selection gallery; discuss

@@ -120,7 +120,8 @@ its matches in the thumbnail grid. Use
 Inspector results. The gallery's separate **Matches at or above** selector changes
 its membership, and **Most matches first** sorts counts highest first. Reload and
 return from Logs to confirm the reference and threshold
-remain. No new Index or Copy is needed after explicitly preparing a schema-16 catalog.
+remain. An existing populated schema-16 catalog needs no new Index or Copy for
+these review checks.
 The database suite verifies the hash index against brute force and interrupted
 comparison recovery; the API suite checks reference-only matches, hash changes,
 availability, exact copies, thresholds and pagination.
@@ -320,14 +321,14 @@ The API suite also runs all four cases with a writable source to verify successf
 Move alongside scan failures. Existing verdict cases cover cancellation, copied-only,
 unchanged Index, repeated Copy and unrelated recovery.
 
-### Preparing an existing similarity validation catalog
+### Similarity catalog setup
 
-For this branch's current sample handoff, the maintainer chose to rebuild the
-catalog. With fresh appdata, use **Create catalog → save settings → Index → Copy**,
+The validated sample uses a fresh catalog rebuilt by maintainer choice. With fresh
+appdata, use **Create catalog → save settings → Index → Copy**,
 then validate the gallery controls and Inspector. Keep the source read-only and the
 existing sample destination. No upgrade step is required for this route.
 
-Optional preservation route for an existing development catalog:
+Optional development tool (not required for the validated sample or merge):
 
 The current count cache uses schema 16 (the 75% floor was introduced in schema 15).
 Automatic startup upgrades remain disabled. To preserve schema-14/15 history and
@@ -479,6 +480,12 @@ per-file recovery failure details in Logs. See docs/similarity-handoff.md for re
 `python3 tools/benchmark-reference-sets.py` measures opened-set queries against
 250,000 generated catalog identities with prepared sparse edges. It reads no photo
 files and does not establish dense-set or end-to-end real-library capacity.
+
+### Current similarity regression coverage
+
+The maintainer has completed the manual functional checklist; see
+[the current handoff](../docs/similarity-handoff.md#validation-and-sign-off).
+Representative large-library capacity remains separate work.
 
 Similarity defaults regression: the reference-set browser driver checks initial
 Group similar photos / Most matches first, remembered grouping and per-view sort,

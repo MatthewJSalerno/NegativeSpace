@@ -1,182 +1,108 @@
-# Similarity branch review handoff
+# Similarity implementation handoff
 
-This is the current review entry point for `feat/similarity-validation`. Historical
-local handoff sections describing matching as unimplemented or naming older active
-branches are superseded. No merge or push is authorized by this work.
+This is the consolidated handoff for the work developed on
+`feat/similarity-validation`. The maintainer completed the manual functional
+checklist and authorized documentation cleanup, merge into `main`, and push.
+Historical checkpoints are retained in [the validation record](similarity-validation.md).
+The design contract is [ui-design.md](ui-design.md); reproducible checks are in
+[tests/README.md](../tests/README.md).
 
-## Scope and established decisions
+## Current behavior
 
-- Workflow: Index → Copy/Move → review destination photos. Sources remain read-only
-  for validation. Do not reset a live catalog or run a transfer to test the UI.
-- pHashes come from originals; thumbnails are for display. The chosen floor is 75%.
-  Scores measure hash similarity, not confidence. Below 90% needs stronger caution.
-- SQLite owns hashes, pair relationships and six-threshold count caching. There is
-  no additional DuckDB mapping. Catalog schema remains 16 for this batch.
-- EXIF editing/copy, saved rotation writes and deletion are separate workstreams.
-  Review-later queues await a broader discussion of catalog tagging.
-- The sample is not representative of the eventual 200,000+ library. Functional
-  tests and prepared-query measurements do not establish full-library capacity.
+- Workflow: Index → Copy/Move → review destination photos. pHashes come from
+  originals; thumbnails are for display. SQLite owns hashes, relationships and
+  six-threshold count caching; no additional DuckDB mapping is used.
+- Has similar photos defaults to **90%**, **Most matches first**, and grouping on.
+  The floor remains 75%. Browser preferences remember explicit threshold, per-view
+  sort and grouping choices. Explicit URL thresholds/sorts take precedence without
+  replacing saved preferences. Percentages are visual similarity, not confidence;
+  below 90% carries stronger review guidance.
+- Identical closed neighborhoods (reference plus direct matches) appear once in
+  the grouped gallery. Exact sorted hash-bucket membership establishes equality;
+  equal counts and transitive relationships do not. The lowest canonical ID that
+  satisfies filters represents the set, without implying a keeper or best image.
+  Collapse precedes sorting/paging. Gallery totals count sets; sidebar and view
+  counts remain photos so hidden members can still be found through filters.
+- Partial overlaps remain separate. A–B and B–C do not establish A–C. Explore
+  related sets offers explicit direct-reference choices and can combine up to six
+  related sets, preserving membership and labelling indirect relationships. These
+  expansions are temporary; closing/reloading or changing percentage resets them.
+- The comparison workspace supports reference promotion, independent temporary
+  rotation/zoom/position, optional linked zoom, file/image and EXIF differences,
+  sticky field headings, and saved same/related/unrelated pair judgments. Preview
+  dimensions follow viewing rotation; recorded dimensions and scores do not.
+- Comparison bookmarks restore the current pair, threshold, review filter/tab,
+  divider and viewing transforms without replaying writes. Copy review link uses
+  current component state, with manual-copy fallback when clipboard access fails.
+- Previous/next set follows grouped-gallery order and its entry reference, including
+  after reference promotion. Boundaries/loading/saves disable navigation; failed
+  position requests offer retry. Expanded unions have no gallery-set navigation.
+- Show this set in gallery opens a temporary, server-paged view of the reference
+  and direct members. It bypasses saved gallery filters and preserves explicit
+  selection. Back to results restores gallery context; reload exits this scope.
+  Browsing is not capped by the 1,000-photo selection limit, which still applies to
+  selection. A usable reference remains visible even with no qualifying candidates.
+- Suspicious dates flags recorded years before 1800 or more than one year beyond
+  the current UTC year, including labelled file-date fallbacks. Dates are unchanged.
 
-## Built before this batch
+## Recovery and file handling
 
-Gallery match-count sorting and thresholds; Inspector match counts and paging;
-side-by-side reference/candidate review, temporary rotation/zoom/position, reference
-promotion, file/image and EXIF differences, sticky headings and saved pair judgments;
-comparison URL restoration; destination missing-hash recovery and comparison resume;
-suspicious-date review. The maintainer explicitly verified suspicious dates.
-Dates/bytes are preserved. `TODO.md` and `docs/similarity-validation.md` track details.
+Review matching status replaces the blanket resolution promise. Generate missing
+hashes skips recorded failures. Known failures retain per-file explanations and an
+explicit recheck after the stated external correction; unsupported formats offer
+no futile retry. Resume comparisons handles stored hashes independently. Recovery
+verifies destination SHA-1 before/after decoding and writes detailed per-photo
+failure logs without changing delivery status or photo bytes. Old jobs are not
+backfilled. Missing EXIF or decoder support alone does not prove file corruption.
 
-## Reference sets in this batch
+No EXIF editing, saved orientation writes, deletion, quarantine or persistent group
+membership is implemented by this work. Review-later tagging awaits broader design
+discussion. Catalog schema is 16. The maintainer chose a fresh sample catalog;
+additional migration/history-preservation work is outside this handoff.
 
-Group similar photos is a remembered gallery display choice. Identical sets now
-collapse to one representative tile. A set contains the
-reference and direct matches at the chosen percentage. A–B and B–C do not establish
-A–C. A's set is A/B; B's is B/A/C. Gallery filters and sorting choose representatives, totals count sets, and
-checkbox selection still selects individual references; set membership covers all destination photos.
+## Implementation map
 
-Explore related sets offers direct-match references and reports additional members
-outside the starting set. Show together unions at most six explicitly chosen related
-sets, deduplicates byte identities and labels each photo's memberships. Indirect
-photos compare through a supporting reference. Members and related references have
-independent server pagination. No recursive graph traversal or saved groups/tags.
-Selections survive visiting comparison and returning, but not closing/reloading;
-changing percentage clears expansions. Errors offer Retry and Reset; stale includes
-are rejected. At narrow widths exploration suppresses the covering Inspector modal.
+| Area | Entry points |
+| --- | --- |
+| Grouped membership | `webui/equivalent_sets.py`, `webui/catalog.py`; optional `group_sets` browse/position parameter |
+| Set exploration | `webui/reference_sets.py`, `ReferenceSets.tsx`; GET `/api/v1/similar/{id}/sets` |
+| Member gallery | `webui/catalog.py`, `App.tsx`; `set_reference` on photo list, IDs and position |
+| Review actions | `ReviewActions.tsx`, `MatchReviewDialog.tsx`, `Inspector.tsx` |
+| Recovery | `ns_similarity_recovery.py`, `ns-engine.py`, `SimilarityRecovery.tsx` |
 
-Implementation: `webui/reference_sets.py`, `ReferenceSets.tsx`, gallery/App integration;
-`GET /api/v1/similar/{id}/sets` in `docs/api-spec.md`. Review destination eligibility,
-canonical content representatives, direct/indirect labels, page/count semantics,
-request races and focus/modal transitions. Inspect the design contract in
-`docs/ui-design.md` before changing behavior.
+The review-actions follow-up added only UI and read-only catalog queries; no new
+engine commands or schema changes were needed for those actions. Detailed contracts
+are in [api-spec.md](api-spec.md) and [webui-spec.md](webui-spec.md).
 
-## Recovery reporting follow-up
+## Validation and sign-off
 
-The maintainer reported empty failure details in Similarity recovery logs. Failed
-reads previously updated hash states/counters without per-file operation entries.
-Failures now log the photo/path, category and actionable explanation; Inspector
-shows recorded visual-processing issues. This does not change delivery status or
-photo files. Decode failure may mean corrupt/mislabeled data or missing decoder
-support; missing EXIF alone is not evidence of damage. Files without usable hashes
-remain excluded from matching but visible in the ordinary catalog. Unsupported
-formats explain the limitation; retries are explicit and appropriate only after
-fixing the underlying cause. Old failure jobs are not backfilled.
+Recorded automated validation includes 76 general API tests, seven reference-set
+tests, seven recovery guard tests, reference-set/actions, full comparison and
+recovery browser workflows, TypeScript/image builds, 41 API route contracts, and
+specification/whitespace checks. See the dated validation record for which checks
+ran with each change. Generated fixtures exercise dense equal-hash buckets, paging,
+request failures, selection preservation, clipboard fallback and narrow layouts.
 
-A broader import-completion issue summary and catalog-wide external-review view
-remain pending. Do not claim this batch implements automatic corruption detection,
-quarantine, hide-all-bad-files behavior, external repairs or new persistent tags.
+The maintainer manually passed defaults/preferences, identical and overlapping
+sets, filtering/counts, comparison, saved judgments/restoration, selection, all
+three review actions, recovery/logging explanations and 200% desktop zoom/reflow.
+There are no remaining checks in the agreed manual functional checklist.
 
-## Validation and remaining review
+The sparse prepared 250,000-photo fixture returned the grouped gallery in 1.738
+seconds. This is not evidence of dense real-library, end-to-end comparison or
+long-session capacity. The sample instance is not representative of that workload.
 
-Validation passed: 76 API tests, three reference-set tests, five recovery safety
-tests, reference-set/recovery/shared-gallery browser workflows, both image builds,
-41 API route contracts and spec/whitespace checks. The sample deployment is updated
-and source read-only was verified. See `docs/similarity-validation.md` for evidence
-and the limits of the synthetic 250,000-row query measurement. Focused tests:
-`tests/reference_sets_test.py`, `tests/reference_sets_browser_drive.py`,
-`tests/similarity_recovery_test.py`, and recovery-log assertions in the API suite.
-The browser uses disposable generated data with the explicit fixture mount; it must
-run against rebuilt app/web images. Tests and commands are documented in tests/README.md.
+## Remaining work and operating boundaries
 
-Pending: broader graph intersections; dense real-library
-performance and long sessions; deferred review/tagging; expanded date policies;
-import issue summary; rotation-aware retrieval; separate EXIF/delete workstreams.
+Track these separately in [TODO.md](../TODO.md): representative 200,000+ photo
+capacity; rotation-aware retrieval; broader overlap relationships; import-completion
+issue summary/external-review filter; warning-action audit; expanded date policies;
+review-later/tagging and selected-gallery discoverability discussions. Show only
+selected already exists; do not duplicate it without discussing the desired behavior.
+EXIF editing, deletion and saved orientation remain separate workstreams.
 
-## Deployment and review boundaries
-
-Use `docker/compose.sample.yml` with the existing ignored instance environment file
-for the sample. Check that it is idle before updating both services; preserve its
-catalog, source read-only setting and all mounts. Do not touch the separate private
-instance. Never publish personal filenames, source paths, machine details or raw
-real-library logs in tracked documents. Consult the final validation entry for what
-was actually deployed and checked. No catalog migration, merge or push is implied.
-
-## Grouping defaults and honest recovery follow-up
-
-Has similar photos now defaults to grouped reference sets and Most matches first.
-Explicit sort choices are stored separately per view in browser storage; grouping
-is also remembered. URL sorts override defaults without replacing preferences.
-Expanded set membership remains session-only; equivalent sets now collapse in the grouped gallery.
-
-Review matching status replaces Resolve matching issues. Generate missing hashes
-skips known failures in both the engine and UI count. Those failures retain their
-reasons and an explicit Recheck file after external fix, except unsupported formats.
-Resume comparisons still works independently. Recovery reports add `generatable`
-and per-item `action`; the existing single-photo request is the explicit recheck.
-No schema migration, EXIF write, deletion, or automatic retry loop was introduced.
-The broader import summary/external-review filter remains unfinished.
-
-Follow-up validation passed: 76 API tests without skips, seven recovery safety
-tests, reference-set/default-preference and recovery browser workflows, TypeScript,
-both image builds, API and specification checks. The sample is updated and healthy
-with its source still read-only. See the final validation entry for this batch.
-
-Similarity threshold follow-up: gallery defaults to 90%, remembers explicit changes
-per browser, and honors explicit URL thresholds without overwriting preferences.
-The 75% floor remains. Identical reference sets now collapse in the grouped gallery; partially
-overlapping sets remain distinct.
-
-## Identical-set gallery follow-up
-
-Grouped browsing now uses exact sorted visual-hash bucket neighborhoods, including
-self, to collapse identical full destination membership. Equal-hash buckets are
-indivisible, so this avoids expanding photo-pair cross products. It compares full
-signatures, not a probabilistic digest or match count. Missing hashes and unavailable
-copies remain excluded by existing destination evidence. Queries read live state;
-no schema migration, group persistence, or new cache is introduced.
-
-The lowest canonical photo ID satisfying filters represents each set. List totals,
-paging, IDs and positioning use grouped representatives; sidebar and library
-view-button counts remain photos so filters can find other members. Explicit selection is never expanded or erased.
-Ungrouping restores individual photos. Exploration still allows explicit direct
-reference choices; this change collapses the main gallery, not saved groups.
-
-New code: webui/equivalent_sets.py. APIs add optional group_sets to browsing and
-position requests. Tests cover exact versus partial overlap, distinct hashes with
-the same neighborhood, threshold splits, filtering, paging, selection and unchanged
-catalog state. The generated browser fixture collapses 126 equal-hash photos to one
-of five distinct gallery sets. Existing exploration and narrow layout still work.
-
-Validation passed: five reference-set tests, all 76 general API tests, both
-reference-set and full similarity-review browser workflows, TypeScript/image builds,
-API/specification/whitespace checks, and the sparse 250,000-photo grouped query
-measurement (1.738 seconds). The sample is deployed and healthy; source read-only
-was verified. No actual library transfers or repair jobs ran.
-
-## Review actions follow-up
-
-All three suggested actions are implemented: Copy review link (with a manual-copy
-fallback for LAN HTTP/clipboard rejection), Previous/next set in grouped-gallery
-order, and Show this set in gallery from comparison/exploration. Link serialization
-uses current component state so immediate copying does not race URL synchronization.
-Navigation uses existing photo-position reads, respects gallery context and save
-busy state, and resets transient comparison transforms on the next set. Navigation
-uses the entry reference after reference promotion; expanded unions have no gallery
-set navigation. New UI lives in ReviewActions.tsx.
-
-The only backend addition is read-only set_reference filtering on photo list, IDs
-and position. The temporary member scope is paged and does not materialize every
-member or constrain browsing to the selection limit. Existing selection stays
-explicit; returning restores the gallery context, while reload exits the scope.
-No engine, schema, EXIF, deletion, or catalog migration changes were made.
-
-Review-actions validation passed: 76 general API tests, seven reference-set tests,
-both reference-set/actions and full comparison browser workflows, TypeScript/image
-builds, API contracts and documentation checks. Desktop/narrow layouts inspected.
-The sample is deployed and healthy with its source read-only. The member gallery
-retains its reference even with no qualifying candidates; see the latest validation
-entry and tests/README.md for evidence and reproducible fixtures.
-
-## Maintainer sign-off progress — 2026-10-01
-
-Manually passed: defaults/preferences, grouping/overlap, filters/counts, comparison,
-saved judgments/restoration, selection, previous/next set, set-member gallery, and
-all Copy review link steps. The maintainer also reports recovery/logging passes:
-logs show what failed and why. At 200% browser zoom, windows scale and adapt.
-The agreed manual functional checklist is now complete. This does not establish
-representative 200,000+ dense-library/long-session capacity, which remains unverified.
-Deferred EXIF/delete/tagging work is not part of this sign-off. No merge or push
-has been performed as part of recording validation.
-
-The maintainer requested future discussion of showing selected photos in gallery.
-Show only selected already exists; discuss its discoverability and grouped-set
-semantics rather than assuming a missing feature. No UI change was requested here.
+The sample deployment preserves its catalog and mounts, with source read-only.
+Use the existing ignored environment file with `docker/compose.sample.yml`, and
+check for active jobs before updates. Do not reset live catalogs, run transfers to
+validate UI behavior, or change the separate private instance. Keep personal paths,
+filenames, machine details and raw library logs out of tracked documentation.

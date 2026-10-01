@@ -1,9 +1,28 @@
 # TODO
 
 Branch completion/validation details are in
-[the similarity checkpoint](docs/similarity-validation.md#branch-status--2026-09-30).
+[the consolidated handoff](docs/similarity-handoff.md) and
+[validation record](docs/similarity-validation.md#current-status--2026-10-01).
+The agreed manual functional checklist is complete; large-library capacity remains
+a separately tracked validation item.
 The current sample uses a fresh catalog rebuild by maintainer choice; further
 migration/history work for that sample is out of scope.
+
+## Completed similarity review and manual sign-off
+
+- [x] Default to 90%, grouped identical sets and Most matches first. Remember
+  threshold/grouping and per-view sort choices; explicit URLs override preferences.
+- [x] Collapse exact full-membership sets before gallery pagination; retain partial
+  overlaps, filtered representatives, set counts and explicit photo selection.
+- [x] Copy review link with manual fallback, previous/next grouped-gallery set,
+  and temporary paged browsing of a set's direct members.
+- [x] Maintainer passed the complete manual checklist: preferences, grouping,
+  filtering/counts, comparison, saved judgments/restoration, selection, all three
+  review actions, recovery/logging explanations and 200% desktop zoom/reflow.
+- [ ] Future discussion: selected-photo gallery discoverability and grouped-set
+  behavior. Show only selected already exists; discuss before adding another control.
+- [ ] Consider broader relationships between overlapping sets beyond the current
+  explicit one-hop exploration. Do not infer transitive matches.
 
 ## Expanded destination review workspace
 
@@ -92,10 +111,12 @@ controls are promised in the current review UI.
 ## Actionable warning workflows
 
 - [x] Missing-hash recovery and comparison resume: paged affected destination photos,
-  supported per-photo/all-missing retry, explicit unsupported/decode/read/missing/
-  changed-file reasons, busy-job gating, progress/cancellation and refreshed outcomes.
-  Recovery verifies destination SHA-1 before and after decoding and works when the
-  source is gone. It changes only matching data. Changed/missing/unreadable files
+  generation for uncomputed hashes and explicit per-file rechecks after external
+  fixes, with distinct unsupported-format, decode, read, missing-file and changed-file
+  reasons, busy-job gating, progress/cancellation and refreshed outcomes.
+  Bulk generation skips known failures. Review matching status makes no blanket
+  repair promise. Recovery verifies destination SHA-1 before and after decoding
+  and works when the source is gone. It changes only matching data. Changed/missing/unreadable files
   require the stated external correction before retry; unsupported formats remain
   a decoder limitation. Ordinary unchanged-file Index is not the recovery path.
 - [ ] Add an import-completion summary and a catalog-wide external-review filter for
@@ -142,32 +163,3 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 ## Other
 
 Deferred performance and robustness work — a stalled worker having no deadline, the unchanged-file check loading every settled row, batch barriers at submission tails — lives in `engine-spec.md` §8 with the condition that should bring each one back. This file tracks claims that need enforcing; that section tracks work deliberately postponed.
-
-- [x] Default Has similar photos to grouped reference sets and Most matches first;
-  remember per-view sort choices and grouping per browser, with explicit URL order
-  taking precedence. Set expansions remain temporary.
-- [x] Replace the blanket Resolve matching issues promise with Review matching status;
-  separate ungenerated hashes from recorded failures, skip known failures in bulk,
-  and retain explicit recheck after external correction plus Resume comparisons.
-- [ ] Still pending: import completion summary for files needing external attention
-  and a catalog-wide external-review filter; do not label unsupported images corrupt.
-
-Similarity threshold follow-up: gallery defaults to 90%, remembers explicit changes
-per browser, and honors explicit URL thresholds without overwriting preferences.
-The 75% floor remains. Identical reference sets now collapse in the grouped gallery; partially
-overlapping sets remain distinct.
-
-- [x] Collapse identical full-membership reference sets before gallery pagination;
-  maintain filtered representatives, set counts, selection, and photo positioning.
-- [x] Copy review link with manual fallback, previous/next grouped-gallery set
-  navigation, and a paged temporary gallery of one set’s direct members.
-  Preserve selection and gallery return context; no engine changes.
-
-- [ ] Future discussion: make selected-photo gallery access clear, including grouped
-  sets. Show only selected already exists in the selection bar; discuss desired
-  discoverability/behavior before changing or duplicating it.
-- [x] Maintainer validated all Copy review link steps.
-- [x] Maintainer manual checklist complete: recovery/logging passes (logs explain
-  what failed and why), and windows adapt correctly at 200% browser zoom. Other
-  checklist categories and all three review actions were also reported validated.
-  Representative 200,000+ photo capacity remains a separate outstanding validation.
