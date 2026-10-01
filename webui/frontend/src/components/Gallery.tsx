@@ -8,11 +8,12 @@ const STATUS_BADGE: Record<string, string> = {
   Processing: "In progress",
 };
 
-export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold }: {
+export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold, onReviewSet, onExploreSet }: {
   page: { items: PhotoItem[] };
   // The page each photo came from, so scrolling can tell which page is on top.
   pageOf?: number[];
   matchThreshold?: number;
+  onReviewSet?: (id: number) => void; onExploreSet?: (id: number) => void;
   refreshKey: number;
   selected: Set<number>;
   selectable: boolean;
@@ -79,6 +80,12 @@ export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId
                 {item.duplicates > 0 && <span className="badge">{plural(item.duplicates, "duplicate")}</span>}
               </span>
             </div>
+            {onExploreSet && <div className="set-card-actions">
+              <strong>Reference set · {plural((item.similar_count ?? 0) + 1, "photo")}</strong>
+              <span className="section-note">Overlaps with matching references’ sets.</span>
+              <button onClick={() => onReviewSet?.(item.id)}>Review this set</button>
+              <button onClick={() => onExploreSet(item.id)}>Explore related sets</button>
+            </div>}
           </li>
         );
       })}

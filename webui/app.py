@@ -181,6 +181,17 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         run_id = jobs.repair_similarity(body.get('scope'), body.get('photo_id'), body.get('request_id'))
         return catalog.get_run(cfg.db_path, run_id)
 
+    @app.get("/api/v1/similar/{photo_id}/sets")
+    def reference_sets(photo_id: int, threshold: int = Query(90, ge=75, le=100),
+                       include: list[int] = Query([]), page: int = Query(1, ge=1),
+                       related_page: int = Query(1, ge=1), page_size: int = Query(12, ge=1, le=24)):
+        from . import reference_sets
+        try:
+            return reference_sets.browse(cfg.db_path, photo_id, threshold=threshold, include=include,
+                                         page=page, related_page=related_page, page_size=page_size)
+        except ValueError as exc:
+            raise HTTPException(400, {'error':'invalid_request', 'message':str(exc)})
+
     @app.get("/api/v1/similar/{photo_id}/counts")
     def similarity_counts(photo_id: int):
         return matching.counts(cfg.db_path, photo_id)

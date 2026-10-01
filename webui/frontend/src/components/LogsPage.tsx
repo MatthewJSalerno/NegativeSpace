@@ -32,6 +32,7 @@ function failureHint(op: Operation): string | null {
     return "The copy is at the destination; the original is still in the source. Once the source can be written, move it again to finish the Move.";
   if (op.status !== "Failed") return null;
   const m = op.error_message ?? "";
+  if (op.mode === "SIMILARITY") return "The photo file was not changed. This failure concerns visual matching; see the recorded reason before retrying. Missing EXIF alone does not mean a file is damaged.";
   if (op.run_level) return "A folder or the whole job, not one photo: nothing inside it was examined. Fix the folder's access, then run an Index.";
   if (m.startsWith("Duplicate verification failed") && m.includes("ChecksumMismatch"))
     return "The two copies' contents differ, so the source was kept. Nothing was deleted.";
@@ -481,7 +482,7 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
                     </td>
                     <td>
                       {op.source_path && <div><code>{op.source_path}</code></div>}
-                      {op.dest_path && <div className="muted">→ <code>{op.dest_path}</code></div>}
+                      {op.dest_path && op.mode !== "SIMILARITY" && <div className="muted">→ <code>{op.dest_path}</code></div>}
                       {op.photo_id != null && (
                         <div className="row-links">
                           <a href={photoUrl(op.photo_id)} onClick={follow}>Photo #{op.photo_id}</a>
@@ -495,7 +496,7 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
                       {op.error_message && <div className="message">{op.error_message}</div>}
                       {hint && <div className="hint">{hint}{CALLS_FOR_INDEX.test(hint) && <> {indexButton}</>}</div>}
                       {op.status === "Failed" && op.photo_status && op.photo_status !== "Failed" && (
-                        <div className="muted">The photo is now {STATUS_LABEL[op.photo_status]?.toLowerCase() ?? op.photo_status}.</div>
+                        <div className="muted">{op.mode === "SIMILARITY" ? "Recorded file status: " : "The photo is now "}{STATUS_LABEL[op.photo_status]?.toLowerCase() ?? op.photo_status}.</div>
                       )}
                     </td>
                   </tr>

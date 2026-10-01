@@ -53,7 +53,7 @@ export function SimilarityRecovery({ photoId, onRecovered, visible = true }: { p
     {visible && <button className="link" onClick={() => { setScopePhoto(photoId); setPage(1); setOpen(true); }}>Resolve matching issues</button>}
     {open && <Modal label="Matching recovery" className="dialog" onClose={() => setOpen(false)} busy={starting}>
       <h2>Matching recovery</h2>
-      <p>Recover visual hashes from destination photos, then resume comparisons. Photo files stay unchanged.</p>
+      <p>Recover visual hashes from destination photos, then resume comparisons. Photo files stay unchanged. Missing EXIF alone does not mean a file is damaged.</p>
       {error && <p className="error" role="alert">{error} <button onClick={() => setRetry(n => n + 1)}>Retry status</button></p>}
       {!data && !error && <p role="status">Loading affected photos…</p>}
       {data && <>
@@ -64,7 +64,7 @@ export function SimilarityRecovery({ photoId, onRecovered, visible = true }: { p
             {scopePhoto ? "Retry this photo’s visual hash" : "Repair missing visual hashes"}</button>
           <button disabled={busy || starting || data.state.pending === 0} onClick={() => start("comparisons")}>Resume comparisons</button>
         </div>
-        <p className="section-note">Hash recovery verifies each file’s SHA-1 before and after decoding. Unsupported formats need decoder support; changed files require catalog reconciliation. Read the reason below before retrying.</p>
+        <p className="section-note">Hash recovery verifies each file’s SHA-1 before and after decoding. Unsupported formats need decoder support; files that cannot be decoded need external review. They remain excluded from visual matching. Read the reason below and retry only after fixing its cause.</p>
         {data.total === 0 ? <p>No matching issues in this scope.</p> : <ul className="recovery-photos">
           {data.items.map(item => <li key={item.id}>
             <a href={`/?photo=${item.id}&tab=similar`}>{item.filename}</a>

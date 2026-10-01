@@ -1400,3 +1400,13 @@ records durable intent, evidence, attention issues and recovery links instead (Â
 Recovery must preserve an incomplete Move when both copies
 remain and must not automatically delete the source; a new explicitly requested Move
 may verify and remove it. Recovery outcomes belong separately from new job work.
+
+### Similarity recovery failure details
+
+Each failed attempted hash repair appends a per-photo Failed operation with the
+recorded destination path, category and correction guidance, in the same transaction
+as its matching state/progress. It never changes the photo's delivery status or
+bytes. Unreadable errors retain the IO error detail; decoder failures explain that
+damage, misleading extensions or missing decoder support are possibilities. Missing
+EXIF alone is not failure evidence. Known unsupported formats are not retried by
+this job. Existing historical jobs are not backfilled.

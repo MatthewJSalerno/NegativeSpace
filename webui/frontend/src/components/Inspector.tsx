@@ -23,7 +23,8 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison }: {
+export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false }: {
+  coveredByDialog?: boolean;
   comparison: ComparisonState | null;
   onComparison: (state: ComparisonState | null) => void;
   id: number;
@@ -237,7 +238,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
     </section>
   );
   return <>
-    {narrow && comparison == null ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
+    {narrow && comparison == null && !coveredByDialog ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
     {comparison != null && <MatchReviewDialog reference={id} candidate={candidate}
       workspace={comparison} onWorkspace={onComparison}
       initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}
@@ -290,6 +291,7 @@ function Details({ detail: d, onLineage, refreshKey }: { detail: PhotoDetail; on
   return (
     <div className="inspector-body">
       {d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. The value is unchanged; date editing is not yet available. <a href="/?view=suspicious">View suspicious dates</a></p>}
+      {d.visual_issue && <p className="section-note"><strong>Visual matching unavailable:</strong> {d.visual_issue} The catalogued file is retained. Missing EXIF alone is not evidence of damage.</p>}
       <Section title="File">
         <Row label="Status">{STATUS[d.status] ?? d.status}</Row>
         <Row label={d.dest_path_is_projection ? "Proposed destination path" : "Destination path"}>

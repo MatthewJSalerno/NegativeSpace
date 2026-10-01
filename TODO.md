@@ -56,18 +56,18 @@ migration/history work for that sample is out of scope.
 - [ ] Extend date review to malformed/raw EXIF fields, conflicting capture tags,
   configurable bounds and dismissing known-valid dates if users need these. Current
   flags inspect only the recorded gallery date. Date editing remains separate.
-- [ ] Implement the agreed optional reference-based sets in Has similar photos.
+- [x] Implement the agreed optional reference-based sets in Has similar photos.
   Each reference retains all direct matches at the chosen percentage. With A–B
   and B–C but no A–C, A's set contains A/B and B's set contains B/A/C. Overlap is
   intentional; do not partition photos into disjoint groups or imply all members
-  match each other. See the [agreed design](docs/ui-design.md#reference-based-sets-agreed-not-implemented).
+  match each other. See the [agreed design](docs/ui-design.md#reference-based-sets).
   Add inline overlap notices, Review this set and Explore related sets. Users may
   explicitly choose related sets and Show together, deduplicating photos while
   retaining reference/membership context and identifying indirect relationships.
-  Keep display choices session-only; recompute sets/overlap when the percentage
+  Display choices are session-only; recompute sets/overlap when the percentage
   changes. No automatic recursive expansion, persisted group membership, tags,
-  keeper decisions or photo writes. Resolve pagination, filter/count/selection
-  semantics and equivalent-set collapsing before implementation.
+  keeper decisions or photo writes. Pagination, filter/count/selection semantics
+  are documented in the design standard. Equivalent-set collapsing remains deferred.
 
 ## Separate workstream: photo changes
 
@@ -98,6 +98,12 @@ controls are promised in the current review UI.
   source is gone. It changes only matching data. Changed/missing/unreadable files
   require the stated external correction before retry; unsupported formats remain
   a decoder limitation. Ordinary unchanged-file Index is not the recovery path.
+- [ ] Add an import-completion summary and a catalog-wide external-review filter for
+  files with failed visual processing. Distinguish corrupt/mislabeled data from missing
+  decoder support and IO failures; absent EXIF is not proof of damage. Preserve files
+  and delivery status. Existing missing-hash states already exclude them from matching.
+  Recovery per-file logs and Inspector issue explanations are implemented; historical
+  jobs have no backfilled details. Do not repeatedly retry unchanged bad files.
 - [ ] Audit warnings throughout the app for a working action or direct route to the
   affected items. Track missing actions as unfinished features under the shared
   [validation and feedback contract](docs/ui-design.md#validation-and-feedback).

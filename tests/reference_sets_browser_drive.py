@@ -1,0 +1,133 @@
+"""Reference sets with generated files and an explicit A–B–C–D chain."""
+import os
+import re
+import sqlite3
+import sys
+import time
+from playwright.sync_api import sync_playwright, expect
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    request = p.request.new_context(base_url=sys.argv[1])
+    created = request.post('/api/v1/catalog')
+    assert created.ok, created.text()
+    def wait(run):
+        for _ in range(600):
+            result = request.get(f'/api/v1/runs/{run}').json()
+            if result['status'] not in ('Preparing','Running','Cancelling'):
+                assert result['status'] == 'Completed', result
+                return
+            time.sleep(.2)
+        raise AssertionError('Job did not finish')
+    for mode in ('index','copy'):
+        response = request.post('/api/v1/jobs/start',data={'mode':mode})
+        assert response.ok, response.text()
+        wait(response.json()['id'])
+    with sqlite3.connect('/catalog/db/ns_sqlite.db') as conn:
+        records=conn.execute("SELECT id,sha1_hash FROM photos WHERE status='Copied' ORDER BY id LIMIT 5").fetchall()
+        a,b,c,d,large=[r[0] for r in records]
+        hashes=['0000000000000000','000000000000003f','0000000000000fff','000000000003ffff']
+        conn.execute("UPDATE contents SET phash='ffffffffffffffff',phash_state='ok'")
+        for (_,digest),h in zip(records,hashes):
+            conn.execute('UPDATE contents SET phash=? WHERE digest=?',(h,digest))
+        conn.execute('DELETE FROM content_similarity')
+        conn.execute('DELETE FROM similarity_hashes')
+        for h in [*hashes,'ffffffffffffffff']:
+            conn.execute('INSERT INTO similarity_hashes VALUES(?)',(h,))
+        for i,h in enumerate(hashes):
+            for other in hashes[i+1:]:
+                distance=(int(h,16)^int(other,16)).bit_count()
+                if distance<=16:
+                    conn.execute('INSERT INTO content_similarity VALUES(?,?,?)',(h,other,distance))
+    page=browser.new_page(viewport={'width':1440,'height':1000})
+    errors=[]
+    page.on('pageerror',lambda e: errors.append(str(e)))
+    def shot(name):
+        if os.environ.get('SHOTS'):
+            page.screenshot(path=os.path.join(os.environ['SHOTS'],name+'.png'))
+    page.goto(sys.argv[1]+'/?view=similar&match_min=90&sort=name')
+    group=page.get_by_role('checkbox',name='Group similar photos',exact=True)
+    expect(group).not_to_be_checked()
+    group.check()
+    card=page.locator(f'.card[data-id="{a}"]')
+    expect(card.get_by_text('Reference set · 2 photos',exact=True)).to_be_visible()
+    card.locator('.card-check input').check()
+    shot('reference-set-gallery')
+    card.get_by_role('button',name='Explore related sets',exact=True).click()
+    dialog=page.get_by_role('dialog',name='Explore reference sets',exact=True)
+    expect(dialog.locator('[data-member-id]')).to_have_count(2)
+    expect(dialog.locator(f'[data-related-id="{b}"]')).to_contain_text('1 additional match outside the starting set')
+    dialog.locator(f'[data-related-id="{b}"] input').check()
+    dialog.get_by_role('button',name='Show together',exact=True).click()
+    expect(dialog.locator('[data-member-id]')).to_have_count(3)
+    expect(dialog.locator(f'[data-member-id="{c}"]')).to_contain_text('Related through')
+    expect(dialog.locator(f'[data-member-id="{c}"]')).to_contain_text('no direct match recorded at 90%')
+    expect(dialog.locator(f'[data-member-id="{d}"]')).to_have_count(0)
+    shot('reference-sets-combined')
+    # Indirect photos compare against their actual supporting reference, not A.
+    dialog.locator(f'[data-member-id="{c}"]').get_by_role('button',name=re.compile('^Compare with')).click()
+    review=page.get_by_role('dialog',name='Review photo match',exact=True)
+    expect(review).to_be_visible()
+    expect(review.locator('.review-score')).to_contain_text('90.62%')
+    review.get_by_role('button',name='Back to gallery',exact=True).click()
+    expect(dialog).to_be_visible()
+    expect(dialog.locator('[data-member-id]')).to_have_count(3)
+    expect(card.locator('.card-check input')).to_be_checked()
+    # A threshold change resets selected expansions and recomputes all memberships.
+    dialog.get_by_role('combobox',name='Set match threshold').select_option('95')
+    expect(dialog.locator('[data-member-id]')).to_have_count(1)
+    expect(dialog.get_by_text('0 related sets chosen',exact=True)).to_be_visible()
+    dialog.get_by_role('combobox',name='Set match threshold').select_option('90')
+    expect(dialog.locator('[data-member-id]')).to_have_count(2)
+    page.set_viewport_size({'width':700,'height':844})
+    assert dialog.locator('.reference-sets').evaluate('e => e.scrollWidth <= e.clientWidth+1'), 'set dialog overflow'
+    shot('reference-sets-narrow')
+    dialog.get_by_role('button',name='Back to gallery',exact=True).click()
+    page.set_viewport_size({'width':1440,'height':1000})
+    # Review from the tile opens the ordinary direct-match workspace.
+    card.get_by_role('button',name='Review this set',exact=True).click()
+    expect(review).to_be_visible()
+    expect(review.locator('.review-score')).to_contain_text('90.62%')
+    review.get_by_role('button',name='Back to gallery',exact=True).click()
+    # Failure has an explicit retry; successful retry restores the same set.
+    page.route('**/api/v1/similar/*/sets?*',lambda route: route.fulfill(status=503,json={'message':'Fixture temporary failure'}))
+    card.get_by_role('button',name='Explore related sets',exact=True).click()
+    expect(dialog.get_by_role('alert')).to_be_visible()
+    page.unroute('**/api/v1/similar/*/sets?*')
+    dialog.get_by_role('button',name='Retry sets',exact=True).click()
+    expect(dialog.locator('[data-member-id]')).to_have_count(2)
+    dialog.get_by_role('button',name='Back to gallery',exact=True).click()
+    # A dense same-hash bucket remains paged and explicit expansion is capped.
+    large_name=request.get(f'/api/v1/photos/{large}/inspect').json()['filename']
+    page.get_by_role('searchbox',name='Search filenames').fill(large_name)
+    page.locator(f'.card[data-id="{large}"]').get_by_role('button',name='Explore related sets',exact=True).click()
+    expect(dialog.locator('[data-member-id]')).to_have_count(12)
+    for checkbox in dialog.locator('[data-related-id] input').all()[:6]: checkbox.check()
+    expect(dialog.locator('[data-related-id] input').nth(6)).to_be_disabled()
+    dialog.get_by_role('button',name='Show together',exact=True).click()
+    expect(dialog.locator('[data-member-id]')).to_have_count(12)
+    expect(dialog.get_by_role('region',name='Displayed sets')).to_contain_text('126 distinct photos')
+    dialog.get_by_role('button',name='Next photos',exact=True).click()
+    expect(dialog.get_by_role('navigation',name='Set photo pages')).to_contain_text('Page 2 of 11')
+    dialog.get_by_role('button',name='Next sets',exact=True).click()
+    expect(dialog.get_by_role('navigation',name='Related set pages')).to_contain_text('Page 2 of 11')
+    page.reload()
+    expect(group).not_to_be_checked()
+    expect(dialog).to_have_count(0)
+    # Failed hash recovery has a per-file log, not just a job count.
+    with sqlite3.connect('/catalog/db/ns_sqlite.db') as conn:
+        digest=conn.execute('SELECT sha1_hash FROM photos WHERE id=?',(a,)).fetchone()[0]
+        conn.execute("UPDATE photos SET dest_path='/data/dest/fixture-missing.jpg' WHERE id=?",(a,))
+        conn.execute("UPDATE file_states SET current_path='/data/dest/fixture-missing.jpg' WHERE sha1_hash=? AND location_role='destination'",(digest,))
+        conn.execute("UPDATE contents SET phash=NULL,phash_state='error' WHERE digest=?",(digest,))
+    repair=request.post('/api/v1/similar/recovery',data={'scope':'missing','photo_id':a})
+    assert repair.ok,repair.text()
+    run=repair.json()['id']
+    wait(run)
+    page.goto(sys.argv[1]+f'/logs?run={run}')
+    expect(page.locator('.message').filter(has_text='[repair_missing]')).to_be_visible()
+    expect(page.locator('.message').filter(has_text='The destination file is missing')).to_be_visible()
+    shot('recovery-failure-details')
+    assert not errors,errors
+    browser.close()
+print('Reference set browser checks passed')

@@ -3308,6 +3308,7 @@ def repair_similarity(db_path: Path, dest_root: Path, scope: str, photo_id=None)
                 return RunStatus.CANCELLED
             path = Path(row['dest_path'])
             state, phash = 'repair_unreadable', None
+            read_error = None
             try:
                 if not path.resolve().is_relative_to(dest_root.resolve()):
                     state = 'repair_outside'
@@ -3332,8 +3333,9 @@ def repair_similarity(db_path: Path, dest_root: Path, scope: str, photo_id=None)
                             state = 'not_supported' if value == 'not_supported' else 'repair_decode'
             except FileNotFoundError:
                 state = 'repair_missing'
-            except OSError:
+            except OSError as exc:
                 state = 'repair_unreadable'
+                read_error = str(exc)
             if cancel_requested.is_set():
                 return RunStatus.CANCELLED
             with ns_db.transaction(conn):
@@ -3341,6 +3343,15 @@ def repair_similarity(db_path: Path, dest_root: Path, scope: str, photo_id=None)
                              (phash,state,row['content_id'],row['sha1_hash']))
                 if phash is not None:
                     conn.execute('UPDATE photos SET phash=? WHERE sha1_hash=?', (phash,row['sha1_hash']))
+                if phash is None and run_progress.run_id is not None:
+                    reason = recovery.describe({**row, 'phash_state': state})['message']
+                    detail = f"Visual hash recovery failed [{state}]: {reason}"
+                    if read_error:
+                        detail += f" Read error: {read_error}"
+                    # A failed read is an audit result, not a failed transfer or a
+                    # change to the photo's delivered status. Keep the file intact.
+                    log_operation(conn, run_progress.run_id, row['id'], str(path), str(path),
+                                  PhotoStatus.FAILED, detail, commit=False)
                 run_progress.add('made' if phash else 'failed')
                 run_progress.write(conn)
             logger.info(f"Visual hash recovery: photo #{row['id']}: {state}.")

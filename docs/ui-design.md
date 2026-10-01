@@ -346,7 +346,7 @@ when either photo is flagged. State clearly that date editing is not yet availab
 No schema changes, reindex or file writes are needed; the upper bound advances with
 the server's UTC year when the catalog is read.
 
-### Reference-based sets (agreed, not implemented)
+### Reference-based sets
 
 Offer optional grouping within Has similar photos, retaining the ordinary per-photo
 view. A set consists of its reference and every direct match at the chosen percentage.
@@ -362,10 +362,44 @@ showing each photo once while preserving its relationship to the references.
 Clearly distinguish indirect photos, for example “Related through B · below your
 threshold for A”; never present C as a qualifying direct match to A.
 
-These are session-only display choices, not saved groups or tags. Changing the
-percentage recomputes membership and overlap. Expand only sets explicitly chosen
-by the user, never automatically traverse the full connected network. Selection
-and keeper decisions must not be inferred from expansion. Pagination, counts,
-filter/selection behavior and collapsing equivalent sets still need implementation
-specification. Review-later tagging is deferred for a separate discussion of broader
-catalog annotations. No EXIF editing or deletion is required by this design.
+These are session-only display choices, not saved groups or tags. **Group similar
+photos** adds set counts and actions to the existing reference cards. One tile per
+qualifying reference remains; equivalent sets are not collapsed in this version.
+Gallery filters, sorts, counts, paging, Select all and card checkboxes continue to
+refer to individual reference photos. A set's members come from the full destination
+library. Turning grouping off returns the ordinary cards without clearing selection.
+The grouping toggle resets on reload. Selected expansions reset on closing exploration
+or changing its percentage, and survive a visit to side-by-side review and back.
+
+Explore related sets offers only the starting reference's direct-match references.
+Choose up to six explicitly, then Show together. This unions their sets, deduplicates
+byte identities, and shows every photo's membership in the displayed sets. Members
+and related references have independent pagination (12 per page). The starting
+reference sorts first, then minimum recorded distance to a chosen reference and ID;
+related references sort by direct distance then ID. Counts include the reference;
+match counts elsewhere exclude it. Broader graph intersections and equivalent-set
+collapse remain future work. No automatic traversal follows a newly exposed photo.
+
+An indirect member's Compare button uses its supporting reference, not the starting
+reference it does not directly match. The comparison remains the existing direct
+match workspace. Returning reopens the same exploration; no comparison save is
+implied. At narrow widths the covering exploration owns modality instead of opening
+a second Inspector dialog over it. Failed requests expose Retry sets and Reset to
+this set; stale expansions are rejected rather than silently dropped. Incomplete
+coverage links to matching information and recovery. No persisted group membership,
+keeper inference, EXIF editing or deletion is introduced.
+
+Review-later tagging remains deferred for a separate discussion of broader catalog
+annotations. Do not implement a dedicated marker until that discussion.
+
+### Failed visual processing
+
+A visual-hash failure does not prove a file is not an image; absent EXIF alone is
+not evidence of damage. Keep unsupported decoders, failed decoding, unreadable or
+missing files, and changed content distinct. Hash-recovery failures write per-photo
+Logs entries with the category and actionable reason; the Inspector and recovery
+list expose the recorded issue. Decode failures ask for external viewing/repair and
+retry only after fixing the cause. Known unsupported formats have no futile retry.
+Keep delivered file status and photo bytes intact; missing hashes exclude files from
+visual matching without hiding them from the ordinary catalog. A broader import
+completion summary and catalog-wide external-review view remain pending.

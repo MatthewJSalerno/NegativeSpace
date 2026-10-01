@@ -211,7 +211,12 @@ service. Built and tested:
         editing, end-of-review orientation saving and deletion remain future work
         tracked in [TODO.md](../TODO.md). The similarity gallery can sort by direct
         match count at a chosen percentage, with card counts and consistent filters,
-        selection and photo navigation.
+        selection and photo navigation. Optional reference sets expose direct matches,
+        overlap notices and explicitly chosen session-only unions. Group expansion never
+        selects files for actions. Missing-hash recovery reads verified destination
+        originals and logs per-file failures; comparison state restores after reload.
+        Suspicious-date review flags recorded years without modifying them. See the
+        [current review handoff](similarity-handoff.md) for scope and remaining work.
 
     `tests/webui_browser_test.sh` drives them in a real browser.
 

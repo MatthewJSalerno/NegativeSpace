@@ -1,3 +1,4 @@
+import { ReferenceSets } from "./components/ReferenceSets";
 import { readComparison, type ComparisonState } from "./comparisonState";
 import { SimilarityRecovery } from "./components/SimilarityRecovery";
 import { PageBoundary } from "./components/ui/PageBoundary";
@@ -207,6 +208,14 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [matchState, setMatchState] = useState<{ photo: number | null; view: MatchView }>({ photo: initial.photo, view: initial.match });
   const [inspectorTab, setInspectorTab] = useState(initial.inspectorTab);
   const [comparison, setComparison] = useState<ComparisonState | null>(initial.comparison);
+  const [groupSets, setGroupSets] = useState(false);
+  const [exploreReference, setExploreReference] = useState<number | null>(null);
+  const reviewSet = (reference: number, candidate: number | null) => {
+    setOpenId(reference); setLocate(null); setRevealId(null); setInspectorTab("similar");
+    setMatchState({ photo: reference, view: { threshold: matchMin, page: 1 } });
+    setComparison({ origin: reference, reference, candidate, threshold: matchMin, page: 1,
+      filter: "all", tab: "information", views: {}, linked: false, share: 72 });
+  };
   const [comparisonNavigation, setComparisonNavigation] = useState(0);
   useEffect(() => { if (comparison && comparison.origin !== openId) setComparison(null); }, [openId, comparison]);
   const matchView = useMemo(() => matchState.view && ({ ...matchState.view,
@@ -229,6 +238,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [timeline, setTimeline] = useState<Timeline | null>(null);
   const [jumpTimeline, setJumpTimeline] = useState<Timeline | null>(null);
   const [focus, setFocus] = useState<Focus | null>(null);
+  useEffect(() => { if (view !== "similar" || focus) setExploreReference(null); }, [view, focus]);
   const [focusJump, setFocusJump] = useState({ page: 1, n: 0 });
   const [focusPage, setFocusVisible] = useState(1);
   const setFocusPage = (p: number) => { setFocusJump((j) => ({ page: p, n: j.n + 1 })); setFocusVisible(p); };
@@ -850,6 +860,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           <div className="gallery-summary">
             <span>{gallerySummary ? plural(gallerySummary.total, "photo") : "Loading photos…"}</span>
             {view === "similar" && <>
+              <label><input type="checkbox" checked={groupSets} disabled={!!focus}
+                onChange={e => { setGroupSets(e.target.checked); setExploreReference(null); }} />Group similar photos</label>
               <label className="gallery-match-threshold">Matches at or above
                 <select aria-label="Gallery match threshold" value={matchMin} disabled={!!focus}
                         onChange={e => { setMatchMin(Number(e.target.value)); setPage(1); }}>
@@ -885,6 +897,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             Counts may be incomplete: {plural(data.similarity.pending, "photo awaiting comparison", "photos awaiting comparison")};
             {" "}{plural(data.similarity.unavailable, "photo without a usable visual hash", "photos without a usable visual hash")}.
           </p>}
+          {!focus && view === "similar" && groupSets && <p className="section-note">One set per reference photo; overlapping sets remain separate. Filters and sorting choose references. Set members come from the full destination library. Gallery checkboxes select only the reference photo.</p>}
           <SimilarityRecovery visible={!focus && view === "similar" && !!data?.similarity && (data.similarity.pending > 0 || data.similarity.unavailable > 0)} />
           {!focus && view === "similar" && data?.counts.organized === 0 && <p className="dates-filter-line">
             Copy or Move indexed photos to the destination first.
@@ -924,6 +937,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                 onLoad={() => { prepend.current = { height: document.documentElement.scrollHeight, y: window.scrollY }; list.load(list.first - 1, true); }} />}
               <Gallery refreshKey={refreshKey} page={{ items: flat.items }} pageOf={flat.pageOf} selected={selected} selectable={!jobRunning} openId={openId}
                        onOpen={openFromGallery} onToggle={toggle} onToggleMany={toggleMany}
+                       onReviewSet={!focus && view === "similar" && groupSets ? id => reviewSet(id, null) : undefined}
+                       onExploreSet={!focus && view === "similar" && groupSets ? setExploreReference : undefined}
                        matchThreshold={focus ? galleryMinimum : data?.similarity?.threshold} />
               {list.last < pages
                 ? <PageBoundary ref={bottomSentinel} pending={list.pending.has(list.last + 1)} error={list.failures.get(list.last + 1)} onLoad={() => list.load(list.last + 1, true)} />
@@ -943,7 +958,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                    if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() + 40); }
                    if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() - 40); }
                  }} />
-            <Inspector key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
+            <Inspector coveredByDialog={exploreReference != null && view === "similar" && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
                        onTab={(tab) => { setInspectorTab(tab);
                          if (tab === "similar" && !matchView) setMatchState({ photo: openId, view: { threshold: view === "similar" ? matchMin : 90, page: 1 } }); }}
@@ -952,6 +967,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
         )}
       </main>
 
+      {exploreReference != null && view === "similar" && !focus && <ReferenceSets key={exploreReference}
+        reference={exploreReference} threshold={matchMin} refreshKey={refreshKey} suspended={comparison != null}
+        onThreshold={t => { setMatchMin(t); setPage(1); }} onClose={() => setExploreReference(null)} onReview={reviewSet} />}
       {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
     </div>
   );

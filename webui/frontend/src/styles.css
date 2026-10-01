@@ -812,3 +812,17 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .recovery-photos { list-style: none; padding: 0; }
 .recovery-photos li { padding: var(--space-3) 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .recovery-photos p { margin: var(--space-1) 0; }
+
+/* Reference sets use shared cards, text roles and dialog controls. */
+.set-card-actions { display: grid; gap: var(--space-2); padding: var(--space-3); border-top: 1px solid var(--border); font-size: var(--type-sm); }
+.reference-sets { width: min(1100px, 100%); gap: var(--space-4); }
+.reference-sets p { margin-block: var(--space-2); }
+.reference-sets strong { overflow-wrap: anywhere; }
+.set-reference-list { list-style: none; padding: 0; display: grid; gap: var(--space-3); }
+.set-reference-list li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding-block: var(--space-2); border-bottom: 1px solid var(--border); }
+.set-reference-list li > img, .set-reference-list li > .thumb-placeholder { width: 64px; height: 64px; object-fit: contain; }
+.set-reference-list li > div:not(.thumb-placeholder) { flex: 1; min-width: 160px; }
+.set-members { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr)); gap: var(--space-4); }
+.set-members li { min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-3); }
+.set-members li > img, .set-members li > .thumb-placeholder { width: 100%; height: 160px; object-fit: contain; background: var(--surface-2); }
+.set-members li > button { margin-top: auto; }

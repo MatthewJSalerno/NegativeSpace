@@ -463,3 +463,19 @@ fixture use `DRIVER=suspicious_dates_browser_drive.py SIMILARITY_RECOVERY_FIXTUR
 with `tests/webui_browser_test.sh` and the built IMAGE/WEB_IMAGE. The opt-in catalog
 mount contains only disposable generated data. Checks cover the view, reload,
 Inspector reasons, comparison date review and narrow reflow.
+
+### Reference-set checks
+
+With app dependencies, run `python3 -m unittest discover -s tests -p reference_sets_test.py`.
+The generated A–B–C–D chain checks direct membership, explicit unions, deduplication,
+thresholds, stale selections, paging, destination-only eligibility and no DB writes.
+Run the browser harness with `DRIVER=reference_sets_browser_drive.py` and
+`SIMILARITY_RECOVERY_FIXTURE=1`, specifying the built `IMAGE` and `WEB_IMAGE`.
+It uses only the harness's disposable generated catalog. Checks include grouping,
+indirect comparison through the correct reference, selection preservation, session
+reset, dense same-hash paging, expansion limits, failure retry, narrow modality and
+per-file recovery failure details in Logs. See docs/similarity-handoff.md for review.
+
+`python3 tools/benchmark-reference-sets.py` measures opened-set queries against
+250,000 generated catalog identities with prepared sparse edges. It reads no photo
+files and does not establish dense-set or end-to-end real-library capacity.

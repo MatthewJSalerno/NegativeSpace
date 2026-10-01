@@ -559,7 +559,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         if p is None:
             return None
         meta = json.loads(p["metadata_json"]) if p["metadata_json"] else {}
-        content = conn.execute("SELECT width, height FROM contents WHERE digest = ?",
+        content = conn.execute("SELECT width, height, phash, phash_state FROM contents WHERE digest = ?",
                                (p["sha1_hash"],)).fetchone() if p["sha1_hash"] else None
         copies = [dict(r) for r in conn.execute(
             "SELECT id, status, source_path, dest_path, file_size FROM photos "
@@ -570,6 +570,12 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         snapshot = conn.execute(
             "SELECT s.file_mtime FROM photo_files pf JOIN source_snapshots s USING(file_id) "
             "WHERE pf.photo_id = ?", (photo_id,)).fetchone()
+    visual_issue = None
+    if content is not None and (content['phash_state'] != 'ok' or not content['phash']):
+        import ns_similarity_recovery
+        visual_issue = ns_similarity_recovery.describe({'kind':'missing_hash',
+            'id':photo_id, 'dest_path':p['dest_path'] or p['source_path'] or '',
+            'phash_state':content['phash_state']})['message']
     camera = " ".join(v for v in (meta.get("Make"), meta.get("Model")) if v) or None
     return {
         "id": p["id"], "status": p["status"],
@@ -581,7 +587,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         "file_modified": snapshot["file_mtime"] if snapshot else p["file_mtime"],
         "date_taken": meta.get("date_taken"), "date_source": meta.get("date_source"),
         "date_warning": p["date_warning"],
-        "camera": camera,
+        "camera": camera, "visual_issue": visual_issue,
         # A capture time's offset, when the camera recorded one; without it the
         # time zone is unknown and must not be shown as UTC (webui-spec 10).
         "date_offset": meta.get("OffsetTimeOriginal"),

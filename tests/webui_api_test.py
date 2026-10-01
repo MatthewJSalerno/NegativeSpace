@@ -401,6 +401,16 @@ class JobsAndCatalog(ApiCase):
         Path(photos[1][2]).unlink()
         result = self.client.post('/api/v1/similar/recovery',json={'scope':'missing'})
         self.assertEqual(result.status_code,202,result.text)
+        run_id = result.json()['id']
+        self.wait_for(run_id)
+        failures = self.client.get(f'/api/v1/operations?run={run_id}&status=Failed').json()
+        self.assertEqual(failures['total'],2)
+        messages = ' '.join(op['error_message'] for op in failures['items'])
+        self.assertIn('[repair_missing]',messages)
+        self.assertIn('[repair_changed]',messages)
+        self.assertTrue(all(op['photo_id'] and op['dest_path'] for op in failures['items']))
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual({r[0] for r in conn.execute("SELECT status FROM photos WHERE id IN (?,?)", (photos[0][0],photos[1][0]))},{'Copied'})
         run = self.wait_for(result.json()['id'])
         self.assertEqual(run['outcome']['failed'],2)
         report = self.client.get('/api/v1/similar/recovery').json()

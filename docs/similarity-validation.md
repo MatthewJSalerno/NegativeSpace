@@ -337,3 +337,50 @@ the shared gallery/UI workflow also passed. Desktop and narrow screenshots were
 inspected. Builds and spec-reference/whitespace checks passed. Sample deployment
 preserved the existing catalog and mounts. No Index or transfer was started.
 Large-library performance remains unmeasured for this additional view count.
+
+## Reference sets and recovery failure details — 2026-09-30
+
+Built optional reference-set cards in the similarity gallery, explicit overlap
+exploration and session-only Show together. Each reference remains a tile; identical
+sets are not collapsed. Filters/counts/selection retain their per-photo meaning.
+An A–B–C chain stays reference-relative: expanding B from A adds C once, marked as
+indirect, and comparison uses B. No further connected photos are automatically added.
+Members and related references are paged; at most six related references can be
+included. Returning from comparison preserves the exploration; closing, reloading
+or changing percentage clears expansion choices. Stale requests are rejected with
+retry/reset. Incomplete coverage links to recovery. No photo or group writes.
+
+Recovery failures previously incremented counters without file-level operation
+entries. New failed attempts now record the photo/path, category and actionable
+reason in Logs, with raw IO error detail when available. Inspector reports recorded
+visual-processing issues. Decode failure is not proof of a non-image, and missing
+EXIF alone is not evidence of damage. Files/delivery status remain intact; missing
+hashes already exclude photos from matching. Historical failures are not backfilled.
+The broader import issue summary and external-review filter remain in TODO.md.
+
+Validation: 76 API tests, three focused reference-set tests and five recovery safety
+tests passed. The reference-set browser workflow passed (chain expansion, indirect
+comparison, session reset, threshold changes, dense same-hash paging, expansion cap,
+request failure/retry, narrow modal ownership and per-file failure logs). Recovery
+and full gallery/shared-UI browser workflows passed. A shared Stats test teardown
+race was fixed by waiting for its in-flight intercepted request before closing the
+page; no application Stats change was needed. Desktop/narrow screenshots were
+inspected. Both images built, 41 API routes matched their documentation, and spec
+reference/whitespace checks passed.
+
+A synthetic query check reused 250,000 identities, five-photo equal-hash buckets
+and 49,999 prepared neighbor relationships. Opened-set queries with zero, one and
+six related references took 2.146, 2.177 and 2.209 seconds respectively on one warm
+host run, returning at most 12 photos. Reproduce with
+`tools/benchmark-reference-sets.py`. This is sparse prepared-query evidence, not
+hash-generation, dense-group, whole-library or browser-session capacity validation.
+No real photo files were read by the benchmark. Further query optimization remains
+possible; do not describe reference-set queries as constant-time or fully validated
+for dense 200,000+ libraries.
+
+The idle sample instance was updated with both images, retaining the schema-16
+catalog and mounts. Source read-only was verified. No Index, Copy, Move or repair
+was started on the sample as part of deployment. The separate private instance was
+untouched. The current review entry point is
+[similarity-handoff.md](similarity-handoff.md); the existing local handoff's opening
+section now supersedes its historical branch state.

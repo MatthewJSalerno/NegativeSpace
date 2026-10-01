@@ -48,6 +48,7 @@ def check_stats_dates(browser, base):
     expect(chart.locator("tbody tr").last).to_contain_text("2026")
     chart.locator('a[href="/?date=2023"]').click()
     expect(page).to_have_url(re.compile(r"[?&]date=2023(?:&|$)"))
+    page.unroute_all(behavior="wait")  # Finish an in-flight Stats poll before disposing its request context.
     page.close()
     print("Stats Dates: 227 years contained, scrollable and linked at desktop and narrow widths")
 

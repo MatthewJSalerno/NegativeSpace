@@ -75,6 +75,12 @@ class RecoveryTests(unittest.TestCase):
         with patch.object(engine,'compute_phash',return_value='error'):
             self.repair()
         self.assertEqual(self.state(),(None,'repair_decode'))
+        reasons = [r[0] for r in self.conn.execute('SELECT error_message FROM operations ORDER BY id')]
+        self.assertEqual(len(reasons),2)
+        self.assertIn('[repair_unreadable]',reasons[0])
+        self.assertIn('[repair_decode]',reasons[1])
+        self.assertIn('external viewer',reasons[1])
+        self.assertEqual(self.conn.execute('SELECT status FROM photos WHERE id=?',(self.photo,)).fetchone(),('Copied',))
 
     def test_destination_boundary_and_unsupported_format_do_not_read_file(self):
         with patch.object(engine,'compute_sha1') as read:

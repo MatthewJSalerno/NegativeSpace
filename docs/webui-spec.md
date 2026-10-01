@@ -2192,11 +2192,21 @@ when either photo is flagged. State clearly that date editing is not yet availab
 No schema changes, reindex or file writes are needed; the upper bound advances with
 the server's UTC year when the catalog is read.
 
-### Planned reference-based grouping
+### Reference-based grouping
 
-The agreed optional grouped similarity view uses overlapping reference-based sets,
-not disjoint clusters. Review this set, Explore related sets and explicit Show
-together are session-only display operations. Direct and indirect relationships
-must remain distinguishable. See [the design contract](ui-design.md#reference-based-sets-agreed-not-implemented)
-for the agreed example, notices and expansion limits. This remains unimplemented;
-review-later queues are deferred pending broader catalog-tagging discussion.
+**Built:** optional Group similar photos adds reference-set counts and actions in
+Has similar photos. Each eligible reference retains its own tile; filters, sorting,
+pagination and selection keep their per-photo semantics. Members include direct
+matches from the entire destination catalog. Review this set opens direct-match
+comparison. Explore related sets offers direct-match references with overlap and
+additional-member counts. Show together unions at most six chosen related sets,
+shows each byte identity once, and preserves membership/provenance. Indirect photos
+compare through a supporting reference. Both member lists are paged and coverage
+limitations remain visible. State is session-only and resets on reload/closing;
+threshold changes clear expansions. No transitive traversal or equivalent-set
+collapse. See [the design contract](ui-design.md#reference-based-sets).
+
+Hash recovery now records per-file failures in Logs, with photo/path, category and
+external correction guidance. Inspector shows recorded visual-processing problems.
+Failures do not change delivered status or delete files. Missing EXIF alone does not
+establish damage. A broader import-completion issue summary remains pending.

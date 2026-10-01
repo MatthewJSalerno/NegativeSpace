@@ -50,7 +50,7 @@ with sync_playwright() as p:
     expect(dialog.get_by_text('Wait for the running job',exact=False)).to_be_visible()
     page.unroute('**/api/v1/status')
     expect(repair).to_be_enabled(timeout=10000)
-    expect(dialog.get_by_text('The image could not be decoded.',exact=False)).to_be_visible()
+    expect(dialog.get_by_text('The file could not be decoded for visual matching.',exact=False)).to_be_visible()
     shot('missing-hash-recovery')
     with page.expect_response(lambda r: r.request.method=='POST' and r.url.endswith('/api/v1/similar/recovery')) as response:
         repair.click()
@@ -68,7 +68,7 @@ with sync_playwright() as p:
     expect(dialog.get_by_role('alert')).to_be_visible()
     page.unroute('**/api/v1/similar/recovery?*')
     dialog.get_by_role('button',name='Retry status',exact=True).click()
-    expect(dialog.get_by_text('This format cannot currently be decoded',exact=False)).to_be_visible()
+    expect(dialog.get_by_text('This format is not supported by the visual decoder',exact=False)).to_be_visible()
     expect(dialog.get_by_role('button',name='Repair missing visual hashes',exact=True)).to_be_disabled()
     expect(dialog.get_by_role('button',name='Retry visual hash',exact=True)).to_have_count(0)
     # Comparison-only recovery runs even when there are no retryable missing hashes.
