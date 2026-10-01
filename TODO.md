@@ -57,7 +57,8 @@ migration/history work for that sample is out of scope.
   compact match badges, shared active filter styling and supplemental filter help.
   Similar-gallery clicks open the matching tab; manual tab choices persist for
   previous/next and reload.
-- [ ] Validate representative 200,000+ photo workloads with headroom: initial and
+- [ ] Follow the separate [large-library measurement plan](docs/large-library-performance.md)
+  on `perf/large-library-validation`. Validate representative 200,000+ photo workloads with headroom: initial and
   incremental comparisons, stored-pair growth, memory, gallery/Inspector response
   times and long-session browser behavior. Include dense match sets, not only
   synthetic sparse hashes. See [validation guidance](tests/README.md#web-interface-in-a-browser--webui_browser_testsh).

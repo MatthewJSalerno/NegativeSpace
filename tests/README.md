@@ -524,3 +524,11 @@ and rejects invalid IDs. Clipboard output is only a local generated-fixture link
 
 Pass: either copy path gives a usable link that restores the current comparison.
 The manual fallback is expected behavior when clipboard access is unavailable.
+
+## Large-library performance workstream
+
+The manual functional checklist is complete. Representative capacity work is scoped
+separately on `perf/large-library-validation`; see
+[the measurement plan](../docs/large-library-performance.md) for isolated inputs,
+processing/query/browser scenarios, comparable A/B runs and pending automation.
+Existing synthetic tools do not establish real NFS or dense-library capacity.
