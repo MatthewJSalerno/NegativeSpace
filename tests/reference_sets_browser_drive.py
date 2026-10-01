@@ -86,6 +86,13 @@ with sync_playwright() as p:
     group=page.get_by_role('checkbox',name='Group similar photos',exact=True)
     expect(group).to_be_checked()
     group.check()
+    expect(page.locator('.card')).to_have_count(5)
+    expect(page.locator('.gallery-summary')).to_contain_text('5 sets')
+    expect(page.get_by_text('trip / day 1', exact=True)).to_be_visible()  # Hidden members remain filterable.
+    group.uncheck()
+    expect(page.locator('.card')).to_have_count(60)
+    group.check()
+    expect(page.locator('.card')).to_have_count(5)
     card=page.locator(f'.card[data-id="{a}"]')
     expect(card.get_by_text('Reference set · 2 photos',exact=True)).to_be_visible()
     card.locator('.card-check input').check()

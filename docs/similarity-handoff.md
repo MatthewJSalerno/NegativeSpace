@@ -28,11 +28,11 @@ Dates/bytes are preserved. `TODO.md` and `docs/similarity-validation.md` track d
 
 ## Reference sets in this batch
 
-Group similar photos is an optional session-only gallery display. Each eligible
-reference retains a tile; equivalent sets are not collapsed. A set contains the
+Group similar photos is a remembered gallery display choice. Identical sets now
+collapse to one representative tile. A set contains the
 reference and direct matches at the chosen percentage. A–B and B–C do not establish
-A–C. A's set is A/B; B's is B/A/C. Gallery filters/sorts/counts and checkbox selection
-still describe individual references; set membership covers all destination photos.
+A–C. A's set is A/B; B's is B/A/C. Gallery filters and sorting choose representatives, totals count sets, and
+checkbox selection still selects individual references; set membership covers all destination photos.
 
 Explore related sets offers direct-match references and reports additional members
 outside the starting set. Show together unions at most six explicitly chosen related
@@ -77,7 +77,7 @@ and the limits of the synthetic 250,000-row query measurement. Focused tests:
 The browser uses disposable generated data with the explicit fixture mount; it must
 run against rebuilt app/web images. Tests and commands are documented in tests/README.md.
 
-Pending: equivalent-set collapse; broader graph intersections; dense real-library
+Pending: broader graph intersections; dense real-library
 performance and long sessions; deferred review/tagging; expanded date policies;
 import issue summary; rotation-aware retrieval; separate EXIF/delete workstreams.
 
@@ -95,7 +95,7 @@ was actually deployed and checked. No catalog migration, merge or push is implie
 Has similar photos now defaults to grouped reference sets and Most matches first.
 Explicit sort choices are stored separately per view in browser storage; grouping
 is also remembered. URL sorts override defaults without replacing preferences.
-Expanded set membership remains session-only; equivalent sets are not collapsed.
+Expanded set membership remains session-only; equivalent sets now collapse in the grouped gallery.
 
 Review matching status replaces Resolve matching issues. Generate missing hashes
 skips known failures in both the engine and UI count. Those failures retain their
@@ -112,5 +112,32 @@ with its source still read-only. See the final validation entry for this batch.
 
 Similarity threshold follow-up: gallery defaults to 90%, remembers explicit changes
 per browser, and honors explicit URL thresholds without overwriting preferences.
-The 75% floor remains. Collapsing identical reference sets was discussed but is
-not implemented; partially overlapping sets must remain distinct.
+The 75% floor remains. Identical reference sets now collapse in the grouped gallery; partially
+overlapping sets remain distinct.
+
+## Identical-set gallery follow-up
+
+Grouped browsing now uses exact sorted visual-hash bucket neighborhoods, including
+self, to collapse identical full destination membership. Equal-hash buckets are
+indivisible, so this avoids expanding photo-pair cross products. It compares full
+signatures, not a probabilistic digest or match count. Missing hashes and unavailable
+copies remain excluded by existing destination evidence. Queries read live state;
+no schema migration, group persistence, or new cache is introduced.
+
+The lowest canonical photo ID satisfying filters represents each set. List totals,
+paging, IDs and positioning use grouped representatives; sidebar and library
+view-button counts remain photos so filters can find other members. Explicit selection is never expanded or erased.
+Ungrouping restores individual photos. Exploration still allows explicit direct
+reference choices; this change collapses the main gallery, not saved groups.
+
+New code: webui/equivalent_sets.py. APIs add optional group_sets to browsing and
+position requests. Tests cover exact versus partial overlap, distinct hashes with
+the same neighborhood, threshold splits, filtering, paging, selection and unchanged
+catalog state. The generated browser fixture collapses 126 equal-hash photos to one
+of five distinct gallery sets. Existing exploration and narrow layout still work.
+
+Validation passed: five reference-set tests, all 76 general API tests, both
+reference-set and full similarity-review browser workflows, TypeScript/image builds,
+API/specification/whitespace checks, and the sparse 250,000-photo grouped query
+measurement (1.738 seconds). The sample is deployed and healthy; source read-only
+was verified. No actual library transfers or repair jobs ran.

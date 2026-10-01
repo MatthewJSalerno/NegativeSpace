@@ -58,6 +58,7 @@ export interface PhotoPosition {
 // What narrows the gallery: the view, the search, No capture date, and the date tree's
 // "Show only" years and months ("2023", "2023-06", "none").
 export interface BrowseFilters {
+  group_sets?: boolean;
   match_min?: number;
   view: View;
   q: string;
@@ -85,6 +86,7 @@ export interface FolderTree {
 
 function browseQuery(f: BrowseFilters): URLSearchParams {
   const query = new URLSearchParams({ view: f.view });
+  if (f.group_sets) query.set("group_sets", "true");
   if (f.match_min != null) query.set("match_min", String(f.match_min));
   if (f.q) query.set("q", f.q);
   if (f.undated) query.set("undated", "true");

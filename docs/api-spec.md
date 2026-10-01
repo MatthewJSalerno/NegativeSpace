@@ -788,3 +788,20 @@ Inspector responses also include nullable `visual_issue` describing recorded mis
 or failed visual hashing. Recovery failure operations use mode SIMILARITY/status
 Failed with a photo ID, path and detailed `error_message`; the photo's delivered
 status remains unchanged. Older jobs without these entries are not backfilled.
+
+### Identical-set gallery browsing
+
+The photo list, IDs, timeline, types and folders GET endpoints accept optional
+`group_sets` (boolean, default false). The photo-position POST body accepts the same
+boolean. It applies only to `view=similar`; explicit selection lists remain ungrouped.
+Exact closed neighborhoods (reference plus all direct destination matches at
+`match_min`) collapse before pagination and ordering. Lowest canonical ID among
+references satisfying filters represents each identical set. Filtering never narrows
+set membership. Different neighborhoods with equal counts stay separate.
+
+List `total` and returned IDs/positions describe representatives; per-photo
+`similar_count` still counts direct matches. View-button `counts` remain uncollapsed
+library photo counts. Sidebar queries count representatives in their normal filter
+scope. `matches` for other views retains normal photo-filter semantics. No photo,
+EXIF, persisted group, or catalog schema is changed. Without `group_sets`, existing
+API behavior is unchanged.

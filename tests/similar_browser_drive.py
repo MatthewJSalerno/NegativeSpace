@@ -81,7 +81,9 @@ with sync_playwright() as p:
     page.get_by_role('button', name=re.compile('^Has similar photos')).click()
     gallery_threshold.select_option('75')
     gallery_photo = page.locator('.card').first
-    reference = int(gallery_photo.get_attribute('data-id'))
+    expected_group = request.get('/api/v1/photos?view=similar&group_sets=true&match_min=75&sort=matches').json()['items'][0]
+    expect(gallery_photo).to_have_attribute('data-id', str(expected_group['id']))
+    reference = expected_group['id']
     gallery_photo.get_by_role('checkbox').check()
     gallery_photo.get_by_role('button', name=re.compile('^Open ')).click()
     inspector = page.get_by_role('region', name='Photo details', exact=True)
@@ -169,7 +171,11 @@ with sync_playwright() as p:
     expect(dialog.get_by_role('slider', name='Candidate horizontal position', exact=True)).to_have_value('75')
     expect(candidate_preview).to_contain_text('Viewing rotation: 270°')
     # The address records current-pair transforms and navigation, not file edits.
-    page.wait_for_function("JSON.parse(new URLSearchParams(location.search).get('review')).views[JSON.parse(new URLSearchParams(location.search).get('review')).candidate].rotation === 270")
+    page.wait_for_function("""() => {
+        const review = JSON.parse(new URLSearchParams(location.search).get('review'));
+        return review?.views[review.candidate]?.rotation === 270
+            && review.views[review.candidate]?.x === 75 && review.views[review.reference]?.x === 75;
+    }""")
     saved_workspace = parse_qs(urlsplit(page.url).query)['review'][0]
     page.reload()
     expect(dialog).to_be_visible()
@@ -427,6 +433,9 @@ with sync_playwright() as p:
     expect(page.get_by_role('dialog', name='Photo details', exact=True)).to_be_visible()
     shot('gallery-matches-narrow')
     page.set_viewport_size({'width': 1440, 'height': 1000})
+    # This fixture is one identical set. Ungroup before stepping between photos.
+    page.get_by_role('checkbox', name='Group similar photos', exact=True).uncheck()
+    expect(page.locator('.card')).to_have_count(60)
     # Browsing photos retains the tab and threshold, with match paging reset.
     old_title = inspector.locator('.inspector-head h2').inner_text()
     inspector.get_by_role('button', name='Next photo', exact=True).click()
@@ -436,7 +445,7 @@ with sync_playwright() as p:
     expect(page).not_to_have_url(re.compile('match_page='))
     # Old standalone/exact-mode bookmarks redirect into the same gallery workflow.
     page.goto(f'{sys.argv[1]}/similar?mode=exact&photo={reference}&threshold=85')
-    expect(page).to_have_url(re.compile(r'/\?view=similar&match_min=75&photo=\d+&tab=similar&match=85'))
+    expect(page).to_have_url(re.compile(r'/\?view=similar&sort=matches&match_min=75&photo=\d+&tab=similar&match=85'))
     expect(summary.get_by_role('button', name=re.compile('^85% or higher:'))).to_have_attribute('aria-pressed', 'true')
     expect(matches.locator('.inspector-match')).to_have_count(12)
     # A saved page beyond the remaining candidates returns to the last valid page.

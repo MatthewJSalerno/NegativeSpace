@@ -78,3 +78,37 @@ class ReferenceSetsTests(fixtures.ApiCase):
         self.assertEqual(response['state']['unavailable'],1)
         self.assertEqual(self.client.get(f'/api/v1/similar/{source}/sets').status_code,400)
         self.assertEqual(self.client.get(f'/api/v1/similar/{broken}/sets').status_code,400)
+
+    def test_identical_sets_collapse_before_paging_and_selection(self):
+        # A/B and B/A/C are different despite overlapping; equal-hash A2
+        # has exactly A's neighborhood, not merely the same match count.
+        equal = self.photo('A-lookalike', 'e', '0000000000000000')
+        self.refresh()
+        before = list(self.conn.iterdump())
+        query = '/api/v1/photos?view=similar&match_min=90&group_sets=true&sort=name'
+        result = self.client.get(query).json()
+        self.assertEqual(result['total'], 4)
+        self.assertEqual({p['id'] for p in result['items']}, {self.a,self.b,self.c,self.d})
+        self.assertEqual(self.client.get(query+'&page_size=1&page=2').json()['items'][0]['id'], self.b)
+        selected = self.client.get('/api/v1/photos/ids?view=similar&match_min=90&group_sets=true').json()
+        self.assertEqual(set(selected['ids']), {self.a,self.b,self.c,self.d})
+        filtered = self.client.get(query+'&q=A-lookalike').json()
+        self.assertEqual([p['id'] for p in filtered['items']], [equal])
+        self.assertEqual(filtered['items'][0]['similar_count'], 2)
+        position = self.client.post('/api/v1/photos/position',json={
+            'view':'similar','sort':'name','match_min':90,'group_sets':True,'photo_id':self.b}).json()
+        self.assertEqual(position['position'],1)
+        self.assertEqual(list(self.conn.iterdump()), before)
+
+    def test_different_hashes_with_identical_members_and_threshold_split(self):
+        # At 75% A/B/C share the same closed neighborhood when D is absent.
+        self.conn.execute("UPDATE photos SET status='Pending' WHERE id=?", (self.d,))
+        self.conn.commit()
+        self.refresh()
+        base='/api/v1/photos?view=similar&group_sets=true&match_min='
+        broad=self.client.get(base+'75').json()
+        self.assertEqual([p['id'] for p in broad['items']], [self.a])
+        self.assertEqual(broad['items'][0]['similar_count'], 2)
+        narrow=self.client.get(base+'90').json()
+        self.assertEqual(narrow['total'], 3)
+        self.assertEqual(self.client.get(base+'100').json()['total'], 0)

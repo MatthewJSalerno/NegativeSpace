@@ -37,6 +37,7 @@ class PhotoPositionRequest(BaseModel):
     view: str = "all"
     sort: str = "newest"
     match_min: int = Field(default=75, ge=75, le=100)
+    group_sets: bool = False
     page_size: int = Field(default=60, ge=1, le=240)
     q: Optional[str] = None
     undated: bool = False
@@ -258,51 +259,51 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_photos(view: str = "all", sort: str = "newest", q: Optional[str] = None,
                    page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=240), undated: bool = False,
                    date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                   folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100)):
+                   folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False):
         try:
             return catalog.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size,
-                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min)
+                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/timeline")
     def get_timeline(view: str = "all", q: Optional[str] = None, undated: bool = False,
                      date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                     folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100)):
+                     folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False):
         try:
             return catalog.timeline(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
-                                    folders=folder, root=cfg.source, match_min=match_min)
+                                    folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/types")
     def get_types(view: str = "all", q: Optional[str] = None, undated: bool = False,
-                  date: Optional[List[str]] = Query(None), folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100)):
+                  date: Optional[List[str]] = Query(None), folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False):
         try:
             return {"types": catalog.file_types(cfg.db_path, view=view, q=q, undated=undated, dates=date,
-                                                folders=folder, root=cfg.source, match_min=match_min)}
+                                                folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets)}
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/folders")
     def get_folders(view: str = "all", q: Optional[str] = None, undated: bool = False,
                     date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                    folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100)):
+                    folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False):
         """The source's folders with their counts; `folder` names ticked folders, which stay
         listed at 0 but do not narrow the counts (the tree ignores its own filter)."""
         try:
             return catalog.folder_tree(cfg.db_path, cfg.source, view=view, q=q, undated=undated, dates=date,
-                                       types=type, keep=folder, match_min=match_min)
+                                       types=type, keep=folder, match_min=match_min, group_sets=group_sets)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/ids")
     def get_photo_ids(view: str = "all", q: Optional[str] = None, undated: bool = False,
                       date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                      folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100)):
+                      folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False):
         try:
             return catalog.photo_ids(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
-                                     folders=folder, root=cfg.source, match_min=match_min)
+                                     folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets)
         except ValueError as exc:
             raise _bad_request(exc)
 

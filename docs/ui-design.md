@@ -366,10 +366,18 @@ Clearly distinguish indirect photos, for example “Related through B · below y
 threshold for A”; never present C as a qualifying direct match to A.
 
 These are session-only display choices, not saved groups or tags. **Group similar
-photos** adds set counts and actions to the existing reference cards. One tile per
-qualifying reference remains; equivalent sets are not collapsed in this version.
-Gallery filters, sorts, counts, paging, Select all and card checkboxes continue to
-refer to individual reference photos. A set's members come from the full destination
+photos** adds set counts and actions to the existing reference cards. Sets with exactly the same full destination membership appear once in the gallery.
+Compare each closed neighborhood (reference plus direct matches) at the selected
+percentage, never just match counts or a transitive component. Choose the lowest
+canonical photo ID satisfying active filters as the stable representative; it is
+not a keeper or the highest-quality photo. Sort the resulting representatives and
+collapse before pagination. Search can choose another member as representative.
+Gallery totals and paging count sets when grouping is on. Select all and card
+checkboxes select only displayed representatives, not every member. Existing
+explicit selection remains intact, including hidden members; Show only selected
+still displays individual photos. View-button counts remain library photo counts.
+Sidebar counts remain individual photos so filters can find members hidden by
+collapsed sets; date-jump positioning uses grouped representatives. A set's members come from the full destination
 library. Turning grouping off returns the ordinary cards without clearing selection.
 Grouping defaults on and the toggle is remembered per browser (`ns.groupSets`). Selected expansions reset on closing exploration
 or changing its percentage, and survive a visit to side-by-side review and back.
@@ -380,8 +388,7 @@ byte identities, and shows every photo's membership in the displayed sets. Membe
 and related references have independent pagination (12 per page). The starting
 reference sorts first, then minimum recorded distance to a chosen reference and ID;
 related references sort by direct distance then ID. Counts include the reference;
-match counts elsewhere exclude it. Broader graph intersections and equivalent-set
-collapse remain future work. No automatic traversal follows a newly exposed photo.
+match counts elsewhere exclude it. Broader graph intersections remain future work. No automatic traversal follows a newly exposed photo.
 
 An indirect member's Compare button uses its supporting reference, not the starting
 reference it does not directly match. The comparison remains the existing direct
@@ -411,4 +418,4 @@ The gallery similarity percentage defaults to 90% and remembers explicit user
 changes in browser storage (`ns.matchMin`). An explicit `match_min` URL value wins
 without overwriting that preference. Gallery and reference-set threshold controls
 update the preference; Inspector/comparison thresholds remain local to their review.
-The 75% floor remains available. Identical-set collapsing remains discussion only.
+The 75% floor remains available. Identical-set collapsing is implemented for the grouped gallery.

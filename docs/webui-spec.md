@@ -2196,16 +2196,18 @@ the server's UTC year when the catalog is read.
 ### Reference-based grouping
 
 **Built:** Group similar photos defaults on and adds reference-set counts and actions in
-Has similar photos. Each eligible reference retains its own tile; filters, sorting,
-pagination and selection keep their per-photo semantics. Members include direct
+Has similar photos. Identical closed neighborhoods appear once, represented by the
+lowest canonical photo ID satisfying active filters. Membership uses the entire
+destination library at the chosen threshold; equal counts alone do not merge sets.
+Collapse precedes sorting and pagination. Totals count sets; selection takes only
+representative photos. Explicit selections remain unchanged. Members include direct
 matches from the entire destination catalog. Review this set opens direct-match
 comparison. Explore related sets offers direct-match references with overlap and
 additional-member counts. Show together unions at most six chosen related sets,
 shows each byte identity once, and preserves membership/provenance. Indirect photos
 compare through a supporting reference. Both member lists are paged and coverage
 limitations remain visible. Expanded sets are session-only and reset on reload/closing;
-threshold changes clear expansions. No transitive traversal or equivalent-set
-collapse. See [the design contract](ui-design.md#reference-based-sets).
+threshold changes clear expansions. No transitive traversal. See [the design contract](ui-design.md#reference-based-sets).
 
 Hash recovery now records per-file failures in Logs, with photo/path, category and
 external correction guidance. Inspector shows recorded visual-processing problems.
@@ -2219,4 +2221,4 @@ The gallery similarity percentage defaults to 90% and remembers explicit user
 changes in browser storage (`ns.matchMin`). An explicit `match_min` URL value wins
 without overwriting that preference. Gallery and reference-set threshold controls
 update the preference; Inspector/comparison thresholds remain local to their review.
-The 75% floor remains available. Identical-set collapsing remains discussion only.
+The 75% floor remains available. Identical-set collapsing is implemented for the grouped gallery.

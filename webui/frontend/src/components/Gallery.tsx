@@ -82,7 +82,7 @@ export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId
             </div>
             {onExploreSet && <div className="set-card-actions">
               <strong>Reference set · {plural((item.similar_count ?? 0) + 1, "photo")}</strong>
-              <span className="section-note">Overlaps with matching references’ sets.</span>
+              <span className="section-note">Identical sets shown once. Explore members and related sets.</span>
               <button onClick={() => onReviewSet?.(item.id)}>Review this set</button>
               <button onClick={() => onExploreSet(item.id)}>Explore related sets</button>
             </div>}

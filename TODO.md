@@ -64,10 +64,10 @@ migration/history work for that sample is out of scope.
   Add inline overlap notices, Review this set and Explore related sets. Users may
   explicitly choose related sets and Show together, deduplicating photos while
   retaining reference/membership context and identifying indirect relationships.
-  Display choices are session-only; recompute sets/overlap when the percentage
+  Expansions are session-only; recompute sets/overlap when the percentage
   changes. No automatic recursive expansion, persisted group membership, tags,
   keeper decisions or photo writes. Pagination, filter/count/selection semantics
-  are documented in the design standard. Equivalent-set collapsing remains deferred.
+  are documented in the design standard. Identical-set collapsing is implemented in the grouped gallery.
 
 ## Separate workstream: photo changes
 
@@ -154,5 +154,11 @@ Deferred performance and robustness work — a stalled worker having no deadline
 
 Similarity threshold follow-up: gallery defaults to 90%, remembers explicit changes
 per browser, and honors explicit URL thresholds without overwriting preferences.
-The 75% floor remains. Collapsing identical reference sets was discussed but is
-not implemented; partially overlapping sets must remain distinct.
+The 75% floor remains. Identical reference sets now collapse in the grouped gallery; partially
+overlapping sets remain distinct.
+
+- [x] Collapse identical full-membership reference sets before gallery pagination;
+  maintain filtered representatives, set counts, selection, and photo positioning.
+- [ ] Optional small follow-ups to discuss: copy a review link; navigate directly
+  between gallery sets from review; show a set’s members in the ordinary gallery.
+  These are suggestions, not part of the identical-set implementation.

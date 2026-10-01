@@ -407,3 +407,30 @@ extended reference-set browser workflow: fresh default, explicit user change,
 reload, reopening without URL state, and URL override without preference changes.
 TypeScript/build and specification checks passed; the sample web container was
 updated. Identical reference-set collapsing remains discussion, not implementation.
+
+## Identical-set gallery validation
+
+The grouped gallery collapses exact closed neighborhoods at the selected percentage
+before pagination. It keeps partial overlaps separate, selects a stable filtered
+representative, and preserves explicit photo selections. Sidebar photo counts remain
+available so hidden members can still be reached by filters.
+
+Five reference-set API tests passed, including full membership equality across
+different visual hashes, equal-hash buckets, threshold splits, filtered references,
+paging/position/selection consistency and no catalog writes. All 76 general API
+tests passed. The generated browser fixture displays five distinct sets rather
+than 130 reference tiles; 126 equal-hash members appear under one gallery tile.
+Grouping toggle, exploration, selection retention and narrow layout checks passed.
+
+The existing sparse synthetic 250,000-photo fixture returned 60 representatives
+from 50,000 distinct sets in 1.738 seconds for the full grouped-gallery request.
+This measures prepared relationships and existing count-cache reads, not dense
+real-library capacity, decoding or hash generation. No new persisted cache or
+schema migration was added.
+
+The full similarity-review browser workflow also passed after updating its fixture
+expectations for grouped versus per-photo navigation and remembered sort URLs, and
+waiting for pan state to reach the URL before testing reload. TypeScript, image
+builds, 41 API route contracts, specification checks and whitespace checks passed.
+The idle sample instance was updated with its catalog and mounts preserved. The
+grouped endpoint responded successfully and the source remains read-only.

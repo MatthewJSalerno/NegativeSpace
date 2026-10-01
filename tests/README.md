@@ -488,3 +488,10 @@ not be retried by bulk generation; unsupported decoders offer no futile retry.
 
 The defaults regression also checks the initial 90% gallery threshold, remembering
 an explicit percentage, and URL threshold precedence without changing preferences.
+
+Identical-set validation: reference_sets_test.py checks exact membership collapse,
+partial overlaps, thresholds, filtered representatives, pagination and selection.
+The reference-set browser driver expects five grouped tiles for the 130-photo
+fixture, including one 126-member set, and verifies ungrouping restores photo cards.
+tools/benchmark-reference-sets.py also measures a full grouped-gallery query on its
+250,000-photo sparse prepared fixture; this is not dense-library capacity evidence.
