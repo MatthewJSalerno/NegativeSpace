@@ -170,11 +170,12 @@ entry and tests/README.md for evidence and reproducible fixtures.
 
 Manually passed: defaults/preferences, grouping/overlap, filters/counts, comparison,
 saved judgments/restoration, selection, previous/next set, set-member gallery, and
-all Copy review link steps.
-Still awaiting manual confirmation: recovery explanations/actions
-where affected files exist; desktop zoom/reflow. Detailed link-test instructions are
-in tests/README.md. Representative 200,000+ dense-library/long-session capacity
-remains unverified; deferred EXIF/delete/tagging work is not part of this sign-off.
+all Copy review link steps. The maintainer also reports recovery/logging passes:
+logs show what failed and why. At 200% browser zoom, windows scale and adapt.
+The agreed manual functional checklist is now complete. This does not establish
+representative 200,000+ dense-library/long-session capacity, which remains unverified.
+Deferred EXIF/delete/tagging work is not part of this sign-off. No merge or push
+has been performed as part of recording validation.
 
 The maintainer requested future discussion of showing selected photos in gallery.
 Show only selected already exists; discuss its discoverability and grouped-set

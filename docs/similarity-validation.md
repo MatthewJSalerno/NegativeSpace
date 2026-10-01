@@ -461,9 +461,12 @@ partially overlapping sets, filtering/counts, comparison, saved judgments and
 restoration, and selection. Previous/next set and Show this set in gallery also work.
 After receiving the detailed instructions, the maintainer confirmed all Copy review
 link steps validated.
-Recovery/action explanations and desktop zoom/reflow from the manual checklist
-have not yet been reported as validated in this pass. Automated results above are
-separate evidence and do not replace these remaining manual checks.
+The maintainer reports recovery/logging passes: logs now explain what failed and
+why. Desktop zoom/reflow also passes: the screen scales to 200% and windows adapt.
+This completes the agreed manual functional checklist. Automated results above
+remain separate evidence. Representative 200,000+ photo capacity, dense matching
+and long-session performance remain outstanding; this sign-off does not establish
+those limits or authorize a merge.
 
 Future discussion requested: presenting selected photos in the gallery. The existing
 Show only selected command already provides a temporary selection gallery; discuss

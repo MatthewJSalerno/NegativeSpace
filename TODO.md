@@ -167,6 +167,7 @@ overlapping sets remain distinct.
   sets. Show only selected already exists in the selection bar; discuss desired
   discoverability/behavior before changing or duplicating it.
 - [x] Maintainer validated all Copy review link steps.
-- [ ] Finish maintainer manual sign-off: recovery explanations/actions
-  where issues exist, and desktop zoom/reflow. Other checklist categories and both
-  set-navigation/member-gallery actions were reported validated on 2026-10-01.
+- [x] Maintainer manual checklist complete: recovery/logging passes (logs explain
+  what failed and why), and windows adapt correctly at 200% browser zoom. Other
+  checklist categories and all three review actions were also reported validated.
+  Representative 200,000+ photo capacity remains a separate outstanding validation.
