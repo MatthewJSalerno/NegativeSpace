@@ -162,3 +162,10 @@ overlapping sets remain distinct.
 - [x] Copy review link with manual fallback, previous/next grouped-gallery set
   navigation, and a paged temporary gallery of one set’s direct members.
   Preserve selection and gallery return context; no engine changes.
+
+- [ ] Future discussion: make selected-photo gallery access clear, including grouped
+  sets. Show only selected already exists in the selection bar; discuss desired
+  discoverability/behavior before changing or duplicating it.
+- [ ] Finish maintainer manual sign-off: Copy review link, recovery explanations/actions
+  where issues exist, and desktop zoom/reflow. Other checklist categories and both
+  set-navigation/member-gallery actions were reported validated on 2026-10-01.

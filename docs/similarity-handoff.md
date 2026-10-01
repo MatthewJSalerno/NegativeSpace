@@ -165,3 +165,16 @@ builds, API contracts and documentation checks. Desktop/narrow layouts inspected
 The sample is deployed and healthy with its source read-only. The member gallery
 retains its reference even with no qualifying candidates; see the latest validation
 entry and tests/README.md for evidence and reproducible fixtures.
+
+## Maintainer sign-off progress — 2026-10-01
+
+Manually passed: defaults/preferences, grouping/overlap, filters/counts, comparison,
+saved judgments/restoration, selection, previous/next set, and set-member gallery.
+Still awaiting manual confirmation: Copy review link; recovery explanations/actions
+where affected files exist; desktop zoom/reflow. Detailed link-test instructions are
+in tests/README.md. Representative 200,000+ dense-library/long-session capacity
+remains unverified; deferred EXIF/delete/tagging work is not part of this sign-off.
+
+The maintainer requested future discussion of showing selected photos in gallery.
+Show only selected already exists; discuss its discoverability and grouped-set
+semantics rather than assuming a missing feature. No UI change was requested here.

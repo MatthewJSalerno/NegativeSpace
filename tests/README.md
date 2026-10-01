@@ -501,3 +501,19 @@ copied comparison restoration including rotation, previous/next gallery sets,
 selection preservation in the temporary set-member gallery, and paging a 126-photo
 set. reference_sets_test.py verifies set_reference membership/paging/IDs/position
 and rejects invalid IDs. Clipboard output is only a local generated-fixture link.
+
+### Manual Copy review link check
+
+1. Open a photo comparison using Review this set or Review side by side. Rotate a
+   preview or adjust zoom so the restored state is easy to recognize.
+2. Click Copy review link near the top of the comparison window. If Review link
+   copied appears, proceed to step 3. If Copy this review link manually appears,
+   click inside its text field, press Ctrl+A while the field is focused, then Ctrl+C
+   (Command+A / Command+C on macOS). Local-network HTTP may require this fallback.
+3. Open a new browser tab, paste into the address bar, and press Enter. Use a tab
+   that can access the same sample instance; the link does not upload photographs.
+4. Confirm the same reference/candidate, percentage, review tab/filter and current
+   pair rotation/zoom reopen. Opening the link must not save another judgment.
+
+Pass: either copy path gives a usable link that restores the current comparison.
+The manual fallback is expected behavior when clipboard access is unavailable.

@@ -453,3 +453,17 @@ no candidates meet the threshold. All test photo operations used disposable fixt
 The idle sample instance was updated with its catalog/mounts preserved. Health,
 the read-only member-gallery endpoint, and read-only source mounting were checked.
 No real-library copy, move, repair, EXIF editing or deletion was performed.
+
+## Maintainer manual review — 2026-10-01
+
+The maintainer reports all steps validated for defaults/preferences, identical and
+partially overlapping sets, filtering/counts, comparison, saved judgments and
+restoration, and selection. Previous/next set and Show this set in gallery also work.
+Copy review link remains unconfirmed: clearer execution instructions were requested.
+Recovery/action explanations and desktop zoom/reflow from the manual checklist
+have not yet been reported as validated in this pass. Automated results above are
+separate evidence and do not replace these remaining manual checks.
+
+Future discussion requested: presenting selected photos in the gallery. The existing
+Show only selected command already provides a temporary selection gallery; discuss
+discoverability and desired behavior with grouped sets before adding/changing UI.
