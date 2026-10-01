@@ -282,6 +282,7 @@ UNDATED_FOLDER = "Undated"
 
 from ns_db import (PhotoStatus, RunStatus, PHOTO_STATUSES, RUN_STATUSES,
                    OPERATION_STATUSES, OPERATION_CANCELLED, OPERATION_SKIPPED, OPERATION_RENAMED,
+                   OPERATION_RETURNED, OPERATION_EMPTIED, IN_REJECTS_STATUSES, REJECTED_STATUSES,
                    RAW_EXTENSIONS, RASTER_EXTENSIONS, SUPPORTED_EXTENSIONS)
 import ns_db
 import ns_similarity
@@ -305,7 +306,7 @@ ANCHOR_STATUSES = (PhotoStatus.PENDING, PhotoStatus.PROCESSING) + ANCHOR_DELIVER
 SETTLED_STATUSES = (
     PhotoStatus.PENDING, PhotoStatus.COMPLETED, PhotoStatus.COPIED,
     PhotoStatus.DUPLICATE, PhotoStatus.REMOVED_DUPLICATE, PhotoStatus.FOUND_AT_DESTINATION,
-)
+) + REJECTED_STATUSES
 
 # Statuses whose source file is legitimately gone: see ns_db.SOURCE_CONSUMED_STATUSES.
 SOURCE_CONSUMED_STATUSES = ns_db.SOURCE_CONSUMED_STATUSES
@@ -1403,6 +1404,12 @@ def reconcile_interrupted_state(db_path: Path, run_id: int):
                 ns_db.settle_operation(conn, operation_id, status=final, step="recovery",
                                        outcome="not_started", error_message=note)
 
+            if expected.get("rejected"):
+                # A rejected photo's Move goes to Rejects; whatever happened, it stays
+                # rejected (engine-spec 9.5): delivered there, or still waiting with its source.
+                final = {PhotoStatus.COMPLETED: PhotoStatus.REJECTED,
+                         PhotoStatus.PENDING: PhotoStatus.REJECTED_COPIED}.get(final, final)
+
             # The repair belongs to the run that performed it, linked to the
             # operation it repairs. The interrupted operation keeps its own
             # settled outcome and its evidence; this row is what a reader sees
@@ -1421,6 +1428,7 @@ def reconcile_interrupted_state(db_path: Path, run_id: int):
             logger.info(f"Reconciled interrupted record {record_id} as {final}.")
 
         _reconcile_interrupted_renames(conn, run_id)
+        _notice_emptied_rejects(conn, run_id)
 
         # A run killed uncatchably never reaches finish_run(), so its row stays
         # in an active state with no end time. This process holds the
@@ -3374,11 +3382,13 @@ def run_similarity_repair(args, db_path: Path, lock_fd):
 
 
 def run_maintenance_job(args, db_path: Path, lock_fd, *, mode: str, label: str, submitted: dict,
-                        defaults: dict, overrides: dict, body, reconcile_files=True) -> int:
+                        defaults: dict, overrides: dict, body, reconcile_files=True, targeted=False) -> int:
     """A job that is not Index/Copy/Move, run like any other: a runs row (with
     --request-id replay and conflict handling), reconciliation first, cancellation,
     live progress, and a settled status. `body(run_id, config)` does the work and
-    returns the run outcome. Releases the lock. Exits 0 unless the run Failed."""
+    returns the run outcome. Releases the lock. Exits 0 unless the run Failed.
+    `targeted` records the run's source, destination and --file-ids/--source-subdir
+    selection as Copy and Move do, for a job that acts on a selection."""
     try:
         try:
             init_database(str(db_path))
@@ -3388,7 +3398,9 @@ def run_maintenance_job(args, db_path: Path, lock_fd, *, mode: str, label: str, 
         signal.signal(signal.SIGTERM, _handle_cancel_signal)
         signal.signal(signal.SIGINT, _handle_cancel_signal)
         try:
-            run_id, created = start_run(str(db_path), mode, None, None, None, defaults=defaults,
+            where = ((str(Path(args.source).resolve()), str(Path(args.dest).resolve()), args.file_ids,
+                      args.source_subdir) if targeted else (None, None, None))
+            run_id, created = start_run(str(db_path), mode, *where, defaults=defaults,
                                         overrides=overrides, request_id=args.request_id,
                                         submitted=submitted)
         except ns_db.RequestConflict:
@@ -3790,17 +3802,35 @@ def rename_delivered_file(db_path: Path, dest_root: Path, backups_dir: Path, bas
 
 def _record_rename(conn, operation_id, old: str, new: str, file_id, detail=None, step="rename"):
     """Points the catalog at a renamed file, in the caller's transaction."""
+    _record_relocation(conn, operation_id, old, new, file_id, detail=detail, step=step,
+                       operation_status=OPERATION_RENAMED)
+
+
+def _record_relocation(conn, operation_id, old: str, new: str, file_id, *, detail=None, step: str,
+                       operation_status: str, photo_id=None, status_after=None):
+    """Points the catalog at a file moved within the destination (a rename, a reject, a
+    return), in the caller's transaction: every row naming the old path, the file
+    identity's current path, the photo's new status when it has one, and the operation
+    settled with both paths. Historical operations keep their paths."""
     conn.execute("UPDATE photos SET dest_path = ? WHERE dest_path = ?", (new, old))
+    if photo_id is not None and status_after:
+        conn.execute("UPDATE photos SET status = ? WHERE id = ?", (status_after, photo_id))
     if file_id is not None:
         conn.execute("UPDATE file_states SET current_path = ?, revision = revision + 1 WHERE file_id = ?",
                      (new, file_id))
         conn.execute("INSERT OR IGNORE INTO operation_files VALUES (?,?,'destination')", (operation_id, file_id))
-    ns_db.settle_operation(conn, operation_id, status=OPERATION_RENAMED, step=step, outcome="completed",
+    ns_db.settle_operation(conn, operation_id, status=operation_status, step=step, outcome="completed",
                            detail=dict(detail or {}, old_path=old, new_path=new))
 
 
+# What an interrupted move within the destination was, in recovery's messages.
+_RELOCATION_NOUNS = {"rename": "rename", "reject": "reject", "return": "return to the library"}
+
+
 def _reconcile_interrupted_renames(conn, run_id: int):
-    """Settles a rename a killed run left without an outcome, from what is on disk.
+    """Settles a rename, reject or return to the library that a killed run left without
+    an outcome, from what is on disk. All three are one no-replace rename within the
+    destination (_rename_noreplace).
 
     The intent names both paths. Only the new name present: the rename happened, so
     the catalog catches up. Both present on one inode: link-then-unlink stopped
@@ -3813,9 +3843,12 @@ def _reconcile_interrupted_renames(conn, run_id: int):
         intent = conn.execute("SELECT detail_json FROM operation_events WHERE operation_id = ? AND "
                               "step = 'intent'", (operation_id,)).fetchone()
         detail = json.loads(intent[0]) if intent and intent[0] else {}
-        if detail.get("kind") != "rename":
+        kind = detail.get("kind")
+        if kind not in _RELOCATION_NOUNS:
             continue
-        file_id = (detail.get("expected") or {}).get("file_id")
+        expected = detail.get("expected") or {}
+        file_id = expected.get("file_id")
+        noun = _RELOCATION_NOUNS[kind]
         states = {}
         for role, path in (("old", old), ("new", new)):
             try:
@@ -3838,16 +3871,21 @@ def _reconcile_interrupted_renames(conn, run_id: int):
             if same_file:
                 os.unlink(old)
                 _fsync_directory(Path(old).parent)
-            _record_rename(conn, operation_id, old, new, file_id, detail={"recovered": True}, step="recovery")
-            logger.info(f"Recovered an interrupted rename: {Path(old).name} is now {Path(new).name}.")
+            _record_relocation(conn, operation_id, old, new, file_id,
+                               detail={"recovered": True, "status_before": expected.get("status_before")},
+                               step="recovery",
+                               operation_status=expected.get("operation_status", OPERATION_RENAMED),
+                               photo_id=photo_id if kind != "rename" else None,
+                               status_after=expected.get("status_after"))
+            logger.info(f"Recovered an interrupted {noun}: {old} is now {new}.")
         elif o not in (None, "unreadable") and n is None:
             ns_db.settle_operation(conn, operation_id, status=PhotoStatus.FAILED, step="recovery",
-                                   outcome="not_started", error_message="The rename was interrupted "
-                                   "before it happened; the file keeps its old name. Nothing was changed.")
+                                   outcome="not_started", error_message=f"The {noun} was interrupted "
+                                   "before it happened; the file stays where it was. Nothing was changed.")
         else:
-            note = (f"An interrupted rename could not be settled: the old name {old} is "
+            note = (f"An interrupted {noun} could not be settled: the old path {old} is "
                     f"{'unreadable' if o == 'unreadable' else 'present' if o else 'absent'} and the new "
-                    f"name {new} is {'unreadable' if n == 'unreadable' else 'present' if n else 'absent'}"
+                    f"path {new} is {'unreadable' if n == 'unreadable' else 'present' if n else 'absent'}"
                     f"{' (a different file)' if o and n and not same_file else ''}. Nothing was removed.")
             ns_db.settle_operation(conn, operation_id, status=PhotoStatus.FAILED, step="recovery",
                                    outcome="unestablished", error_message=note)
@@ -3866,6 +3904,252 @@ def run_rename(args, db_path: Path, base_dir: Path, lock_fd) -> int:
         defaults={}, overrides={},
         body=lambda run_id, config: rename_delivered_file(db_path, dest_root, Path(args.backups), base_dir,
                                                           run_id, args.rename, args.name))
+
+
+def _rejects_path_for(dest_root: Path, library_path) -> Path:
+    """A library file's place in Rejects: the same folders under rejects/ (engine-spec 9.9)."""
+    return ns_db.rejects_root(dest_root) / Path(library_path).relative_to(ns_db.library_root(dest_root))
+
+
+def _library_path_for(dest_root: Path, rejects_path) -> Path:
+    """Where a file in Rejects sat in the library, by the same mirroring."""
+    return ns_db.library_root(dest_root) / Path(rejects_path).relative_to(ns_db.rejects_root(dest_root))
+
+
+def _status_before_reject(conn, photo_id: int, status: str) -> str:
+    """What a rejected photo goes back to on Return to library. Rejected after a Copy with
+    its source still here: Copied. Otherwise the delivered status it had when rejected
+    (Completed or Found_At_Destination), and Completed when no reject recorded one, as
+    for a copy that arrived again and went to Rejects in its own right."""
+    if status == PhotoStatus.REJECTED_COPIED:
+        return PhotoStatus.COPIED
+    row = conn.execute(
+        "SELECT e.detail_json FROM operation_events e JOIN operations o ON o.id = e.operation_id "
+        "WHERE o.photo_id = ? AND o.status = ? AND e.step IN ('reject', 'recovery') "
+        "AND e.outcome = 'completed' ORDER BY e.event_id DESC LIMIT 1",
+        (photo_id, PhotoStatus.REJECTED)).fetchone()
+    before = (json.loads(row[0]) if row and row[0] else {}).get("status_before")
+    return before if before in (PhotoStatus.COMPLETED, PhotoStatus.FOUND_AT_DESTINATION) else PhotoStatus.COMPLETED
+
+
+# Why a selected photo was left alone, by its status: every selected photo gets an outcome.
+def _relocation_skip_reason(status: str, returning: bool) -> str:
+    if status in (PhotoStatus.DUPLICATE, PhotoStatus.REMOVED_DUPLICATE):
+        return ("A copy of another photo; it follows that photo." if returning else
+                "A copy of another photo; reject that photo and its copies follow it.")
+    if status == PhotoStatus.REJECTED_EMPTIED:
+        return ("Rejects has been emptied of this photo, so there is nothing to return." if returning
+                else "Already rejected; Rejects has since been emptied of it.")
+    if returning:
+        return "Already in the library." if status in ANCHOR_DELIVERED_STATUSES else "Not in Rejects."
+    if status in IN_REJECTS_STATUSES:
+        return "Already in Rejects."
+    return "Not organized yet: only photos in the library can be rejected."
+
+
+def relocate_in_destination(db_path: Path, dest_root: Path, backups_dir: Path, base_dir: Path,
+                            run_id: int, args, returning: bool) -> str:
+    """Reject (engine-spec 9.5): moves each selected organized photo's file from
+    dest/library to its place in dest/rejects. Return to library: moves a rejected photo
+    back to its date folder. Nothing is deleted; the user empties Rejects.
+
+    Per photo, as Rename (rename_delivered_file): the file is verified live against the
+    catalog, intent is recorded durably, the file is renamed without overwriting and the
+    directory entries made durable, and then one commit points every catalog row at the
+    new path and sets the photo's status. The catalog is backed up once, before the first
+    file moves; if that fails nothing moves. A photo's exact duplicates need no step of
+    their own: they follow the photo's status (Move and Copy, engine-spec 9.5).
+    """
+    global _destination_root
+    _destination_root = dest_root
+    _verified_directories.clear()
+    verb, past = ("Return to library", "returned") if returning else ("Reject", "rejected")
+    kind = "return" if returning else "reject"
+    from_root = ns_db.rejects_root(dest_root) if returning else ns_db.library_root(dest_root)
+    acts_on = IN_REJECTS_STATUSES if returning else ANCHOR_DELIVERED_STATUSES
+    if args.source_subdir:
+        source_root = Path(args.source).resolve()
+        if not _is_under(str((source_root / args.source_subdir).resolve()), source_root):
+            logger.error(f"--source-subdir must resolve to a path under --source ({source_root}). "
+                         f"Nothing was changed.")
+            return RunStatus.FAILED
+    predicate, params = _targeting_predicate(args)
+    conn = get_db_connection(str(db_path), synchronous="FULL")
+    try:
+        rows = conn.execute("SELECT id, source_path, dest_path, sha1_hash, status, metadata_json FROM photos "
+                            "WHERE 1 = 1" + predicate + " ORDER BY id", params).fetchall()
+        act = [r for r in rows if r[4] in acts_on]
+        run_progress.start("transferring", len(rows))
+        with ns_db.transaction(conn):
+            for photo_id, src, dest, _, status, _ in rows:
+                if status not in acts_on:
+                    log_operation(conn, run_id, photo_id, src, dest, OPERATION_SKIPPED,
+                                  _relocation_skip_reason(status, returning), commit=False)
+            run_progress.add(OPERATION_SKIPPED, len(rows) - len(act))
+            run_progress.write(conn)
+        if not act:
+            logger.info(f"{verb}: none of the {len(rows):,} selected photo(s) can be {past}; nothing was changed.")
+            return RunStatus.COMPLETED
+
+        backup = ns_db.backup_catalog(db_path, backups_dir, base_dir, trigger="pre_action", related_run_id=run_id)
+        _log_backup(backup, f"before {verb.lower()}")
+        if backup["outcome"] != "succeeded":
+            with ns_db.transaction(conn):
+                for photo_id, src, dest, _, _, _ in act:
+                    log_operation(conn, run_id, photo_id, src, dest, PhotoStatus.FAILED,
+                                  f"Not {past}: the catalog backup failed. Nothing was changed.", commit=False)
+                run_progress.add(PhotoStatus.FAILED, len(act))
+                run_progress.write(conn)
+            logger.error("No files were moved because the catalog backup failed.")
+            return RunStatus.FAILED
+
+        done = failed = 0
+        for index, (photo_id, src, old, sha1, status, metadata_json) in enumerate(act):
+            if cancel_requested.is_set():
+                remaining = act[index:]
+                with ns_db.transaction(conn):
+                    for cancelled_id, cancelled_src, cancelled_dest, _, _, _ in remaining:
+                        log_operation(conn, run_id, cancelled_id, cancelled_src, cancelled_dest,
+                                      OPERATION_CANCELLED, commit=False)
+                    run_progress.add(OPERATION_CANCELLED, len(remaining))
+                    run_progress.write(conn)
+                logger.warning(f"Cancelled: {len(remaining):,} photo(s) left where they were.")
+                break
+            if run_progress.due():
+                with ns_db.transaction(conn):
+                    run_progress.write(conn)
+
+            problem = None
+            if not old or not sha1:
+                problem = "the catalog records no file for it"
+            elif not _is_under(old, from_root):
+                problem = f"its file is not in {from_root} ({old})"
+            else:
+                try:
+                    if compute_sha1(old) != sha1:
+                        problem = "its file no longer matches the catalog"
+                except FileNotFoundError:
+                    problem = f"its file {old} is no longer there"
+                except OSError as exc:
+                    problem = f"its file could not be read ({type(exc).__name__}: {exc})"
+                if problem:
+                    problem += (". The destination differs from the catalog; see the destination check "
+                                "and the fresh-destination workflow")
+            if problem:
+                with ns_db.transaction(conn):
+                    log_operation(conn, run_id, photo_id, src, old, PhotoStatus.FAILED,
+                                  f"Not {past}: {problem}. Nothing was changed.", commit=False)
+                logger.error(f"Not {past}: photo #{photo_id}: {problem}.")
+                failed += 1
+                run_progress.add(PhotoStatus.FAILED)
+                continue
+
+            if returning:
+                fallback = str(_library_path_for(dest_root, old))
+                folder = Path(_destination_for(dest_root, src, metadata_json, fallback)).parent
+                wanted = folder / Path(old).name
+                status_after = _status_before_reject(conn, photo_id, status)
+                operation_status = OPERATION_RETURNED
+            else:
+                wanted = _rejects_path_for(dest_root, old)
+                status_after = PhotoStatus.REJECTED_COPIED if status == PhotoStatus.COPIED else PhotoStatus.REJECTED
+                operation_status = PhotoStatus.REJECTED
+            new = str(get_unique_dest_path(wanted))
+            file_id = (conn.execute("SELECT file_id FROM file_states WHERE current_path = ? AND "
+                                    "location_role = 'destination' AND presence_state = 'present'",
+                                    (old,)).fetchone() or [None])[0]
+            with ns_db.transaction(conn):
+                operation_id = ns_db.begin_operation(
+                    conn, run_id=run_id, photo_id=photo_id, source_path=old, dest_path=new, kind=kind,
+                    expected={"old_path": old, "new_path": new, "file_id": file_id, "sha1_hash": sha1,
+                              "status_before": status, "status_after": status_after,
+                              "operation_status": operation_status})
+            try:
+                _mkdir_durable(Path(new).parent)
+                method = _rename_noreplace(old, new)
+                _fsync_directory(Path(new).parent)
+                _fsync_directory(Path(old).parent)
+            except (FileExistsError, OSError) as exc:
+                reason = "its new place was taken a moment ago" if isinstance(exc, FileExistsError) else str(exc)
+                note = f"Not {past}: {reason}. Nothing was changed."
+                with ns_db.transaction(conn):
+                    ns_db.settle_operation(conn, operation_id, status=PhotoStatus.FAILED, step=kind,
+                                           outcome="failed", error_message=note)
+                logger.error(f"{note} ({old})")
+                failed += 1
+                run_progress.add(PhotoStatus.FAILED)
+                continue
+            with ns_db.transaction(conn):
+                _record_relocation(conn, operation_id, old, new, file_id, step=kind,
+                                   detail={"method": method, "status_before": status},
+                                   operation_status=operation_status, photo_id=photo_id,
+                                   status_after=status_after)
+            done += 1
+            run_progress.add(operation_status)
+
+        with ns_db.transaction(conn):
+            run_progress.write(conn)
+        held, size = conn.execute(f"SELECT COUNT(*), COALESCE(SUM(file_size), 0) FROM photos "
+                                  f"WHERE status IN ({sql_values(IN_REJECTS_STATUSES)})").fetchone()
+        logger.info(f"{verb}: {done:,} photo(s) {past}" + (f", {failed:,} failed" if failed else "") +
+                    f". Rejects now holds {held:,} photo(s), {size / 1e6:,.1f} MB, in "
+                    f"{ns_db.rejects_root(dest_root)}; empty it yourself when you are sure.")
+        return RunStatus.COMPLETED
+    finally:
+        conn.close()
+
+
+def _notice_emptied_rejects(conn, run_id: int) -> int:
+    """Records rejected photos whose file is gone from Rejects: the user emptied it
+    (engine-spec 9.5). Run as every job starts, so it is noticed without an Index. Reads
+    no file, one stat each. Recorded as observed, never guessed at: the photo leaves the
+    Rejects view, and keeps its fingerprints, so an identical file is still recognised
+    as rejected. A destination that is not mounted (no library folder beside Rejects)
+    proves nothing, and nothing is recorded."""
+    marker = f"/{ns_db.REJECTS_FOLDER}/"
+    noticed = 0
+    for photo_id, src, path, status in conn.execute(
+            f"SELECT id, source_path, dest_path, status FROM photos WHERE dest_path IS NOT NULL "
+            f"AND status IN ({sql_values(IN_REJECTS_STATUSES)}) ORDER BY id").fetchall():
+        if marker not in path or not os.path.isdir(ns_db.library_root(path[:path.rindex(marker)])):
+            continue
+        try:
+            os.lstat(path)
+            continue
+        except FileNotFoundError:
+            pass
+        except OSError:
+            continue
+        last = conn.execute("SELECT status, dest_path FROM operations WHERE photo_id = ? ORDER BY id DESC LIMIT 1",
+                            (photo_id,)).fetchone()
+        if last == (OPERATION_EMPTIED, path):
+            continue    # Rejected after a Copy: noticed already, and its source still waits for a Move.
+        with ns_db.transaction(conn):
+            conn.execute("UPDATE file_states SET presence_state = 'missing', revision = revision + 1 "
+                         "WHERE current_path = ? AND location_role = 'destination' AND presence_state = 'present'",
+                         (path,))
+            if status == PhotoStatus.REJECTED:
+                conn.execute("UPDATE photos SET status = ? WHERE id = ?", (PhotoStatus.REJECTED_EMPTIED, photo_id))
+            log_operation(conn, run_id, photo_id, src, path, OPERATION_EMPTIED,
+                          "No longer in Rejects when this job started: emptied outside NegativeSpace. "
+                          "Its fingerprints stay in the catalog, so an identical file is recognised as "
+                          "rejected.", commit=False)
+        noticed += 1
+    if noticed:
+        logger.info(f"{noticed:,} rejected photo(s) are no longer in Rejects: emptied, recorded in their history.")
+    return noticed
+
+
+def run_relocation(args, db_path: Path, base_dir: Path, lock_fd) -> int:
+    """--reject or --return-to-library, as a job (run_maintenance_job)."""
+    dest_root = Path(args.dest).resolve()
+    returning = bool(args.return_to_library)
+    return run_maintenance_job(
+        args, db_path, lock_fd, mode="RETURN" if returning else "REJECT",
+        label="Return to library" if returning else "Reject", submitted={}, targeted=True,
+        defaults={}, overrides={},
+        body=lambda run_id, config: relocate_in_destination(db_path, dest_root, Path(args.backups), base_dir,
+                                                            run_id, args, returning))
 
 
 def run_thumbnail_rebuild(args, db_path: Path, log_dir: Path, lock_fd) -> int:
@@ -4064,6 +4348,18 @@ def main():
         help="Write one manual catalog backup to --backups and exit. Takes the engine lock, so it "
              "is refused while a job runs. Touches no photo and needs no --source."
     )
+    mode_group.add_argument(
+        "--reject", action="store_true",
+        help="Move the selected organized photos (--file-ids or --source-subdir) from dest/library "
+             "to the same folders under dest/rejects, and mark them Rejected. Nothing is deleted: "
+             "the user empties dest/rejects. Backs up the catalog first. Takes the engine lock."
+    )
+    mode_group.add_argument(
+        "--return-to-library", action="store_true",
+        help="Move the selected rejected photos (--file-ids or --source-subdir) from dest/rejects "
+             "back to their date folder in dest/library. Backs up the catalog first. Takes the "
+             "engine lock."
+    )
     parser.add_argument("--name", default=None, help="The new name for --rename.")
     parser.add_argument("--dry-run", action="store_true",
                         help="With --rename: print where the file would go, and change nothing.")
@@ -4077,6 +4373,8 @@ def main():
         parser.error("--rename needs --name.")
     if (args.name is not None or args.dry_run) and args.rename is None:
         parser.error("--name and --dry-run go with --rename.")
+    if (args.reject or args.return_to_library) and not (args.file_ids or args.source_subdir):
+        parser.error("--reject and --return-to-library need --file-ids or --source-subdir.")
     if args.rebuild_thumbnails and args.no_thumbnails:
         parser.error("--rebuild-thumbnails makes thumbnails; it cannot be combined with --no-thumbnails.")
 
@@ -4141,6 +4439,8 @@ def main():
         sys.exit(run_destination_check(args, db_path, log_dir, lock_fd))
     if args.rename is not None:
         sys.exit(run_rename(args, db_path, base_dir, lock_fd))
+    if args.reject or args.return_to_library:
+        sys.exit(run_relocation(args, db_path, base_dir, lock_fd))
 
     # 2b. ExifTool is a hard requirement (module docstring) — fail fast and
     # clearly, before touching source/dest/the database at all, rather than
@@ -4908,6 +5208,25 @@ def _duplicate_skip_reason(cursor, sha1_hash: str, copying: bool) -> tuple:
     )
     row = cursor.fetchone()
     if row is None:
+        rejected = cursor.execute(
+            f"SELECT id, source_path, dest_path, status FROM photos WHERE sha1_hash = ? "
+            f"AND status IN ({sql_values(REJECTED_STATUSES)}) ORDER BY id DESC LIMIT 1",
+            (sha1_hash,)).fetchone()
+        if rejected is not None:
+            rejected_id, rejected_src, rejected_dest, rejected_status = rejected
+            where = ("its copy is in Rejects" if rejected_status in IN_REJECTS_STATUSES
+                     else "Rejects has since been emptied")
+            if copying:
+                return (f"Already rejected: identical to photo #{rejected_id} "
+                        f"({Path(rejected_src).name}), which you rejected; {where}, so it is not "
+                        f"copied into the library.",
+                        rejected_dest if rejected_status in IN_REJECTS_STATUSES else None)
+            then = ("once that photo's own source is moved" if rejected_status == PhotoStatus.REJECTED_COPIED
+                    else "once its copy in Rejects is verified")
+            return (f"Already rejected: identical to photo #{rejected_id} "
+                    f"({Path(rejected_src).name}), which you rejected; {where}. This source is "
+                    f"removed {then}.",
+                    rejected_dest if rejected_status in IN_REJECTS_STATUSES else None)
         return ("Duplicate with no original left in the catalog; run an Index so it can be "
                 "reclassified.", None)
     anchor_id, anchor_src, anchor_dest, anchor_status = row
@@ -4925,6 +5244,63 @@ def _duplicate_skip_reason(cursor, sha1_hash: str, copying: bool) -> tuple:
             f"its content is delivered when that photo is copied or moved.", None)
 
 
+def _rejected_outcome(status: str) -> tuple:
+    """(photo status, operation status) for a Move of a rejected photo whose source was
+    still here: it went to Rejects, not the library, and stays rejected whatever happened.
+    A failure leaves it as it was, waiting with its source still in place."""
+    return {PhotoStatus.COMPLETED: (PhotoStatus.REJECTED, PhotoStatus.REJECTED),
+            PhotoStatus.COPIED: (PhotoStatus.REJECTED_COPIED, PhotoStatus.REJECTED_COPIED),
+            }.get(status, (PhotoStatus.REJECTED_COPIED, status))
+
+
+def _promote_rejected_duplicates(conn, run_id: int, dest_root: Path, predicate: str, params) -> int:
+    """A rejected photo arriving again after Rejects was emptied (engine-spec 9.5): one of
+    its copies in this Move's scope takes the rejected photo's place, Rejected_Copied and
+    pointed at a free path in Rejects, so the Move carries it there with the same copy,
+    verify and delete as any photo, and its other copies are then removed against it.
+    A Move therefore never ends with no copy at all of a photo the user only rejected.
+    Catalog only; the Move does the file work. Returns how many were promoted."""
+    rows = conn.execute(
+        f"SELECT id, source_path, sha1_hash, metadata_json FROM photos WHERE status = '{PhotoStatus.DUPLICATE}' "
+        f"AND sha1_hash IN (SELECT sha1_hash FROM photos WHERE status IN ({sql_values(REJECTED_STATUSES)}))"
+        + predicate + " ORDER BY id", params).fetchall()
+    promoted, seen = 0, set()
+    for record_id, src, sha1, metadata_json in rows:
+        if sha1 in seen:
+            continue
+        seen.add(sha1)
+        held = conn.execute(
+            f"SELECT status, dest_path FROM photos WHERE sha1_hash = ? AND status IN ({sql_values(IN_REJECTS_STATUSES)})",
+            (sha1,)).fetchall()
+        # A copy still in Rejects, or a rejected photo whose own source is still here and
+        # carries the content there when it is moved: nothing to promote.
+        if any(status == PhotoStatus.REJECTED_COPIED or (path and os.path.lexists(path)) for status, path in held):
+            continue
+        earlier = conn.execute(
+            f"SELECT id, dest_path FROM photos WHERE sha1_hash = ? AND status IN ({sql_values(REJECTED_STATUSES)}) "
+            f"ORDER BY id DESC LIMIT 1", (sha1,)).fetchone()
+        rejects = ns_db.rejects_root(dest_root)
+        if earlier[1] and _is_under(earlier[1], rejects):
+            target = Path(earlier[1])
+        else:
+            library_path = Path(_destination_for(dest_root, src, metadata_json,
+                                                 str(ns_db.library_root(dest_root) / UNDATED_FOLDER / Path(src).name)))
+            target = _rejects_path_for(dest_root, library_path)
+        target = get_unique_dest_path(target)
+        with ns_db.transaction(conn):
+            conn.execute("UPDATE photos SET status = ?, dest_path = ? WHERE id = ?",
+                         (PhotoStatus.REJECTED_COPIED, str(target), record_id))
+            log_operation(conn, run_id, record_id, src, str(target), PhotoStatus.REJECTED_COPIED,
+                          f"Identical to photo #{earlier[0]}, which you rejected and which has since "
+                          f"been emptied from Rejects. This copy takes its place, so the Move puts it "
+                          f"in Rejects rather than deleting every copy.", commit=False)
+        promoted += 1
+    if promoted:
+        logger.info(f"{promoted} rejected photo(s) arrived again after Rejects was emptied; one copy "
+                    f"of each goes back to Rejects.")
+    return promoted
+
+
 def normalize_duplicate_groups(db_path: str) -> tuple:
     """
     Re-derives Pending versus Duplicate for every content group from the
@@ -4939,12 +5315,13 @@ def normalize_duplicate_groups(db_path: str) -> tuple:
 
     Per content hash: if any row is Completed, Copied or Processing, the
     content is delivered or in flight, and every Pending or Duplicate row in
-    the group is a Duplicate. Otherwise exactly one row — the oldest Pending,
+    the group is a Duplicate. A rejected row counts the same way: its content
+    was turned down, and an identical file must not become a new photo. Otherwise exactly one row — the oldest Pending,
     else the oldest Duplicate — is Pending and the rest are Duplicates. Failed
     rows and removed duplicates take no part. On a catalog built by ordinary
     Index runs this changes nothing; it only repairs groups that drifted.
     """
-    delivered_or_in_flight = ANCHOR_DELIVERED_STATUSES + (PhotoStatus.PROCESSING,)
+    delivered_or_in_flight = ANCHOR_DELIVERED_STATUSES + (PhotoStatus.PROCESSING,) + REJECTED_STATUSES
     open_statuses = (PhotoStatus.PENDING, PhotoStatus.DUPLICATE)
     conn = get_db_connection(db_path)
     try:
@@ -5046,6 +5423,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     cursor = conn.cursor()
 
     predicate, predicate_params = _targeting_predicate(args)
+    if args.move:
+        _promote_rejected_duplicates(conn, run_id, dest_path, predicate, predicate_params)
     # Why --move also takes Copied rows: ns_db.TRANSFER_ELIGIBLE. The web UI counts
     # "Copy all" and "Move all" from the same table.
     eligible = ns_db.TRANSFER_ELIGIBLE["move" if args.move else "copy"]
@@ -5055,6 +5434,11 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         predicate_params
     )
     pending_records = cursor.fetchall()
+    # Rejected photos whose source is still here (engine-spec 9.5): the Move carries them
+    # to their place in Rejects, not into the library, and they stay rejected.
+    rejected_ids = {row[0] for row in cursor.execute(
+        f"SELECT id FROM photos WHERE status = '{PhotoStatus.REJECTED_COPIED}'" + predicate,
+        predicate_params)} if args.move else set()
 
     # A Move to a network share deletes sources on the strength of an fsync the
     # server may acknowledge before the data is on its disk, and the engine cannot
@@ -5235,7 +5619,24 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         bytes_done += sizes.get(record_id, 0)
 
         label = _display_path(src, source_root)
-        dst = _destination_for(dest_path, src, metadata_json, stored_dst)
+        rejected = record_id in rejected_ids
+        dst = stored_dst if rejected else _destination_for(dest_path, src, metadata_json, stored_dst)
+
+        if rejected and _source_missing(src):
+            # Rejected after a Copy, and its source has gone since: nothing to remove.
+            # Recorded as observed; the photo stays rejected either way.
+            recorded_sha1 = cursor.execute("SELECT sha1_hash FROM photos WHERE id = ?",
+                                           (record_id,)).fetchone()[0]
+            found = find_delivered_copy(dst, recorded_sha1)
+            cursor.execute("UPDATE photos SET status = ? WHERE id = ?",
+                           (PhotoStatus.REJECTED if found else PhotoStatus.REJECTED_EMPTIED, record_id))
+            log_operation(conn, run_id, record_id, src, dst, OPERATION_SKIPPED,
+                          "The source of this rejected photo is already gone; " +
+                          ("its copy in Rejects is verified." if found
+                           else "its copy is no longer in Rejects either."), commit=False)
+            conn.commit()
+            run_progress.add(OPERATION_SKIPPED)
+            continue
 
         # A source that is gone may already be delivered: the state a power cut
         # leaves when this loop's catalog commits are lost and its file work is
@@ -5297,7 +5698,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 intent_id = ns_db.begin_operation(
                     conn, run_id=run_id, photo_id=record_id, source_path=src,
                     dest_path=resolved_dst, kind="move_already_present",
-                    expected={"sha1_hash": verified_sha1, "source_removed": True})
+                    expected={"sha1_hash": verified_sha1, "source_removed": True,
+                              **({"rejected": True} if rejected else {})})
                 conn.commit()
                 try:
                     if source_identity is None:
@@ -5323,14 +5725,15 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 skip_error = None
             # The final state and its audit entry commit together, so a row can
             # never read Completed without the operation that says so.
+            row_status, final_status = _rejected_outcome(final_status) if rejected else (final_status, final_status)
             cursor.execute(
                 "UPDATE photos SET status = ?, dest_path = ? WHERE id = ?",
-                (final_status, resolved_dst, record_id)
+                (row_status, resolved_dst, record_id)
             )
             log_operation(conn, run_id, record_id, src, resolved_dst, final_status, skip_error,
                           has_collision, commit=False, operation_id=intent_id,
                           step="move_already_present",
-                          delivery=dict(source_removed=final_status == PhotoStatus.COMPLETED,
+                          delivery=dict(source_removed=row_status in (PhotoStatus.COMPLETED, PhotoStatus.REJECTED),
                                         created=False, sha1_hash=verified_sha1)
                           if final_status != PhotoStatus.FAILED else None)
             conn.commit()
@@ -5371,7 +5774,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         intent_id = ns_db.begin_operation(
             conn, run_id=run_id, photo_id=record_id, source_path=src, dest_path=resolved_dst,
             kind="move" if args.move else "copy",
-            expected={"source_removed": bool(args.move), "created": True})
+            expected={"source_removed": bool(args.move), "created": True,
+                      **({"rejected": True} if rejected else {})})
         conn.commit()
 
         # --move deletes the verified source (delete_source=True, the
@@ -5387,7 +5791,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                             else PhotoStatus.COPIED if copied_only else PhotoStatus.FAILED)
         else:
             final_status = PhotoStatus.COPIED if success else PhotoStatus.FAILED
-        cursor.execute("UPDATE photos SET status = ? WHERE id = ?", (final_status, record_id))
+        row_status, final_status = _rejected_outcome(final_status) if rejected else (final_status, final_status)
+        cursor.execute("UPDATE photos SET status = ? WHERE id = ?", (row_status, record_id))
         log_operation(conn, run_id, record_id, src, resolved_dst, final_status, error_message,
                       has_collision, commit=False, operation_id=intent_id,
                       step="move" if args.move else "copy",
@@ -5458,9 +5863,11 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             # the first. LIMIT 1 could pick a row whose file has since been
             # edited or removed and conclude there is no copy, while another
             # row names a copy that is still byte-perfect.
+            # A rejected photo's copy in Rejects counts too: the duplicates follow the
+            # reject (engine-spec 9.5), removed only against its verified copy there.
             cursor.execute(
                 f"SELECT DISTINCT dest_path FROM photos WHERE sha1_hash = ? "
-                f"AND status IN ({sql_values((PhotoStatus.COMPLETED, PhotoStatus.FOUND_AT_DESTINATION))}) "
+                f"AND status IN ({sql_values((PhotoStatus.COMPLETED, PhotoStatus.FOUND_AT_DESTINATION, PhotoStatus.REJECTED))}) "
                 f"AND dest_path IS NOT NULL",
                 (sha1_hash,)
             )

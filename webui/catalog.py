@@ -5,12 +5,14 @@ import re
 import os
 import posixpath
 import sqlite3
+import time
 from pathlib import Path
 from typing import Optional
 
 import ns_db
 from .similarity_sql import matched_ids, match_counts_cte, match_distance, comparison_state
-from ns_db import PhotoStatus, RunStatus, OPERATION_SKIPPED, OPERATION_CANCELLED, OPERATION_RENAMED
+from ns_db import (PhotoStatus, RunStatus, OPERATION_SKIPPED, OPERATION_CANCELLED, OPERATION_RENAMED,
+                   OPERATION_RETURNED, IN_REJECTS_STATUSES)
 
 GRID_SIZE = 320
 DELIVERED = (PhotoStatus.COMPLETED, PhotoStatus.COPIED, PhotoStatus.FOUND_AT_DESTINATION)
@@ -26,7 +28,16 @@ NOT_ORGANIZED = (PhotoStatus.PENDING, PhotoStatus.PROCESSING, PhotoStatus.FAILED
 # A duplicate's content is shown once, on its anchor, with a duplicate count: the
 # gallery lists photographs, not every copy of one (webui-spec 7.2).
 COPIES = (PhotoStatus.DUPLICATE, PhotoStatus.REMOVED_DUPLICATE)
-VIEWS = {"all": DELIVERED + NOT_ORGANIZED, "organized": DELIVERED, "unorganized": NOT_ORGANIZED, "similar": DELIVERED, "suspicious": DELIVERED + NOT_ORGANIZED}
+# Rejected photos leave every other view; the Rejects view shows those whose file is
+# still in dest/rejects (engine-spec 9.5).
+VIEWS = {"all": DELIVERED + NOT_ORGANIZED, "organized": DELIVERED, "unorganized": NOT_ORGANIZED, "similar": DELIVERED,
+         "suspicious": DELIVERED + NOT_ORGANIZED, "rejects": IN_REJECTS_STATUSES}
+# Photos whose catalogued file is at the destination, in the library or in Rejects.
+AT_DESTINATION = DELIVERED + IN_REJECTS_STATUSES
+# How long one listing of dest/rejects answers "is this file still there", so a gallery
+# page reads the folder once rather than every file (in_rejects).
+REJECTS_LISTING_SECONDS = 5.0
+_rejects_listings = {}
 SORTS = {
     "matches": "similar_count DESC, p.id ASC",
     # Undated rows carry their modification-time fallback in date_taken, labelled by
@@ -59,6 +70,32 @@ def _basename(path):
     return path.rsplit("/", 1)[-1] if path else None
 
 
+def in_rejects(path) -> int:
+    """Whether a rejected photo's file is still in Rejects (engine-spec 9.5): the user
+    empties dest/rejects outside the app, and the Rejects view must not wait for the
+    next job, which records it, to stop showing what is gone. Answered from a listing
+    of the folder (a directory read per folder, no file reads), taken at most every
+    REJECTS_LISTING_SECONDS; a file the listing does not hold, such as one rejected
+    since it was taken, is looked up on its own, so only files really gone cost a
+    lookup each. A destination with no library folder beside Rejects is not mounted,
+    which proves nothing, so the catalog's word stands."""
+    marker = f"/{ns_db.REJECTS_FOLDER}/"
+    cut = path.rfind(marker) if path else -1
+    if cut < 0:
+        return 0
+    root = path[:cut + len(marker) - 1]
+    now = time.monotonic()
+    listed = _rejects_listings.get(root)
+    if listed is None or now - listed[0] > REJECTS_LISTING_SECONDS:
+        if not os.path.isdir(ns_db.library_root(path[:cut])):
+            return 1
+        present = set()
+        for folder, _, files in os.walk(root):
+            present.update(os.path.join(folder, name) for name in files)
+        listed = _rejects_listings[root] = (now, present)
+    return 1 if path in listed[1] or os.path.lexists(path) else 0
+
+
 @contextlib.contextmanager
 def connect(db_path: Path):
     """A catalog connection for reads. Never creates a catalog: a missing one is
@@ -78,6 +115,7 @@ def connect(db_path: Path):
                                 f"cannot read it.") from exc
         conn.create_function("basename", 1, _basename, deterministic=True)
         conn.create_function("extension", 1, _extension, deterministic=True)
+        conn.create_function("in_rejects", 1, in_rejects)
         conn.row_factory = sqlite3.Row
         yield conn
     finally:
@@ -96,7 +134,8 @@ def status(db_path: Path) -> dict:
         eligible = {mode: sum(by_status.get(s, 0) for s in statuses)
                     for mode, statuses in ns_db.TRANSFER_ELIGIBLE.items()}
         return {"state": "ok", "detail": None, "photos": photos, "indexed": indexed > 0,
-                "eligible": eligible, "copied": by_status.get(PhotoStatus.COPIED, 0)}
+                "eligible": eligible, "copied": by_status.get(PhotoStatus.COPIED, 0),
+                "rejected_with_source": by_status.get(PhotoStatus.REJECTED_COPIED, 0)}
     except CatalogUnavailable as exc:
         return {"state": exc.state, "detail": exc.detail, "photos": 0, "indexed": False,
                 "eligible": {"copy": 0, "move": 0}, "copied": 0}
@@ -135,7 +174,7 @@ _LIST_COLUMNS = f"""
     json_extract(p.metadata_json, '$.date_taken') AS date_taken,
     json_extract(p.metadata_json, '$.date_source') AS date_source,
     {_date_warning_sql()} AS date_warning,
-    basename(COALESCE(CASE WHEN p.status IN ({ns_db.sql_values(DELIVERED)}) THEN p.dest_path END,
+    basename(COALESCE(CASE WHEN p.status IN ({ns_db.sql_values(AT_DESTINATION)}) THEN p.dest_path END,
                       p.source_path)) AS filename
 """
 
@@ -266,6 +305,8 @@ def _view_clause(view, match_min=75):
         return f"p.status IN ({ns_db.sql_values(VIEWS[view])}) AND ({_date_warning_sql()}) IS NOT NULL"
     if view == "similar":
         return f"p.id IN ({matched_ids(match_min)})"
+    if view == "rejects":
+        return f"p.status IN ({ns_db.sql_values(VIEWS[view])}) AND in_rejects(p.dest_path)"
     return f"p.status IN ({ns_db.sql_values(VIEWS[view])})"
 
 
@@ -315,6 +356,10 @@ def _items(conn, rows) -> list:
                                 "ORDER BY id DESC LIMIT 1", (r["id"], PhotoStatus.FAILED)).fetchone()
             item["failure"] = failure_reason(last[0]) if last else None
         # A Copied photo a Move could not finish: why its original is still in the source.
+        # When a rejected photo was rejected, for its card in the Rejects view.
+        item["rejected_at"] = None
+        if r["status"] in IN_REJECTS_STATUSES:
+            item["rejected_at"] = _rejected_at(conn, r["id"])
         item["kept"] = None
         if r["status"] == PhotoStatus.COPIED:
             last = conn.execute("SELECT error_message FROM operations WHERE photo_id = ? AND status IN (?, ?) "
@@ -323,6 +368,25 @@ def _items(conn, rows) -> list:
             item["kept"] = kept_reason(last[0]) if last else None
         items.append(item)
     return items
+
+
+def _rejected_at(conn, photo_id):
+    """When the photo last went to Rejects: its reject, or its Move there."""
+    row = conn.execute("SELECT MAX(timestamp) FROM operations WHERE photo_id = ? AND status IN (?, ?)",
+                       (photo_id, PhotoStatus.REJECTED, PhotoStatus.REJECTED_COPIED)).fetchone()
+    return row[0] if row else None
+
+
+def rejects_summary(conn) -> dict:
+    """What Rejects holds now: photos, bytes and the oldest reject, for the Rejects view."""
+    photos = bytes_ = 0
+    oldest = None
+    for row in conn.execute(f"SELECT p.id, p.file_size FROM photos p WHERE {_view_clause('rejects')}"):
+        photos += 1
+        bytes_ += row["file_size"] or 0
+        at = _rejected_at(conn, row["id"])
+        oldest = at if oldest is None or (at and at < oldest) else oldest
+    return {"photos": photos, "bytes": bytes_, "oldest_rejected_at": oldest}
 
 
 def _counted_list(sort, match_min, *, include=False, ids=None):
@@ -370,8 +434,10 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             filtered_params + (page_size, (page - 1) * page_size)).fetchall()
         items = _items(conn, rows)
         state = comparison_state(conn) if view == "similar" else None
+        rejects = rejects_summary(conn) if view == "rejects" else None
     return {"items": items, "page": page, "page_size": page_size, "total": total, "counts": counts,
-            "matches": matches, "similarity": {"threshold": match_min, **state} if state is not None else None}
+            "matches": matches, "similarity": {"threshold": match_min, **state} if state is not None else None,
+            "rejects": rejects}
 
 
 def photo_position(db_path: Path, photo_id: int, *, view="all", sort="newest", page_size=60,
@@ -474,8 +540,8 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
     source paths, never a disk listing, so every folder offered holds photos a job can
     act on. Each folder counts its photos recursively under the view, search, dates and
     types (the folder filter itself does not apply, so an unticked folder keeps its
-    number), and, whatever the filters, the photos a Copy or a Move of it would take
-    (ns_db.TRANSFER_ELIGIBLE), for Actions. A chain of folders each holding only one
+    number), and, whatever the filters, the photos a Copy, Move, Reject or Return to
+    library of it would take (ns_db.TRANSFER_ELIGIBLE for the first two), for Actions. A chain of folders each holding only one
     folder and no photos is one row ("Camera / Nikon D750"). A folder in `keep` stays
     listed at 0, so a ticked folder can be unticked. Photos outside the source folder
     (a catalog shared with another source) are counted in `outside`, not placed."""
@@ -486,29 +552,32 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
     # destination path yet), and NULL is not a count. An unclassified photo's NULL
     # status also makes eligibility NULL: it is neither shown nor transferable yet.
     shown = f"COALESCE(({_view_clause(view, match_min)}{filtered}), 0)"
-    copy_ok, move_ok = (ns_db.sql_values(ns_db.TRANSFER_ELIGIBLE[m]) for m in ("copy", "move"))
-    tree = {"all": 0, "photos": 0, "copy": 0, "move": 0, "sub": {}}
-    top = {"photos": 0, "copy": 0, "move": 0}
+    # What each job of the folder would act on: Copy and Move as the engine selects them,
+    # Reject its organized photos, Return to library its photos in Rejects.
+    acts = {"copy": ns_db.TRANSFER_ELIGIBLE["copy"], "move": ns_db.TRANSFER_ELIGIBLE["move"],
+            "reject": DELIVERED, "return": IN_REJECTS_STATUSES}
+    eligible_sql = ", ".join(f"COALESCE(p.status IN ({ns_db.sql_values(v)}), 0)" for v in acts.values())
+    tree = {"all": 0, "photos": 0, **{k: 0 for k in acts}, "sub": {}}
+    top = {"photos": 0, **{k: 0 for k in acts}}
     with connect(db_path) as conn:
         rows = conn.execute(
-            f"SELECT p.source_path, {shown}, COALESCE(p.status IN ({copy_ok}), 0), "
-            f"COALESCE(p.status IN ({move_ok}), 0) FROM photos p "
+            f"SELECT p.source_path, {shown}, {eligible_sql} FROM photos p "
             "WHERE p.source_path >= ? AND p.source_path < ?", params + (base, base[:-1] + "0"))
-        for path, is_shown, can_copy, can_move in rows:
+        for path, is_shown, *can in rows:
             parts = path[len(base):].split("/")[:-1]
             node = tree
             if not parts:
                 node = top
             for name in parts:
-                node = node["sub"].setdefault(name, {"all": 0, "photos": 0, "copy": 0, "move": 0, "sub": {}})
+                node = node["sub"].setdefault(name, {"all": 0, "photos": 0, **{k: 0 for k in acts}, "sub": {}})
                 node["all"] += 1
                 node["photos"] += is_shown
-                node["copy"] += can_copy
-                node["move"] += can_move
+                for key, n in zip(acts, can):
+                    node[key] += n
             if not parts:
                 top["photos"] += is_shown
-                top["copy"] += can_copy
-                top["move"] += can_move
+                for key, n in zip(acts, can):
+                    top[key] += n
         outside = conn.execute(
             f"SELECT COUNT(*) FROM photos p WHERE {shown} AND NOT (p.source_path >= ? AND p.source_path < ?)",
             params + (base, base[:-1] + "0")).fetchone()[0]
@@ -529,12 +598,12 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
                 node, path, label = child, f"{path}/{child_name}", f"{label} / {child_name}"
             if listed(path, node):
                 out.append({"path": path, "name": label, "photos": node["photos"],
-                            "eligible": {"copy": node["copy"], "move": node["move"]},
+                            "eligible": {k: node[k] for k in acts},
                             "folders": build(path + "/", node["sub"])})
         return out
 
     return {"folders": build("", tree["sub"]),
-            "top_files": {"photos": top["photos"], "eligible": {"copy": top["copy"], "move": top["move"]}},
+            "top_files": {"photos": top["photos"], "eligible": {k: top[k] for k in acts}},
             "outside": outside}
 
 
@@ -592,9 +661,9 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
     camera = " ".join(v for v in (meta.get("Make"), meta.get("Model")) if v) or None
     return {
         "id": p["id"], "status": p["status"],
-        "filename": _basename(p["dest_path"] if p["status"] in DELIVERED else p["source_path"]),
+        "filename": _basename(p["dest_path"] if p["status"] in AT_DESTINATION else p["source_path"]),
         "source_path": p["source_path"], "dest_path": p["dest_path"],
-        "dest_path_is_projection": p["status"] not in DELIVERED,
+        "dest_path_is_projection": p["status"] not in AT_DESTINATION,
         "has_collision_rename": bool(p["has_name_collision"]),
         "file_size": p["file_size"],
         "file_modified": snapshot["file_mtime"] if snapshot else p["file_mtime"],
@@ -626,12 +695,14 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
 # Per phase: which progress outcomes are the work the user asked for having
 # happened, which are failures, and which are deliberate non-actions.
 _SUCCESS = {"indexed", "duplicates", PhotoStatus.COPIED, PhotoStatus.COMPLETED,
-            PhotoStatus.FOUND_AT_DESTINATION, PhotoStatus.REMOVED_DUPLICATE, "made", "ok", "Compared", OPERATION_RENAMED}
+            PhotoStatus.FOUND_AT_DESTINATION, PhotoStatus.REMOVED_DUPLICATE, "made", "ok", "Compared", OPERATION_RENAMED,
+            PhotoStatus.REJECTED, PhotoStatus.REJECTED_COPIED, OPERATION_RETURNED}
 _FAILURE = {"failed", PhotoStatus.FAILED, "missing", "changed", "unreadable"}
 _SKIPPED = {"unchanged", OPERATION_SKIPPED, "already", "kept", "Already_Gone", "unknown"}
 _REQUESTED_PHASES = {"INDEX": ("scanning",), "COPY": ("scanning", "transferring"),
                      "MOVE": ("scanning", "transferring", "removing_duplicates"),
-                     "SIMILARITY": ("scanning", "matching"), "REBUILD": ("rebuilding_thumbnails",), "CHECK": ("checking_destination",)}
+                     "SIMILARITY": ("scanning", "matching"), "REBUILD": ("rebuilding_thumbnails",), "CHECK": ("checking_destination",),
+                     "REJECT": ("transferring",), "RETURN": ("transferring",)}
 _TERMINAL_WINS = {RunStatus.CANCELLED: "cancelled", RunStatus.INTERRUPTED: "interrupted",
                   RunStatus.FAILED: "failed"}
 
@@ -640,6 +711,10 @@ _TERMINAL_WINS = {RunStatus.CANCELLED: "cancelled", RunStatus.INTERRUPTED: "inte
 # writes these sentences (ns-engine.py _duplicate_skip_reason and the Copy/Move loop);
 # tests/webui_api_test.py runs real jobs so a reworded reason fails there, not here.
 _SKIP_REASONS = (("Duplicate", "duplicate"), ("Already copied", "already_copied"),
+                 ("Already rejected", "already_rejected"), ("Already in Rejects", "already_in_rejects"),
+                 ("Not organized yet", "not_organized"), ("A copy of another photo", "copy_follows_original"),
+                 ("Already in the library", "already_in_library"), ("Not in Rejects", "not_in_rejects"),
+                 ("Rejects has been emptied", "rejects_emptied"),
                  ("Not attempted: the destination is a network share", "network_share_unconfirmed"),
                  ("Not attempted: the source folder is empty", "source_looked_empty"))
 
@@ -680,7 +755,9 @@ def _outcome(conn, run: dict, progress: list) -> dict:
             counts["failed"] = counts.get("failed", 0) + scan_failed
     # In a Move, Copied means the original could not be deleted: not the Move asked for,
     # and not a failure either. Counted apart, with its reasons.
-    copied_only = counts.get(PhotoStatus.COPIED, 0) if run["mode"] == "MOVE" else 0
+    # A rejected photo whose original could not be deleted is the same, its copy in Rejects.
+    copied_only = (counts.get(PhotoStatus.COPIED, 0) + counts.get(PhotoStatus.REJECTED_COPIED, 0)
+                   if run["mode"] == "MOVE" else 0)
     succeeded = sum(n for k, n in counts.items() if k in _SUCCESS) - copied_only
     failed = sum(n for k, n in counts.items() if k in _FAILURE)
     skipped = sum(n for k, n in counts.items() if k in _SKIPPED)
@@ -702,9 +779,9 @@ def _outcome(conn, run: dict, progress: list) -> dict:
         reason = failure_reason(message) or "No reason recorded"
         failure_reasons[reason] = failure_reasons.get(reason, 0) + 1
     kept_reasons = {}
-    for (message,) in conn.execute("SELECT error_message FROM operations WHERE run_id = ? AND status = ? "
+    for (message,) in conn.execute("SELECT error_message FROM operations WHERE run_id = ? AND status IN (?, ?) "
                                    "AND reconciles_operation_id IS NULL AND error_message LIKE ?",
-                                   (run["id"], PhotoStatus.COPIED, _KEPT_LIKE)):
+                                   (run["id"], PhotoStatus.COPIED, PhotoStatus.REJECTED_COPIED, _KEPT_LIKE)):
         reason = kept_reason(message)
         kept_reasons[reason] = kept_reasons.get(reason, 0) + 1
     if run["status"] in ns_db.ACTIVE_RUN_STATUSES:

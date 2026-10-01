@@ -41,13 +41,15 @@ The first screen's state. It never creates anything.
 
     {"state": "missing" | "ok" | "incompatible" | "error", "detail": "<reason or null>",
      "photos": 1160, "indexed": true, "eligible": {"copy": 0, "move": 1160}, "copied": 1160,
+     "rejected_with_source": 0,
      "version": {"release": "0.1.0", "branch": "main" | null, "commit": "2c4728f" | null},
      "application_data": "/appdata", "catalog_backups": "/backups",
      "active_job": <Run or null, as in GET /jobs/active>}
 
 `eligible` is how many photos a Copy all and a Move all would take, by the engine's own
 rule (`ns_db.TRANSFER_ELIGIBLE`): Copy takes `Pending`; Move also takes `Copied`, deleting
-each source against its verified copy. `copied` is how many of Move's are already copied.
+each source against its verified copy, and `Rejected_Copied`, deleting it against its copy
+in Rejects. `copied` and `rejected_with_source` are how many of Move's are each of those.
 Both count the whole catalog, whatever the gallery's view or search.
 
 `version` is which build is running: the release in the repository's `VERSION` file,
@@ -123,7 +125,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 
 | Parameter | Values | Default |
 | :--- | :--- | :--- |
-| `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed), `similar` (destination photos with visual matches at `match_min` or higher), `suspicious` (recorded date outside review bounds) | `all` |
+| `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed), `similar` (destination photos with visual matches at `match_min` or higher), `suspicious` (recorded date outside review bounds), `rejects` (Rejected, Rejected_Copied, whose file is still in `dest/rejects`) | `all` |
 | `sort` | `newest`, `oldest`, `largest`, `smallest`, `name`, `matches` (`view=similar` only) | `newest` |
 | `match_min` | integer percentage 75–100, applies to similarity membership/counts | 75 |
 | `q` | filename search: current and original names, including removed duplicates' names; never folder names | none |
@@ -140,6 +142,12 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
      "page": 1, "page_size": 60, "total": 1160,
      "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160},
      "matches": {"all": 1160, "organized": 0, "unorganized": 1160}}
+
+For `view=rejects`, each item's `rejected_at` is when it went to Rejects, and the response
+adds `rejects: {photos, bytes, oldest_rejected_at}`, what Rejects holds now; other views
+return `rejects: null`. A file deleted from `dest/rejects` leaves the view at once: the
+API checks against a listing of the folder taken at most every few seconds, and looks up
+any file the listing lacks.
 
 `failure` is a `Failed` photo's latest failure reason, made readable as in a run's
 `failure_reasons` (§6); `null` for any other status. `kept` is, for a `Copied` photo
@@ -323,7 +331,9 @@ outside the cache root is never served.
     {"mode": "index" | "copy" | "move"}                        // the whole source
     {"mode": "move", "file_ids": [101, 102]}                   // selected photos
     {"mode": "copy", "source_subdir": "sd_card/day1"}          // a folder
+    {"mode": "reject" | "return", "file_ids": [101]}           // Reject, Return to library
 
+Reject and Return to library need `file_ids` or `source_subdir`; without one, `400`.
 `202` with the accepted run (§6). An optional `request_id` uses 1–128 ASCII
 letters, digits, underscores or hyphens. The browser always supplies a random ID
 saved before sending. Legacy callers omitting it receive a server-generated ID.

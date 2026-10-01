@@ -16,7 +16,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
 class PhotoStatus:
     """State of one source file in the catalog. A path is unique among files still in the
@@ -30,6 +30,9 @@ class PhotoStatus:
     REMOVED_DUPLICATE = "Removed_Duplicate"   # duplicate whose source was deleted against a verified copy
     FOUND_AT_DESTINATION = "Found_At_Destination"  # source gone, exact content observed on the
                                               # destination; recorded from observation, no action taken
+    REJECTED = "Rejected"                     # turned down: its file moved to dest/rejects; source gone
+    REJECTED_COPIED = "Rejected_Copied"       # the same, its source still in place (a Move removes it)
+    REJECTED_EMPTIED = "Rejected_Emptied"     # rejected, and the user has since emptied it from Rejects
 
 
 # The destination's layout (engine-spec 9.9): organized photos live in `library/` under
@@ -43,20 +46,40 @@ def library_root(dest_root) -> Path:
     return Path(dest_root) / LIBRARY_FOLDER
 
 
+# Turned-down photos (engine-spec 9.5): the engine moves them here and never deletes them;
+# the user empties the folder. Each keeps the place it had in the library
+# (rejects/2019/06/04/IMG_0412.jpg), so Return to library is a move back.
+REJECTS_FOLDER = "rejects"
+
+
+def rejects_root(dest_root) -> Path:
+    """Where rejected photos wait for the user to empty them."""
+    return Path(dest_root) / REJECTS_FOLDER
+
+
+# Rejected photos whose file is in Rejects, as far as the catalog knows: the Rejects view.
+IN_REJECTS_STATUSES = (PhotoStatus.REJECTED, PhotoStatus.REJECTED_COPIED)
+# Every status meaning "the user rejected this content". A file identical to one of these
+# is its duplicate, never a new photo, so it stays out of the library (engine-spec 9.5).
+REJECTED_STATUSES = IN_REJECTS_STATUSES + (PhotoStatus.REJECTED_EMPTIED,)
+
+
 # Statuses whose source file is legitimately gone: consumed by a --move, or found gone
 # with its content already on the destination. A path is unique only among rows NOT in
 # these (idx_photos_live_source), and targeted re-runs skip them: the source is supposed
 # to be missing, so re-indexing would overwrite a true record with a spurious Failed.
 SOURCE_CONSUMED_STATUSES = (PhotoStatus.COMPLETED, PhotoStatus.REMOVED_DUPLICATE,
-                            PhotoStatus.FOUND_AT_DESTINATION)
+                            PhotoStatus.FOUND_AT_DESTINATION, PhotoStatus.REJECTED,
+                            PhotoStatus.REJECTED_EMPTIED)
 
 # What a Copy or Move without targeting acts on. --move also takes Copied rows: a
 # verified copy already exists, so the move completes by deleting the source
 # against it (the already-present branch re-verifies both sides live first).
 # Without that, --copy followed by --move of an unchanged file could never finish.
+# Rejected_Copied is the same for a rejected photo: its copy is in Rejects.
 TRANSFER_ELIGIBLE = {
     "copy": (PhotoStatus.PENDING,),
-    "move": (PhotoStatus.PENDING, PhotoStatus.COPIED),
+    "move": (PhotoStatus.PENDING, PhotoStatus.COPIED, PhotoStatus.REJECTED_COPIED),
 }
 
 
@@ -85,6 +108,10 @@ OPERATION_CANCELLED = "Cancelled"
 OPERATION_SKIPPED = "Skipped"
 # A delivered file given a new name on the user's instruction (engine-spec 9.4).
 OPERATION_RENAMED = "Renamed"
+# A rejected photo moved back from Rejects into the library (Return to library).
+OPERATION_RETURNED = "Returned"
+# A rejected photo's file found gone from Rejects: the user emptied it. Recorded, never done.
+OPERATION_EMPTIED = "Emptied"
 
 # How a Move records a file whose verified copy was delivered but whose original could
 # not be deleted (a read-only source, a permission): the photo is Copied, and the
@@ -97,8 +124,10 @@ PHOTO_STATUSES = (
     PhotoStatus.PENDING, PhotoStatus.PROCESSING, PhotoStatus.COMPLETED,
     PhotoStatus.COPIED, PhotoStatus.FAILED, PhotoStatus.DUPLICATE,
     PhotoStatus.REMOVED_DUPLICATE, PhotoStatus.FOUND_AT_DESTINATION,
+    PhotoStatus.REJECTED, PhotoStatus.REJECTED_COPIED, PhotoStatus.REJECTED_EMPTIED,
 )
-OPERATION_STATUSES = PHOTO_STATUSES + (OPERATION_CANCELLED, OPERATION_SKIPPED, OPERATION_RENAMED)
+OPERATION_STATUSES = PHOTO_STATUSES + (OPERATION_CANCELLED, OPERATION_SKIPPED, OPERATION_RENAMED,
+                                       OPERATION_RETURNED, OPERATION_EMPTIED)
 RUN_STATUSES = (
     RunStatus.PREPARING, RunStatus.RUNNING, RunStatus.CANCELLING, RunStatus.COMPLETED,
     RunStatus.CANCELLED, RunStatus.FAILED, RunStatus.INTERRUPTED,

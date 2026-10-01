@@ -1,20 +1,43 @@
 import { Modal } from "./ui/Modal";
 import { useCallback, useState } from "react";
-import type { Status } from "../api";
+import type { ActionMode, Status } from "../api";
 import { count, plural } from "../format";
 import { SubmissionStatus } from "./SubmissionStatus";
 
 export type Confirm = { title: string; body: string[]; action: string; danger?: boolean; run: () => Promise<void>; onCancel?: () => void };
 
-// Copy or Move, for selected photos, a folder or all of them, asked the same way on every
-// page. "All" counts what the engine would take across the whole catalog (GET /status),
-// never a view or search.
-export function transferConfirm(mode: "copy" | "move", status: Status, ids: number[] | { folder: string } | undefined,
+// Copy, Move, Reject or Return to library, for selected photos or a folder (and Copy or
+// Move for all of them), asked the same way on every page. "All" counts what the engine
+// would take across the whole catalog (GET /status), never a view or search.
+export function transferConfirm(mode: ActionMode, status: Status, ids: number[] | { folder: string } | undefined,
                                 run: () => Promise<void>, onCancel?: () => void): Confirm {
-  const scope = Array.isArray(ids) ? plural(ids.length, "selected photo")
+  const scope = Array.isArray(ids) ? (ids.length === 1 && (mode === "reject" || mode === "return") ? "this photo" : plural(ids.length, "selected photo"))
     : ids ? `the photos under ${ids.folder}`
     : mode === "copy" ? `every photo not yet copied (${count(status.eligible.copy)})`
       : `every photo not yet moved (${count(status.eligible.move)})`;
+  const one = Array.isArray(ids) && ids.length === 1;
+  if (mode === "reject") return {
+    title: `Reject ${scope}?`,
+    action: "Reject",
+    body: [
+      one ? "It moves out of the library into Rejects, the rejects folder beside it in your destination, so a gallery application importing the library no longer sees it."
+        : "Each photo moves out of the library into Rejects, the rejects folder beside it in your destination, so a gallery application importing the library no longer sees it. Photos not yet in the library are left alone.",
+      `Nothing is deleted. Rejects keeps ${one ? "it" : "them"} until you empty that folder yourself; until then, Return to library brings ${one ? "it" : "a photo"} back.`,
+      "Identical copies still in your source stay out of the library too: Copy skips them, and Move removes them only after checking the copy in Rejects.",
+    ],
+    run,
+    onCancel,
+  };
+  if (mode === "return") return {
+    title: `Return ${scope} to the library?`,
+    action: "Return to library",
+    body: [
+      one ? "It moves from Rejects back to its date folder in the library and shows in the gallery again."
+        : "Each photo moves from Rejects back to its date folder in the library and shows in the gallery again. Photos not in Rejects are left alone.",
+    ],
+    run,
+    onCancel,
+  };
   return {
     title: mode === "move" ? `Move ${scope}?` : `Copy ${scope}?`,
     action: mode === "move" ? "Move" : "Copy",
@@ -22,6 +45,7 @@ export function transferConfirm(mode: "copy" | "move", status: Status, ids: numb
     body: mode === "move" ? [
       "Each photo is copied into the destination's date folders, checked byte for byte, and only then deleted from the source.",
       ...(!ids && status.copied > 0 ? [`${plural(status.copied, "photo is", "photos are")} already copied: each of their copies is verified again before its source is deleted.`] : []),
+      ...(!ids && status.rejected_with_source > 0 ? [`${plural(status.rejected_with_source, "rejected photo still has its source", "rejected photos still have their sources")}: each source is deleted once its copy in Rejects is verified.`] : []),
       "Duplicate copies in the source are removed once a matching copy is confirmed at the destination.",
     ] : [
       "Each photo is copied into the destination's date folders and checked byte for byte. Nothing in the source is changed or deleted.",

@@ -5,7 +5,7 @@ import { PageBoundary } from "./components/ui/PageBoundary";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Logo } from "./components/Logo";
 import { VersionTag, versionText } from "./components/VersionTag";
-import { api, ApiError, MATCH_THRESHOLDS, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Sort, type Status, type Timeline, type View } from "./api";
+import { api, ApiError, MATCH_THRESHOLDS, type ActionMode, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Sort, type Status, type Timeline, type View } from "./api";
 import { count, plural } from "./format";
 import { useDismissedRun, useJobFeed } from "./jobs";
 import { Gallery } from "./components/Gallery";
@@ -20,6 +20,7 @@ import { usePaged } from "./paged";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./components/Confirm";
 import { Tip } from "./components/Tip";
 import { ActionsMenu } from "./components/ActionsMenu";
+import { RejectsLine } from "./components/RejectsLine";
 import { LogsPage } from "./components/LogsPage";
 import { SimilarRedirect } from "./components/SimilarRedirect";
 import type { MatchView } from "./components/PhotoMatches";
@@ -34,7 +35,14 @@ const MIN_GALLERY = 420;
 const SIDE_MIN = 180;
 const SIDE_MAX = 560;
 const MAX_SELECTION = 1000; // mirrors the API's --file-ids limit (webui-spec 2)
-const VIEW_LABEL: Record<View, string> = { all: "All photos", unorganized: "Not yet organized", organized: "Organized", similar: "Has similar photos", suspicious: "Suspicious dates" };
+const VIEW_LABEL: Record<View, string> = { all: "All photos", unorganized: "Not yet organized", organized: "Organized", similar: "Has similar photos", suspicious: "Suspicious dates", rejects: "Rejects" };
+// The review bar's words for each job a selection can be reviewed for.
+const REVIEW_WORDS: Record<ActionMode, { doing: string; done: string; button: string }> = {
+  copy: { doing: "copying", done: "copied", button: "Copy these" },
+  move: { doing: "moving", done: "moved", button: "Move these" },
+  reject: { doing: "rejecting", done: "moved to Rejects", button: "Reject these" },
+  return: { doing: "returning to the library", done: "returned to the library", button: "Return these" },
+};
 
 function savedSort(view: View): Sort {
   try {
@@ -60,7 +68,7 @@ function readUrl() {
   const view = (p.get("view") as View) || "all";
   const matchPage = Number(p.get("match_page"));
   return {
-    view: (["all", "unorganized", "organized", "similar", "suspicious"] as View[]).includes(view) ? view : "all",
+    view: (["all", "unorganized", "organized", "similar", "suspicious", "rejects"] as View[]).includes(view) ? view : "all",
     sort: p.get("sort") === "matches" && view !== "similar" ? "newest" as Sort : (p.get("sort") as Sort) || savedSort(view),
     matchMin: MATCH_THRESHOLDS.includes(Number(p.get("match_min"))) ? Number(p.get("match_min")) : savedMatchMinimum(),
     q: p.get("q") || "",
@@ -84,7 +92,7 @@ function readUrl() {
 // on entry, so unticking a photo there leaves it on screen, unticked.
 // "review" is the selection before a Copy or Move of it: shown in full, with the action
 // in a bar above it, so every photo can be looked at and unticked before committing.
-type Focus = { kind: "selection" | "review" | "job" | "photo" | "set"; ids: number[]; reference?: number; threshold?: number; mode?: "copy" | "move" };
+type Focus = { kind: "selection" | "review" | "job" | "photo" | "set"; ids: number[]; reference?: number; threshold?: number; mode?: ActionMode };
 
 export function App() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -687,7 +695,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   };
   const currentWidth = () => effectivePanelWidth;
 
-  const start = (mode: "index" | "copy" | "move", fileIds?: number[]) => async () => {
+  const start = (mode: "index" | ActionMode, fileIds?: number[]) => async () => {
     setActionError(null);
     try {
       await api.startJob(fileIds ? { mode, file_ids: fileIds } : { mode });
@@ -703,7 +711,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
   // A single photo confirms in place. Multiple photos need a review where the
   // full selection can be scrolled, opened and unticked before committing.
-  const transferSelected = (mode: "copy" | "move") => {
+  const transferSelected = (mode: ActionMode) => {
     if (selected.size === 1) {
       askTransfer(mode, [...selected]);
       return;
@@ -720,12 +728,12 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     try { await review.run(); } finally { setCommitting(false); }
   };
 
-  const askTransfer = (mode: "copy" | "move", ids?: number[], onCancel?: () => void) =>
+  const askTransfer = (mode: ActionMode, ids?: number[], onCancel?: () => void) =>
     setConfirm(transferConfirm(mode, status, ids, start(mode, ids), onCancel));
   // A folder's Copy or Move: the engine takes the folder itself (--source-subdir), so
   // there is no 1,000-photo limit, and Retry offers the same folder again.
   const folderShown = shownFolder(folderTree, folders);
-  const askFolder = (mode: "copy" | "move") => {
+  const askFolder = (mode: ActionMode) => {
     if (!folderShown) return;
     setConfirm(transferConfirm(mode, status, { folder: folderLabel(folderShown.path) }, async () => {
       setActionError(null);
@@ -864,16 +872,16 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             </p>
           )}
           {focus && review && focus.mode && (
-            <div className="focus-head review-bar" role="region" aria-label={`Review before ${focus.mode === "move" ? "moving" : "copying"}`}>
+            <div className="focus-head review-bar" role="region" aria-label={`Review before ${REVIEW_WORDS[focus.mode].doing}`}>
               <div className="review-text">
                 <strong>Review the {plural(focus.ids.length, "selected photo")} below</strong>
-                <span className="muted"> · untick any you do not want; {plural(reviewIds.length, "photo")} will be {focus.mode === "move" ? "moved" : "copied"}.</span>
+                <span className="muted"> · untick any you do not want; {plural(reviewIds.length, "photo")} will be {REVIEW_WORDS[focus.mode].done}.</span>
                 <p className="muted">{review.body[0]}</p>
               </div>
               <button className={review.danger ? "danger" : "primary"} onClick={commit}
                       disabled={committing || jobRunning || reviewIds.length === 0 || reviewIds.length > MAX_SELECTION}
                       title={reviewIds.length === 0 ? "Every photo is unticked." : jobRunning ? "A job is running." : undefined}>
-                {focus.mode === "move" ? "Move" : "Copy"} these {plural(reviewIds.length, "photo")}
+                {REVIEW_WORDS[focus.mode].button} {plural(reviewIds.length, "photo")}
               </button>
               <button onClick={backToResults} disabled={committing}>Cancel</button>
             </div>
@@ -899,6 +907,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               )}
             </div>
           )}
+          {!focus && view === "rejects" && data?.rejects && <RejectsLine rejects={data.rejects} />}
           {!focus && view === "suspicious" && <p className="dates-filter-line">Recorded years before 1800 or more than one year ahead. Open a photo to inspect its date and source. These are review hints; dates remain unchanged. Date editing is not yet available.</p>}
           <div className="gallery-summary">
             <span>{gallerySummary ? plural(gallerySummary.total, grouped ? "set" : "photo") : "Loading photos…"}</span>
@@ -1003,6 +1012,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                  }} />
             <Inspector setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && view === "similar" && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
+                       onReject={() => askTransfer("reject", [openId])} onReturn={() => askTransfer("return", [openId])}
                        onTab={(tab) => { setInspectorTab(tab);
                          if (tab === "similar" && !matchView) setMatchState({ photo: openId, view: { threshold: view === "similar" ? matchMin : 90, page: 1 } }); }}
                        onMatchView={(v) => setMatchState({ photo: openId, view: v })} />

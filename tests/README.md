@@ -123,8 +123,7 @@ its matches in the thumbnail grid. Use
 Inspector results. The gallery's separate **Matches at or above** selector changes
 its membership, and **Most matches first** sorts counts highest first. Reload and
 return from Logs to confirm the reference and threshold
-remain. An existing populated schema-16 catalog needs no new Index or Copy for
-these review checks.
+remain.
 The database suite verifies the hash index against brute force and interrupted
 comparison recovery; the API suite checks reference-only matches, hash changes,
 availability, exact copies, thresholds and pagination.
@@ -153,6 +152,11 @@ deletion belong to a separate workstream and do not block these checks.
 Logs photo positioning, offscreen Inspector navigation, retained filters, explicit
 hidden-photo display, retry, ordinary gallery clicks, manual scrolling and History
 action alignment. Its fixtures are generated photos in isolated containers.
+
+`DRIVER=rejects_browser_drive.py sh tests/webui_browser_test.sh` checks Rejects: one
+photo rejected from the Inspector (asked first, starting on Cancel), a selection
+reviewed before rejecting, a folder from the Folders tree, the Rejects view with what it
+holds and How to empty Rejects, Return to library, and the view at a narrow width.
 
 `DRIVER=appearance_browser_drive.py SHOTS=/tmp/ns-shots sh tests/webui_browser_test.sh`
 checks both neutral palettes in light/dark modes, text and input contrast, local
@@ -331,21 +335,8 @@ appdata, use **Create catalog → save settings → Index → Copy**,
 then validate the gallery controls and Inspector. Keep the source read-only and the
 existing sample destination. No upgrade step is required for this route.
 
-Optional development tool (not required for the validated sample or merge):
 
-The current count cache uses schema 16 (the 75% floor was introduced in schema 15).
-Automatic startup upgrades remain disabled. To preserve schema-14/15 history and
-judgments, stop the app and run
-`tools/prepare-similarity-catalog.py --source <old-catalog> --output <new-catalog>`
-with the updated dependencies. Add `--compare` when preparing schema 14 to fill the
-wider comparison range. Output must be a new file. The tool uses SQLite backup,
-preserves schema-15 comparisons, builds all six gallery counts, and checks integrity
-and foreign keys. Retain the original catalog and use the matching old app image
-for rollback; never install a snapshot taken before later user writes. It reads
-stored hashes, not photos. Other input schema versions are refused.
-
-Cache checks in the database/API suites cover schema-14/15 preparation, unchanged
-source/history/judgments, all six thresholds and an uncached intermediate threshold,
+Cache checks in the database/API suites cover all six thresholds and an uncached intermediate threshold,
 missing destination files, representative changes, changed hashes/relationships,
 rollback, old reader snapshots, cancelled publication and live fallback. Engine
 settlement retains its FULL durability check. A cancelled cache build is not a

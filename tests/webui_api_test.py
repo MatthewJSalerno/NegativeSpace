@@ -506,6 +506,52 @@ class JobsAndCatalog(ApiCase):
         again = self.wait_for(self.start(mode="copy"))
         self.assertEqual(again["outcome"]["verdict"], "no_change")
 
+    def test_a_rejected_photo_leaves_every_view_and_shows_in_rejects_until_emptied(self):
+        from webui import catalog
+        self.index_library()
+        self.wait_for(self.start(mode="copy"))
+        listed = self.client.get("/api/v1/photos", params={"view": "all"}).json()["items"]
+        twin = next(p for p in listed if p["duplicates"])
+        single = next(p for p in listed if not p["duplicates"])
+        self.assertEqual(self.client.post("/api/v1/jobs/start", json={"mode": "reject"}).status_code, 400,
+                         "a reject of everything was accepted")
+
+        run = self.wait_for(self.start(mode="reject", file_ids=[twin["id"], single["id"]]))
+        self.assertEqual((run["mode"], run["outcome"]["verdict"], run["outcome"]["counts"]),
+                         ("REJECT", "success", {"Rejected": 2}))
+        for view in ("all", "organized", "unorganized", "suspicious"):
+            shown = [p["id"] for p in self.client.get("/api/v1/photos", params={"view": view}).json()["items"]]
+            self.assertFalse({twin["id"], single["id"]} & set(shown), f"a rejected photo is still in {view}")
+        rejects = self.client.get("/api/v1/photos", params={"view": "rejects"}).json()
+        self.assertEqual(sorted(p["id"] for p in rejects["items"]), sorted([twin["id"], single["id"]]))
+        self.assertTrue(all(p["rejected_at"] for p in rejects["items"]), "a reject's time is missing")
+        self.assertEqual((rejects["rejects"]["photos"], rejects["rejects"]["bytes"] > 0), (2, True))
+        detail = self.client.get(f"/api/v1/photos/{single['id']}/inspect").json()
+        self.assertIn("/rejects/", detail["dest_path"])
+        self.assertFalse(detail["dest_path_is_projection"])
+        status = self.client.get("/api/v1/status").json()
+        self.assertEqual((status["rejected_with_source"], status["eligible"]["move"]), (2, 2),
+                         "a Move's count leaves out rejected photos whose sources it would remove")
+
+        again = self.wait_for(self.start(mode="copy"))
+        self.assertEqual(again["outcome"]["skip_reasons"], {"already_rejected": 1},
+                         "the Copy did not say the duplicate was already rejected")
+
+        back = self.wait_for(self.start(mode="return", file_ids=[single["id"]]))
+        self.assertEqual((back["mode"], back["outcome"]["counts"]), ("RETURN", {"Returned": 1}))
+        organized = [p["id"] for p in self.client.get("/api/v1/photos", params={"view": "organized"}).json()["items"]]
+        self.assertIn(single["id"], organized, "a returned photo did not come back to the library")
+
+        # Emptied outside the app: gone from the view at once, before any job records it.
+        old, catalog.REJECTS_LISTING_SECONDS = catalog.REJECTS_LISTING_SECONDS, 0
+        try:
+            Path(self.client.get(f"/api/v1/photos/{twin['id']}/inspect").json()["dest_path"]).unlink()
+            rejects = self.client.get("/api/v1/photos", params={"view": "rejects"}).json()
+            self.assertEqual((rejects["total"], rejects["rejects"]["photos"]), (0, 0),
+                             "a photo emptied from Rejects is still shown there")
+        finally:
+            catalog.REJECTS_LISTING_SECONDS = old
+
     def test_a_photos_lineage_joins_its_files_copies_duplicates_and_operations(self):
         self.index_library()                  # IMG_0001 and "Beach Sunset" share content
         self.wait_for(self.start(mode="copy"))
@@ -697,7 +743,7 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual([f["path"] for f in tree["folders"]],
                          ["Album", "album", "Camera/Nikon", "My_Photos", "MyXPhotos", "Phone"], "by name, any case")
         self.assertEqual(rows["Camera/Nikon"]["name"], "Camera / Nikon", "a chain of single folders is one row")
-        self.assertEqual((rows["Phone"]["photos"], rows["Phone"]["eligible"]), (3, {"copy": 3, "move": 3}))
+        self.assertEqual((rows["Phone"]["photos"], rows["Phone"]["eligible"]), (3, {"copy": 3, "move": 3, "reject": 0, "return": 0}))
         self.assertEqual([(f["path"], f["photos"]) for f in rows["Phone"]["folders"]], [("Phone/2019", 2), ("Phone/2021", 1)])
         self.assertEqual((tree["top_files"]["photos"], tree["outside"]), (1, 0))
 
@@ -725,8 +771,8 @@ class JobsAndCatalog(ApiCase):
         # A folder's Move takes that folder only, however many photos it holds.
         self.wait_for(self.start(mode="move", source_subdir="Phone"))
         after = {f["path"]: f for f in self.client.get("/api/v1/photos/folders").json()["folders"]}
-        self.assertEqual(after["Phone"]["eligible"], {"copy": 0, "move": 0})
-        self.assertEqual(after["My_Photos"]["eligible"], {"copy": 1, "move": 1})
+        self.assertEqual(after["Phone"]["eligible"], {"copy": 0, "move": 0, "reject": 3, "return": 0})
+        self.assertEqual(after["My_Photos"]["eligible"], {"copy": 1, "move": 1, "reject": 0, "return": 0})
         statuses = {i["filename"]: i["status"] for i in self.client.get("/api/v1/photos", params={"page_size": 60}).json()["items"]}
         self.assertEqual({n for n, st in statuses.items() if st == "Completed"}, {"a.jpg", "b.jpg", "c.jpg"})
 
@@ -814,14 +860,14 @@ class JobsAndCatalog(ApiCase):
                         tree = response.json()
                         self.assertEqual(tree["outside"], 0)
                         self.assertEqual(tree["top_files"],
-                                         {"photos": 0, "eligible": {"copy": 0, "move": 0}})
+                                         {"photos": 0, "eligible": {"copy": 0, "move": 0, "reject": 0, "return": 0}})
                         folders = list(tree["folders"])
                         if "/" in relative:
                             self.assertTrue(folders, "the selected empty folder must remain listed")
                         while folders:
                             folder = folders.pop()
                             self.assertEqual(folder["photos"], 0)
-                            self.assertEqual(folder["eligible"], {"copy": 0, "move": 0})
+                            self.assertEqual(folder["eligible"], {"copy": 0, "move": 0, "reject": 0, "return": 0})
                             folders.extend(folder["folders"])
 
     def test_select_all_over_the_limit_is_refused_whole_not_cut_short(self):

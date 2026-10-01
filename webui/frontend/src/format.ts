@@ -46,6 +46,13 @@ export function instant(iso: string | null | undefined): string {
   });
 }
 
+// A day, without the time: "Oct 1, 2026", for when something happened in a summary line.
+export function day(iso: string | null | undefined): string {
+  const d = iso ? new Date(iso) : null;
+  return d && !Number.isNaN(d.getTime())
+    ? d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "unknown";
+}
+
 export function epoch(seconds: number | null | undefined): string {
   return seconds == null ? "unknown" : instant(new Date(seconds * 1000).toISOString());
 }
