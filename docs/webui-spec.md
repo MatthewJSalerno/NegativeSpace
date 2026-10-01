@@ -2039,20 +2039,21 @@ The destination check (`engine-spec.md` §9.1) reads files without modifying the
 
 ### 7.7 Workspaces
 
-**Planned** (decided 2026-10-01). The Library is for finding photos; a **workspace** is
-for working on them. Deep tasks (comparison, EXIF editing, donor to targets, bulk edits,
+**The frame is built** (`ui/Workspace.tsx`, design in `ui-design.md` "Workspaces"), with
+the comparison workspace (§7.4) as its first user; the other tasks are planned (decided
+2026-10-01). The Library is for finding photos; a **workspace** is for working on them. Deep tasks (comparison, EXIF editing, donor to targets, bulk edits,
 reviewing Needs review) open in a full-window view without the filter pane and gallery,
 with its own address so reload and links work. The Inspector stays the quick look
 beside the gallery.
 
-* **One frame:** a header (**Back to Library**, the task and what it works on, **‹ n of
+* **One frame:** a header (**Back to gallery**, the wording used across the app, the task and what it works on, **‹ n of
   N ›**, the main action), the task's content, and a footer status line for unsaved
   changes, errors and progress. Each task changes only the content.
-* **Back to Library** restores the exact Library state: filters, scroll and selection.
+* **Back to gallery** restores the exact Library state: filters, scroll and selection.
   Leaving with unsaved changes asks first (§7.5).
-* **Built from the comparison workspace** (§7.4), which already restores its address and
-  returns to the gallery; it becomes the frame's first user. A single-photo edit is the
-  same workspace with one column.
+* **The comparison workspace** (§7.4) runs in the frame: its address, Back to gallery,
+  focus return and candidate stepping are the frame's. A single-photo edit will be the
+  same workspace with one column. Esc goes back and ← → step, stopping at the ends.
 * **Still to decide by trying it:** what ‹ › steps through (candidate: whatever the
   workspace was opened from, named in the header, e.g. "3 of 24 selected").
 * Follows `ui-design.md`; the frame's patterns are added there when built. Visual options

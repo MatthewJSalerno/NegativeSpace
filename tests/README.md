@@ -111,7 +111,10 @@ pagination, gallery selection preservation, side-by-side review and saved judgme
 reload/Back state, request failure retries, legacy bookmarks and narrow Inspector dialogs.
 It also checks independent rotation and displayed dimensions, unchanged recorded
 dimensions, reference promotion, file-format fallbacks, exact-byte differences,
-missing dimensions, and sticky column headings in desktop and narrow layouts.
+missing dimensions, and sticky column headings in desktop and narrow layouts. The
+workspace frame is checked there too: its header stays in view while the window scrolls,
+← → step candidates from wherever the comparison opened, tabs keep their own arrow keys,
+and Esc returns to the gallery with focus back on the opening control.
 
 For manual validation after Copy, open a destination photo in the gallery and choose
 **Similar photos** in the Inspector. Click a 75/80/85/90/95/100% count to browse
