@@ -3301,7 +3301,8 @@ def repair_similarity(db_path: Path, dest_root: Path, scope: str, photo_id=None)
     import ns_similarity
     with contextlib.closing(get_db_connection(str(db_path))) as conn:
         work = [r for r in recovery.rows(conn, photo_id) if r['kind'] == 'missing_hash'
-                and recovery.describe(r)['retryable']] if scope == 'missing' else []
+                and recovery.describe(r)['retryable']
+                and (photo_id is not None or recovery.describe(r)['action'] == 'generate')] if scope == 'missing' else []
         run_progress.start('scanning', len(work))
         for row in work:
             if cancel_requested.is_set():

@@ -527,8 +527,8 @@ export interface MatchDiagnostics {
 }
 
 export type SimilarityRecoveryPage = {
-  items: { id: number; filename: string; kind: string; reason: string; message: string; retryable: boolean }[];
-  total: number; retryable: number; state: { unavailable: number; pending: number }; page: number; page_size: number;
+  items: { id: number; filename: string; kind: string; reason: string; message: string; retryable: boolean; action: "generate" | "recheck" | null }[];
+  total: number; retryable: number; generatable: number; state: { unavailable: number; pending: number }; page: number; page_size: number;
 };
 
 export const api = {

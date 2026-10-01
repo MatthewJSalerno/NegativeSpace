@@ -1410,3 +1410,12 @@ bytes. Unreadable errors retain the IO error detail; decoder failures explain th
 damage, misleading extensions or missing decoder support are possibilities. Missing
 EXIF alone is not failure evidence. Known unsupported formats are not retried by
 this job. Existing historical jobs are not backfilled.
+
+### Hash generation versus explicit recheck
+
+Bulk `--repair-similarity missing` skips recorded decoding, availability, changed-file,
+and destination-boundary failures. A supported file without a recorded failure can
+receive its missing hash. `--repair-photo` explicitly rechecks a single affected
+photo after the user has corrected the underlying issue; unsupported formats remain
+excluded. Comparison-only recovery remains available independently. These actions
+preserve delivery status, file bytes, and the existing SHA-1 verification guards.

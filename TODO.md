@@ -142,3 +142,17 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 ## Other
 
 Deferred performance and robustness work — a stalled worker having no deadline, the unchanged-file check loading every settled row, batch barriers at submission tails — lives in `engine-spec.md` §8 with the condition that should bring each one back. This file tracks claims that need enforcing; that section tracks work deliberately postponed.
+
+- [x] Default Has similar photos to grouped reference sets and Most matches first;
+  remember per-view sort choices and grouping per browser, with explicit URL order
+  taking precedence. Set expansions remain temporary.
+- [x] Replace the blanket Resolve matching issues promise with Review matching status;
+  separate ungenerated hashes from recorded failures, skip known failures in bulk,
+  and retain explicit recheck after external correction plus Resume comparisons.
+- [ ] Still pending: import completion summary for files needing external attention
+  and a catalog-wide external-review filter; do not label unsupported images corrupt.
+
+Similarity threshold follow-up: gallery defaults to 90%, remembers explicit changes
+per browser, and honors explicit URL thresholds without overwriting preferences.
+The 75% floor remains. Collapsing identical reference sets was discussed but is
+not implemented; partially overlapping sets must remain distinct.

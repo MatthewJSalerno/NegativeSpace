@@ -95,6 +95,31 @@ class RecoveryTests(unittest.TestCase):
         item = ns_similarity_recovery.describe(ns_similarity_recovery.rows(self.conn)[0])
         self.assertEqual((item['reason'],item['retryable']),('unsupported',False))
 
+    def test_bulk_generation_skips_known_failures_but_explicit_recheck_works(self):
+        with patch.object(engine, 'compute_phash', return_value='0000000000000000') as decode:
+            engine.repair_similarity(self.db, self.dest, 'missing')
+            decode.assert_not_called()
+            self.repair()
+            decode.assert_called_once()
+        self.assertEqual(self.state(), ('0000000000000000', 'ok'))
+
+    def test_missing_hash_report_and_generation_agree(self):
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE contents SET phash_state=NULL")
+        report = ns_similarity_recovery.report(self.conn)
+        self.conn.rollback()
+        self.assertEqual(report['generatable'], 1)
+        self.assertEqual(report['items'][0]['action'], 'generate')
+        with patch.object(engine, 'compute_phash', return_value='0000000000000000') as decode:
+            engine.repair_similarity(self.db, self.dest, 'missing')
+            decode.assert_called_once()
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE contents SET phash=NULL,phash_state='repair_decode'")
+        report = ns_similarity_recovery.report(self.conn)
+        self.conn.rollback()
+        self.assertEqual(report['generatable'], 0)
+        self.assertEqual(report['items'][0]['action'], 'recheck')
+
     def test_source_only_photo_is_excluded(self):
         with ns_db.transaction(self.conn):
             self.conn.execute("UPDATE photos SET status='Pending'")

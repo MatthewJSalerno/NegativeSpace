@@ -88,7 +88,7 @@ Review destination photos in the ordinary gallery and its Inspector. Do not add 
 separate Similar navigation button or a second gallery of matching groups.
 **Has similar photos** sits alongside All photos, Organized and No capture date;
 it includes photos with at least one recorded destination match at the gallery's
-chosen percentage (75% initially). It combines with existing search, date, type and
+chosen percentage (90% initially). It combines with existing search, date, type and
 folder filters. **Most matches first** in the existing sort control ranks direct
 match counts highest first; ties use ascending photo ID. **Matches at or above**
 in the gallery summary offers 75/80/85/90/95/100%, also available with the other gallery sorts.
@@ -109,8 +109,9 @@ Persist gallery percentage as `match_min` and ordering as `sort=matches` in the 
 Changing either starts at page one and preserves explicit selection. Sidebar counts,
 Select all and photo positioning use the same percentage. Show only selected retains
 all chosen files, including those without matches; disable the gallery percentage
-while that scope is open. Leaving Has similar photos resets its special sort to
-Newest first. Clicking a gallery card carries the gallery percentage into Inspector
+while that scope is open. Has similar photos initially uses Most matches first. Remember explicit sort choices
+per view in browser storage (`ns.sort.<view>`); switching views restores that view’s
+last order. An explicit URL sort wins without rewriting the saved preference. Clicking a gallery card carries the gallery percentage into Inspector
 matches and opens the **Similar photos** tab. Users can subsequently
 choose another Inspector percentage without changing gallery order; previous/next
 photo navigation retains that Inspector choice.
@@ -141,10 +142,12 @@ for other reference photos and reset their match page to one. Information-only
 browsing does not load matching data. Match thumbnails use more columns as the
 details area widens, and scroll separately so the reference preview stays visible.
 A failed or unavailable hash lookup must never appear as zero matches. Show loading,
-retry for request failures, and incomplete comparison states explicitly. **Resolve matching issues** opens a paged recovery dialog from coverage notices
+retry for request failures, and incomplete comparison states explicitly. **Review matching status** opens a paged recovery dialog from coverage notices
 or the Inspector. Show affected destination photos with photo links and distinct
-missing/read/decode/changed-file reasons. Offer per-photo retry, repair of missing
-hashes in the scope, and a separate Resume comparisons action. Explain prerequisites
+missing/read/decode/changed-file reasons. Offer Generate missing hashes only for files without a recorded failure, and
+a separate Resume comparisons action. Known failures require the stated external
+correction before an explicit Recheck file after external fix; bulk generation
+must skip those failures. Explain prerequisites
 for retrying changed/missing/unreadable files; unsupported formats have no futile
 retry. Actions wait while another job runs. Show progress, cancellation and verified
 remaining issues; resolving a warning must not close its open results dialog.
@@ -368,7 +371,7 @@ qualifying reference remains; equivalent sets are not collapsed in this version.
 Gallery filters, sorts, counts, paging, Select all and card checkboxes continue to
 refer to individual reference photos. A set's members come from the full destination
 library. Turning grouping off returns the ordinary cards without clearing selection.
-The grouping toggle resets on reload. Selected expansions reset on closing exploration
+Grouping defaults on and the toggle is remembered per browser (`ns.groupSets`). Selected expansions reset on closing exploration
 or changing its percentage, and survive a visit to side-by-side review and back.
 
 Explore related sets offers only the starting reference's direct-match references.
@@ -403,3 +406,9 @@ retry only after fixing the cause. Known unsupported formats have no futile retr
 Keep delivered file status and photo bytes intact; missing hashes exclude files from
 visual matching without hiding them from the ordinary catalog. A broader import
 completion summary and catalog-wide external-review view remain pending.
+
+The gallery similarity percentage defaults to 90% and remembers explicit user
+changes in browser storage (`ns.matchMin`). An explicit `match_min` URL value wins
+without overwriting that preference. Gallery and reference-set threshold controls
+update the preference; Inspector/comparison thresholds remain local to their review.
+The 75% floor remains available. Identical-set collapsing remains discussion only.

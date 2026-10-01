@@ -50,18 +50,18 @@ export function SimilarityRecovery({ photoId, onRecovered, visible = true }: { p
   const phase = run && currentPhase(run);
   const running = run && ["Preparing", "Running", "Cancelling"].includes(run.status);
   return <>
-    {visible && <button className="link" onClick={() => { setScopePhoto(photoId); setPage(1); setOpen(true); }}>Resolve matching issues</button>}
-    {open && <Modal label="Matching recovery" className="dialog" onClose={() => setOpen(false)} busy={starting}>
-      <h2>Matching recovery</h2>
-      <p>Recover visual hashes from destination photos, then resume comparisons. Photo files stay unchanged. Missing EXIF alone does not mean a file is damaged.</p>
+    {visible && <button className="link" onClick={() => { setScopePhoto(photoId); setPage(1); setOpen(true); }}>Review matching status</button>}
+    {open && <Modal label="Matching status" className="dialog" onClose={() => setOpen(false)} busy={starting}>
+      <h2>Matching status</h2>
+      <p>Generate hashes that have not been created, or resume unfinished comparisons. Files with recorded failures need the correction described below before rechecking. Photo files stay unchanged. Missing EXIF alone does not mean a file is damaged.</p>
       {error && <p className="error" role="alert">{error} <button onClick={() => setRetry(n => n + 1)}>Retry status</button></p>}
       {!data && !error && <p role="status">Loading affected photos…</p>}
       {data && <>
         <p>{plural(data.state.unavailable, "destination photo without a usable visual hash", "destination photos without usable visual hashes")}; {plural(data.state.pending, "photo awaiting comparison", "photos awaiting comparison")}.</p>
         {busy && <p className="section-note">Wait for the running job to finish, or cancel it, before starting recovery.</p>}
         <div className="row-links">
-          <button disabled={busy || starting || data.retryable === 0} onClick={() => start("missing", scopePhoto)}>
-            {scopePhoto ? "Retry this photo’s visual hash" : "Repair missing visual hashes"}</button>
+          <button disabled={busy || starting || data.generatable === 0} onClick={() => start("missing", scopePhoto)}>
+            Generate missing hashes</button>
           <button disabled={busy || starting || data.state.pending === 0} onClick={() => start("comparisons")}>Resume comparisons</button>
         </div>
         <p className="section-note">Hash recovery verifies each file’s SHA-1 before and after decoding. Unsupported formats need decoder support; files that cannot be decoded need external review. They remain excluded from visual matching. Read the reason below and retry only after fixing its cause.</p>
@@ -69,7 +69,7 @@ export function SimilarityRecovery({ photoId, onRecovered, visible = true }: { p
           {data.items.map(item => <li key={item.id}>
             <a href={`/?photo=${item.id}&tab=similar`}>{item.filename}</a>
             <p>{item.message}</p>
-            {item.retryable && <button disabled={busy || starting} onClick={() => start("missing", item.id)}>Retry visual hash</button>}
+            {item.retryable && <button disabled={busy || starting} onClick={() => start("missing", item.id)}>{item.action === "generate" ? "Generate visual hash" : "Recheck file after external fix"}</button>}
           </li>)}
         </ul>}
         {data.total > data.page_size && <nav className="match-pages" aria-label="Affected photo pages">

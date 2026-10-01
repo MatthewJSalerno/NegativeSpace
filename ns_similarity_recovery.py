@@ -40,9 +40,10 @@ def describe(row):
         category, message, retryable = REASONS['not_supported']
     else:
         category, message, retryable = REASONS.get(row['phash_state'],
-            ('missing_hash', 'No usable visual hash is recorded. Read the destination photo to retry hash generation.', True))
+            ('missing_hash', 'No usable visual hash is recorded. Generate it from the destination photo.', True))
     return {'id':row['id'], 'filename':Path(row['dest_path']).name, 'kind':row['kind'],
-            'reason':category, 'message':message, 'retryable':retryable}
+            'reason':category, 'message':message, 'retryable':retryable,
+            'action': 'generate' if category == 'missing_hash' else 'recheck' if retryable else None}
 
 
 def report(conn, *, page=1, page_size=30, photo_id=None):
@@ -50,11 +51,14 @@ def report(conn, *, page=1, page_size=30, photo_id=None):
     params = () if photo_id is None else (photo_id,)
     sql = affected_sql(photo_id)
     supported = ' OR '.join("lower(dest_path) LIKE '%" + ext + "'" for ext in sorted(ns_db.SUPPORTED_EXTENSIONS))
-    total, retryable = conn.execute(f"""SELECT COUNT(*),COALESCE(SUM(kind='missing_hash'
-      AND COALESCE(phash_state,'') != 'not_supported' AND ({supported})),0)
+    total, retryable, generatable = conn.execute(f"""SELECT COUNT(*),COALESCE(SUM(kind='missing_hash'
+      AND COALESCE(phash_state,'') != 'not_supported' AND ({supported})),0),
+      COALESCE(SUM(kind='missing_hash' AND COALESCE(phash_state,'') NOT IN
+        ('not_supported','error','failed','repair_missing','repair_unreadable','repair_changed','repair_outside','repair_decode')
+        AND ({supported})),0)
       FROM ({sql})""", params).fetchone()
     cursor = conn.execute(sql + ' ORDER BY a.id LIMIT ? OFFSET ?', (*params,page_size,(page-1)*page_size))
     names = [c[0] for c in cursor.description]
     items = [describe(dict(zip(names,row))) for row in cursor]
-    return {'items':items, 'total':total, 'retryable':retryable, 'state':comparison_state(conn),
+    return {'items':items, 'total':total, 'retryable':retryable, 'generatable':generatable, 'state':comparison_state(conn),
             'page':page, 'page_size':page_size}

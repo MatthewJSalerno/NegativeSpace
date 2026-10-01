@@ -139,7 +139,7 @@ retry, unsupported-format limitations and narrow reflow. It never accesses a rea
 library. `similar_browser_drive.py` additionally checks comparison refresh with
 rotation/zoom/position, filtered review/tab restoration, and malformed bookmarks.
 
-Manual checks after Index/Copy: use Resolve matching issues for any affected photos;
+Manual checks after Index/Copy: use Review matching status for any affected photos;
 review the reason, run the appropriate action, and check the remaining count. In
 comparison, rotate or zoom, choose a review filter, and refresh: the same comparison
 should reopen. Back to gallery clears it. EXIF edits, saved orientation writes and
@@ -479,3 +479,12 @@ per-file recovery failure details in Logs. See docs/similarity-handoff.md for re
 `python3 tools/benchmark-reference-sets.py` measures opened-set queries against
 250,000 generated catalog identities with prepared sparse edges. It reads no photo
 files and does not establish dense-set or end-to-end real-library capacity.
+
+Similarity defaults regression: the reference-set browser driver checks initial
+Group similar photos / Most matches first, remembered grouping and per-view sort,
+and explicit URL precedence. Recovery tests distinguish bulk generation of never
+computed hashes from explicit rechecks after external fixes. Known failures must
+not be retried by bulk generation; unsupported decoders offer no futile retry.
+
+The defaults regression also checks the initial 90% gallery threshold, remembering
+an explicit percentage, and URL threshold precedence without changing preferences.

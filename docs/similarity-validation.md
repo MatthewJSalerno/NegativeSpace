@@ -384,3 +384,26 @@ was started on the sample as part of deployment. The separate private instance w
 untouched. The current review entry point is
 [similarity-handoff.md](similarity-handoff.md); the existing local handoff's opening
 section now supersedes its historical branch state.
+
+## Grouping defaults and targeted recovery follow-up
+
+- Grouping starts enabled; Has similar photos initially orders Most matches first.
+  Browser preferences remember grouping and explicit per-view sort choices. Explicit
+  URL order, including Newest first, survives reload without overwriting preferences.
+- Review matching status replaces the generic resolution promise. Bulk generation
+  skips recorded failures; explicit per-file recheck remains available after the
+  stated external correction. Unsupported formats keep their explanation without
+  a futile retry. Stored comparisons can still be resumed independently.
+- Passed: 76 API tests as the application user (no skips), seven recovery guard
+  tests, reference-set/default-preference and recovery browser workflows, TypeScript
+  checking, both image builds, 41 API route contracts, and specification checks.
+  Desktop and narrow rendered layouts were inspected using generated fixtures.
+- The idle sample instance was updated while preserving its catalog and mounts;
+  health, the updated recovery report, and read-only source mount were verified.
+  No real-library recovery, transfer, EXIF edit, deletion, or catalog migration ran.
+
+The subsequent 90% gallery default and remembered threshold update passed the
+extended reference-set browser workflow: fresh default, explicit user change,
+reload, reopening without URL state, and URL override without preference changes.
+TypeScript/build and specification checks passed; the sample web container was
+updated. Identical reference-set collapsing remains discussion, not implementation.

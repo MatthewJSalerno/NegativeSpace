@@ -700,8 +700,8 @@ Equal hashes do not need stored pairs. Review counts are not unbiased quality es
 
 Paged affected destination identities: `page` (positive, default 1), `page_size`
 (1–60, default 30), optional positive 64-bit `photo_id` for one content identity.
-Returns `items: [{id,filename,kind,reason,message,retryable}]`, `total`, `retryable`
-(the count in this scope), `page`, `page_size`, and global destination
+Returns `items: [{id,filename,kind,reason,message,retryable,action}]`, `total`, `retryable`
+(the count in this scope), `generatable` (missing hashes without recorded failures), `page`, `page_size`, and global destination
 `state: {unavailable,pending}`. `kind` is `missing_hash` or `pending`; reasons
 separate unsupported formats, decoding/read errors, missing/changed/out-of-root
 files and unperformed comparisons. Recorded destination availability is the scope;
@@ -710,7 +710,11 @@ physical verification happens in the recovery job. Source-only photos are exclud
 ### `POST /api/v1/similar/recovery`
 
 Body: `{scope: "missing" | "comparisons", photo_id?: integer, request_id?: string}`.
-`photo_id` applies only to missing-hash recovery. Unknown options/invalid scopes
+`photo_id` applies only to missing-hash recovery. Without it, `missing` generates
+only hashes without a recorded failure; with it, the request explicitly rechecks
+that photo after the stated external correction. Unsupported formats stay excluded.
+Item `action` is `generate`, `recheck`, or null; `retryable` alone does not mean
+the file belongs in bulk generation. Unknown options/invalid scopes
 return 400. The response is 202 with the accepted `SIMILARITY` run. Engine locking,
 409 busy refusal, durable request-ID replay/conflicts, job lookup and cancellation
 use the existing job protocol. The UI uses the existing uncertain-submission tracker.

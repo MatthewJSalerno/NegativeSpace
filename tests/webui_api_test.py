@@ -396,7 +396,7 @@ class JobsAndCatalog(ApiCase):
         with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
             photos = conn.execute("SELECT id,sha1_hash,dest_path FROM photos WHERE status='Copied' ORDER BY id").fetchall()
             with ns_db.transaction(conn):
-                conn.execute("UPDATE contents SET phash=NULL,phash_state='error'")
+                conn.execute("UPDATE contents SET phash=NULL,phash_state=NULL")
         Path(photos[0][2]).write_bytes(b'changed destination')
         Path(photos[1][2]).unlink()
         result = self.client.post('/api/v1/similar/recovery',json={'scope':'missing'})
@@ -416,6 +416,8 @@ class JobsAndCatalog(ApiCase):
         report = self.client.get('/api/v1/similar/recovery').json()
         self.assertEqual({item['reason'] for item in report['items']},{'changed','missing'})
         self.assertEqual(report['retryable'],2)
+        self.assertEqual(report['generatable'],0)
+        self.assertEqual({item['action'] for item in report['items']},{'recheck'})
         self.assertEqual(Path(photos[0][2]).read_bytes(),b'changed destination')
         self.assertFalse(Path(photos[1][2]).exists())
         for body in ({'scope':'bad'}, {'scope':'comparisons','photo_id':1}, {'scope':'missing','photo_id':True}, {'scope':'missing','extra':1}):

@@ -36,6 +36,24 @@ const SIDE_MAX = 560;
 const MAX_SELECTION = 1000; // mirrors the API's --file-ids limit (webui-spec 2)
 const VIEW_LABEL: Record<View, string> = { all: "All photos", unorganized: "Not yet organized", organized: "Organized", similar: "Has similar photos", suspicious: "Suspicious dates" };
 
+function savedSort(view: View): Sort {
+  try {
+    const value = localStorage.getItem(`ns.sort.${view}`) as Sort;
+    if (["newest", "oldest", "largest", "smallest", "name", ...(view === "similar" ? ["matches"] : [])].includes(value)) return value;
+  } catch { /* Storage is optional. */ }
+  return view === "similar" ? "matches" : "newest";
+}
+function savedMatchMinimum(): number {
+  try {
+    const value = Number(localStorage.getItem("ns.matchMin"));
+    if (MATCH_THRESHOLDS.includes(value)) return value;
+  } catch { /* Storage is optional. */ }
+  return 90;
+}
+function savePreference(key: string, value: string) {
+  try { localStorage.setItem(key, value); } catch { /* Storage is optional. */ }
+}
+
 // Browsing state lives in the URL, so a refresh or a shared link keeps the place.
 function readUrl() {
   const p = new URLSearchParams(window.location.search);
@@ -43,8 +61,8 @@ function readUrl() {
   const matchPage = Number(p.get("match_page"));
   return {
     view: (["all", "unorganized", "organized", "similar", "suspicious"] as View[]).includes(view) ? view : "all",
-    sort: p.get("sort") === "matches" && view !== "similar" ? "newest" as Sort : (p.get("sort") as Sort) || "newest",
-    matchMin: MATCH_THRESHOLDS.includes(Number(p.get("match_min"))) ? Number(p.get("match_min")) : 75,
+    sort: p.get("sort") === "matches" && view !== "similar" ? "newest" as Sort : (p.get("sort") as Sort) || savedSort(view),
+    matchMin: MATCH_THRESHOLDS.includes(Number(p.get("match_min"))) ? Number(p.get("match_min")) : savedMatchMinimum(),
     q: p.get("q") || "",
     page: Math.max(1, Number(p.get("page")) || 1),
     size: PAGE_SIZES.includes(Number(p.get("size"))) ? Number(p.get("size")) : PAGE_SIZES[0],
@@ -188,7 +206,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [view, setView] = useState<View>(initial.view);
   const [sort, setSort] = useState<Sort>(initial.sort);
   const [matchMin, setMatchMin] = useState(initial.matchMin);
-  const galleryMinimum = view === "similar" ? matchMin : 75;
+  const galleryMinimum = matchMin;
   const [q, setQ] = useState(initial.q);
   const [search, setSearch] = useState(initial.q);
   // `jump` is where loading starts (the pager, a date, a filter change); `page` is the
@@ -208,7 +226,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [matchState, setMatchState] = useState<{ photo: number | null; view: MatchView }>({ photo: initial.photo, view: initial.match });
   const [inspectorTab, setInspectorTab] = useState(initial.inspectorTab);
   const [comparison, setComparison] = useState<ComparisonState | null>(initial.comparison);
-  const [groupSets, setGroupSets] = useState(false);
+  const [groupSets, setGroupSets] = useState(() => {
+    try { return localStorage.getItem("ns.groupSets") !== "false"; } catch { return true; }
+  });
   const [exploreReference, setExploreReference] = useState<number | null>(null);
   const reviewSet = (reference: number, candidate: number | null) => {
     setOpenId(reference); setLocate(null); setRevealId(null); setInspectorTab("similar");
@@ -327,7 +347,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   useEffect(() => {
     const p = new URLSearchParams();
     if (view !== "all") p.set("view", view);
-    if (sort !== "newest") p.set("sort", sort);
+    p.set("sort", sort);
     if (view === "similar") p.set("match_min", String(matchMin));
     if (q) p.set("q", q);
     if (page > 1) p.set("page", String(page));
@@ -544,9 +564,20 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const changeFolders = (next: string[]) => { setFolders(next); setPage(1); };
   // All photos clears the other filters, but every tile preserves the search.
   const narrowed = undated || dates.length > 0 || types.length > 0 || folders.length > 0 || !!q;
+  const sortChoices = useRef<Partial<Record<View, Sort>>>({});
+  const chooseMatchMinimum = (value: number) => {
+    savePreference("ns.matchMin", String(value));
+    setMatchMin(value); setPage(1);
+  };
+  const chooseSort = (value: Sort) => {
+    sortChoices.current[view] = value;
+    savePreference(`ns.sort.${view}`, value);
+    setSort(value); setPage(1); setFocusPage(1);
+  };
   const chooseView = (v: View) => {
+    sortChoices.current[view] = sort;
     setView(v);
-    if (v !== "similar" && sort === "matches") setSort("newest");
+    setSort(sortChoices.current[v] ?? savedSort(v));
     setPage(1);
     if (v === "all") { setUndated(false); setDates([]); setTypes([]); setFolders([]); }
   };
@@ -776,7 +807,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           <div className="browse-search">
             <input className="search" type="search" placeholder="Search filenames" value={search} disabled={!!focus}
                    onChange={(e) => setSearch(e.target.value)} aria-label="Search filenames" />
-            <select value={sort} onChange={(e) => { setSort(e.target.value as Sort); setPage(1); setFocusPage(1); }} aria-label="Sort">
+            <select value={sort} onChange={(e) => { chooseSort(e.target.value as Sort); }} aria-label="Sort">
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
               <option value="largest">Largest first</option>
@@ -861,15 +892,15 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             <span>{gallerySummary ? plural(gallerySummary.total, "photo") : "Loading photos…"}</span>
             {view === "similar" && <>
               <label><input type="checkbox" checked={groupSets} disabled={!!focus}
-                onChange={e => { setGroupSets(e.target.checked); setExploreReference(null); }} />Group similar photos</label>
+                onChange={e => { setGroupSets(e.target.checked); savePreference("ns.groupSets", String(e.target.checked)); setExploreReference(null); }} />Group similar photos</label>
               <label className="gallery-match-threshold">Matches at or above
                 <select aria-label="Gallery match threshold" value={matchMin} disabled={!!focus}
-                        onChange={e => { setMatchMin(Number(e.target.value)); setPage(1); }}>
+                        onChange={e => { chooseMatchMinimum(Number(e.target.value)); }}>
                   {MATCH_THRESHOLDS.map(t => <option key={t} value={t}>{t}%</option>)}
                 </select>
               </label>
               <button className={sort === "matches" ? "active" : "primary"} aria-pressed={sort === "matches"}
-                      onClick={() => { setSort("matches"); setPage(1); setFocusPage(1); }}>Most matches first</button>
+                      onClick={() => { chooseSort("matches"); }}>Most matches first</button>
               <Tip text="Counts include direct matches across the destination library, including outside these filters. Open a photo to review its matches. Percentages measure visual similarity, not confidence; 100% does not mean identical files.">
                 <span className="muted">{matchMin < 90 ? "Below 90%, matches are more likely to be unrelated." : "Counts cover the destination library."}</span>
               </Tip>
@@ -969,7 +1000,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
       {exploreReference != null && view === "similar" && !focus && <ReferenceSets key={exploreReference}
         reference={exploreReference} threshold={matchMin} refreshKey={refreshKey} suspended={comparison != null}
-        onThreshold={t => { setMatchMin(t); setPage(1); }} onClose={() => setExploreReference(null)} onReview={reviewSet} />}
+        onThreshold={chooseMatchMinimum} onClose={() => setExploreReference(null)} onReview={reviewSet} />}
       {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
     </div>
   );

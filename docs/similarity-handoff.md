@@ -89,3 +89,28 @@ catalog, source read-only setting and all mounts. Do not touch the separate priv
 instance. Never publish personal filenames, source paths, machine details or raw
 real-library logs in tracked documents. Consult the final validation entry for what
 was actually deployed and checked. No catalog migration, merge or push is implied.
+
+## Grouping defaults and honest recovery follow-up
+
+Has similar photos now defaults to grouped reference sets and Most matches first.
+Explicit sort choices are stored separately per view in browser storage; grouping
+is also remembered. URL sorts override defaults without replacing preferences.
+Expanded set membership remains session-only; equivalent sets are not collapsed.
+
+Review matching status replaces Resolve matching issues. Generate missing hashes
+skips known failures in both the engine and UI count. Those failures retain their
+reasons and an explicit Recheck file after external fix, except unsupported formats.
+Resume comparisons still works independently. Recovery reports add `generatable`
+and per-item `action`; the existing single-photo request is the explicit recheck.
+No schema migration, EXIF write, deletion, or automatic retry loop was introduced.
+The broader import summary/external-review filter remains unfinished.
+
+Follow-up validation passed: 76 API tests without skips, seven recovery safety
+tests, reference-set/default-preference and recovery browser workflows, TypeScript,
+both image builds, API and specification checks. The sample is updated and healthy
+with its source still read-only. See the final validation entry for this batch.
+
+Similarity threshold follow-up: gallery defaults to 90%, remembers explicit changes
+per browser, and honors explicit URL thresholds without overwriting preferences.
+The 75% floor remains. Collapsing identical reference sets was discussed but is
+not implemented; partially overlapping sets must remain distinct.

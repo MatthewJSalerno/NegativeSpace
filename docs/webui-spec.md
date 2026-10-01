@@ -1561,7 +1561,7 @@ asks for naming decisions before the library is organized.
 
 **Built:** the ordinary gallery has a **Has similar photos** view alongside its
 existing view controls. It contains destination photos with at least one recorded
-visual match at the selected gallery percentage (75% by default), with the gallery's
+visual match at the selected gallery percentage (90% by default), with the gallery's
 existing search, date, type, folder and selection behavior. The top navigation has
 no Similar button. **Most matches first** in the sort dropdown orders qualifying
 match counts highest first, with ascending photo ID as the tie-breaker, before
@@ -1579,8 +1579,8 @@ The URL saves `match_min` separately from Inspector `match`, alongside `sort=mat
 Changes reset gallery paging to one but retain explicit selection; sidebar counts,
 Select all and photo positioning use the same membership. Show only selected keeps
 all selected files even without qualifying matches, with the percentage disabled;
-known counts sort first, then zero and unavailable counts. Leaving this view resets
-Most matches first to Newest first. Clicking a gallery card carries the gallery
+known counts sort first, then zero and unavailable counts. The initial sort is Most matches first. Remember explicit sort choices per view
+in browser storage; restore them on return. Explicit URL sorts take precedence. Clicking a gallery card carries the gallery
 percentage into its matches and opens the Similar photos tab. Later Inspector
 threshold changes remain local; previous/next retains that Inspector choice.
 Photos without qualifying recorded matches are omitted. A coverage note appears
@@ -1612,9 +1612,10 @@ and other metadata. Association does not prove shared metadata or authorize copy
 it; users must inspect the evidence. Metadata editing remains future work.
 Availability is recorded evidence, not a fresh filesystem check. Missing hashes
 and pending comparisons are explicit, and Index resumes unfinished comparisons.
-**Built:** Resolve matching issues opens a paged list of affected destination
-photos with reasons and direct photo links. Users can retry a missing hash for one
-photo, repair retryable missing hashes in the scope, or resume stored comparisons.
+**Built:** Review matching status opens a paged list of affected destination
+photos with reasons and direct photo links. Generate missing hashes processes only files without recorded failures. Known
+failures explain external corrections and offer an explicit per-file recheck
+after the fix; bulk generation skips them. Resume comparisons handles stored hashes.
 The engine verifies destination content before/after decoding; it does not depend
 on a source still existing, and does not edit photos. Unsupported formats explain
 the limitation. Missing/unreadable/changed files explain the required correction
@@ -2194,7 +2195,7 @@ the server's UTC year when the catalog is read.
 
 ### Reference-based grouping
 
-**Built:** optional Group similar photos adds reference-set counts and actions in
+**Built:** Group similar photos defaults on and adds reference-set counts and actions in
 Has similar photos. Each eligible reference retains its own tile; filters, sorting,
 pagination and selection keep their per-photo semantics. Members include direct
 matches from the entire destination catalog. Review this set opens direct-match
@@ -2202,7 +2203,7 @@ comparison. Explore related sets offers direct-match references with overlap and
 additional-member counts. Show together unions at most six chosen related sets,
 shows each byte identity once, and preserves membership/provenance. Indirect photos
 compare through a supporting reference. Both member lists are paged and coverage
-limitations remain visible. State is session-only and resets on reload/closing;
+limitations remain visible. Expanded sets are session-only and reset on reload/closing;
 threshold changes clear expansions. No transitive traversal or equivalent-set
 collapse. See [the design contract](ui-design.md#reference-based-sets).
 
@@ -2210,3 +2211,12 @@ Hash recovery now records per-file failures in Logs, with photo/path, category a
 external correction guidance. Inspector shows recorded visual-processing problems.
 Failures do not change delivered status or delete files. Missing EXIF alone does not
 establish damage. A broader import-completion issue summary remains pending.
+
+Grouping defaults on; the browser remembers the grouping toggle and each view’s
+explicit sort choice. Set membership and chosen expansions remain temporary.
+
+The gallery similarity percentage defaults to 90% and remembers explicit user
+changes in browser storage (`ns.matchMin`). An explicit `match_min` URL value wins
+without overwriting that preference. Gallery and reference-set threshold controls
+update the preference; Inspector/comparison thresholds remain local to their review.
+The 75% floor remains available. Identical-set collapsing remains discussion only.
