@@ -51,8 +51,7 @@ migration/history work for that sample is out of scope.
   card opens Similar photos at its gallery threshold. Sort/threshold survive reload and
   browser navigation; selection membership is preserved. No hashes are recalculated.
 - [x] Six-threshold SQLite count cache in the catalog, with transactional invalidation,
-  live fallback, atomic/cancellable engine refresh, and explicit schema-14/15 → 16
-  preparation preserving history and saved judgments. No separate DuckDB database.
+  live fallback and atomic/cancellable engine refresh. No separate DuckDB database.
 - [x] Visible **Most matches first** shortcut, consistent gallery summary/card geometry,
   compact match badges, shared active filter styling and supplemental filter help.
   Similar-gallery clicks open the matching tab; manual tab choices persist for
