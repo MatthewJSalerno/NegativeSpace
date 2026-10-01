@@ -135,12 +135,11 @@ files under `Undated/<year>/`, the year taken from the source's modification tim
 as captured at its original Index; `CreateDate` and `DateTime` are kept as review
 evidence but never place a file. See `engine-spec.md` §4.2.
 
-**Three capabilities the web UI depends on do not exist yet**, each specified
+**Two capabilities the web UI depends on do not exist yet**, each specified
 with what it needs:
 
 | Gap | Where | Blocks |
 | :--- | :--- | :--- |
-| Precomputed perceptual pairs | `engine-spec.md` §9.3 | Similar-photo review and its slider |
 | Delete under `--dest`, with an extended record | `engine-spec.md` §9.5 | Discarding redundant copies; needs `width`/`height` too |
 | Writing embedded EXIF (sidecars remain a future option) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
 
@@ -201,6 +200,23 @@ service. Built and tested:
     *   the **Stats** page: the library in figures (formats, cameras, resolution, dates,
         duplicate space with its coverage, activity, catalog health), each leading to
         the photos or log entries behind it.
+    *   gallery **Has similar photos** and Inspector matching: read-only visual review
+        of destination photos after Copy or Move, separate Photo information/Similar photos Inspector tabs, cumulative
+        75/80/85/90/95/100% counts and a responsive, paged match grid. Index precomputes comparisons and resumes interrupted work.
+        The expanded side-by-side workspace provides independent temporary rotation,
+        linked zoom/position, candidate promotion to reference, file/image and metadata
+        differences with scrolling column headings, and saved content-pair judgments.
+        Preview dimensions follow viewing rotation; recorded dimensions stay unchanged.
+        The validation panel shows coverage, timings and review counts. General EXIF
+        editing, end-of-review orientation saving and deletion remain future work
+        tracked in [TODO.md](../TODO.md). The similarity gallery can sort by direct
+        match count at a chosen percentage, with card counts and consistent filters,
+        selection and photo navigation. Optional reference sets expose direct matches,
+        overlap notices and explicitly chosen session-only unions. Group expansion never
+        selects files for actions. Missing-hash recovery reads verified destination
+        originals and logs per-file failures; comparison state restores after reload.
+        Suspicious-date review flags recorded years without modifying them. See the
+        [current review handoff](similarity-handoff.md) for scope and remaining work.
 
     `tests/webui_browser_test.sh` drives them in a real browser.
 
@@ -214,12 +230,16 @@ Specified but not yet on screen:
 *   Each folder's last-scanned time in the Folders tree.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
-*   The Rename, Similar and Undated tabs, and metadata editing.
+*   The Rename and Undated tabs, similarity curation actions, and metadata editing.
 
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 12; older catalogs are refused, never migrated. It stores immutable
+at schema version 16; automatic upgrades remain disabled. The explicit
+`tools/prepare-similarity-catalog.py` tool prepares a separate schema-16 catalog
+from schema 14 or 15, preserving history and judgments. It rebuilds the widened
+comparison range for schema 14 and prepares six cached gallery counts for either
+version. Schema-15 relationships are retained. Other incompatible versions remain refused. It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its
 identity, and reuse of an existing destination keeps both identities and links the

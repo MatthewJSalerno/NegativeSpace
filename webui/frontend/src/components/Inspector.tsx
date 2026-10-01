@@ -1,11 +1,15 @@
+import type { SetActions } from "./ReviewActions";
+import type { ComparisonState } from "../comparisonState";
 import { Modal } from "./ui/Modal";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { api, ApiError, type PhotoDetail } from "../api";
 import { bytes, epoch, isFallbackDate } from "../format";
 import { follow, logUrl } from "../nav";
 import { LineageDialog } from "./LineageDialog";
 import { Thumb } from "./Thumb";
+import { PhotoMatches, type MatchView } from "./PhotoMatches";
+import { MatchReviewDialog } from "./MatchReviewDialog";
 
 const STATUS: Record<string, string> = {
   Pending: "Not yet organized", Processing: "In progress", Completed: "Moved to the destination",
@@ -20,7 +24,10 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey }: {
+export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet }: SetActions & {
+  coveredByDialog?: boolean;
+  comparison: ComparisonState | null;
+  onComparison: (state: ComparisonState | null) => void;
   id: number;
   width: number | null;
   onClose: () => void;
@@ -29,6 +36,10 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   onOpenPhoto: (id: number) => void;
   jobRunning: boolean;
   refreshKey: number;
+  tab: "information" | "similar";
+  onTab: (tab: "information" | "similar") => void;
+  matchView: MatchView;
+  onMatchView: (view: MatchView) => void;
 }) {
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 800px)").matches);
   useEffect(() => {
@@ -37,6 +48,8 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+  const tabId = useId();
+  const tabs = ["information", "similar"] as const;
   const panel = useRef<HTMLElement>(null);
   const header = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -77,7 +90,23 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   const [previewFailed, setPreviewFailed] = useState(false);
   const [enlarged, setEnlarged] = useState(false);
   const [lineage, setLineage] = useState(false);
-  useEffect(() => setLineage(false), [id]);
+  const candidate = comparison?.candidate ?? null;
+  const comparisonOpener = useRef<HTMLElement | null>(null);
+  const closeComparison = () => {
+    onComparison(null);
+    requestAnimationFrame(() => {
+      const target = comparisonOpener.current;
+      (target?.isConnected ? target : panel.current?.querySelector<HTMLElement>('.inspector-match') ?? panel.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]'))?.focus({ preventScroll:true });
+    });
+  };
+  const openComparison = (candidate: number) => {
+    comparisonOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    onComparison({ origin:id, reference:id, candidate,
+    threshold:matchView?.threshold ?? 90, page:matchView?.page ?? 1, filter:"all", tab:"information",
+    views:{}, linked:false, share:72 });
+  };
+  const [reviewsChanged, setReviewsChanged] = useState(0);
+  useEffect(() => { setLineage(false); }, [id]);
 
   useEffect(() => {
     setDetail(null);
@@ -127,7 +156,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   );
 
   const body = (
-    <section ref={panel} className="inspector" aria-label="Photo details" style={width ? { flexBasis: `${width}px` } : undefined}>
+    <section ref={panel} className="inspector" data-tab={tab} aria-label="Photo details" style={width ? { flexBasis: `${width}px` } : undefined}>
       <header ref={header} className="inspector-head">
         <button onClick={() => onStep(-1)} aria-label="Previous photo">‹</button>
         <h2 title={detail?.filename}>{detail?.filename ?? "…"}</h2>
@@ -168,7 +197,27 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
              }}><span aria-hidden="true">⋮⋮</span></div>
         <div className="inspector-side">
           {error && <p className="error">{error}</p>}
-          {detail && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />}
+          <div className="inspector-tabs" role="tablist" aria-label="Photo inspector">
+            {tabs.map((value, i) => <button key={value} role="tab" id={`${tabId}-${value}`}
+              aria-controls={`${tabId}-${value}-panel`} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1}
+              onClick={() => onTab(value)} onKeyDown={(e) => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+                e.preventDefault(); e.stopPropagation();
+                const next = e.key === "Home" ? 0 : e.key === "End" ? 1 : (i + 1) % 2;
+                onTab(tabs[next]); document.getElementById(`${tabId}-${tabs[next]}`)?.focus();
+              }}>{value === "information" ? "Photo information" : "Similar photos"}</button>)}
+          </div>
+          <div className="inspector-tab-panel" role="tabpanel" id={`${tabId}-information-panel`}
+            aria-labelledby={`${tabId}-information`} hidden={tab !== "information"} tabIndex={0}>
+            {detail && tab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />}
+          </div>
+          <div className="inspector-tab-panel" role="tabpanel" id={`${tabId}-similar-panel`}
+            aria-labelledby={`${tabId}-similar`} hidden={tab !== "similar"} tabIndex={0}>
+            {detail && tab === "similar" && <div className="inspector-body"><PhotoMatches key={id} id={id}
+              delivered={["Completed", "Copied", "Found_At_Destination"].includes(detail.status)}
+              view={matchView} onView={onMatchView} refreshKey={refreshKey}
+              onReview={openComparison} reviewsChanged={reviewsChanged} /></div>}
+          </div>
         </div>
       </div>
       {lineage && detail && createPortal(
@@ -189,7 +238,13 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
       )}
     </section>
   );
-  return narrow ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body;
+  return <>
+    {narrow && comparison == null && !coveredByDialog ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
+    {comparison != null && <MatchReviewDialog reference={id} candidate={candidate}
+      workspace={comparison} onWorkspace={onComparison} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet}
+      initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}
+      onClose={closeComparison} onSaved={() => setReviewsChanged((n) => n + 1)} />}
+  </>;
 }
 
 function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
@@ -236,6 +291,8 @@ function Details({ detail: d, onLineage, refreshKey }: { detail: PhotoDetail; on
   const taken = dates.find((x) => x.field === "taken");
   return (
     <div className="inspector-body">
+      {d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. The value is unchanged; date editing is not yet available. <a href="/?view=suspicious">View suspicious dates</a></p>}
+      {d.visual_issue && <p className="section-note"><strong>Visual matching unavailable:</strong> {d.visual_issue} The catalogued file is retained. Missing EXIF alone is not evidence of damage.</p>}
       <Section title="File">
         <Row label="Status">{STATUS[d.status] ?? d.status}</Row>
         <Row label={d.dest_path_is_projection ? "Proposed destination path" : "Destination path"}>

@@ -594,7 +594,11 @@ Failed lookups offer a retry while leaving the Inspector open.
 
 History's **Open in the log** and **View lineage tree** actions share text size and
 alignment, retaining their link and button semantics respectively.
-Clicking an image opens a right-side 50% detail panel.
+Clicking an image opens a right-side 50% detail panel. **Photo information** is the
+default tab outside Has similar photos; opening a gallery card in that view selects
+**Similar photos**, which holds the matching controls and thumbnails (§7.4).
+Both tabs share the reference preview and its resize divider. The active tab and
+chosen match threshold remain selected when navigating to another photo.
 
 **The file's modification time** is the time the file carried when the first Index read
 it, not a date the photo was scanned; its label says so on hover (**"As recorded when
@@ -1197,6 +1201,9 @@ attempts and Last backup. **A share never rounds to all or nothing:** 100% means
 photo and 0% none, so 4,681 of 4,684 reads 99.9%, not 100%.
 Camera and lens identifiers are displayed and grouped as text, including numeric
 metadata values; missing or empty identifiers are omitted without altering stored metadata.
+The Dates chart stays within its panel: long year ranges scroll horizontally, with
+readable year labels and keyboard-accessible year links. The complete counts remain
+available under **As a table**.
 
 "How much space are my duplicates wasting?" is a headline figure for the Stats page, and the catalog already answers it without any engine change. Deduplication acts on two different volumes, though, and conflating them produces a number that is wrong in whichever direction the user's mode does not apply:
 
@@ -1280,11 +1287,13 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 12 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 16 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
-user catalog. Development uses fresh catalogs until migration support is provided.
+user catalog. The explicit schema-14/15 preparation tool described in `engine-spec.md` §9.3
+preserves history in a separate schema-16 copy; other versions require a fresh
+development catalog without discarding the old one.
 
 
 Note the asymmetry this creates for the UI: deleting the catalog is cheap for Index state, but it discards the record of which files a previous Move already migrated. Where the UI offers a rebuild, it should say so.
@@ -1406,8 +1415,8 @@ Everything above is about getting files *in*. This section is about curating
 what is already there — a different activity, with a different safety story.
 
 **These workflows depend on engine capabilities in `engine-spec.md` §9.** The
-destination check and renaming a delivered file are built; the perceptual pair table,
-deleting under `--dest`, and writing EXIF are not. This
+destination check, renaming a delivered file, and read-only similarity review are built;
+deleting under `--dest` and writing EXIF are not. This
 section specifies what the user does; that one specifies what the engine must be
 able to do first.
 
@@ -1456,7 +1465,7 @@ shape is stated once.
   greyed out, since a disabled button invites a hunt for the permission that
   would enable it when the real answer is "organize this photo first". The test
   is the engine's delivered-status set.
-* **Navigation preserves your place.** Following a link into the Similar tab or
+* **Navigation preserves your place.** Following a link into Inspector matches or
   a detail view and coming back returns the user where they were, not to the
   top. This is what makes "just check this one thing" cheap on a list of
   thousands rather than a punishment for curiosity.
@@ -1476,23 +1485,33 @@ shape is stated once.
 
 **Tab or filter?** A population that comes with its own job to do gets a tab; a
 population that is merely a subset of an existing view, with no action that view
-lacks, gets a filter. The Rename, Similar and Undated tabs each have a distinct
-task — choose a better name, resolve a near-duplicate group, recover a missing
-date — so each is a tab. A "failed operations" screen is *not* a tab: it is Logs
-filtered to failures and introduces no action Logs lacks.
+lacks, gets a filter. Similarity uses the gallery filter and Inspector because review
+begins with a particular photo. Rename and Undated remain planned curation tasks,
+with their eventual placement separate from the current gallery matching workflow.
+A "failed operations" screen is Logs filtered to failures and introduces no action
+Logs lacks.
 
 ### 7.2 Exact duplicates and similar photos are different things
 
-A match-mode control distinguishes them, and the UI must not blur them:
+The UI must not blur them:
 
 * **Exact (SHA-1).** Byte-for-byte identical. Available as soon as an Index has
   run, with no new engine work.
 * **Similar (perceptual).** Visually alike but different bytes — the same
   photograph as RAW and JPEG, or full-size and thumbnail. Requires the pair
-  table in `engine-spec.md` §9.3, which does not exist.
+  table in `engine-spec.md` §9.3, populated during Index.
 
-**Every photo's info box states its exact-duplicate count and carries a "find
-similar photos" link** scoped to it.
+The gallery Inspector reviews visually similar, different-content photos. It has no
+exact-copy mode: Copy and Move already avoid writing exact duplicates to the
+destination. Exact-copy counts and recorded outcomes remain in photo details,
+history and Stats. Visual review includes destination photos only. The workflow is
+**Index → Copy or Move → review and curate destination photos**; EXIF editing and
+match cleanup remain future work. Before delivery, the Inspector explains the Copy or
+Move step. Old `/similar` bookmarks redirect into the gallery; an existing reference
+opens its Inspector matches. There is no exact-copy matching dropdown.
+
+**Every photo's info box states its exact-duplicate count. Delivered photos show
+cumulative visual-match counts and inline results** scoped to them.
 
 **The count must say whether they have been dealt with.** On a catalog that has
 only been indexed, the duplicates are flagged but still on disk; a bare number
@@ -1538,42 +1557,173 @@ job. Its outcome and the actual resulting name are its `Renamed` (or `Failed`) o
 would decide the name as the file is written, but it is an engine change and it
 asks for naming decisions before the library is organized.
 
-### 7.4 The Similar tab
+### 7.4 Similar photos in the gallery
 
-Matching compares against the full catalog, including delivered photos; it needs an
-initial backfill and refresh when perceptual hashes change (`engine-spec.md` §9.3).
+**Built:** the ordinary gallery has a **Has similar photos** view alongside its
+existing view controls. It contains destination photos with at least one recorded
+visual match at the selected gallery percentage (90% by default), with the gallery's
+existing search, date, type, folder and selection behavior. The top navigation has
+no Similar button. **Most matches first** in the sort dropdown orders qualifying
+match counts highest first, with ascending photo ID as the tie-breaker, before
+pagination. The gallery summary also exposes a **Most matches first** shortcut.
+**Matches at or above** offers 75/80/85/90/95/100% in that summary
+whenever this view is active; the percentage also applies to date/name/size sorts.
+Cards show compact count badges over the preview; their tooltip includes the percentage.
+All views use the same card geometry and summary row. Long filter descriptions
+use shared help while filter actions stay visible. Counts cover direct matches across the entire
+destination library, including outside the gallery's filters, matching the Inspector
+scope. Equal visual hashes count, exact byte copies are represented once, and the
+reference itself is excluded. No new image comparisons run when controls change.
+
+The URL saves `match_min` separately from Inspector `match`, alongside `sort=matches`.
+Changes reset gallery paging to one but retain explicit selection; sidebar counts,
+Select all and photo positioning use the same membership. Show only selected keeps
+all selected files even without qualifying matches, with the percentage disabled;
+known counts sort first, then zero and unavailable counts. The initial sort is Most matches first. Remember explicit sort choices per view
+in browser storage; restore them on return. Explicit URL sorts take precedence. Clicking a gallery card carries the gallery
+percentage into its matches and opens the Similar photos tab. Later Inspector
+threshold changes remain local; previous/next retains that Inspector choice.
+Photos without qualifying recorded matches are omitted. A coverage note appears
+when destination hashes are unavailable or comparisons unfinished; absence from this
+view does not establish uniqueness. Counts, sort and coverage are read in one snapshot.
+
+The Inspector's **Similar photos** tab shows cumulative potential-match counts at **75%, 80%, 85%, 90%,
+95% and 100%** in the Inspector. “85%+” means all matches at or above 85%; these are
+not independent buckets. Selecting a count displays 12 candidates at a time inside
+the information pane, ordered by similarity, with dimensions and side-by-side review.
+The open photo stays the reference; threshold/page changes leave the main gallery
+and explicit checkbox selection intact. Matches can lie outside the gallery's current
+filters. Closing the match list leaves the counts visible. Outside the similarity gallery, first entering the tab
+selects 90%; subsequent photo navigation keeps the tab and threshold, resets match
+paging to one and does not copy a review judgment to another pair. Information-only
+browsing loads no match data. Left/Right and Home/End on the tab controls move between
+tabs; they do not navigate photos.
+The URL records `photo`, `tab`, `match` (threshold) and `match_page` alongside gallery filters,
+so reload and Back/Forward restore the Inspector's match context. Legacy `/similar`
+bookmarks redirect here. Each byte identity is represented once.
+Queue, references and saved-review endpoints require a delivered status and a
+recorded present file at that photo's destination with matching SHA-1. Source-only
+photos, projected destinations and missing destination copies are excluded, even
+when their source remains available.
+Equal visual hashes of
+different byte identities remain visual matches, including at 100%.
+The review also supports finding related photographs and clues about dates, events,
+and other metadata. Association does not prove shared metadata or authorize copying
+it; users must inspect the evidence. Metadata editing remains future work.
+Availability is recorded evidence, not a fresh filesystem check. Missing hashes
+and pending comparisons are explicit, and Index resumes unfinished comparisons.
+**Built:** Review matching status opens a paged list of affected destination
+photos with reasons and direct photo links. Generate missing hashes processes only files without recorded failures. Known
+failures explain external corrections and offer an explicit per-file recheck
+after the fix; bulk generation skips them. Resume comparisons handles stored hashes.
+The engine verifies destination content before/after decoding; it does not depend
+on a source still existing, and does not edit photos. Unsupported formats explain
+the limitation. Missing/unreadable/changed files explain the required correction
+before retry. Busy jobs disable starting recovery; progress, cancellation, request
+failure retry and refreshed remaining counts are available. Successful recovery
+keeps its results dialog open even when the originating warning disappears.
+An ordinary Index may skip unchanged files and is not a general hash repair.
+URL state preserves filters, reference and pages on reload or browser navigation.
+Donor/keeper selection, discard and EXIF actions below remain future work; the current
+review does not select targets or modify files.
+
+**Expanded review:** each match offers **Review side by side**, opening the
+workspace with the Inspector's reference, threshold and candidate page. Two large
+previews have independent rotation, zoom and horizontal/vertical position controls;
+optional linked zoom/position keeps rotation independent. Reset view restores the
+individual preview. Viewing transforms follow the photo while browsing candidates
+and reset on close. Zoom magnifies generated previews (up to 1024 pixels), not
+original-resolution pixels. Dimensions, file sizes and exact-content status are
+shown. Hash percentages are not confidence estimates, including at 100%.
+The comparison area expands to fit both previews and all their controls/details,
+including dimensions, file sizes and linked zoom. It has no inner vertical scroll.
+If needed, the whole review window scrolls, with the shared More above/below cues;
+the candidate strip follows the comparison in normal flow.
+The reference preview has an accent border and a plain bold **Reference photo** heading;
+the candidate remains neutral. This marks the comparison reference, not a file
+chosen to keep or a metadata donor.
+
+**Use as reference** on the candidate loads that photo's direct matches at the
+current threshold, resetting to page one and All candidates. Keep the previous
+reference displayed as the candidate (it may lie outside the new first page).
+Rotate/zoom state follows each photo; the pair's saved judgment is unchanged.
+Move keyboard focus to the new reference and disable promotion while saving or
+while the pair needs refresh after an error. Promotion does not select a keeper,
+metadata donor or action targets. The gallery's reference and selection are
+unchanged: Back to gallery returns to the original Inspector and entry page after
+exploring another reference, keeping the chosen threshold.
+
+Candidates are paged, with previous/next candidate navigation across pages. A
+resizable information panel compares recorded metadata in aligned columns; users
+can inspect all tags, search fields, or show only differences. Missing values,
+file-modification fallback dates and unknown timezone offsets are labelled.
+**File and image properties** comes first: format, extension, pixel dimensions,
+megapixels, file size and aspect ratio. Recorded file type takes precedence over
+the extension; an extension-only fallback is labelled. Differences use the exact
+values, not rounded display strings; file sizes include exact bytes. Unknown
+dimensions never become zero megapixels or a fabricated ratio. No format or size
+is labelled an automatic winner. **Capture information** follows, and the optional
+**All recorded metadata** table retains field search. Differences only applies to
+all sections; field search applies only to the full metadata table.
+Each table's Field, Reference and Candidate headings stay visible while scrolling
+its rows, including when narrow layouts scroll the review window as a whole.
+Dimensions beneath previews follow temporary rotation (width and height swap at
+90°/270°) and are labelled Displayed when rotated. Recorded dimensions in the
+information pane, megapixels and file size remain unchanged by viewing transforms.
+The Saved review tab shows the current pair's latest saved judgment. All,
+Unreviewed and Reviewed filters apply before pagination; progress counts are for
+all candidates at the chosen threshold. Judgments shown on thumbnails belong to
+the reference/candidate content pair. Saving prevents navigation until it settles.
+Metadata, candidate and pair failures expose retry rather than invented empty data.
+
+Back to gallery retains the chosen threshold and unfiltered page, or page one when
+a review filter was used. Gallery selection remains unchanged. Review decisions
+survive reopening. The validated `review` URL state restores the current reference,
+candidate, threshold, candidate page, review filter, active pane tab, divider share,
+linked zoom and current-pair viewing transforms across reload. Other candidates'
+transforms last only in the open session. Restoring fetches fresh photo/judgment
+state and never saves a judgment automatically. Invalid state is ignored; missing
+photos expose errors; pages clamp to the remaining results. Back/Escape clears the
+workspace bookmark and returns focus to the opener or a surviving match control.
+Deferred queues remain future work.
+Guidance beside the threshold controls explains that results below 90% are more
+likely to be unrelated: compare photos side by side before using them as clues for
+dates or other details. The comparison dialog repeats this for pairs scoring below
+90%; the actual pair score, not the chosen list threshold, controls that reminder.
+For different byte identities users can save **Same photograph**, **Related
+photograph**, or **Unrelated**, or clear the judgment. Feedback never changes
+photos or matching results. Stale-content refusals require refresh and another
+review. Exact copies do not need a visual judgment.
+The expandable **Validation and performance** panel shows distinct usable hashes,
+stored pairs, incomplete/unavailable counts, the most recently
+reported comparison-phase elapsed time, and counts of saved judgments. These
+selected judgments are not presented as whole-library accuracy. Missing timing is
+shown as not recorded; reported phase time is not a dedicated CPU benchmark.
+
+Hash precomputation covers the full catalog; review results include only destination
+photos. Precomputation needs an initial backfill and refresh when perceptual hashes change (`engine-spec.md` §9.3).
 Find Similar results are measured against the selected reference, not chained through
 other matches. Missing hashes are labelled unavailable rather than unique; historical
 records remain accessible without being offered as actionable missing files. The
-stored comparisons must support the full slider range. Dimensions are captured during
+stored comparisons must support every offered threshold. Dimensions are captured during
 Index; unreadable dimensions display as unknown.
 
-The same shape as the Rename tab, with four differences:
+**Separate curation workstream:** target selection, EXIF copy/edit and deletion extend
+the built comparison workspace. Current browsing and judgments never select action
+targets or clear the gallery's explicit selection. Future action selection must be
+distinct from opening a reference or choosing a threshold; changing the offered
+match set must not leave hidden action targets armed.
 
-* **A match % slider at the top**, so the user sets what counts as similar.
-* **Moving the slider clears the current selection, after warning that it
-  will.** The division of labour is the point: *the slider filters what is
-  offered; the selection is what is acted on.* Clearing on movement makes it
-  impossible for an action to reach a photo the user has stopped looking at.
-* **The photo with the most matches is listed first.**
-* **Each member shows its dimensions, and the largest in the group is marked —
-  as information only.** Nothing is pre-selected on that basis; we do not assume
-  the user wants to keep the highest resolution.
-
-**One explicit primary per group drives both actions.** The group has a single
-designated primary, chosen deliberately rather than inferred from what was
-clicked last, and that one designation serves both verbs: **copy EXIF** from the
-primary onto the selected targets, and **discard** — keep the primary, delete
-the selected targets. One concept, two actions, rather than two mental models.
-No action is armed until a primary exists, and the primary is visually distinct
-— a border and a label, not merely focus.
-
-**The primary is swappable via "Make Primary".** Any photo in the group can be
-promoted; the previous primary demotes back into the group. In practice you do
-not know which photo should win until you have compared several, and a primary
-fixed at the moment you opened the group would make an accident of navigation
-feel like a decision. Its real consequence: **the photo you originally clicked
-becomes deletable**, losing a protection nobody chose to give it.
+**Reference, metadata donor and keepers are separate choices.** The reference
+anchors comparisons. A donor supplies only explicitly selected metadata fields;
+one or more keepers are photographs the user intends to retain. A smaller export
+may have the correct metadata while a larger original is worth keeping, so a single
+"primary" must not control both verbs. No role is inferred from the last photo
+clicked, resolution or file size. Each designation is explicit and visibly labelled.
+A user can choose another donor or keeper after comparison; the original reference
+has no implicit protection from a later explicit deletion selection. Deletion
+previews must exclude explicit keepers; metadata previews identify the donor, chosen
+fields and target photographs separately.
 
 **Select all exists, and is always guarded.** Deleting twenty-nine of thirty by
 hand is not a workflow. But a select-all never acts directly — it raises a
@@ -1760,7 +1910,27 @@ validity does not prove decoder behavior or pixel integrity; a matching pHash is
 not proof of exact pixel equality. Define and test consistent decoding/orientation
 rules for supported formats before implementing this verification path.
 
-**Rotate is an EXIF edit, never a pixel edit.** The Inspector and bulk edit offer
+**Built comparison-only rotation:** the expanded review workspace lets users rotate the
+reference preview and each candidate independently, in 90° steps, with a reset and
+visible temporary-orientation state. It must compose with zoom/pan and never carry
+one candidate's rotation onto a different photo. These viewing controls
+do not write files, edit EXIF, regenerate hashes or recalculate match scores.
+They help assess returned candidates; retrieval of rotated photos missed by the
+current matcher is a separate concern. The expanded workspace (§7.4) is the
+side-by-side review surface.
+
+**Future end-of-review save:** after a verified orientation-write path exists,
+offer one decision for remaining rotation changes when the user finishes reviewing,
+not on individual Rotate clicks. Show affected photos and their final orientations,
+with choices to save selected changes, discard viewing changes, or return to review.
+Track photos across candidate navigation and reference promotion; do not assume the
+currently displayed pair is the only pair rotated. Define consistent exit handling
+for Back, Escape and dialog close before shipping. Resetting to the original
+orientation leaves no rotation change to save. General EXIF edits open the shared
+editor rather than being entered in the comparison table. None of this save flow is
+implemented; closing today's workspace discards its viewing transforms.
+
+**Future saved rotation is an EXIF edit, never a pixel edit.** The Inspector and bulk edit will offer
 **Rotate left**, **Rotate right** and **Rotate 180°**. Each changes only the EXIF
 `Orientation` tag, which viewers and galleries apply when displaying the photo.
 The pixel data is never decoded and re-saved: re-encoding a JPEG loses quality on
@@ -2003,3 +2173,78 @@ to the log. An explicitly requested subsequent Move is separate work.
 Current engine delivery relationships are implemented in the shared catalog layer;
 interrupted-operation evidence is recorded by recovery (`engine-spec.md` §4.2). The
 web presentation remains pending.
+
+## Suspicious dates
+
+The **Suspicious dates** gallery view flags the recorded gallery date when its year
+is before 1800 or more than one year ahead of the current UTC year. This is a
+conservative review heuristic, not proof of an error. It includes EXIF-derived dates
+and file-modification fallbacks, with their source identified in the Inspector and
+comparison pane. Missing dates remain covered by No capture date; raw malformed or
+conflicting EXIF tags are outside this first policy. Never infer an offset or replace
+a recorded value. Legitimate historical material may still be flagged.
+
+Use existing gallery controls, card geometry, selection, pagination and URL state
+(`view=suspicious`). Counts, sidebar filters and Select all use the same membership.
+Explain the policy beside results. The Inspector shows the reason, recorded value,
+source and a link to the affected view. Similar photos offer clues, not automatic
+corrections. The comparison Capture information table includes a Date review row
+when either photo is flagged. State clearly that date editing is not yet available.
+No schema changes, reindex or file writes are needed; the upper bound advances with
+the server's UTC year when the catalog is read.
+
+### Reference-based grouping
+
+**Built:** Group similar photos defaults on and adds reference-set counts and actions in
+Has similar photos. Identical closed neighborhoods appear once, represented by the
+lowest canonical photo ID satisfying active filters. Membership uses the entire
+destination library at the chosen threshold; equal counts alone do not merge sets.
+Collapse precedes sorting and pagination. Totals count sets; selection takes only
+representative photos. Explicit selections remain unchanged. Members include direct
+matches from the entire destination catalog. Review this set opens direct-match
+comparison. Explore related sets offers direct-match references with overlap and
+additional-member counts. Show together unions at most six chosen related sets,
+shows each byte identity once, and preserves membership/provenance. Indirect photos
+compare through a supporting reference. Both member lists are paged and coverage
+limitations remain visible. Expanded sets are session-only and reset on reload/closing;
+threshold changes clear expansions. No transitive traversal. See [the design contract](ui-design.md#reference-based-sets).
+
+Hash recovery now records per-file failures in Logs, with photo/path, category and
+external correction guidance. Inspector shows recorded visual-processing problems.
+Failures do not change delivered status or delete files. Missing EXIF alone does not
+establish damage. A broader import-completion issue summary remains pending.
+
+Grouping defaults on; the browser remembers the grouping toggle and each view’s
+explicit sort choice. Set membership and chosen expansions remain temporary.
+
+The gallery similarity percentage defaults to 90% and remembers explicit user
+changes in browser storage (`ns.matchMin`). An explicit `match_min` URL value wins
+without overwriting that preference. Gallery and reference-set threshold controls
+update the preference; Inspector/comparison thresholds remain local to their review.
+The 75% floor remains available. Identical-set collapsing is implemented for the grouped gallery.
+
+### Review links and set navigation
+
+Copy review link serializes the current comparison directly, including reference,
+candidate, threshold, review filter/tab, current-pair viewing transforms and linked
+zoom. It does not depend on a pending URL update or replay a saved judgment. Report
+success only after the clipboard write succeeds. If clipboard access is unavailable
+or rejected (including local-network HTTP), expose a labelled, selectable read-only
+link for manual copy. Recipients need access to the same instance and catalog.
+
+Previous set / Next set in review follows the grouped gallery's percentage, filters
+and sort, anchored on the entry reference even after Use as reference. Disable
+unavailable boundaries and loading navigation; request failures offer Retry set
+navigation. Do not navigate during a judgment save. Entering another set starts a
+fresh comparison with temporary viewing transforms reset; no judgment is implied.
+Navigation is offered only from the grouped gallery, not an expanded union or a
+set-member scope whose ordering has a different meaning.
+
+Show this set in gallery is available from comparison and each reference in set
+exploration. It shows the reference and direct members at that set's percentage as
+ordinary, individually selectable cards, with server paging and normal sort controls.
+This temporary scope bypasses the saved gallery filters and does not auto-select,
+expand or clear the existing selection. Filters are disabled while it is open;
+Back to results restores the previous gallery filters/page. Reload leaves this
+session-only scope. Selection limits still apply, but browsing is not limited to
+1,000 members. No EXIF edit, deletion, image processing or persisted group is implied.

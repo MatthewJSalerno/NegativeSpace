@@ -123,8 +123,9 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 
 | Parameter | Values | Default |
 | :--- | :--- | :--- |
-| `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed) | `all` |
-| `sort` | `newest`, `oldest`, `largest`, `smallest`, `name` | `newest` |
+| `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed), `similar` (destination photos with visual matches at `match_min` or higher), `suspicious` (recorded date outside review bounds) | `all` |
+| `sort` | `newest`, `oldest`, `largest`, `smallest`, `name`, `matches` (`view=similar` only) | `newest` |
+| `match_min` | integer percentage 75–100, applies to similarity membership/counts | 75 |
 | `q` | filename search: current and original names, including removed duplicates' names; never folder names | none |
 | `undated` | `true` for only photos with no EXIF date taken, the ones filed under Undated | `false` |
 | `date` | repeatable: a year (`2023`), a month (`2023-06`) or `none` (no date at all); the date tree's "Show only". Several add up | none: every date |
@@ -151,6 +152,19 @@ whose latest delivery was a Move that could not delete the original, why (a run'
 date label. `total` is what this request shows, every filter applied. `matches` counts
 each view with every filter applied, for offering another view when a search finds
 nothing in this one. The date sorts put undatable rows last.
+
+For `view=similar`, each item includes `similar_count`, and the response includes
+`similarity: {threshold, pending, unavailable}`. The coverage counts describe all
+eligible destination content identities, not just the filtered page. Other views
+return `similarity: null`. Match counts cover direct matches across the whole
+available destination library, independent of gallery search/date/type/folder filters.
+Zero-count references are omitted. `sort=matches` sorts descending count, ascending
+photo ID before pagination; it is invalid with other views (400). Reads never
+recompute pHashes or pair distances. Counts, items and coverage share one snapshot.
+
+`match_min` also applies to `/photos/timeline`, `/photos/types`, `/photos/folders`,
+`/photos/ids` and the JSON body of `/photos/position`, so facets, selection and
+navigation agree. Invalid query/position percentages return 422.
 
 ### `GET /api/v1/photos/timeline`
 
@@ -210,7 +224,7 @@ act on only some of what was shown.
 Read-only lookup of one photo's zero-based position, one-based page and adjacent
 IDs in the gallery's ordering. The JSON body requires positive integer `photo_id`;
 optional fields are `view`, `sort`, `page_size` (1–240, default 60), `q`, `undated`,
-`dates`, `types` and `folders`, with the same filter meanings as the gallery.
+`dates`, `types`, `folders` and `match_min`, with the same filter meanings as the gallery.
 An optional `ids` list (at most 1,000 positive integers) scopes a selection instead
 of the normal filters. POST keeps that selection out of URL length limits.
 
@@ -232,6 +246,11 @@ The selected photos, whatever view, search or dates would hide them (Show only s
 It reads; it is a POST because 1,000 ids is too long for a URL. `missing` names ids no
 longer in the catalog, so a selection is never silently shortened. More than 1,000 ids
 is `400 invalid_request`.
+`sort=matches` with optional integer `match_min` (default 75) orders an explicit
+selection by library-wide counts without filtering out selected files. This also
+works for `/photos/position` when `ids` is supplied. Items without an available
+representative/usable hash have `similar_count: null` and sort after known zero
+counts; ties use ascending ID. An invalid selection percentage returns 400.
 
 ### `GET /api/v1/photos/{id}/inspect`
 
@@ -544,7 +563,7 @@ the original, so a later archive carries the duplicates.
 
 ## 6. The run object and its outcome
 
-    {"id": 47, "mode": "INDEX" | "COPY" | "MOVE" | "REBUILD" | "CHECK" | "RENAME",
+    {"id": 47, "mode": "INDEX" | "COPY" | "MOVE" | "REBUILD" | "CHECK" | "RENAME" | "SIMILARITY",
      "status": "Preparing" | "Running" | "Cancelling" | "Completed" | "Cancelled" |
                "Failed" | "Interrupted",
      "started_at", "ended_at", "reconciled_by_run_id",
@@ -615,6 +634,116 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
 | `engine_start_timeout` | 500 | The engine recorded no run in time |
 | `backup_timeout` | 500 | Back up now did not finish in 10 minutes |
 
+### `GET /api/v1/similar`
+
+Read-only destination matching queue. Query: `mode=similar|exact` (default `similar`),
+`threshold=75..100` (default 90), `sort=matches|newest|oldest|name|largest`,
+`q` (literal filename substring), `page` (positive, default 1), `page_size`
+(1–60, default 30). Unknown mode/sort returns 400; numeric validation errors return 422.
+
+The Similar screen uses visual matching only. The API retains exact mode for
+compatibility and diagnostic use; exact-copy details remain in the Inspector.
+
+Returns `items`, `total`, `page`, `page_size`, `query_ms` (server query duration), and `state` with counts `photos`,
+`unavailable` (no usable visual hash), and `pending` (awaiting comparison).
+Each item contains `id`, `filename`, `file_size`, `date_taken`, `status`, `width`,
+`height`, and `matches`. Only destination photos with matches appear. Eligibility
+requires status `Copied`, `Completed` or `Found_At_Destination` and a recorded
+present file at `dest_path` with matching SHA-1. Source-only photos and projected
+destinations are excluded; `state` counts only eligible destination content. The
+legacy exact mode uses the same destination eligibility;
+visual mode collapses identical bytes to one representative, exact mode retains
+available photo records. Exact mode ignores the visual threshold. File availability
+is catalog evidence, not a live filesystem verification. Missing/incompatible catalogs
+use the existing 409 errors.
+
+### `GET /api/v1/similar/{id}`
+
+Reference-based results with the same mode, threshold, and pagination parameters.
+Returns `reference`, `items`, `total`, `page`, `page_size`, `state`, and
+`availability` (`available`, `hash_unavailable`, or `not_available`). Unknown or
+source-only or historical-only references return 200 with `reference: null`, empty items and
+`not_available`. Each match has `score` (visual percentage rounded to two decimals,
+100 for exact copies); filtering uses the unrounded Hamming distance. Available
+results also include `largest_pixels` over the reference and all matching pages,
+or null for unknown dimensions. Matches are relative to the reference, never
+transitive. A direct link to another eligible destination copy resolves its content in visual mode.
+Incomplete comparisons are reported through `state.pending`; no results with
+pending work do not establish uniqueness.
+
+### `GET /api/v1/similar/{id}/counts`
+
+Cumulative direct-match counts for a delivered reference at thresholds
+75, 80, 85, 90, 95 and 100. Returns `availability` (`available`, `not_available`,
+`hash_unavailable`), `counts: [{threshold, count}]`, and `pending` (number of
+eligible destination content identities awaiting comparison). Unavailable references
+return an empty counts array, not six misleading zero counts. Counts exclude the
+reference byte identity and collapse exact copies; they include equal visual hashes
+of different content. One aggregate over stored pairs supplies all thresholds.
+
+The gallery's `view=similar` uses the same destination availability and content
+representation rules, at `match_min` (75% by default). Search/date/type/folder filters narrow the
+reference photos, not their potential matches. Timeline, type/folder counts, photo
+positions and selection IDs use the same view predicate. Gallery `counts` and
+`matches` include the `similar` key.
+
+### `GET /api/v1/similar/diagnostics`
+
+Returns `state` (as in the matching queue), `distinct_hashes` (usable visual hashes
+across all content), `stored_pairs`, `reviews` (counts by verdict across all saved
+content pairs), `query_ms`, and `last_comparison`. The latter is null if no matching
+progress exists, otherwise `{run_id, started_at, updated_at, elapsed_seconds}`;
+elapsed is the interval covered by the latest reported phase snapshot, not CPU time.
+Equal hashes do not need stored pairs. Review counts are not unbiased quality estimates.
+
+### `GET /api/v1/similar/recovery`
+
+Paged affected destination identities: `page` (positive, default 1), `page_size`
+(1–60, default 30), optional positive 64-bit `photo_id` for one content identity.
+Returns `items: [{id,filename,kind,reason,message,retryable,action}]`, `total`, `retryable`
+(the count in this scope), `generatable` (missing hashes without recorded failures), `page`, `page_size`, and global destination
+`state: {unavailable,pending}`. `kind` is `missing_hash` or `pending`; reasons
+separate unsupported formats, decoding/read errors, missing/changed/out-of-root
+files and unperformed comparisons. Recorded destination availability is the scope;
+physical verification happens in the recovery job. Source-only photos are excluded.
+
+### `POST /api/v1/similar/recovery`
+
+Body: `{scope: "missing" | "comparisons", photo_id?: integer, request_id?: string}`.
+`photo_id` applies only to missing-hash recovery. Without it, `missing` generates
+only hashes without a recorded failure; with it, the request explicitly rechecks
+that photo after the stated external correction. Unsupported formats stay excluded.
+Item `action` is `generate`, `recheck`, or null; `retryable` alone does not mean
+the file belongs in bulk generation. Unknown options/invalid scopes
+return 400. The response is 202 with the accepted `SIMILARITY` run. Engine locking,
+409 busy refusal, durable request-ID replay/conflicts, job lookup and cancellation
+use the existing job protocol. The UI uses the existing uncertain-submission tracker.
+Missing-hash recovery reads verified destination originals, updates matching data,
+then resumes unfinished stored-hash comparisons. Comparison-only recovery reads no
+photos. Counts/progress and per-photo reasons show unsuccessful attempts; a settled
+job is not a claim that all affected photos were repaired. Nothing edits or deletes
+photo files, and interrupted filesystem mutations are not resumed by this job.
+
+### `GET /api/v1/similar/{id}/review/{other_id}`
+
+Compare any two different eligible destination photo IDs, including below-threshold pairs.
+Returns `reference` and `candidate` (matching item fields plus `sha1`), `exact`
+(same content identity), `distance` (0–64, null without usable hashes), `score`
+(hash percentage or null), and `feedback` (null or `{verdict, updated_at}`).
+Unknown, identical-ID or unavailable references return 409 `review_changed`.
+
+### `PUT /api/v1/similar/{id}/review/{other_id}`
+
+Body: `{reference_sha1, candidate_sha1, verdict}`. Verdict is `same`, `related`,
+`unrelated`, or null to clear. Returns the same shape as GET after persistence.
+Labels are keyed by an unordered pair of content identities, so swapping references,
+renaming and moving do not lose feedback. The transaction verifies submitted hashes
+against current eligible destination photos; changed content or unavailable
+destination copies return 409 `review_changed`, even if the source remains present.
+Byte-identical content returns 400 `invalid_request`; malformed bodies return 422;
+lock contention returns 503 `catalog_busy`. Feedback changes no photos or match
+results. The catalog retains only the latest judgment for each content pair.
+
 ## 8. Designed, not built
 
 These are designed in `webui-spec.md` and will be described here when they exist:
@@ -625,3 +754,69 @@ These are designed in `webui-spec.md` and will be described here when they exist
 *   The curation actions: rename, the destination check (offered from a lineage
     tree's copy), thumbnail cache controls, and later metadata editing, all of which
     the engine already supports or is specified to (`engine-spec.md` §9).
+
+### Suspicious-date browsing
+
+Gallery browse endpoints accept `view=suspicious` with their existing filters.
+Photo list/selection items and Inspector details expose nullable `date_warning`.
+The view selects ordinary visible photos whose recorded `date_taken` year is before
+1800 or greater than the current UTC year plus one. Null dates are not flagged.
+Counts, IDs, positioning and sidebar endpoints share this predicate. This is a
+read-time hint; neither metadata nor catalog schema changes.
+
+### `GET /api/v1/similar/{id}/sets`
+
+Read-only reference-set exploration. Parameters: integer `threshold` 75–100 (90 by
+default), repeated `include` canonical reference IDs (at most six; each must directly
+match the starting reference), `page`, `related_page` (positive, default 1), and
+`page_size` (1–24, default 12). Missing/unusable/noncanonical references or stale
+expansions return 400; parameter validation returns 422. Pages clamp to the last page.
+
+Returns `reference`, chosen `references` with total member counts, deduplicated
+`items` with `references` (membership IDs), `direct` relative to the starting
+reference and nullable recorded `score`; `total`, `page`, `page_size`; `related`
+with set totals and `additional` members outside the starting set, `related_total`,
+`related_page`; `threshold`, `state: {pending, unavailable}`, and `max_related`.
+Members include their own reference. Root-first ordering then minimum recorded
+distance/ID is applied before paging; related references order by distance/ID.
+Gallery filters do not constrain members. Identical SHA-1 identities are represented
+once; equal visual hashes of different identities remain separate photos. Queries
+use existing stored relationships in one snapshot, make no photo reads or writes,
+and do not recalculate hashes or persist groups. Expansion is one hop, never recursive.
+
+Inspector responses also include nullable `visual_issue` describing recorded missing
+or failed visual hashing. Recovery failure operations use mode SIMILARITY/status
+Failed with a photo ID, path and detailed `error_message`; the photo's delivered
+status remains unchanged. Older jobs without these entries are not backfilled.
+
+### Identical-set gallery browsing
+
+The photo list, IDs, timeline, types and folders GET endpoints accept optional
+`group_sets` (boolean, default false). The photo-position POST body accepts the same
+boolean. It applies only to `view=similar`; explicit selection lists remain ungrouped.
+Exact closed neighborhoods (reference plus all direct destination matches at
+`match_min`) collapse before pagination and ordering. Lowest canonical ID among
+references satisfying filters represents each identical set. Filtering never narrows
+set membership. Different neighborhoods with equal counts stay separate.
+
+List `total` and returned IDs/positions describe representatives; per-photo
+`similar_count` still counts direct matches. View-button `counts` remain uncollapsed
+library photo counts. Sidebar queries count representatives in their normal filter
+scope. `matches` for other views retains normal photo-filter semantics. No photo,
+EXIF, persisted group, or catalog schema is changed. Without `group_sets`, existing
+API behavior is unchanged.
+
+### Direct-set member gallery filter
+
+GET /api/v1/photos, GET /api/v1/photos/ids and POST /api/v1/photos/position accept
+optional `set_reference` (positive signed-64-bit photo ID). It intersects the normal
+browse scope with that reference plus its recorded direct destination matches at
+`match_min`. It excludes source-only/unavailable identities and does not recursively
+expand related sets. The UI uses this filter without grouped collapse or saved
+gallery filters for its temporary member scope. Pagination, sorting, photo positioning
+and existing Select all limits apply normally. Unknown or unavailable references
+produce an empty scope. This is a read-only catalog filter, not an engine command.
+
+For `set_reference`, `view=all` also permits `sort=matches`, retaining a usable
+reference with zero qualifying candidates. The member-gallery UI uses this scope;
+it does not accidentally drop the reference through the Has similar photos filter.

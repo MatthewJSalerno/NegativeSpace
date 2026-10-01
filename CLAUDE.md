@@ -1,5 +1,10 @@
 # NegativeSpace
 
+Read and follow [AGENTS.md](AGENTS.md) for shared coding-assistant instructions.
+Before UI work, read [docs/ui-design.md](docs/ui-design.md), the authoritative
+appearance and interaction standard. Keep design decisions there so assistants
+share one maintained reference.
+
 A photo-organizing engine with a web UI, run as two containers (`docker/compose.yml`):
 `app` holds `ns-engine.py` and the FastAPI layer that runs it (`webui/app.py`,
 `catalog.py`, `jobs.py`); `web` serves the React + TypeScript screens

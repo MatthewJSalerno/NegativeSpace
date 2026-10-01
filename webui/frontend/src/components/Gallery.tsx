@@ -8,10 +8,12 @@ const STATUS_BADGE: Record<string, string> = {
   Processing: "In progress",
 };
 
-export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId, onOpen, onToggle, onToggleMany }: {
+export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold, onReviewSet, onExploreSet }: {
   page: { items: PhotoItem[] };
   // The page each photo came from, so scrolling can tell which page is on top.
   pageOf?: number[];
+  matchThreshold?: number;
+  onReviewSet?: (id: number) => void; onExploreSet?: (id: number) => void;
   refreshKey: number;
   selected: Set<number>;
   selectable: boolean;
@@ -41,9 +43,14 @@ export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId
         const isSelected = selected.has(item.id);
         return (
           <li key={item.id} data-page={pageOf?.[index]} data-id={item.id} className={`card ${isSelected ? "selected" : ""} ${openId === item.id ? "open" : ""}`}>
-            <button className="card-image" onClick={() => onOpen(item.id)} aria-label={`Open ${item.filename}`}>
-              <Thumb refreshKey={refreshKey} id={item.id} alt={item.filename} />
-            </button>
+            <div className="card-preview">
+              <button className="card-image" onClick={() => onOpen(item.id)} aria-label={`Open ${item.filename}`}>
+                <Thumb refreshKey={refreshKey} id={item.id} alt={item.filename} />
+              </button>
+              {matchThreshold != null && item.similar_count != null && <span className="card-match-count" title={`${plural(item.similar_count, "match", "matches")} at or above ${matchThreshold}%`}>
+                {plural(item.similar_count, "match", "matches")}
+              </span>}
+            </div>
             <label className="card-check" title={selectable ? undefined : "Selection is unavailable while a job is running."}>
               <input
                 type="checkbox"
@@ -73,6 +80,12 @@ export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId
                 {item.duplicates > 0 && <span className="badge">{plural(item.duplicates, "duplicate")}</span>}
               </span>
             </div>
+            {onExploreSet && <div className="set-card-actions">
+              <strong>Reference set · {plural((item.similar_count ?? 0) + 1, "photo")}</strong>
+              <span className="section-note">Identical sets shown once. Explore members and related sets.</span>
+              <button onClick={() => onReviewSet?.(item.id)}>Review this set</button>
+              <button onClick={() => onExploreSet(item.id)}>Explore related sets</button>
+            </div>}
           </li>
         );
       })}

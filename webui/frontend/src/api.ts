@@ -17,8 +17,8 @@ export interface Status {
   active_job: Run | null;
 }
 
-export type View = "all" | "unorganized" | "organized";
-export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name";
+export type View = "all" | "unorganized" | "organized" | "similar" | "suspicious";
+export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name" | "matches";
 
 export interface PhotoItem {
   id: number;
@@ -26,8 +26,10 @@ export interface PhotoItem {
   file_size: number | null;
   date_taken: string | null;
   date_source: string | null;
+  date_warning: string | null;
   filename: string;
   duplicates: number;
+  similar_count?: number | null;
   // A Failed photo's latest failure reason, for its badge's hover.
   failure?: string | null;
   // Why a Move kept this Copied photo's original in the source, when one did.
@@ -41,6 +43,7 @@ export interface PhotoPage {
   total: number;
   // The whole library per view (and No capture date within this view), for the buttons.
   counts: Record<View | "undated", number>;
+  similarity: { threshold: number; pending: number; unavailable: number } | null;
   // Each view under every filter now on, for suggesting another view.
   matches: Record<View, number>;
 }
@@ -55,6 +58,9 @@ export interface PhotoPosition {
 // What narrows the gallery: the view, the search, No capture date, and the date tree's
 // "Show only" years and months ("2023", "2023-06", "none").
 export interface BrowseFilters {
+  set_reference?: number;
+  group_sets?: boolean;
+  match_min?: number;
   view: View;
   q: string;
   undated: boolean;
@@ -81,6 +87,9 @@ export interface FolderTree {
 
 function browseQuery(f: BrowseFilters): URLSearchParams {
   const query = new URLSearchParams({ view: f.view });
+  if (f.set_reference != null) query.set("set_reference", String(f.set_reference));
+  if (f.group_sets) query.set("group_sets", "true");
+  if (f.match_min != null) query.set("match_min", String(f.match_min));
   if (f.q) query.set("q", f.q);
   if (f.undated) query.set("undated", "true");
   (f.dates ?? []).forEach((d) => query.append("date", d));
@@ -111,6 +120,7 @@ export interface Copy {
 }
 
 export interface PhotoDetail {
+  visual_issue: string | null;
   id: number;
   status: string;
   filename: string;
@@ -122,6 +132,7 @@ export interface PhotoDetail {
   file_modified: number | null;
   date_taken: string | null;
   date_source: string | null;
+  date_warning: string | null;
   date_offset: string | null;
   exif_dates: { field: "taken" | "digitized" | "modified"; value: string; offset: string | null }[];
   camera: string | null;
@@ -474,7 +485,74 @@ function submitJob(path: string, body: Record<string, unknown>): Promise<Run> {
   return promise;
 }
 
+export interface MatchPhoto {
+  id: number; filename: string; file_size: number | null; date_taken: string | null;
+  status: string; width: number | null; height: number | null; matches?: number; score?: number;
+  verdict?: MatchVerdict | null;
+}
+export interface MatchPage {
+  items: MatchPhoto[]; total: number; page: number; page_size: number;
+  state: { photos: number; unavailable: number; pending: number };
+  reference?: MatchPhoto | null;
+  availability?: "available" | "not_available" | "hash_unavailable";
+  largest_pixels?: number | null;
+  query_ms?: number;
+  reviewed_total?: number;
+  unfiltered_total?: number;
+}
+
+export const MATCH_THRESHOLDS = [75, 80, 85, 90, 95, 100];
+type SetPhoto = Pick<PhotoItem, "id" | "filename" | "file_size" | "date_taken" | "date_source" | "date_warning" | "status">;
+export interface ReferenceSetsPage {
+  reference: SetPhoto;
+  references: (SetPhoto & { total: number })[];
+  items: (SetPhoto & { references: number[]; direct: boolean; score: number | null })[];
+  related: (SetPhoto & { total: number; additional: number })[];
+  total: number; page: number; page_size: number; related_total: number; related_page: number;
+  threshold: number; state: { pending: number; unavailable: number }; max_related: number;
+}
+
+export interface MatchCounts {
+  availability: "available" | "not_available" | "hash_unavailable";
+  counts: { threshold: number; count: number }[];
+  pending: number;
+}
+
+export type MatchVerdict = "same" | "related" | "unrelated";
+export interface MatchReview {
+  reference: MatchPhoto & { sha1: string }; candidate: MatchPhoto & { sha1: string };
+  exact: boolean; distance: number | null; score: number | null;
+  feedback: { verdict: MatchVerdict; updated_at: string } | null;
+}
+export interface MatchDiagnostics {
+  state: MatchPage["state"]; distinct_hashes: number; stored_pairs: number;
+  reviews: Partial<Record<MatchVerdict, number>>; query_ms: number;
+  last_comparison: { run_id: number; started_at: string; updated_at: string; elapsed_seconds: number } | null;
+}
+
+export type SimilarityRecoveryPage = {
+  items: { id: number; filename: string; kind: string; reason: string; message: string; retryable: boolean; action: "generate" | "recheck" | null }[];
+  total: number; retryable: number; generatable: number; state: { unavailable: number; pending: number }; page: number; page_size: number;
+};
+
 export const api = {
+  referenceSets: (reference: number, threshold: number, included: number[], page: number, relatedPage: number) => {
+    const query = new URLSearchParams({ threshold: String(threshold), page: String(page), related_page: String(relatedPage) });
+    included.forEach(id => query.append("include", String(id)));
+    return request<ReferenceSetsPage>("GET", `/api/v1/similar/${reference}/sets?${query}`);
+  },
+  similarityRecovery: (page = 1, photoId?: number) => request<SimilarityRecoveryPage>("GET", `/api/v1/similar/recovery?page=${page}${photoId == null ? "" : `&photo_id=${photoId}`}`),
+  repairSimilarity: (scope: "missing" | "comparisons", photo_id?: number) => submitJob("/api/v1/similar/recovery", { scope, ...(photo_id == null ? {} : { photo_id }) }),
+  run: (id: number) => request<Run>("GET", `/api/v1/runs/${id}`),
+  matchCounts: (photo: number) => request<MatchCounts>("GET", `/api/v1/similar/${photo}/counts`),
+  matchDiagnostics: () => request<MatchDiagnostics>("GET", "/api/v1/similar/diagnostics"),
+  matchReview: (reference: number, candidate: number) =>
+    request<MatchReview>("GET", `/api/v1/similar/${reference}/review/${candidate}`),
+  saveMatchReview: (review: MatchReview, verdict: MatchVerdict | null) =>
+    request<MatchReview>("PUT", `/api/v1/similar/${review.reference.id}/review/${review.candidate.id}`,
+      { verdict, reference_sha1: review.reference.sha1, candidate_sha1: review.candidate.sha1 }),
+  matches: (query: URLSearchParams, photo: number | null = null) =>
+    request<MatchPage>("GET", `/api/v1/similar${photo == null ? "" : `/${photo}`}?${query}`),
   status: () => request<Status>("GET", "/api/v1/status"),
   createCatalog: () => request<Status>("POST", "/api/v1/catalog"),
   settings: () => request<Settings>("GET", "/api/v1/settings"),
@@ -499,8 +577,8 @@ export const api = {
   folders: (params: BrowseFilters) => request<FolderTree>("GET", `/api/v1/photos/folders?${browseQuery(params)}`),
   photoIds: (params: BrowseFilters) =>
     request<{ ids: number[]; total: number; limit: number; over_limit: boolean }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
-  selection: (ids: number[], sort: Sort, page: number, page_size: number) =>
-    request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size }),
+  selection: (ids: number[], sort: Sort, page: number, page_size: number, match_min = 75) =>
+    request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size, match_min }),
   operations: (f: LogFilters, page: number, pageSize: number) => {
     const p = logQuery(f);
     p.set("page", String(page));

@@ -361,6 +361,99 @@ class JobsAndCatalog(ApiCase):
         self.create_catalog()
         return self.wait_for(self.start(mode="index"))
 
+    def test_similarity_recovery_uses_destination_originals_and_resumes_comparisons(self):
+        self.index_library()
+        self.wait_for(self.start(mode='copy'))
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            photo, digest, dest, old_hash = conn.execute("SELECT p.id,p.sha1_hash,p.dest_path,c.phash FROM photos p JOIN contents c ON c.digest=p.sha1_hash WHERE p.status='Copied' ORDER BY p.id LIMIT 1").fetchone()
+            before = Path(dest).read_bytes()
+            with ns_db.transaction(conn):
+                conn.execute("UPDATE contents SET phash=NULL,phash_state='error' WHERE digest=?", (digest,))
+                conn.execute('DELETE FROM similarity_hashes')
+                conn.execute('DELETE FROM content_similarity')
+        # After Move, the original source may no longer exist. Recovery needs only dest.
+        for source in self.cfg.source.rglob('*.jpg'):
+            source.unlink()
+        report = self.client.get(f'/api/v1/similar/recovery?photo_id={photo}').json()
+        self.assertEqual((report['total'],report['retryable']), (1,1))
+        self.assertEqual(report['items'][0]['reason'], 'decode_failed')
+        body = {'scope':'missing','photo_id':photo,'request_id':'recover-one'}
+        response = self.client.post('/api/v1/similar/recovery',json=body)
+        self.assertEqual(response.status_code,202,response.text)
+        run = self.wait_for(response.json()['id'])
+        self.assertEqual((run['mode'],run['status']), ('SIMILARITY','Completed'))
+        self.assertEqual(self.client.get('/api/v1/similar/recovery').json()['total'],0)
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute('SELECT phash,phash_state FROM contents WHERE digest=?',(digest,)).fetchone(),(old_hash,'ok'))
+            self.assertEqual(conn.execute('SELECT dirty FROM similarity_count_state').fetchone(),(0,))
+        self.assertEqual(Path(dest).read_bytes(),before)
+        self.assertEqual(self.client.post('/api/v1/similar/recovery',json=body).json()['id'],run['id'])
+        self.assertEqual(self.client.post('/api/v1/similar/recovery',json={**body,'scope':'comparisons','photo_id':None}).status_code,409)
+
+    def test_similarity_recovery_reports_changed_and_missing_destination_without_edits(self):
+        self.index_library()
+        self.wait_for(self.start(mode='copy'))
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            photos = conn.execute("SELECT id,sha1_hash,dest_path FROM photos WHERE status='Copied' ORDER BY id").fetchall()
+            with ns_db.transaction(conn):
+                conn.execute("UPDATE contents SET phash=NULL,phash_state=NULL")
+        Path(photos[0][2]).write_bytes(b'changed destination')
+        Path(photos[1][2]).unlink()
+        result = self.client.post('/api/v1/similar/recovery',json={'scope':'missing'})
+        self.assertEqual(result.status_code,202,result.text)
+        run_id = result.json()['id']
+        self.wait_for(run_id)
+        failures = self.client.get(f'/api/v1/operations?run={run_id}&status=Failed').json()
+        self.assertEqual(failures['total'],2)
+        messages = ' '.join(op['error_message'] for op in failures['items'])
+        self.assertIn('[repair_missing]',messages)
+        self.assertIn('[repair_changed]',messages)
+        self.assertTrue(all(op['photo_id'] and op['dest_path'] for op in failures['items']))
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual({r[0] for r in conn.execute("SELECT status FROM photos WHERE id IN (?,?)", (photos[0][0],photos[1][0]))},{'Copied'})
+        run = self.wait_for(result.json()['id'])
+        self.assertEqual(run['outcome']['failed'],2)
+        report = self.client.get('/api/v1/similar/recovery').json()
+        self.assertEqual({item['reason'] for item in report['items']},{'changed','missing'})
+        self.assertEqual(report['retryable'],2)
+        self.assertEqual(report['generatable'],0)
+        self.assertEqual({item['action'] for item in report['items']},{'recheck'})
+        self.assertEqual(Path(photos[0][2]).read_bytes(),b'changed destination')
+        self.assertFalse(Path(photos[1][2]).exists())
+        for body in ({'scope':'bad'}, {'scope':'comparisons','photo_id':1}, {'scope':'missing','photo_id':True}, {'scope':'missing','extra':1}):
+            self.assertEqual(self.client.post('/api/v1/similar/recovery',json=body).status_code,400)
+        self.assertEqual(self.client.get('/api/v1/similar/recovery?page=0').status_code,422)
+        with self.engine_lock_held():
+            self.assertEqual(self.client.post('/api/v1/similar/recovery',json={'scope':'missing'}).status_code,409)
+
+    def test_resume_similarity_comparisons_does_not_read_photos(self):
+        self.index_library()
+        self.wait_for(self.start(mode='copy'))
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            with ns_db.transaction(conn):
+                conn.execute('DELETE FROM similarity_hashes')
+                conn.execute('DELETE FROM content_similarity')
+            before = conn.execute('SELECT phash,phash_state FROM contents').fetchall()
+        for dest in self.cfg.dest.rglob('*.jpg'):
+            dest.unlink()
+        result = self.client.post('/api/v1/similar/recovery',json={'scope':'comparisons'})
+        self.assertEqual(result.status_code,202,result.text)
+        self.assertEqual(self.wait_for(result.json()['id'])['status'],'Completed')
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute('SELECT phash,phash_state FROM contents').fetchall(),before)
+        self.assertEqual(self.client.get('/api/v1/similar/recovery').json()['state']['pending'],0)
+
+    def test_engine_publishes_count_cache_after_index_and_copy(self):
+        self.index_library()
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM similarity_count_cache').fetchone(), (0,))
+        run = self.wait_for(self.start(mode='copy'))
+        self.assertEqual(run['status'], 'Completed')
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM similarity_count_cache').fetchone(), (2,))
+
     def test_an_index_through_the_api_reports_a_derived_outcome_and_fills_the_gallery(self):
         run = self.index_library()
         self.assertEqual((run["mode"], run["status"], run["outcome"]["verdict"]), ("INDEX", "Completed", "success"))
@@ -370,6 +463,13 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual((page["total"], page["counts"]["organized"], page["counts"]["unorganized"]), (2, 0, 2))
         self.assertEqual([i["date_taken"][:4] for i in page["items"]], ["2023", "2020"], "not newest first")
         self.assertEqual(sorted(i["duplicates"] for i in page["items"]), [0, 1])
+        matching = self.client.get('/api/v1/similar').json()
+        self.assertEqual(matching['state']['pending'], 0, 'Index did not complete its comparisons')
+        self.assertEqual((matching['total'], matching['state']['photos']), (0, 0))
+        diagnostics = self.client.get('/api/v1/similar/diagnostics').json()
+        self.assertEqual(diagnostics['last_comparison']['run_id'], run['id'])
+        self.assertGreaterEqual(diagnostics['last_comparison']['elapsed_seconds'], 0)
+        self.assertEqual(self.client.get('/api/v1/similar?mode=exact').json()['total'], 0)
 
         timeline = self.client.get("/api/v1/photos/timeline").json()
         self.assertEqual(timeline, {"months": [{"month": "2023-11", "count": 1}, {"month": "2020-09", "count": 1}],
@@ -402,6 +502,7 @@ class JobsAndCatalog(ApiCase):
                          "the skipped duplicate's reason was not recognised; did the engine's wording change?")
         organized = self.client.get("/api/v1/photos", params={"view": "organized"}).json()
         self.assertEqual(organized["total"], 2)
+        self.assertEqual(self.client.get("/api/v1/similar").json()["total"], 2)
         again = self.wait_for(self.start(mode="copy"))
         self.assertEqual(again["outcome"]["verdict"], "no_change")
 
@@ -1171,6 +1272,414 @@ class DerivedOutcome(ApiCase):
         cancelled = self.run_with("MOVE", [scan, ("transferring", 3, {"Completed": 1, "Cancelled": 2})],
                                   status=ns_db.RunStatus.CANCELLED)
         self.assertEqual((cancelled["verdict"], cancelled["succeeded"], cancelled["cancelled"]), ("cancelled", 1, 2))
+
+
+class MatchingTests(ApiCase):
+    def setUp(self):
+        super().setUp()
+        self.create_catalog()
+        self.conn = ns_db.connect(self.cfg.db_path)
+        self.run = ns_db.create_run(self.conn, mode='INDEX', source='/source', destination='/destination')[0]
+
+    def tearDown(self):
+        self.conn.close()
+        super().tearDown()
+
+    def photo(self, name, digest, phash, status='Copied', width=640):
+        with ns_db.transaction(self.conn):
+            path = f'/source/{name}.jpg'
+            photo = self.conn.execute('INSERT INTO photos(source_path,status,sha1_hash,file_size) VALUES(?,?,?,10)',
+                                      (path,status,digest)).lastrowid
+            ns_db.record_source_observation(self.conn, photo_id=photo, run_id=self.run, source_path=path,
+                sha1_hash=digest, file_size=10, file_mtime=100, birthtime=None, metadata={}, error=None)
+            ns_db.content_for_digest(self.conn, digest=digest, phash=phash, phash_state='ok' if phash else 'failed', width=width, height=480)
+            if status in ('Copied', 'Completed', 'Found_At_Destination'):
+                destination = f'/destination/{name}.jpg'
+                op = self.conn.execute('INSERT INTO operations(run_id,photo_id,status,timestamp) VALUES(?,?,?,?)',
+                                       (self.run, photo, status, 'test')).lastrowid
+                ns_db.link_operation(self.conn, op, photo)
+                ns_db.record_delivery(self.conn, operation_id=op, photo_id=photo, run_id=self.run,
+                    destination=destination, source_removed=status == 'Completed',
+                    created=status != 'Found_At_Destination', sha1_hash=digest)
+                self.conn.execute('UPDATE photos SET dest_path=? WHERE id=?', (destination, photo))
+        return photo
+
+    def refresh(self):
+        import ns_similarity
+        self.assertTrue(ns_similarity.refresh(self.conn))
+
+    def test_cached_counts_equal_live_reads_and_invalidate_transactionally(self):
+        import ns_similarity_cache as cache
+        a = self.photo('reference', 'a', '0000000000000000')
+        self.photo('byte-copy', 'a', '0000000000000000')
+        for d in (0, 3, 4, 6, 7, 9, 10, 12, 13, 16, 17):
+            self.photo(f'distance-{d}', f'content-{d}', f'{(1 << d)-1:016x}')
+        self.photo('unavailable', 'bad', None)
+        self.refresh()
+        def responses():
+            return [self.client.get(f'/api/v1/photos?view=similar&sort=matches&match_min={t}').json()
+                    for t in (*cache.THRESHOLDS, 76)]
+        live = responses()
+        self.assertTrue(cache.refresh(self.conn))
+        self.assertEqual(responses(), live)
+        self.assertEqual(self.conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+        # Unrelated metadata and a no-op membership update leave the cache usable.
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE photos SET file_size=20,status=status WHERE id=?", (a,))
+        self.assertEqual(self.conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+        before = responses()
+        # Rolled-back changes must not invalidate; existing readers keep a coherent snapshot.
+        reader = ns_db.connect(self.cfg.db_path)
+        reader.execute('BEGIN')
+        self.assertEqual(reader.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+        self.conn.execute('BEGIN')
+        self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE current_path='/destination/distance-0.jpg'")
+        self.assertEqual(self.conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (1,))
+        self.conn.rollback()
+        self.assertEqual(self.conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE current_path='/destination/distance-0.jpg'")
+        self.assertEqual(reader.execute('SELECT dirty FROM similarity_count_state').fetchone(), (0,))
+        reader.close()
+        dirty = responses()
+        self.assertNotEqual(dirty, before)
+        old_cache = self.conn.execute('SELECT * FROM similarity_count_cache').fetchall()
+        calls = 0
+        def cancel():
+            nonlocal calls
+            calls += 1
+            return calls >= 2
+        self.assertFalse(cache.refresh(self.conn, cancelled=cancel))
+        self.assertEqual(self.conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (1,))
+        self.assertEqual(self.conn.execute('SELECT * FROM similarity_count_cache').fetchall(), old_cache)
+        self.assertEqual(responses(), dirty)
+        self.assertTrue(cache.refresh(self.conn))
+        self.assertEqual(responses(), dirty)
+        # Representative replacement, hash and pair changes must never serve old rows.
+        for statement in (
+            f"UPDATE photos SET status='Pending' WHERE id={a}",
+            "UPDATE contents SET phash='ffffffffffffffff' WHERE digest='content-3'",
+            "DELETE FROM content_similarity",
+            "DELETE FROM similarity_hashes",
+        ):
+            with ns_db.transaction(self.conn):
+                self.conn.execute(statement)
+            self.assertEqual(self.conn.execute('SELECT dirty FROM similarity_count_state').fetchone(), (1,))
+            current = responses()
+            self.assertTrue(cache.refresh(self.conn))
+            self.assertEqual(responses(), current)
+
+    def test_inspector_counts_are_cumulative_direct_and_deduplicated(self):
+        a = self.photo('reference', 'a', '0000000000000000')
+        duplicate = self.photo('reference-copy', 'a', '0000000000000000')
+        distances = (0, 3, 4, 6, 7, 9, 10, 12, 13, 16, 17)
+        for d in distances:
+            self.photo(f'distance-{d}', f'content-{d}', f'{(1 << d)-1:016x}')
+        self.photo('source-only', 'source', '0000000000000000', status='Pending')
+        self.refresh()
+        counts = self.client.get(f'/api/v1/similar/{a}/counts').json()
+        self.assertEqual(counts['availability'], 'available')
+        self.assertEqual(counts['pending'], 0)
+        self.assertEqual([c['count'] for c in counts['counts']], [10, 8, 6, 4, 2, 1])
+        self.assertEqual(counts, self.client.get(f'/api/v1/similar/{duplicate}/counts').json())
+        for c in counts['counts']:
+            result = self.client.get(f'/api/v1/similar/{a}?threshold={c["threshold"]}').json()
+            self.assertEqual(result['total'], c['count'])
+
+    def test_count_availability_is_not_reported_as_zero_matches(self):
+        source = self.photo('source', 'a', '0000000000000000', status='Pending')
+        failed = self.photo('failed-hash', 'b', None)
+        pending = self.photo('pending-comparison', 'c', '0000000000000001')
+        self.assertEqual(self.client.get(f'/api/v1/similar/{source}/counts').json()['availability'], 'not_available')
+        result = self.client.get(f'/api/v1/similar/{failed}/counts').json()
+        self.assertEqual((result['availability'], result['counts']), ('hash_unavailable', []))
+        self.assertEqual(self.client.get(f'/api/v1/similar/{pending}/counts').json()['pending'], 1)
+        self.refresh()
+        self.assertEqual(self.client.get(f'/api/v1/similar/{pending}/counts').json()['pending'], 0)
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE sha1_hash='c'")
+        self.assertEqual(self.client.get(f'/api/v1/similar/{pending}/counts').json()['availability'], 'not_available')
+
+    def test_gallery_similarity_view_shares_scope_with_filters_and_selection(self):
+        a = self.photo('first', 'a', '0000000000000000')
+        self.photo('exact-copy', 'a', '0000000000000000')
+        b = self.photo('at-floor', 'b', '000000000000ffff')
+        self.photo('isolated', 'c', 'ffffffffffffffff')
+        self.photo('source-only', 'd', '0000000000000000', status='Pending')
+        self.photo('failed-hash', 'e', None)
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE photos SET source_path=? WHERE id=?", (str(self.cfg.source / 'trip/first.jpg'), a))
+            self.conn.execute("UPDATE photos SET metadata_json=? WHERE id=?", ('{"date_taken":"2023-01-01","date_source":"exif"}', a))
+        self.refresh()
+        listing = self.client.get('/api/v1/photos?view=similar').json()
+        self.assertEqual({r['id'] for r in listing['items']}, {a, b})
+        self.assertEqual(listing['counts']['similar'], 2)
+        self.assertEqual(self.client.get('/api/v1/photos/ids?view=similar').json()['ids'], [a, b])
+        for filters in ('q=first', 'date=2023', 'folder=trip'):
+            got = self.client.get('/api/v1/photos?view=similar&'+filters).json()
+            self.assertEqual([r['id'] for r in got['items']], [a], filters)
+            self.assertEqual(got['matches']['similar'], 1)
+            self.assertEqual(self.client.get('/api/v1/photos/ids?view=similar&'+filters).json()['ids'], [a])
+        self.assertEqual(self.client.get('/api/v1/photos?view=similar&type=png').json()['total'], 0)
+        self.assertEqual(self.client.get('/api/v1/photos?view=similar&undated=true').json()['total'], 1)
+        self.assertEqual(self.client.get('/api/v1/photos/timeline?view=similar').json(),
+                         {'months': [{'month': '2023-01', 'count': 1}], 'undated': 1})
+        self.assertEqual(self.client.get('/api/v1/photos/types?view=similar').json()['types'], [{'type':'jpg', 'photos':2}])
+        self.assertEqual(self.client.get('/api/v1/photos/folders?view=similar').json()['folders'][0]['photos'], 1)
+        position = self.client.post('/api/v1/photos/position', json={'photo_id':a,'view':'similar','sort':'newest','page_size':1}).json()
+        self.assertEqual((position['position'], position['page'], position['next_id']), (0, 1, b))
+        # A recorded missing candidate removes both ends of the only relationship.
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE sha1_hash='b'")
+        self.assertEqual(self.client.get('/api/v1/photos?view=similar').json()['total'], 0)
+
+    def test_warm_cache_preserves_gallery_paging_filters_selection_and_position(self):
+        self.test_gallery_ranks_by_direct_count_before_paging_and_preserves_filter_scope(warm=True)
+
+    def test_gallery_ranks_by_direct_count_before_paging_and_preserves_filter_scope(self, warm=False):
+        a = self.photo('reference', 'a', '0000000000000000')
+        b = self.photo('near', 'b', '0000000000000007')
+        c = self.photo('further', 'c', '00000000000001ff')
+        twin = self.photo('same-visual', 'twin', '0000000000000000')
+        duplicate = self.photo('same-bytes', 'a', '0000000000000000')
+        source = self.photo('source-only', 'source', '0000000000000000', status='Pending')
+        failed = self.photo('unavailable', 'failed', None)
+        self.refresh()
+        if warm:
+            import ns_similarity_cache
+            self.assertTrue(ns_similarity_cache.refresh(self.conn))
+        query = '/api/v1/photos?view=similar&sort=matches&match_min=90'
+        result = self.client.get(query).json()
+        # b links the other three; a/twin do not directly match c at this threshold.
+        self.assertEqual([(p['id'], p['similar_count']) for p in result['items']], [(b,3), (a,2), (twin,2), (c,1)])
+        self.assertEqual(result['similarity'], {'threshold':90, 'pending':0, 'unavailable':1})
+        for i, photo in enumerate((b,a,twin,c)):
+            page = self.client.get(query + f'&page_size=1&page={i+1}').json()
+            self.assertEqual([p['id'] for p in page['items']], [photo])
+            position = self.client.post('/api/v1/photos/position', json={
+                'photo_id':photo, 'view':'similar', 'sort':'matches', 'match_min':90, 'page_size':1}).json()
+            self.assertEqual((position['position'],position['page']), (i,i+1))
+            self.assertEqual(position['next_id'], (b,a,twin,c)[i+1] if i < 3 else None)
+        filtered = self.client.get(query + '&q=reference').json()
+        self.assertEqual([(p['id'],p['similar_count']) for p in filtered['items']], [(a,2)])
+        # Counts match the Inspector at every UI threshold, independent of gallery filters.
+        for threshold in (75,80,85,90,95,100):
+            listing = self.client.get(f'/api/v1/photos?view=similar&sort=matches&match_min={threshold}').json()
+            for item in listing['items']:
+                count = self.client.get(f'/api/v1/similar/{item["id"]}?threshold={threshold}').json()['total']
+                self.assertEqual(item['similar_count'], count)
+        at100 = self.client.get('/api/v1/photos?view=similar&match_min=100').json()
+        self.assertEqual({p['id'] for p in at100['items']}, {a,twin})
+        self.assertEqual(self.client.get('/api/v1/photos/ids?view=similar&match_min=100').json()['ids'], [a,twin])
+        self.assertEqual(self.client.get('/api/v1/photos/types?view=similar&match_min=100').json()['types'], [{'type':'jpg','photos':2}])
+        self.assertEqual(self.client.get('/api/v1/photos/timeline?view=similar&match_min=100').json()['undated'], 2)
+        selected = self.client.post('/api/v1/photos/selection', json={
+            'ids':[source,failed,a,b,c], 'sort':'matches', 'match_min':100}).json()
+        self.assertEqual(selected['total'], 5, 'Selection must retain photos without qualifying matches')
+        self.assertEqual(selected['items'][0]['id'], a)
+        position = self.client.post('/api/v1/photos/position', json={
+            'photo_id':a, 'ids':[source,failed,a,b,c], 'sort':'matches', 'match_min':100}).json()
+        self.assertEqual(position['position'], 0)
+        self.assertNotIn(duplicate, [p['id'] for p in result['items']])
+        # Relationships are joined to current membership; stale hashes/files cannot rank.
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE sha1_hash='twin'")
+        self.assertEqual(self.client.get('/api/v1/photos?view=similar&match_min=100').json()['total'], 0)
+        self.photo('pending-new', 'pending-new', '000000000000ffff')
+        self.assertEqual(self.client.get(query).json()['similarity']['pending'], 1)
+        for path in ('photos','photos/ids','photos/types','photos/timeline','photos/folders'):
+            self.assertEqual(self.client.get(f'/api/v1/{path}?view=similar&match_min=74').status_code, 422)
+        self.assertEqual(self.client.post('/api/v1/photos/selection', json={'ids':[a],'sort':'matches','match_min':'90'}).status_code, 400)
+        self.assertEqual(self.client.get('/api/v1/photos?view=all&sort=matches').status_code, 400)
+        self.assertEqual(self.client.post('/api/v1/photos/position', json={
+            'photo_id':a,'view':'invalid','sort':'matches','ids':[a]}).status_code, 400)
+
+    def test_review_is_symmetric_persistent_and_bound_to_content(self):
+        a = self.photo('first', 'a', '0000000000000000')
+        b = self.photo('second', 'b', 'ffffffffffffffff')
+        route = f'/api/v1/similar/{a}/review/{b}'
+        before = self.conn.execute('SELECT id,source_path,status,sha1_hash FROM photos ORDER BY id').fetchall()
+        pair = self.client.get(route).json()
+        self.assertEqual((pair['distance'], pair['score'], pair['exact']), (64, 0, False))
+        body = {'verdict':'same','reference_sha1':'a','candidate_sha1':'b'}
+        self.assertEqual(self.client.put(route,json=body).status_code, 200)
+        reverse = self.client.get(f'/api/v1/similar/{b}/review/{a}').json()
+        self.assertEqual(reverse['feedback']['verdict'], 'same')
+        self.assertEqual(self.client.get('/api/v1/similar/diagnostics').json()['reviews'], {'same':1})
+        self.assertEqual(before, self.conn.execute('SELECT id,source_path,status,sha1_hash FROM photos ORDER BY id').fetchall())
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE contents SET phash='0000000000000001' WHERE digest='b'")
+        self.assertEqual(self.client.get(route).json()['feedback']['verdict'], 'same', 'recomputed hash lost content feedback')
+        replacement = self.photo('replacement', 'c', '0000000000000001')
+        self.assertIsNone(self.client.get(f'/api/v1/similar/{a}/review/{replacement}').json()['feedback'])
+        body['candidate_sha1'] = 'old-content'
+        self.assertEqual(self.client.put(route,json=body).status_code, 409)
+        self.assertEqual(self.client.get(route).json()['feedback']['verdict'], 'same')
+        body.update(candidate_sha1='b', verdict=None)
+        self.assertIsNone(self.client.put(route,json=body).json()['feedback'])
+        self.assertEqual(self.client.get('/api/v1/similar/diagnostics').json()['reviews'], {})
+
+    def test_review_rejects_unavailable_photos_bad_labels_and_exact_content(self):
+        a = self.photo('first', 'a', None)
+        b = self.photo('duplicate', 'a', None)
+        route = f'/api/v1/similar/{a}/review/{b}'
+        pair = self.client.get(route).json()
+        self.assertTrue(pair['exact'])
+        self.assertIsNone(pair['distance'])
+        body = {'verdict':'same','reference_sha1':'a','candidate_sha1':'a'}
+        self.assertEqual(self.client.put(route,json=body).status_code, 400)
+        body['verdict'] = 'delete'
+        self.assertEqual(self.client.put(route,json=body).status_code, 422)
+        self.assertEqual(self.client.get(f'/api/v1/similar/{a}/review/999999').status_code, 409)
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE current_path='/destination/duplicate.jpg'")
+        self.assertEqual(self.client.get(route).status_code, 409)
+
+    def test_diagnostics_counts_hashes_and_pairs_without_inventing_a_timing(self):
+        self.photo('first','a','FFFFFFFFFFFFFFFF')
+        self.photo('second','b','fffffffffffffffe')
+        self.photo('invalid','c','bad')
+        before = self.client.get('/api/v1/similar/diagnostics').json()
+        self.assertEqual(before['distinct_hashes'], 2)
+        self.assertIsNone(before['last_comparison'])
+        self.assertEqual(before['state']['pending'], 2)
+        self.refresh()
+        after = self.client.get('/api/v1/similar/diagnostics').json()
+        self.assertEqual(after['stored_pairs'], 1)
+        self.assertEqual(after['state']['pending'], 0)
+        self.assertEqual(after['state']['unavailable'], 1)
+        self.assertGreaterEqual(after['query_ms'], 0)
+
+    def test_reference_matches_are_not_transitive_and_thresholds_are_exact(self):
+        a = self.photo('reference', 'a', '0000000000000000')
+        b = self.photo('near', 'b', '000000000000003f', width=1280)
+        c = self.photo('chain-only', 'c', '0000000000000fff')
+        self.refresh()
+        result = self.client.get(f'/api/v1/similar/{a}').json()
+        self.assertEqual([p['id'] for p in result['items']], [b])
+        self.assertEqual(result['items'][0]['score'], 90.62)
+        self.assertEqual(result['largest_pixels'], 1280*480)
+        self.assertEqual(self.client.get(f'/api/v1/similar/{a}?threshold=91').json()['total'], 0)
+        self.assertEqual(self.client.get(f'/api/v1/similar/{b}').json()['total'], 2)
+        self.assertNotEqual(a, c)
+
+    def test_equal_hashes_collapse_exact_content_but_exact_mode_keeps_copies(self):
+        a = self.photo('original', 'a', 'FFFFFFFFFFFFFFFF')
+        duplicate = self.photo('copy', 'a', 'ffffffffffffffff')
+        b = self.photo('other-bytes', 'b', 'ffffffffffffffff')
+        self.refresh()
+        result = self.client.get('/api/v1/similar?threshold=100').json()
+        self.assertEqual({p['id'] for p in result['items']}, {a,b})
+        result = self.client.get(f'/api/v1/similar/{duplicate}?threshold=100').json()
+        self.assertEqual([p['id'] for p in result['items']], [b])
+        result = self.client.get(f'/api/v1/similar/{a}?mode=exact').json()
+        self.assertEqual([p['id'] for p in result['items']], [duplicate])
+
+    def test_changed_hash_missing_hash_and_missing_file_do_not_claim_matches(self):
+        a = self.photo('first', 'a', '0000000000000000')
+        b = self.photo('second', 'b', '0000000000000001')
+        missing = self.photo('unreadable', 'missing', None)
+        self.refresh()
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE contents SET phash='ffffffffffffffff' WHERE digest='b'")
+        self.assertEqual(self.client.get(f'/api/v1/similar/{a}').json()['total'], 0)
+        self.assertEqual(self.client.get('/api/v1/similar').json()['state'], {'photos':3,'unavailable':1,'pending':1})
+        self.assertEqual(self.client.get(f'/api/v1/similar/{missing}').json()['availability'], 'hash_unavailable')
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE sha1_hash='b'")
+        self.assertEqual(self.client.get(f'/api/v1/similar/{b}').json()['availability'], 'not_available')
+
+    def test_search_pagination_and_input_validation(self):
+        for i in range(7):
+            self.photo(f'item-{i}', str(i), '0000000000000000')
+        self.refresh()
+        first = self.client.get('/api/v1/similar?page_size=3').json()
+        second = self.client.get('/api/v1/similar?page_size=3&page=2').json()
+        self.assertEqual(first['total'], 7)
+        self.assertEqual(len(first['items']), 3)
+        self.assertTrue({p['id'] for p in first['items']}.isdisjoint(p['id'] for p in second['items']))
+        self.assertEqual(self.client.get('/api/v1/similar?q=item-2').json()['total'], 1)
+        self.assertEqual(self.client.get('/api/v1/similar?q=%25').json()['total'], 0)
+        for query in ('threshold=74', 'threshold=101', 'threshold=nan', 'page=0', 'page_size=61'):
+            self.assertEqual(self.client.get('/api/v1/similar?'+query).status_code, 422, query)
+        for query in ('mode=other', 'sort=other'):
+            self.assertEqual(self.client.get('/api/v1/similar?'+query).status_code, 400, query)
+
+    def test_75_floor_includes_sixteen_bits_but_excludes_seventeen(self):
+        a = self.photo('reference', 'a', '0000000000000000')
+        edge = self.photo('at-floor', 'b', '000000000000ffff')
+        self.photo('below-floor', 'c', '000000000001ffff')
+        self.refresh()
+        result = self.client.get(f'/api/v1/similar/{a}?threshold=75').json()
+        self.assertEqual([(p['id'], p['score']) for p in result['items']], [(edge, 75.0)])
+        self.assertEqual(self.client.get(f'/api/v1/similar/{a}?threshold=76').json()['total'], 0)
+        self.assertIn(a, [p['id'] for p in self.client.get('/api/v1/similar?threshold=75').json()['items']])
+        self.assertNotIn(a, [p['id'] for p in self.client.get('/api/v1/similar?threshold=76').json()['items']])
+
+    def test_review_progress_is_pair_specific_filtered_before_paging(self):
+        a = self.photo('reference', 'a', '0000000000000000')
+        b = self.photo('reviewed', 'b', '0000000000000000')
+        c = self.photo('unreviewed', 'c', '0000000000000001')
+        self.refresh()
+        # Save in the opposite direction: the judgment still belongs to this pair.
+        response = self.client.put(f'/api/v1/similar/{b}/review/{a}', json={
+            'verdict': 'related', 'reference_sha1': 'b', 'candidate_sha1': 'a'})
+        self.assertEqual(response.status_code, 200)
+        route = f'/api/v1/similar/{a}?threshold=75&page_size=1'
+        all_matches = self.client.get(route).json()
+        self.assertEqual((all_matches['total'], all_matches['unfiltered_total'], all_matches['reviewed_total']), (2, 2, 1))
+        reviewed = self.client.get(route + '&review_state=reviewed').json()
+        self.assertEqual(reviewed['total'], 1)
+        self.assertEqual([(p['id'], p['verdict']) for p in reviewed['items']], [(b, 'related')])
+        unreviewed = self.client.get(route + '&review_state=unreviewed').json()
+        self.assertEqual(unreviewed['total'], 1)
+        self.assertEqual([p['id'] for p in unreviewed['items']], [c])
+        self.assertEqual(self.client.get(f'/api/v1/similar/{c}?review_state=reviewed').json()['total'], 0)
+        self.assertEqual(self.client.get(route + '&review_state=other').status_code, 400)
+        self.assertEqual(self.client.get(route + '&threshold=100&review_state=unreviewed').json()['total'], 0)
+        self.client.put(f'/api/v1/similar/{a}/review/{b}', json={
+            'verdict': None, 'reference_sha1': 'a', 'candidate_sha1': 'b'})
+        self.assertEqual(self.client.get(route).json()['reviewed_total'], 0)
+
+    def test_only_delivered_photos_can_be_matched_or_reviewed(self):
+        delivered = [self.photo(status, status, '0000000000000000', status=status)
+                     for status in ('Copied', 'Completed', 'Found_At_Destination')]
+        source_only = [self.photo(status, 'Copied', '0000000000000000', status=status)
+                       for status in ('Pending', 'Duplicate', 'Failed', 'Processing')]
+        # Even a projected destination pointing at matching content is not delivery.
+        with ns_db.transaction(self.conn):
+            for photo in source_only:
+                self.conn.execute("UPDATE photos SET dest_path='/destination/Copied.jpg' WHERE id=?", (photo,))
+        self.refresh()
+        queue = self.client.get('/api/v1/similar').json()
+        self.assertEqual({p['id'] for p in queue['items']}, set(delivered))
+        self.assertEqual(queue['state']['photos'], 3)
+        for photo in source_only:
+            for mode in ('similar', 'exact'):
+                self.assertEqual(self.client.get(f'/api/v1/similar/{photo}?mode={mode}').json()['availability'], 'not_available')
+            route = f'/api/v1/similar/{photo}/review/{delivered[1]}'
+            self.assertEqual(self.client.get(route).status_code, 409)
+            self.assertEqual(self.client.put(route, json={'verdict':'same', 'reference_sha1':'Copied',
+                'candidate_sha1':'Completed'}).status_code, 409)
+        self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM similarity_reviews').fetchone()[0], 0)
+
+    def test_missing_or_changed_destination_never_falls_back_to_source(self):
+        a = self.photo('first', 'a', '0000000000000000')
+        b = self.photo('second', 'b', '0000000000000000')
+        self.refresh()
+        route = f'/api/v1/similar/{a}/review/{b}'
+        body = {'verdict':'related', 'reference_sha1':'a', 'candidate_sha1':'b'}
+        self.assertEqual(self.client.put(route, json=body).status_code, 200)
+        for presence, digest in (('missing', 'b'), ('present', 'changed')):
+            with ns_db.transaction(self.conn):
+                self.conn.execute("UPDATE file_states SET presence_state=?,sha1_hash=? WHERE current_path='/destination/second.jpg'",
+                                  (presence, digest))
+            self.assertEqual(self.client.get('/api/v1/similar').json()['state']['photos'], 1)
+            self.assertEqual(self.client.get(f'/api/v1/similar/{b}').json()['availability'], 'not_available')
+            self.assertEqual(self.client.get(route).status_code, 409)
+            self.assertEqual(self.client.put(route, json=body).status_code, 409)
+        self.assertEqual(self.conn.execute("SELECT presence_state FROM file_states WHERE current_path='/source/second.jpg'").fetchone()[0], 'present')
+        self.assertEqual(self.conn.execute('SELECT verdict FROM similarity_reviews').fetchone()[0], 'related')
 
 
 if __name__ == "__main__":

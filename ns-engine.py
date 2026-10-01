@@ -284,6 +284,7 @@ from ns_db import (PhotoStatus, RunStatus, PHOTO_STATUSES, RUN_STATUSES,
                    OPERATION_STATUSES, OPERATION_CANCELLED, OPERATION_SKIPPED, OPERATION_RENAMED,
                    RAW_EXTENSIONS, RASTER_EXTENSIONS, SUPPORTED_EXTENSIONS)
 import ns_db
+import ns_similarity
 
 # The CPUs this container may really use, not the host's count: a --cpus quota or
 # --cpuset-cpus set is invisible to os.cpu_count() (ns_db.available_cpus).
@@ -764,10 +765,16 @@ def finish_run(db_path: str, run_id: int, status: str):
     At synchronous=FULL, which makes this commit fsync the WAL. That is one fsync
     of the whole file, so it also makes durable every earlier NORMAL commit in it:
     the scan path's batched results and audit rows. A settled run's history is
-    therefore durable for the price of one fsync per run, where FULL on the scan
+    therefore durable for one history-settle fsync (a dirty count-cache rebuild
+    has its own preceding commit), where FULL on the scan
     path itself would cost the ~4.4x it was measured at.
     """
     conn = get_db_connection(db_path, synchronous="FULL")
+    try:
+        import ns_similarity_cache
+        ns_similarity_cache.refresh(conn, cancelled=cancel_requested.is_set)
+    except Exception as exc:
+        logger.warning(f"Similarity count cache not refreshed; queries will use current catalog data: {exc}")
     if not ns_db.transition_run(conn, run_id, status):
         # Only another run's reconciliation settles a run, and it cannot while
         # this process holds the lock — so this is a defect, not a race.
@@ -3288,8 +3295,86 @@ def rebuild_thumbnails(db_path: Path, cache_root: Path, scope: str,
     return outcome
 
 
+def repair_similarity(db_path: Path, dest_root: Path, scope: str, photo_id=None):
+    """Rebuild missing hashes from verified destination originals; never write photos."""
+    import ns_similarity_recovery as recovery
+    import ns_similarity
+    with contextlib.closing(get_db_connection(str(db_path))) as conn:
+        work = [r for r in recovery.rows(conn, photo_id) if r['kind'] == 'missing_hash'
+                and recovery.describe(r)['retryable']
+                and (photo_id is not None or recovery.describe(r)['action'] == 'generate')] if scope == 'missing' else []
+        run_progress.start('scanning', len(work))
+        for row in work:
+            if cancel_requested.is_set():
+                return RunStatus.CANCELLED
+            path = Path(row['dest_path'])
+            state, phash = 'repair_unreadable', None
+            read_error = None
+            try:
+                if not path.resolve().is_relative_to(dest_root.resolve()):
+                    state = 'repair_outside'
+                elif not path.exists():
+                    state = 'repair_missing'
+                else:
+                    before = path.stat()
+                    if not stat.S_ISREG(before.st_mode):
+                        state = 'repair_unreadable'
+                    elif compute_sha1(str(path)) != row['sha1_hash']:
+                        state = 'repair_changed'
+                    else:
+                        value = compute_phash(str(path))
+                        after = path.stat()
+                        fingerprint = lambda s: (s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+                        if (fingerprint(before) != fingerprint(after)
+                                or compute_sha1(str(path)) != row['sha1_hash']):
+                            state = 'repair_changed'
+                        elif ns_similarity.usable(value):
+                            phash, state = value.lower(), 'ok'
+                        else:
+                            state = 'not_supported' if value == 'not_supported' else 'repair_decode'
+            except FileNotFoundError:
+                state = 'repair_missing'
+            except OSError as exc:
+                state = 'repair_unreadable'
+                read_error = str(exc)
+            if cancel_requested.is_set():
+                return RunStatus.CANCELLED
+            with ns_db.transaction(conn):
+                conn.execute('UPDATE contents SET phash=?,phash_state=? WHERE content_id=? AND digest=?',
+                             (phash,state,row['content_id'],row['sha1_hash']))
+                if phash is not None:
+                    conn.execute('UPDATE photos SET phash=? WHERE sha1_hash=?', (phash,row['sha1_hash']))
+                if phash is None and run_progress.run_id is not None:
+                    reason = recovery.describe({**row, 'phash_state': state})['message']
+                    detail = f"Visual hash recovery failed [{state}]: {reason}"
+                    if read_error:
+                        detail += f" Read error: {read_error}"
+                    # A failed read is an audit result, not a failed transfer or a
+                    # change to the photo's delivered status. Keep the file intact.
+                    log_operation(conn, run_progress.run_id, row['id'], str(path), str(path),
+                                  PhotoStatus.FAILED, detail, commit=False)
+                run_progress.add('made' if phash else 'failed')
+                run_progress.write(conn)
+            logger.info(f"Visual hash recovery: photo #{row['id']}: {state}.")
+        run_progress.start('matching', None)
+        def progress(done, total):
+            run_progress.set_total(total)
+            run_progress.set_count('Compared', done)
+            if run_progress.due():
+                run_progress.write_now()
+        complete = ns_similarity.refresh(conn, cancelled=cancel_requested.is_set, progress=progress)
+        return RunStatus.COMPLETED if complete else RunStatus.CANCELLED
+
+
+def run_similarity_repair(args, db_path: Path, lock_fd):
+    return run_maintenance_job(args, db_path, lock_fd, mode='SIMILARITY', label='Similarity recovery',
+        submitted={'scope':args.repair_similarity, 'photo_id':args.repair_photo, 'dest':str(Path(args.dest).resolve())},
+        defaults={}, overrides={}, reconcile_files=False,
+        body=lambda run_id, config: repair_similarity(db_path, Path(args.dest), args.repair_similarity, args.repair_photo))
+
+
 def run_maintenance_job(args, db_path: Path, lock_fd, *, mode: str, label: str, submitted: dict,
-                        defaults: dict, overrides: dict, body) -> int:
+                        defaults: dict, overrides: dict, body, reconcile_files=True) -> int:
     """A job that is not Index/Copy/Move, run like any other: a runs row (with
     --request-id replay and conflict handling), reconciliation first, cancellation,
     live progress, and a settled status. `body(run_id, config)` does the work and
@@ -3322,7 +3407,13 @@ def run_maintenance_job(args, db_path: Path, lock_fd, *, mode: str, label: str, 
         cancel_watcher.start()
         outcome = RunStatus.FAILED
         try:
-            reconcile_interrupted_state(db_path, run_id)
+            if reconcile_files:
+                reconcile_interrupted_state(db_path, run_id)
+            else:
+                # Matching recovery must not resume a filesystem mutation.
+                with contextlib.closing(get_db_connection(str(db_path), synchronous="FULL")) as old_runs:
+                    for (old_id,) in old_runs.execute("SELECT id FROM runs WHERE mode='SIMILARITY' AND id!=? AND status IN ('Preparing','Running','Cancelling')", (run_id,)).fetchall():
+                        ns_db.transition_run(old_runs, old_id, RunStatus.INTERRUPTED, reconciled_by=run_id)
             with contextlib.closing(get_db_connection(str(db_path))) as conn:
                 ns_db.transition_run(conn, run_id, RunStatus.RUNNING)
             outcome = body(run_id, config)
@@ -3973,7 +4064,12 @@ def main():
     parser.add_argument("--name", default=None, help="The new name for --rename.")
     parser.add_argument("--dry-run", action="store_true",
                         help="With --rename: print where the file would go, and change nothing.")
+    mode_group.add_argument('--repair-similarity', choices=('missing','comparisons'),
+                            help='Recover missing visual hashes from destination files or resume stored-hash comparisons; never edits photos.')
+    parser.add_argument('--repair-photo', type=int, default=None, help='Limit missing-hash recovery to one destination photo identity.')
     args = parser.parse_args()
+    if args.repair_photo is not None and (args.repair_photo < 1 or args.repair_photo > 2**63-1 or args.repair_similarity != 'missing'):
+        parser.error('--repair-photo requires --repair-similarity missing and a positive photo ID.')
     if args.rename is not None and not args.name:
         parser.error("--rename needs --name.")
     if (args.name is not None or args.dry_run) and args.rename is None:
@@ -4034,6 +4130,8 @@ def main():
 
     if args.backup_now:
         sys.exit(run_manual_backup(db_path, Path(args.backups), base_dir, lock_fd))
+    if args.repair_similarity:
+        sys.exit(run_similarity_repair(args, db_path, lock_fd))
     if args.rebuild_thumbnails:
         sys.exit(run_thumbnail_rebuild(args, db_path, log_dir, lock_fd))
     if args.check_destination:
@@ -4490,7 +4588,20 @@ def main():
                     f"Pending (their original changed, failed or disappeared), {demoted} marked "
                     f"Duplicate (their content is already delivered or queued)."
                 )
-            if args.move or args.copy:
+            run_progress.start("matching", None)
+            def matching_progress(done, total):
+                run_progress.set_total(total)
+                run_progress.set_count("Compared", done)
+                if run_progress.due():
+                    run_progress.write_now()
+            with contextlib.closing(get_db_connection(str(db_path))) as matching_conn:
+                matching_complete = ns_similarity.refresh(matching_conn, cancelled=cancel_requested.is_set,
+                                                          progress=matching_progress)
+            run_progress.write_now()
+            if not matching_complete:
+                run_outcome = RunStatus.CANCELLED
+                logger.info("Similarity comparison cancelled; the next Index will resume it.")
+            elif args.move or args.copy:
                 run_outcome = _run_move_or_copy(args, db_path, dest_path, run_id)
             else:
                 run_outcome = RunStatus.COMPLETED

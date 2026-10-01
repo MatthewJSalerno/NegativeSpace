@@ -4149,11 +4149,12 @@ def every_job_phase_reports_progress_that_agrees_with_the_record():
 
     run_engine(case)
     p = _progress(case)
-    check(phases(p) == ["discovering", "scanning"], f"Index phases: {phases(p)}")
+    check(phases(p) == ["discovering", "scanning", "matching"], f"Index phases: {phases(p)}")
     check(p[0]["total"] is None and p[0]["counts"] == {"eligible": 4, "excluded": 1},
           f"discovery must count what it walked, with no total: {p[0]}")
     check(p[1]["total"] == 4 and p[1]["counts"] == {"indexed": 3, "duplicates": 1},
           f"first scan: {p[1]}")
+    check(p[2]['counts']['Compared'] == p[2]['total'] > 0, f"Hash comparison progress: {p[2]}")
 
     run_engine(case)
     p = _progress(case)
@@ -4162,15 +4163,15 @@ def every_job_phase_reports_progress_that_agrees_with_the_record():
 
     run_engine(case, "--copy")
     p = _progress(case)
-    check(phases(p) == ["discovering", "scanning", "transferring"], f"Copy phases: {phases(p)}")
-    check(p[2]["counts"] == _transfer_outcomes(case) == {"Copied": 3, "Skipped": 1},
-          f"Copy progress {p[2]['counts']} disagrees with the record {_transfer_outcomes(case)}")
+    check(phases(p) == ["discovering", "scanning", "matching", "transferring"], f"Copy phases: {phases(p)}")
+    check(p[3]["counts"] == _transfer_outcomes(case) == {"Copied": 3, "Skipped": 1},
+          f"Copy progress {p[3]['counts']} disagrees with the record {_transfer_outcomes(case)}")
 
     run_engine(case, "--move")
     p = _progress(case)
-    check(phases(p) == ["discovering", "scanning", "transferring", "removing_duplicates"],
+    check(phases(p) == ["discovering", "scanning", "matching", "transferring", "removing_duplicates"],
           f"Move phases: {phases(p)}")
-    combined = collections.Counter(p[2]["counts"]) + collections.Counter(p[3]["counts"])
+    combined = collections.Counter(p[3]["counts"]) + collections.Counter(p[4]["counts"])
     check(dict(combined) == _transfer_outcomes(case) == {"Completed": 3, "Removed_Duplicate": 1},
           f"Move progress {dict(combined)} disagrees with the record {_transfer_outcomes(case)}")
 

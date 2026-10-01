@@ -63,6 +63,15 @@ jobs:
       - name: Gallery photo positioning in a browser
         run: DRIVER=gallery_position_browser_drive.py sh tests/webui_browser_test.sh
 
+      - name: Similar photo review in a browser
+        run: DRIVER=similar_browser_drive.py sh tests/webui_browser_test.sh
+
+      - name: Synthetic similarity validation
+        run: |
+          docker run --rm --entrypoint python3 -v "$PWD":/app:ro -w /app \
+            negativespace tools/validate-similarity.py --output /tmp/similarity-validation \
+            --samples 2 --benchmark-photos 100
+
       - name: Entrypoint ownership
         # Runs on the host: it checks what the entrypoint does to real bind
         # mounts, which the suite (running after the entrypoint) cannot see.

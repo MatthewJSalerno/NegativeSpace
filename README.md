@@ -12,7 +12,9 @@ Specifications are organized by component, not by release phase:
 | [engine-spec.md](docs/engine-spec.md) | `ns-engine.py`: hashing, metadata, placement, Copy-Verify-Delete, and the SQLite catalog it owns |
 | [webui-spec.md](docs/webui-spec.md) | The browser-facing half: jobs, selection, settings, logs, inspection, curation |
 | [api-spec.md](docs/api-spec.md) | The web API as implemented: every route, its parameters, responses and errors |
-| [TODO.md](TODO.md) | Durability claims that need enforcing, and work deliberately postponed |
+| [ui-design.md](docs/ui-design.md) | Shared styling and interaction contract for UI changes |
+| [tests/README.md](tests/README.md) | Automated checks, sample instances and manual validation |
+| [TODO.md](TODO.md) | Deferred review workflows, open design questions and durability work |
 
 ## Docker Usage
 
@@ -48,6 +50,18 @@ Open **http://localhost:8080** (or the host's address). `docker compose -f docke
 - **First visit:** there is no catalog yet, so the page offers to create one, then shows the settings. Save them to reach the library.
 - **Index** reads your photos into the catalog. It moves and copies nothing.
 - **Copy** or **Move** everything not yet organized, or select photos first. Both ask before they start.
+- After Copy or Move, choose **Has similar photos** in the gallery; opening a photo selects the
+  Inspector's **Similar photos** tab. The initial view uses **90%**, **Most matches
+  first**, and grouping; your changes are remembered. Identical sets appear once,
+  while partially overlapping sets remain separate. Use the **Most matches first** shortcut
+  (also in Sort) and a **Matches at or above** percentage to start with photos having
+  the most qualifying matches; cards show counts across the destination library.
+  Browse matches at 75–100% and review them side
+  by side, comparing format, dimensions, file size and metadata. Percentages measure
+  visual similarity, not confidence; below 90%, results are more likely to be unrelated.
+  Copy a review link, step between gallery sets, or show one set’s members in the
+  gallery. Review judgments are saved, but viewing rotation is temporary. EXIF editing,
+  saved rotation and deleting unwanted matches remain future work.
 - The drawer at the bottom shows a running job's progress and lets you cancel it. Closing the browser does not stop a job.
 - **Move needs a writable source.** It deletes each source file after its copy is verified. With a read-only source a Move can only copy: each photo is shown as **Copied only**, with the reason, and nothing is lost. To Move, set `read_only: false` on the source volume in `docker/compose.yml`, then Move those photos again to remove the originals.
 - Stopping the containers cancels a running job cleanly; the compose file allows five minutes for a large file to finish copying first.

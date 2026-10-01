@@ -77,6 +77,75 @@ mount the copy as `/app`: the API is imported in-process, so `--engine` cannot r
 
 ## Web interface in a browser — `webui_browser_test.sh`
 
+`tools/validate-similarity.py` creates deterministic original/resize/recompression/
+brightness/crop image pairs, unrelated scenes and a flat-color collision. Run it
+inside the app image, with a writable output mount:
+
+```bash
+docker run --rm --user "$(id -u):$(id -g)" --entrypoint python3 \
+  -v "$PWD":/app:ro -v /tmp:/output -w /app negativespace \
+  tools/validate-similarity.py --output /output/ns-similarity-validation --benchmark-photos 10000
+```
+
+The output directory must be new. Open its `index.html` for a threshold slider,
+side-by-side known pairs and an errors-only filter; `report.json` contains metrics.
+The synthetic catalog benchmark measures initial/unchanged/incremental comparisons,
+queue timings at three thresholds, logical database bytes and whole-process peak
+RSS (KiB on Linux). Its clustered hashes and geometric fixtures are reproducible
+diagnostics, not real-library quality or capacity claims. No real library is read.
+The library may exceed 200,000 photos: use `--benchmark-photos 250000` for capacity
+validation with headroom (the tool accepts up to 500,000). It measures both queue
+and reference queries, seven times per threshold. Fixture creation and photo decode
+are outside the comparison timings; whole-process peak RSS includes fixture setup.
+Results describe the local temporary Docker catalog and its caches, not network
+storage performance. Hash distribution and match density also affect scale.
+Actual gallery/Inspector query timings and human judgments provide the next validation
+step on a representative destination catalog after Index and Copy or Move. An
+Index-only catalog has no reviewable destination photos. Side-by-side feedback
+never modifies photos. Synthetic benchmarks create recorded destination copies
+and assert that all requested photos are included in query measurements.
+
+`DRIVER=similar_browser_drive.py sh tests/webui_browser_test.sh` checks the empty review after Index, then Copies
+the isolated generated fixtures and checks cumulative Inspector counts, inline match
+pagination, gallery selection preservation, side-by-side review and saved judgments,
+reload/Back state, request failure retries, legacy bookmarks and narrow Inspector dialogs.
+It also checks independent rotation and displayed dimensions, unchanged recorded
+dimensions, reference promotion, file-format fallbacks, exact-byte differences,
+missing dimensions, and sticky column headings in desktop and narrow layouts.
+
+For manual validation after Copy, open a destination photo in the gallery and choose
+**Similar photos** in the Inspector. Click a 75/80/85/90/95/100% count to browse
+its matches in the thumbnail grid. Use
+**Has similar photos** to narrow the gallery; the count buttons narrow only the
+Inspector results. The gallery's separate **Matches at or above** selector changes
+its membership, and **Most matches first** sorts counts highest first. Reload and
+return from Logs to confirm the reference and threshold
+remain. An existing populated schema-16 catalog needs no new Index or Copy for
+these review checks.
+The database suite verifies the hash index against brute force and interrupted
+comparison recovery; the API suite checks reference-only matches, hash changes,
+availability, exact copies, thresholds and pagination.
+
+`python3 -m unittest discover -s tests -p similarity_recovery_test.py` checks
+cancellation during decoding, concurrent byte changes, distinct read/decode failures,
+destination boundaries, unsupported formats and source-only exclusion. The API suite
+runs real Index/Copy/recovery, repairs with the source gone, verifies unchanged bytes,
+checks busy/idempotent requests, and resumes comparisons without photo reads.
+
+`SIMILARITY_RECOVERY_FIXTURE=1 DRIVER=similarity_recovery_browser_drive.py sh tests/webui_browser_test.sh`
+opts into mounting **only the harness's disposable generated catalog** to arrange
+missing/unsupported hashes. It exercises warning-to-recovery navigation, disabled
+busy actions, real repair and comparison-only jobs, refreshed results, failed-load
+retry, unsupported-format limitations and narrow reflow. It never accesses a real
+library. `similar_browser_drive.py` additionally checks comparison refresh with
+rotation/zoom/position, filtered review/tab restoration, and malformed bookmarks.
+
+Manual checks after Index/Copy: use Review matching status for any affected photos;
+review the reason, run the appropriate action, and check the remaining count. In
+comparison, rotate or zoom, choose a review filter, and refresh: the same comparison
+should reopen. Back to gallery clears it. EXIF edits, saved orientation writes and
+deletion belong to a separate workstream and do not block these checks.
+
 `DRIVER=gallery_position_browser_drive.py sh tests/webui_browser_test.sh` checks
 Logs photo positioning, offscreen Inspector navigation, retained filters, explicit
 hidden-photo display, retry, ordinary gallery clicks, manual scrolling and History
@@ -251,3 +320,207 @@ counts and View failures links. It modifies only the harness's disposable photos
 The API suite also runs all four cases with a writable source to verify successful
 Move alongside scan failures. Existing verdict cases cover cancellation, copied-only,
 unchanged Index, repeated Copy and unrelated recovery.
+
+### Similarity catalog setup
+
+The validated sample uses a fresh catalog rebuilt by maintainer choice. With fresh
+appdata, use **Create catalog → save settings → Index → Copy**,
+then validate the gallery controls and Inspector. Keep the source read-only and the
+existing sample destination. No upgrade step is required for this route.
+
+Optional development tool (not required for the validated sample or merge):
+
+The current count cache uses schema 16 (the 75% floor was introduced in schema 15).
+Automatic startup upgrades remain disabled. To preserve schema-14/15 history and
+judgments, stop the app and run
+`tools/prepare-similarity-catalog.py --source <old-catalog> --output <new-catalog>`
+with the updated dependencies. Add `--compare` when preparing schema 14 to fill the
+wider comparison range. Output must be a new file. The tool uses SQLite backup,
+preserves schema-15 comparisons, builds all six gallery counts, and checks integrity
+and foreign keys. Retain the original catalog and use the matching old app image
+for rollback; never install a snapshot taken before later user writes. It reads
+stored hashes, not photos. Other input schema versions are refused.
+
+Cache checks in the database/API suites cover schema-14/15 preparation, unchanged
+source/history/judgments, all six thresholds and an uncached intermediate threshold,
+missing destination files, representative changes, changed hashes/relationships,
+rollback, old reader snapshots, cancelled publication and live fallback. Engine
+settlement retains its FULL durability check. A cancelled cache build is not a
+request to re-copy photos; subsequent reads remain correct using live aggregation.
+
+Manual UI checks: switch All photos / Has similar photos / No capture date and
+compare card geometry, summary placement and filter actions. At narrow desktop
+widths, controls should wrap without clipping. Open a card from Has similar photos:
+Similar photos should be selected at the gallery percentage. Switch to information,
+use next/previous (retain that choice), then click another similar-gallery card
+(reopen Similar photos). Reload preserves the explicit tab. Check the shortcut's
+pressed state against Sort. Long filter descriptions remain in More information.
+
+### Choosing a source for manual validation
+
+Use generated or sample photos for short checks and the shareable demo. Use a
+representative real library over NFS for larger read/performance checks in a separate
+private instance. Mount either source read-only and run **Index → Copy → destination
+review**. Do not use Move against the real validation source. An indexed source alone
+does not populate destination similarity review.
+
+Give each instance its own catalog/appdata, cache, backups and writable destination;
+keep the destination on the intended local storage volume with enough room for the
+test. Before Copy, verify the running app's bind mounts with `docker inspect`: check
+the host source behind `/data/dest` and confirm `/data/source` is read-only. Changing
+an environment file alone does not remount an existing container. Recreate the app
+after it is idle to apply mount changes; do not assume this migrates an existing
+destination or updates recorded paths.
+
+Keep host-specific paths, private filenames and raw reports in ignored local files.
+The LAN demo should use only its sample source and separate destination. Share
+aggregate timings and generated-fixture screenshots in tracked documentation.
+The sampler below makes hard links; those are suitable for read-only input, not
+isolated files for future in-place EXIF editing tests.
+
+### Shareable sample instance
+
+`docker/compose.sample.yml` runs a separate app, web server and Docker network.
+Provide an environment file with `SAMPLE_SOURCE`, `SAMPLE_DEST`, `SAMPLE_APPDATA`,
+`SAMPLE_CACHE` and `SAMPLE_BACKUPS` pointing to distinct, existing directories.
+Use a sample source (for example, the scenario generator's `library`), and new
+writable directories. The source is always mounted read-only. Set `PUID`/`PGID`
+to the directory owner and choose the built `SAMPLE_APP_IMAGE`/`SAMPLE_WEB_IMAGE`.
+
+The default bind is localhost port 8082. For LAN sharing set `SAMPLE_BIND=0.0.0.0`
+and open `http://<host-LAN-address>:8082`; `SAMPLE_PORT` can change the port.
+Only the web port is published. The sample app has access only to its sample mounts.
+
+```bash
+docker compose --env-file <sample-env-file> -f docker/compose.sample.yml up -d
+```
+
+Create the catalog, run Index and Copy in this new instance. Then open a photo:
+From All photos, Photo information should appear first. Similar photos opens the counts and thumbnail
+grid, initially at 90%. Resize the Inspector, switch tabs with the keyboard, and
+move to the next photo: the tab/threshold should remain, with match paging reset.
+Reload should restore the recorded tab and match page. The provided scenario set
+contains intentional unreadable/invalid files; those are expected test outcomes.
+
+Before opening a candidate, enter **Has similar photos**, click the visible
+**Most matches first** shortcut (also available in Sort), and
+change **Matches at or above**. Check card counts against the Inspector at that same
+percentage. Search/date/type/folder filters narrow references, not their counted
+matches. Zero-match photos disappear; explicit checkbox selection remains. Reload
+and return from Logs: sort and gallery threshold persist. Opening a gallery card
+opens Similar photos at the gallery threshold; later Inspector changes do not reorder
+the gallery. Leaving Has similar photos resets its special sort to Newest first.
+The API checks ranking before pagination, tie ordering, matching facet/selection
+scope, exact-copy deduplication, threshold boundaries and partial coverage. Browser
+checks exercise the controls, card counts, selection preservation and narrow reflow.
+
+Open a candidate using **Review side by side** to enter the expanded workspace:
+
+1. Rotate and zoom each preview separately; then enable linked zoom/position.
+   Rotation stays independent. Switch candidates and return: viewing transforms
+   follow their photo until the workspace closes. No file orientation is saved.
+   At 90°/270°, dimensions beneath the preview swap width and height and read
+   **Displayed**; at 180° they keep the original width/height order. Reset restores
+   the original view. Zoom never changes these dimensions. The information pane
+   retains recorded dimensions, megapixels and file size throughout.
+2. In Information, check **File and image properties** above **Capture information**:
+   format, extension, pixel dimensions, megapixels, file size and aspect ratio.
+   Missing values and fallback dates remain labelled; a format inferred only from
+   the filename says **extension only**. Differences are neutral, with no automatic
+   winner based on format or size. Differences only applies to every section;
+   All recorded tags adds the full metadata table, with search scoped to that table.
+   Scroll each table: **Field / Reference / Candidate** stays visible while its rows
+   scroll, including narrow reflow. The heading background should be opaque in both
+   light and dark themes.
+3. Record a pair judgment. Check Reviewed and Unreviewed, switch pages, then close
+   and reopen: the saved judgment and progress survive. Browsing alone never saves
+   a judgment or changes gallery checkboxes.
+4. Resize the comparison/information divider and the browser window. Candidate
+   browsing remains available; Back to gallery restores the Inspector context.
+   Both previews' dimensions, sizes and linked-zoom controls fit their comparison
+   area without an inner vertical scroll; the whole review window scrolls when
+   needed. The information pane can scroll independently on desktop.
+5. Choose **Use as reference** above a candidate. Its blue reference frame moves
+   with the photo, its matches reload at the same threshold, and the previous
+   reference appears beside it. Review status resets to All candidates on page
+   one. Saved pair judgments and each photo's viewing rotation remain attached to
+   the right photos. Back to gallery returns to the originally opened photo.
+   **Reference photo** is a plain heading, not a button; the blue preview border
+   distinguishes it from the candidate. Promotion does not select a keeper or donor.
+
+The generated-catalog browser check is `DRIVER=similar_browser_drive.py sh
+tests/webui_browser_test.sh` (set `IMAGE`/`WEB_IMAGE` to the builds under test).
+Metadata writes, end-of-review orientation saving, deletion, deferred queues and workspace restoration across reload are tracked in
+[TODO.md](../TODO.md#expanded-destination-review-workspace). These are not current
+validation steps. The current workspace implements comparison and judgments, and
+closing it discards temporary rotation without a save prompt.
+
+### Suspicious-date checks
+
+Run `python3 -m unittest discover -s tests -p suspicious_dates_test.py` with app
+dependencies. It verifies boundary years, missing/fallback dates, paged membership,
+selection IDs, browse endpoints and unchanged metadata. For the generated browser
+fixture use `DRIVER=suspicious_dates_browser_drive.py SIMILARITY_RECOVERY_FIXTURE=1`
+with `tests/webui_browser_test.sh` and the built IMAGE/WEB_IMAGE. The opt-in catalog
+mount contains only disposable generated data. Checks cover the view, reload,
+Inspector reasons, comparison date review and narrow reflow.
+
+### Reference-set checks
+
+With app dependencies, run `python3 -m unittest discover -s tests -p reference_sets_test.py`.
+The generated A–B–C–D chain checks direct membership, explicit unions, deduplication,
+thresholds, stale selections, paging, destination-only eligibility and no DB writes.
+Run the browser harness with `DRIVER=reference_sets_browser_drive.py` and
+`SIMILARITY_RECOVERY_FIXTURE=1`, specifying the built `IMAGE` and `WEB_IMAGE`.
+It uses only the harness's disposable generated catalog. Checks include grouping,
+indirect comparison through the correct reference, selection preservation, session
+reset, dense same-hash paging, expansion limits, failure retry, narrow modality and
+per-file recovery failure details in Logs. See docs/similarity-handoff.md for review.
+
+`python3 tools/benchmark-reference-sets.py` measures opened-set queries against
+250,000 generated catalog identities with prepared sparse edges. It reads no photo
+files and does not establish dense-set or end-to-end real-library capacity.
+
+### Current similarity regression coverage
+
+The maintainer has completed the manual functional checklist; see
+[the current handoff](../docs/similarity-handoff.md#validation-and-sign-off).
+Representative large-library capacity remains separate work.
+
+Similarity defaults regression: the reference-set browser driver checks initial
+Group similar photos / Most matches first, remembered grouping and per-view sort,
+and explicit URL precedence. Recovery tests distinguish bulk generation of never
+computed hashes from explicit rechecks after external fixes. Known failures must
+not be retried by bulk generation; unsupported decoders offer no futile retry.
+
+The defaults regression also checks the initial 90% gallery threshold, remembering
+an explicit percentage, and URL threshold precedence without changing preferences.
+
+Identical-set validation: reference_sets_test.py checks exact membership collapse,
+partial overlaps, thresholds, filtered representatives, pagination and selection.
+The reference-set browser driver expects five grouped tiles for the 130-photo
+fixture, including one 126-member set, and verifies ungrouping restores photo cards.
+tools/benchmark-reference-sets.py also measures a full grouped-gallery query on its
+250,000-photo sparse prepared fixture; this is not dense-library capacity evidence.
+
+The reference-set fixture also checks manual and successful clipboard paths,
+copied comparison restoration including rotation, previous/next gallery sets,
+selection preservation in the temporary set-member gallery, and paging a 126-photo
+set. reference_sets_test.py verifies set_reference membership/paging/IDs/position
+and rejects invalid IDs. Clipboard output is only a local generated-fixture link.
+
+### Manual Copy review link check
+
+1. Open a photo comparison using Review this set or Review side by side. Rotate a
+   preview or adjust zoom so the restored state is easy to recognize.
+2. Click Copy review link near the top of the comparison window. If Review link
+   copied appears, proceed to step 3. If Copy this review link manually appears,
+   click inside its text field, press Ctrl+A while the field is focused, then Ctrl+C
+   (Command+A / Command+C on macOS). Local-network HTTP may require this fallback.
+3. Open a new browser tab, paste into the address bar, and press Enter. Use a tab
+   that can access the same sample instance; the link does not upload photographs.
+4. Confirm the same reference/candidate, percentage, review tab/filter and current
+   pair rotation/zoom reopen. Opening the link must not save another judgment.
+
+Pass: either copy path gives a usable link that restores the current comparison.
+The manual fallback is expected behavior when clipboard access is unavailable.

@@ -179,7 +179,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
             ["Saved at the destination", <Tipped key="s" tip="Extra copies of photos already copied or moved: the destination holds one copy, not two. A duplicate of a photo not yet delivered has saved nothing so far.">{`${bytes(s.duplicates.saved_at_destination)} · ${plural(s.duplicates.copies_not_written, "duplicate file")} not copied`}</Tipped>],
             ["A Move would free in the source", <Tipped key="m" tip="Extra copies still in the source: a Move removes each once a copy of its content is verified at the destination.">{bytes(s.duplicates.move_would_free)}</Tipped>],
             ["Freed by earlier Moves", bytes(s.duplicates.freed_by_moves)],
-            ["Near-duplicates (resized, re-saved)", <span key="nd" className="muted">Not recorded yet: they arrive with the Similar tab</span>],
+            ["Near-duplicates (resized, re-saved)", <a key="nd" href="/?view=similar" onClick={follow}>Review similar photos</a>],
           ]} />
           <Coverage c={s.duplicates.coverage} />
           {s.duplicates.by_folder.length > 1 && (
@@ -308,14 +308,16 @@ function YearChart({ years }: { years: { year: string; photos: number }[] }) {
   return (
     <figure className="year-chart">
       <figcaption>Photos per year (date taken)</figcaption>
-      <div className="year-bars" role="list">
-        {years.map((y) => (
-          <a key={y.year} role="listitem" className="year-bar" href={`/?date=${y.year}`} onClick={follow}
-             title={`${y.year}: ${plural(y.photos, "photo")}`} aria-label={`${y.year}: ${plural(y.photos, "photo")}`}>
-            <span className="year-fill" style={{ height: `${Math.max(2, (100 * y.photos) / max)}%` }} />
-            <span className="year-label">{years.length > 16 && Number(y.year) % 5 ? "" : y.year}</span>
-          </a>
-        ))}
+      <div className="year-scroll" role="region" aria-label="Photos per year" tabIndex={0}>
+        <div className="year-bars" role="list">
+          {years.map((y) => (
+            <a key={y.year} role="listitem" className="year-bar" href={`/?date=${y.year}`} onClick={follow}
+               title={`${y.year}: ${plural(y.photos, "photo")}`} aria-label={`${y.year}: ${plural(y.photos, "photo")}`}>
+              <span className="year-fill" style={{ height: `${Math.max(2, (100 * y.photos) / max)}%` }} />
+              <span className="year-label">{y.year}</span>
+            </a>
+          ))}
+        </div>
       </div>
       <details>
         <summary>As a table</summary>

@@ -10,6 +10,8 @@ export function rememberLibraryQuery(query: string) { libraryQuery = query; }
 export function photoUrl(id: number) {
   const params = new URLSearchParams(libraryQuery);
   params.set("photo", String(id));
+  params.delete("match_page");
+  params.delete("review");
   return `/?${params}`;
 }
 

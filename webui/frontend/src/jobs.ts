@@ -43,16 +43,16 @@ export function useJobFeed(): { jobs: JobState; connection: Connection } {
 
 const MODE_ACTIVE: Record<string, string> = {
   INDEX: "Indexing", COPY: "Copying", MOVE: "Moving", REBUILD: "Rebuilding thumbnails",
-  CHECK: "Checking the destination", RENAME: "Renaming",
+  SIMILARITY: "Recovering similarity matching", CHECK: "Checking the destination", RENAME: "Renaming",
 };
 const MODE_NAME: Record<string, string> = {
   INDEX: "Index", COPY: "Copy", MOVE: "Move", REBUILD: "Thumbnail rebuild", CHECK: "Destination check",
-  RENAME: "Rename",
+  SIMILARITY: "Similarity recovery", RENAME: "Rename",
 };
 const PHASE: Record<string, string> = {
   discovering: "Looking for photos", scanning: "Reading photos", transferring: "Transferring",
   removing_duplicates: "Removing duplicate sources", rebuilding_thumbnails: "Making thumbnails",
-  checking_destination: "Checking files",
+  checking_destination: "Checking files", matching: "Comparing photos",
 };
 // Outcome keys from the engine's progress counts (engine-spec 4.3), as the user reads them.
 const OUTCOME: Record<string, string> = {
@@ -60,7 +60,7 @@ const OUTCOME: Record<string, string> = {
   unchanged: "unchanged", failed: "failed", Copied: "copied", Completed: "moved",
   Found_At_Destination: "already at destination", Skipped: "skipped", Failed: "failed", Cancelled: "cancelled",
   Removed_Duplicate: "duplicate sources removed", Already_Gone: "already gone", made: "made",
-  already: "already present", kept: "kept", ok: "intact", missing: "missing", changed: "changed",
+  Compared: "hashes compared", already: "already present", kept: "kept", ok: "intact", missing: "missing", changed: "changed",
   unreadable: "unreadable", unknown: "not put there by NegativeSpace", Renamed: "renamed",
 };
 

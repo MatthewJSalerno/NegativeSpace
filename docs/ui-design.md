@@ -40,6 +40,22 @@ separate foreground/background pairs in both themes.
 These are product choices within an accessibility target, not a claim that every
 control must have the same shape or that every target must be exactly 44px.
 
+Use the same text roles on every screen:
+
+| Role | Size and weight |
+| :--- | :--- |
+| Page and dialog titles | 20px / 600 |
+| Section titles, including filter trees | 16px / 600; compact subsections and Inspector headers use 14px / 600 |
+| Body, labels and standalone controls | 14px / 400; emphasis uses 600 |
+| Supporting details, badges and counts | 12px / 400; emphasis uses 600 |
+
+Text buttons embedded in a sentence inherit its size and line height, just like
+anchors. A file path inherits its surrounding text size rather than introducing a
+second font or larger text into a compact history line. Adjacent navigation and
+action links share alignment and target height even when one is an anchor and the
+other is a button. Preserve these roles at desktop zoom and narrow widths; do not
+add screen-specific font sizes to repair a shared control.
+
 The first Settings section, Appearance, offers Cool neutral (default) and Warm neutral palettes. The choice applies
 immediately, is stored per browser under `ns.palette`, and follows across tabs;
 it is independent of catalog settings and does not require Save settings. System
@@ -65,6 +81,172 @@ cannot clip or cover the text.
 | Dialogs | `ui/Modal.tsx` uses native modal dialogs and top-layer inertness. Desktop Inspector stays nonmodal; on narrow screens its covering panel becomes modal. |
 | Supplemental help | `Tip.tsx`: hover/focus plus an explicit information button for touch; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. |
 | Paged loading | `ui/PageBoundary.tsx` and `paged.ts`: idle/load, pending, failed/retry and end states. Keep already-loaded photos and selection on failure. |
+
+## Similarity belongs in the gallery
+
+Review destination photos in the ordinary gallery and its Inspector. Do not add a
+separate Similar navigation button or a second gallery of matching groups.
+**Has similar photos** sits alongside All photos, Organized and No capture date;
+it includes photos with at least one recorded destination match at the gallery's
+chosen percentage (90% initially). It combines with existing search, date, type and
+folder filters. **Most matches first** in the existing sort control ranks direct
+match counts highest first; ties use ascending photo ID. **Matches at or above**
+in the gallery summary offers 75/80/85/90/95/100%, also available with the other gallery sorts.
+A visible **Most matches first** shortcut applies the same sort. Cards show compact
+match-count badges over the preview, with the percentage in their tooltip. Count matches across the whole destination
+library, including outside gallery filters, and explain that scope in the shared help beside results.
+Photos with no qualifying recorded match are excluded; incomplete comparisons and
+unavailable hashes are reported separately, not presented as proof of uniqueness.
+
+Keep the same card geometry and shared summary row in All photos, Has similar
+photos and No capture date. Match badges must not add a metadata row to cards.
+Use the same active-view surface for No capture date. Put long filter descriptions
+and count-scope explanations in shared help, keeping filter-reset/selection actions
+visible. Similarity controls and essential below-90% guidance may wrap at smaller
+widths; never hide them behind a help control or clip them for a fixed row height.
+
+Persist gallery percentage as `match_min` and ordering as `sort=matches` in the URL.
+Changing either starts at page one and preserves explicit selection. Sidebar counts,
+Select all and photo positioning use the same percentage. Show only selected retains
+all chosen files, including those without matches; disable the gallery percentage
+while that scope is open. Has similar photos initially uses Most matches first. Remember explicit sort choices
+per view in browser storage (`ns.sort.<view>`); switching views restores that view’s
+last order. An explicit URL sort wins without rewriting the saved preference. Clicking a gallery card carries the gallery percentage into Inspector
+matches and opens the **Similar photos** tab. Users can subsequently
+choose another Inspector percentage without changing gallery order; previous/next
+photo navigation retains that Inspector choice.
+
+The Inspector has **Photo information** and **Similar photos** tabs. Default to
+Photo information outside Has similar photos; remember the active tab and threshold
+when using previous/next. A gallery-card click in Has similar photos always opens
+Similar photos, even after the user switched to Photo information.
+The preview and its resize divider are shared by both tabs. Tab arrow keys and
+Home/End switch tabs without triggering previous/next photo navigation.
+
+The Similar photos tab shows cumulative counts at **75%, 80%, 85%, 90%, 95% and 100%**
+in its information pane. Label thresholds as “at or above”: these are overlapping
+counts, not separate buckets or confidence estimates. Choosing one reveals a small,
+paged thumbnail grid of direct matches in the same pane, leaving the reference photo, gallery
+filters and explicit checkbox selection intact. Opening a match offers side-by-side
+review. Match browsing does not designate files for deletion or metadata edits.
+Association may help identify dates, events or other information, but proves none
+of them. A 100% visual score still does not mean identical bytes.
+Keep guidance beside the threshold controls explaining that results below 90% are
+more likely to be unrelated and need side-by-side review before being used as
+metadata clues. Repeat it in the comparison dialog for a pair scoring below 90%.
+This is review guidance, not a measured error rate or a guarantee above 90%.
+
+Persist the open photo, tab, chosen threshold and match page in the gallery URL.
+Outside Has similar photos, opening Similar photos initially uses 90%; subsequently retain the chosen threshold
+for other reference photos and reset their match page to one. Information-only
+browsing does not load matching data. Match thumbnails use more columns as the
+details area widens, and scroll separately so the reference preview stays visible.
+A failed or unavailable hash lookup must never appear as zero matches. Show loading,
+retry for request failures, and incomplete comparison states explicitly. **Review matching status** opens a paged recovery dialog from coverage notices
+or the Inspector. Show affected destination photos with photo links and distinct
+missing/read/decode/changed-file reasons. Offer Generate missing hashes only for files without a recorded failure, and
+a separate Resume comparisons action. Known failures require the stated external
+correction before an explicit Recheck file after external fix; bulk generation
+must skip those failures. Explain prerequisites
+for retrying changed/missing/unreadable files; unsupported formats have no futile
+retry. Actions wait while another job runs. Show progress, cancellation and verified
+remaining issues; resolving a warning must not close its open results dialog.
+Recovery reads verified destination originals and changes only matching data.
+
+### Expanded review workspace
+
+**Built:** opening a candidate from the Inspector expands into a comparison
+workspace with an explicit reference, a browsable candidate, a paged thumbnail strip,
+and a resizable information panel. It starts at the Inspector's threshold and
+page. Back to gallery restores its threshold/page (page one after filtering by
+review status), leaves gallery selection intact, and restores focus to the opener
+when it remains present. The reference is the photo the user opened, not a donor
+or a file chosen to keep.
+Identify the reference with a plain bold **Reference photo** heading and an accent border
+around its preview. Keep the candidate treatment neutral and the previews aligned.
+The heading is informational: do not give it a button-like fill or rounded badge.
+The explicit label accompanies color so the distinction survives forced colors
+and does not imply the reference is a source-folder file, donor or keeper.
+
+The candidate offers **Use as reference**. It loads direct matches for that photo,
+retains the threshold, and resets to All candidates on page one. The previous
+reference becomes the displayed candidate, even if it is outside the new first
+page. Viewing transforms follow photo identities and saved judgments stay with
+their content pairs. Focus moves to the new reference. Disable promotion during
+saving or after a failed/stale pair request until refreshed. This action assigns
+no keeper, donor or edit targets. Back to gallery returns to the original Inspector
+photo and its entry page after exploring another reference; gallery selection
+stays intact. Changing the reference is local to the open workspace.
+
+Each preview has independent viewing rotation in 90° steps, zoom, position and
+Reset view. A visible note identifies temporary rotation. Rotation fits inside
+the preview even for portrait photos. Link zoom and position is optional; it never
+links rotation. Viewing transforms stay associated with their photo during the
+open workspace and reset on closing; they never write files, EXIF or hash scores.
+A saved orientation correction remains a separate future edit.
+Dimensions beneath a preview follow its viewing rotation: swap width and height
+at 90° and 270°, and label rotated dimensions **Displayed**. The information pane
+continues to show recorded dimensions; zoom does not change either value.
+
+The two-photo comparison grows to fit its controls, resolution, file sizes and
+linked-zoom option. Do not add an inner vertical scroller or clip those details to
+reserve space for the candidate strip. When the content exceeds the window height,
+scroll the review window as a whole, with the shared More above/below cues. The
+metadata panel may scroll independently for long tag lists.
+
+The Information tab starts with **File and image properties**: recorded format,
+extension, pixel dimensions, megapixels, file size and aspect ratio. Prefer the
+recorded file type; label a filename-only fallback as extension only. Missing
+dimensions stay unknown. Compare exact values before display rounding and show
+exact byte counts beside rounded sizes. Mark differences neutrally, without
+choosing a winner or implying larger files or dimensions guarantee quality.
+**Capture information** follows, with **All recorded metadata** available below.
+Differences only applies to every section; the tag search filters only the full tag
+list. File-modification fallback dates are labelled; unknown timezones are not
+invented. Metadata errors have a retry and do not appear as missing values.
+Keep each table's **Field**, **Reference**, and **Candidate** headings visible while
+its rows scroll, with an opaque theme surface. In narrow layouts they follow the
+review window's scroll instead of introducing another scroll area.
+
+The Saved review tab shows the latest judgment for this content pair. All,
+Unreviewed and Reviewed filters apply before server pagination. Progress counts
+reviewed pairs at the chosen threshold, not photos in the entire catalog. Each
+thumbnail shows its pair judgment. Saving is explicit, survives reopening, and
+never marks other pairs reviewed. Moving on without a judgment leaves the pair
+unreviewed. Busy saves prevent candidate/filter navigation; failures retain the
+comparison and require refresh before another judgment. Candidate loads cannot
+replace a newer navigation choice. Deferred queues remain future work.
+
+The gallery URL's validated `review` state restores the comparison reference and
+candidate, threshold, page, reviewed filter, active information/review tab, divider
+share, linked zoom and current-pair viewing transforms. Keep the original Inspector
+context separately so Back to gallery returns there after reference promotion.
+Only the current pair's transforms are bookmarked; other candidate transforms last
+for the open session. Reload restores controls but fetches photo data and judgments
+again; it never replays a save. Malformed bookmarks are ignored, unavailable photos
+show errors, and excessive candidate pages clamp to the current last page. Closing
+removes the workspace state and discards viewing transforms. Return keyboard focus
+to the opener, or a surviving match thumbnail/tab when restoring from a bookmark.
+Photo links to another Inspector photo clear the prior comparison state.
+
+**Separate workstream (not a dependency of similarity matching):** metadata edits/copy and deletion with explicit target selection,
+per-file previews and results. The reference, metadata donor and photographs to
+keep are separate roles: a smaller copy can supply metadata for a larger keeper.
+Opening or comparing a photo does not assign those roles. Future action targets
+must remain separate from gallery selection and pair judgments; changing the
+reference or offered match set must not leave hidden targets armed. Show proposed
+metadata changes or deletion targets before execution and record each result.
+Do not show nonfunctional edit/delete controls while those actions are unbuilt.
+
+**Future orientation-save interaction:** rotation remains temporary throughout
+comparison. Once verified orientation writes exist, offer one decision at the end
+of review for photos whose final orientation differs from their starting state.
+Identify the affected reference/candidates by photo and show their final orientation;
+allow saving selected changes, discarding them, or returning to review. Never save
+or prompt on each Rotate click. General EXIF editing uses the shared editor rather
+than turning this comparison into an inline editor. The current workspace has no
+rotation-save prompt and closing it discards viewing transforms.
+
 
 ## Keyboard and focus
 
@@ -107,6 +289,14 @@ selection before saving. It keeps drafts, marks affected fields, describes their
 errors and focuses the first invalid control. Server errors remain visible. Success
 uses a polite status, not an urgent alert. Loading failures offer an explicit retry.
 
+Warnings that require user action must have a working resolution path. Say what is
+affected, what the user can do, and provide the action or a direct link to the
+relevant filtered view. A count alone is not a completed workflow. While another
+job prevents the action, keep the explanation visible and explain when the action
+becomes available. If the condition cannot be fixed by the app, state the limitation
+instead of offering a retry that cannot help. Verify the remedy changes the reported
+state; refreshing the message alone does not count as recovery.
+
 Continuous scrolling keeps the existing page and URL model. An appended/prepended
 failure stops announcing loading, shows a readable error and waits for Retry. Retry
 must preserve selection and the visible anchor; old requests must not join a new
@@ -139,3 +329,119 @@ visual standard. Engine transfer safety and filesystem behavior are unchanged.
 - [Menu buttons](https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/)
 - [Native dialog behavior](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/dialog)
 - [Design tokens](https://designsystem.digital.gov/design-tokens/)
+
+## Suspicious dates
+
+The **Suspicious dates** gallery view flags the recorded gallery date when its year
+is before 1800 or more than one year ahead of the current UTC year. This is a
+conservative review heuristic, not proof of an error. It includes EXIF-derived dates
+and file-modification fallbacks, with their source identified in the Inspector and
+comparison pane. Missing dates remain covered by No capture date; raw malformed or
+conflicting EXIF tags are outside this first policy. Never infer an offset or replace
+a recorded value. Legitimate historical material may still be flagged.
+
+Use existing gallery controls, card geometry, selection, pagination and URL state
+(`view=suspicious`). Counts, sidebar filters and Select all use the same membership.
+Explain the policy beside results. The Inspector shows the reason, recorded value,
+source and a link to the affected view. Similar photos offer clues, not automatic
+corrections. The comparison Capture information table includes a Date review row
+when either photo is flagged. State clearly that date editing is not yet available.
+No schema changes, reindex or file writes are needed; the upper bound advances with
+the server's UTC year when the catalog is read.
+
+### Reference-based sets
+
+Offer optional grouping within Has similar photos, retaining the ordinary per-photo
+view. A set consists of its reference and every direct match at the chosen percentage.
+If A matches B and B matches C but A does not match C, A's set contains A/B and B's
+set contains B/A/C. A representative is a navigation reference, never a keeper.
+
+Show inline overlap notices: A's set can say “B has additional matches outside this
+set”; B's can say “Overlaps with A's set.” Offer **Review this set** to open its
+reference and direct matches in comparison, and **Explore related sets** to display
+related sets with their references and membership intact. Avoid repeated decision
+prompts. Within exploration, **Show together** combines only sets the user chooses,
+showing each photo once while preserving its relationship to the references.
+Clearly distinguish indirect photos, for example “Related through B · below your
+threshold for A”; never present C as a qualifying direct match to A.
+
+These are session-only display choices, not saved groups or tags. **Group similar
+photos** adds set counts and actions to the existing reference cards. Sets with exactly the same full destination membership appear once in the gallery.
+Compare each closed neighborhood (reference plus direct matches) at the selected
+percentage, never just match counts or a transitive component. Choose the lowest
+canonical photo ID satisfying active filters as the stable representative; it is
+not a keeper or the highest-quality photo. Sort the resulting representatives and
+collapse before pagination. Search can choose another member as representative.
+Gallery totals and paging count sets when grouping is on. Select all and card
+checkboxes select only displayed representatives, not every member. Existing
+explicit selection remains intact, including hidden members; Show only selected
+still displays individual photos. View-button counts remain library photo counts.
+Sidebar counts remain individual photos so filters can find members hidden by
+collapsed sets; date-jump positioning uses grouped representatives. A set's members come from the full destination
+library. Turning grouping off returns the ordinary cards without clearing selection.
+Grouping defaults on and the toggle is remembered per browser (`ns.groupSets`). Selected expansions reset on closing exploration
+or changing its percentage, and survive a visit to side-by-side review and back.
+
+Explore related sets offers only the starting reference's direct-match references.
+Choose up to six explicitly, then Show together. This unions their sets, deduplicates
+byte identities, and shows every photo's membership in the displayed sets. Members
+and related references have independent pagination (12 per page). The starting
+reference sorts first, then minimum recorded distance to a chosen reference and ID;
+related references sort by direct distance then ID. Counts include the reference;
+match counts elsewhere exclude it. Broader graph intersections remain future work. No automatic traversal follows a newly exposed photo.
+
+An indirect member's Compare button uses its supporting reference, not the starting
+reference it does not directly match. The comparison remains the existing direct
+match workspace. Returning reopens the same exploration; no comparison save is
+implied. At narrow widths the covering exploration owns modality instead of opening
+a second Inspector dialog over it. Failed requests expose Retry sets and Reset to
+this set; stale expansions are rejected rather than silently dropped. Incomplete
+coverage links to matching information and recovery. No persisted group membership,
+keeper inference, EXIF editing or deletion is introduced.
+
+Review-later tagging remains deferred for a separate discussion of broader catalog
+annotations. Do not implement a dedicated marker until that discussion.
+
+### Failed visual processing
+
+A visual-hash failure does not prove a file is not an image; absent EXIF alone is
+not evidence of damage. Keep unsupported decoders, failed decoding, unreadable or
+missing files, and changed content distinct. Hash-recovery failures write per-photo
+Logs entries with the category and actionable reason; the Inspector and recovery
+list expose the recorded issue. Decode failures ask for external viewing/repair and
+retry only after fixing the cause. Known unsupported formats have no futile retry.
+Keep delivered file status and photo bytes intact; missing hashes exclude files from
+visual matching without hiding them from the ordinary catalog. A broader import
+completion summary and catalog-wide external-review view remain pending.
+
+The gallery similarity percentage defaults to 90% and remembers explicit user
+changes in browser storage (`ns.matchMin`). An explicit `match_min` URL value wins
+without overwriting that preference. Gallery and reference-set threshold controls
+update the preference; Inspector/comparison thresholds remain local to their review.
+The 75% floor remains available. Identical-set collapsing is implemented for the grouped gallery.
+
+### Review links and set navigation
+
+Copy review link serializes the current comparison directly, including reference,
+candidate, threshold, review filter/tab, current-pair viewing transforms and linked
+zoom. It does not depend on a pending URL update or replay a saved judgment. Report
+success only after the clipboard write succeeds. If clipboard access is unavailable
+or rejected (including local-network HTTP), expose a labelled, selectable read-only
+link for manual copy. Recipients need access to the same instance and catalog.
+
+Previous set / Next set in review follows the grouped gallery's percentage, filters
+and sort, anchored on the entry reference even after Use as reference. Disable
+unavailable boundaries and loading navigation; request failures offer Retry set
+navigation. Do not navigate during a judgment save. Entering another set starts a
+fresh comparison with temporary viewing transforms reset; no judgment is implied.
+Navigation is offered only from the grouped gallery, not an expanded union or a
+set-member scope whose ordering has a different meaning.
+
+Show this set in gallery is available from comparison and each reference in set
+exploration. It shows the reference and direct members at that set's percentage as
+ordinary, individually selectable cards, with server paging and normal sort controls.
+This temporary scope bypasses the saved gallery filters and does not auto-select,
+expand or clear the existing selection. Filters are disabled while it is open;
+Back to results restores the previous gallery filters/page. Reload leaves this
+session-only scope. Selection limits still apply, but browsing is not limited to
+1,000 members. No EXIF edit, deletion, image processing or persisted group is implied.

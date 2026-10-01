@@ -10,7 +10,7 @@ import io
 import json
 import sqlite3
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 from fastapi import Body, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.exception_handlers import http_exception_handler
@@ -19,7 +19,10 @@ from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 import ns_db
+import ns_similarity
+import ns_similarity_recovery
 from . import catalog
+from . import matching
 from .config import Config, build_version
 from .jobs import JobRefused, JobRunner, validate_request_id
 
@@ -33,6 +36,9 @@ class PhotoPositionRequest(BaseModel):
     photo_id: int = Field(ge=1)
     view: str = "all"
     sort: str = "newest"
+    match_min: int = Field(default=75, ge=75, le=100)
+    group_sets: bool = False
+    set_reference: Optional[int] = Field(default=None, ge=1, le=2**63-1)
     page_size: int = Field(default=60, ge=1, le=240)
     q: Optional[str] = None
     undated: bool = False
@@ -40,6 +46,13 @@ class PhotoPositionRequest(BaseModel):
     types: Optional[List[str]] = None
     folders: Optional[List[str]] = None
     ids: Optional[List[StrictInt]] = Field(default=None, max_length=1000)
+
+
+class SimilarityReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    verdict: Optional[Literal['same', 'related', 'unrelated']]
+    reference_sha1: str
+    candidate_sha1: str
 
 
 def create_app(cfg: Optional[Config] = None) -> FastAPI:
@@ -144,6 +157,75 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(400, {"error": "invalid_request", "message": "Send an extension."})
         return ns_db.extension_support(ext.strip())
 
+    @app.get("/api/v1/similar")
+    def similar_queue(mode: str = "similar", threshold: float = Query(90, ge=ns_similarity.MIN_SCORE, le=100),
+                      sort: str = "matches", q: str = "", page: int = Query(1, ge=1),
+                      page_size: int = Query(30, ge=1, le=60)):
+        try:
+            return matching.queue(cfg.db_path, mode=mode, threshold=threshold, sort=sort, q=q, page=page, page_size=page_size)
+        except ValueError as exc:
+            raise HTTPException(400, {"error":"invalid_request", "message":str(exc)})
+
+    @app.get("/api/v1/similar/diagnostics")
+    def similarity_diagnostics():
+        return matching.diagnostics(cfg.db_path)
+
+    @app.get('/api/v1/similar/recovery')
+    def similarity_recovery(page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=60),
+                            photo_id: Optional[int] = Query(None, ge=1, le=2**63-1)):
+        with catalog.connect(cfg.db_path) as conn:
+            return ns_similarity_recovery.report(conn, page=page, page_size=page_size, photo_id=photo_id)
+
+    @app.post('/api/v1/similar/recovery', status_code=202)
+    def start_similarity_recovery(body: dict = Body(...)):
+        if set(body) - {'scope','photo_id','request_id'}:
+            raise HTTPException(400, {'error':'invalid_request', 'message':'Unknown recovery option.'})
+        run_id = jobs.repair_similarity(body.get('scope'), body.get('photo_id'), body.get('request_id'))
+        return catalog.get_run(cfg.db_path, run_id)
+
+    @app.get("/api/v1/similar/{photo_id}/sets")
+    def reference_sets(photo_id: int, threshold: int = Query(90, ge=75, le=100),
+                       include: list[int] = Query([]), page: int = Query(1, ge=1),
+                       related_page: int = Query(1, ge=1), page_size: int = Query(12, ge=1, le=24)):
+        from . import reference_sets
+        try:
+            return reference_sets.browse(cfg.db_path, photo_id, threshold=threshold, include=include,
+                                         page=page, related_page=related_page, page_size=page_size)
+        except ValueError as exc:
+            raise HTTPException(400, {'error':'invalid_request', 'message':str(exc)})
+
+    @app.get("/api/v1/similar/{photo_id}/counts")
+    def similarity_counts(photo_id: int):
+        return matching.counts(cfg.db_path, photo_id)
+
+    @app.get("/api/v1/similar/{photo_id}/review/{other_id}")
+    def similarity_review(photo_id: int, other_id: int):
+        try:
+            return matching.review(cfg.db_path, photo_id, other_id)
+        except matching.ReviewChanged as exc:
+            raise HTTPException(409, {'error':'review_changed', 'message':str(exc)})
+
+    @app.put("/api/v1/similar/{photo_id}/review/{other_id}")
+    def save_similarity_review(photo_id: int, other_id: int, body: SimilarityReviewRequest):
+        try:
+            return matching.review(cfg.db_path, photo_id, other_id, save=body.model_dump())
+        except matching.ReviewChanged as exc:
+            raise HTTPException(409, {'error':'review_changed', 'message':str(exc)})
+        except ValueError as exc:
+            raise HTTPException(400, {'error':'invalid_request', 'message':str(exc)})
+        except sqlite3.OperationalError as exc:
+            if 'locked' not in str(exc).lower():
+                raise
+            raise HTTPException(503, {'error':'catalog_busy', 'message':'The catalog is busy. Retry saving your review.'})
+
+    @app.get("/api/v1/similar/{photo_id}")
+    def similar_matches(photo_id: int, mode: str = "similar", threshold: float = Query(90, ge=ns_similarity.MIN_SCORE, le=100),
+                        page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=60), review_state: str = "all"):
+        try:
+            return matching.matches(cfg.db_path, photo_id, mode=mode, threshold=threshold, page=page, page_size=page_size, review_state=review_state)
+        except ValueError as exc:
+            raise HTTPException(400, {"error":"invalid_request", "message":str(exc)})
+
     # -- Stats (webui-spec 5.9) -------------------------------------------------
 
     @app.get("/api/v1/stats")
@@ -178,51 +260,51 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_photos(view: str = "all", sort: str = "newest", q: Optional[str] = None,
                    page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=240), undated: bool = False,
                    date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                   folder: Optional[List[str]] = Query(None)):
+                   folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1)):
         try:
             return catalog.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size,
-                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source)
+                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/timeline")
     def get_timeline(view: str = "all", q: Optional[str] = None, undated: bool = False,
                      date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                     folder: Optional[List[str]] = Query(None)):
+                     folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False):
         try:
             return catalog.timeline(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
-                                    folders=folder, root=cfg.source)
+                                    folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/types")
     def get_types(view: str = "all", q: Optional[str] = None, undated: bool = False,
-                  date: Optional[List[str]] = Query(None), folder: Optional[List[str]] = Query(None)):
+                  date: Optional[List[str]] = Query(None), folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False):
         try:
             return {"types": catalog.file_types(cfg.db_path, view=view, q=q, undated=undated, dates=date,
-                                                folders=folder, root=cfg.source)}
+                                                folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets)}
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/folders")
     def get_folders(view: str = "all", q: Optional[str] = None, undated: bool = False,
                     date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                    folder: Optional[List[str]] = Query(None)):
+                    folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False):
         """The source's folders with their counts; `folder` names ticked folders, which stay
         listed at 0 but do not narrow the counts (the tree ignores its own filter)."""
         try:
             return catalog.folder_tree(cfg.db_path, cfg.source, view=view, q=q, undated=undated, dates=date,
-                                       types=type, keep=folder)
+                                       types=type, keep=folder, match_min=match_min, group_sets=group_sets)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/ids")
     def get_photo_ids(view: str = "all", q: Optional[str] = None, undated: bool = False,
                       date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                      folder: Optional[List[str]] = Query(None)):
+                      folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1)):
         try:
             return catalog.photo_ids(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
-                                     folders=folder, root=cfg.source)
+                                     folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference)
         except ValueError as exc:
             raise _bad_request(exc)
 
@@ -238,7 +320,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         """A POST only because a selection of 1,000 ids is too long for a URL; it reads."""
         try:
             return catalog.photos_by_ids(cfg.db_path, body.get("ids"), sort=body.get("sort", "newest"),
-                                         page=body.get("page", 1), page_size=body.get("page_size", 60))
+                                         page=body.get("page", 1), page_size=body.get("page_size", 60), match_min=body.get("match_min", 75))
         except (ValueError, TypeError) as exc:
             raise _bad_request(ValueError(str(exc)))
 
