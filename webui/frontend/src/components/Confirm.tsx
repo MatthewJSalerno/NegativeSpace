@@ -19,22 +19,14 @@ export function transferConfirm(mode: ActionMode, status: Status, ids: number[] 
   if (mode === "reject") return {
     title: `Reject ${scope}?`,
     action: "Reject",
-    body: [
-      one ? "It moves out of the library into Rejects, the rejects folder beside it in your destination, so a gallery application importing the library no longer sees it."
-        : "Each photo moves out of the library into Rejects, the rejects folder beside it in your destination, so a gallery application importing the library no longer sees it. Photos not yet in the library are left alone.",
-      `Nothing is deleted. Rejects keeps ${one ? "it" : "them"} until you empty that folder yourself; until then, Return to library brings ${one ? "it" : "a photo"} back.`,
-      "Identical copies still in your source stay out of the library too: Copy skips them, and Move removes them only after checking the copy in Rejects.",
-    ],
+    body: [`${one ? "It moves" : "They move"} out of the library into the Rejects folder. Nothing is deleted, and you can return ${one ? "it" : "them"} until you empty Rejects.`],
     run,
     onCancel,
   };
   if (mode === "return") return {
     title: `Return ${scope} to the library?`,
     action: "Return to library",
-    body: [
-      one ? "It moves from Rejects back to its date folder in the library and shows in the gallery again."
-        : "Each photo moves from Rejects back to its date folder in the library and shows in the gallery again. Photos not in Rejects are left alone.",
-    ],
+    body: [`${one ? "It moves" : "They move"} back to ${one ? "its date folder" : "their date folders"} in the library.`],
     run,
     onCancel,
   };

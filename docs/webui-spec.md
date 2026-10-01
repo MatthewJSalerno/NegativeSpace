@@ -172,12 +172,13 @@ Users can select individual files or multiple files across grid views to run tar
   Types and dates combine, and the filter line names both (**"Showing 42 of 1,160 photos
   · only 2019, HEIC · Select these 42 · Show all dates · Show all types"**). **All
   photos** clears them too.
-* **The view buttons count the library; the filter line counts the gallery.** **All
-  photos (1,160)** is every photo whatever the dates, types, search or No capture date
-  narrow the gallery to, and so are the other views' numbers. Whenever any of those is
-  on, the line above the gallery says what is shown and of what: **"Showing 9 of 1,160
-  photos · only 2022, 2023"**. **Why not counts that follow the filters:** a button
-  labelled All photos showing 9 read as the library's size, not the gallery's.
+* **The view buttons count what the filters find; the filter line names the library.**
+  With a search, dates, types, folders or No capture date on, each view's number is how
+  many photos that view would show under them, so the number on a button always matches
+  what clicking it shows, and the line above the gallery gives the library's size:
+  **"Showing 9 of 1,160 photos · only 2022, 2023"**. **Why not the whole library on the
+  buttons:** a search for one name still read "Rejects (1)" or "Organized (1,160)", and a
+  view opened from that number then looked empty or wrong (maintainer, 2026-10-01).
   The Stats page's formats open the Library filtered to that type. Going to a date the filter hides
   says so and offers the fixes as buttons that apply them and then go there: **“December
   2016 is outside the dates shown. Show December 2016 too · Show all dates”**.
@@ -2066,16 +2067,18 @@ the application never deletes a photo, and the user empties Rejects on the host.
 identical to a reject is kept out of the library: a Copy skips it and a Move removes its
 source against the copy in Rejects (or puts it there, when Rejects was emptied).
 
-*   **Where:** Actions › Reject (selected photos, reviewed first as for Copy and Move, or
-    the folder shown) and **Reject…** in the Inspector for one photo. Each asks first,
-    starting on Cancel, and says nothing is deleted.
+*   **Where:** Actions › **Reject selected (n)**, reviewed first as for Copy and Move, and
+    **Reject…** in the Inspector for one photo. `n` counts only the selected photos in the
+    library, so before any Copy or Move it reads 0 and says why. Each asks first in one
+    sentence, starting on Cancel. No folder reject: select the folder's photos instead.
 *   **The Rejects view** (`view=rejects`): rejected photos leave every other view and
     count. Normal cards with a Rejected badge (when, on hover). Above them: "Rejects
     holds 12 photos · 22 KB · oldest rejected Oct 1, 2026" and **How to empty Rejects**,
     which expands in the page. A photo the user deleted from the folder leaves the view at
     once.
-*   **Return to library:** Actions › Return to library (selected, or the folder shown) and
-    **Return to library…** in the Inspector of a photo in Rejects.
+*   **Return to library:** only in the Rejects view, where Actions offers **Return selected
+    to library (n)** in place of Reject, and **Return to library…** in the Inspector of a
+    photo in Rejects.
 
 **Not built yet:** a photo only similar to a reject goes to Needs review (§7.9), shown
 beside the reject, and is never rejected automatically; Reject from the Similar photos

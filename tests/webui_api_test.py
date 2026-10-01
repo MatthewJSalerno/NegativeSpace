@@ -533,6 +533,14 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual((status["rejected_with_source"], status["eligible"]["move"]), (2, 2),
                          "a Move's count leaves out rejected photos whose sources it would remove")
 
+        chosen = self.client.post("/api/v1/photos/selection",
+                                  json={"ids": [p["id"] for p in listed], "page_size": 1}).json()
+        self.assertEqual(chosen["actions"], {"reject": len(listed) - 2, "return": 2},
+                         "Actions would offer Reject or Return for photos it cannot take")
+        searched = self.client.get("/api/v1/photos", params={"view": "rejects", "q": "IMG_0002"}).json()
+        self.assertEqual((searched["matches"]["rejects"], searched["matches"]["all"], searched["matches"]["undated"]),
+                         (1, 0, 1), "the view buttons' counts do not follow the search")
+
         again = self.wait_for(self.start(mode="copy"))
         self.assertEqual(again["outcome"]["skip_reasons"], {"already_rejected": 1},
                          "the Copy did not say the duplicate was already rejected")
@@ -743,7 +751,7 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual([f["path"] for f in tree["folders"]],
                          ["Album", "album", "Camera/Nikon", "My_Photos", "MyXPhotos", "Phone"], "by name, any case")
         self.assertEqual(rows["Camera/Nikon"]["name"], "Camera / Nikon", "a chain of single folders is one row")
-        self.assertEqual((rows["Phone"]["photos"], rows["Phone"]["eligible"]), (3, {"copy": 3, "move": 3, "reject": 0, "return": 0}))
+        self.assertEqual((rows["Phone"]["photos"], rows["Phone"]["eligible"]), (3, {"copy": 3, "move": 3}))
         self.assertEqual([(f["path"], f["photos"]) for f in rows["Phone"]["folders"]], [("Phone/2019", 2), ("Phone/2021", 1)])
         self.assertEqual((tree["top_files"]["photos"], tree["outside"]), (1, 0))
 
@@ -771,8 +779,8 @@ class JobsAndCatalog(ApiCase):
         # A folder's Move takes that folder only, however many photos it holds.
         self.wait_for(self.start(mode="move", source_subdir="Phone"))
         after = {f["path"]: f for f in self.client.get("/api/v1/photos/folders").json()["folders"]}
-        self.assertEqual(after["Phone"]["eligible"], {"copy": 0, "move": 0, "reject": 3, "return": 0})
-        self.assertEqual(after["My_Photos"]["eligible"], {"copy": 1, "move": 1, "reject": 0, "return": 0})
+        self.assertEqual(after["Phone"]["eligible"], {"copy": 0, "move": 0})
+        self.assertEqual(after["My_Photos"]["eligible"], {"copy": 1, "move": 1})
         statuses = {i["filename"]: i["status"] for i in self.client.get("/api/v1/photos", params={"page_size": 60}).json()["items"]}
         self.assertEqual({n for n, st in statuses.items() if st == "Completed"}, {"a.jpg", "b.jpg", "c.jpg"})
 
@@ -860,14 +868,14 @@ class JobsAndCatalog(ApiCase):
                         tree = response.json()
                         self.assertEqual(tree["outside"], 0)
                         self.assertEqual(tree["top_files"],
-                                         {"photos": 0, "eligible": {"copy": 0, "move": 0, "reject": 0, "return": 0}})
+                                         {"photos": 0, "eligible": {"copy": 0, "move": 0}})
                         folders = list(tree["folders"])
                         if "/" in relative:
                             self.assertTrue(folders, "the selected empty folder must remain listed")
                         while folders:
                             folder = folders.pop()
                             self.assertEqual(folder["photos"], 0)
-                            self.assertEqual(folder["eligible"], {"copy": 0, "move": 0, "reject": 0, "return": 0})
+                            self.assertEqual(folder["eligible"], {"copy": 0, "move": 0})
                             folders.extend(folder["folders"])
 
     def test_select_all_over_the_limit_is_refused_whole_not_cut_short(self):

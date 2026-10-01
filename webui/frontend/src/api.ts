@@ -50,8 +50,9 @@ export interface PhotoPage {
   // The whole library per view (and No capture date within this view), for the buttons.
   counts: Record<View | "undated", number>;
   similarity: { threshold: number; pending: number; unavailable: number } | null;
-  // Each view under every filter now on, for suggesting another view.
-  matches: Record<View, number>;
+  // Each view under every filter now on, for the view buttons and for suggesting another
+  // view; `undated` is No capture date within this view under the other filters.
+  matches: Record<View | "undated", number>;
   // What Rejects holds now, with the Rejects view.
   rejects?: { photos: number; bytes: number; oldest_rejected_at: string | null } | null;
 }
@@ -84,12 +85,12 @@ export interface FolderNode {
   path: string;
   name: string;
   photos: number;
-  eligible: Record<ActionMode, number>;
+  eligible: { copy: number; move: number };
   folders: FolderNode[];
 }
 export interface FolderTree {
   folders: FolderNode[];
-  top_files: { photos: number; eligible: Record<ActionMode, number> };
+  top_files: { photos: number; eligible: { copy: number; move: number } };
   outside: number;
 }
 
@@ -112,6 +113,9 @@ export interface SelectionPage {
   page_size: number;
   total: number;
   missing: number[];
+  // Among the selected photos: in the library (Reject takes them) and in Rejects
+  // (Return to library takes them).
+  actions?: { reject: number; return: number };
 }
 
 export interface Timeline {

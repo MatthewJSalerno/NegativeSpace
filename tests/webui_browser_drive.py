@@ -180,7 +180,7 @@ with sync_playwright() as p:
     expect(page.locator(".selection-line")).to_contain_text(f"{OLDER} photos selected")
     page.locator(".selection-line").get_by_role("button", name="Clear").click()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
-    expect(page.locator(".views")).to_contain_text(f"All photos ({PHOTOS})")   # the whole library, not what is shown
+    expect(page.locator(".views")).to_contain_text(f"All photos ({OLDER})")   # what the filters find, as shown
     expect(dates.get_by_role("button", name="2023", exact=True)).to_be_visible()   # counts ignore the filter
     page.reload()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
@@ -629,8 +629,8 @@ with sync_playwright() as p:
     undated_filter.click()
     expect(page).to_have_url(re.compile(r"undated=1"))
     expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS - 2:,} photos")
-    # The views keep their real counts, and the buttons their widths.
-    expect(views).to_contain_text(f"All photos ({PHOTOS:,})")
+    # The views count what the filter finds, and the buttons keep their widths.
+    expect(views).to_contain_text(f"All photos ({PHOTOS - 2:,})")
     after = views.locator("button").evaluate_all("bs => bs.map(b => Math.round(b.getBoundingClientRect().width))")
     assert after == widths, f"the view buttons changed width: {widths} -> {after}"
     undated_filter.click()

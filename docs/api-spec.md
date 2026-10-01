@@ -154,12 +154,12 @@ any file the listing lacks.
 whose latest delivery was a Move that could not delete the original, why (a run's
 `kept_reasons`); otherwise `null`.
 
-`counts` are the view buttons: each view's whole library, whatever the search, `date`,
-`type`, `folder` and `undated` narrow the gallery to, so All photos is always every photo.
-`counts.undated` is how many photos in this view have no capture date, for the No capture
-date label. `total` is what this request shows, every filter applied. `matches` counts
-each view with every filter applied, for offering another view when a search finds
-nothing in this one. The date sorts put undatable rows last.
+`counts` are each view's whole library, whatever the search, `date`, `type`, `folder` and
+`undated` narrow the gallery to; `counts.undated` is how many photos in this view have no
+capture date. `total` is what this request shows, every filter applied. `matches` counts
+each view with every filter applied, and `matches.undated` this view's photos with no
+capture date under the other filters: the view buttons show these (`webui-spec.md` §2),
+and they offer another view when a search finds nothing in this one. The date sorts put undatable rows last.
 
 For `view=similar`, each item includes `similar_count`, and the response includes
 `similarity: {threshold, pending, unavailable}`. The coverage counts describe all
@@ -249,10 +249,13 @@ IDs return 400. The server computes rank without returning preceding pages.
 The selected photos, whatever view, search or dates would hide them (Show only selected):
 
     {"ids": [3, 7, 99999], "sort": "newest", "page": 1, "page_size": 60}
-    ->  {"items": [...as GET /photos...], "page": 1, "page_size": 60, "total": 2, "missing": [99999]}
+    ->  {"items": [...as GET /photos...], "page": 1, "page_size": 60, "total": 2, "missing": [99999],
+         "actions": {"reject": 2, "return": 0}}
 
 It reads; it is a POST because 1,000 ids is too long for a URL. `missing` names ids no
-longer in the catalog, so a selection is never silently shortened. More than 1,000 ids
+longer in the catalog, so a selection is never silently shortened. `actions` counts what
+Reject (photos in the library) and Return to library (photos in Rejects) would take of
+the whole selection, for the Actions menu. More than 1,000 ids
 is `400 invalid_request`.
 `sort=matches` with optional integer `match_min` (default 75) orders an explicit
 selection by library-wide counts without filtering out selected files. This also

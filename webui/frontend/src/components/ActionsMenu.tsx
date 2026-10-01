@@ -16,8 +16,11 @@ export interface ActionState {
   // The Folders tree's one folder shown, with what a Copy or Move of it would take;
   // `folders` is how many are ticked, to say why "this folder" waits for exactly one.
   // Absent on pages without the tree.
-  folder?: { name: string; eligible: Record<ActionMode, number> } | null;
+  folder?: { name: string; eligible: Record<Mode, number> } | null;
   folders?: number;
+  // On the Library page: what Reject and Return to library would take of the selection,
+  // and whether the Rejects view is shown (Return there, Reject everywhere else).
+  rejects?: { reject: number; return: number; inRejectsView: boolean } | null;
 }
 
 // The Actions menu (webui-spec 4): Index, and Copy and Move each for the photos
@@ -42,13 +45,11 @@ export function ActionsMenu({ state, onIndex, onTransfer }: {
       ? (mode === "copy" ? "Nothing to copy - every photo is copied or organized." : "Nothing to move - every photo is organized.")
       : null);
 
-  const nothingThere: Record<ActionMode, string> = {
+  const nothingThere: Record<Mode, string> = {
     copy: "Nothing to copy there - every photo in it is copied or organized.",
     move: "Nothing to move there - every photo in it is organized.",
-    reject: "Nothing to reject there - no photo from it is in the library.",
-    return: "Nothing to return there - no photo from it is in Rejects.",
   };
-  const folderWhy = (mode: ActionMode) => busy ?? empty
+  const folderWhy = (mode: Mode) => busy ?? empty
     ?? (state.folder == null
       ? ((state.folders ?? 0) > 1 ? "Show one folder to act on it." : "Show a folder in the Folders tree to act on it.")
       : state.folder.eligible[mode] === 0 ? nothingThere[mode] : null);
@@ -58,8 +59,8 @@ export function ActionsMenu({ state, onIndex, onTransfer }: {
       ? `Every photo not yet moved, including ${count(state.copied)} already copied: each source is deleted once its copy is verified again.`
       : "Every photo not yet organized. Each source is deleted only after its copy is verified.";
 
-  const verb = (mode: ActionMode) => ({ copy: "Copy", move: "Move", reject: "Reject", return: "Return" })[mode];
-  const folderItem = (mode: ActionMode, hint: string) => state.folders === undefined ? [] : [{
+  const verb = (mode: Mode) => (mode === "copy" ? "Copy" : "Move");
+  const folderItem = (mode: Mode, hint: string) => state.folders === undefined ? [] : [{
     label: state.folder ? `${verb(mode)} this folder: ${state.folder.name} (${count(state.folder.eligible[mode])})` : `${verb(mode)} this folder`,
     hint, why: folderWhy(mode), onClick: () => onTransfer(mode, "folder"),
   }];
@@ -75,16 +76,20 @@ export function ActionsMenu({ state, onIndex, onTransfer }: {
           onClick: () => onTransfer(mode, "all") },
       ],
     })),
-    { label: "Reject", children: [
-      { label: `Reject selected (${count(state.selected)})`, why: selectedWhy, onClick: () => onTransfer("reject", "selected"),
-        hint: "Move the selected photos out of the library into Rejects. Nothing is deleted." },
-      ...folderItem("reject", "Every photo from it and its subfolders that is in the library, however many."),
-    ] },
-    { label: "Return to library", children: [
-      { label: `Return selected (${count(state.selected)})`, why: selectedWhy, onClick: () => onTransfer("return", "selected"),
-        hint: "Move the selected photos from Rejects back to their date folders." },
-      ...folderItem("return", "Every photo from it and its subfolders that is in Rejects."),
-    ] },
+    // Reject takes photos in the library, so it waits for a Copy or Move; Return to
+    // library takes photos in Rejects and is offered only in the Rejects view.
+    ...(!state.rejects ? [] : state.rejects.inRejectsView ? [{
+      label: `Return selected to library (${count(state.rejects.return)})`,
+      hint: "Move the selected photos from Rejects back to their date folders.",
+      why: selectedWhy ?? (state.rejects.return === 0 ? "None of the selected photos is in Rejects." : null),
+      onClick: () => onTransfer("return", "selected"),
+    }] : [{
+      label: `Reject selected (${count(state.rejects.reject)})`,
+      hint: "Move the selected photos out of the library into Rejects. Nothing is deleted.",
+      why: selectedWhy ?? (state.rejects.reject === 0
+        ? "None of the selected photos is in the library yet. Reject works on photos already copied or moved." : null),
+      onClick: () => onTransfer("reject", "selected"),
+    }]),
   ];
   return <MenuButton label="Actions" items={items} />;
 }

@@ -302,6 +302,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     setFocus(null); setPendingJump(null); setNoticeState(null); setActionError(null);
   });
   const [refreshKey, setRefreshKey] = useState(0);
+  // What Reject and Return to library would take of the selection, for Actions.
+  const [selectionActions, setSelectionActions] = useState({ reject: 0, return: 0 });
   const [dismissedId, dismissRun] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
   const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
@@ -397,6 +399,14 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     return () => { live = false; };
   }, [view, galleryMinimum, grouped, q, undated, dates, types, folders, refreshKey]);
   // The Types section's counts follow the view, search, dates and folders, never its own filter.
+  useEffect(() => {
+    let live = true;
+    const ids = [...selected];
+    if (ids.length === 0 || ids.length > MAX_SELECTION) setSelectionActions({ reject: 0, return: 0 });
+    else api.selection(ids, "newest", 1, 1, galleryMinimum)
+      .then((s) => live && setSelectionActions(s.actions ?? { reject: 0, return: 0 }), () => live && setSelectionActions({ reject: 0, return: 0 }));
+    return () => { live = false; };
+  }, [selected, galleryMinimum, refreshKey]);
   useEffect(() => {
     let live = true;
     api.types({ view, match_min: galleryMinimum, q, undated, dates, folders }).then((t) => live && setTypeCounts(t.types), () => live && setTypeCounts(null));
@@ -783,7 +793,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               state={{ jobRunning, noPhotos, selected: selected.size, tooMany, maxSelection: MAX_SELECTION,
                        eligible: status.eligible, copied: status.copied,
                        folder: folderShown ? { name: folderLabel(folderShown.path), eligible: folderShown.eligible } : null,
-                       folders: folders.length }}
+                       folders: folders.length,
+                       rejects: { ...selectionActions, inRejectsView: view === "rejects" && !focus } }}
               onIndex={start("index")}
               onTransfer={(mode, scope) => (scope === "selected" ? transferSelected(mode)
                                            : scope === "folder" ? askFolder(mode) : askTransfer(mode))} />
@@ -814,13 +825,13 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
               <button key={v} aria-pressed={v === view} className={v === view && !(v === "all" && narrowed) ? "active" : ""} disabled={!!focus}
                       onClick={() => chooseView(v)}>
-                <span title={v === "similar" ? `Destination photos with at least one visual match at ${galleryMinimum}% or higher` : undefined}>{VIEW_LABEL[v]}</span> <span className="view-count">{data ? `(${count(data.counts[v])})` : ""}</span>
+                <span title={v === "similar" ? `Destination photos with at least one visual match at ${galleryMinimum}% or higher` : undefined}>{VIEW_LABEL[v]}</span> <span className="view-count">{data ? `(${count(data.matches[v])})` : ""}</span>
               </button>
             ))}
             <Tip text="Photos whose EXIF has no date taken. They are filed under Undated, by their file's modification date.">
               <button className={`filter ${undated ? "active" : ""}`} aria-pressed={undated} disabled={!!focus}
                       onClick={() => { setUndated(!undated); setPage(1); }}>
-                <span>No capture date</span> <span className="view-count">{data ? `(${count(data.counts.undated)})` : ""}</span>
+                <span>No capture date</span> <span className="view-count">{data ? `(${count(data.matches.undated)})` : ""}</span>
               </button>
             </Tip>
           </nav>

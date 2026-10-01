@@ -422,6 +422,11 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             matches[name] = (conn.execute(base + scope_filter, scope_params).fetchone()[0]
                              if scope_filter else counts[name])
         total = matches[view]
+        # No capture date under every other filter, for its button, as the views are counted.
+        no_date, no_date_params = _filters(q, True, dates, types, folders, root, match_min=match_min, set_reference=set_reference)
+        matches["undated"] = conn.execute(
+            f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}" + no_date,
+            no_date_params).fetchone()[0]
         # How many photos in this view have no capture date, whatever else is on, for its label.
         counts["undated"] = conn.execute(
             f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)} AND {_UNDATED}"
@@ -499,8 +504,14 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, ma
                             f"ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?",
                             (json.dumps(wanted), page_size, (page - 1) * page_size)).fetchall()
         items = _items(conn, rows)
+        # What Reject and Return to library would act on among them, for Actions: photos
+        # in the library, and photos in Rejects (engine-spec 9.5).
+        reject, back = conn.execute(
+            f"SELECT COALESCE(SUM(p.status IN ({ns_db.sql_values(DELIVERED)})), 0), "
+            f"COALESCE(SUM(p.status IN ({ns_db.sql_values(IN_REJECTS_STATUSES)})), 0) {join}",
+            (json.dumps(wanted),)).fetchone()
     return {"items": items, "page": page, "page_size": page_size, "total": len(found),
-            "missing": [i for i in wanted if i not in found]}
+            "missing": [i for i in wanted if i not in found], "actions": {"reject": reject, "return": back}}
 
 
 def timeline(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,
@@ -540,8 +551,8 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
     source paths, never a disk listing, so every folder offered holds photos a job can
     act on. Each folder counts its photos recursively under the view, search, dates and
     types (the folder filter itself does not apply, so an unticked folder keeps its
-    number), and, whatever the filters, the photos a Copy, Move, Reject or Return to
-    library of it would take (ns_db.TRANSFER_ELIGIBLE for the first two), for Actions. A chain of folders each holding only one
+    number), and, whatever the filters, the photos a Copy or a Move of it would take
+    (ns_db.TRANSFER_ELIGIBLE), for Actions. A chain of folders each holding only one
     folder and no photos is one row ("Camera / Nikon D750"). A folder in `keep` stays
     listed at 0, so a ticked folder can be unticked. Photos outside the source folder
     (a catalog shared with another source) are counted in `outside`, not placed."""
@@ -552,10 +563,7 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
     # destination path yet), and NULL is not a count. An unclassified photo's NULL
     # status also makes eligibility NULL: it is neither shown nor transferable yet.
     shown = f"COALESCE(({_view_clause(view, match_min)}{filtered}), 0)"
-    # What each job of the folder would act on: Copy and Move as the engine selects them,
-    # Reject its organized photos, Return to library its photos in Rejects.
-    acts = {"copy": ns_db.TRANSFER_ELIGIBLE["copy"], "move": ns_db.TRANSFER_ELIGIBLE["move"],
-            "reject": DELIVERED, "return": IN_REJECTS_STATUSES}
+    acts = {"copy": ns_db.TRANSFER_ELIGIBLE["copy"], "move": ns_db.TRANSFER_ELIGIBLE["move"]}
     eligible_sql = ", ".join(f"COALESCE(p.status IN ({ns_db.sql_values(v)}), 0)" for v in acts.values())
     tree = {"all": 0, "photos": 0, **{k: 0 for k in acts}, "sub": {}}
     top = {"photos": 0, **{k: 0 for k in acts}}

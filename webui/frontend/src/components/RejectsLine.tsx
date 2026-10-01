@@ -20,11 +20,8 @@ export function RejectsLine({ rejects }: { rejects: NonNullable<PhotoPage["rejec
         </button>
       </p>
       <p id={help} className="muted" hidden={!open}>
-        Rejects is the folder named rejects in your destination, beside the library folder. NegativeSpace
-        never deletes photos: look through them here, use Return to library for any you want to keep, then delete
-        the files in that folder yourself, in your file manager or on the server. They leave this view as soon as
-        they are gone, and the catalog keeps their fingerprints, so an identical file found later stays out of the
-        library.
+        Delete the files in the rejects folder of your destination, in your file manager. NegativeSpace never
+        deletes photos itself; they leave this view as soon as they are gone.
       </p>
     </div>
   );
