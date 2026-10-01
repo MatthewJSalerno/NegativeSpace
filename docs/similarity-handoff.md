@@ -7,6 +7,19 @@ Historical checkpoints are retained in [the validation record](similarity-valida
 The design contract is [ui-design.md](ui-design.md); reproducible checks are in
 [tests/README.md](../tests/README.md).
 
+## Performance follow-up branch
+
+`perf/large-library-validation` now contains a synthetic catalog query harness,
+separate from the merged similarity feature. It creates prepared relationships
+without original photos and measures application queries against the same reusable
+fixture. See [the performance plan](large-library-performance.md) for profiles,
+limitations and outstanding coverage, and [commands](../tests/README.md#synthetic-catalog-query-benchmark).
+The initial 250k sparse baseline completed all eight workloads; Inspector and
+related-set composite queries are the next profiling targets. See the performance
+plan for measurements and the distinction between composite and endpoint timings.
+No product query, schema or UI changes are part of this harness. Real processing
+and representative full-library capacity remain unverified.
+
 ## Current behavior
 
 - Workflow: Index → Copy/Move → review destination photos. pHashes come from

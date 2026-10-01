@@ -57,6 +57,12 @@ migration/history work for that sample is out of scope.
   compact match badges, shared active filter styling and supplemental filter help.
   Similar-gallery clicks open the matching tab; manual tab choices persist for
   previous/next and reload.
+- [x] Add an isolated synthetic SQLite query runner with sparse, equal-hash, bounded
+  distinct-hash dense and mixed-eligibility fixtures; repeated timings, worker
+  deadlines and reusable fingerprinted inputs. A 250k sparse baseline completed
+  all eight workloads with 30 warm samples each; Inspector counts + candidates
+  (5.71 s p95) and related discovery + expansion (4.58 s p95) need profiling.
+  Dense/overlap-rich large datasets remain unmeasured. See [benchmark commands](tests/README.md#synthetic-catalog-query-benchmark).
 - [ ] Follow the separate [large-library measurement plan](docs/large-library-performance.md)
   on `perf/large-library-validation`. Validate representative 200,000+ photo workloads with headroom: initial and
   incremental comparisons, stored-pair growth, memory, gallery/Inspector response
