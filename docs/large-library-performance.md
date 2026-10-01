@@ -103,6 +103,20 @@ performance.
 
 ## First SQLite A/B results
 
+Implemented in `2f4fa62`, compared with the application queries at `a3d31d1`.
+**These gains came from rewriting queries, with no indexes added, rebuilt or
+changed.** Existing indexes were retained; the new reference lookup uses the
+existing photo primary key instead of ranking the catalog first. No additional
+cache, preparation step or database synchronization was introduced.
+
+At 250k photos, measured warm p95 improved approximately **4.1× for Inspector
+counts plus candidates, 10.2× for related-set discovery plus expansion, and 3.4×
+for the set member gallery**. At 500k, short-trial medians improved 4.2×/10.8×
+for sparse Inspector/related workloads and 4.1×/9.5× for bounded dense workloads.
+These ratios compare the reported latency statistics, not total application
+throughput. The first two workloads combine multiple helper calls; they do not
+measure complete browser interactions.
+
 All eight 250k sparse scenarios passed automatic response-fingerprint comparison
 against the saved baseline, with 30 measured warm requests per scenario. The same
 fixture, image dependencies and 2 GiB memory limit were used; code was labelled
@@ -110,14 +124,14 @@ fixture, image dependencies and 2 GiB memory limit were used; code was labelled
 
 | 250k workload | Baseline warm p95 | Candidate warm p95 |
 | --- | --- | --- |
-| gallery | 0.289 s | 0.296 s |
-| grouped | 2.126 s | 2.156 s |
-| last_page | 0.922 s | 0.903 s |
-| filtered | 2.278 s | 2.244 s |
-| inspector | 5.707 s | 1.392 s |
-| related | 4.583 s | 0.449 s |
-| members | 2.012 s | 0.593 s |
-| position | 1.531 s | 0.970 s |
+| Ungrouped similar gallery | 0.289 s | 0.296 s |
+| Grouped similar gallery | 2.126 s | 2.156 s |
+| Discover total + last page | 0.922 s | 0.903 s |
+| Grouped format/date filter | 2.278 s | 2.244 s |
+| Inspector counts + candidates | 5.707 s | 1.392 s |
+| Related-set discovery + expansion | 4.583 s | 0.449 s |
+| Set member gallery | 2.012 s | 0.593 s |
+| Grouped photo position | 1.531 s | 0.970 s |
 
 Inspector, related sets and the member gallery improved substantially. Other
 workloads were not changed; their differences are run-to-run observations, not
@@ -147,6 +161,10 @@ hash casing, saved judgments, thresholds, overlap expansion and exact mode remai
 covered. The SQL profiler confirmed primary-key reference lookup in place of
 catalog-wide window ranking. SQLite improvements are sufficient to defer a DuckDB
 experiment for these workloads; no second database or synchronization path was added.
+This does not establish SQLite's total preparation-plus-query cost relative to
+DuckDB. No DuckDB trial or isolated database-index build-cost comparison has been
+performed; that would require measuring both systems' loading, maintenance and
+query work on equivalent inputs.
 
 ## Current query-performance workstream
 
