@@ -32,6 +32,17 @@ class PhotoStatus:
                                               # destination; recorded from observation, no action taken
 
 
+# The destination's layout (engine-spec 9.9): organized photos live in `library/` under
+# --dest (dated folders and Undated/<year> alike), so folders beside it, such as Rejects
+# (engine-spec 9.5), never reach a gallery application pointed at dest/library.
+LIBRARY_FOLDER = "library"
+
+
+def library_root(dest_root) -> Path:
+    """Where organized photos live under a destination."""
+    return Path(dest_root) / LIBRARY_FOLDER
+
+
 # Statuses whose source file is legitimately gone: consumed by a --move, or found gone
 # with its content already on the destination. A path is unique only among rows NOT in
 # these (idx_photos_live_source), and targeted re-runs skip them: the source is supposed

@@ -474,7 +474,7 @@ def copy_is_non_destructive_and_idempotent():
         run_engine(case)
         run_engine(case, "--copy")
         out = dest_files(case)
-        check(out == ["2024/02/14/photo.jpg"],
+        check(out == ["library/2024/02/14/photo.jpg"],
               f"cycle {cycle}: expected exactly one copy, got {out}")
         check(src_files(case) == ["photo.jpg"],
               f"cycle {cycle}: --copy must never touch the source")
@@ -905,7 +905,7 @@ def a_photo_with_no_exif_date_lands_under_undated():
     run_engine(case, "--move")
 
     landed = dest_files(case)
-    check(landed == [f"Undated/{_UNDATED_YEAR}/nodate.jpg"],
+    check(landed == [f"library/Undated/{_UNDATED_YEAR}/nodate.jpg"],
           f"expected the undated photo under Undated/{_UNDATED_YEAR}/, destination holds {landed}")
 
 
@@ -994,7 +994,7 @@ def a_dated_photo_still_lands_in_the_date_tree():
     run_engine(case, "--move")
 
     landed = dest_files(case)
-    check(landed == ["2024/02/14/dated.jpg"],
+    check(landed == ["library/2024/02/14/dated.jpg"],
           f"a dated photo must ignore its mtime and use its EXIF date; destination holds {landed}")
 
 
@@ -1426,7 +1426,7 @@ def destination_follows_the_current_dest():
     run_engine(case)
     run_engine(case, "--copy", "--dest", case / "dest2")
     check(dest_files(case) == [], f"the copy wrote into the Index-time destination: {dest_files(case)}")
-    check((case / "dest2" / "2024" / "02" / "14" / "a.jpg").is_file(),
+    check((case / "dest2" / "library" / "2024" / "02" / "14" / "a.jpg").is_file(),
           "the copy did not land in the destination given to this run")
 
 
@@ -1442,7 +1442,7 @@ def copy_then_move_completes_the_move():
     check(src_files(case) == [], f"the move left the source behind after a copy: {src_files(case)}")
     check(status_of(case, "a.jpg") == "Completed",
           f"expected Completed, got {status_of(case, 'a.jpg')}")
-    check(dest_files(case) == ["2024/02/14/a.jpg"],
+    check(dest_files(case) == ["library/2024/02/14/a.jpg"],
           f"expected the one existing copy, not a second: {dest_files(case)}")
 
 
@@ -4308,7 +4308,7 @@ def a_destination_check_reports_what_is_not_intact_and_changes_nothing():
 
     dest = {p.name: p for p in (case / "dest").rglob("*.jpg")}
     a_name = next(n for n in dest if n.startswith("a"))   # whichever copy the engine kept
-    other = case / "dest" / "from-elsewhere"
+    other = case / "dest" / "library" / "from-elsewhere"
     other.mkdir()
     shutil.copy2(dest[a_name], other / "a_again.jpg")
     dest["b.jpg"].unlink()

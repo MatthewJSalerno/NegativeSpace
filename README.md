@@ -79,8 +79,8 @@ NegativeSpace has three mutually exclusive modes. `--move` and `--copy` cannot b
 | Mode | Flag | Source files | Destination |
 | --- | --- | --- | --- |
 | **Index** (default) | *(none)* | Untouched | Nothing written |
-| **Move** | `--move` | Deleted after a verified copy lands at destination; confirmed exact duplicates are also removed from source | Files organized into `YYYY/MM/DD`, or `Undated/<year>/` when the engine cannot date them |
-| **Copy** | `--copy` | Never touched — fully non-destructive | Files organized into `YYYY/MM/DD`, or `Undated/<year>/` when the engine cannot date them |
+| **Move** | `--move` | Deleted after a verified copy lands at destination; confirmed exact duplicates are also removed from source | Files organized under `library/` into `YYYY/MM/DD`, or `Undated/<year>/` when the engine cannot date them |
+| **Copy** | `--copy` | Never touched — fully non-destructive | Files organized under `library/` into `YYYY/MM/DD`, or `Undated/<year>/` when the engine cannot date them |
 
 The Destination column describes `/data/dest` only. Every mode begins with a scan, and the scan generates thumbnails into `/cache` (see Volume Layout) unless `--no-thumbnails` is passed — so "nothing written" above means nothing written *to the destination tree*, not that Index writes nothing at all.
 
@@ -159,7 +159,7 @@ docker run --rm --stop-timeout 300 \
   `Undated/` is also where you go to fix them: the folder *is* the review list, and the catalog records each photo's original path and filename, which is frequently where the real date turns out to be.
 - **Volume Layout:**
   - `/data/source`: Raw input directory containing photos.
-  - `/data/dest`: Structured target directory organized by `YYYY/MM/DD`, with photos the engine could not date filed under `Undated/<year>/` instead.
+  - `/data/dest`: Structured target directory. Organized photos live in `library/`, by `YYYY/MM/DD`, with photos the engine could not date filed under `library/Undated/<year>/` instead. **Point a gallery application such as Immich at `dest/library`, not `dest`**: folders beside it, such as photos you turn down, are not meant for the gallery.
   - `/appdata`: Dedicated application directory storing persistent data inside `/appdata/db` and log files inside `/appdata/logs`.
   - `/cache` *(optional)*: Thumbnail cache. **The scan phase writes here** unless `--no-thumbnails` is passed. Every mode begins with a scan, so a `--move` or `--copy` run generates thumbnails too; what never touches the cache is the transfer phase itself — copying, verifying and deleting ignore it entirely. It is kept separate from `/appdata` on purpose: everything in `/appdata` is irreplaceable and should be backed up, whereas every file here is reproducible from the photo it was generated from. Deleting it costs only the time to regenerate, and it should be **excluded** from backups rather than included. The engine removes a thumbnail itself once no catalogued photo holds its content any more, as after a photo is edited outside the app and re-indexed. Mount it to keep thumbnails when the container is replaced; leave it unmounted and they live in the container's writable layer instead.
 

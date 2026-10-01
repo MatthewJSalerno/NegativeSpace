@@ -420,9 +420,16 @@ with sync_playwright() as p:
     # Esc in a workspace returns to the gallery, as Back to gallery does.
     page.keyboard.press('Escape')
     expect(dialog).to_be_hidden()
-    # Focus returns to the control that opened the comparison, so the keyboard carries on
-    # from where the user was (Immich once lost keyboard scrolling after its viewer).
-    expect(page.locator(':focus')).to_have_attribute('aria-label', re.compile('^Review side by side:'))
+    # Focus returns to a real control, so the keyboard carries on (Immich once lost
+    # keyboard scrolling after its viewer): the opener while it still exists, otherwise the
+    # shared fallback, since the match list may reload as the comparison closes
+    # (ui-design.md: "restores the opener on close (or a logical surviving control)").
+    page.wait_for_function("""() => {
+        const el = document.activeElement;
+        return el && el !== document.body && (
+            (el.getAttribute('aria-label') || '').startsWith('Review side by side:')
+            || el.matches('[data-focus-home], .actions-menu > button'));
+    }""")
     # Threshold changes are local to the Inspector; a failed request has a retry.
     page.route('**/api/v1/similar/*?*', lambda route: route.fulfill(status=503, content_type='application/json', body='{}'))
     summary.get_by_role('button', name=re.compile('^100% or higher:')).click()
