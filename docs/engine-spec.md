@@ -39,7 +39,7 @@ if more than one is given. Full detail in §4.1.
 | Mode | Flag | Source files | Destination |
 | :--- | :--- | :--- | :--- |
 | **Index** (default) | *(none)* | Untouched | Nothing written |
-| **Move** | `--move` | Deleted after a verified copy lands; confirmed exact duplicates also removed | Files organized into `YYYY/MM/DD`, or `Undated/<year>/` when undatable |
+| **Move** | `--move` | Deleted after a verified copy lands; confirmed exact duplicates also removed | Files organized under `library/` (§9.9) into `YYYY/MM/DD`, or `Undated/<year>/` when undatable |
 | **Copy** | `--copy` | Never touched — fully non-destructive | Same as Move |
 
 A photo with no usable EXIF date is filed under `Undated/<year>/` rather than
@@ -1271,8 +1271,9 @@ identity.
 
 ### 9.9. Destination layout
 
-**Planned, not implemented** (decided 2026-10-01). The destination today holds the date
-tree directly (`dest/YYYY/MM/DD/…`, `dest/Undated/<year>/…`). It becomes:
+Move and Copy place photos under `library/` (`ns_db.library_root`); `rejects/` arrives
+with Rejects (§9.5) and `raw-originals/` with RAW editing (§9.6). Check destination walks
+`library/` only, so the folders beside it are never reported as foreign files.
 
 ```
 dest/
@@ -1289,9 +1290,9 @@ dest/
     backups), and a reject is an atomic rename.
 *   **Source, backups and application data stay separate**: originals never mix with
     output, and backups stay off the catalog's disk.
-*   **Existing destinations change shape** (`dest/YYYY/…` to `dest/library/YYYY/…`). While
-    development catalogs are disposable that needs nothing; before a release it needs a
-    one-time move recorded in each file's lineage.
+*   **A destination laid out without `library/`** (`dest/YYYY/…`) is not moved: while
+    development catalogs are disposable, make a new catalog and Copy again. Before a
+    release this needs a one-time move recorded in each file's lineage.
 
 ## 10. Full Lineage and File Identity
 

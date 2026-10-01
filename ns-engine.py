@@ -2661,12 +2661,12 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int,
         # and _destination_for() must agree about Undated/ — otherwise the
         # catalog advertises a folder the file never occupies.
         if metadata.get("date_source") == DATE_SOURCE_MTIME:
-            target_folder = Path(dest_base_path) / UNDATED_FOLDER / dt.strftime("%Y")
+            target_folder = ns_db.library_root(dest_base_path) / UNDATED_FOLDER / dt.strftime("%Y")
         else:
             year_dir = dt.strftime("%Y")
             month_dir = dt.strftime("%m")
             day_dir = dt.strftime("%d")
-            target_folder = Path(dest_base_path) / year_dir / month_dir / day_dir
+            target_folder = ns_db.library_root(dest_base_path) / year_dir / month_dir / day_dir
 
         # This destination is a PROJECTION, not a reservation, and
         # has_name_collision stays False here by design. The authoritative
@@ -3500,8 +3500,11 @@ def check_destination(db_path: Path, dest_root: Path, run_id: int, depth: str, w
         run_progress.set_count("excluded", excluded)
         run_progress.maybe_write_now()
     walk_errors: List[tuple] = []
-    walked = discover_source_files(dest_root, extensions, errors=walk_errors, excluded={},
-                                   on_directory=discovered) if dest_root.is_dir() else []
+    # Only the library is walked: folders beside it (Rejects, RAW originals) hold files the
+    # engine put there on purpose and are not "files NegativeSpace did not put there".
+    library = ns_db.library_root(dest_root)
+    walked = discover_source_files(library, extensions, errors=walk_errors, excluded={},
+                                   on_directory=discovered) if library.is_dir() else []
     run_progress.write_now()
     work = [(path, exp) for path, exp in expected.items()]
     work += [(path, None) for path in walked if path not in expected]
@@ -4878,11 +4881,11 @@ def _destination_for(dest_root: Path, source_path: str, metadata_json: Optional[
     # stay in step with the projection the scan writes, or the catalog names a
     # folder the file never occupies and the staging screen, which projects
     # from the catalog, shows the wrong destination for every undated photo.
+    library = ns_db.library_root(dest_root)
     if metadata.get("date_source") == DATE_SOURCE_MTIME:
-        return str(Path(dest_root) / UNDATED_FOLDER / taken.strftime("%Y")
-                   / Path(source_path).name)
+        return str(library / UNDATED_FOLDER / taken.strftime("%Y") / Path(source_path).name)
 
-    return str(Path(dest_root) / taken.strftime("%Y") / taken.strftime("%m") / taken.strftime("%d")
+    return str(library / taken.strftime("%Y") / taken.strftime("%m") / taken.strftime("%d")
                / Path(source_path).name)
 
 

@@ -108,7 +108,8 @@ Three layers, balancing heavy data processing against a usable interface.
 Delivered and validated against a real library. In place today:
 
 *   Organization into `YYYY/MM/DD` from EXIF `DateTimeOriginal`, with undatable
-    photos filed under `Undated/<year>/` rather than into the date tree.
+    photos filed under `Undated/<year>/` rather than into the date tree, both inside
+    `dest/library/`, the folder gallery applications import.
 *   SHA-1 and pHash generation and storage for every supported file.
 *   Full metadata capture — camera, ISO, aperture, shutter speed, and whatever
     else the source format exposes.
@@ -233,7 +234,7 @@ Specified but not yet on screen:
 *   The Rename and Undated tabs, similarity curation actions, and metadata editing
     (`webui-spec.md` §7.5, with its decided details).
 *   Workspaces, Rejects and Needs review (`webui-spec.md` §7.7–7.9); the destination
-    layout `dest/library`, `dest/rejects`, `dest/raw-originals` (`engine-spec.md` §9.9);
+    folders `dest/rejects` and `dest/raw-originals` beside `dest/library` (`engine-spec.md` §9.9);
     selections passed in a file, lifting the 1,000-photo limit (`engine-spec.md` §4.1);
     the export-sidecar notice at Index.
 *   Videos and other non-photo formats are deliberately deferred until photo organizing
