@@ -703,11 +703,10 @@ positions and selection IDs use the same view predicate. Gallery `counts` and
 ### `GET /api/v1/similar/diagnostics`
 
 Returns `state` (as in the matching queue), `distinct_hashes` (usable visual hashes
-across all content), `stored_pairs`, `reviews` (counts by verdict across all saved
-content pairs), `query_ms`, and `last_comparison`. The latter is null if no matching
+across all content), `stored_pairs`, `query_ms`, and `last_comparison`. The latter is null if no matching
 progress exists, otherwise `{run_id, started_at, updated_at, elapsed_seconds}`;
 elapsed is the interval covered by the latest reported phase snapshot, not CPU time.
-Equal hashes do not need stored pairs. Review counts are not unbiased quality estimates.
+Equal hashes do not need stored pairs.
 
 ### `GET /api/v1/similar/recovery`
 
@@ -737,25 +736,14 @@ photos. Counts/progress and per-photo reasons show unsuccessful attempts; a sett
 job is not a claim that all affected photos were repaired. Nothing edits or deletes
 photo files, and interrupted filesystem mutations are not resumed by this job.
 
-### `GET /api/v1/similar/{id}/review/{other_id}`
+### `GET /api/v1/similar/{id}/pair/{other_id}`
 
-Compare any two different eligible destination photo IDs, including below-threshold pairs.
-Returns `reference` and `candidate` (matching item fields plus `sha1`), `exact`
-(same content identity), `distance` (0–64, null without usable hashes), `score`
-(hash percentage or null), and `feedback` (null or `{verdict, updated_at}`).
-Unknown, identical-ID or unavailable references return 409 `review_changed`.
-
-### `PUT /api/v1/similar/{id}/review/{other_id}`
-
-Body: `{reference_sha1, candidate_sha1, verdict}`. Verdict is `same`, `related`,
-`unrelated`, or null to clear. Returns the same shape as GET after persistence.
-Labels are keyed by an unordered pair of content identities, so swapping references,
-renaming and moving do not lose feedback. The transaction verifies submitted hashes
-against current eligible destination photos; changed content or unavailable
-destination copies return 409 `review_changed`, even if the source remains present.
-Byte-identical content returns 400 `invalid_request`; malformed bodies return 422;
-lock contention returns 503 `catalog_busy`. Feedback changes no photos or match
-results. The catalog retains only the latest judgment for each content pair.
+Two photos for side by side: any two different eligible destination photo IDs,
+including below-threshold pairs. Returns `reference` and `candidate` (matching item
+fields plus `sha1`), `exact` (same content identity), `distance` (0–64, null without
+usable hashes) and `score` (hash percentage or null). Unknown, identical-ID or
+unavailable photos return 409 `pair_changed`. It reads only; deciding between the two is
+Reject and Keep this one, reject the rest (§5).
 
 ## 8. Designed, not built
 

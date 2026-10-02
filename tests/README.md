@@ -99,15 +99,14 @@ and reference queries, seven times per threshold. Fixture creation and photo dec
 are outside the comparison timings; whole-process peak RSS includes fixture setup.
 Results describe the local temporary Docker catalog and its caches, not network
 storage performance. Hash distribution and match density also affect scale.
-Actual gallery/Inspector query timings and human judgments provide the next validation
-step on a representative destination catalog after Index and Copy or Move. An
-Index-only catalog has no reviewable destination photos. Side-by-side feedback
-never modifies photos. Synthetic benchmarks create recorded destination copies
+Actual gallery/Inspector query timings provide the next validation step on a
+representative destination catalog after Index and Copy or Move. An Index-only
+catalog has no reviewable destination photos. Synthetic benchmarks create recorded destination copies
 and assert that all requested photos are included in query measurements.
 
 `DRIVER=similar_browser_drive.py sh tests/webui_browser_test.sh` checks the empty review after Index, then Copies
 the isolated generated fixtures and checks cumulative Inspector counts, inline match
-pagination, gallery selection preservation, side-by-side review and saved judgments,
+pagination, gallery selection preservation, side-by-side review,
 reload/Back state, request failure retries, legacy bookmarks and narrow Inspector dialogs.
 It also checks independent rotation and displayed dimensions, unchanged recorded
 dimensions, reference promotion, file-format fallbacks, exact-byte differences,
@@ -432,9 +431,7 @@ Open a candidate using **Review side by side** to enter the expanded workspace:
    Scroll each table: **Field / Reference / Candidate** stays visible while its rows
    scroll, including narrow reflow. The heading background should be opaque in both
    light and dark themes.
-3. Record a pair judgment. Check Reviewed and Unreviewed, switch pages, then close
-   and reopen: the saved judgment and progress survive. Browsing alone never saves
-   a judgment or changes gallery checkboxes.
+3. Browse candidates and switch pages: browsing never changes gallery checkboxes.
 4. Resize the comparison/information divider and the browser window. Candidate
    browsing remains available; Back to gallery restores the Inspector context.
    Both previews' dimensions, sizes and linked-zoom controls fit their comparison
@@ -442,18 +439,17 @@ Open a candidate using **Review side by side** to enter the expanded workspace:
    needed. The information pane can scroll independently on desktop.
 5. Choose **Use as reference** above a candidate. Its blue reference frame moves
    with the photo, its matches reload at the same threshold, and the previous
-   reference appears beside it. Review status resets to All candidates on page
-   one. Saved pair judgments and each photo's viewing rotation remain attached to
-   the right photos. Back to gallery returns to the originally opened photo.
+   reference appears beside it, on page one. Each photo's viewing rotation stays
+   with it. Back to gallery returns to the originally opened photo.
    **Reference photo** is a plain heading, not a button; the blue preview border
    distinguishes it from the candidate. Promotion does not select a keeper or donor.
 
 The generated-catalog browser check is `DRIVER=similar_browser_drive.py sh
 tests/webui_browser_test.sh` (set `IMAGE`/`WEB_IMAGE` to the builds under test).
-Metadata writes, end-of-review orientation saving, deletion, deferred queues and workspace restoration across reload are tracked in
+Metadata writes and end-of-review orientation saving are tracked in
 [TODO.md](../TODO.md#expanded-destination-review-workspace). These are not current
-validation steps. The current workspace implements comparison and judgments, and
-closing it discards temporary rotation without a save prompt.
+validation steps. The workspace compares, rejects and keeps one of a set; closing it
+discards temporary rotation without a save prompt.
 
 ### Suspicious-date checks
 
@@ -519,8 +515,8 @@ and rejects invalid IDs. Clipboard output is only a local generated-fixture link
    (Command+A / Command+C on macOS). Local-network HTTP may require this fallback.
 3. Open a new browser tab, paste into the address bar, and press Enter. Use a tab
    that can access the same sample instance; the link does not upload photographs.
-4. Confirm the same reference/candidate, percentage, review tab/filter and current
-   pair rotation/zoom reopen. Opening the link must not save another judgment.
+4. Confirm the same reference/candidate, percentage and current pair rotation/zoom
+   reopen.
 
 Pass: either copy path gives a usable link that restores the current comparison.
 The manual fallback is expected behavior when clipboard access is unavailable.

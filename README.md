@@ -60,8 +60,8 @@ Open **http://localhost:8080** (or the host's address). `docker compose -f docke
   by side, comparing format, dimensions, file size and metadata. Percentages measure
   visual similarity, not confidence; below 90%, results are more likely to be unrelated.
   Copy a review link, step between gallery sets, or show one set’s members in the
-  gallery. Review judgments are saved, but viewing rotation is temporary. EXIF editing,
-  saved rotation and deleting unwanted matches remain future work.
+  gallery. Reject a look-alike from there, or keep one and reject the rest; viewing
+  rotation is temporary. EXIF editing and saved rotation remain future work.
 - The drawer at the bottom shows a running job's progress and lets you cancel it. Closing the browser does not stop a job.
 - **Move needs a writable source.** It deletes each source file after its copy is verified. With a read-only source a Move can only copy: each photo is shown as **Copied only**, with the reason, and nothing is lost. To Move, set `read_only: false` on the source volume in `docker/compose.yml`, then Move those photos again to remove the originals.
 - Stopping the containers cancels a running job cleanly; the compose file allows five minutes for a large file to finish copying first.

@@ -205,9 +205,9 @@ service. Built and tested:
         75/80/85/90/95/100% counts and a responsive, paged match grid. Index precomputes comparisons and resumes interrupted work.
         The expanded side-by-side workspace provides independent temporary rotation,
         linked zoom/position, candidate promotion to reference, file/image and metadata
-        differences with scrolling column headings, and saved content-pair judgments.
+        differences with scrolling column headings, and Reject or Keep this one, reject the rest.
         Preview dimensions follow viewing rotation; recorded dimensions stay unchanged.
-        The validation panel shows coverage, timings and review counts. General EXIF
+        The validation panel shows coverage and timings. General EXIF
         editing, end-of-review orientation saving and deletion remain future work
         tracked in [TODO.md](../TODO.md). The similarity gallery can sort by direct
         match count at a chosen percentage, with card counts and consistent filters,
@@ -243,7 +243,7 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 17; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
+at schema version 18; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
 It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its

@@ -46,7 +46,7 @@ unverified; original-file processing is outside this query-focused workstream.
   expansions are temporary; closing/reloading or changing percentage resets them.
 - The comparison workspace supports reference promotion, independent temporary
   rotation/zoom/position, optional linked zoom, file/image and EXIF differences,
-  sticky field headings, and saved same/related/unrelated pair judgments. Preview
+  sticky field headings, and Reject or Keep this one, reject the rest. Preview
   dimensions follow viewing rotation; recorded dimensions and scores do not.
 - Comparison bookmarks restore the current pair, threshold, review filter/tab,
   divider and viewing transforms without replaying writes. Copy review link uses
@@ -102,7 +102,7 @@ ran with each change. Generated fixtures exercise dense equal-hash buckets, pagi
 request failures, selection preservation, clipboard fallback and narrow layouts.
 
 The maintainer manually passed defaults/preferences, identical and overlapping
-sets, filtering/counts, comparison, saved judgments/restoration, selection, all
+sets, filtering/counts, comparison, restoration, selection, all
 three review actions, recovery/logging explanations and 200% desktop zoom/reflow.
 There are no remaining checks in the agreed manual functional checklist.
 

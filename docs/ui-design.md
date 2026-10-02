@@ -216,11 +216,10 @@ The explicit label accompanies color so the distinction survives forced colors
 and does not imply the reference is a source-folder file, donor or keeper.
 
 The candidate offers **Use as reference**. It loads direct matches for that photo,
-retains the threshold, and resets to All candidates on page one. The previous
+retains the threshold, and resets to page one. The previous
 reference becomes the displayed candidate, even if it is outside the new first
-page. Viewing transforms follow photo identities and saved judgments stay with
-their content pairs. Focus moves to the new reference. Disable promotion during
-saving or after a failed/stale pair request until refreshed. This action assigns
+page. Viewing transforms follow photo identities. Focus moves to the new reference.
+Disable promotion after a failed/stale pair request until refreshed. This action assigns
 no keeper, donor or edit targets. Back to gallery returns to the original Inspector
 photo and its entry page after exploring another reference; gallery selection
 stays intact. Changing the reference is local to the open workspace.
@@ -241,7 +240,7 @@ reserve space for the candidate strip. When the content exceeds the window heigh
 scroll the review window as a whole, with the shared More above/below cues. The
 metadata panel may scroll independently for long tag lists.
 
-The Information tab starts with **File and image properties**: recorded format,
+The information panel starts with **File and image properties**: recorded format,
 extension, pixel dimensions, megapixels, file size and aspect ratio. Prefer the
 recorded file type; label a filename-only fallback as extension only. Missing
 dimensions stay unknown. Compare exact values before display rounding and show
@@ -255,35 +254,31 @@ Keep each table's **Field**, **Reference**, and **Candidate** headings visible w
 its rows scroll, with an opaque theme surface. In narrow layouts they follow the
 review window's scroll instead of introducing another scroll area.
 
-The Saved review tab shows the latest judgment for this content pair. All,
-Unreviewed and Reviewed filters apply before server pagination. Progress counts
-reviewed pairs at the chosen threshold, not photos in the entire catalog. Each
-thumbnail shows its pair judgment. Saving is explicit, survives reopening, and
-never marks other pairs reviewed. Moving on without a judgment leaves the pair
-unreviewed. Busy saves prevent candidate/filter navigation; failures retain the
-comparison and require refresh before another judgment. Candidate loads cannot
-replace a newer navigation choice. Deferred queues remain future work.
+The status line counts the look-alikes at the chosen threshold; each thumbnail shows
+its similarity. Deciding is **Reject…** or **Keep this one, reject the rest** (see
+Rejecting while comparing); there are no same / related / unrelated labels, which
+changed nothing. Candidate loads cannot replace a newer navigation choice.
 
 The gallery URL's validated `review` state restores the comparison reference and
-candidate, threshold, page, reviewed filter, active information/review tab, divider
-share, linked zoom and current-pair viewing transforms. Keep the original Inspector
+candidate, threshold, page, divider share, linked zoom and current-pair viewing
+transforms. Keep the original Inspector
 context separately so Back to gallery returns there after reference promotion.
 Only the current pair's transforms are bookmarked; other candidate transforms last
-for the open session. Reload restores controls but fetches photo data and judgments
-again; it never replays a save. Malformed bookmarks are ignored, unavailable photos
+for the open session. Reload restores controls but fetches photo data again.
+Malformed bookmarks are ignored, unavailable photos
 show errors, and excessive candidate pages clamp to the current last page. Closing
 removes the workspace state and discards viewing transforms. Return keyboard focus
-to the opener, or a surviving match thumbnail/tab when restoring from a bookmark.
+to the opener, or a surviving match thumbnail when restoring from a bookmark.
 Photo links to another Inspector photo clear the prior comparison state.
 
-**Separate workstream (not a dependency of similarity matching):** metadata edits/copy and deletion with explicit target selection,
+**Separate workstream (not a dependency of similarity matching):** metadata edits/copy with explicit target selection,
 per-file previews and results. The reference, metadata donor and photographs to
 keep are separate roles: a smaller copy can supply metadata for a larger keeper.
 Opening or comparing a photo does not assign those roles. Future action targets
-must remain separate from gallery selection and pair judgments; changing the
-reference or offered match set must not leave hidden targets armed. Show proposed
-metadata changes or deletion targets before execution and record each result.
-Do not show nonfunctional edit/delete controls while those actions are unbuilt.
+must remain separate from gallery selection; changing the reference or offered
+match set must not leave hidden targets armed. Show proposed metadata changes
+before execution and record each result. Do not show nonfunctional edit controls
+while those actions are unbuilt.
 
 **Future orientation-save interaction:** rotation remains temporary throughout
 comparison. Once verified orientation writes exist, offer one decision at the end
@@ -470,8 +465,8 @@ The 75% floor remains available. Identical-set collapsing is implemented for the
 ### Review links and set navigation
 
 Copy review link serializes the current comparison directly, including reference,
-candidate, threshold, review filter/tab, current-pair viewing transforms and linked
-zoom. It does not depend on a pending URL update or replay a saved judgment. Report
+candidate, threshold, current-pair viewing transforms and linked
+zoom. It does not depend on a pending URL update. Report
 success only after the clipboard write succeeds. If clipboard access is unavailable
 or rejected (including local-network HTTP), expose a labelled, selectable read-only
 link for manual copy. Recipients need access to the same instance and catalog.
@@ -479,8 +474,8 @@ link for manual copy. Recipients need access to the same instance and catalog.
 Previous set / Next set in review follows the grouped gallery's percentage, filters
 and sort, anchored on the entry reference even after Use as reference. Disable
 unavailable boundaries and loading navigation; request failures offer Retry set
-navigation. Do not navigate during a judgment save. Entering another set starts a
-fresh comparison with temporary viewing transforms reset; no judgment is implied.
+navigation. Entering another set starts a fresh comparison with temporary viewing
+transforms reset.
 Navigation is offered only from the grouped gallery, not an expanded union or a
 set-member scope whose ordering has a different meaning.
 

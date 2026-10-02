@@ -9,9 +9,9 @@ export type MatchView = { threshold: number; page: number } | null;
 
 // The open Inspector photo stays the reference. Choosing a threshold only changes
 // this small, paged list; it never changes the gallery or its explicit selection.
-export function PhotoMatches({ id, name, delivered, view, onView, refreshKey, onReview, reviewsChanged, jobRunning = false, onReject, onKeep }: {
+export function PhotoMatches({ id, name, delivered, view, onView, refreshKey, onReview, changes, jobRunning = false, onReject, onKeep }: {
   id: number; name?: string; delivered: boolean; view: MatchView; onView: (view: MatchView) => void; refreshKey: number;
-  onReview: (id: number) => void; reviewsChanged: number;
+  onReview: (id: number) => void; changes: number;
   // Reject one look-alike, or keep this photo and reject every look-alike at this
   // threshold (webui-spec 7.8); each asks or reviews first.
   jobRunning?: boolean;
@@ -87,9 +87,10 @@ export function PhotoMatches({ id, name, delivered, view, onView, refreshKey, on
               <span className="muted">The photo open in this panel</span>
             </span>
             <button className="photo-action" disabled={jobRunning}
-                    title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Review the look-alikes before any is rejected."}
+                    title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : `Keep ${name ?? "this photo"}. The look-alikes are reviewed before any is rejected.`}
+                    aria-label={`Keep ${name ?? "this photo"}, reject the other ${count(results.total)}…`}
                     onClick={() => onKeep(threshold!)}>
-              Keep {name ?? "this photo"}, reject the other {count(results.total)}…
+              Keep <span className="keep-name">{name ?? "this photo"}</span>, reject the other {count(results.total)}…
             </button>
           </div>}
           <ul className="inspector-match-list">
@@ -114,7 +115,7 @@ export function PhotoMatches({ id, name, delivered, view, onView, refreshKey, on
         {results && results.availability !== "available" && <p>Matches are unavailable for this photo. Its recorded destination copy and visual hash are required.</p>}
       </div>}
       <details onToggle={(e) => setDiagnostics(e.currentTarget.open)}><summary>Validation and performance</summary>
-        {diagnostics && <MatchDiagnosticsPanel refreshKey={`${refreshKey}:${retry}:${reviewsChanged}`} />}
+        {diagnostics && <MatchDiagnosticsPanel refreshKey={`${refreshKey}:${retry}:${changes}`} />}
       </details>
     </>}
   </section>;
