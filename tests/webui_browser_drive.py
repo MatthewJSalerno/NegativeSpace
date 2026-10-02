@@ -58,9 +58,40 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Create new catalog").click()
     expect(page.get_by_text("Welcome to NegativeSpace")).to_be_visible()
     expect(page.locator(".notice-first-run")).to_contain_text("change any of them at any time in the app's Settings")
-    expect(page.locator(".settings")).to_contain_text(re.compile(r"This container may use (all )?\d+"))
-    shot("1-welcome")
-    page.get_by_role("button", name="Save and continue").click()
+    # One group per step, as Settings' tabs; the step's buttons in view without scrolling.
+    step = page.locator(".settings-step")
+    for n, name in enumerate(("Appearance", "Files", "Backups", "Performance"), 1):
+        expect(step).to_have_text(f"Step {n} of 4 {name}")
+        action = page.get_by_role("button", name="Next" if n < 4 else "Save and continue", exact=True)
+        box = action.bounding_box()
+        assert box and box["y"] + box["height"] <= page.viewport_size["height"], (name, box)
+        if n == 1:
+            shot("1-welcome")
+            expect(page.get_by_role("button", name="Back", exact=True)).to_have_count(0)
+        if n == 2:
+            # Next checks only this step: with no file type it stays, and says why.
+            boxes = page.locator("#settings-exts input[type=checkbox]")
+            ticked = [i for i in range(boxes.count()) if boxes.nth(i).is_checked()]
+            for i in ticked:
+                boxes.nth(i).uncheck()
+            action.click()
+            expect(step).to_have_text("Step 2 of 4 Files")
+            expect(page.locator("#settings-exts-error")).to_contain_text("at least one file type")
+            for i in ticked:
+                boxes.nth(i).check()
+            # Explained for someone seeing the app for the first time.
+            expect(page.locator(".settings")).to_contain_text("moves it out of your library into a separate Rejects folder")
+            shot("1b-welcome-files")
+        if n == 3:
+            expect(page.locator(".settings")).to_contain_text("not of your photos")
+            expect(page.locator(".settings")).to_contain_text("Backing up your photos is up to you")
+            shot("1c-welcome-backups")
+        if n == 4:
+            expect(page.locator(".settings")).to_contain_text(re.compile(r"This container may use (all )?\d+"))
+            page.get_by_role("button", name="Back", exact=True).click()
+            expect(step).to_have_text("Step 3 of 4 Backups")
+            page.get_by_role("button", name="Next", exact=True).click()
+        action.click()
     # Saved, the first run lands in the Library, where the Index waits, whatever the address was.
     expect(page).to_have_url(re.compile(r"^[^?]*://[^/]+/(\?.*)?$"))
     expect(page.get_by_text("No photos yet")).to_be_visible()
@@ -604,9 +635,10 @@ with sync_playwright() as p:
 
     page.get_by_role("button", name="Settings").click()
     expect(page.get_by_role("dialog")).to_contain_text("Changes apply to future jobs")
+    page.get_by_role("tab", name="Backups").click()
     # Catalog backups: each job above took one; Back up now adds a manual one.
     backups = page.locator(".backups")
-    expect(backups).to_contain_text("not photos")
+    expect(page.get_by_role("dialog")).to_contain_text("not of your photos")
     expect(backups.locator("tbody tr", has_text="After job #").first).to_be_visible()
     backups.get_by_role("button", name="Back up now").click()
     expect(backups.locator("p.ok")).to_contain_text("verified")

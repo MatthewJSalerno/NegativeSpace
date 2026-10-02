@@ -76,11 +76,6 @@ export function BackupsPanel({ retentionDraft }: { retentionDraft: number }) {
 
   return (
     <div className="backups">
-      <p className="notice">
-        <strong>Catalog backups hold recorded file information, metadata and history, not photos.</strong>{" "}
-        They cannot recreate or recover a photo. Keep separate backups of your photos.
-      </p>
-
       {!data.storage.ok && (
         <p className="error" role="alert">
           Backups cannot be written: {data.storage.error_detail}. Correct the <code>/backups</code> mount in the

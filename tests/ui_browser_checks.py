@@ -144,10 +144,23 @@ def check_ui(browser, base, _shot):
     # Inertness also prevents programmatically focusing a background action.
     settings.evaluate("e => e.focus()")
     expect(close).to_be_focused()
+    # Tabs: one tab stop, arrows move between them; an unsaved change marks its tab, and a
+    # save with an error elsewhere opens that error's tab.
+    tabs = modal.get_by_role("tablist", name="Settings")
+    expect(tabs.get_by_role("tab", selected=True)).to_have_text("Appearance")
+    tabs.get_by_role("tab", name="Appearance").focus()
+    page.keyboard.press("ArrowRight")
+    expect(tabs.get_by_role("tab", name="Files")).to_be_focused()
+    expect(tabs.get_by_role("tab", name="Files")).to_have_attribute("aria-selected", "true")
+    page.keyboard.press("End")
+    expect(tabs.get_by_role("tab", name="Performance")).to_be_focused()
     workers = modal.get_by_label("Maximum worker processes")
     original = workers.input_value()
     workers.fill("0")
+    expect(tabs.get_by_role("tab", name="Performance unsaved changes")).to_be_visible()
+    tabs.get_by_role("tab", name="Appearance").click()
     save.click()
+    expect(tabs.get_by_role("tab", selected=True)).to_have_text("Performance")
     expect(workers).to_be_focused()
     expect(workers).to_have_attribute("aria-invalid", "true")
     description = workers.get_attribute("aria-describedby")
@@ -350,6 +363,7 @@ def check_ui(browser, base, _shot):
     assert box and box["x"] >= 0 and box["x"] + box["width"] <= 320, box
     phone.keyboard.press("Escape")
     phone.get_by_role("button", name="Settings", exact=True).click()
+    phone.get_by_role("tab", name="Performance").click()
     expect(phone.get_by_label("Maximum worker processes")).to_be_visible()
     assert phone.evaluate("document.documentElement.scrollWidth <= innerWidth")
     phone.keyboard.press("Escape")

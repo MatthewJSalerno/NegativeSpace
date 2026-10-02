@@ -377,7 +377,7 @@ button.photo-action:hover:not(:disabled) { background: var(--surface-2); border-
 .field input { width: 100px; }
 .field-inline { display: flex; gap: var(--space-2); margin-top: var(--space-1); }
 .field-inline input { width: 120px; }
-.ext-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: var(--space-1) var(--space-3); }
+.ext-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: var(--space-1) var(--space-2); }
 .ext { display: flex; gap: var(--space-1); align-items: center; }
 .ext input { padding: 0; }
 .ext.unsupported { color: var(--warn); }
@@ -710,6 +710,18 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .settings h3 { margin: 0; font-size: var(--type-md); }
 .settings p { margin: 0; }
 .settings-actions { gap: var(--space-3); }
+/* Settings' tabs and first-run steps (webui-spec 3). Panels keep one height, so the window
+   does not jump between tabs; a tall one (Backups) scrolls with the window. */
+.settings-tabs { display: flex; gap: var(--space-1); border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); }
+.settings-panel { display: grid; gap: var(--space-6); align-content: start; min-height: 24rem; }
+.settings-panel[hidden] { display: none; }
+.tab-dot { display: inline-block; width: 8px; height: 8px; margin-left: var(--space-2); border-radius: 50%; background: var(--accent); vertical-align: middle; }
+@media (forced-colors: active) { .tab-dot { background: CanvasText; } }
+.limit-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.limit-row input[type=number] { width: 6rem; }
+.limit-row .error { flex-basis: 100%; }
+.settings-step { display: flex; gap: var(--space-2); align-items: baseline; }
+.settings-step .muted { font-weight: normal; font-size: var(--type-sm); }
 .appearance-settings select { justify-self: start; min-width: 12rem; }
 .menu { border: 0; border-radius: var(--radius); padding: var(--space-2); box-shadow: var(--shadow); }
 .menu-item { padding: var(--space-3); gap: var(--space-1); }
@@ -854,15 +866,15 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .inspector-match > span { display: flex; flex-direction: column; gap: var(--space-1); overflow-wrap: anywhere; }
 .inspector-match .muted, .match-pages, .match-thresholds button > span { font-size: var(--type-xs); }
 .inspector-tabs { display: flex; gap: var(--space-1); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
-.inspector-tabs [role=tab] { flex: 1; border-radius: var(--control-radius); }
-.inspector-tabs [aria-selected=true] { color: var(--accent); background: var(--surface-2); box-shadow: inset 0 -2px var(--accent); font-weight: var(--weight-strong); }
+.inspector-tabs [role=tab], .settings-tabs [role=tab] { flex: 1; border-radius: var(--control-radius); }
+.inspector-tabs [aria-selected=true], .settings-tabs [aria-selected=true] { color: var(--accent); background: var(--surface-2); box-shadow: inset 0 -2px var(--accent); font-weight: var(--weight-strong); }
 .inspector-tab-panel { min-width: 0; }
 .inspector[data-tab=similar] { overflow: hidden; padding-bottom: 0; }
 .inspector[data-tab=similar] .inspector-main { height: calc(100% - var(--inspector-head-h, 46px)); grid-template-rows: var(--preview-size) 24px minmax(0, 1fr); }
 .inspector[data-tab=similar] .inspector-main[data-wide=true] { grid-template-rows: minmax(0, 1fr); }
 .inspector[data-tab=similar] .inspector-side { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 .inspector[data-tab=similar] .inspector-tab-panel:not([hidden]) { overflow: auto; min-height: 0; flex: 1; }
-@media (forced-colors: active) { .inspector-tabs [aria-selected=true] { outline: 2px solid Highlight; outline-offset: -2px; } }
+@media (forced-colors: active) { .inspector-tabs [aria-selected=true], .settings-tabs [aria-selected=true] { outline: 2px solid Highlight; outline-offset: -2px; } }
 .photo-matches > details { margin-top: var(--space-4); }
 .inspector-side { container-type: inline-size; container-name: inspector-details; }
 @container inspector-details (min-width: 520px) {

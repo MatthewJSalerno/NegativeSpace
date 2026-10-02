@@ -1,3 +1,4 @@
+import { TabList, tabPanel } from "./ui/Tabs";
 import type { SetActions } from "./ReviewActions";
 import type { ComparisonState } from "../comparisonState";
 import { Modal } from "./ui/Modal";
@@ -62,7 +63,6 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
     return () => media.removeEventListener("change", update);
   }, []);
   const tabId = useId();
-  const tabs = ["information", "similar"] as const;
   const panel = useRef<HTMLElement>(null);
   const header = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -211,18 +211,9 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
              }}><span aria-hidden="true">⋮⋮</span></div>
         <div className="inspector-side">
           {error && <p className="error">{error}</p>}
-          <div className="inspector-tabs" role="tablist" aria-label="Photo inspector">
-            {tabs.map((value, i) => <button key={value} role="tab" id={`${tabId}-${value}`}
-              aria-controls={`${tabId}-${value}-panel`} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1}
-              onClick={() => onTab(value)} onKeyDown={(e) => {
-                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
-                e.preventDefault(); e.stopPropagation();
-                const next = e.key === "Home" ? 0 : e.key === "End" ? 1 : (i + 1) % 2;
-                onTab(tabs[next]); document.getElementById(`${tabId}-${tabs[next]}`)?.focus();
-              }}>{value === "information" ? "Photo information" : "Similar photos"}</button>)}
-          </div>
-          <div className="inspector-tab-panel" role="tabpanel" id={`${tabId}-information-panel`}
-            aria-labelledby={`${tabId}-information`} hidden={tab !== "information"} tabIndex={0}>
+          <TabList className="inspector-tabs" label="Photo inspector" idBase={tabId} value={tab} onChange={onTab}
+            tabs={[{ value: "information", label: "Photo information" }, { value: "similar", label: "Similar photos" }]} />
+          <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", tab)}>
             {detail && tab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
               actions={IN_LIBRARY.includes(detail.status) && onReject
                 ? <button onClick={() => onReject(detail.filename)} disabled={jobRunning} title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Move this photo out of the library into Rejects. Nothing is deleted."}>Reject…</button>
@@ -230,8 +221,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
                   ? <button onClick={onReturn} disabled={jobRunning} title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Move this photo from Rejects back to its date folder."}>Return to library…</button>
                   : null} />}
           </div>
-          <div className="inspector-tab-panel" role="tabpanel" id={`${tabId}-similar-panel`}
-            aria-labelledby={`${tabId}-similar`} hidden={tab !== "similar"} tabIndex={0}>
+          <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "similar", tab)}>
             {detail && tab === "similar" && <div className="inspector-body"><PhotoMatches key={id} id={id} name={detail.filename}
               jobRunning={jobRunning} onReject={onRejectMatch ? (photo) => onRejectMatch(photo.id, photo.filename) : undefined}
               onKeep={onKeep ? (threshold) => onKeep(id, detail.filename, threshold) : undefined}

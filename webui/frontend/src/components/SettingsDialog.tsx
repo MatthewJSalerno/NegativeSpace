@@ -1,16 +1,33 @@
 import { Modal } from "./ui/Modal";
 import { Field } from "./ui/Field";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { api, ApiError, type ExtensionSupport, type Settings } from "../api";
 import { BackupsPanel } from "./BackupsPanel";
 import { setPalette, usePalette } from "../appearance";
+import { TabList, tabPanel } from "./ui/Tabs";
 
 const QUEUE_SIZE = 1000; // DB_QUEUE_SIZE, fixed in the engine (engine-spec 4.1)
 
+// The groups, in order: tabs in Settings, steps on first run (webui-spec 3).
+type Group = "appearance" | "files" | "backups" | "performance";
+const GROUPS: { value: Group; label: string }[] = [
+  { value: "appearance", label: "Appearance" }, { value: "files", label: "Files" },
+  { value: "backups", label: "Backups" }, { value: "performance", label: "Performance" },
+];
+// Where each field and each saved setting lives.
+const FIELD_GROUP: Record<string, Group> = {
+  workers: "performance", retention: "backups", exts: "files", reminderSize: "files", reminderAge: "files",
+};
+const SETTING_GROUP: Record<string, Group> = {
+  workers: "performance", backup_retention: "backups", exts: "files",
+  rejects_reminder_bytes: "files", rejects_reminder_days: "files",
+};
+
 // Settings (webui-spec 3). A window over the current view, so closing it returns
-// you to where you were; on first run it is the page itself and cannot be closed.
-// Saves carry the revision each value was read at, so another tab's save is never
-// silently overwritten.
+// you to where you were, in tabs with one Save for all of them; a tab with unsaved
+// changes shows a dot. On first run it is the page itself, cannot be closed, and steps
+// through the same groups, saving at the end. Saves carry the revision each value was
+// read at, so another browser tab's save is never silently overwritten.
 export function SettingsDialog({ firstRun, onClose, onSaved }: {
   firstRun: boolean;
   onClose: () => void;
@@ -31,6 +48,8 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
   const [message, setMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [group, setGroup] = useState<Group>("appearance");
+  const idBase = useId();
 
   const load = () =>
     api.settings().then((s) => {
@@ -90,19 +109,37 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
     }
   };
 
-  const save = async () => {
-    if (!settings) return;
-    setMessage(null);
+  const unsaved = new Set(Object.keys(changed).map((k) => SETTING_GROUP[k]));
+
+  const check = (only?: Group) => {
     const errors: Record<string, string> = {};
     if (!Number.isSafeInteger(Number(workers)) || Number(workers) < 1) errors.workers = "Enter a whole number of workers, at least 1.";
     if (!Number.isSafeInteger(Number(retention)) || Number(retention) < 1) errors.retention = "Enter a whole number of backups, at least 1.";
     if (!exts.length) errors.exts = "Choose at least one file type.";
     if (sizeOn && !(Number(sizeGb) >= 0.1)) errors.reminderSize = "Enter a size of at least 0.1 GB, or switch the size limit off.";
     if (ageOn && (!Number.isSafeInteger(Number(ageDays)) || Number(ageDays) < 1)) errors.reminderAge = "Enter a whole number of days, at least 1, or switch the age limit off.";
-    setFieldErrors(errors);
-    if (Object.keys(errors).length) {
+    const shown = Object.fromEntries(Object.entries(errors).filter(([k]) => !only || FIELD_GROUP[k] === only));
+    setFieldErrors(shown);
+    const first = Object.keys(shown)[0];
+    if (first) {
+      setGroup(FIELD_GROUP[first]);
+      requestAnimationFrame(() => document.getElementById(`settings-${first}`)?.focus());
+    }
+    return !first;
+  };
+
+  // First run: Next checks only this step's fields; nothing is saved until the last.
+  const step = GROUPS.findIndex((g) => g.value === group);
+  const next = () => {
+    setMessage(null);
+    if (check(group)) setGroup(GROUPS[step + 1].value);
+  };
+
+  const save = async () => {
+    if (!settings) return;
+    setMessage(null);
+    if (!check()) {
       setMessage({ kind: "error", text: "Check the highlighted settings. Nothing was saved." });
-      requestAnimationFrame(() => document.getElementById(`settings-${Object.keys(errors)[0]}`)?.focus());
       return;
     }
     if (Object.keys(changed).length === 0) {
@@ -140,96 +177,131 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
   const reset = () => settings && (setWorkers(String(settings.workers.value)), setRetention(String(settings.backup_retention.value)),
                                    setExts(settings.exts.value), showReminder(settings), setMessage(null), setFieldErrors({}));
 
+  const panels: Record<Group, ReactNode> = settings ? {
+    appearance: (
+      <section className="appearance-settings">
+        <label htmlFor="settings-palette">Color palette</label>
+        <select id="settings-palette" value={palette} aria-describedby="palette-hint"
+                onChange={(event) => setPalette(event.target.value === "warm" ? "warm" : "cool")}>
+          <option value="cool">Cool neutral</option>
+          <option value="warm">Warm neutral</option>
+        </select>
+        <p id="palette-hint" className="muted">Applies immediately and is remembered in this browser. Light and dark mode follow your system setting.</p>
+      </section>
+    ),
+    files: (<>
+      <section>
+        <h3>File types</h3>
+        <p className="muted">NegativeSpace looks for these kinds of files in your source folder. Files of other types are left where they are.</p>
+        <div className="ext-grid" id="settings-exts" role="group" aria-label="File types" tabIndex={-1}
+             aria-invalid={!!fieldErrors.exts || undefined} aria-describedby={fieldErrors.exts ? "settings-exts-error" : undefined}>
+          {offered.map((ext) => (
+            <label key={ext} className={support[ext] && !support[ext].supported ? "ext unsupported" : "ext"}>
+              <input type="checkbox" disabled={saving} checked={exts.includes(ext)} onChange={() => toggleExt(ext)} /> {ext}
+            </label>
+          ))}
+        </div>
+        {fieldErrors.exts && <p id="settings-exts-error" className="error">{fieldErrors.exts}</p>}
+        {exts.filter((e) => support[e] && !support[e].supported).map((e) => (
+          <p key={e} className="warning">{support[e].warning}</p>
+        ))}
+        <div className="field-inline">
+          <input disabled={saving} placeholder=".ext" value={custom} onChange={(e) => setCustom(e.target.value)}
+                 onKeyDown={(e) => e.key === "Enter" && addCustom()} aria-label="Add a file type" />
+          <button disabled={saving} onClick={addCustom}>Add file type</button>
+        </div>
+      </section>
+      <section>
+        <h3>Rejects reminder</h3>
+        <p className="muted">
+          When you reject a photo, NegativeSpace moves it out of your library into a separate Rejects folder in your
+          destination. It stays there, untouched, until you delete it yourself, and you can bring it back until then:
+          NegativeSpace never deletes a photo. Once Rejects passes either limit below, a line on every page reminds you
+          to empty it.
+        </p>
+        <LimitRow id="settings-reminderSize" on={sizeOn} onToggle={setSizeOn} value={sizeGb} onValue={setSizeGb}
+          before="Remind me when Rejects holds at least" after="GB" min={0.1} step={0.1} disabled={saving} error={fieldErrors.reminderSize} />
+        <LimitRow id="settings-reminderAge" on={ageOn} onToggle={setAgeOn} value={ageDays} onValue={setAgeDays}
+          before="Remind me when a photo has been in Rejects for" after="days" min={1} step={1} disabled={saving} error={fieldErrors.reminderAge} />
+      </section>
+    </>),
+    backups: (
+      <section>
+        <p className="notice">
+          <strong>These are backups of NegativeSpace's catalog, not of your photos.</strong>{" "}
+          The catalog is what NegativeSpace records about your photos: file information, metadata and the history of
+          every change. A catalog backup cannot recreate or recover a photo. Backing up your photos is up to you; keep
+          your own separate backups of them.
+        </p>
+        <Field id="settings-retention" label="Automatic backups to keep" type="number" min={1} step={1}
+          value={retention} disabled={saving} onChange={(e) => setRetention(e.target.value)} error={fieldErrors.retention}
+          hint="A backup of the catalog is taken after each job and before each change; the oldest beyond this number are deleted." />
+        {!firstRun && <BackupsPanel retentionDraft={Number(retention)} />}
+      </section>
+    ),
+    performance: (
+      <section>
+        <Field id="settings-workers" label="Maximum worker processes" type="number" min={1} step={1}
+          value={workers} disabled={saving} onChange={(e) => setWorkers(e.target.value)} error={fieldErrors.workers}
+          hint="How many photos NegativeSpace reads at once. More is faster, but leaves less of this computer for anything else." />
+        <p className="notice">
+          {settings.workers.limited_by
+            ? <>This container may use <strong>{settings.workers.detected}</strong> of the host's {settings.workers.host} CPU
+                cores, because of its {settings.workers.limited_by === "cpu_quota" ? <>CPU limit (<code>--cpus</code>)</> : <>CPU set (<code>--cpuset-cpus</code>)</>}.
+                {" "}That is the default here.</>
+            : <>This container may use all <strong>{settings.workers.detected}</strong> of the host's CPU cores; no CPU
+                limit is set on it. That is the default here.</>}
+          {" "}A value you save stays until you change it, even if the container's CPU limit changes later.
+        </p>
+        <p className="muted">Database queue size: {QUEUE_SIZE.toLocaleString()} items (fixed in the engine, shown for reference).</p>
+      </section>
+    ),
+  } : { appearance: null, files: null, backups: null, performance: null };
+
+  const status = message && <p className={message.kind === "error" ? "error" : "ok"} role={message.kind === "error" ? "alert" : "status"}>{message.text}</p>;
+
   const body = (
     <div className={firstRun ? "settings settings-page" : "settings-body"}>
       <header className="settings-head">
         <h2 id="settings-title">{firstRun ? "Welcome to NegativeSpace" : "Settings"}</h2>
         {!firstRun && <button onClick={onClose} disabled={saving} aria-label="Close settings">✕</button>}
       </header>
-      {firstRun && (
-        <div className="notice notice-first-run">
-          <p><strong>These are starting values, not a one-time choice.</strong></p>
-          <p>
-            You can change any of them at any time in the app's Settings: the <span aria-hidden="true">⚙</span> gear
-            icon at the top right of every page. Check them, then save to continue.
-          </p>
-        </div>
-      )}
-      {!settings ? <div role="status">{message ? <><p className="error">{message.text}</p><button onClick={load}>Retry loading settings</button></> : "Loading…"}</div> : (
+      {!settings ? <div role="status">{message ? <><p className="error">{message.text}</p><button onClick={load}>Retry loading settings</button></> : "Loading…"}</div>
+      : firstRun ? (
         <>
-          <section className="appearance-settings" aria-labelledby="appearance-title">
-            <h3 id="appearance-title">Appearance</h3>
-            <label htmlFor="settings-palette">Color palette</label>
-            <select id="settings-palette" value={palette} aria-describedby="palette-hint"
-                    onChange={(event) => setPalette(event.target.value === "warm" ? "warm" : "cool")}>
-              <option value="cool">Cool neutral</option>
-              <option value="warm">Warm neutral</option>
-            </select>
-            <p id="palette-hint" className="muted">Applies immediately and is remembered in this browser. Light and dark mode follow your system setting.</p>
-          </section>
-          <section>
-            <h3>Worker processes</h3>
-            <Field id="settings-workers" label="Maximum worker processes" type="number" min={1} step={1}
-              value={workers} disabled={saving} onChange={(e) => setWorkers(e.target.value)} error={fieldErrors.workers}
-              hint="Controls how many photos are read and hashed at once." />
-            <p className="notice">
-              {settings.workers.limited_by
-                ? <>This container may use <strong>{settings.workers.detected}</strong> of the host's {settings.workers.host} CPU
-                    cores, because of its {settings.workers.limited_by === "cpu_quota" ? <>CPU limit (<code>--cpus</code>)</> : <>CPU set (<code>--cpuset-cpus</code>)</>}.
-                    {" "}That is the default here.</>
-                : <>This container may use all <strong>{settings.workers.detected}</strong> of the host's CPU cores; no CPU
-                    limit is set on it. That is the default here.</>}
-              {" "}A value you save stays until you change it, even if the container's CPU limit changes later.
-            </p>
-            <p className="muted">Database queue size: {QUEUE_SIZE.toLocaleString()} items (fixed in the engine, shown for reference).</p>
-          </section>
-          <section>
-            <h3>File types</h3>
-            <div className="ext-grid" id="settings-exts" role="group" aria-label="File types" tabIndex={-1}
-                 aria-invalid={!!fieldErrors.exts || undefined} aria-describedby={fieldErrors.exts ? "settings-exts-error" : undefined}>
-              {offered.map((ext) => (
-                <label key={ext} className={support[ext] && !support[ext].supported ? "ext unsupported" : "ext"}>
-                  <input type="checkbox" disabled={saving} checked={exts.includes(ext)} onChange={() => toggleExt(ext)} /> {ext}
-                </label>
-              ))}
+          {step === 0 && (
+            <div className="notice notice-first-run">
+              <p><strong>These are starting values, not a one-time choice.</strong></p>
+              <p>
+                You can change any of them at any time in the app's Settings: the <span aria-hidden="true">⚙</span> gear
+                icon at the top right of every page. Check each step, then save to continue.
+              </p>
             </div>
-            {fieldErrors.exts && <p id="settings-exts-error" className="error">{fieldErrors.exts}</p>}
-            {exts.filter((e) => support[e] && !support[e].supported).map((e) => (
-              <p key={e} className="warning">{support[e].warning}</p>
-            ))}
-            <div className="field-inline">
-              <input disabled={saving} placeholder=".ext" value={custom} onChange={(e) => setCustom(e.target.value)}
-                     onKeyDown={(e) => e.key === "Enter" && addCustom()} aria-label="Add a file type" />
-              <button disabled={saving} onClick={addCustom}>Add file type</button>
-            </div>
-          </section>
-          <section>
-            <h3>Catalog backups</h3>
-            <Field id="settings-retention" label="Automatic backups to keep" type="number" min={1} step={1}
-              value={retention} disabled={saving} onChange={(e) => setRetention(e.target.value)} error={fieldErrors.retention} />
-            {!firstRun && <BackupsPanel retentionDraft={Number(retention)} />}
-          </section>
-          <section>
-            <h3>Rejects reminder</h3>
-            <p className="muted">A line on every page reminds you to empty Rejects once it passes either limit.</p>
-            <label className="checkbox-row">
-              <input type="checkbox" disabled={saving} checked={sizeOn} onChange={(e) => setSizeOn(e.target.checked)} /> Remind me by size
-            </label>
-            <Field id="settings-reminderSize" label="When Rejects holds at least (GB)" type="number" min={0.1} step={0.1}
-              value={sizeGb} disabled={saving || !sizeOn} onChange={(e) => setSizeGb(e.target.value)} error={fieldErrors.reminderSize} />
-            <label className="checkbox-row">
-              <input type="checkbox" disabled={saving} checked={ageOn} onChange={(e) => setAgeOn(e.target.checked)} /> Remind me by age
-            </label>
-            <Field id="settings-reminderAge" label="When a photo has been in Rejects for at least (days)" type="number" min={1} step={1}
-              value={ageDays} disabled={saving || !ageOn} onChange={(e) => setAgeDays(e.target.value)} error={fieldErrors.reminderAge} />
-          </section>
-          <p className="notice">Changes apply to future jobs. Active jobs will continue with their existing settings.</p>
-          {message && <p className={message.kind === "error" ? "error" : "ok"} role={message.kind === "error" ? "alert" : "status"}>{message.text}</p>}
+          )}
+          <h3 className="settings-step" id={`${idBase}-step`}>
+            <span className="muted">Step {step + 1} of {GROUPS.length}</span> {GROUPS[step].label}
+          </h3>
+          <div className="settings-panel" role="group" aria-labelledby={`${idBase}-step`}>{panels[group]}</div>
+          {status}
           <footer className="settings-actions">
-            {!firstRun && <button onClick={reset} disabled={saving}>Reset</button>}
-            <button className="primary" onClick={save} disabled={saving}>
-              {saving ? "Saving…" : firstRun ? "Save and continue" : "Save settings"}
-            </button>
+            {step > 0 && <button onClick={() => { setMessage(null); setGroup(GROUPS[step - 1].value); }} disabled={saving}>Back</button>}
+            {step < GROUPS.length - 1
+              ? <button className="primary" onClick={next}>Next</button>
+              : <button className="primary" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save and continue"}</button>}
+          </footer>
+        </>
+      ) : (
+        <>
+          <TabList className="settings-tabs" label="Settings" idBase={idBase} value={group} onChange={setGroup}
+            tabs={GROUPS.map((g) => ({ value: g.value, label: <>{g.label}{unsaved.has(g.value) && <span className="tab-dot" role="img" aria-label="unsaved changes" />}</> }))} />
+          {GROUPS.map((g) => (
+            <div key={g.value} className="settings-panel" role="tabpanel" {...tabPanel(idBase, g.value, group)}>{panels[g.value]}</div>
+          ))}
+          <p className="notice">Changes apply to future jobs. Active jobs will continue with their existing settings.</p>
+          {status}
+          <footer className="settings-actions">
+            <button onClick={reset} disabled={saving}>Reset</button>
+            <button className="primary" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save settings"}</button>
           </footer>
         </>
       )}
@@ -238,5 +310,25 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
 
   return firstRun ? body : (
     <Modal className="settings" labelledBy="settings-title" busy={saving} onClose={onClose}>{body}</Modal>
+  );
+}
+
+// One reminder limit on one line: its on/off box, then its value, which reads as the
+// rest of the sentence. The box names the limit; the value is named by the sentence.
+function LimitRow({ id, on, onToggle, value, onValue, before, after, min, step, disabled, error }: {
+  id: string; on: boolean; onToggle: (on: boolean) => void; value: string; onValue: (value: string) => void;
+  before: string; after: string; min: number; step: number; disabled: boolean; error?: string;
+}) {
+  return (
+    <div className="limit-row">
+      <label className="checkbox-row">
+        <input type="checkbox" id={`${id}-on`} disabled={disabled} checked={on} onChange={(e) => onToggle(e.target.checked)} /> {before}
+      </label>
+      <input id={id} type="number" min={min} step={step} value={value} disabled={disabled || !on}
+             aria-label={`${before} (${after})`} aria-invalid={!!error || undefined}
+             aria-describedby={error ? `${id}-error` : undefined} onChange={(e) => onValue(e.target.value)} />
+      <span aria-hidden="true">{after}</span>
+      {error && <p id={`${id}-error`} className="error field-error">{error}</p>}
+    </div>
   );
 }
