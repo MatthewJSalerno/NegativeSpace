@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, type Stats, type Status } from "../api";
-import { bytes, count, instant, photoDate, plural } from "../format";
+import { ago, bytes, count, instant, photoDate, plural } from "../format";
 import { useDismissedRun, useJobFeed } from "../jobs";
 import { follow, useHeaderHeight } from "../nav";
 import { ActionsMenu } from "./ActionsMenu";
@@ -8,6 +8,7 @@ import { ConfirmDialog, transferConfirm, type Confirm } from "./Confirm";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
 import { Logo } from "./Logo";
 import { VersionTag } from "./VersionTag";
+import { RejectsReminder } from "./RejectsLine";
 
 const FAILURE_LABEL: Record<string, [string, string]> = {
   not_an_image: ["Not an image", "Not an image"],
@@ -76,6 +77,7 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
         <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
+        <RejectsReminder status={status} />
       </header>
 
       <main id="main-content" tabIndex={-1} className="stats">
@@ -128,8 +130,9 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
         <Tile label="Failed attempts" value={count(failed)} sub={failed ? "Open the Error Center" : "None"}
               href={failed ? "/logs?status=Failed" : undefined} tone={failed ? "bad" : undefined} />
         <Tile label="Last backup" value={s.health.last_backup ? photoDate(s.health.last_backup, false) : "None"}
-              sub={s.health.unbacked_changes ? `${count(s.health.unbacked_changes)} changes since` : "Up to date"}
+              sub={s.health.unbacked_changes ? `${plural(s.health.unbacked_changes, "change")} since` : "Up to date"}
               onClick={onOpenSettings} tone={s.health.unbacked_changes ? "warn" : undefined} />
+        <RejectsTile r={s.rejects} />
       </div>
 
       <div className="stat-panels">
@@ -266,6 +269,24 @@ function Tile({ label, value, sub, href, onClick, tone }: {
   if (href) return <a className={cls} href={href} onClick={follow}>{body}</a>;
   if (onClick) return <button className={cls} onClick={onClick}>{body}</button>;
   return <div className={cls}>{body}</div>;
+}
+
+// What Rejects holds now and, once anything has gone from it, what has been emptied so far
+// (webui-spec 5.9). Opens the Rejects view.
+function RejectsTile({ r }: { r: Stats["rejects"] }) {
+  const emptied = r.emptied.photos > 0 ? `${plural(r.emptied.photos, "photo")} · ${bytes(r.emptied.bytes)}` : null;
+  return (
+    <a className="stat-tile tile-wide" href="/?view=rejects" onClick={follow}>
+      <span className="tile-label">Rejects</span>
+      <strong className="tile-value">{r.photos ? plural(r.photos, "photo") : "Empty"}</strong>
+      <span className="tile-sub">
+        {r.photos
+          ? <>{bytes(r.bytes)} using now{r.oldest_rejected_at && <> · oldest rejected {ago(r.oldest_rejected_at)}</>}</>
+          : emptied ? <>Emptied so far: {emptied}</> : "Nothing rejected yet"}
+      </span>
+      {r.photos > 0 && emptied && <span className="tile-sub">Emptied so far: {emptied}</span>}
+    </a>
+  );
 }
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {

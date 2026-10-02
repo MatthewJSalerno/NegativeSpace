@@ -42,6 +42,10 @@ The first screen's state. It never creates anything.
     {"state": "missing" | "ok" | "incompatible" | "error", "detail": "<reason or null>",
      "photos": 1160, "indexed": true, "eligible": {"copy": 0, "move": 1160}, "copied": 1160,
      "rejected_with_source": 0,
+     "rejects": {"photos": 340, "bytes": 1200000000, "oldest_rejected_at": "<UTC instant or null>",
+                 "emptied": {"photos": 1200, "bytes": 4800000000},
+                 "reminder": {"over_size": true, "over_age": false,
+                              "bytes_limit": 1000000000 | null, "days_limit": 30 | null}},
      "version": {"release": "0.1.0", "branch": "main" | null, "commit": "2c4728f" | null},
      "application_data": "/appdata", "catalog_backups": "/backups",
      "active_job": <Run or null, as in GET /jobs/active>}
@@ -51,6 +55,13 @@ rule (`ns_db.TRANSFER_ELIGIBLE`): Copy takes `Pending`; Move also takes `Copied`
 each source against its verified copy, and `Rejected_Copied`, deleting it against its copy
 in Rejects. `copied` and `rejected_with_source` are how many of Move's are each of those.
 Both count the whole catalog, whatever the gallery's view or search.
+
+`rejects` is what Rejects holds now and what has been emptied from it so far: every
+rejected photo whose file is gone from `dest/rejects`, whether or not a job has recorded
+it yet. `reminder` says whether Rejects is past either reminder limit
+(`webui-spec.md` §7.8): `over_size` at `bytes_limit` or more, `over_age` when its oldest reject is
+`days_limit` days old or more. Each limit is a setting; `null` switches it off. `rejects`
+is `null` when the catalog cannot be read.
 
 `version` is which build is running: the release in the repository's `VERSION` file,
 and the branch and commit the image was built from (the `NS_BRANCH` and `NS_COMMIT`
@@ -78,10 +89,14 @@ revision 0.
      "exts": {"value": [".cr2", ".jpg"], "revision": 3, "default": [...],
               "support": [{"extension": ".cr2", "supported": true, "warning": null}, ...]},
      "backup_retention": {"value": 20, "revision": 0, "default": 20},
+     "rejects_reminder_bytes": {"value": 1000000000 | null, "revision": 0, "default": 1000000000},
+     "rejects_reminder_days": {"value": 30 | null, "revision": 0, "default": 30},
      "job_active": false}
 
 `workers.detected` is the number of CPUs the container may use (`ns_db.available_cpus`):
 the host's cores, reduced by a CPU set or a CPU quota. `limited_by` names which applies.
+The two `rejects_reminder_` settings are the web interface's own, never part of a job's
+configuration: a positive whole number, or `null` for off.
 
 ### `PUT /api/v1/settings`
 
@@ -144,7 +159,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
      "matches": {"all": 1160, "organized": 0, "unorganized": 1160}}
 
 For `view=rejects`, each item's `rejected_at` is when it went to Rejects, and the response
-adds `rejects: {photos, bytes, oldest_rejected_at}`, what Rejects holds now; other views
+adds `rejects`, as in `GET /status` without `reminder`; other views
 return `rejects: null`. A file deleted from `dest/rejects` leaves the view at once: the
 API checks against a listing of the folder taken at most every few seconds, and looks up
 any file the listing lacks.
@@ -556,14 +571,15 @@ Everything the Stats page shows, read from the catalog in one pass (`webui-spec.
                   "failures": {"not_an_image": 2, "permission": 1, ...}, "renames", "exif_edits": null},
      "health": {"last_backup", "backup_bytes", "backups", "unbacked_changes", "catalog_bytes",
                 "thumbnail_cache": [{"size", "photos", "bytes"}, ...],
-                "destination_check": {"at", "findings": {"missing": 1, ...}} | null}}
+                "destination_check": {"at", "findings": {"missing": 1, ...}} | null},
+     "rejects": {"photos", "bytes", "oldest_rejected_at", "emptied": {"photos", "bytes"}}}
 
 Counts cover the photos the gallery lists (duplicates are counted apart, in
 `duplicates`). Dates count a date taken only; a photo filed by its file time is
 `undated`, split into no date in its EXIF and an unusable one. `failures` counts failed
 **attempts** by the start of the recorded reason, so one file failing in two jobs counts
 twice, as the log lists it. Figures that need unbuilt features (`near_duplicates`,
-`exif_edits`) are `null`, never a guess. The duplicate figures follow `webui-spec.md` §5.9:
+`exif_edits`) are `null`, never a guess. `rejects` is as in `GET /status`. The duplicate figures follow `webui-spec.md` §5.9:
 `move_would_free` is Reclaimable, `freed_by_moves` Reclaimed, and `saved_at_destination`
 counts only duplicates whose original is already `Copied` or `Completed`. `coverage`
 follows `webui-spec.md` §6.2: `last_complete_scan` and `established_by_run` come from the

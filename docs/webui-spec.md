@@ -1202,7 +1202,7 @@ rest of the library in figures (formats,
 cameras, resolution, dates, activity, catalog health), each leading to the photos or log
 entries behind it. Figures that need unbuilt features say so rather than guess. The
 tiles across the top are Photos, Organized, No capture date, Duplicate copies, Failed
-attempts and Last backup. **A share never rounds to all or nothing:** 100% means every
+attempts, Last backup and, two columns wide, Rejects (§7.8). **A share never rounds to all or nothing:** 100% means every
 photo and 0% none, so 4,681 of 4,684 reads 99.9%, not 100%.
 Camera and lens identifiers are displayed and grouped as text, including numeric
 metadata values; missing or empty identifiers are omitted without altering stored metadata.
@@ -1292,7 +1292,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 18 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 19 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -2066,8 +2066,10 @@ source against the copy in Rejects (or puts it there, when Rejects was emptied).
 
 *   **Where:** Actions › **Reject selected (n)**, reviewed first as for Copy and Move, and
     **Reject…** in the Inspector for one photo. `n` counts only the selected photos in the
-    library, so before any Copy or Move it reads 0 and says why. Each asks first in one
-    sentence, starting on Cancel. No folder reject: select the folder's photos instead.
+    library, so before any Copy or Move it reads 0 and says why. Each asks first, starting
+    on Cancel: "Reject IMG_0412.jpg?" (or "Reject 12 photos?") and "It moves to the Rejects
+    folder and leaves your library. You can bring it back any time until you manually
+    empty Rejects." No folder reject: select the folder's photos instead.
 *   **The Rejects view** (`view=rejects`): rejected photos leave every other view and
     count. Normal cards with a Rejected badge (when, on hover). Above them: "Rejects
     holds 12 photos · 22 KB · oldest rejected Oct 1, 2026" and **How to empty Rejects**,
@@ -2094,14 +2096,25 @@ source against the copy in Rejects (or puts it there, when Rejects was emptied).
     keeping the photo on the left; to keep the other one, **Use as reference** first. The
     candidate strip stays for moving between look-alikes, with no Reject of its own.
 
-**Not built yet:** a photo only similar to a reject goes to Needs review (§7.9), shown
-beside the reject, and is never rejected automatically.
+**Not built yet:** a photo only similar to a reject goes to Needs review (§7.9) and is
+never rejected automatically. With the reject still in Rejects, the two open side by side
+in full, with **Keep the old one instead** beside Reject it too and Keep it; with the
+reject emptied, its stored thumbnail and details stand in for it.
 
-**Planned: Rejects' size stays in view without noise:** a Stats tile ("340 photos · 1.2 GB · oldest
-rejected 3 months ago"); each Reject result gives the running total; and a line under the
-top row on every page **only past a threshold set in Settings** (default 1 GB, or anything
-rejected more than 30 days ago), naming `dest/rejects/` with **How to empty Rejects**,
-gone once it is emptied.
+**Rejects' size stays in view without noise:**
+
+*   **Stats** has a Rejects tile (§5.9): "340 photos", "1.2 GB using now · oldest rejected
+    3 months ago" and, once anything has gone from Rejects, "Emptied so far: 1,200 photos ·
+    4.8 GB". Empty, it reads "Empty" with what has been emptied. It opens the Rejects view.
+    Emptied counts every rejected photo whose file is gone, recorded by a job or not yet.
+*   **A reminder line** under the header on every page, **only past a limit**: Rejects
+    holding at least a size (default 1 GB) or a photo in it for at least a number of days
+    (default 30). "Rejects holds 1.4 GB, including photos rejected more than 30 days ago ·
+    How to empty Rejects · Open Rejects" (Open Rejects is left out in the Rejects view). No
+    Dismiss: it goes once Rejects is under both limits, checked again when the window
+    regains focus, since emptying happens in a file manager.
+*   **Settings › Rejects reminder:** each limit has its own on/off box and value (size in
+    GB, age in days); off is saved as null.
 
 ### 7.9 Needs review
 
@@ -2111,7 +2124,7 @@ related photo, opened side by side in comparison. **Notes are for decisions only
 general tagging system: personal labels (people, albums) belong to gallery applications.
 
 * **Each reason brings its own actions,** e.g. old version of a photo you fixed: Don't keep
-  it · Keep it as its own photo; looks like a reject: Reject it too · Keep it; suspicious
+  it · Keep it as its own photo; looks like a reject: Reject it too · Keep it · Keep the old one instead; suspicious
   date: Edit date · It's correct; couldn't be read: Recheck after fixing · Leave it;
   review later: Done. A new kind of review is a new reason, not a new screen.
 * **Filter by reason; bulk within one reason** (preview and one confirmation). A mixed

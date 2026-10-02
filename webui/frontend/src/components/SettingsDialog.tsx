@@ -21,6 +21,11 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
   const [workers, setWorkers] = useState("");
   const [retention, setRetention] = useState("");
   const [exts, setExts] = useState<string[]>([]);
+  // The Rejects reminder's limits; off is saved as null. Size is shown in GB.
+  const [sizeOn, setSizeOn] = useState(true);
+  const [sizeGb, setSizeGb] = useState("");
+  const [ageOn, setAgeOn] = useState(true);
+  const [ageDays, setAgeDays] = useState("");
   const [support, setSupport] = useState<Record<string, ExtensionSupport>>({});
   const [custom, setCustom] = useState("");
   const [message, setMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
@@ -33,12 +38,23 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
       setWorkers(String(s.workers.value));
       setRetention(String(s.backup_retention.value));
       setExts(s.exts.value);
+      showReminder(s);
       setSupport(Object.fromEntries(s.exts.support.map((e) => [e.extension, e])));
     }, (e) => setMessage({ kind: "error", text: e instanceof ApiError ? e.message : "Settings could not be loaded." }));
 
   useEffect(() => {
     load();
   }, []);
+
+  function showReminder(s: Settings) {
+    const size = s.rejects_reminder_bytes.value, days = s.rejects_reminder_days.value;
+    setSizeOn(size != null);
+    setSizeGb(String(Number(((size ?? s.rejects_reminder_bytes.default ?? 1e9) / 1e9).toFixed(2))));
+    setAgeOn(days != null);
+    setAgeDays(String(days ?? s.rejects_reminder_days.default ?? 30));
+  }
+  const reminderBytes = sizeOn ? Math.round(Number(sizeGb) * 1e9) : null;
+  const reminderDays = ageOn ? Number(ageDays) : null;
 
   // Every format the engine reads, plus any custom extension already chosen.
   const offered = useMemo(() => {
@@ -52,8 +68,10 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
     if (Number(workers) !== settings.workers.value) out.workers = Number(workers);
     if (Number(retention) !== settings.backup_retention.value) out.backup_retention = Number(retention);
     if ([...exts].sort().join() !== [...settings.exts.value].sort().join()) out.exts = [...exts].sort();
+    if (reminderBytes !== settings.rejects_reminder_bytes.value) out.rejects_reminder_bytes = reminderBytes;
+    if (reminderDays !== settings.rejects_reminder_days.value) out.rejects_reminder_days = reminderDays;
     return out;
-  }, [settings, workers, retention, exts]);
+  }, [settings, workers, retention, exts, reminderBytes, reminderDays]);
 
   const toggleExt = (ext: string) =>
     setExts((cur) => (cur.includes(ext) ? cur.filter((e) => e !== ext) : [...cur, ext]));
@@ -79,6 +97,8 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
     if (!Number.isSafeInteger(Number(workers)) || Number(workers) < 1) errors.workers = "Enter a whole number of workers, at least 1.";
     if (!Number.isSafeInteger(Number(retention)) || Number(retention) < 1) errors.retention = "Enter a whole number of backups, at least 1.";
     if (!exts.length) errors.exts = "Choose at least one file type.";
+    if (sizeOn && !(Number(sizeGb) >= 0.1)) errors.reminderSize = "Enter a size of at least 0.1 GB, or switch the size limit off.";
+    if (ageOn && (!Number.isSafeInteger(Number(ageDays)) || Number(ageDays) < 1)) errors.reminderAge = "Enter a whole number of days, at least 1, or switch the age limit off.";
     setFieldErrors(errors);
     if (Object.keys(errors).length) {
       setMessage({ kind: "error", text: "Check the highlighted settings. Nothing was saved." });
@@ -92,12 +112,14 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
     }
     const revisionOf: Record<string, number> = {
       workers: settings.workers.revision, exts: settings.exts.revision, backup_retention: settings.backup_retention.revision,
+      rejects_reminder_bytes: settings.rejects_reminder_bytes.revision, rejects_reminder_days: settings.rejects_reminder_days.revision,
     };
     const revisions = Object.fromEntries(Object.keys(changed).map((k) => [k, revisionOf[k]]));
     setSaving(true);
     try {
       const saved = await api.saveSettings(changed, revisions);
       setSettings(saved);
+      showReminder(saved);
       setMessage({
         kind: "ok",
         text: saved.job_active ? "Saved. The running job keeps its existing settings; changes apply to future jobs." : "Saved.",
@@ -116,7 +138,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
   };
 
   const reset = () => settings && (setWorkers(String(settings.workers.value)), setRetention(String(settings.backup_retention.value)),
-                                   setExts(settings.exts.value), setMessage(null), setFieldErrors({}));
+                                   setExts(settings.exts.value), showReminder(settings), setMessage(null), setFieldErrors({}));
 
   const body = (
     <div className={firstRun ? "settings settings-page" : "settings-body"}>
@@ -186,6 +208,20 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
             <Field id="settings-retention" label="Automatic backups to keep" type="number" min={1} step={1}
               value={retention} disabled={saving} onChange={(e) => setRetention(e.target.value)} error={fieldErrors.retention} />
             {!firstRun && <BackupsPanel retentionDraft={Number(retention)} />}
+          </section>
+          <section>
+            <h3>Rejects reminder</h3>
+            <p className="muted">A line on every page reminds you to empty Rejects once it passes either limit.</p>
+            <label className="checkbox-row">
+              <input type="checkbox" disabled={saving} checked={sizeOn} onChange={(e) => setSizeOn(e.target.checked)} /> Remind me by size
+            </label>
+            <Field id="settings-reminderSize" label="When Rejects holds at least (GB)" type="number" min={0.1} step={0.1}
+              value={sizeGb} disabled={saving || !sizeOn} onChange={(e) => setSizeGb(e.target.value)} error={fieldErrors.reminderSize} />
+            <label className="checkbox-row">
+              <input type="checkbox" disabled={saving} checked={ageOn} onChange={(e) => setAgeOn(e.target.checked)} /> Remind me by age
+            </label>
+            <Field id="settings-reminderAge" label="When a photo has been in Rejects for at least (days)" type="number" min={1} step={1}
+              value={ageDays} disabled={saving || !ageOn} onChange={(e) => setAgeDays(e.target.value)} error={fieldErrors.reminderAge} />
           </section>
           <p className="notice">Changes apply to future jobs. Active jobs will continue with their existing settings.</p>
           {message && <p className={message.kind === "error" ? "error" : "ok"} role={message.kind === "error" ? "alert" : "status"}>{message.text}</p>}

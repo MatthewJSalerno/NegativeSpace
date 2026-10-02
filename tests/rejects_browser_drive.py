@@ -1,7 +1,7 @@
 """Rejects in the browser (webui-spec 7.8): Reject waits for photos in the library; one
 photo rejected from the Inspector and a selection after reviewing it; the Rejects view
 with what it holds and how to empty it; Return to library, offered only there. View
-counts follow the search. Fails on any browser console error."""
+counts follow the search. The reminder past a limit, on every page, and the Stats tile. Fails on any browser console error."""
 import os
 import re
 import sys
@@ -77,8 +77,8 @@ with sync_playwright() as p:
     page.locator(".card-image").first.click()
     page.get_by_role("button", name="Reject…", exact=True).click()
     dialog = page.get_by_role("alertdialog")
-    expect(dialog).to_contain_text("Reject this photo?")
-    expect(dialog).to_contain_text("Nothing is deleted")
+    expect(dialog).to_contain_text(re.compile(r"Reject photo-002\S*\?"))
+    expect(dialog).to_contain_text("You can bring it back any time until you manually empty Rejects.")
     expect(dialog.locator("p")).to_have_count(1)
     expect(dialog.get_by_role("button", name="Cancel")).to_be_focused()
     shot("r1-confirm-reject")
@@ -162,6 +162,45 @@ with sync_playwright() as p:
     page.get_by_role("alertdialog").get_by_role("button", name="Return to library", exact=True).click()
     expect(banner).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
     expect(view_button(page, "Rejects")).to_contain_text("(0)")
+
+    # The reminder: on every page once Rejects passes a limit, until it is under both again.
+    settings = request.get("/api/v1/settings").json()
+    assert settings["rejects_reminder_bytes"]["value"] == 1_000_000_000
+    assert settings["rejects_reminder_days"]["value"] == 30
+    assert request.put("/api/v1/settings", data={"values": {"rejects_reminder_bytes": 1},
+                                                 "revisions": {"rejects_reminder_bytes": 0}}).ok
+    view_button(page, "All photos").click()
+    reminder = page.get_by_role("region", name="Rejects reminder")
+    expect(reminder).to_have_count(0)
+    page.locator(".card-image").first.click()
+    page.get_by_role("button", name="Reject…", exact=True).click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Reject", exact=True).click()
+    expect(banner).to_contain_text("1 of 1 photo moved to Rejects", timeout=60_000)
+    expect(reminder).to_contain_text(re.compile(r"Rejects holds [\d.]+ KB in 1 photo"))
+    expect(reminder.get_by_role("button", name="How to empty Rejects")).to_be_visible()
+    shot("r5-reminder")
+    for where in ("/stats", "/logs"):
+        page.goto(f"{BASE}{where}")
+        expect(reminder).to_be_visible()
+    # Stats: what Rejects holds, opening the Rejects view.
+    page.goto(f"{BASE}/stats")
+    tile = page.locator("a.stat-tile", has_text="Rejects")
+    expect(tile).to_contain_text("1 photo")
+    expect(tile).to_contain_text("using now · oldest rejected today")
+    shot("r6-stats-tile")
+    tile.click()
+    expect(page).to_have_url(re.compile(r"view=rejects"))
+    expect(page.locator(".card")).to_have_count(1)
+    expect(reminder.get_by_role("link", name="Open Rejects")).to_have_count(0)
+    # Switched off in Settings, the reminder goes.
+    page.get_by_role("button", name="Settings").click()
+    page.get_by_label("Remind me by size").uncheck()
+    expect(page.get_by_label("When Rejects holds at least (GB)")).to_be_disabled()
+    shot("r7-reminder-settings")
+    page.get_by_role("button", name="Save settings").click()
+    expect(page.get_by_role("status").filter(has_text="Saved")).to_be_visible()
+    expect(reminder).to_have_count(0)
+    assert request.get("/api/v1/settings").json()["rejects_reminder_bytes"]["value"] is None
 
     assert not errors, f"browser errors: {errors}"
     print("Rejects browser checks passed")

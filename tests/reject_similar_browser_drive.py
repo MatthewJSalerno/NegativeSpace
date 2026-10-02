@@ -64,7 +64,7 @@ with sync_playwright() as p:
     first = matches_of(reference)["items"][0]
     rows.first.get_by_role("button", name=f"Reject {first['filename']}…").click()
     dialog = page.get_by_role("alertdialog")
-    expect(dialog).to_contain_text("Reject this photo?")
+    expect(dialog).to_contain_text(f"Reject {first['filename']}?")
     dialog.get_by_role("button", name="Reject", exact=True).click()
     expect(banner).to_contain_text("1 of 1 photo moved to Rejects", timeout=60_000)
     assert status_of(first["id"]) == "Rejected_Copied"

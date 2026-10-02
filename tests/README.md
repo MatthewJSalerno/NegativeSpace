@@ -159,9 +159,10 @@ the library, a new comparison asking again, and the last photo always asked abou
 this one, reject the rest with the kept photo first, full size and never ticked.
 
 `DRIVER=rejects_browser_drive.py sh tests/webui_browser_test.sh` checks Rejects: one
-photo rejected from the Inspector (asked first, starting on Cancel), a selection
-reviewed before rejecting, a folder from the Folders tree, the Rejects view with what it
-holds and How to empty Rejects, Return to library, and the view at a narrow width.
+photo rejected from the Inspector (asked first by name, starting on Cancel), a selection
+reviewed before rejecting, the Rejects view with what it holds and How to empty Rejects,
+Return to library, the view at a narrow width, the reminder past a size limit on every
+page and switched off in Settings, and the Rejects tile on Stats.
 
 `DRIVER=appearance_browser_drive.py SHOTS=/tmp/ns-shots sh tests/webui_browser_test.sh`
 checks both neutral palettes in light/dark modes, text and input contrast, local

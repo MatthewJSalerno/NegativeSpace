@@ -6,6 +6,7 @@ import os
 import posixpath
 import sqlite3
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -131,14 +132,16 @@ def status(db_path: Path) -> dict:
             photos = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
             indexed = conn.execute("SELECT COUNT(*) FROM runs WHERE mode = 'INDEX'").fetchone()[0]
             by_status = dict(conn.execute("SELECT status, COUNT(*) FROM photos GROUP BY status").fetchall())
+            rejects = rejects_summary(conn)
+            rejects["reminder"] = rejects_reminder(conn, rejects)
         eligible = {mode: sum(by_status.get(s, 0) for s in statuses)
                     for mode, statuses in ns_db.TRANSFER_ELIGIBLE.items()}
         return {"state": "ok", "detail": None, "photos": photos, "indexed": indexed > 0,
                 "eligible": eligible, "copied": by_status.get(PhotoStatus.COPIED, 0),
-                "rejected_with_source": by_status.get(PhotoStatus.REJECTED_COPIED, 0)}
+                "rejected_with_source": by_status.get(PhotoStatus.REJECTED_COPIED, 0), "rejects": rejects}
     except CatalogUnavailable as exc:
         return {"state": exc.state, "detail": exc.detail, "photos": 0, "indexed": False,
-                "eligible": {"copy": 0, "move": 0}, "copied": 0}
+                "eligible": {"copy": 0, "move": 0}, "copied": 0, "rejected_with_source": 0, "rejects": None}
 
 
 def create(db_path: Path) -> dict:
@@ -378,15 +381,38 @@ def _rejected_at(conn, photo_id):
 
 
 def rejects_summary(conn) -> dict:
-    """What Rejects holds now: photos, bytes and the oldest reject, for the Rejects view."""
-    photos = bytes_ = 0
-    oldest = None
-    for row in conn.execute(f"SELECT p.id, p.file_size FROM photos p WHERE {_view_clause('rejects')}"):
-        photos += 1
-        bytes_ += row["file_size"] or 0
-        at = _rejected_at(conn, row["id"])
-        oldest = at if oldest is None or (at and at < oldest) else oldest
-    return {"photos": photos, "bytes": bytes_, "oldest_rejected_at": oldest}
+    """What Rejects holds now (photos, bytes, the oldest reject) and what has been emptied
+    from it so far: a rejected photo whose file is gone, recorded by a job or not yet."""
+    in_rejects_sql = _view_clause("rejects")
+    row = conn.execute(
+        f"SELECT COUNT(*) FILTER (WHERE {in_rejects_sql}), "
+        f"COALESCE(SUM(p.file_size) FILTER (WHERE {in_rejects_sql}), 0), "
+        f"MIN((SELECT MAX(o.timestamp) FROM operations o WHERE o.photo_id = p.id AND o.status IN (?, ?))) "
+        f"FILTER (WHERE {in_rejects_sql}), "
+        f"COUNT(*) FILTER (WHERE NOT ({in_rejects_sql})), "
+        f"COALESCE(SUM(p.file_size) FILTER (WHERE NOT ({in_rejects_sql})), 0) "
+        f"FROM photos p WHERE p.status IN ({ns_db.sql_values(ns_db.REJECTED_STATUSES)})",
+        (PhotoStatus.REJECTED, PhotoStatus.REJECTED_COPIED)).fetchone()
+    return {"photos": row[0], "bytes": row[1], "oldest_rejected_at": row[2],
+            "emptied": {"photos": row[3], "bytes": row[4]}}
+
+
+def rejects_reminder(conn, summary: dict, now: Optional[datetime] = None) -> dict:
+    """Whether Rejects is past a reminder limit (webui-spec 7.8): its size, or its oldest
+    reject's age. Each limit is a setting; null switches it off."""
+    saved = {k: json.loads(v) for k, v in conn.execute(
+        "SELECT key, value_json FROM settings WHERE key IN (?, ?)", tuple(ns_db.REJECTS_REMINDER_DEFAULTS))}
+    limits = {k: saved.get(k, default) for k, default in ns_db.REJECTS_REMINDER_DEFAULTS.items()}
+    size, days = limits["rejects_reminder_bytes"], limits["rejects_reminder_days"]
+    oldest = summary["oldest_rejected_at"]
+    age_days = None
+    if oldest:
+        at = datetime.fromisoformat(oldest.replace("Z", "+00:00"))
+        at = at if at.tzinfo else at.replace(tzinfo=timezone.utc)
+        age_days = ((now or datetime.now(timezone.utc)) - at).total_seconds() / 86400
+    return {"over_size": size is not None and summary["photos"] > 0 and summary["bytes"] >= size,
+            "over_age": days is not None and age_days is not None and age_days >= days,
+            "bytes_limit": size, "days_limit": days}
 
 
 def _counted_list(sort, match_min, *, include=False, ids=None):
@@ -920,7 +946,7 @@ def settings(db_path: Path, *, cpus: dict, supported_extensions) -> dict:
         saved = ns_db.read_settings(conn)
         retention_default = ns_db.backup_retention(conn)
     defaults = {"workers": cpus["available"], "exts": sorted(supported_extensions),
-                "backup_retention": retention_default}
+                "backup_retention": retention_default, **ns_db.REJECTS_REMINDER_DEFAULTS}
     out = {}
     for key, default in defaults.items():
         entry = saved.get(key, {"value": default, "revision": 0})
@@ -1293,6 +1319,7 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
         cache = [{"size": s, "photos": n, "bytes": b} for s, n, b in ns_db.thumbnail_cache_totals(conn)]
         check = conn.execute("SELECT id, started_at FROM runs WHERE mode = 'CHECK' AND status = ? ORDER BY id DESC LIMIT 1",
                              (RunStatus.COMPLETED,)).fetchone()
+        rejects = rejects_summary(conn)
         findings = dict(conn.execute("SELECT kind, COUNT(*) FROM destination_findings WHERE run_id = ? GROUP BY kind",
                                      (check[0],)).fetchall()) if check else {}
 
@@ -1379,6 +1406,7 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
                      "bytes_transferred": moved_bytes,
                      "bytes_per_second": round(moved_run_bytes / moved_seconds) if moved_seconds else None,
                      "failures": failures, "renames": ops.get(OPERATION_RENAMED, 0), "exif_edits": None},
+        "rejects": rejects,
         "health": {"last_backup": backup["last_success"], "backup_bytes": backup["present_bytes"],
                    "backups": backup["present_count"], "unbacked_changes": backup["unbacked"]["count"],
                    "catalog_bytes": catalog_bytes, "thumbnail_cache": cache,

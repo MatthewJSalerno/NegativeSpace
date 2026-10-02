@@ -9,6 +9,7 @@ derived outcome together rather than each against a stub.
 """
 import contextlib
 import fcntl
+import json
 import os
 import shutil
 import sqlite3
@@ -136,9 +137,50 @@ class FirstRunAndSettings(ApiCase):
         self.assertEqual((stale.status_code, stale.json()["error"]), (409, "settings_changed"))
         bad = self.client.put("/api/v1/settings", json={"values": {"workers": 0}, "revisions": {"workers": 1}})
         self.assertEqual(bad.status_code, 400)
+        # The Rejects reminder's limits: on by default, null for off, never part of a job.
+        self.assertEqual((got["rejects_reminder_bytes"]["value"], got["rejects_reminder_days"]["value"]),
+                         (1_000_000_000, 30))
+        off = self.client.put("/api/v1/settings", json={"values": {"rejects_reminder_days": None},
+                                                        "revisions": {"rejects_reminder_days": 0}})
+        self.assertEqual(off.status_code, 200, off.text)
+        self.assertIsNone(off.json()["rejects_reminder_days"]["value"])
+        self.assertEqual(self.client.get("/api/v1/status").json()["rejects"]["reminder"]["days_limit"], None)
+        for bad_limit in (0, -1, 1.5, "1"):
+            bad = self.client.put("/api/v1/settings", json={"values": {"rejects_reminder_bytes": bad_limit},
+                                                            "revisions": {"rejects_reminder_bytes": 0}})
+            self.assertEqual(bad.status_code, 400, bad_limit)
+        make_photo(self.cfg.source / "reminder.jpg", "reminder")
+        run = self.wait_for(self.start(mode="index"))
+        with sqlite3.connect(self.cfg.db_path) as conn:
+            config = json.loads(conn.execute("SELECT effective_config_json FROM run_configs WHERE run_id = ?",
+                                             (run["id"],)).fetchone()[0])
+        self.assertFalse({"rejects_reminder_bytes", "rejects_reminder_days"} & set(config),
+                         "the reminder's limits reached a job's configuration")
         mov = self.client.post("/api/v1/settings/validate-extension", json={"extension": "MOV"}).json()
         self.assertFalse(mov["supported"])
         self.assertTrue(mov["warning"])
+
+
+class RejectsReminder(ApiCase):
+    def test_the_reminder_shows_past_either_limit_and_each_switches_off(self):
+        from datetime import datetime, timedelta, timezone
+        from webui import catalog
+        self.create_catalog()
+        now = datetime(2026, 10, 2, tzinfo=timezone.utc)
+        def reminder(photos, size, days_old):
+            summary = {"photos": photos, "bytes": size,
+                       "oldest_rejected_at": (now - timedelta(days=days_old)).isoformat() if photos else None}
+            with catalog.connect(self.cfg.db_path) as conn:
+                r = catalog.rejects_reminder(conn, summary, now)
+            return r["over_size"], r["over_age"]
+        self.assertEqual(reminder(0, 0, 0), (False, False))
+        self.assertEqual(reminder(3, 999_999_999, 29), (False, False))
+        self.assertEqual(reminder(3, 1_000_000_000, 29), (True, False))
+        self.assertEqual(reminder(3, 10, 30), (False, True))
+        self.assertEqual(reminder(3, 2_000_000_000, 400), (True, True))
+        self.client.put("/api/v1/settings", json={"values": {"rejects_reminder_bytes": None, "rejects_reminder_days": None},
+                                                  "revisions": {"rejects_reminder_bytes": 0, "rejects_reminder_days": 0}})
+        self.assertEqual(reminder(3, 2_000_000_000, 400), (False, False), "a limit switched off still reminds")
 
 
 class RequestIdentity(ApiCase):
@@ -553,10 +595,16 @@ class JobsAndCatalog(ApiCase):
         # Emptied outside the app: gone from the view at once, before any job records it.
         old, catalog.REJECTS_LISTING_SECONDS = catalog.REJECTS_LISTING_SECONDS, 0
         try:
-            Path(self.client.get(f"/api/v1/photos/{twin['id']}/inspect").json()["dest_path"]).unlink()
+            emptied = self.client.get(f"/api/v1/photos/{twin['id']}/inspect").json()
+            Path(emptied["dest_path"]).unlink()
             rejects = self.client.get("/api/v1/photos", params={"view": "rejects"}).json()
             self.assertEqual((rejects["total"], rejects["rejects"]["photos"]), (0, 0),
                              "a photo emptied from Rejects is still shown there")
+            # Counted as emptied at once too, on Stats and in the status every page reads.
+            for figures in (self.client.get("/api/v1/status").json()["rejects"],
+                            self.client.get("/api/v1/stats").json()["rejects"]):
+                self.assertEqual((figures["photos"], figures["emptied"]["photos"]), (0, 1))
+                self.assertEqual(figures["emptied"]["bytes"], emptied["file_size"])
         finally:
             catalog.REJECTS_LISTING_SECONDS = old
 

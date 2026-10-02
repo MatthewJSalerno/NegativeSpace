@@ -2,6 +2,14 @@
 
 export type CatalogState = "missing" | "ok" | "incompatible" | "error";
 
+// What Rejects holds now, and what has been emptied from it so far (webui-spec 7.8).
+export interface RejectsSummary {
+  photos: number;
+  bytes: number;
+  oldest_rejected_at: string | null;
+  emptied: { photos: number; bytes: number };
+}
+
 export interface Status {
   state: CatalogState;
   detail: string | null;
@@ -12,6 +20,10 @@ export interface Status {
   copied: number;
   // Rejected after a Copy, their source still in place: a Move removes it (engine-spec 9.5).
   rejected_with_source: number;
+  // Null when the catalog cannot be read. `reminder`: past a size or age limit (Settings).
+  rejects: (RejectsSummary & {
+    reminder: { over_size: boolean; over_age: boolean; bytes_limit: number | null; days_limit: number | null };
+  }) | null;
   application_data: string;
   catalog_backups: string;
   // Which build is running: the release, and the branch and commit it was built from.
@@ -54,7 +66,7 @@ export interface PhotoPage {
   // view; `undated` is No capture date within this view under the other filters.
   matches: Record<View | "undated", number>;
   // What Rejects holds now, with the Rejects view.
-  rejects?: { photos: number; bytes: number; oldest_rejected_at: string | null } | null;
+  rejects?: RejectsSummary | null;
 }
 
 export interface PhotoPosition {
@@ -230,6 +242,9 @@ export interface Settings {
   workers: Setting<number> & { detected: number; host: number; limited_by: "cpu_quota" | "cpu_set" | null };
   exts: Setting<string[]> & { support: ExtensionSupport[] };
   backup_retention: Setting<number>;
+  // Null is off.
+  rejects_reminder_bytes: Setting<number | null>;
+  rejects_reminder_days: Setting<number | null>;
   job_active: boolean;
 }
 
@@ -376,6 +391,7 @@ export interface Stats {
     catalog_bytes: number; thumbnail_cache: { size: number; photos: number; bytes: number }[];
     destination_check: { at: string; findings: Record<string, number> } | null;
   };
+  rejects: RejectsSummary;
 }
 
 export class ApiError extends Error {

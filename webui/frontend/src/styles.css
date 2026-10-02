@@ -70,6 +70,11 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
   margin: 0 var(--space-4) var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius);
   background: var(--surface-2); border-left: 4px solid var(--accent);
 }
+/* The Rejects reminder: under the header on every page while Rejects is past a limit. */
+.rejects-reminder { margin: 0 var(--space-6) var(--space-4); padding: var(--space-2) var(--space-4); border-radius: var(--radius);
+  background: var(--surface-2); border-left: 4px solid var(--accent); }
+.rejects-reminder p { margin: 0; }
+.rejects-reminder p + p { margin-top: var(--space-1); max-width: 72ch; }
 .finished-good { border-left-color: var(--good); }
 .finished-warn { border-left-color: var(--warn); }
 .finished-bad { border-left-color: var(--bad); }
@@ -508,7 +513,9 @@ button.photo-action:hover:not(:disabled) { background: var(--surface-2); border-
 .stats { padding: var(--space-4); display: grid; gap: var(--space-4); max-width: 1400px; }
 .stats h2 { margin: 0; }
 /* Fixed columns, each row one height, so every box edge lines up. */
-.stat-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-3); }
+.stat-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+/* Rejects' two lines of figures take two columns, completing the second row. */
+.tile-wide { grid-column: span 2; }
 .stat-tile { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-3); text-align: left; font: inherit; color: inherit; text-decoration: none;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); cursor: default; }
 a.stat-tile, button.stat-tile { cursor: pointer; }
