@@ -427,6 +427,49 @@ def exact_duplicate_removed_only_with_verified_copy():
 
 
 @test
+def a_copy_needing_attention_never_authorizes_removing_a_duplicate():
+    """TODO.md claim 15: a destination copy with an unresolved needs-attention issue does
+    not authorize deleting a duplicate source, even with matching bytes. The source stays,
+    the outcome says why, and once the issue is resolved the next Move removes it."""
+    engine = _load_engine()
+    case = new_case("dupe_attention")
+    make_photo(case / "src" / "original.jpg", "ATTN")
+    make_photo(case / "src" / "nested" / "copy.jpg", "ATTN")
+    run_engine(case)
+    original = rows(case, "SELECT id FROM photos WHERE status = 'Pending'")[0]["id"]
+    run_engine(case, "--move", "--file-ids", original)
+    check(src_files(case) == ["nested/copy.jpg"], f"the duplicate was handled early: {src_files(case)}")
+
+    db_path = case / "appdata" / "db" / "ns_sqlite.db"
+    conn = engine.get_db_connection(str(db_path))
+    dest = conn.execute("SELECT dest_path FROM photos WHERE id = ?", (original,)).fetchone()[0]
+    file_id = conn.execute("SELECT file_id FROM file_states WHERE current_path = ? AND "
+                           "location_role = 'destination'", (dest,)).fetchone()[0]
+    run_id = conn.execute("SELECT MAX(id) FROM runs").fetchone()[0]
+    with engine.ns_db.transaction(conn):
+        op = conn.execute("INSERT INTO operations(run_id, photo_id, status, timestamp) VALUES (?, ?, 'Failed', 't')",
+                          (run_id, original)).lastrowid
+        issue = engine.ns_db.open_attention_issue(conn, operation_id=op, file_id=file_id,
+                                                  category="unestablished_outcome", summary="synthetic")
+    conn.close()
+
+    run_engine(case, "--move")
+    check(src_files(case) == ["nested/copy.jpg"], "a copy needing attention authorized removing a source")
+    skip = rows(case, "SELECT status, error_message FROM operations WHERE source_path LIKE '%/nested/copy.jpg' "
+                      "ORDER BY id DESC LIMIT 1")[0]
+    check(skip["status"] == "Skipped" and "needs-attention" in skip["error_message"],
+          f"the kept source does not say why: {skip}")
+
+    conn = engine.get_db_connection(str(db_path))
+    with engine.ns_db.transaction(conn):
+        engine.ns_db.resolve_attention_issue(conn, issue)
+    conn.close()
+    run_engine(case, "--move")
+    check(src_files(case) == [], f"the source stayed after the issue was resolved: {src_files(case)}")
+    check(status_of(case, "copy.jpg") == "Removed_Duplicate", f"copy.jpg is {status_of(case, 'copy.jpg')}")
+
+
+@test
 def duplicate_cleanup_rechecks_live_content():
     """Stale hashes or an unreadable destination must not authorize deletion."""
     for scenario in ("destination_changed", "source_changed", "destination_unreadable"):
