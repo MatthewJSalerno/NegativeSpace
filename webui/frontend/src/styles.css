@@ -819,7 +819,9 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .review-filmstrip button > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-xs); }
 .review-filmstrip button[aria-pressed=true] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--surface-2); }
 .match-diagnostics { padding: var(--space-4) 0; }
-.match-diagnostics dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2) var(--space-4); }
+/* Each figure right after its label, not pushed to the far edge of a wide panel. */
+.match-diagnostics dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-2) var(--space-4); }
+.match-diagnostics dd { font-variant-numeric: tabular-nums; }
 .match-diagnostics dd { margin: 0; }
 @media (max-width: 1050px) {
   .review-layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
