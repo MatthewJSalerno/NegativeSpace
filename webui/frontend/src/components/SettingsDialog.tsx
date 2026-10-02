@@ -192,6 +192,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
     files: (<>
       <section>
         <h3>File types</h3>
+        <p className="muted">NegativeSpace looks for these kinds of files in your source folder. Files of other types are left where they are.</p>
         <div className="ext-grid" id="settings-exts" role="group" aria-label="File types" tabIndex={-1}
              aria-invalid={!!fieldErrors.exts || undefined} aria-describedby={fieldErrors.exts ? "settings-exts-error" : undefined}>
           {offered.map((ext) => (
@@ -212,7 +213,12 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
       </section>
       <section>
         <h3>Rejects reminder</h3>
-        <p className="muted">A line on every page reminds you to empty Rejects once it passes either limit.</p>
+        <p className="muted">
+          When you reject a photo, NegativeSpace moves it out of your library into a separate Rejects folder in your
+          destination. It stays there, untouched, until you delete it yourself, and you can bring it back until then:
+          NegativeSpace never deletes a photo. Once Rejects passes either limit below, a line on every page reminds you
+          to empty it.
+        </p>
         <LimitRow id="settings-reminderSize" on={sizeOn} onToggle={setSizeOn} value={sizeGb} onValue={setSizeGb}
           before="Remind me when Rejects holds at least" after="GB" min={0.1} step={0.1} disabled={saving} error={fieldErrors.reminderSize} />
         <LimitRow id="settings-reminderAge" on={ageOn} onToggle={setAgeOn} value={ageDays} onValue={setAgeDays}
@@ -221,6 +227,12 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
     </>),
     backups: (
       <section>
+        <p className="notice">
+          <strong>These are backups of NegativeSpace's catalog, not of your photos.</strong>{" "}
+          The catalog is what NegativeSpace records about your photos: file information, metadata and the history of
+          every change. A catalog backup cannot recreate or recover a photo. Backing up your photos is up to you; keep
+          your own separate backups of them.
+        </p>
         <Field id="settings-retention" label="Automatic backups to keep" type="number" min={1} step={1}
           value={retention} disabled={saving} onChange={(e) => setRetention(e.target.value)} error={fieldErrors.retention}
           hint="A backup of the catalog is taken after each job and before each change; the oldest beyond this number are deleted." />
@@ -231,7 +243,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
       <section>
         <Field id="settings-workers" label="Maximum worker processes" type="number" min={1} step={1}
           value={workers} disabled={saving} onChange={(e) => setWorkers(e.target.value)} error={fieldErrors.workers}
-          hint="Controls how many photos are read and hashed at once." />
+          hint="How many photos NegativeSpace reads at once. More is faster, but leaves less of this computer for anything else." />
         <p className="notice">
           {settings.workers.limited_by
             ? <>This container may use <strong>{settings.workers.detected}</strong> of the host's {settings.workers.host} CPU

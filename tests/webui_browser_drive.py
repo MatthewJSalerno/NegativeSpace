@@ -79,7 +79,13 @@ with sync_playwright() as p:
             expect(page.locator("#settings-exts-error")).to_contain_text("at least one file type")
             for i in ticked:
                 boxes.nth(i).check()
+            # Explained for someone seeing the app for the first time.
+            expect(page.locator(".settings")).to_contain_text("moves it out of your library into a separate Rejects folder")
             shot("1b-welcome-files")
+        if n == 3:
+            expect(page.locator(".settings")).to_contain_text("not of your photos")
+            expect(page.locator(".settings")).to_contain_text("Backing up your photos is up to you")
+            shot("1c-welcome-backups")
         if n == 4:
             expect(page.locator(".settings")).to_contain_text(re.compile(r"This container may use (all )?\d+"))
             page.get_by_role("button", name="Back", exact=True).click()
@@ -632,7 +638,7 @@ with sync_playwright() as p:
     page.get_by_role("tab", name="Backups").click()
     # Catalog backups: each job above took one; Back up now adds a manual one.
     backups = page.locator(".backups")
-    expect(backups).to_contain_text("not photos")
+    expect(page.get_by_role("dialog")).to_contain_text("not of your photos")
     expect(backups.locator("tbody tr", has_text="After job #").first).to_be_visible()
     backups.get_by_role("button", name="Back up now").click()
     expect(backups.locator("p.ok")).to_contain_text("verified")

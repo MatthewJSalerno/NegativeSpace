@@ -377,7 +377,7 @@ button.photo-action:hover:not(:disabled) { background: var(--surface-2); border-
 .field input { width: 100px; }
 .field-inline { display: flex; gap: var(--space-2); margin-top: var(--space-1); }
 .field-inline input { width: 120px; }
-.ext-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: var(--space-1) var(--space-3); }
+.ext-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: var(--space-1) var(--space-2); }
 .ext { display: flex; gap: var(--space-1); align-items: center; }
 .ext input { padding: 0; }
 .ext.unsupported { color: var(--warn); }
