@@ -2222,7 +2222,7 @@ def _assert_lineage_complete(case, label):
         return rows(case, sql, params)[0]["n"]
 
     check(one("SELECT COUNT(*) n FROM photos p JOIN photo_files pf ON pf.photo_id=p.id "
-              "JOIN file_states s USING(file_id) WHERE p.status IN ('Completed','Removed_Duplicate') "
+              "JOIN file_states s USING(file_id) WHERE p.status IN ('Completed','Removed_Duplicate','Rejected') "
               "AND s.location_role='source' AND s.presence_state='present'") == 0,
           f"[{label}] a settled removal still records the original source as present")
     check(one("SELECT COUNT(*) n FROM operations o WHERE o.status IN ('Completed','Copied','Removed_Duplicate') "
@@ -2395,8 +2395,20 @@ def every_catalogued_file_assembles_complete_lineage():
     run_engine(found, "--move")
     covered |= _assert_lineage_complete(found, "found")
 
+    # 4. Rejected: after a Move, after a Copy (source kept), and emptied from Rejects.
+    rejected = new_case("lineage_rejected")
+    for name in ("g", "h", "j"):
+        make_photo(rejected / "src" / f"{name}.jpg", f"LIN-{name.upper()}")
+    run_engine(rejected)
+    run_engine(rejected, "--copy")
+    run_engine(rejected, "--move", "--file-ids", _ids(rejected, "g.jpg", "j.jpg"))
+    run_engine(rejected, "--reject", "--file-ids", _ids(rejected, "g.jpg", "h.jpg", "j.jpg"))
+    Path(rows(rejected, "SELECT dest_path FROM photos WHERE source_path LIKE '%/j.jpg'")[0]["dest_path"]).unlink()
+    run_engine(rejected)
+    covered |= _assert_lineage_complete(rejected, "rejected")
+
     required = {"Pending", "Copied", "Duplicate", "Completed", "Failed", "Removed_Duplicate",
-                "Found_At_Destination"}
+                "Found_At_Destination", "Rejected", "Rejected_Copied", "Rejected_Emptied"}
     check(required <= covered,
           f"lineage was not verified for every settled status; missing {sorted(required - covered)}")
 
@@ -4523,6 +4535,195 @@ def an_interrupted_rename_is_settled_from_what_is_on_disk():
             check(old.exists() and new.read_bytes() == b"a different file" and op[0]["status"] == "Failed"
                   and issues == [{"category": "unestablished_outcome"}],
                   f"two different files were not left alone with a note: {op} {issues}")
+
+
+def _ids(case, *names):
+    found = {Path(r["source_path"]).name: r["id"] for r in rows(case, "SELECT id, source_path FROM photos")}
+    return ",".join(str(found[n]) for n in names)
+
+
+def _tree(case, folder):
+    root = case / "dest" / folder
+    return sorted(p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()) if root.exists() else []
+
+
+@test
+def a_rejected_photo_leaves_the_library_and_stays_out_of_it():
+    """
+    engine-spec 9.5: Reject moves an organized photo's file to the same folders under
+    dest/rejects, never deleting it, after one catalog backup. Its duplicates follow it:
+    Copy skips them, Move removes them only against the verified copy in Rejects, and an
+    identical file arriving later is a duplicate too. Return to library moves it back.
+    Emptying Rejects is noticed by the next job; an identical file arriving after that
+    goes back to Rejects, one copy, never deleted with nothing kept.
+    """
+    case = new_case("reject_cycle")
+    make_photo(case / "src" / "a.jpg", "REJ-A", date="2021:05:01 10:00:00")
+    make_photo(case / "src" / "twin" / "a.jpg", "REJ-A", date="2021:05:01 10:00:00")
+    make_photo(case / "src" / "b.jpg", "REJ-B", date="2021:05:01 10:00:00")
+    make_photo(case / "src" / "c.jpg", "REJ-C", date="2021:05:02 10:00:00")
+    run_engine(case)
+    run_engine(case, "--copy")
+    run_engine(case, "--move", "--file-ids", _ids(case, "c.jpg"))
+    a_id = rows(case, "SELECT id FROM photos WHERE status = 'Copied' AND source_path LIKE '%/src/a.jpg'")[0]["id"]
+    c_id = int(_ids(case, "c.jpg"))
+    inode = (case / "dest" / "library" / "2021" / "05" / "01" / "a.jpg").stat().st_ino
+    backups = len(backups_of(case))
+
+    run_engine(case, "--reject", "--file-ids", f"{a_id},{c_id}")
+    check(_tree(case, "library") == ["2021/05/01/b.jpg"], f"library after reject: {_tree(case, 'library')}")
+    check(_tree(case, "rejects") == ["2021/05/01/a.jpg", "2021/05/02/c.jpg"],
+          f"rejects after reject: {_tree(case, 'rejects')}")
+    check((case / "dest" / "rejects" / "2021" / "05" / "01" / "a.jpg").stat().st_ino == inode,
+          "the rejected file was copied rather than moved")
+    check(sorted(src_files(case)) == ["a.jpg", "b.jpg", "twin/a.jpg"], "a reject touched the source")
+    statuses = {r["id"]: r["status"] for r in rows(case, "SELECT id, status FROM photos")}
+    check((statuses[a_id], statuses[c_id]) == ("Rejected_Copied", "Rejected"), f"statuses: {statuses}")
+    got = backups_of(case)[backups:]
+    check([(b["trigger_kind"], b["outcome"]) for b in got] == [("pre_action", "succeeded")],
+          f"the reject was not preceded by exactly one catalog backup: {got}")
+    run = rows(case, "SELECT mode, status FROM runs ORDER BY id DESC LIMIT 1")[0]
+    check((run["mode"], run["status"]) == ("REJECT", "Completed"), f"reject run: {run}")
+    op = rows(case, "SELECT source_path, dest_path FROM operations WHERE status = 'Rejected' AND photo_id = ?", (c_id,))
+    check(op == [{"source_path": str(case / "dest" / "library" / "2021" / "05" / "02" / "c.jpg"),
+                  "dest_path": str(case / "dest" / "rejects" / "2021" / "05" / "02" / "c.jpg")}],
+          f"the reject was not recorded with both paths: {op}")
+    _assert_lineage_complete(case, "after a reject")
+    run_engine(case, "--check-destination", "quick")
+    check(_check_findings(case) == set(), f"the check reported the rejects: {_check_findings(case)}")
+
+    # Its duplicates follow it: an Index keeps them duplicates, a Copy skips them and says why.
+    run_engine(case)
+    run_engine(case, "--copy")
+    twin = rows(case, "SELECT id, status FROM photos WHERE source_path LIKE '%/twin/a.jpg'")[0]
+    check(twin["status"] == "Duplicate", f"the rejected photo's duplicate became {twin['status']}")
+    skip = rows(case, "SELECT error_message FROM operations WHERE photo_id = ? ORDER BY id DESC LIMIT 1", (twin["id"],))
+    check(skip[0]["error_message"].startswith("Already rejected"), f"the Copy did not say why: {skip}")
+    check(_tree(case, "library") == ["2021/05/01/b.jpg"], "a Copy put a rejected photo back in the library")
+
+    # A Move removes the sources only against the verified copy in Rejects.
+    make_photo(case / "src" / "later.jpg", "REJ-A", date="2021:05:01 10:00:00")
+    run_engine(case)
+    check(status_of(case, "later.jpg") == "Duplicate", "an identical file arriving later became a new photo")
+    run_engine(case, "--move")
+    check(src_files(case) == [], f"sources left after the Move: {src_files(case)}")
+    check(_tree(case, "library") == ["2021/05/01/b.jpg"] and
+          _tree(case, "rejects") == ["2021/05/01/a.jpg", "2021/05/02/c.jpg"],
+          f"after the Move: library {_tree(case, 'library')}, rejects {_tree(case, 'rejects')}")
+    statuses = {r["id"]: r["status"] for r in rows(case, "SELECT id, status FROM photos")}
+    check(statuses[a_id] == "Rejected" and statuses[twin["id"]] == "Removed_Duplicate"
+          and status_of(case, "later.jpg") == "Removed_Duplicate", f"after the Move: {statuses}")
+    _assert_lineage_complete(case, "after a Move of rejected photos")
+
+    # Return to library: back to its date folder, as it was.
+    run_engine(case, "--return-to-library", "--file-ids", str(c_id))
+    check(_tree(case, "library") == ["2021/05/01/b.jpg", "2021/05/02/c.jpg"]
+          and _tree(case, "rejects") == ["2021/05/01/a.jpg"], "Return to library did not move it back")
+    check(rows(case, "SELECT status FROM photos WHERE id = ?", (c_id,))[0]["status"] == "Completed",
+          "a returned photo did not go back to Completed")
+    check(rows(case, "SELECT COUNT(*) n FROM operations WHERE photo_id = ? AND status = 'Returned'", (c_id,))[0]["n"] == 1,
+          "the return was not recorded")
+    _assert_lineage_complete(case, "after a return")
+
+    # Emptied outside the app: the next job notices, once.
+    (case / "dest" / "rejects" / "2021" / "05" / "01" / "a.jpg").unlink()
+    run_engine(case)
+    run_engine(case)
+    check(rows(case, "SELECT status FROM photos WHERE id = ?", (a_id,))[0]["status"] == "Rejected_Emptied",
+          "emptying Rejects was not noticed")
+    check(rows(case, "SELECT COUNT(*) n FROM operations WHERE photo_id = ? AND status = 'Emptied'", (a_id,))[0]["n"] == 1,
+          "emptying was not recorded exactly once")
+
+    # Arriving again after that: Copy skips it; Move puts one copy back in Rejects and
+    # removes the other against it.
+    make_photo(case / "src" / "again.jpg", "REJ-A", date="2021:05:01 10:00:00")
+    make_photo(case / "src" / "again2.jpg", "REJ-A", date="2021:05:01 10:00:00")
+    run_engine(case)
+    run_engine(case, "--copy")
+    check(_tree(case, "library") == ["2021/05/01/b.jpg", "2021/05/02/c.jpg"] and _tree(case, "rejects") == [],
+          "a Copy acted on a rejected photo arriving again")
+    run_engine(case, "--move")
+    check(src_files(case) == [] and _tree(case, "rejects") == ["2021/05/01/a.jpg"]
+          and _tree(case, "library") == ["2021/05/01/b.jpg", "2021/05/02/c.jpg"],
+          f"after the Move: src {src_files(case)}, rejects {_tree(case, 'rejects')}")
+    check(sorted([status_of(case, "again.jpg"), status_of(case, "again2.jpg")]) == ["Rejected", "Removed_Duplicate"],
+          f"arriving again: {status_of(case, 'again.jpg')}, {status_of(case, 'again2.jpg')}")
+    _assert_lineage_complete(case, "after a reject arrived again")
+
+
+@test
+def a_reject_acts_only_on_organized_photos_and_stops_when_unsafe():
+    """Every selected photo gets an outcome; one not yet organized is skipped with the
+    reason. A folder rejects only its own photos. A changed file and a failed backup
+    each stop the reject with the file in place. A reject needs a selection."""
+    case = new_case("reject_refused")
+    make_photo(case / "src" / "keep" / "k.jpg", "REJ-K")
+    make_photo(case / "src" / "trip" / "t1.jpg", "REJ-T1")
+    make_photo(case / "src" / "trip" / "t2.jpg", "REJ-T2")
+    make_photo(case / "src" / "trip" / "new.jpg", "REJ-NEW")
+    run_engine(case)
+    run_engine(case, "--copy", "--file-ids", _ids(case, "k.jpg", "t1.jpg", "t2.jpg"))
+
+    run_engine(case, "--reject", expect_rc=2)
+    run_engine(case, "--reject", "--source-subdir", "trip")
+    check(_tree(case, "library") == ["2024/02/14/k.jpg"], f"library: {_tree(case, 'library')}")
+    check(_tree(case, "rejects") == ["2024/02/14/t1.jpg", "2024/02/14/t2.jpg"], f"rejects: {_tree(case, 'rejects')}")
+    skip = rows(case, "SELECT status, error_message FROM operations WHERE photo_id = ? ORDER BY id DESC LIMIT 1",
+                (int(_ids(case, "new.jpg")),))
+    check(skip == [{"status": "Skipped", "error_message": "Not organized yet: only photos in the library can be rejected."}],
+          f"the unorganized photo had no outcome: {skip}")
+
+    k = case / "dest" / "library" / "2024" / "02" / "14" / "k.jpg"
+    shutil.rmtree(case / "backups")
+    run_engine(case, "--reject", "--file-ids", _ids(case, "k.jpg"), expect_rc=1)
+    check(k.exists() and _tree(case, "rejects") == ["2024/02/14/t1.jpg", "2024/02/14/t2.jpg"],
+          "a reject went ahead after its catalog backup failed")
+    (case / "backups").mkdir()
+    with open(k, "ab") as f:
+        f.write(b"edited elsewhere")
+    run_engine(case, "--reject", "--file-ids", _ids(case, "k.jpg"))
+    failed = rows(case, "SELECT error_message FROM operations WHERE status = 'Failed' ORDER BY id DESC LIMIT 1")
+    check(k.exists() and failed and "differs from the catalog" in failed[0]["error_message"],
+          f"a changed file was rejected, or the mismatch went unrecorded: {failed}")
+    check(status_of(case, "k.jpg") == "Copied", "a failed reject changed the photo's status")
+
+
+@test
+def an_interrupted_reject_is_settled_from_what_is_on_disk():
+    """A reject stopped between link and unlink (both names, one inode) is finished by
+    the next job, and the photo is Rejected; one that never happened leaves it organized."""
+    engine = _load_engine()
+    for scenario in ("both_names", "not_started"):
+        case = new_case(f"reject_recovery_{scenario}")
+        make_photo(case / "src" / "a.jpg", "REJ-REC")
+        run_engine(case)
+        run_engine(case, "--move")
+        photo = rows(case, "SELECT id, dest_path FROM photos")[0]
+        old = Path(photo["dest_path"])
+        new = case / "dest" / "rejects" / old.relative_to(case / "dest" / "library")
+        db_path = case / "appdata" / "db" / "ns_sqlite.db"
+        conn = engine.get_db_connection(str(db_path))
+        file_id = conn.execute("SELECT file_id FROM file_states WHERE current_path = ?", (str(old),)).fetchone()[0]
+        run_id = conn.execute("SELECT MAX(id) FROM runs").fetchone()[0]
+        with engine.ns_db.transaction(conn):
+            engine.ns_db.begin_operation(conn, run_id=run_id, photo_id=photo["id"], source_path=str(old),
+                                         dest_path=str(new), kind="reject",
+                                         expected={"old_path": str(old), "new_path": str(new), "file_id": file_id,
+                                                   "status_before": "Completed", "status_after": "Rejected",
+                                                   "operation_status": "Rejected"})
+        conn.close()
+        if scenario == "both_names":
+            new.parent.mkdir(parents=True)
+            os.link(old, new)
+        run_engine(case)
+        status = rows(case, "SELECT status, dest_path FROM photos")[0]
+        if scenario == "both_names":
+            check(new.exists() and not old.exists() and status == {"status": "Rejected", "dest_path": str(new)},
+                  f"a half-finished reject was not completed: {status}")
+            _assert_lineage_complete(case, "after reject recovery")
+        else:
+            check(old.exists() and status == {"status": "Completed", "dest_path": str(old)},
+                  f"a reject that never happened changed the photo: {status}")
 
 
 @test

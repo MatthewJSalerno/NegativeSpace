@@ -44,10 +44,11 @@ export function useJobFeed(): { jobs: JobState; connection: Connection } {
 const MODE_ACTIVE: Record<string, string> = {
   INDEX: "Indexing", COPY: "Copying", MOVE: "Moving", REBUILD: "Rebuilding thumbnails",
   SIMILARITY: "Recovering similarity matching", CHECK: "Checking the destination", RENAME: "Renaming",
+  REJECT: "Rejecting", RETURN: "Returning to the library",
 };
 const MODE_NAME: Record<string, string> = {
   INDEX: "Index", COPY: "Copy", MOVE: "Move", REBUILD: "Thumbnail rebuild", CHECK: "Destination check",
-  SIMILARITY: "Similarity recovery", RENAME: "Rename",
+  SIMILARITY: "Similarity recovery", RENAME: "Rename", REJECT: "Reject", RETURN: "Return to library",
 };
 const PHASE: Record<string, string> = {
   discovering: "Looking for photos", scanning: "Reading photos", transferring: "Transferring",
@@ -62,6 +63,7 @@ const OUTCOME: Record<string, string> = {
   Removed_Duplicate: "duplicate sources removed", Already_Gone: "already gone", made: "made",
   Compared: "hashes compared", already: "already present", kept: "kept", ok: "intact", missing: "missing", changed: "changed",
   unreadable: "unreadable", unknown: "not put there by NegativeSpace", Renamed: "renamed",
+  Rejected: "in Rejects", Rejected_Copied: "in Rejects, original kept", Returned: "returned to the library",
 };
 
 export function activeTitle(run: Run): string {
@@ -83,7 +85,7 @@ export function phaseLabel(phase: Phase): string {
 
 // Successes first, then non-actions, then problems.
 const ORDER = ["eligible", "excluded", "indexed", "unchanged", "Copied", "Completed", "Removed_Duplicate",
-  "Found_At_Destination", "made", "ok", "Renamed", "already", "kept", "Skipped", "Already_Gone", "unknown",
+  "Found_At_Destination", "Rejected", "Rejected_Copied", "Returned", "made", "ok", "Renamed", "already", "kept", "Skipped", "Already_Gone", "unknown",
   "Cancelled", "missing", "changed", "unreadable", "failed", "Failed"];
 
 export function countsLine(counts: Record<string, number>, mode?: string | null): string {
@@ -109,6 +111,13 @@ const SKIP_REASON: Record<string, string> = {
   duplicate: "duplicates: the same content is copied once",
   duplicate_original_not_selected: "duplicates whose original was not selected",
   already_copied: "copied by an earlier job",
+  already_rejected: "already rejected: kept out of the library",
+  already_in_rejects: "already in Rejects",
+  not_organized: "not organized yet",
+  copy_follows_original: "copies that follow their original",
+  already_in_library: "already in the library",
+  not_in_rejects: "not in Rejects",
+  rejects_emptied: "emptied from Rejects",
   network_share_unconfirmed: "not attempted: a Move to a network share needs confirming",
   source_looked_empty: "not attempted: the source looked empty",
   other: "other reasons",
@@ -135,11 +144,17 @@ export function summary(run: Run): { headline: string; detail: string; tone: "go
       ? `${count(outcome.counts.Copied ?? 0)} of ${plural(outcome.total, "file")} copied`
       : run.mode === "MOVE" && outcome.total != null
         ? `${count(outcome.counts.Completed ?? 0)} of ${plural(outcome.total, "file")} moved`
-        : "";
+        : run.mode === "REJECT" && outcome.total != null
+          ? `${count(outcome.counts.Rejected ?? 0)} of ${plural(outcome.total, "photo")} moved to Rejects`
+          : run.mode === "RETURN" && outcome.total != null
+            ? `${count(outcome.counts.Returned ?? 0)} of ${plural(outcome.total, "photo")} returned to the library`
+            : "";
   const reasons = outcome.skip_reasons ? skipReasons(outcome.skip_reasons) : "";
   const rest = countsLine(
     Object.fromEntries(Object.entries(outcome.counts).filter(([k]) =>
       !(run.mode === "COPY" && k === "Copied") && !(run.mode === "MOVE" && (k === "Completed" || k === "Copied"))
+      && !(run.mode === "REJECT" && k === "Rejected") && !(run.mode === "RETURN" && k === "Returned")
+      && !(run.mode === "MOVE" && k === "Rejected_Copied")
       && !(reasons && k === "Skipped"))),
   );
   // A Move that could not delete an original copied it: said as such, never as moved.

@@ -136,12 +136,11 @@ files under `Undated/<year>/`, the year taken from the source's modification tim
 as captured at its original Index; `CreateDate` and `DateTime` are kept as review
 evidence but never place a file. See `engine-spec.md` §4.2.
 
-**Two capabilities the web UI depends on do not exist yet**, each specified
+**A capability the web UI depends on does not exist yet**, each specified
 with what it needs:
 
 | Gap | Where | Blocks |
 | :--- | :--- | :--- |
-| Rejects: moving a delivered photo to `dest/rejects/`, with an extended record (never deleting) | `engine-spec.md` §9.5, §9.9 | Discarding redundant copies; needs `width`/`height` too |
 | Writing embedded EXIF (sidecars remain a future option) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
 
 Further gaps between the documented web workflows and what the engine can answer
@@ -233,8 +232,9 @@ Specified but not yet on screen:
 *   The destination check, from a lineage tree's copy or on its own.
 *   The Rename and Undated tabs, similarity curation actions, and metadata editing
     (`webui-spec.md` §7.5, with its decided details).
-*   Workspaces, Rejects and Needs review (`webui-spec.md` §7.7–7.9); the destination
-    folders `dest/rejects` and `dest/raw-originals` beside `dest/library` (`engine-spec.md` §9.9);
+*   Needs review (`webui-spec.md` §7.9); Rejects' size on Stats, its threshold line, the
+    similar-to-a-reject check, and Reject from Similar photos (`webui-spec.md` §7.8); the destination
+    folder `dest/raw-originals` (`engine-spec.md` §9.9);
     selections passed in a file, lifting the 1,000-photo limit (`engine-spec.md` §4.1);
     the export-sidecar notice at Index.
 *   Videos and other non-photo formats are deliberately deferred until photo organizing
@@ -243,11 +243,8 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 16; automatic upgrades remain disabled. The explicit
-`tools/prepare-similarity-catalog.py` tool prepares a separate schema-16 catalog
-from schema 14 or 15, preserving history and judgments. It rebuilds the widened
-comparison range for schema 14 and prepares six cached gallery counts for either
-version. Schema-15 relationships are retained. Other incompatible versions remain refused. It stores immutable
+at schema version 17; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
+It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its
 identity, and reuse of an existing destination keeps both identities and links the

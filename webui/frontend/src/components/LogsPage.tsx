@@ -292,7 +292,8 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
               state={{ jobRunning, noPhotos: status.photos === 0, selected: 0, tooMany: false, maxSelection: 1000,
                        eligible: status.eligible, copied: status.copied }}
               onIndex={startJob("index")}
-              onTransfer={(mode) => setConfirm(transferConfirm(mode, status, undefined, startJob(mode)))} />
+              onTransfer={(mode) => (mode === "copy" || mode === "move")
+                && setConfirm(transferConfirm(mode, status, undefined, startJob(mode)))} />
             <a className="button-link active" href="/logs" onClick={follow} aria-current="page">Logs</a>
           </nav>
           <div className="toolbar-actions">

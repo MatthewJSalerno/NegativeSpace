@@ -123,8 +123,7 @@ its matches in the thumbnail grid. Use
 Inspector results. The gallery's separate **Matches at or above** selector changes
 its membership, and **Most matches first** sorts counts highest first. Reload and
 return from Logs to confirm the reference and threshold
-remain. An existing populated schema-16 catalog needs no new Index or Copy for
-these review checks.
+remain.
 The database suite verifies the hash index against brute force and interrupted
 comparison recovery; the API suite checks reference-only matches, hash changes,
 availability, exact copies, thresholds and pagination.
@@ -153,6 +152,11 @@ deletion belong to a separate workstream and do not block these checks.
 Logs photo positioning, offscreen Inspector navigation, retained filters, explicit
 hidden-photo display, retry, ordinary gallery clicks, manual scrolling and History
 action alignment. Its fixtures are generated photos in isolated containers.
+
+`DRIVER=rejects_browser_drive.py sh tests/webui_browser_test.sh` checks Rejects: one
+photo rejected from the Inspector (asked first, starting on Cancel), a selection
+reviewed before rejecting, a folder from the Folders tree, the Rejects view with what it
+holds and How to empty Rejects, Return to library, and the view at a narrow width.
 
 `DRIVER=appearance_browser_drive.py SHOTS=/tmp/ns-shots sh tests/webui_browser_test.sh`
 checks both neutral palettes in light/dark modes, text and input contrast, local
@@ -331,21 +335,8 @@ appdata, use **Create catalog → save settings → Index → Copy**,
 then validate the gallery controls and Inspector. Keep the source read-only and the
 existing sample destination. No upgrade step is required for this route.
 
-Optional development tool (not required for the validated sample or merge):
 
-The current count cache uses schema 16 (the 75% floor was introduced in schema 15).
-Automatic startup upgrades remain disabled. To preserve schema-14/15 history and
-judgments, stop the app and run
-`tools/prepare-similarity-catalog.py --source <old-catalog> --output <new-catalog>`
-with the updated dependencies. Add `--compare` when preparing schema 14 to fill the
-wider comparison range. Output must be a new file. The tool uses SQLite backup,
-preserves schema-15 comparisons, builds all six gallery counts, and checks integrity
-and foreign keys. Retain the original catalog and use the matching old app image
-for rollback; never install a snapshot taken before later user writes. It reads
-stored hashes, not photos. Other input schema versions are refused.
-
-Cache checks in the database/API suites cover schema-14/15 preparation, unchanged
-source/history/judgments, all six thresholds and an uncached intermediate threshold,
+Cache checks in the database/API suites cover all six thresholds and an uncached intermediate threshold,
 missing destination files, representative changes, changed hashes/relationships,
 rollback, old reader snapshots, cancelled publication and live fallback. Engine
 settlement retains its FULL durability check. A cancelled cache build is not a
@@ -527,3 +518,88 @@ and rejects invalid IDs. Clipboard output is only a local generated-fixture link
 
 Pass: either copy path gives a usable link that restores the current comparison.
 The manual fallback is expected behavior when clipboard access is unavailable.
+
+## Large-library performance workstream
+
+The manual functional checklist is complete. Representative capacity work is scoped
+separately on `perf/large-library-validation`; see
+[the measurement plan](../docs/large-library-performance.md) for isolated inputs,
+query scenarios, comparable A/B runs and pending coverage.
+Existing synthetic tools do not establish real NFS or dense-library capacity.
+
+
+### Synthetic catalog query benchmark
+
+No source images, Index, Copy or running app instance are needed. Use a local app
+image with dependencies, mount the checkout read-only and give only generated
+output its own writable mount. Substitute your built image tag for `negativespace`.
+
+```sh
+mkdir -p /tmp/ns-query-results
+docker run --rm --user "$(id -u):$(id -g)" --memory 2g \
+  --entrypoint python3 -v "$PWD":/app:ro \
+  -v /tmp/ns-query-results:/output -w /app negativespace \
+  tools/benchmark-synthetic-queries.py --output /output/small-sparse \
+  --photos 1000 --profile sparse --repeats 3 --revision "$(git rev-parse HEAD)"
+```
+
+Then use a new output directory, `--photos 250000` and `--repeats 30` for warm
+percentiles. Try `--profile equal`, `dense` and `mixed` separately; these are distinct
+workloads, not interchangeable evidence. `--threshold 75` measures broader browsing
+without recalculating hashes or pairs. See the [profile limitations and measurement
+contract](../docs/large-library-performance.md#synthetic-query-runner).
+
+For an A/B query comparison, mount the candidate checkout at `/app`, keep the same
+image and resources, and replace generation arguments with:
+
+```text
+--output /output/candidate-sparse --fixture /output/baseline-sparse/fixture
+--baseline /output/baseline-sparse/report.json
+--repeats 30 --revision <candidate-commit-or-explicit-dirty-label>
+```
+
+`baseline-sparse` must be an earlier successful generated run. Both code revisions
+must understand the same schema and expose the query helpers used by this runner.
+If the baseline predates this script, supply the same runner separately and place
+it under the baseline's `tools/` directory in a disposable checkout. Do not compare
+runs with different fixture fingerprints or changed result fingerprints as a speedup.
+The optional `--baseline` adds candidate/baseline latency ratios to the report and
+returns nonzero if fixture, repeat settings, scenarios, thresholds or result
+fingerprints differ, or either workload failed. A ratio below 1 means faster; it
+is evidence for that run, not a statistically established improvement.
+No schema migration is performed. A supplied revision label is recorded as supplied;
+Git cleanliness is unknown when the container has no Git. Keep the host dirty state
+and image identity in your local run notes.
+
+Each output contains `report.json`; generated runs also contain `fixture/` with
+`catalog.sqlite` and `manifest.json`. Existing outputs are never overwritten.
+Failures/timeouts return nonzero and remain in the report. The default per-request
+worker deadline is 30 seconds (`--timeout`, maximum 300); it includes startup for
+the first request. Reports with fewer than 30 warm samples deliberately omit p95.
+
+Harness correctness checks (inside the same app dependency environment):
+
+```sh
+python3 -m unittest discover -s tests -p synthetic_queries_test.py
+```
+
+These check known memberships and identical-group collapse, destination/hash
+eligibility, high thresholds, edge limits, repeated results, fixture reuse,
+modified-fixture rejection (including pending WAL changes), query-only enforcement,
+A/B compatibility checks and timeout reporting.
+
+
+To attribute the Inspector/set workload to individual SQL statements, use the same
+container/mount setup with:
+
+```text
+tools/profile-synthetic-queries.py --fixture /output/baseline-sparse/fixture
+--output /output/profile-baseline.json
+```
+
+The output file must be new. It includes `EXPLAIN QUERY PLAN` and execution/fetch
+timing for each read statement. Plan collection adds overhead: use this to locate
+expensive work, and use `benchmark-synthetic-queries.py` for A/B measurements.
+For a short 500k trial use `--photos 500000 --scenarios inspector related --repeats 3`;
+this deliberately produces no p95. Keep repeat settings identical for its candidate
+run, and use a new output directory for every profile/revision.

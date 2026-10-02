@@ -506,6 +506,60 @@ class JobsAndCatalog(ApiCase):
         again = self.wait_for(self.start(mode="copy"))
         self.assertEqual(again["outcome"]["verdict"], "no_change")
 
+    def test_a_rejected_photo_leaves_every_view_and_shows_in_rejects_until_emptied(self):
+        from webui import catalog
+        self.index_library()
+        self.wait_for(self.start(mode="copy"))
+        listed = self.client.get("/api/v1/photos", params={"view": "all"}).json()["items"]
+        twin = next(p for p in listed if p["duplicates"])
+        single = next(p for p in listed if not p["duplicates"])
+        self.assertEqual(self.client.post("/api/v1/jobs/start", json={"mode": "reject"}).status_code, 400,
+                         "a reject of everything was accepted")
+
+        run = self.wait_for(self.start(mode="reject", file_ids=[twin["id"], single["id"]]))
+        self.assertEqual((run["mode"], run["outcome"]["verdict"], run["outcome"]["counts"]),
+                         ("REJECT", "success", {"Rejected": 2}))
+        for view in ("all", "organized", "unorganized", "suspicious"):
+            shown = [p["id"] for p in self.client.get("/api/v1/photos", params={"view": view}).json()["items"]]
+            self.assertFalse({twin["id"], single["id"]} & set(shown), f"a rejected photo is still in {view}")
+        rejects = self.client.get("/api/v1/photos", params={"view": "rejects"}).json()
+        self.assertEqual(sorted(p["id"] for p in rejects["items"]), sorted([twin["id"], single["id"]]))
+        self.assertTrue(all(p["rejected_at"] for p in rejects["items"]), "a reject's time is missing")
+        self.assertEqual((rejects["rejects"]["photos"], rejects["rejects"]["bytes"] > 0), (2, True))
+        detail = self.client.get(f"/api/v1/photos/{single['id']}/inspect").json()
+        self.assertIn("/rejects/", detail["dest_path"])
+        self.assertFalse(detail["dest_path_is_projection"])
+        status = self.client.get("/api/v1/status").json()
+        self.assertEqual((status["rejected_with_source"], status["eligible"]["move"]), (2, 2),
+                         "a Move's count leaves out rejected photos whose sources it would remove")
+
+        chosen = self.client.post("/api/v1/photos/selection",
+                                  json={"ids": [p["id"] for p in listed], "page_size": 1}).json()
+        self.assertEqual(chosen["actions"], {"reject": len(listed) - 2, "return": 2},
+                         "Actions would offer Reject or Return for photos it cannot take")
+        searched = self.client.get("/api/v1/photos", params={"view": "rejects", "q": "IMG_0002"}).json()
+        self.assertEqual((searched["matches"]["rejects"], searched["matches"]["all"], searched["matches"]["undated"]),
+                         (1, 0, 1), "the view buttons' counts do not follow the search")
+
+        again = self.wait_for(self.start(mode="copy"))
+        self.assertEqual(again["outcome"]["skip_reasons"], {"already_rejected": 1},
+                         "the Copy did not say the duplicate was already rejected")
+
+        back = self.wait_for(self.start(mode="return", file_ids=[single["id"]]))
+        self.assertEqual((back["mode"], back["outcome"]["counts"]), ("RETURN", {"Returned": 1}))
+        organized = [p["id"] for p in self.client.get("/api/v1/photos", params={"view": "organized"}).json()["items"]]
+        self.assertIn(single["id"], organized, "a returned photo did not come back to the library")
+
+        # Emptied outside the app: gone from the view at once, before any job records it.
+        old, catalog.REJECTS_LISTING_SECONDS = catalog.REJECTS_LISTING_SECONDS, 0
+        try:
+            Path(self.client.get(f"/api/v1/photos/{twin['id']}/inspect").json()["dest_path"]).unlink()
+            rejects = self.client.get("/api/v1/photos", params={"view": "rejects"}).json()
+            self.assertEqual((rejects["total"], rejects["rejects"]["photos"]), (0, 0),
+                             "a photo emptied from Rejects is still shown there")
+        finally:
+            catalog.REJECTS_LISTING_SECONDS = old
+
     def test_a_photos_lineage_joins_its_files_copies_duplicates_and_operations(self):
         self.index_library()                  # IMG_0001 and "Beach Sunset" share content
         self.wait_for(self.start(mode="copy"))

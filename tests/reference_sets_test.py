@@ -79,6 +79,18 @@ class ReferenceSetsTests(fixtures.ApiCase):
         self.assertEqual(self.client.get(f'/api/v1/similar/{source}/sets').status_code,400)
         self.assertEqual(self.client.get(f'/api/v1/similar/{broken}/sets').status_code,400)
 
+    def test_narrow_roots_preserve_canonical_copy_and_hash_case(self):
+        duplicate = self.photo('B-copy','b','000000000000003f')
+        # Historical mixed-case stored hashes must still join normalized edges.
+        self.conn.execute("UPDATE contents SET phash='000000000000003F' WHERE digest='b'")
+        self.conn.commit()
+        self.assertEqual({p['id'] for p in self.get()['items']},{self.a,self.b})
+        self.assertEqual(self.client.get(f'/api/v1/similar/{duplicate}/sets').status_code,400)
+        self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE current_path='/destination/B.jpg'")
+        self.conn.commit()
+        self.assertEqual({p['id'] for p in self.get()['items']},{self.a,duplicate})
+        self.assertEqual(self.client.get(f'/api/v1/similar/{duplicate}/sets').status_code,200)
+
     def test_identical_sets_collapse_before_paging_and_selection(self):
         # A/B and B/A/C are different despite overlapping; equal-hash A2
         # has exactly A's neighborhood, not merely the same match count.

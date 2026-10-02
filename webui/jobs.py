@@ -15,7 +15,10 @@ from typing import Optional
 from . import catalog
 from .config import Config
 
-MODES = {"index": None, "copy": "--copy", "move": "--move"}
+MODES = {"index": None, "copy": "--copy", "move": "--move",
+         "reject": "--reject", "return": "--return-to-library"}
+# Reject and Return to library act on what the user chose, never on everything.
+NEEDS_SELECTION = {"reject", "return"}
 # Each selected id becomes part of the engine's command line, which has a real
 # OS length limit; larger selections use a folder (webui-spec 2).
 MAX_FILE_IDS = 1000
@@ -61,6 +64,9 @@ def validate_request(cfg: Config, mode: str, file_ids=None, source_subdir=None) 
     if file_ids is not None and source_subdir is not None:
         raise JobRefused(400, {"error": "invalid_request",
                                "message": "Choose photos or a folder, not both."})
+    if mode in NEEDS_SELECTION and file_ids is None and source_subdir is None:
+        raise JobRefused(400, {"error": "invalid_request",
+                               "message": "Choose photos or a folder to act on."})
     flags = [MODES[mode]] if MODES[mode] else []
     if file_ids is not None:
         if (not isinstance(file_ids, list) or not file_ids
@@ -236,6 +242,9 @@ class JobRunner:
                     "submitted": {"force_rehash": False, "thumbnails": True, "cache": str(self.cfg.cache.resolve()),
                                   "confirm_source_empty": "--confirm-source-empty" in flags,
                                   "confirm_network_destination": "--confirm-network-destination" in flags}}
+        for flag, mode in (("--reject", "REJECT"), ("--return-to-library", "RETURN")):
+            if flag in flags:
+                expected = {**expected, "mode": mode, "submitted": {}}
         if '--repair-similarity' in flags:
             expected = {'mode':'SIMILARITY', 'source':None, 'destination':None,
                         'targeting':None, 'overrides':{}, 'submitted':{

@@ -10,6 +10,8 @@ export interface Status {
   // What a Copy all and a Move all would take, across the whole catalog.
   eligible: { copy: number; move: number };
   copied: number;
+  // Rejected after a Copy, their source still in place: a Move removes it (engine-spec 9.5).
+  rejected_with_source: number;
   application_data: string;
   catalog_backups: string;
   // Which build is running: the release, and the branch and commit it was built from.
@@ -17,7 +19,9 @@ export interface Status {
   active_job: Run | null;
 }
 
-export type View = "all" | "unorganized" | "organized" | "similar" | "suspicious";
+export type View = "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects";
+// A job acting on photos; Reject and Return to library need a selection or a folder.
+export type ActionMode = "copy" | "move" | "reject" | "return";
 export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name" | "matches";
 
 export interface PhotoItem {
@@ -34,6 +38,8 @@ export interface PhotoItem {
   failure?: string | null;
   // Why a Move kept this Copied photo's original in the source, when one did.
   kept?: string | null;
+  // When a photo in Rejects was rejected.
+  rejected_at?: string | null;
 }
 
 export interface PhotoPage {
@@ -44,8 +50,11 @@ export interface PhotoPage {
   // The whole library per view (and No capture date within this view), for the buttons.
   counts: Record<View | "undated", number>;
   similarity: { threshold: number; pending: number; unavailable: number } | null;
-  // Each view under every filter now on, for suggesting another view.
-  matches: Record<View, number>;
+  // Each view under every filter now on, for the view buttons and for suggesting another
+  // view; `undated` is No capture date within this view under the other filters.
+  matches: Record<View | "undated", number>;
+  // What Rejects holds now, with the Rejects view.
+  rejects?: { photos: number; bytes: number; oldest_rejected_at: string | null } | null;
 }
 
 export interface PhotoPosition {
@@ -104,6 +113,9 @@ export interface SelectionPage {
   page_size: number;
   total: number;
   missing: number[];
+  // Among the selected photos: in the library (Reject takes them) and in Rejects
+  // (Return to library takes them).
+  actions?: { reject: number; return: number };
 }
 
 export interface Timeline {
@@ -604,7 +616,7 @@ export const api = {
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   answerQuestion: (id: number, question: SafetyQuestion, answer: SafetyAnswer) =>
     submitJob(`/api/v1/runs/${id}/answer`, { question, answer }),
-  startJob: (body: { mode: "index" | "copy" | "move"; file_ids?: number[]; source_subdir?: string }) =>
+  startJob: (body: { mode: "index" | ActionMode; file_ids?: number[]; source_subdir?: string }) =>
     submitJob("/api/v1/jobs/start", body),
   cancelJob: (id: number) => request<{ id: number }>("POST", `/api/v1/jobs/${id}/cancel`),
   thumbnailUrl: (id: number, size: "grid" | "preview" = "grid") =>

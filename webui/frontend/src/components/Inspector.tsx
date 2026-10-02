@@ -15,7 +15,12 @@ const STATUS: Record<string, string> = {
   Pending: "Not yet organized", Processing: "In progress", Completed: "Moved to the destination",
   Copied: "Copied to the destination", Failed: "Failed", Duplicate: "Duplicate (source still on disk)",
   Removed_Duplicate: "Duplicate (source removed)", Found_At_Destination: "Found at the destination",
+  Rejected: "In Rejects", Rejected_Copied: "In Rejects (source still in place; a Move removes it)",
+  Rejected_Emptied: "Rejected; since emptied from Rejects",
 };
+// Photos in the library, which can be rejected, and photos in Rejects, which can go back.
+const IN_LIBRARY = ["Completed", "Copied", "Found_At_Destination"];
+const IN_REJECTS = ["Rejected", "Rejected_Copied"];
 
 const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modified: "Date modified" };
 
@@ -24,7 +29,10 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet }: SetActions & {
+export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn }: SetActions & {
+  // Reject this photo, or return it from Rejects; each asks first.
+  onReject?: () => void;
+  onReturn?: () => void;
   coveredByDialog?: boolean;
   comparison: ComparisonState | null;
   onComparison: (state: ComparisonState | null) => void;
@@ -209,7 +217,12 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
           </div>
           <div className="inspector-tab-panel" role="tabpanel" id={`${tabId}-information-panel`}
             aria-labelledby={`${tabId}-information`} hidden={tab !== "information"} tabIndex={0}>
-            {detail && tab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />}
+            {detail && tab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
+              actions={IN_LIBRARY.includes(detail.status) && onReject
+                ? <button onClick={onReject} disabled={jobRunning} title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Move this photo out of the library into Rejects. Nothing is deleted."}>Reject…</button>
+                : IN_REJECTS.includes(detail.status) && onReturn
+                  ? <button onClick={onReturn} disabled={jobRunning} title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Move this photo from Rejects back to its date folder."}>Return to library…</button>
+                  : null} />}
           </div>
           <div className="inspector-tab-panel" role="tabpanel" id={`${tabId}-similar-panel`}
             aria-labelledby={`${tabId}-similar`} hidden={tab !== "similar"} tabIndex={0}>
@@ -275,7 +288,7 @@ function exifTime(value: string) {
   return `${date.replace(/:/g, "-")} ${time}`.trim();
 }
 
-function Details({ detail: d, onLineage, refreshKey }: { detail: PhotoDetail; onLineage: () => void; refreshKey: number }) {
+function Details({ detail: d, onLineage, refreshKey, actions }: { detail: PhotoDetail; onLineage: () => void; refreshKey: number; actions?: ReactNode }) {
   const fallback = isFallbackDate(d.date_source);
   const exposure = [d.iso != null ? `ISO ${d.iso}` : null, d.aperture != null ? `f/${d.aperture}` : null,
                     d.shutter != null ? `${d.shutter}s` : null].filter(Boolean).join(" · ");
@@ -291,6 +304,7 @@ function Details({ detail: d, onLineage, refreshKey }: { detail: PhotoDetail; on
   const taken = dates.find((x) => x.field === "taken");
   return (
     <div className="inspector-body">
+      {actions && <div className="inspector-actions">{actions}</div>}
       {d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. The value is unchanged; date editing is not yet available. <a href="/?view=suspicious">View suspicious dates</a></p>}
       {d.visual_issue && <p className="section-note"><strong>Visual matching unavailable:</strong> {d.visual_issue} The catalogued file is retained. Missing EXIF alone is not evidence of damage.</p>}
       <Section title="File">
@@ -389,6 +403,8 @@ const EVENT_LABEL: Record<string, string> = {
   Copied: "Copied", Copied_Only: "Copied only, original kept", Failed: "Failed", Removed_Duplicate: "Duplicate removed",
   Found_At_Destination: "Found at destination",
   Skipped: "Skipped", Cancelled: "Cancelled", Renamed: "Renamed",
+  Rejected: "Moved to Rejects", Rejected_Copied: "Rejected", Returned: "Returned to library",
+  Emptied: "Emptied from Rejects",
 };
 
 // The photo's latest events in the panel, compact (webui-spec 4.2); each opens the

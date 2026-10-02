@@ -66,6 +66,9 @@ jobs:
       - name: Similar photo review in a browser
         run: DRIVER=similar_browser_drive.py sh tests/webui_browser_test.sh
 
+      - name: Rejects in a browser
+        run: DRIVER=rejects_browser_drive.py sh tests/webui_browser_test.sh
+
       - name: Synthetic similarity validation
         run: |
           docker run --rm --entrypoint python3 -v "$PWD":/app:ro -w /app \

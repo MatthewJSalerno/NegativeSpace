@@ -90,6 +90,7 @@ security concern, specified in `webui-spec.md` §5.6.
     *   `--rebuild-thumbnails missing|all` — the web UI's grid repair and rebuild (`webui-spec.md` §4.2.1). A job: it takes the engine lock, opens a `REBUILD` run, reconciles interrupted work first, honours cancellation between batches and settles `Completed`, `Cancelled` or `Failed`. It needs no `--source`. `missing` makes the grid thumbnails not on disk, and `all` regenerates every one. Each is made from `catalogued_copies`: a delivered destination copy first, then a live source, and only one whose size and modification time still match the catalog. Under `all`, an existing thumbnail is replaced only when a copy supplies a new one, never discarded for lack of one. It uses `--workers` like a scan, records no operation, takes no backup, and exits `1` only when the run Failed. Refused with `--no-thumbnails`.
     *   `--check-destination quick|full` — the destination check (§9.1). A read-only job under the engine lock, opening a `CHECK` run. It needs no `--source`, uses `--workers` and `--exts` like a scan, records findings in `destination_findings`, changes nothing, and exits `1` only when the run Failed.
     *   `--rename PHOTO_ID --name NAME [--dry-run]` and `--rename-candidates PHOTO_ID` — renaming a delivered file (§9.4). The rename is a `RENAME` job under the engine lock that backs up the catalog first; `--dry-run` and `--rename-candidates` answer in one line of JSON, take no lock and change nothing.
+    *   `--reject` and `--return-to-library`, each with `--file-ids` or `--source-subdir` (required) — rejecting organized photos and returning rejected ones (§9.5). `REJECT` and `RETURN` jobs under the engine lock that back up the catalog first and record the selection as Copy and Move do.
     *   The database write-queue size is intentionally **not** configurable — left as a hardcoded internal constant rather than exposed, since there was no concrete need identified for tuning it separately from `--workers`.
 *   **Targeted Processing** (mutually exclusive with each other — pick at most one, or omit both for a full directory scan):
     *   `--file-ids <id1,id2,...>` — comma-separated `photos.id` values from a prior Index. Bypasses the directory scan entirely; looks up each ID's `source_path` directly and processes exactly those files. IDs not found in the database are logged as a warning and skipped, not treated as fatal. This is what a web UI's individual/multi-select maps onto, but works identically from the CLI. **Planned** (decided 2026-10-01): the web interface will always pass ids in a file instead (`--file-ids-from <path>`), lifting the 1,000-photo selection limit that the command line's length imposes. The engine refuses the whole job, touching no file, unless the file was written atomically, carries the job's request ID, its header count and checksum match, every entry is a unique positive integer, and every id is still catalogued inside the source. The file is kept with the job's record.
@@ -227,7 +228,7 @@ catalogue, not the tree, so relocating them is a separate action.
 *   **Real-time Feedback:** the web drawer (`webui-spec.md` §4.1) reads `run_progress`, which every job writes about once a second (`PROGRESS_SNAPSHOT_SECONDS`), through `ns_db.read_progress`. There is one row per phase the run entered, ordered by `seq`; the last is the current one:
     *   `discovering`, a full Index's walk: `total` is NULL, which the drawer shows as an indeterminate bar. Counts are `eligible` and `excluded`.
     *   `scanning`: the total is the whole scope, and counts are `indexed`, `duplicates`, `unchanged` and `failed`. Unchanged files count as done the moment they are skipped. They write no operation row, which is why operation counts alone cannot supply a percentage.
-    *   `transferring` for Copy and Move, and `removing_duplicates` for Move: counts are keyed by the outcome recorded for each photo (`Copied`, `Completed`, `Found_At_Destination`, `Skipped`, `Failed`, `Cancelled`, `Removed_Duplicate`, and `Already_Gone` for a duplicate whose source was already gone, which records nothing). A Copy's skipped duplicates and already-copied photos join its total when they are recorded, in the same commit.
+    *   `transferring` for Copy, Move, Reject and Return to library, and `removing_duplicates` for Move: counts are keyed by the outcome recorded for each photo (`Copied`, `Completed`, `Found_At_Destination`, `Rejected`, `Rejected_Copied`, `Returned`, `Skipped`, `Failed`, `Cancelled`, `Removed_Duplicate`, and `Already_Gone` for a duplicate whose source was already gone, which records nothing). A Copy's skipped duplicates and already-copied photos join its total when they are recorded, in the same commit.
     *   `rebuilding_thumbnails`: `made`, `already`, `kept` and `failed`.
     *   `checking_destination` (§9.1), after a `discovering` walk of `--dest`: `ok`, `missing`, `changed`, `unreadable` and `unknown`.
     *   `matching` (§9.3), after a successful scan: `Compared` counts newly compared distinct hashes. Its final snapshot is flushed before any transfer phase starts.
@@ -270,7 +271,7 @@ The three transfer tables below — current state, runs, and the audit log — e
 | `phash` | Text | Perceptual hash. `"not_supported"` if the required optional library isn't installed for that format; `"error"` if hashing was attempted but failed (e.g. corrupt file). |
 | `collision_group` | Integer | Reserved for fuzzy-match clustering (§9.3). Not populated yet. |
 | `is_master` | Boolean | Reserved for collision resolution. Not populated yet, and its future is genuinely open: the planned similarity actions keep donor/keeper choices as client state (§9.3), which needs no column — but lineage and EXIF history need *persisted* provenance (§9.8), which may. Decide when one of those is built, not before. |
-| `status` | String | `Pending`, `Processing`, `Completed`, `Failed`, `Duplicate`, `Removed_Duplicate`, `Copied`, `Found_At_Destination` (source gone, exact content observed on the destination; §4.2). Constrained by `CHECK`; `NULL` permitted, since a row can exist before its scan result lands. |
+| `status` | String | `Pending`, `Processing`, `Completed`, `Failed`, `Duplicate`, `Removed_Duplicate`, `Copied`, `Found_At_Destination` (source gone, exact content observed on the destination; §4.2), `Rejected` (its file is in `dest/rejects`, source gone), `Rejected_Copied` (the same, source still in place), `Rejected_Emptied` (rejected, and since emptied from Rejects; §9.5). Constrained by `CHECK`; `NULL` permitted, since a row can exist before its scan result lands. |
 | `metadata_json` | JSON | Full captured metadata (camera, ISO, aperture, shutter, etc. — whatever the source/method exposed), always including a `date_taken` key. |
 | `has_name_collision` | Boolean | Whether the destination filename had to be suffixed (`_1`, `_2`, ...) to avoid overwriting an existing file. |
 | `file_size` | Integer | Size in bytes as of the scan that wrote this row. With `file_mtime`, this is what lets a re-index skip an unchanged file without reading it (§4.2). NULL means "unknown" and forces a full re-read. |
@@ -316,11 +317,10 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 16 and refuses incompatible catalogs before processing.
-No automatic migration occurs. A schema-14 or schema-15 catalog can be prepared as a separate
-schema-16 copy with `tools/prepare-similarity-catalog.py`; it preserves history and
-judgments and prepares only derived comparisons/counts. Other incompatible versions remain
-refused: preserve the older catalog. Index cannot
+initializes schema version 17 and refuses incompatible catalogs before processing.
+No migration exists while catalogs are disposable development data: an older catalog is
+refused, and the remedy is a new catalog and a new Copy. A recorded migration is
+planned before a release. Preserve the older catalog. Index cannot
 reconstruct settings, past edits, or deleted-file lineage. Never describe deleting a
 user catalog as routine repair.
 
@@ -368,14 +368,16 @@ CREATE TABLE photos (
     is_master BOOLEAN DEFAULT 0,  -- reserved; likely unnecessary, see 9.3
     status TEXT,                  -- Pending, Processing, Completed, Failed,
                                   -- Duplicate, Removed_Duplicate, Copied,
-                                  -- Found_At_Destination
+                                  -- Found_At_Destination, Rejected,
+                                  -- Rejected_Copied, Rejected_Emptied
     metadata_json TEXT,           -- full captured EXIF/metadata, not just date
     has_name_collision BOOLEAN DEFAULT 0,
     file_size INTEGER,            -- size/mtime as of the scan that wrote this
     file_mtime REAL,              -- row; the unchanged-file skip compares
                                   -- against these instead of re-reading
     CHECK (status IS NULL OR status IN ('Pending', 'Processing', 'Completed',
-           'Copied', 'Failed', 'Duplicate', 'Removed_Duplicate', 'Found_At_Destination'))
+           'Copied', 'Failed', 'Duplicate', 'Removed_Duplicate', 'Found_At_Destination',
+           'Rejected', 'Rejected_Copied', 'Rejected_Emptied'))
 );
 -- Thumbnails and width/height belong to content, not to one copy of it: they
 -- live in thumbnail_cache and contents below, so photos carries neither.
@@ -430,16 +432,19 @@ CREATE TABLE operations (
     -- Same vocabulary as photos.status, plus Cancelled (reached but never
     -- started; the photo stays Pending) and Skipped (reached and deliberately
     -- left alone -- a duplicate whose original carries its content -- with the
-    -- reason, naming that original, in error_message).
+    -- reason, naming that original, in error_message), Renamed, Returned (back
+    -- from Rejects) and Emptied (found gone from Rejects; §9.5).
     CHECK (status IN ('Pending', 'Processing', 'Completed', 'Copied', 'Failed',
-           'Duplicate', 'Removed_Duplicate', 'Found_At_Destination', 'Cancelled', 'Skipped',
-           'Renamed')),
+           'Duplicate', 'Removed_Duplicate', 'Found_At_Destination', 'Rejected',
+           'Rejected_Copied', 'Rejected_Emptied', 'Cancelled', 'Skipped', 'Renamed',
+           'Returned', 'Emptied')),
     FOREIGN KEY(run_id) REFERENCES runs(id),
     FOREIGN KEY(photo_id) REFERENCES photos(id)
 );
 
 CREATE UNIQUE INDEX idx_photos_live_source ON photos(source_path)
-    WHERE status IS NULL OR status NOT IN ('Completed','Removed_Duplicate','Found_At_Destination');
+    WHERE status IS NULL OR status NOT IN ('Completed','Removed_Duplicate','Found_At_Destination',
+                                           'Rejected','Rejected_Emptied');
 CREATE INDEX idx_photos_sha1 ON photos(sha1_hash);
 CREATE INDEX idx_photos_status ON photos(status);
 CREATE INDEX idx_photos_source_stat ON photos(source_path, file_size, file_mtime);
@@ -936,14 +941,7 @@ so changed content membership cannot inherit relationships from its old hash.
 Old hash relationships may remain cached. Missing hashes and incomplete
 comparisons are reported separately by the API. Schema 15 widened the pair-distance
 constraint; schema 16 adds disposable gallery count tables. Normal startup still
-refuses incompatible catalogs. The explicit preparation tool accepts schema 14
-or 15 and creates a separate schema-16 SQLite backup. For schema 14 it replaces
-pairs/completion markers and can precompute the wider range with `--compare`;
-for schema 15 it retains existing relationships. It creates and builds the six
-count cache for either version, retains all history/settings/judgments, refuses an
-existing output, and checks integrity and foreign keys. Stop the app before taking
-and installing the snapshot; retain the original for rollback. No photos are read
-or modified. Manual preparation does not invent an engine comparison-phase timing.
+refuses incompatible catalogs (§6.5).
 
 **Gallery count cache (schema 16).** `similarity_count_cache` stores one integer
 `photo_id` primary key and six nonnegative integer columns `count_75`, `count_80`,
@@ -1092,9 +1090,38 @@ that the file still exists. Only claim an available matching copy after checking
 Record per-file failures. Stop on a detected destination mismatch and present the
 repair guidance in `webui-spec.md` §7.6.
 
-**Not implemented.** Needs: the `Rejected` status, the move into `dest/rejects/` with its
-record, the destination layout of §9.9, and the reject checks at Index and Move/Copy.
-The screens are `webui-spec.md` §7.8.
+**How it is built.** `--reject` (`relocate_in_destination`) takes the selected photos in
+the library (`Completed`, `Copied`, `Found_At_Destination`); every other selected photo
+is recorded `Skipped` with the reason. Like Rename (§9.4): one catalog backup before the
+first file moves (nothing moves if it fails); per photo, the file is verified live
+against the catalog's SHA-1 (a mismatch is recorded `Failed`, nothing moved), intent is
+recorded, and the file is renamed without overwriting to the same folders under
+`dest/rejects/` (`rejects/2019/06/04/IMG_0412.jpg`, `_N` on a taken name), with the
+directory entries made durable; one commit then points every row naming the old path
+at the new one and sets `Rejected`, or `Rejected_Copied` when the source is still in
+place. Recovery settles an interrupted reject from what is on disk, as for a rename.
+`--return-to-library` does the reverse for photos in Rejects, into the date folder their
+EXIF implies, restoring the status they had (`Copied` while the source is still there).
+
+**Duplicates follow the reject without a status of their own.** A rejected row counts
+as its content's original: Index makes an identical file a `Duplicate` of it, and
+duplicate groups never promote one to `Pending`. Copy skips them ("Already rejected").
+Move deletes a duplicate source only against the verified copy in Rejects, and moves a
+`Rejected_Copied` photo's own source there the same way (copy, verify, delete), ending
+`Rejected`. **Arriving again after Rejects was emptied:** Move first gives one copy in
+its scope the rejected photo's place (`Rejected_Copied`, pointed into Rejects), carries
+it there, and removes the others against it, so a Move never deletes every copy of a
+photo the user only rejected. An interrupted Move of a rejected photo stays rejected.
+
+**Emptying is noticed, never done.** Every job starts by looking for rejected files gone
+from Rejects (one `lstat` each, skipped when the destination's `library/` is absent, as
+on an unmounted share): each is recorded `Emptied` once, its file identity `missing`, and
+a `Rejected` row becomes `Rejected_Emptied`. The Rejects view does not wait for a job:
+the API filters it against a listing of `dest/rejects`.
+
+**Not built yet:** the pHash check for a file only similar to a reject (with Needs
+review, §9.8), and the Rejects size on Stats and the threshold line. The screens are
+`webui-spec.md` §7.8.
 
 ### 9.6. Writing Metadata Into Files
 
@@ -1271,8 +1298,9 @@ identity.
 
 ### 9.9. Destination layout
 
-Move and Copy place photos under `library/` (`ns_db.library_root`); `rejects/` arrives
-with Rejects (§9.5) and `raw-originals/` with RAW editing (§9.6). Check destination walks
+Move and Copy place photos under `library/` (`ns_db.library_root`) and Reject moves
+them to `rejects/` (`ns_db.rejects_root`, §9.5); `raw-originals/` arrives with RAW
+editing (§9.6). Check destination walks
 `library/` only, so the folders beside it are never reported as foreign files.
 
 ```

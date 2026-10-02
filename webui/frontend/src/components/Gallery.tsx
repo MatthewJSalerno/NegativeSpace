@@ -1,11 +1,11 @@
 import { useRef } from "react";
 import type { PhotoItem } from "../api";
-import { isFallbackDate, photoDate, plural } from "../format";
+import { epoch, isFallbackDate, photoDate, plural } from "../format";
 import { Thumb } from "./Thumb";
 
 const STATUS_BADGE: Record<string, string> = {
   Completed: "Moved", Copied: "Copied", Found_At_Destination: "At destination", Failed: "Failed",
-  Processing: "In progress",
+  Processing: "In progress", Rejected: "Rejected", Rejected_Copied: "Rejected",
 };
 
 export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold, onReviewSet, onExploreSet }: {
@@ -75,7 +75,9 @@ export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId
                   </span>
                 ) : STATUS_BADGE[item.status] && (
                   <span className={`badge badge-${item.status.toLowerCase()}`}
-                        title={item.failure ? `Failed: ${item.failure}` : undefined}>{STATUS_BADGE[item.status]}</span>
+                        title={item.failure ? `Failed: ${item.failure}`
+                          : item.rejected_at ? `Rejected ${epoch(Date.parse(item.rejected_at) / 1000)}${item.status === "Rejected_Copied" ? "; its source is still in place, and a Move removes it" : ""}`
+                          : undefined}>{STATUS_BADGE[item.status]}</span>
                 )}
                 {item.duplicates > 0 && <span className="badge">{plural(item.duplicates, "duplicate")}</span>}
               </span>

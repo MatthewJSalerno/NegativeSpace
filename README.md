@@ -82,6 +82,8 @@ NegativeSpace has three mutually exclusive modes. `--move` and `--copy` cannot b
 | **Move** | `--move` | Deleted after a verified copy lands at destination; confirmed exact duplicates are also removed from source | Files organized under `library/` into `YYYY/MM/DD`, or `Undated/<year>/` when the engine cannot date them |
 | **Copy** | `--copy` | Never touched — fully non-destructive | Files organized under `library/` into `YYYY/MM/DD`, or `Undated/<year>/` when the engine cannot date them |
 
+**Rejecting** a photo you do not want (a website download, a blurry shot) moves it from `library/` to the same folders under `rejects/` in the destination (`--reject` with `--file-ids` or `--source-subdir`; in the web interface, Actions › Reject or **Reject…** on a photo). NegativeSpace never deletes it: look through the Rejects view, use Return to library for any you want back, then empty `rejects/` yourself. Identical copies stay out of the library: Copy skips them and Move removes their sources only against the verified copy in Rejects.
+
 The Destination column describes `/data/dest` only. Every mode begins with a scan, and the scan generates thumbnails into `/cache` (see Volume Layout) unless `--no-thumbnails` is passed — so "nothing written" above means nothing written *to the destination tree*, not that Index writes nothing at all.
 
 ### Run the engine directly: Index

@@ -142,6 +142,8 @@ def check_ui(browser, base, _shot):
     menu = page.get_by_role("menu", name="Actions", exact=True)
     expect(menu.get_by_role("menuitem", name=re.compile(r"^Index"))).to_be_focused()
     page.keyboard.press("End")
+    expect(menu.get_by_role("menuitem", name=re.compile(r"^Reject selected"))).to_be_focused()
+    page.keyboard.press("ArrowUp")
     move = menu.get_by_role("menuitem", name="Move", exact=True)
     expect(move).to_be_focused()
     page.keyboard.press("ArrowRight")
