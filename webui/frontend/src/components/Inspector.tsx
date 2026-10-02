@@ -260,7 +260,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   );
   return <>
     {narrow && comparison == null && !coveredByDialog ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
-    {comparison != null && <MatchReviewDialog reference={id} candidate={candidate} jobRunning={jobRunning} onNotice={onNotice}
+    {comparison != null && <MatchReviewDialog reference={id} candidate={candidate} jobRunning={jobRunning} onNotice={onNotice} onKeep={onKeep}
       workspace={comparison} onWorkspace={onComparison} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet}
       initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}
       onClose={closeComparison} onSaved={() => setReviewsChanged((n) => n + 1)} />}

@@ -103,6 +103,18 @@ with sync_playwright() as p:
     expect(workspace).to_have_count(0)
     total -= 1
 
+    # From side by side too: the same review, keeping the photo on the left.
+    open_similar()
+    page.locator(".inspector-match").first.click()
+    workspace = page.get_by_role("dialog", name="Review photo match")
+    workspace.get_by_role("button", name=f"Keep {name}, reject the other {total}…").click()
+    expect(workspace).to_have_count(0)
+    review = page.get_by_role("region", name="Review before rejecting")
+    expect(review).to_contain_text(f"Keeping {name}")
+    expect(page.locator(".card").first).to_have_class(re.compile(r"\bcard-keep\b"))
+    review.get_by_role("button", name="Cancel").click()
+    expect(review).to_have_count(0)
+
     # Keep this one, reject the rest: reviewed first, the kept photo first and full size.
     open_similar()
     page.get_by_role("group", name="The photo you keep").get_by_role("button", name=f"Keep {name}, reject the other {total}…").click()

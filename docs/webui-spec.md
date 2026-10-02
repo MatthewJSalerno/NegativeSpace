@@ -2097,7 +2097,10 @@ source against the copy in Rejects (or puts it there, when Rejects was emptied).
     too**). Rejecting the look-alike shows the next one ("Rejected IMG_0412.jpg · next
     look-alike shown" with **Return it to the library**); rejecting the photo you started
     from closes the comparison with the same note. One reject at a time: the button reads
-    "Rejecting…" meanwhile. No keyboard shortcut.
+    "Rejecting…" meanwhile. No keyboard shortcut. Beside the threshold, **Keep
+    copy-of-001.jpg, reject the other 128…** opens the same review as in Similar photos,
+    keeping the photo on the left; to keep the other one, **Use as reference** first. The
+    candidate strip stays for moving between look-alikes, with no Reject of its own.
 
 **Not built yet:** a photo only similar to a reject goes to Needs review (§7.9), shown
 beside the reject, and is never rejected automatically.

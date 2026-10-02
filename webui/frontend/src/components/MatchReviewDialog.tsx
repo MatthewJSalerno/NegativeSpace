@@ -17,7 +17,7 @@ const VERDICTS: [MatchVerdict, string][] = [
 const verdictName = (value: MatchVerdict | null | undefined) => VERDICTS.find(([key]) => key === value)?.[1] ?? "Unreviewed";
 const PAGE_SIZE = 12;
 
-export function MatchReviewDialog({ reference: initialReference, candidate, initialView, onView, onClose, onSaved, workspace, onWorkspace, setBrowse, onOpenSet, onShowSet, jobRunning = false, onNotice }: SetActions & {
+export function MatchReviewDialog({ reference: initialReference, candidate, initialView, onView, onClose, onSaved, workspace, onWorkspace, setBrowse, onOpenSet, onShowSet, jobRunning = false, onNotice, onKeep }: SetActions & {
   workspace: ComparisonState; onWorkspace: (state: ComparisonState) => void;
   reference: number; candidate: number | null; initialView: { threshold: number; page: number };
   onView: (view: { threshold: number; page: number }) => void; onClose: () => void; onSaved: () => void;
@@ -25,6 +25,8 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
   jobRunning?: boolean;
   // A note for the Library after the comparison closes (its reference was rejected).
   onNotice?: (text: string, actions: { label: string; run: () => void }[], photo?: number) => void;
+  // Keep the reference and reject the rest: the same review as in Similar photos.
+  onKeep?: (keep: number, name: string, threshold: number) => void;
 }) {
   const [reference, setReference] = useState(workspace.reference);
   const [active, setActive] = useState<number | null>(candidate);
@@ -222,6 +224,12 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
         setFilter(e.target.value as ComparisonState["filter"]); setPage(1); setActive(null);
       }}><option value="all">All candidates</option><option value="unreviewed">Unreviewed</option><option value="reviewed">Reviewed</option></select></label>
       <button disabled={busy} onClick={() => setReload(n => n + 1)}>Refresh comparison</button>
+      {onKeep && lastReference?.id === reference && remaining > 0 && <button className="photo-action review-keep"
+        disabled={busy || rejecting != null || jobRunning}
+        title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Review the look-alikes before any is rejected. To keep the other photo, use it as the reference first."}
+        onClick={() => { const name = lastReference.filename; close(); onKeep(reference, name, threshold); }}>
+        Keep {lastReference.filename}, reject the other {count(remaining)}…
+      </button>}
     </div>
     <p className="section-note">Scores measure visual similarity, not confidence. Even 100% can describe different pictures.
       {threshold < 90 && " Below 90%, results are more likely to be unrelated. Review photos before using them as metadata clues."}</p>
