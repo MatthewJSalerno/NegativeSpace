@@ -100,7 +100,7 @@ Users can select individual files or multiple files across grid views to run tar
   whenever the gallery changes size (the photo panel opening or closing). Select all is refused whole above the 1,000-photo
   limit, never cut short (`GET /photos/ids`); an item that would do nothing says why.
   Keep the total selected count visible and repeat it in bulk-action previews, including
-  metadata edits and deletion.
+  metadata edits and rejects.
 * **Selection across views:** retain explicit photo selections when changing pages
   or filters. The top row, after **Logs**, shows the total and the number outside the
   displayed view, for example **“25 selected · 10 outside this view”**, with **Show
@@ -438,7 +438,10 @@ exact code. `VERSION` is raised with each merged change that alters behaviour.
 
 The Library's actions live in one **Actions** menu, after **Library** in the page links:
 **Index**, **Copy ▸** and **Move ▸**, the last two each offering **selected (n)** (the
-photos selected in the Library) and **all (n)**. The toolbar's second row holds the views,
+photos selected in the Library), **this folder** (the one folder the Folders tree shows)
+and **all (n)**; then **Reject selected (n)**, counting only selected photos in the
+library, or in the Rejects view **Return selected to library (n)** in its place (§7.8).
+The toolbar's second row holds the views,
 search and sort. Every item carries a one-line explanation, and one that cannot run
 replaces it with why: a job is running, nothing is indexed, nothing is selected, or
 nothing is left (**"Nothing to copy - every photo is copied or organized."**). The
@@ -579,7 +582,7 @@ browser independently of the overall Inspector width.
   own IDs. A submission-status notice (also inside a busy confirmation dialog)
   links to the exact recovered run rather than assuming the newest job is its own.
 * **Lost response after confirming a photo action:** use **“Checking job status…”**
-  for rename, EXIF edit and deletion as well. Look up the recorded job/action,
+  for rename, EXIF edit, reject and return as well. Look up the recorded job/action,
   including completed actions, and display its recorded outcome with **View job log**.
   This is a status/history lookup, not a new inspection of files to infer whether
   changes were applied. Show recorded per-file outcomes for partial completion.
@@ -657,23 +660,21 @@ file times reach the engine over NFS: modification, which copies preserve and wh
 shown; status change, which any rename, permission change or hard link resets; and
 access, which reading the file resets.
 
-**Deleted files retain their info screen and lineage.** Exclude deleted files from
-the normal actionable library, but keep their info screens reachable from log links
-and a **Deleted files** history filter. Show **Deleted**, the last recorded metadata
-and location (labelled historical), original source Index information, and the full
-recorded sequence of actions and before/after values. Deletion must not cascade away
-these records or break existing history links. Do not offer edit or restore controls
-for the deleted file. Preserve the information needed to reconstruct its recorded
-metadata and naming/location history manually; this does not recreate photo pixels
-or guarantee recovery of unrecorded external changes. Retained lineage does not
-require retaining an orphaned thumbnail (§4.2.1).
+**A photo emptied from Rejects keeps its info screen and lineage.** It leaves every
+view (§7.8), but its info screen stays reachable from log links and its lineage:
+**Rejected; since emptied from Rejects**, the last recorded metadata and location
+(labelled historical), original source Index information, and the full recorded
+sequence of actions and before/after values. Emptying must not cascade away these
+records or break history links. There is nothing to return, so no Return or edit
+controls. The records allow its metadata and naming/location history to be
+reconstructed manually; they do not recreate the photo's pixels.
 
 **The photo info screen is the complete recorded history for that file.** Clearly
 separate **Current metadata**, **Original source metadata at Index**, and **History**.
 The original view includes the preserved source filename/path and filesystem
 snapshot as well as captured metadata; later edits or rescans must not overwrite it.
 History shows every recorded change across jobs: Copy, Move, rename, metadata edits,
-refiling and deletion, plus failed attempts and reconciliation outcomes. Each entry
+refiling, rejects and returns, plus failed attempts and reconciliation outcomes. Each entry
 shows when it happened, its action and outcome, changed fields with before/after
 values, old/new locations where applicable, and a link to its job/batch log.
 Distinguish attempted changes from changes actually applied. Preserve navigation
@@ -694,16 +695,14 @@ verification. Distinct copies sharing a hash retain their own histories.
 **Content already catalogued is a duplicate.** A file arriving with content the catalog
 already holds, another archive's copy or a file put back after a Move, is a duplicate of
 that photo and a branch of its lineage tree; the photo keeps its own history and status.
-**Reimported content has a new history** only when nothing current holds it: when a
-newly imported photo matches a deleted record's hash, show **“Matches content from a
-previously deleted file”** with a link to that historical record. Keep the new import's Index information and
-subsequent actions separate from the old deletion history. Do not label the new
-import as a restoration or imply a deleted copy is still available for deduplication.
+**Content the user rejected stays out of the library:** an identical file arriving later
+is a duplicate of the rejected photo, even after Rejects was emptied (§7.8), with its own
+Index information and history; it is never labelled a restoration.
 
 **Every photo info panel provides a History / View logs action.** It opens all
 recorded operations associated with that photo across runs, not just its latest
 status or most recent job. Include the original source Index information, copies,
-moves, renames, metadata edits, failures, deletions and recovery records where
+moves, renames, metadata edits, rejects, returns, failures and recovery records where
 applicable. Preserve access across changes to filename, path and content hash.
 Each entry links to its run for context; related copies' histories are identifiable
 as such rather than silently mixed with this file's own actions. Users can review
@@ -904,7 +903,7 @@ undecodable file is therefore re-attempted on every scan.
 Before initiating any move or copy job, the system computes total payload size plus a 500 MB safety buffer. If destination disk space is insufficient, execution is blocked and a warning banner displays required vs. available space.
 
 **Destination unavailable or not writable:** block Copy, Move, destination rename,
-EXIF edits and destination deletion when the destination cannot be accessed or
+EXIF edits, Reject and Return to library when the destination cannot be accessed or
 written. Show **“Destination unavailable or not writable”**, the specific reason,
 and guidance to check the Docker mount, storage connection or permissions. Never
 silently select another destination. Index remains available when source and
@@ -1158,14 +1157,13 @@ submit it. These restrictions apply during Preparing and Cancelling as well.
 
 While Index, Copy, Move or another
 file-changing action is active, disable new processing jobs and photo rename,
-EXIF-edit and deletion actions. Show **“Photo changes are unavailable while a job
+EXIF-edit, reject and return actions. Show **“Photo changes are unavailable while a job
 is running.”** Browsing, photo history and settings remain available; settings
 changes apply only to future jobs (§3). Reject conflicting submissions at the API
 as well, including races between tabs, rather than queuing them. When the active
 operation ends, controls become available again; nothing starts automatically.
-The user must initiate and confirm a new action against current state. This extends
-the existing processing lock requirement to planned curation operations; those
-operations are not implemented yet.
+The user must initiate and confirm a new action against current state. Curation jobs
+(rename, reject, return to library) take the same lock as any other job.
 
 Only one engine process may run at a time — see `engine-spec.md` §4.1/§7 for the engine-level guarantee (an OS-level `flock`, held for the whole process lifetime, released automatically even on a hard `SIGKILL`). This is enforced in two layers, not one:
 
@@ -1285,7 +1283,7 @@ The engine validates its `catalog_schema` version on startup. The API must use t
 **Only `photos` is derived. `runs` and `operations` are not, and rebuilding discards them.** Every value in `photos` is recomputable by re-running an Index over the same sources — verified by rebuilding a ~29,000-file catalog from scratch and getting identical per-status counts. Nothing recomputes the audit log: it records what the engine *did*, and re-scanning the filesystem cannot reconstruct it. The sharpest case is `Removed_Duplicate`, where after a `--move` that row is the only evidence the file ever existed — its source was deleted by design and its content survives only under the anchor's name.
 
 **Lineage is keyed on stable per-file identity** (`engine-spec.md` §10), with original
-Index information and distinct histories for identical copies and deleted files, all
+Index information and distinct histories for identical copies and emptied rejects, all
 in the one catalog database. The Error Center and photo history read it through
 `operation_files` (§6.3); `photos` rows and hash-only joins do not carry that contract.
 

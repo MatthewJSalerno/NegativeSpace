@@ -10,7 +10,7 @@ deletion and are not reliably detected by the engine.
 
 - --source <path> (Optional) Path to unorganized source directory (default: "/data/source").
 - --dest <path> (Optional) Path for organized output directory (default: "/data/dest").
-- --base <path> (Optional) Base directory for app artifacts (default: "/data").
+- --base <path> (Optional) Base directory for app artifacts (default: "/appdata").
   Creates/uses <base>/db/ for SQLite and <base>/logs/ for logs.
 - --workers <N> (Optional) Override the worker process count used for
   hashing/date resolution (default: the CPUs the container may use,
@@ -57,6 +57,10 @@ default Index):
   is missing, changed, unreadable or not put there by NegativeSpace.
 - --rename PHOTO_ID --name NAME [--dry-run] / --rename-candidates PHOTO_ID: give a
   delivered file a new name, or list the names its duplicate group carried.
+- --reject / --return-to-library, with --file-ids or --source-subdir: move organized
+  photos from dest/library to dest/rejects, or back (spec §9.5). Nothing is deleted.
+- --repair-similarity missing|comparisons: recover missing visual hashes from
+  destination originals, or resume stored-hash comparisons; never edits photos.
 
 Cancellation: sending SIGTERM or SIGINT (e.g. `docker stop`, or Ctrl+C)
 during a --move/--copy run lets the file currently being copy-verified
@@ -1182,14 +1186,6 @@ def db_writer_worker(db_path: str):
 
 
 # --- Startup Recovery & Reconciliation ---
-def _observe(path: Path):
-    """What is actually there, distinguishing unreadable from absent."""
-    try:
-        return "present" if path.is_file() else "absent"
-    except OSError:
-        return "unreadable"
-
-
 def _recovery_observe(path: Path):
     """A non-file (including a symlink) is not an absent or verified photo."""
     try:
@@ -2769,29 +2765,6 @@ def release_single_instance_lock(lock_fd):
 
 
 # --- Main Execution ---
-def is_hidden_path(path: Path, root: Path) -> bool:
-    """
-    True if any path segment below `root` starts with a dot.
-
-    Checking every segment, not just the filename, is what makes this cover
-    whole junk trees (.Trashes/, .Spotlight-V100/, .thumbnails/) and not just
-    individual dotfiles.
-
-    macOS writes an AppleDouble sidecar named "._IMG_0001.jpg" beside every
-    real file on non-HFS volumes (SD cards, USB drives, network shares). It
-    carries a real photo extension, so without this check each would be
-    indexed as a photograph — hashed, found to have no EXIF, filed by mtime,
-    and migrated by --move into the library as a few KB of resource-fork
-    metadata posing as a picture. .DS_Store never matches an extension; these
-    do.
-    """
-    try:
-        relative = path.relative_to(root)
-    except ValueError:
-        relative = Path(path.name)
-    return any(part.startswith('.') for part in relative.parts)
-
-
 def describe_root_overlap(source: Path, dest: Path) -> Optional[str]:
     """
     Explains how two RESOLVED roots overlap, or returns None if they do not.

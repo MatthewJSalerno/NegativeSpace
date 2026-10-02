@@ -1,19 +1,10 @@
 # Similarity validation record
 
-## Current status — 2026-10-01
-
-The maintainer completed the agreed manual functional checklist, including all
-three review actions, recovery/logging explanations and 200% desktop zoom/reflow.
-Documentation cleanup, merge into main and push are authorized. Current behavior
-and remaining work are consolidated in [the handoff](similarity-handoff.md).
-Defaults are 90%, Most matches first, and identical-set grouping; 75% remains the
-available floor. Representative 200,000+ dense-library and long-session capacity
-remains unverified follow-up work, not a completed validation claim.
-
-The entries below preserve development-stage measurements and decisions. Earlier
-statements about defaults, pending features or merge authorization describe their
-checkpoint, not the final state. Later entries and the consolidated handoff take
-precedence.
+Dated record of what was validated and measured while the similarity features were
+built (merged in 0.6.0). Each entry describes its own checkpoint; current behavior is
+in [ui-design.md](ui-design.md) and [webui-spec.md](webui-spec.md), and open work in
+[TODO.md](../TODO.md). Representative 200,000+ dense-library and long-session capacity
+remains unverified.
 
 ## Initial development checkpoint
 
@@ -395,9 +386,7 @@ for dense 200,000+ libraries.
 The idle sample instance was updated with both images, retaining the schema-16
 catalog and mounts. Source read-only was verified. No Index, Copy, Move or repair
 was started on the sample as part of deployment. The separate private instance was
-untouched. The current review entry point is
-[similarity-handoff.md](similarity-handoff.md); the existing local handoff's opening
-section now supersedes its historical branch state.
+untouched.
 
 ## Grouping defaults and targeted recovery follow-up
 

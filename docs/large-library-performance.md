@@ -1,9 +1,9 @@
 # Large-library performance validation
 
-Workstream: `perf/large-library-validation`. The merged functional baseline is
-`b6cc1b3`. The manual similarity checklist is complete; representative 200,000+
-photo capacity remains unverified. The current work is **synthetic catalog query
-performance**, using the existing SQLite schema and application query functions.
+The synthetic query harness and the narrowed queries were merged in 0.9.0;
+representative 200,000+ photo capacity remains unverified. This plan covers
+**synthetic catalog query performance**, using the existing SQLite schema and
+application query functions.
 Original-file processing, network storage and browser rendering are outside this
 benchmark. No library transfer is needed for these tests.
 

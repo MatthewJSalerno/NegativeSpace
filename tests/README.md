@@ -471,7 +471,7 @@ Run the browser harness with `DRIVER=reference_sets_browser_drive.py` and
 It uses only the harness's disposable generated catalog. Checks include grouping,
 indirect comparison through the correct reference, selection preservation, session
 reset, dense same-hash paging, expansion limits, failure retry, narrow modality and
-per-file recovery failure details in Logs. See docs/similarity-handoff.md for review.
+per-file recovery failure details in Logs.
 
 `python3 tools/benchmark-reference-sets.py` measures opened-set queries against
 250,000 generated catalog identities with prepared sparse edges. It reads no photo
@@ -479,9 +479,9 @@ files and does not establish dense-set or end-to-end real-library capacity.
 
 ### Current similarity regression coverage
 
-The maintainer has completed the manual functional checklist; see
-[the current handoff](../docs/similarity-handoff.md#validation-and-sign-off).
-Representative large-library capacity remains separate work.
+The maintainer has completed the manual functional checklist (recorded in
+[the validation record](../docs/similarity-validation.md)). Representative
+large-library capacity remains separate work.
 
 Similarity defaults regression: the reference-set browser driver checks initial
 Group similar photos / Most matches first, remembered grouping and per-view sort,
@@ -523,8 +523,7 @@ The manual fallback is expected behavior when clipboard access is unavailable.
 
 ## Large-library performance workstream
 
-The manual functional checklist is complete. Representative capacity work is scoped
-separately on `perf/large-library-validation`; see
+Representative capacity work is scoped in
 [the measurement plan](../docs/large-library-performance.md) for isolated inputs,
 query scenarios, comparable A/B runs and pending coverage.
 Existing synthetic tools do not establish real NFS or dense-library capacity.

@@ -14,7 +14,7 @@ Specifications are organized by component, not by release phase:
 | [api-spec.md](docs/api-spec.md) | The web API as implemented: every route, its parameters, responses and errors |
 | [ui-design.md](docs/ui-design.md) | Shared styling and interaction contract for UI changes |
 | [tests/README.md](tests/README.md) | Automated checks, sample instances and manual validation |
-| [TODO.md](TODO.md) | Deferred review workflows, open design questions and durability work |
+| [TODO.md](TODO.md) | Open work, open design questions and the durability claims ledger |
 
 ## Docker Usage
 
@@ -62,6 +62,10 @@ Open **http://localhost:8080** (or the host's address). `docker compose -f docke
   Copy a review link, step between gallery sets, or show one set’s members in the
   gallery. Reject a look-alike from there, or keep one and reject the rest; viewing
   rotation is temporary. EXIF editing and saved rotation remain future work.
+- **Reject** a photo you do not want: **Reject…** on it, or select photos and use Actions ›
+  **Reject selected**. It moves to the `rejects` folder beside `library`; nothing is deleted.
+  The **Rejects** view shows what it holds and how to empty it, and **Return to library**
+  brings a photo back. You empty the folder yourself.
 - The drawer at the bottom shows a running job's progress and lets you cancel it. Closing the browser does not stop a job.
 - **Move needs a writable source.** It deletes each source file after its copy is verified. With a read-only source a Move can only copy: each photo is shown as **Copied only**, with the reason, and nothing is lost. To Move, set `read_only: false` on the source volume in `docker/compose.yml`, then Move those photos again to remove the originals.
 - Stopping the containers cancels a running job cleanly; the compose file allows five minutes for a large file to finish copying first.
