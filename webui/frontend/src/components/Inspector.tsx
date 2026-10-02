@@ -37,7 +37,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   // From Similar photos: reject one look-alike, or keep this photo and reject the rest.
   onRejectMatch?: (id: number) => void;
   onKeep?: (keep: number, name: string, threshold: number) => void;
-  onNotice?: (text: string, actions: { label: string; run: () => void }[]) => void;
+  onNotice?: (text: string, actions: { label: string; run: () => void }[], photo?: number) => void;
   coveredByDialog?: boolean;
   comparison: ComparisonState | null;
   onComparison: (state: ComparisonState | null) => void;

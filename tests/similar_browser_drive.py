@@ -376,18 +376,18 @@ with sync_playwright() as p:
     # Promoting a candidate queries its direct matches, preserves the pair's
     # judgment and viewing rotation, and leaves the gallery context untouched.
     original_url = page.url
-    original_name = reference_preview.locator('figcaption > span').inner_text()
-    promoted_name = candidate_preview.locator('figcaption > span').inner_text()
+    original_name = reference_preview.locator('.review-photo-name > span').inner_text()
+    promoted_name = candidate_preview.locator('.review-photo-name > span').inner_text()
     promoted = request.get(f'/api/v1/similar/{reference}?threshold=75&page=2&page_size=12').json()['items'][0]['id']
     dialog.get_by_role('button', name='Rotate candidate left', exact=True).click()
     dialog.get_by_role('combobox', name='Review progress').select_option('reviewed')
     expect(dialog.locator('.review-filmstrip button')).to_have_count(1)
     with page.expect_response(lambda r: f'/api/v1/similar/{promoted}?' in r.url):
         dialog.get_by_role('button', name='Use as reference', exact=True).click()
-    expect(reference_preview.locator('figcaption > span')).to_have_text(promoted_name)
+    expect(reference_preview.locator('.review-photo-name > span')).to_have_text(promoted_name)
     expect(reference_preview).to_contain_text('Viewing rotation: 270°')
     expect(reference_preview).to_be_focused()
-    expect(candidate_preview.locator('figcaption > span')).to_have_text(original_name)
+    expect(candidate_preview.locator('.review-photo-name > span')).to_have_text(original_name)
     expect(dialog.get_by_role('combobox', name='Minimum similarity')).to_have_value('75')
     expect(dialog.get_by_role('combobox', name='Review progress')).to_have_value('all')
     expect(dialog.get_by_role('button', name='Related photograph', exact=True)).to_have_attribute('aria-pressed', 'true')
@@ -397,8 +397,8 @@ with sync_playwright() as p:
     assert gallery_context(page.url) == gallery_context(original_url)
     expect(page.locator(f'.card[data-id="{reference}"] input')).to_be_checked()
     page.reload()
-    expect(reference_preview.locator('figcaption > span')).to_have_text(promoted_name)
-    expect(candidate_preview.locator('figcaption > span')).to_have_text(original_name)
+    expect(reference_preview.locator('.review-photo-name > span')).to_have_text(promoted_name)
+    expect(candidate_preview.locator('.review-photo-name > span')).to_have_text(original_name)
     expect(reference_preview).to_contain_text('Viewing rotation: 270°')
     expect(dialog.get_by_role('button', name='Related photograph', exact=True)).to_have_attribute('aria-pressed', 'true')
     shot('match-new-reference')
@@ -409,7 +409,7 @@ with sync_playwright() as p:
     # Explicit gallery selection is session-only and is not part of the bookmark.
     expect(page.locator(f'.card[data-id="{reference}"] input')).not_to_be_checked()
     matches.get_by_role('button', name=re.compile('^Review side by side:')).first.click()
-    expect(reference_preview.locator('figcaption > span')).to_have_text(original_name)
+    expect(reference_preview.locator('.review-photo-name > span')).to_have_text(original_name)
     page.set_viewport_size({'width': 700, 'height': 844})
     dialog.get_by_role('button', name='Rotate reference right', exact=True).click()
     expect(reference_preview).to_contain_text('Viewing rotation: 90°')

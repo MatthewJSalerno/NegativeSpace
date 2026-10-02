@@ -95,7 +95,9 @@ Users can select individual files or multiple files across grid views to run tar
 * **Multi-Select Controls:** Checkboxes on photo cards, Shift-click range selections,
   and a **Select ▾** menu above the grid: **Select all on screen (n)** (the photos
   visible right now), **Select all in this view (n)** (every photo the view, search and
-  dates show, scrolled to or not), **Unselect all on screen** and **Unselect all**. Select all is refused whole above the 1,000-photo
+  dates show, scrolled to or not), **Unselect all on screen** and **Unselect all**; the two
+  on-screen items only while the view holds more photos than the screen shows, counted again
+  whenever the gallery changes size (the photo panel opening or closing). Select all is refused whole above the 1,000-photo
   limit, never cut short (`GET /photos/ids`); an item that would do nothing says why.
   Keep the total selected count visible and repeat it in bulk-action previews, including
   metadata edits and deletion.

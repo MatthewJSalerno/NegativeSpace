@@ -276,8 +276,13 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const setFocusPage = (p: number) => { setFocusJump((j) => ({ page: p, n: j.n + 1 })); setFocusVisible(p); };
   // A notice names its fixes as buttons that apply them, not as instructions.
   const [notice, setNoticeState] = useState<{ text: string; actions: { label: string; run: () => void }[] } | null>(null);
-  const setNotice = (text: string | null, actions: { label: string; run: () => void }[] = []) =>
+  const setNotice = (text: string | null, actions: { label: string; run: () => void }[] = [], photo?: number) => {
+    noticePhoto.current = text == null ? null : photo ?? null;
     setNoticeState(text == null ? null : { text, actions });
+  };
+  // A notice about one rejected photo lasts only while it is in Rejects: returning it,
+  // from the notice or anywhere else, clears it once the job that did so has ended.
+  const noticePhoto = useRef<number | null>(null);
   // A date to go to once the date filter that hid it has changed.
   const [pendingJump, setPendingJump] = useState<string | null>(null);
   // Every photo on screen, as the last scroll found them.
@@ -305,6 +310,15 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     setFocus(null); setPendingJump(null); setNoticeState(null); setActionError(null);
   });
   const [refreshKey, setRefreshKey] = useState(0);
+  useEffect(() => {
+    const photo = noticePhoto.current;
+    if (photo == null) return;
+    let live = true;
+    api.inspect(photo).then((d) => {
+      if (live && noticePhoto.current === photo && !["Rejected", "Rejected_Copied"].includes(d.status)) setNotice(null);
+    }, () => undefined);
+    return () => { live = false; };
+  }, [refreshKey]);
   // What Reject and Return to library would take of the selection, for Actions.
   const [selectionActions, setSelectionActions] = useState({ reject: 0, return: 0 });
   const [dismissedId, dismissRun] = useDismissedRun();
@@ -589,7 +603,13 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
-    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); cancelAnimationFrame(frame); };
+    // The gallery also changes width without a window resize: the photo panel opening or
+    // closing reflows the grid, and what is on screen with it.
+    const pane = document.querySelector(".gallery-pane");
+    const observer = pane ? new ResizeObserver(onScroll) : null;
+    if (pane) observer!.observe(pane);
+    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll);
+                   observer?.disconnect(); cancelAnimationFrame(frame); };
   }, [focus]);
   // Photos arriving change what is on screen without a scroll: measure again.
   useEffect(() => { window.dispatchEvent(new Event("resize")); }, [flat]);
@@ -1060,7 +1080,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
                        onReject={() => askTransfer("reject", [openId])} onReturn={() => askTransfer("return", [openId])}
                        onRejectMatch={(id) => askTransfer("reject", [id])} onKeep={(keep, name, threshold) => void keepAndReview(keep, name, threshold)}
-                       onNotice={(text, actions) => setNotice(text, actions)}
+                       onNotice={(text, actions, photo) => setNotice(text,
+                         actions.map((a) => ({ ...a, run: () => { setNotice(null); a.run(); } })), photo)}
                        onTab={(tab) => { setInspectorTab(tab);
                          if (tab === "similar" && !matchView) setMatchState({ photo: openId, view: { threshold: view === "similar" ? matchMin : 90, page: 1 } }); }}
                        onMatchView={(v) => setMatchState({ photo: openId, view: v })} />

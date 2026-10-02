@@ -24,7 +24,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
   // Another job holds the engine, so Reject waits.
   jobRunning?: boolean;
   // A note for the Library after the comparison closes (its reference was rejected).
-  onNotice?: (text: string, actions: { label: string; run: () => void }[]) => void;
+  onNotice?: (text: string, actions: { label: string; run: () => void }[], photo?: number) => void;
 }) {
   const [reference, setReference] = useState(workspace.reference);
   const [active, setActive] = useState<number | null>(candidate);
@@ -161,7 +161,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       }
       onSaved();
       if (isReference) {
-        onNotice?.(`Rejected ${photo.filename}.`, [{ label: "Return it to the library", run: () => { void runAndWait("return", [photo.id]); } }]);
+        onNotice?.(`Rejected ${photo.filename}.`, [{ label: "Return it to the library", run: () => { void runAndWait("return", [photo.id]); } }], photo.id);
         close();
         return;
       }

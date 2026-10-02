@@ -74,8 +74,8 @@ with sync_playwright() as p:
     # Side by side: a Reject… under each photo.
     page.locator(".inspector-match").first.click()
     workspace = page.get_by_role("dialog", name="Review photo match")
-    expect(workspace.locator(".review-photo-action button")).to_have_count(2)
-    candidate = workspace.locator(".review-photo").nth(1).locator("figcaption > span").inner_text()
+    expect(workspace.locator(".review-photo-name button")).to_have_count(2)
+    candidate = workspace.locator(".review-photo").nth(1).locator(".review-photo-name > span").inner_text()
     shot("s2-side-by-side")
     workspace.locator(".review-photo").nth(1).get_by_role("button", name="Reject…").click()
     ask = page.get_by_role("alertdialog")
@@ -86,7 +86,7 @@ with sync_playwright() as p:
     ask.get_by_role("button", name="Reject", exact=True).click()
     status = workspace.locator(".workspace-status")
     expect(status).to_contain_text(f"Rejected {candidate} · next look-alike shown", timeout=60_000)
-    next_one = workspace.locator(".review-photo").nth(1).locator("figcaption > span")
+    next_one = workspace.locator(".review-photo").nth(1).locator(".review-photo-name > span")
     expect(next_one).not_to_have_text(candidate)
     shot("s4-after-reject")
     # Asked once: the next reject in this comparison happens straight away.
@@ -142,6 +142,35 @@ with sync_playwright() as p:
     expect(ask.get_by_role("button", name="Cancel")).to_be_focused()
     shot("s6-last-one")
     ask.get_by_role("button", name="Cancel").click()
+    assert status_of(reference) == "Copied"
+
+    # Rejecting it after all closes the comparison with a note in the Library, which lasts
+    # only while the photo is in Rejects: returned from the Rejects view, the note goes.
+    workspace.locator(".review-alone").get_by_role("button", name="Reject…").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Reject it too").click()
+    expect(workspace).to_have_count(0, timeout=60_000)
+    note = page.locator(".notice")
+    expect(note).to_contain_text(f"Rejected {name}.")
+    expect(note.get_by_role("button", name="Return it to the library")).to_be_visible()
+    page.get_by_role("button", name="Close", exact=True).click()
+    page.get_by_role("navigation", name="Views").get_by_role("button", name=re.compile(r"^Rejects")).click()
+    page.get_by_role("searchbox", name="Search filenames").fill(name)
+    expect(page.locator(".card")).to_have_count(1)
+    expect(page.locator(f".card[data-id='{reference}']")).to_be_visible()
+    # Everything in the view is on screen, so Select offers the view, not "on screen" too.
+    select_button = page.locator(".select-menu > button")
+    select_button.click()
+    select = page.get_by_role("menu", name="Select")
+    expect(select.get_by_role("menuitem", name=re.compile(r"^Select all in this view"))).to_be_visible()
+    expect(select.get_by_role("menuitem", name=re.compile(r"^Select all on screen"))).to_have_count(0)
+    select_button.click()
+    expect(select).to_have_count(0)
+    page.locator(f".card[data-id='{reference}'] .card-check input").click()
+    page.get_by_role("button", name=re.compile(r"^Actions")).click()
+    page.get_by_role("menu", name="Actions").get_by_role("menuitem", name="Return selected to library (1)").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Return to library", exact=True).click()
+    expect(banner).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
+    expect(note).to_have_count(0)
     assert status_of(reference) == "Copied"
 
     assert not errors, f"browser errors: {errors}"

@@ -9,7 +9,7 @@ export const DEFAULT_VIEW: PreviewView = { rotation: 0, zoom: 1, x: 50, y: 50 };
 export function ReviewPreview({ photo, label, view, onChange, refreshKey, isReference = false, onUseAsReference, referenceDisabled, action }: {
   photo: MatchPhoto; label: string; view: PreviewView; onChange: (next: PreviewView) => void; refreshKey: number; isReference?: boolean;
   onUseAsReference?: () => void; referenceDisabled?: boolean;
-  // The photo's own action under its column (Reject…), so it is clear which photo it acts on.
+  // The photo's own action beside its name (Reject…), so it is clear which photo it acts on.
   action?: ReactNode;
 }) {
   const viewport = useRef<HTMLDivElement>(null);
@@ -26,7 +26,7 @@ export function ReviewPreview({ photo, label, view, onChange, refreshKey, isRefe
       <strong className="review-photo-role">{isReference ? "Reference photo" : label}</strong>
       {onUseAsReference && <button disabled={referenceDisabled} onClick={onUseAsReference}
         title="Find matches for this photo. This does not choose a keeper or metadata donor.">Use as reference</button>}
-    </div><span title={photo.filename}>{photo.filename}</span></figcaption>
+    </div><div className="review-photo-name"><span title={photo.filename}>{photo.filename}</span>{action}</div></figcaption>
     <div ref={viewport} className="review-viewport">
       <div className="review-zoom" style={{ transform: `scale(${view.zoom})`, transformOrigin: `${view.x}% ${view.y}%` }}>
         <div className="review-rotation" style={{ width: sideways ? size.height : size.width,
@@ -53,7 +53,6 @@ export function ReviewPreview({ photo, label, view, onChange, refreshKey, isRefe
         ? `${view.rotation !== 0 ? "Displayed: " : ""}${sideways ? photo.height : photo.width} × ${sideways ? photo.width : photo.height}`
         : "Dimensions unknown"} · {bytes(photo.file_size)}
         {view.rotation !== 0 && <span className="review-rotation-note">Viewing rotation: {view.rotation}° · not saved to file</span>}</p>
-      {action && <div className="review-photo-action">{action}</div>}
     </div>
   </figure>;
 }
