@@ -114,10 +114,13 @@ Users can select individual files or multiple files across grid views to run tar
   preview, not just the photos visible on the current page.
 * **Copy or Move a single selected photo confirms in a dialog**, preserving the
   gallery and Dates/Folders panel instead of switching into selection review.
-* **Copy or Move multiple selected photos is reviewed first, never confirmed over the photos.** It shows
-  every selected photo, whatever hides them, with a bar pinned above them: **"Review the
-  25 selected photos below"**, what the action does, **Copy these 25 photos** (or Move)
-  and **Cancel**. The photos can be scrolled, opened and unticked; the button's count
+* **Copy, Move, Reject or Return of multiple selected photos is reviewed first, never confirmed over the photos.** It shows
+  every selected photo, whatever hides them, with a bar pinned above them: **"Review before
+  copying** · 23 of 25 selected photos will be copied. Untick any you don't want." (one
+  count pair, said once; Keep this one, reject the rest reads **"Keeping IMG_0410.jpg** ·
+  7 of 9 look-alikes will be moved to Rejects. Untick any you want to keep."), what the
+  action does, **Copy these 23 photos** (or Move, Reject, Return) and **Cancel**. The
+  similarity view's grouping, threshold and match counts do not follow into a review. The photos can be scrolled, opened and unticked; the button's count
   follows the ticks, and an unticked photo stays on screen. **Why not a dialog:** one
   over the photos hid them and stopped the scrolling the review needs. **Cancel**
   returns to the view it came from; committing keeps those photos on screen as **the

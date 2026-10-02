@@ -939,8 +939,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           {focus && review && focus.mode && (
             <div className="focus-head review-bar" role="region" aria-label={`Review before ${REVIEW_WORDS[focus.mode].doing}`}>
               <div className="review-text">
-                <strong>{focus.keep != null ? `Keep ${focus.keepName}, reject its ${plural(focus.ids.length, "look-alike")}` : `Review the ${plural(focus.ids.length, "selected photo")} below`}</strong>
-                <span className="muted"> · untick any you do not want; {plural(reviewIds.length, "photo")} will be {REVIEW_WORDS[focus.mode].done}.</span>
+                <strong>{focus.keep != null ? `Keeping ${focus.keepName}` : `Review before ${REVIEW_WORDS[focus.mode].doing}`}</strong>
+                <span className="muted"> · {count(reviewIds.length)} of {plural(focus.ids.length, focus.keep != null ? "look-alike" : "selected photo")} will
+                  be {REVIEW_WORDS[focus.mode].done}. Untick any you {focus.keep != null ? "want to keep" : "don't want"}.</span>
                 <p className="muted">{review.body[0]}</p>
               </div>
               <button className={review.danger ? "danger" : "primary"} onClick={commit}
@@ -976,7 +977,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           {!focus && view === "suspicious" && <p className="dates-filter-line">Recorded years before 1800 or more than one year ahead. Open a photo to inspect its date and source. These are review hints; dates remain unchanged. Date editing is not yet available.</p>}
           <div className="gallery-summary">
             <span>{gallerySummary ? plural(gallerySummary.total, grouped ? "set" : "photo") : "Loading photos…"}</span>
-            {view === "similar" && focus?.kind !== "set" && <>
+            {view === "similar" && focus?.kind !== "set" && focus?.kind !== "review" && <>
               <label><input type="checkbox" checked={groupSets} disabled={!!focus}
                 onChange={e => { setGroupSets(e.target.checked); setPage(1); savePreference("ns.groupSets", String(e.target.checked)); setExploreReference(null); }} />Group similar photos</label>
               <label className="gallery-match-threshold">Matches at or above
@@ -1057,7 +1058,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                        onOpen={openFromGallery} onToggle={toggle} onToggleMany={toggleMany}
                        onReviewSet={!focus && view === "similar" && groupSets ? id => reviewSet(id, null) : undefined}
                        onExploreSet={!focus && view === "similar" && groupSets ? setExploreReference : undefined}
-                       matchThreshold={focus?.kind === "set" ? focus.threshold : focus ? galleryMinimum : data?.similarity?.threshold} />
+                       matchThreshold={focus?.kind === "set" ? focus.threshold : focus?.kind === "review" ? undefined : focus ? galleryMinimum : data?.similarity?.threshold} />
               {list.last < pages
                 ? <PageBoundary ref={bottomSentinel} pending={list.pending.has(list.last + 1)} error={list.failures.get(list.last + 1)} onLoad={() => list.load(list.last + 1, true)} />
                 : <div className="gallery-foot">

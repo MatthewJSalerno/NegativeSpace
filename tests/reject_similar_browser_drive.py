@@ -75,6 +75,8 @@ with sync_playwright() as p:
     page.locator(".inspector-match").first.click()
     workspace = page.get_by_role("dialog", name="Review photo match")
     expect(workspace.locator(".review-photo-name button")).to_have_count(2)
+    # A quiet rule separates the two photos.
+    assert workspace.locator(".review-photo").nth(1).evaluate("e => getComputedStyle(e).borderLeftStyle") == "solid"
     candidate = workspace.locator(".review-photo").nth(1).locator(".review-photo-name > span").inner_text()
     shot("s2-side-by-side")
     workspace.locator(".review-photo").nth(1).get_by_role("button", name="Reject…").click()
@@ -105,7 +107,11 @@ with sync_playwright() as p:
     open_similar()
     page.get_by_role("group", name="The photo you keep").get_by_role("button", name=f"Keep {name}, reject the other {total}…").click()
     review = page.get_by_role("region", name="Review before rejecting")
-    expect(review).to_contain_text(f"Keep {name}, reject its {total} look-alikes")
+    expect(review).to_contain_text(f"Keeping {name}")
+    expect(review).to_contain_text(f"{total:,} of {total:,} look-alikes will be moved to Rejects. Untick any you want to keep.")
+    # A review, not the Similar view: no grouping, threshold or match-count badges.
+    expect(page.get_by_role("checkbox", name="Group similar photos")).to_have_count(0)
+    expect(page.locator(".card-match-count")).to_have_count(0)
     cards = page.locator(".card")
     # The kept photo leads, loaded on its own, whatever page its look-alikes fill.
     expect(cards).to_have_count(min(total, 60) + 1)
@@ -118,6 +124,7 @@ with sync_playwright() as p:
     cards.nth(1).get_by_role("checkbox").uncheck()
     kept_too = cards.nth(1).get_attribute("data-id")
     expect(review.get_by_role("button", name=f"Reject these {total - 1} photos")).to_be_visible()
+    expect(review).to_contain_text(f"{total - 1:,} of {total:,} look-alikes will be moved to Rejects.")
     shot("s5-keep-review")
     review.get_by_role("button", name=f"Reject these {total - 1} photos").click()
     expect(banner).to_contain_text(f"{total - 1} of {total - 1} photos moved to Rejects", timeout=60_000)
