@@ -2,7 +2,9 @@ import { ReviewActions, type SetActions } from "./ReviewActions";
 import type { ComparisonState } from "../comparisonState";
 import { SimilarityRecovery } from "./SimilarityRecovery";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { api, MATCH_THRESHOLDS, type MatchPage, type MatchReview, type MatchVerdict } from "../api";
+import { api, MATCH_THRESHOLDS, type MatchPage, type MatchPhoto, type MatchReview, type MatchVerdict } from "../api";
+import { moved, runAndWait } from "../rejecting";
+import { RejectConfirm } from "./RejectConfirm";
 import { count, instant } from "../format";
 import { Thumb } from "./Thumb";
 import { Workspace } from "./ui/Workspace";
@@ -15,10 +17,16 @@ const VERDICTS: [MatchVerdict, string][] = [
 const verdictName = (value: MatchVerdict | null | undefined) => VERDICTS.find(([key]) => key === value)?.[1] ?? "Unreviewed";
 const PAGE_SIZE = 12;
 
-export function MatchReviewDialog({ reference: initialReference, candidate, initialView, onView, onClose, onSaved, workspace, onWorkspace, setBrowse, onOpenSet, onShowSet }: SetActions & {
+export function MatchReviewDialog({ reference: initialReference, candidate, initialView, onView, onClose, onSaved, workspace, onWorkspace, setBrowse, onOpenSet, onShowSet, jobRunning = false, onNotice, onKeep }: SetActions & {
   workspace: ComparisonState; onWorkspace: (state: ComparisonState) => void;
   reference: number; candidate: number | null; initialView: { threshold: number; page: number };
   onView: (view: { threshold: number; page: number }) => void; onClose: () => void; onSaved: () => void;
+  // Another job holds the engine, so Reject waits.
+  jobRunning?: boolean;
+  // A note for the Library after the comparison closes (its reference was rejected).
+  onNotice?: (text: string, actions: { label: string; run: () => void }[], photo?: number) => void;
+  // Keep the reference and reject the rest: the same review as in Similar photos.
+  onKeep?: (keep: number, name: string, threshold: number) => void;
 }) {
   const [reference, setReference] = useState(workspace.reference);
   const [active, setActive] = useState<number | null>(candidate);
@@ -39,6 +47,18 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
   const selectLast = useRef(false);
   const focusReference = useRef(false);
   const [tab, setTab] = useState<"information" | "review">(workspace.tab);
+  // Rejecting from the comparison (webui-spec 7.8): asked first, until "Don't ask again
+  // while comparing", which lasts while this comparison is open; one reject at a time.
+  const [dontAsk, setDontAsk] = useState(false);
+  const [asking, setAsking] = useState<{ photo: MatchPhoto; isReference: boolean; last: boolean } | null>(null);
+  const [rejecting, setRejecting] = useState<number | null>(null);
+  const [rejectedHere, setRejectedHere] = useState(0);
+  const [note, setNote] = useState<{ id: number; filename: string; returned: boolean } | null>(null);
+  const [rejectError, setRejectError] = useState<string | null>(null);
+  // The reference as last loaded, so it stays on screen once no look-alike is left.
+  const [lastReference, setLastReference] = useState<MatchPhoto | null>(null);
+  // After a reject, the look-alike at the rejected one's place is shown next.
+  const pickIndex = useRef<number | null>(null);
 
   useEffect(() => {
     // Keep only the current pair's transforms in the bounded bookmark. Other
@@ -58,7 +78,10 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
         const last = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
         if (page > last) { setPage(last); return; }
         setMatches(data);
-        setActive(old => old ?? (selectLast.current ? data.items.at(-1)?.id : data.items[0]?.id) ?? null);
+        const picked = pickIndex.current;
+        pickIndex.current = null;
+        setActive(old => old ?? (picked != null ? data.items[Math.min(picked, data.items.length - 1)]?.id
+          : selectLast.current ? data.items.at(-1)?.id : data.items[0]?.id) ?? null);
         selectLast.current = false;
       }, e => { if (live) setListError(e instanceof Error ? e.message : "Candidates could not be loaded."); });
     return () => { live = false; };
@@ -67,7 +90,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
   useEffect(() => {
     let live = true;
     setReview(null); setError(null);
-    if (active != null) api.matchReview(reference, active).then(r => { if (live) setReview(r); },
+    if (active != null) api.matchReview(reference, active).then(r => { if (live) { setReview(r); setLastReference(r.reference); } },
       e => { if (live) setError(e instanceof Error ? e.message : "The comparison could not be loaded."); });
     return () => { live = false; };
   }, [reference, active, reload]);
@@ -121,6 +144,59 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
     setReview(null); setMatches(null); setError(null); setListError(null);
     focusReference.current = true;
   };
+  // Rejecting: the photo under the button goes, after the question unless the user said
+  // not to ask; leaving none of the compared photos in the library always asks.
+  const remaining = matches?.unfiltered_total ?? matches?.total ?? 0;
+  const askReject = (photo: MatchPhoto, isReference: boolean) => {
+    const last = isReference && remaining === 0;
+    setRejectError(null);
+    if (dontAsk && !last) void reject(photo, isReference);
+    else setAsking({ photo, isReference, last });
+  };
+  const reject = async (photo: MatchPhoto, isReference: boolean) => {
+    setRejecting(photo.id); setRejectError(null);
+    try {
+      const run = await runAndWait("reject", [photo.id]);
+      if (moved(run, "reject") === 0) {
+        setRejectError(`${photo.filename} was not rejected. The job's log says why.`);
+        return;
+      }
+      onSaved();
+      if (isReference) {
+        onNotice?.(`Rejected ${photo.filename}.`, [{ label: "Return it to the library", run: () => { void runAndWait("return", [photo.id]); } }], photo.id);
+        close();
+        return;
+      }
+      setRejectedHere(n => n + 1);
+      setNote({ id: photo.id, filename: photo.filename, returned: false });
+      pickIndex.current = Math.max(0, index);
+      setActive(null); setReview(null); setRevision(n => n + 1);
+    } catch (e) {
+      setRejectError(e instanceof Error ? e.message : `${photo.filename} could not be rejected.`);
+    } finally { setRejecting(null); }
+  };
+  const returnNoted = async () => {
+    if (!note) return;
+    setRejecting(note.id); setRejectError(null);
+    try {
+      const run = await runAndWait("return", [note.id]);
+      if (moved(run, "return") === 0) setRejectError(`${note.filename} was not returned. The job's log says why.`);
+      else { setNote({ ...note, returned: true }); setRejectedHere(n => Math.max(0, n - 1)); setRevision(n => n + 1); onSaved(); }
+    } catch (e) {
+      setRejectError(e instanceof Error ? e.message : `${note.filename} could not be returned.`);
+    } finally { setRejecting(null); }
+  };
+  const rejectButton = (photo: MatchPhoto, isReference: boolean) => (
+    <button className="photo-action" disabled={busy || rejecting != null || jobRunning}
+            title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : `Move ${photo.filename} out of the library into Rejects. Nothing is deleted.`}
+            onClick={() => askReject(photo, isReference)}>
+      {rejecting === photo.id ? "Rejecting…" : "Reject…"}
+    </button>
+  );
+  const noteLine = note && (note.returned
+    ? <>Returned {note.filename} to the library.</>
+    : <>Rejected {note.filename} · {remaining > 0 ? "next look-alike shown" : "no more look-alikes"}{" "}
+        <button className="link" disabled={rejecting != null} onClick={() => void returnNoted()}>Return it to the library</button></>);
   // Candidate position across pages, for the frame's ‹ n of N ›.
   const position = matches && index >= 0 ? (page - 1) * PAGE_SIZE + index + 1 : null;
   const progress = matches?.availability === "available"
@@ -136,7 +212,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       previousDisabled: !matches || (index <= 0 && page === 1),
       nextDisabled: !matches?.items.length || (index === matches.items.length - 1 && page === pages),
     }}
-    status={progress}>
+    status={noteLine ?? progress}>
     <ReviewActions workspace={{ origin: initialReference, reference, candidate: active, threshold, page, filter, tab,
       views: { [reference]: referenceView, ...(active == null ? {} : { [active]: displayedCandidateView }) }, linked, share }}
       busy={busy || !review} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet} />
@@ -144,6 +220,12 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       <label>Minimum similarity<select aria-label="Minimum similarity" disabled={busy} value={threshold} onChange={e => {
         setThreshold(Number(e.target.value)); setPage(1); setActive(null);
       }}>{MATCH_THRESHOLDS.map(t => <option key={t} value={t}>{t}% or higher</option>)}</select></label>
+      {onKeep && lastReference?.id === reference && remaining > 0 && <button className="photo-action review-keep"
+        disabled={busy || rejecting != null || jobRunning}
+        title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Review the look-alikes before any is rejected. To keep the other photo, use it as the reference first."}
+        onClick={() => { const name = lastReference.filename; close(); onKeep(reference, name, threshold); }}>
+        Keep {lastReference.filename}, reject the other {count(remaining)}…
+      </button>}
       <label>Review progress<select aria-label="Review progress" disabled={busy} value={filter} onChange={e => {
         setFilter(e.target.value as ComparisonState["filter"]); setPage(1); setActive(null);
       }}><option value="all">All candidates</option><option value="unreviewed">Unreviewed</option><option value="reviewed">Reviewed</option></select></label>
@@ -152,6 +234,15 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
     <p className="section-note">Scores measure visual similarity, not confidence. Even 100% can describe different pictures.
       {threshold < 90 && " Below 90%, results are more likely to be unrelated. Review photos before using them as metadata clues."}</p>
     {error && <p className="error" role="alert">{error} <button disabled={busy} onClick={() => setReload(n => n + 1)}>Retry comparison</button></p>}
+    {rejectError && <p className="error" role="alert">{rejectError}</p>}
+    {matches?.availability === "available" && remaining === 0 && lastReference?.id === reference && <div className="review-alone">
+      <p role="status">No more look-alikes at this threshold.</p>
+      <div className="review-pair"><ReviewPreview label="Reference" isReference photo={lastReference} view={referenceView}
+        onChange={next => changeView(reference, next)} refreshKey={reload} action={rejectButton(lastReference, true)} /></div>
+    </div>}
+    {asking && <RejectConfirm filename={asking.photo.filename} last={asking.last} rejectedHere={rejectedHere} offerDontAsk
+      onCancel={() => setAsking(null)}
+      onConfirm={(again) => { const { photo, isReference } = asking; setAsking(null); if (again) setDontAsk(true); void reject(photo, isReference); }} />}
     {!review && active != null && !error && <p role="status">Loading comparison…</p>}
     {review && review.reference.id === reference && review.candidate.id === active && <>
       <div className="review-layout" ref={layout} style={{ "--review-share": `${share}%` } as CSSProperties}>
@@ -159,10 +250,12 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
           <div className="review-previews">
           <div className="review-pair">
             <ReviewPreview label="Reference" isReference photo={review.reference} view={referenceView}
-              onChange={next => changeView(reference, next)} refreshKey={reload} />
+              onChange={next => changeView(reference, next)} refreshKey={reload}
+              action={rejectButton(review.reference, true)} />
             <ReviewPreview label="Candidate" photo={review.candidate} view={displayedCandidateView}
               onUseAsReference={useAsReference} referenceDisabled={busy || !!error}
-              onChange={next => changeView(active, next)} refreshKey={reload} />
+              onChange={next => changeView(active, next)} refreshKey={reload}
+              action={rejectButton(review.candidate, false)} />
           </div>
           <div className="review-pair-options">
             <label><input type="checkbox" checked={linked} onChange={e => {

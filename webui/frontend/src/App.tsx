@@ -93,7 +93,9 @@ function readUrl() {
 // on entry, so unticking a photo there leaves it on screen, unticked.
 // "review" is the selection before a Copy or Move of it: shown in full, with the action
 // in a bar above it, so every photo can be looked at and unticked before committing.
-type Focus = { kind: "selection" | "review" | "job" | "photo" | "set"; ids: number[]; reference?: number; threshold?: number; mode?: ActionMode };
+type Focus = { kind: "selection" | "review" | "job" | "photo" | "set"; ids: number[]; reference?: number; threshold?: number; mode?: ActionMode;
+  // Keep this one, reject the rest: the photo kept, shown first and never ticked.
+  keep?: number; keepName?: string };
 
 export function App() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -274,8 +276,13 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const setFocusPage = (p: number) => { setFocusJump((j) => ({ page: p, n: j.n + 1 })); setFocusVisible(p); };
   // A notice names its fixes as buttons that apply them, not as instructions.
   const [notice, setNoticeState] = useState<{ text: string; actions: { label: string; run: () => void }[] } | null>(null);
-  const setNotice = (text: string | null, actions: { label: string; run: () => void }[] = []) =>
+  const setNotice = (text: string | null, actions: { label: string; run: () => void }[] = [], photo?: number) => {
+    noticePhoto.current = text == null ? null : photo ?? null;
     setNoticeState(text == null ? null : { text, actions });
+  };
+  // A notice about one rejected photo lasts only while it is in Rejects: returning it,
+  // from the notice or anywhere else, clears it once the job that did so has ended.
+  const noticePhoto = useRef<number | null>(null);
   // A date to go to once the date filter that hid it has changed.
   const [pendingJump, setPendingJump] = useState<string | null>(null);
   // Every photo on screen, as the last scroll found them.
@@ -303,6 +310,15 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     setFocus(null); setPendingJump(null); setNoticeState(null); setActionError(null);
   });
   const [refreshKey, setRefreshKey] = useState(0);
+  useEffect(() => {
+    const photo = noticePhoto.current;
+    if (photo == null) return;
+    let live = true;
+    api.inspect(photo).then((d) => {
+      if (live && noticePhoto.current === photo && !["Rejected", "Rejected_Copied"].includes(d.status)) setNotice(null);
+    }, () => undefined);
+    return () => { live = false; };
+  }, [refreshKey]);
   // What Reject and Return to library would take of the selection, for Actions.
   const [selectionActions, setSelectionActions] = useState({ reject: 0, return: 0 });
   const [dismissedId, dismissRun] = useDismissedRun();
@@ -435,6 +451,17 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                                           : Promise.resolve({ items: [], total: 0, page: p, page_size: pageSize, missing: [] } as SelectionPage)),
                            JSON.stringify([focus, sort, galleryMinimum]), focusJump, pageSize, refreshKey, setLoadError);
   const focusData: SelectionPage | null = focus ? focused.meta : null;
+  // The photo kept in Keep this one, reject the rest, loaded on its own so it leads the
+  // review whatever the sort or page.
+  const [keptItem, setKeptItem] = useState<PhotoItem | null>(null);
+  const keepId = focus?.kind === "review" ? focus.keep : undefined;
+  useEffect(() => {
+    let live = true;
+    setKeptItem(null);
+    if (keepId != null) api.selection([keepId], "newest", 1, 1, galleryMinimum)
+      .then((s) => { if (live) setKeptItem(s.items[0] ?? null); }, () => undefined);
+    return () => { live = false; };
+  }, [keepId, galleryMinimum, refreshKey]);
   const gallerySummary = focus ? focusData : data;
 
   // What the gallery shows: the results, or only the selection. Every loaded page in
@@ -576,7 +603,13 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
-    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); cancelAnimationFrame(frame); };
+    // The gallery also changes width without a window resize: the photo panel opening or
+    // closing reflows the grid, and what is on screen with it.
+    const pane = document.querySelector(".gallery-pane");
+    const observer = pane ? new ResizeObserver(onScroll) : null;
+    if (pane) observer!.observe(pane);
+    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll);
+                   observer?.disconnect(); cancelAnimationFrame(frame); };
   }, [focus]);
   // Photos arriving change what is on screen without a scroll: measure again.
   useEffect(() => { window.dispatchEvent(new Event("resize")); }, [flat]);
@@ -741,6 +774,26 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
   const askTransfer = (mode: ActionMode, ids?: number[], onCancel?: () => void) =>
     setConfirm(transferConfirm(mode, status, ids, start(mode, ids), onCancel));
+  // Keep this one, reject the rest (webui-spec 7.8): every look-alike of the kept photo at
+  // the threshold, reviewed before anything moves, the kept photo shown first and never ticked.
+  const keepAndReview = async (keep: number, keepName: string, threshold: number) => {
+    setActionError(null);
+    try {
+      const set = await api.photoIds({ view: "all", q: "", undated: false, set_reference: keep, match_min: threshold,
+                                       dates: [], types: [], folders: [] });
+      if (set.over_limit) {
+        setActionError(`${keepName} has more than ${count(set.limit)} look-alikes at ${threshold}%. Choose a higher percentage.`);
+        return;
+      }
+      const rest = set.ids.filter((id) => id !== keep);
+      setComparison(null); setOpenId(null); setLocate(null); setRevealId(null);
+      setSelected(new Set(rest));
+      setFocus({ kind: "review", mode: "reject", ids: rest, keep, keepName });
+      setFocusPage(1);
+    } catch (e) {
+      setActionError(e instanceof ApiError ? e.message : "The look-alikes could not be loaded.");
+    }
+  };
   // A folder's Copy or Move: the engine takes the folder itself (--source-subdir), so
   // there is no 1,000-photo limit, and Retry offers the same folder again.
   const folderShown = shownFolder(folderTree, folders);
@@ -886,8 +939,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           {focus && review && focus.mode && (
             <div className="focus-head review-bar" role="region" aria-label={`Review before ${REVIEW_WORDS[focus.mode].doing}`}>
               <div className="review-text">
-                <strong>Review the {plural(focus.ids.length, "selected photo")} below</strong>
-                <span className="muted"> · untick any you do not want; {plural(reviewIds.length, "photo")} will be {REVIEW_WORDS[focus.mode].done}.</span>
+                <strong>{focus.keep != null ? `Keeping ${focus.keepName}` : `Review before ${REVIEW_WORDS[focus.mode].doing}`}</strong>
+                <span className="muted"> · {count(reviewIds.length)} of {plural(focus.ids.length, focus.keep != null ? "look-alike" : "selected photo")} will
+                  be {REVIEW_WORDS[focus.mode].done}. Untick any you {focus.keep != null ? "want to keep" : "don't want"}.</span>
                 <p className="muted">{review.body[0]}</p>
               </div>
               <button className={review.danger ? "danger" : "primary"} onClick={commit}
@@ -923,7 +977,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           {!focus && view === "suspicious" && <p className="dates-filter-line">Recorded years before 1800 or more than one year ahead. Open a photo to inspect its date and source. These are review hints; dates remain unchanged. Date editing is not yet available.</p>}
           <div className="gallery-summary">
             <span>{gallerySummary ? plural(gallerySummary.total, grouped ? "set" : "photo") : "Loading photos…"}</span>
-            {view === "similar" && focus?.kind !== "set" && <>
+            {view === "similar" && focus?.kind !== "set" && focus?.kind !== "review" && <>
               <label><input type="checkbox" checked={groupSets} disabled={!!focus}
                 onChange={e => { setGroupSets(e.target.checked); setPage(1); savePreference("ns.groupSets", String(e.target.checked)); setExploreReference(null); }} />Group similar photos</label>
               <label className="gallery-match-threshold">Matches at or above
@@ -1000,10 +1054,11 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               {list.first > 1 && <PageBoundary ref={topSentinel} previous pending={list.pending.has(list.first - 1)} error={list.failures.get(list.first - 1)}
                 onLoad={() => { prepend.current = { height: document.documentElement.scrollHeight, y: window.scrollY }; list.load(list.first - 1, true); }} />}
               <Gallery refreshKey={refreshKey} page={{ items: flat.items }} pageOf={flat.pageOf} selected={selected} selectable={!jobRunning} openId={openId}
+                       keepItem={keepId != null ? keptItem : null}
                        onOpen={openFromGallery} onToggle={toggle} onToggleMany={toggleMany}
                        onReviewSet={!focus && view === "similar" && groupSets ? id => reviewSet(id, null) : undefined}
                        onExploreSet={!focus && view === "similar" && groupSets ? setExploreReference : undefined}
-                       matchThreshold={focus?.kind === "set" ? focus.threshold : focus ? galleryMinimum : data?.similarity?.threshold} />
+                       matchThreshold={focus?.kind === "set" ? focus.threshold : focus?.kind === "review" ? undefined : focus ? galleryMinimum : data?.similarity?.threshold} />
               {list.last < pages
                 ? <PageBoundary ref={bottomSentinel} pending={list.pending.has(list.last + 1)} error={list.failures.get(list.last + 1)} onLoad={() => list.load(list.last + 1, true)} />
                 : <div className="gallery-foot">
@@ -1025,6 +1080,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             <Inspector setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && view === "similar" && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
                        onReject={() => askTransfer("reject", [openId])} onReturn={() => askTransfer("return", [openId])}
+                       onRejectMatch={(id) => askTransfer("reject", [id])} onKeep={(keep, name, threshold) => void keepAndReview(keep, name, threshold)}
+                       onNotice={(text, actions, photo) => setNotice(text,
+                         actions.map((a) => ({ ...a, run: () => { setNotice(null); a.run(); } })), photo)}
                        onTab={(tab) => { setInspectorTab(tab);
                          if (tab === "similar" && !matchView) setMatchState({ photo: openId, view: { threshold: view === "similar" ? matchMin : 90, page: 1 } }); }}
                        onMatchView={(v) => setMatchState({ photo: openId, view: v })} />

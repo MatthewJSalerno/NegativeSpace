@@ -271,6 +271,27 @@ body.dragging { cursor: col-resize; user-select: none; }
 /* Alone on the white panel a quiet button reads as text; outlined, as fields are. */
 .inspector-actions button { border: 1px solid var(--control-border); background: var(--surface); }
 .inspector-actions button:hover:not(:disabled) { background: var(--surface-2); border-color: var(--control-border); }
+/* A photo's own action under that photo (Reject… in Similar photos and side by side):
+   outlined like the Inspector's, so it reads as a button and as belonging to the photo. */
+button.photo-action { border: 1px solid var(--control-border); background: var(--surface); }
+button.photo-action:hover:not(:disabled) { background: var(--surface-2); border-color: var(--control-border); }
+.review-toolbar .review-keep { align-self: end; }
+.review-photo-name { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
+.review-photo-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.review-alone .review-pair { grid-template-columns: minmax(0, 1fr); max-width: 50%; }
+/* Keep this one, reject the rest: the kept photo stands out (green, a check, "Keeping"),
+   in the Similar photos tab and as the first, full-size card of the review. */
+.keeping { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin: var(--space-2) 0 var(--space-3);
+  padding: var(--space-3); border: 2px solid var(--good); border-radius: 10px; background: color-mix(in srgb, var(--good) 8%, var(--surface)); }
+.keeping > img, .keeping > .thumb-placeholder { width: 240px; max-width: 100%; height: 160px; object-fit: contain; background: var(--preview-bg); border-radius: var(--control-radius); }
+.keeping-text { display: flex; flex-direction: column; gap: var(--space-1); flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+.keeping-label, .card-keeping { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--type-xs); font-weight: var(--weight-strong);
+  text-transform: uppercase; letter-spacing: 0.04em; color: var(--good); }
+.card.card-keep { box-shadow: 0 0 0 3px var(--good); background: color-mix(in srgb, var(--good) 8%, var(--surface)); }
+.card-keeping { position: absolute; top: var(--space-2); left: var(--space-2); padding: 2px var(--space-2); border-radius: var(--control-radius);
+  background: var(--good); color: var(--surface); }
+.reject-last { padding: var(--space-3); border-radius: var(--control-radius); background: color-mix(in srgb, var(--warn) 12%, var(--surface)); }
+.checkbox-row { display: flex; align-items: center; gap: var(--space-2); }
 .select-menu .menu { min-width: 320px; }
 
 /* The date tree, left of the gallery. */
@@ -747,6 +768,8 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .review-comparison { padding-right: var(--space-1); }
 .review-previews { padding-bottom: var(--space-2); }
 .review-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+/* A quiet rule between the two photos, so it is clear where one ends and the other starts. */
+.review-pair > .review-photo + .review-photo { border-left: 1px solid var(--border); padding-left: var(--space-3); }
 .review-photo { margin: 0; min-width: 0; }
 .review-photo figcaption { display: grid; gap: var(--space-1); padding-bottom: var(--space-2); }
 .review-photo-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: calc(var(--control-height) + var(--space-1)); }
@@ -808,6 +831,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 }
 @media (max-width: 600px) {
   .review-pair { grid-template-columns: minmax(0, 1fr); }
+  .review-pair > .review-photo + .review-photo { border-left: 0; padding-left: 0; border-top: 1px solid var(--border); padding-top: var(--space-3); }
   .review-viewport { height: 240px; }
   .workspace-content { padding: var(--space-3); }
 }
@@ -818,7 +842,8 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .photo-matches .match-heading, .match-pages { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: var(--space-4) 0; }
 .photo-matches h4 { font-size: var(--type-sm); font-weight: var(--weight-strong); margin: 0; }
 .inspector-match-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr)); gap: var(--space-3); list-style: none; padding: 0; margin: 0; }
-.inspector-match-list li { min-width: 0; }
+.inspector-match-list li { min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.inspector-match-list li > .photo-action { align-self: flex-start; }
 .inspector-match { display: flex; flex-direction: column; gap: var(--space-2); width: 100%; height: 100%; text-align: left; padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--control-radius); background: var(--surface); }
 .inspector-match img, .inspector-match > .thumb-placeholder { width: 100%; height: 120px; object-fit: contain; background: var(--preview-bg); }
 .inspector-match > span { display: flex; flex-direction: column; gap: var(--space-1); overflow-wrap: anywhere; }

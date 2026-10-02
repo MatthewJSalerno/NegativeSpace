@@ -359,7 +359,8 @@ with sync_playwright() as p:
     # them, not a dialog over them. Cancel returns to the view it came from.
     review = page.get_by_role("region", name="Review before copying")
     open_actions(page, "Copy").get_by_role("menuitem", name="Copy selected (3)").click()
-    expect(review).to_contain_text("Review the 3 selected photos below")
+    expect(review).to_contain_text("Review before copying")
+    expect(review).to_contain_text("3 of 3 selected photos will be copied.")
     expect(page.get_by_role("alertdialog")).to_have_count(0)
     review.get_by_role("button", name="Cancel").click()
     expect(review).to_have_count(0)

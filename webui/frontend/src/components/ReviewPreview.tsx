@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { MatchPhoto } from "../api";
 import { bytes } from "../format";
 import { Thumb } from "./Thumb";
@@ -6,9 +6,11 @@ import { Thumb } from "./Thumb";
 export type PreviewView = { rotation: number; zoom: number; x: number; y: number };
 export const DEFAULT_VIEW: PreviewView = { rotation: 0, zoom: 1, x: 50, y: 50 };
 
-export function ReviewPreview({ photo, label, view, onChange, refreshKey, isReference = false, onUseAsReference, referenceDisabled }: {
+export function ReviewPreview({ photo, label, view, onChange, refreshKey, isReference = false, onUseAsReference, referenceDisabled, action }: {
   photo: MatchPhoto; label: string; view: PreviewView; onChange: (next: PreviewView) => void; refreshKey: number; isReference?: boolean;
   onUseAsReference?: () => void; referenceDisabled?: boolean;
+  // The photo's own action beside its name (Reject…), so it is clear which photo it acts on.
+  action?: ReactNode;
 }) {
   const viewport = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 1, height: 1 });
@@ -24,7 +26,7 @@ export function ReviewPreview({ photo, label, view, onChange, refreshKey, isRefe
       <strong className="review-photo-role">{isReference ? "Reference photo" : label}</strong>
       {onUseAsReference && <button disabled={referenceDisabled} onClick={onUseAsReference}
         title="Find matches for this photo. This does not choose a keeper or metadata donor.">Use as reference</button>}
-    </div><span title={photo.filename}>{photo.filename}</span></figcaption>
+    </div><div className="review-photo-name"><span title={photo.filename}>{photo.filename}</span>{action}</div></figcaption>
     <div ref={viewport} className="review-viewport">
       <div className="review-zoom" style={{ transform: `scale(${view.zoom})`, transformOrigin: `${view.x}% ${view.y}%` }}>
         <div className="review-rotation" style={{ width: sideways ? size.height : size.width,

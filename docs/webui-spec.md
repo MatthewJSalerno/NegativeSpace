@@ -95,7 +95,9 @@ Users can select individual files or multiple files across grid views to run tar
 * **Multi-Select Controls:** Checkboxes on photo cards, Shift-click range selections,
   and a **Select ▾** menu above the grid: **Select all on screen (n)** (the photos
   visible right now), **Select all in this view (n)** (every photo the view, search and
-  dates show, scrolled to or not), **Unselect all on screen** and **Unselect all**. Select all is refused whole above the 1,000-photo
+  dates show, scrolled to or not), **Unselect all on screen** and **Unselect all**; the two
+  on-screen items only while the view holds more photos than the screen shows, counted again
+  whenever the gallery changes size (the photo panel opening or closing). Select all is refused whole above the 1,000-photo
   limit, never cut short (`GET /photos/ids`); an item that would do nothing says why.
   Keep the total selected count visible and repeat it in bulk-action previews, including
   metadata edits and deletion.
@@ -112,10 +114,13 @@ Users can select individual files or multiple files across grid views to run tar
   preview, not just the photos visible on the current page.
 * **Copy or Move a single selected photo confirms in a dialog**, preserving the
   gallery and Dates/Folders panel instead of switching into selection review.
-* **Copy or Move multiple selected photos is reviewed first, never confirmed over the photos.** It shows
-  every selected photo, whatever hides them, with a bar pinned above them: **"Review the
-  25 selected photos below"**, what the action does, **Copy these 25 photos** (or Move)
-  and **Cancel**. The photos can be scrolled, opened and unticked; the button's count
+* **Copy, Move, Reject or Return of multiple selected photos is reviewed first, never confirmed over the photos.** It shows
+  every selected photo, whatever hides them, with a bar pinned above them: **"Review before
+  copying** · 23 of 25 selected photos will be copied. Untick any you don't want." (one
+  count pair, said once; Keep this one, reject the rest reads **"Keeping IMG_0410.jpg** ·
+  7 of 9 look-alikes will be moved to Rejects. Untick any you want to keep."), what the
+  action does, **Copy these 23 photos** (or Move, Reject, Return) and **Cancel**. The
+  similarity view's grouping, threshold and match counts do not follow into a review. The photos can be scrolled, opened and unticked; the button's count
   follows the ticks, and an unticked photo stays on screen. **Why not a dialog:** one
   over the photos hid them and stopped the scrolling the review needs. **Cancel**
   returns to the view it came from; committing keeps those photos on screen as **the
@@ -2080,9 +2085,25 @@ source against the copy in Rejects (or puts it there, when Rejects was emptied).
     to library (n)** in place of Reject, and **Return to library…** in the Inspector of a
     photo in Rejects.
 
+*   **From Similar photos:** each look-alike has its own **Reject…**. Above them the photo
+    open in the panel stands out as **Keeping** (green outline, a check, a large picture)
+    with **Keep IMG_0410.jpg, reject the other 7…**: every look-alike at the chosen
+    percentage, reviewed like Reject selected, the kept photo first as a full-size card
+    with no tick box, whatever the sort or page.
+*   **Side by side:** a **Reject…** under each photo, so it is clear which one goes. The
+    first reject in a comparison asks, with **Don't ask again while comparing** (until the
+    comparison closes); a reject that would leave none of the compared photos in the
+    library always asks ("None of these photos would be left in the library", **Reject it
+    too**). Rejecting the look-alike shows the next one ("Rejected IMG_0412.jpg · next
+    look-alike shown" with **Return it to the library**); rejecting the photo you started
+    from closes the comparison with the same note. One reject at a time: the button reads
+    "Rejecting…" meanwhile. No keyboard shortcut. Beside the threshold, **Keep
+    copy-of-001.jpg, reject the other 128…** opens the same review as in Similar photos,
+    keeping the photo on the left; to keep the other one, **Use as reference** first. The
+    candidate strip stays for moving between look-alikes, with no Reject of its own.
+
 **Not built yet:** a photo only similar to a reject goes to Needs review (§7.9), shown
-beside the reject, and is never rejected automatically; Reject from the Similar photos
-tab and side by side.
+beside the reject, and is never rejected automatically.
 
 **Planned: Rejects' size stays in view without noise:** a Stats tile ("340 photos · 1.2 GB · oldest
 rejected 3 months ago"); each Reject result gives the running total; and a line under the

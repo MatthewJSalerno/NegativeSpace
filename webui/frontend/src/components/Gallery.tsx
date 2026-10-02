@@ -8,7 +8,10 @@ const STATUS_BADGE: Record<string, string> = {
   Processing: "In progress", Rejected: "Rejected", Rejected_Copied: "Rejected",
 };
 
-export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold, onReviewSet, onExploreSet }: {
+export function Gallery({ page: shown, pageOf, refreshKey, selected, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold, onReviewSet, onExploreSet, keepItem }: {
+  // Keep this one, reject the rest: the kept photo comes first, full size, marked
+  // Keeping, with no tick box, so it cannot be rejected with the rest.
+  keepItem?: PhotoItem | null;
   page: { items: PhotoItem[] };
   // The page each photo came from, so scrolling can tell which page is on top.
   pageOf?: number[];
@@ -23,14 +26,19 @@ export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId
   onToggleMany: (items: PhotoItem[], on: boolean) => void;
 }) {
   const anchor = useRef<number | null>(null);
+  const keepId = keepItem?.id;
+  const page = keepItem ? { items: [keepItem, ...shown.items.filter((item) => item.id !== keepId)] } : shown;
+  // The kept card is not one of the loaded pages' photos.
+  const pageOfShown = keepItem ? [pageOf?.[0], ...(pageOf ?? [])] : pageOf;
 
   // Shift-click selects the range from the last photo clicked, on this page.
   const toggle = (index: number, shift: boolean) => {
     const item = page.items[index];
+    if (item.id === keepId) return;
     const on = !selected.has(item.id);
     if (shift && anchor.current != null) {
       const [a, b] = [anchor.current, index].sort((x, y) => x - y);
-      onToggleMany(page.items.slice(a, b + 1), on);
+      onToggleMany(page.items.slice(a, b + 1).filter((i) => i.id !== keepId), on);
     } else {
       onToggle(item, on);
     }
@@ -42,7 +50,7 @@ export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId
       {page.items.map((item, index) => {
         const isSelected = selected.has(item.id);
         return (
-          <li key={item.id} data-page={pageOf?.[index]} data-id={item.id} className={`card ${isSelected ? "selected" : ""} ${openId === item.id ? "open" : ""}`}>
+          <li key={item.id} data-page={pageOfShown?.[index]} data-id={item.id} className={`card ${isSelected ? "selected" : ""} ${openId === item.id ? "open" : ""} ${item.id === keepId ? "card-keep" : ""}`}>
             <div className="card-preview">
               <button className="card-image" onClick={() => onOpen(item.id)} aria-label={`Open ${item.filename}`}>
                 <Thumb refreshKey={refreshKey} id={item.id} alt={item.filename} />
@@ -51,6 +59,10 @@ export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId
                 {plural(item.similar_count, "match", "matches")}
               </span>}
             </div>
+            {item.id === keepId ? (
+              <span className="card-keeping"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>Keeping</span>
+            ) : (
             <label className="card-check" title={selectable ? undefined : "Selection is unavailable while a job is running."}>
               <input
                 type="checkbox"
@@ -61,6 +73,7 @@ export function Gallery({ page, pageOf, refreshKey, selected, selectable, openId
                 aria-label={`Select ${item.filename}`}
               />
             </label>
+            )}
             <div className="card-meta">
               <span className="card-name" title={item.filename}>{item.filename}</span>
               <span className="card-sub">
