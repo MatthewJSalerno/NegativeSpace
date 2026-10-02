@@ -131,22 +131,35 @@ with sync_playwright() as p:
     expect(banner).to_contain_text("2 of 2 photos moved to Rejects", timeout=60_000)
     dismiss_banner()
 
+    # From the job's log: a photo opens in the Inspector, which returns it, with the
+    # action outlined so it reads as a button.
+    run = request.get("/api/v1/runs").json()["runs"][0]
+    assert run["mode"] == "REJECT", run
+    page.goto(f"{BASE}/logs?run={run['id']}")
+    page.locator("a[href*='photo=']").first.click()
+    back = page.locator(".inspector-actions").get_by_role("button", name="Return to library…", exact=True)
+    expect(back).to_be_visible()
+    assert back.evaluate("b => getComputedStyle(b).borderTopStyle") == "solid", "the Inspector action has no outline"
+    shot("r3b-return-from-log")
+    back.click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Return to library", exact=True).click()
+    expect(banner).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
+    dismiss_banner()
+
     # In the Rejects view, Actions offers Return to library and not Reject.
     page.goto(f"{BASE}/?view=rejects")
-    expect(page.locator(".card")).to_have_count(2)
+    expect(page.locator(".card")).to_have_count(1)
     page.set_viewport_size({"width": 700, "height": 900})
-    expect(line).to_contain_text("Rejects holds 2 photos")
+    expect(line).to_contain_text("Rejects holds 1 photo")
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "the Rejects view scrolls sideways"
     shot("r4-rejects-narrow")
     page.set_viewport_size({"width": 1400, "height": 900})
     page.locator(".card-check input").nth(0).click()
-    page.locator(".card-check input").nth(1).click()
     menu = actions_menu(page)
     expect(menu.get_by_role("menuitem", name=re.compile(r"^Reject"))).to_have_count(0)
-    menu.get_by_role("menuitem", name="Return selected to library (2)").click()
-    review = page.get_by_role("region", name="Review before returning to the library")
-    review.get_by_role("button", name="Return these 2 photos").click()
-    expect(banner).to_contain_text("2 of 2 photos returned to the library", timeout=60_000)
+    menu.get_by_role("menuitem", name="Return selected to library (1)").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Return to library", exact=True).click()
+    expect(banner).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
     expect(view_button(page, "Rejects")).to_contain_text("(0)")
 
     assert not errors, f"browser errors: {errors}"

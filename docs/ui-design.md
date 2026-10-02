@@ -72,7 +72,7 @@ cannot clip or cover the text.
 | Element | Contract and implementation |
 | :--- | :--- |
 | Navigation | Real anchors with destinations and modified-click support; current page indicated. A skip link reaches the main region. |
-| Buttons | Native buttons, primary/secondary/quiet/destructive CSS variants; verb labels. Disable submission while pending. |
+| Buttons | Native buttons, primary/secondary/quiet/destructive CSS variants; verb labels. Disable submission while pending. A photo's own action standing alone on a white panel (the Inspector's **Reject…** and **Return to library…**) is outlined with `--control-border`, as fields are: quiet, it read as plain text and was missed. |
 | Selects | Native select for sort and page size. Menus execute commands and are not substitutes for form selects. |
 | Fields | `ui/Field.tsx`: persistent label, hint and field error linked to the input, plus invalid state. Keep server validation. |
 | Checkboxes | Native input and label, Space activation, actual indeterminate state for partial parents. Selecting photos differs from filtering the view. |
