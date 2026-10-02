@@ -1093,13 +1093,6 @@ def keeper_candidates(conn, sha1_hash):
         "ORDER BY fs.current_path", (sha1_hash,))]
 
 
-def open_issues_for_path(conn, path):
-    """Unresolved issues touching whatever identity currently sits at `path`."""
-    return [r[0] for r in conn.execute(
-        "SELECT ai.issue_id FROM attention_issues ai JOIN file_states fs ON fs.file_id=ai.file_id "
-        "WHERE fs.current_path=? AND ai.resolved_at IS NULL", (path,))]
-
-
 def begin_operation(conn, *, run_id, photo_id, source_path, dest_path, kind, expected=None,
                     reconciles=None):
     """Durable intent, written and committed BEFORE the file mutation.

@@ -1,146 +1,53 @@
 # TODO
 
-Branch completion/validation details are in
-[the consolidated handoff](docs/similarity-handoff.md) and
-[validation record](docs/similarity-validation.md#current-status--2026-10-01).
-The agreed manual functional checklist is complete; large-library capacity remains
-a separately tracked validation item.
-The current sample uses a fresh catalog rebuild by maintainer choice; further
-migration/history work for that sample is out of scope.
+Open work, open design questions and the durability claims ledger. Designs live in
+`docs/`; features specified but not yet built are listed in
+[project-spec.md](docs/project-spec.md) §4 ("Specified but not yet on screen").
 
-## Completed similarity review and manual sign-off
+## Rejects follow-ups
 
-- [x] Default to 90%, grouped identical sets and Most matches first. Remember
-  threshold/grouping and per-view sort choices; explicit URLs override preferences.
-- [x] Collapse exact full-membership sets before gallery pagination; retain partial
-  overlaps, filtered representatives, set counts and explicit photo selection.
-- [x] Copy review link with manual fallback, previous/next grouped-gallery set,
-  and temporary paged browsing of a set's direct members.
-- [x] Maintainer passed the complete manual checklist: preferences, grouping,
-  filtering/counts, comparison, restoration, selection, all three
-  review actions, recovery/logging explanations and 200% desktop zoom/reflow.
-- [ ] Future discussion: selected-photo gallery discoverability and grouped-set
-  behavior. Show only selected already exists; discuss before adding another control.
-- [ ] Consider broader relationships between overlapping sets beyond the current
-  explicit one-hop exploration. Do not infer transitive matches.
+- [ ] Rejects' size on Stats and the line under the top row past a threshold set in
+  Settings (`docs/webui-spec.md` §7.8).
+- [ ] The "looks like a reject" check: a photo only similar to a reject (small pHash
+  distance) goes to Needs review beside the reject, never rejected automatically.
+  Waits for the Needs review in-tray (§7.9).
+- [ ] Reword the Reject confirmation (maintainer's note, 2026-10-01: later).
 
-## Expanded destination review workspace
+## Similar photos
 
-- [x] Expanded comparison workspace with independent temporary rotation, zoom and
-  position; optional linked zoom; candidate paging; metadata comparison. Deciding
-  is Reject or Keep this one, reject the rest (no pair labels, which changed nothing).
-- [x] Plain Reference photo heading with an accent preview border and explicit
-  candidate promotion. File/image properties appear above capture information;
-  differences filtering covers all sections, column headings follow scrolling,
-  and preview dimensions follow temporary rotation while recorded dimensions stay
-  unchanged. See the [UI design contract](docs/ui-design.md#expanded-review-workspace).
-- [x] Restore the open comparison after refresh/bookmark navigation: original Inspector
-  context, promoted reference, candidate, threshold, candidate page, panel width and
-  current-pair viewing adjustments. Close
-  clears the workspace bookmark; missing/stale photos still require a fresh lookup.
-- [x] Review-later queues and tagging: decided as the Needs review in-tray, decision
-  notes only (`docs/webui-spec.md` §7.9); not built.
-- [ ] Assess finding rotated matches that the current pHash search misses.
-  Rotating a returned preview helps human comparison but does not change retrieval
-  or scores. Keep this separate from viewing controls and saved orientation edits.
-- [x] Gallery **Most matches first** sort and **Matches at or above** selector
-  (75/80/85/90/95/100%). Cards show direct-match counts; sorting happens before
-  pagination and ties use photo ID. Gallery filters narrow references, while counts
-  include the full destination library. Zero-match photos are excluded at the chosen
-  threshold; incomplete comparison coverage is shown separately. Opening a gallery
-  card opens Similar photos at its gallery threshold. Sort/threshold survive reload and
-  browser navigation; selection membership is preserved. No hashes are recalculated.
-- [x] Six-threshold SQLite count cache in the catalog, with transactional invalidation,
-  live fallback and atomic/cancellable engine refresh. No separate DuckDB database.
-- [x] Visible **Most matches first** shortcut, consistent gallery summary/card geometry,
-  compact match badges, shared active filter styling and supplemental filter help.
-  Similar-gallery clicks open the matching tab; manual tab choices persist for
-  previous/next and reload.
-- [x] Add an isolated synthetic SQLite query runner with sparse, equal-hash, bounded
-  distinct-hash dense and mixed-eligibility fixtures; repeated timings, worker
-  deadlines and reusable fingerprinted inputs. A 250k sparse baseline completed
-  all eight workloads with 30 warm samples each; Inspector counts + candidates
-  (5.71 s p95) and related discovery + expansion (4.58 s p95) were the initial
-  profiling targets. See [benchmark commands](tests/README.md#synthetic-catalog-query-benchmark).
-- [x] Profile and narrow Inspector/reference-set SQLite queries: resolve requested
-  identities directly, filter candidate hashes before ranking/metadata reads, and
-  avoid grouping unrelated destination rows. Preserve canonical copies, overlap
-  behavior, historical hash casing and exact API results. Same-fixture A/B checks
-  passed at 250k (30 warm samples) and 500k sparse/bounded dense (three warm
-  samples); measured results are in the performance plan. No DuckDB layer added.
-- [ ] Follow the separate [large-library measurement plan](docs/large-library-performance.md)
-  on `perf/large-library-validation`: query performance at 250k/500k, dense and
-  overlapping sets, memory, invalidated caches and response times. Repeat A/B runs
-  before claiming supported capacity. Original-file processing, initial/incremental
-  hash comparison build costs and long-session browser work remain separate
-  follow-ups; this branch does not benchmark filesystem latency. See [validation guidance](tests/README.md#web-interface-in-a-browser--webui_browser_testsh).
-  The 75% floor is the chosen range; capacity validation is not a request to choose
-  between 75/80/85% floors. A separate DuckDB hash mapping is not part of the current
-  architecture; measure a concrete bottleneck before proposing another database.
+- [ ] Selected-photo gallery discoverability and grouped-set behavior. Show only
+  selected already exists; discuss before adding another control.
+- [ ] Broader relationships between overlapping sets beyond the current explicit
+  one-hop exploration. Do not infer transitive matches.
+- [ ] Assess finding rotated matches that the current pHash search misses. Rotating a
+  preview helps a person compare but does not change retrieval or scores.
+- [ ] Follow the [large-library measurement plan](docs/large-library-performance.md):
+  query performance at 250k/500k, dense and overlapping sets, memory, invalidated caches
+  and response times. Repeat A/B runs before claiming supported capacity. Original-file
+  processing, comparison build costs and long-session browser work remain separate;
+  filesystem latency is not benchmarked. The 75% floor is the chosen range. Measure a
+  concrete bottleneck before proposing another database.
 
-## Date review and further gallery ideas
+## Dates and metadata
 
-- [x] Suspicious dates: read-only gallery view, Inspector explanation and comparison
-  date-review row. Flag recorded gallery-date years before 1800 or more than one
-  year beyond the current UTC year, including labelled file-time fallbacks. Preserve
-  all dates; legitimate historical dates remain review hints, not confirmed errors.
-  Missing dates stay in No capture date. No schema change or reindex is required.
 - [ ] Extend date review to malformed/raw EXIF fields, conflicting capture tags,
   configurable bounds and dismissing known-valid dates if users need these. Current
-  flags inspect only the recorded gallery date. Date editing remains separate.
-- [x] Implement the agreed optional reference-based sets in Has similar photos.
-  Each reference retains all direct matches at the chosen percentage. With A–B
-  and B–C but no A–C, A's set contains A/B and B's set contains B/A/C. Overlap is
-  intentional; do not partition photos into disjoint groups or imply all members
-  match each other. See the [agreed design](docs/ui-design.md#reference-based-sets).
-  Add inline overlap notices, Review this set and Explore related sets. Users may
-  explicitly choose related sets and Show together, deduplicating photos while
-  retaining reference/membership context and identifying indirect relationships.
-  Expansions are session-only; recompute sets/overlap when the percentage
-  changes. No automatic recursive expansion, persisted group membership, tags,
-  keeper decisions or photo writes. Pagination, filter/count/selection semantics
-  are documented in the design standard. Identical-set collapsing is implemented in the grouped gallery.
+  flags inspect only the recorded gallery date.
+- [ ] EXIF editing and copying details between photos, with explicit targets, previews
+  and per-file history (`docs/webui-spec.md` §7.5, `docs/engine-spec.md` §9.6). The
+  reference, donor and targets are distinct roles, never inferred from navigation or
+  checkboxes.
+- [ ] Saved orientation edits, separate from temporary viewing rotation: one
+  end-of-review decision for photos still rotated, built on the verified EXIF
+  Orientation write (§7.6); no save promise before that works.
 
-## Separate workstream: photo changes
+## Warnings that need a way out
 
-EXIF editing/copy, saved orientation writes and deletion are outside this similarity
-matching branch. These planning items do not block hash recovery, comparison
-restoration, match quality work or performance validation. No functional edit/delete
-controls are promised in the current review UI.
-
-- [ ] Add EXIF copy/edit and deletion with explicit target selection, previews and
-  per-file history/results. Reference, metadata donor, keepers and action targets
-  are distinct roles. Do not infer them from navigation or gallery checkboxes.
-  Follow webui-spec §7.4 and §7.6 and the shared UI design contract.
-- [ ] Add saved orientation edits separately from temporary viewing rotation.
-  Offer one end-of-review decision for photos with a remaining rotation change,
-  not a write or prompt on each Rotate click. Identify the affected reference and
-  candidates by photo, preview their final orientations, and allow saving selected
-  changes, discarding them, or returning to review. Keep changes attached to photo
-  identities when candidates or the reference change; decide how leaving via Back,
-  Escape or closing the window reaches the same decision. Build the verified EXIF
-  Orientation write path first (webui-spec §7.6); do not show a save promise until it
-  works. General EXIF editing belongs in the shared editor, reached from review.
-## Actionable warning workflows
-
-- [x] Missing-hash recovery and comparison resume: paged affected destination photos,
-  generation for uncomputed hashes and explicit per-file rechecks after external
-  fixes, with distinct unsupported-format, decode, read, missing-file and changed-file
-  reasons, busy-job gating, progress/cancellation and refreshed outcomes.
-  Bulk generation skips known failures. Review matching status makes no blanket
-  repair promise. Recovery verifies destination SHA-1 before and after decoding
-  and works when the source is gone. It changes only matching data. Changed/missing/unreadable files
-  require the stated external correction before retry; unsupported formats remain
-  a decoder limitation. Ordinary unchanged-file Index is not the recovery path.
-- [ ] Add an import-completion summary and a catalog-wide external-review filter for
-  files with failed visual processing. Distinguish corrupt/mislabeled data from missing
-  decoder support and IO failures; absent EXIF is not proof of damage. Preserve files
-  and delivery status. Existing missing-hash states already exclude them from matching.
-  Recovery per-file logs and Inspector issue explanations are implemented; historical
-  jobs have no backfilled details. Do not repeatedly retry unchanged bad files.
-- [ ] Audit warnings throughout the app for a working action or direct route to the
-  affected items. Track missing actions as unfinished features under the shared
-  [validation and feedback contract](docs/ui-design.md#validation-and-feedback).
+- [ ] An import-completion summary and a catalog-wide filter for files whose visual
+  processing failed, distinguishing corrupt data from missing decoder support and IO
+  failures; absent EXIF is not proof of damage. Do not retry unchanged bad files.
+- [ ] Audit warnings throughout the app for a working action or a direct route to the
+  affected items ([validation and feedback contract](docs/ui-design.md#validation-and-feedback)).
 
 ## Durability claims: stated vs enforced
 
@@ -158,10 +65,11 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 | 8 | The documented repair for a destination file removed outside the engine — re-index with `--force-rehash`, then Copy — actually re-delivers it | `Skipped` reason string, `webui-spec.md` §5.3 | **Enforced**, tested (`the documented recovery redelivers a removed destination file`) |
 | 9 | A filesystem that cannot fsync directories **says so at runtime**, rather than leaving the weaker guarantee to be inferred from this document | `engine-spec.md` §4.2 | **Enforced**, tested (`an unsupported directory fsync is reported once per run`). Once per run, naming the first such directory — once per directory would be a line per date folder. |
 | 10 | The move/copy loop **commits its intent marker at `synchronous=FULL`**, so `status=Processing` with `dest_path` is fsynced before the source is unlinked | `get_db_connection`, `engine-spec.md` §5 | **Enforced**, tested (`the move loop commits at full synchronous`). Scoped to that one connection — the scan path keeps `NORMAL`; measured 1.42x on the move path (+1.9 ms/photo) against the ~4.4x `NORMAL` buys on the scan path. **The claim stops at the fsync:** whether a real power cut preserves it depends on the storage honouring it, which is untested (see the power-loss item below). **If the marker is lost anyway, the next run still records the truth**, tested (`a move whose catalog commits were lost is recorded as found`): a photo or duplicate whose source is gone and whose exact content is on the destination is recorded `Found_At_Destination` from that evidence, never `Failed` and never as an action it did not take. An entirely empty source folder is asked about rather than guessed at (`an empty source asks before anything is recorded`; engine-spec §4.2). |
-| 11 | **Complete lineage is reconstructable for every catalogued file, in every settled status** — original Index snapshot, current state, creation origin, and every operation it took part in | `webui-spec.md` §6.3, `engine-spec.md` §10 | **Enforced**, tested (`every_catalogued_file_assembles_complete_lineage`). Two catalogs, because one cannot hold every status at rest: a run ending in Move leaves `Completed`/`Failed`/`Removed_Duplicate`, one ending in a targeted Copy leaves `Pending`/`Copied`/`Duplicate`. The test asserts the required set is covered, so a NEW status that nothing verifies fails it. The guard also rejects settled source removals still recorded as present and successful transfer intents with no destination participant. Interrupted-Move tests cover verified fresh delivery, reuse of an existing copy, duplicate removal, unverified destinations and atomic rollback of a failed lineage repair. **One documented exception:** a destination the engine found rather than created has no source snapshot, because no Index ever saw it; it is recorded as `observed_destination` with a NULL origin rather than given a fabricated one. Verified against a real-library catalog of 971 identities at 0.02–0.08 ms per history. |
+| 11 | **Complete lineage is reconstructable for every catalogued file, in every settled status** — original Index snapshot, current state, creation origin, and every operation it took part in | `webui-spec.md` §6.3, `engine-spec.md` §10 | **Enforced**, tested (`every_catalogued_file_assembles_complete_lineage`). Four catalogs, because one cannot hold every status at rest: a run ending in Move leaves `Completed`/`Failed`/`Removed_Duplicate`; one ending in a targeted Copy leaves `Pending`/`Copied`/`Duplicate`; lost catalog commits leave `Found_At_Destination`; rejecting after a Move and after a Copy, then emptying Rejects, leaves `Rejected`/`Rejected_Copied`/`Rejected_Emptied`. The test asserts the required set is covered, so a NEW status that nothing verifies fails it. The guard also rejects settled source removals still recorded as present and successful transfer intents with no destination participant. Interrupted-Move tests cover verified fresh delivery, reuse of an existing copy, duplicate removal, unverified destinations and atomic rollback of a failed lineage repair. **One documented exception:** a destination the engine found rather than created has no source snapshot, because no Index ever saw it; it is recorded as `observed_destination` with a NULL origin rather than given a fabricated one. Verified against a real-library catalog of 971 identities at 0.02–0.08 ms per history. |
 | 12 | **A settled run's whole history is fsynced when it settles**, including scan results and audit rows the scan path committed at `NORMAL` | `finish_run`, `engine-spec.md` §5 | **Enforced**, tested (`a settled run fsyncs the history its scan committed at normal`). In WAL mode a `FULL` commit fsyncs the WAL file, which covers every earlier `NORMAL` commit in it: one history-settle fsync per run (a dirty count-cache rebuild adds its own commit). **Why not `FULL` on the scan path:** it pays the ~4.4x on every batch to protect rows a re-Index reproduces. Backup attempts record their outcome at `FULL` too. **Scope:** a run killed before it settles is not covered — its last `NORMAL` batch can be lost to a power cut, it is recorded `Interrupted`, and a re-Index reproduces the scan rows; a database writer that misses its 60 s shutdown deadline can commit after the settle. Like claim 10, the claim stops at the fsync. **If a power cut takes a run's scan rows anyway, the next Index re-creates them identically**, tested (`scan rows lost with their commits are recreated by the next index`). |
 | 13 | Startup reconciliation commits at `synchronous=FULL` | `reconcile_interrupted_state` | **Enforced**, tested (`startup reconciliation commits at full synchronous`). Recovery records evidence and attention state — conclusions from observations that may not be repeatable, because storage disappears and files are replaced between runs. A lost repair would discard the only record that an outcome could not be established. It runs once per interrupted row at startup, so the cost is negligible. |
 | 14 | A Move never deletes a source on the strength of an fsync a network share may acknowledge early | `--confirm-network-destination`, `engine-spec.md` §4.1 | **Enforced**, tested (`a move to a network share asks before anything is deleted`, `the destination filesystem is read from the mount table`). A client cannot see how a share is exported — an `async` NFS export acknowledges an `fsync` before the data is on disk — so the engine does not try to. It reads the destination's filesystem type from the mount table and, for a network filesystem, stops a Move before copying or deleting anything: a needs-attention issue recommends Copy (which never deletes, so it is the one way to guarantee no loss) and the user chooses Copy instead, Move anyway after confirming the share is exported `sync`, or neither. Copy is never stopped. **Residual, by the maintainer's decision:** a confirmed Move is only as durable as the share's honesty about `fsync`, and a mount table that cannot be read is treated as local. |
+| 15 | A destination file with an unresolved needs-attention issue never authorizes deleting a duplicate source | `ns_db.keeper_candidates` | **Unresolved.** `keeper_candidates` excludes such files and is tested (`test_file_under_attention_is_excluded_from_keeper_candidates`), but Move's duplicate cleanup does not call it: it verifies candidates from `photos.dest_path` live by SHA-1 and does not consult attention issues. A matching SHA-1 makes the copy byte-identical, so the gap is narrower than it reads, but the stated rule is not applied. Enforce it in duplicate cleanup, or drop the claim; the maintainer decides. |
 
 ### Outstanding
 

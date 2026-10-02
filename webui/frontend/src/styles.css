@@ -732,9 +732,8 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
   button.primary, button.danger, button[aria-pressed=true], .card.open, .card.selected { outline: 2px solid Highlight; outline-offset: -2px; }
   :focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
 }
-.match-controls, .match-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
+.match-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
 .match-heading h3 { margin: 0; }
-.match-controls label { display: flex; flex-direction: column; gap: .4rem; }
 /* Workspaces (ui-design.md "Workspaces"): one full-window frame for deep work. The whole
    frame scrolls as one container (no inner scroller), with its header and status line
    kept in view; scroll padding keeps focused controls clear of both. */

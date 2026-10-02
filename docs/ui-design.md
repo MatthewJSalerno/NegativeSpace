@@ -175,7 +175,8 @@ in its information pane. Label thresholds as “at or above”: these are overla
 counts, not separate buckets or confidence estimates. Choosing one reveals a small,
 paged thumbnail grid of direct matches in the same pane, leaving the reference photo, gallery
 filters and explicit checkbox selection intact. Opening a match offers side-by-side
-review. Match browsing does not designate files for deletion or metadata edits.
+review. Match browsing does not designate files for rejecting or metadata edits; only
+an explicit Reject or Keep this one, reject the rest does.
 Association may help identify dates, events or other information, but proves none
 of them. A 100% visual score still does not mean identical bytes.
 Keep guidance beside the threshold controls explaining that results below 90% are
@@ -439,7 +440,7 @@ implied. At narrow widths the covering exploration owns modality instead of open
 a second Inspector dialog over it. Failed requests expose Retry sets and Reset to
 this set; stale expansions are rejected rather than silently dropped. Incomplete
 coverage links to matching information and recovery. No persisted group membership,
-keeper inference, EXIF editing or deletion is introduced.
+keeper inference, EXIF editing or rejecting is introduced by exploring sets.
 
 Review-later tagging remains deferred for a separate discussion of broader catalog
 annotations. Do not implement a dedicated marker until that discussion.
@@ -486,4 +487,4 @@ This temporary scope bypasses the saved gallery filters and does not auto-select
 expand or clear the existing selection. Filters are disabled while it is open;
 Back to results restores the previous gallery filters/page. Reload leaves this
 session-only scope. Selection limits still apply, but browsing is not limited to
-1,000 members. No EXIF edit, deletion, image processing or persisted group is implied.
+1,000 members. No EXIF edit, reject, image processing or persisted group is implied.

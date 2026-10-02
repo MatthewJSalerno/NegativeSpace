@@ -114,6 +114,9 @@ Delivered and validated against a real library. In place today:
 *   Full metadata capture — camera, ISO, aperture, shutter speed, and whatever
     else the source format exposes.
 *   Exact deduplication by SHA-1, including safe removal of duplicate sources.
+*   Rejects: turned-down photos move from `dest/library/` to `dest/rejects/` and can be
+    returned; nothing is deleted, and identical copies stay out of the library
+    (`engine-spec.md` §9.5).
 *   Selection-scoped operations via `--file-ids` and `--source-subdir`.
 *   Graceful cancellation, with every selected photo receiving a recorded
     outcome.
@@ -152,7 +155,7 @@ Further gaps between the documented web workflows and what the engine can answer
 | Refiling after a date change | Any metadata correction; it is what makes the destination contract enforceable |
 | Field-level before/after | Full lineage and informed manual corrections; no undo operations |
 | A batch identity | Bulk apply reading as one action |
-| Pre-action catalog backup for EXIF edits and deletion | Those actions; rename already takes one |
+| Pre-action catalog backup for EXIF edits | EXIF edits; rename, reject and return already take one |
 | Serving a file for download | Log export and backup retrieval — API work, not engine |
 
 **The destination contract** — every file under `--dest` sits in the folder its
@@ -183,40 +186,42 @@ service. Built and tested:
     *   the first-run screens, landing in the Library to Index;
     *   settings as a window over the page, with catalog backups (list, Back up now,
         download);
-    *   the top row: the logo, Library, the **Actions** menu (Index, Copy, Move, each for
-        the selection, the one folder shown, or all), Logs, the selection, and the build
-        beside Settings;
+    *   the top row: the logo, Library, the **Actions** menu (Index; Copy and Move for the
+        selection, the one folder shown, or all; Reject selected, or Return selected to
+        library in the Rejects view), Logs, the selection, and the build beside Settings;
     *   the gallery, with its views, sorts and search, a resizable left panel with
         **Types** (folded by default) and, by choice, the source's **Folders** (the
         default) or a **Dates** tree, to show only file types, folders, years and months
-        or jump to a date, and continuous scrolling whose page number follows;
+        or jump to a date, and continuous scrolling whose page number follows; the
+        **Rejects** view with what Rejects holds and how to empty it;
     *   selection across views (shift-click, the Select menu, Show only selected), and
-        Copy and Move of a selection reviewed on screen before they run;
+        Copy, Move, Reject and Return of a selection reviewed on screen before they run;
     *   the job drawer, with live counts, elapsed time and Cancel;
     *   the split Inspector, with a movable divider, the 1024px preview, the file's own
         details apart from the photo's EXIF information, Show all metadata, the
-        photo's recent history, and its lineage tree in a window of its own.
+        photo's recent history, its lineage tree in a window of its own, and **Reject…**
+        or **Return to library…**.
 
     *   the **Stats** page: the library in figures (formats, cameras, resolution, dates,
         duplicate space with its coverage, activity, catalog health), each leading to
         the photos or log entries behind it.
-    *   gallery **Has similar photos** and Inspector matching: read-only visual review
-        of destination photos after Copy or Move, separate Photo information/Similar photos Inspector tabs, cumulative
+    *   gallery **Has similar photos** and Inspector matching: visual review of
+        destination photos after Copy or Move, separate Photo information/Similar photos Inspector tabs, cumulative
         75/80/85/90/95/100% counts and a responsive, paged match grid. Index precomputes comparisons and resumes interrupted work.
         The expanded side-by-side workspace provides independent temporary rotation,
         linked zoom/position, candidate promotion to reference, file/image and metadata
         differences with scrolling column headings, and Reject or Keep this one, reject the rest.
         Preview dimensions follow viewing rotation; recorded dimensions stay unchanged.
         The validation panel shows coverage and timings. General EXIF
-        editing, end-of-review orientation saving and deletion remain future work
+        editing and end-of-review orientation saving remain future work
         tracked in [TODO.md](../TODO.md). The similarity gallery can sort by direct
         match count at a chosen percentage, with card counts and consistent filters,
         selection and photo navigation. Optional reference sets expose direct matches,
         overlap notices and explicitly chosen session-only unions. Group expansion never
         selects files for actions. Missing-hash recovery reads verified destination
         originals and logs per-file failures; comparison state restores after reload.
-        Suspicious-date review flags recorded years without modifying them. See the
-        [current review handoff](similarity-handoff.md) for scope and remaining work.
+        Suspicious-date review flags recorded years without modifying them. The design
+        is in [ui-design.md](ui-design.md) and `webui-spec.md` §7.
 
     `tests/webui_browser_test.sh` drives them in a real browser.
 
@@ -230,8 +235,8 @@ Specified but not yet on screen:
 *   Each folder's last-scanned time in the Folders tree.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
-*   The Rename and Undated tabs, similarity curation actions, and metadata editing
-    (`webui-spec.md` §7.5, with its decided details).
+*   The Rename and Undated tabs, and metadata editing (`webui-spec.md` §7.5, with its
+    decided details).
 *   Needs review (`webui-spec.md` §7.9); Rejects' size on Stats, its threshold line, the
     similar-to-a-reject check (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);

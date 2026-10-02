@@ -932,11 +932,9 @@ hashes with their relationships in one transaction. Cancellation rolls back the
 current batch; the next Index resumes it. Readers join current content hashes,
 so changed content membership cannot inherit relationships from its old hash.
 Old hash relationships may remain cached. Missing hashes and incomplete
-comparisons are reported separately by the API. Schema 15 widened the pair-distance
-constraint; schema 16 adds disposable gallery count tables. Normal startup still
-refuses incompatible catalogs (§6.5).
+comparisons are reported separately by the API.
 
-**Gallery count cache (schema 16).** `similarity_count_cache` stores one integer
+**Gallery count cache.** `similarity_count_cache` stores one integer
 `photo_id` primary key and six nonnegative integer columns `count_75`, `count_80`,
 `count_85`, `count_90`, `count_95`, `count_100`. Rows represent usable, delivered
 content identities, including zero counts. Equal-hash bucket sizes and weighted
@@ -1249,8 +1247,8 @@ committing to source deletion should `--copy`, curate, then deal with the
 originals themselves — same order, non-destructive.
 
 *A superseded file is outside this contract because it is outside the library:*
-§9.5 deletes it and records the deletion. The contract governs the library, not
-what has been removed from it.
+§9.5 moves it to Rejects and records it. The contract governs the library, not
+what has been taken out of it.
 
 ### 9.8. Capabilities the web interface needs
 
@@ -1279,7 +1277,7 @@ the UI side — each looks like a screen until you ask what it reads from.
 | **Refiling after a date change** | Any metadata correction, single or bulk | This is what makes §9.7 enforceable. Within one destination it is an **atomic rename**, not a Copy-Verify-Delete: no bytes move and there is nothing to verify. The engine already computes a file's correct folder, creates date folders durably, and resolves name collisions — what is new is the destination-to-destination move and an operation recording both paths |
 | **Field-level before/after for metadata edits** | Full lineage and informed manual correction | Preserve the original indexed information and each change, linking old/new identities when content hashes change. No user-facing undo; see §10 |
 | **A batch identity** | Bulk metadata apply | So an edit and the refile it triggers read as one action rather than two unrelated ones. `runs.run_id` is the precedent for exactly this grouping |
-| **Pre-action catalog backup** | Before a confirmed rename, EXIF edit or destination deletion | The engine half of backups is built (§4.1): post-job and manual snapshots, retention, availability. Rename (§9.4) takes a `pre_action` backup and stops when it fails (`webui-spec.md` §9); EXIF edits and destination deletion must do the same when they exist |
+| **Pre-action catalog backup** | Before a confirmed EXIF edit | The engine half of backups is built (§4.1): post-job and manual snapshots, retention, availability. Rename (§9.4), Reject and Return (§9.5) take a `pre_action` backup and stop when it fails (`webui-spec.md` §9); EXIF edits must do the same when they exist |
 | **Serving a file for download** | Log export; retrieving a backup | **API work rather than engine work**, recorded here because it is the same gap twice and worth building once |
 
 **Two of these want a schema change**: field-level before/after and a batch
@@ -1313,12 +1311,12 @@ dest/
 
 ## 10. Full Lineage and File Identity
 
-**Reimport after deletion:** a newly imported file receives a new lineage and
-original Index snapshot even when its hash matches a previously deleted file.
-Retain the deleted record and link the two as matching content; do not revive the
-deleted identity or erase its deletion event. A historical match alone must not
-classify the new import as already delivered or authorize duplicate-source deletion;
-those decisions require a current eligible copy and the normal verification checks.
+**Rejected content arriving again:** a newly indexed file whose content the user
+rejected gets its own row, lineage and Index snapshot, as a duplicate of the rejected
+photo, even after Rejects was emptied (§9.5); the rejected photo's record and its
+history are never revived or rewritten. A historical match alone must not classify
+the new file as already delivered or authorize deleting its source; that needs a
+current copy, verified live (§9.5).
 
 **A file arriving with content already catalogued is a duplicate of that photo and joins
 its lineage (maintainer's rule),** whether it is another archive's copy under a new name
@@ -1335,7 +1333,8 @@ that changes content, record the before/after hashes linked to that same lineage
 and its original Index hash. Preserve the full chain rather than replacing the old
 hash. Separate source copies with identical hashes retain distinct lineages; a
 matching hash identifies shared content, not permission to merge their histories.
-Reusing a deleted file's path must not attach the replacement file to its history.
+A file later found at a path a moved or rejected photo once had is a new file, never
+attached to that photo's history.
 
 **The identity schema is implemented.** `files` holds the stable identity,
 `file_origins` its immutable creation provenance, `file_states` its current path and
@@ -1370,7 +1369,7 @@ file silently moves that photo to a different year folder.
 
 **Required behavior:** each destination file must remain traceable to its original
 source Index information: filename, path, captured metadata, hashes and file
-attributes. Preserve every copy, move, rename, EXIF update and deletion, including
+attributes. Preserve every copy, move, rename, EXIF update, reject and return, including
 before/after values and locations as applicable. Changed names or content hashes
 must not sever the chain or overwrite original indexed evidence. Bulk actions need
 both a common identity and individual file outcomes.
