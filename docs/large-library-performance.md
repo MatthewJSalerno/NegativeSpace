@@ -28,7 +28,7 @@ capped at 16,384 and total photos at 500,000. These are **prepared query fixture
 only planted relationships are stored, even if unrelated generated prefixes happen
 to be close. They do not validate the matching engine's completeness, image quality,
 real-world match distribution or comparison-build capacity. The current profiles
-also do not model overlapping chains, saved judgments or recovery histories.
+also do not model overlapping chains or recovery histories.
 
 Eight scenarios call the actual application query helpers: ungrouped similar gallery,
 grouped similar gallery, last-page navigation, format/date filtering, Inspector counts and
@@ -157,7 +157,7 @@ and their candidate sets were preserved exactly. No timeout or query failure occ
 
 Validation: 76 API tests, eight reference-set tests and seven synthetic/profiler
 tests passed. Canonical-copy replacement after a missing destination, historical
-hash casing, saved judgments, thresholds, overlap expansion and exact mode remain
+hash casing, thresholds, overlap expansion and exact mode remain
 covered. The SQL profiler confirmed primary-key reference lookup in place of
 catalog-wide window ranking. SQLite improvements are sufficient to defer a DuckDB
 experiment for these workloads; no second database or synchronization path was added.
@@ -203,7 +203,7 @@ canonical grouping during related-set queries. The candidate implementation:
 
 These are SQL changes in `webui/matching.py` and `webui/reference_sets.py`. There is
 no schema change, new database, index migration or alteration to matching rules,
-thresholds, saved judgments or API response shapes.
+thresholds or API response shapes.
 
 ### A/B comparison procedure
 
@@ -250,8 +250,7 @@ separate concern that this prepared-relationship query benchmark does not measur
 - [x] Same-fixture A/B comparisons: all eight 250k sparse workloads with 30 warm
   samples, and Inspector/related workloads at 500k sparse and bounded dense with
   three warm samples. Exact responses and unchanged databases verified.
-- [ ] Extend fixtures with overlapping chains, varied reference degrees and saved
-  judgments; exercise both clean and invalidated count caches at large scale.
+- [ ] Extend fixtures with overlapping chains and varied reference degrees; exercise both clean and invalidated count caches at large scale.
 - [ ] Measure broad 75% browsing with a suitably varied edge-distance distribution.
 - [ ] Repeat alternating A/B runs before establishing supported capacity or latency
   guarantees; investigate any workload whose time or memory grows sharply.

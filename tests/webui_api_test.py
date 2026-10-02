@@ -1548,43 +1548,26 @@ class MatchingTests(ApiCase):
         self.assertEqual(self.client.post('/api/v1/photos/position', json={
             'photo_id':a,'view':'invalid','sort':'matches','ids':[a]}).status_code, 400)
 
-    def test_review_is_symmetric_persistent_and_bound_to_content(self):
+    def test_a_pair_compares_two_delivered_photos_and_changes_nothing(self):
         a = self.photo('first', 'a', '0000000000000000')
         b = self.photo('second', 'b', 'ffffffffffffffff')
-        route = f'/api/v1/similar/{a}/review/{b}'
         before = self.conn.execute('SELECT id,source_path,status,sha1_hash FROM photos ORDER BY id').fetchall()
-        pair = self.client.get(route).json()
+        pair = self.client.get(f'/api/v1/similar/{a}/pair/{b}').json()
         self.assertEqual((pair['distance'], pair['score'], pair['exact']), (64, 0, False))
-        body = {'verdict':'same','reference_sha1':'a','candidate_sha1':'b'}
-        self.assertEqual(self.client.put(route,json=body).status_code, 200)
-        reverse = self.client.get(f'/api/v1/similar/{b}/review/{a}').json()
-        self.assertEqual(reverse['feedback']['verdict'], 'same')
-        self.assertEqual(self.client.get('/api/v1/similar/diagnostics').json()['reviews'], {'same':1})
+        self.assertEqual((pair['reference']['id'], pair['candidate']['id']), (a, b))
+        self.assertEqual((pair['reference']['sha1'], pair['candidate']['sha1']), ('a', 'b'))
+        self.assertNotIn('feedback', pair)
+        self.assertEqual(self.client.put(f'/api/v1/similar/{a}/pair/{b}', json={}).status_code, 405)
         self.assertEqual(before, self.conn.execute('SELECT id,source_path,status,sha1_hash FROM photos ORDER BY id').fetchall())
-        with ns_db.transaction(self.conn):
-            self.conn.execute("UPDATE contents SET phash='0000000000000001' WHERE digest='b'")
-        self.assertEqual(self.client.get(route).json()['feedback']['verdict'], 'same', 'recomputed hash lost content feedback')
-        replacement = self.photo('replacement', 'c', '0000000000000001')
-        self.assertIsNone(self.client.get(f'/api/v1/similar/{a}/review/{replacement}').json()['feedback'])
-        body['candidate_sha1'] = 'old-content'
-        self.assertEqual(self.client.put(route,json=body).status_code, 409)
-        self.assertEqual(self.client.get(route).json()['feedback']['verdict'], 'same')
-        body.update(candidate_sha1='b', verdict=None)
-        self.assertIsNone(self.client.put(route,json=body).json()['feedback'])
-        self.assertEqual(self.client.get('/api/v1/similar/diagnostics').json()['reviews'], {})
 
-    def test_review_rejects_unavailable_photos_bad_labels_and_exact_content(self):
+    def test_a_pair_needs_two_available_photos(self):
         a = self.photo('first', 'a', None)
         b = self.photo('duplicate', 'a', None)
-        route = f'/api/v1/similar/{a}/review/{b}'
+        route = f'/api/v1/similar/{a}/pair/{b}'
         pair = self.client.get(route).json()
         self.assertTrue(pair['exact'])
         self.assertIsNone(pair['distance'])
-        body = {'verdict':'same','reference_sha1':'a','candidate_sha1':'a'}
-        self.assertEqual(self.client.put(route,json=body).status_code, 400)
-        body['verdict'] = 'delete'
-        self.assertEqual(self.client.put(route,json=body).status_code, 422)
-        self.assertEqual(self.client.get(f'/api/v1/similar/{a}/review/999999').status_code, 409)
+        self.assertEqual(self.client.get(f'/api/v1/similar/{a}/pair/999999').status_code, 409)
         with ns_db.transaction(self.conn):
             self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE current_path='/destination/duplicate.jpg'")
         self.assertEqual(self.client.get(route).status_code, 409)
@@ -1670,32 +1653,7 @@ class MatchingTests(ApiCase):
         self.assertIn(a, [p['id'] for p in self.client.get('/api/v1/similar?threshold=75').json()['items']])
         self.assertNotIn(a, [p['id'] for p in self.client.get('/api/v1/similar?threshold=76').json()['items']])
 
-    def test_review_progress_is_pair_specific_filtered_before_paging(self):
-        a = self.photo('reference', 'a', '0000000000000000')
-        b = self.photo('reviewed', 'b', '0000000000000000')
-        c = self.photo('unreviewed', 'c', '0000000000000001')
-        self.refresh()
-        # Save in the opposite direction: the judgment still belongs to this pair.
-        response = self.client.put(f'/api/v1/similar/{b}/review/{a}', json={
-            'verdict': 'related', 'reference_sha1': 'b', 'candidate_sha1': 'a'})
-        self.assertEqual(response.status_code, 200)
-        route = f'/api/v1/similar/{a}?threshold=75&page_size=1'
-        all_matches = self.client.get(route).json()
-        self.assertEqual((all_matches['total'], all_matches['unfiltered_total'], all_matches['reviewed_total']), (2, 2, 1))
-        reviewed = self.client.get(route + '&review_state=reviewed').json()
-        self.assertEqual(reviewed['total'], 1)
-        self.assertEqual([(p['id'], p['verdict']) for p in reviewed['items']], [(b, 'related')])
-        unreviewed = self.client.get(route + '&review_state=unreviewed').json()
-        self.assertEqual(unreviewed['total'], 1)
-        self.assertEqual([p['id'] for p in unreviewed['items']], [c])
-        self.assertEqual(self.client.get(f'/api/v1/similar/{c}?review_state=reviewed').json()['total'], 0)
-        self.assertEqual(self.client.get(route + '&review_state=other').status_code, 400)
-        self.assertEqual(self.client.get(route + '&threshold=100&review_state=unreviewed').json()['total'], 0)
-        self.client.put(f'/api/v1/similar/{a}/review/{b}', json={
-            'verdict': None, 'reference_sha1': 'a', 'candidate_sha1': 'b'})
-        self.assertEqual(self.client.get(route).json()['reviewed_total'], 0)
-
-    def test_only_delivered_photos_can_be_matched_or_reviewed(self):
+    def test_only_delivered_photos_can_be_matched_or_compared(self):
         delivered = [self.photo(status, status, '0000000000000000', status=status)
                      for status in ('Copied', 'Completed', 'Found_At_Destination')]
         source_only = [self.photo(status, 'Copied', '0000000000000000', status=status)
@@ -1711,19 +1669,14 @@ class MatchingTests(ApiCase):
         for photo in source_only:
             for mode in ('similar', 'exact'):
                 self.assertEqual(self.client.get(f'/api/v1/similar/{photo}?mode={mode}').json()['availability'], 'not_available')
-            route = f'/api/v1/similar/{photo}/review/{delivered[1]}'
-            self.assertEqual(self.client.get(route).status_code, 409)
-            self.assertEqual(self.client.put(route, json={'verdict':'same', 'reference_sha1':'Copied',
-                'candidate_sha1':'Completed'}).status_code, 409)
-        self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM similarity_reviews').fetchone()[0], 0)
+            self.assertEqual(self.client.get(f'/api/v1/similar/{photo}/pair/{delivered[1]}').status_code, 409)
 
     def test_missing_or_changed_destination_never_falls_back_to_source(self):
         a = self.photo('first', 'a', '0000000000000000')
         b = self.photo('second', 'b', '0000000000000000')
         self.refresh()
-        route = f'/api/v1/similar/{a}/review/{b}'
-        body = {'verdict':'related', 'reference_sha1':'a', 'candidate_sha1':'b'}
-        self.assertEqual(self.client.put(route, json=body).status_code, 200)
+        route = f'/api/v1/similar/{a}/pair/{b}'
+        self.assertEqual(self.client.get(route).status_code, 200)
         for presence, digest in (('missing', 'b'), ('present', 'changed')):
             with ns_db.transaction(self.conn):
                 self.conn.execute("UPDATE file_states SET presence_state=?,sha1_hash=? WHERE current_path='/destination/second.jpg'",
@@ -1731,9 +1684,7 @@ class MatchingTests(ApiCase):
             self.assertEqual(self.client.get('/api/v1/similar').json()['state']['photos'], 1)
             self.assertEqual(self.client.get(f'/api/v1/similar/{b}').json()['availability'], 'not_available')
             self.assertEqual(self.client.get(route).status_code, 409)
-            self.assertEqual(self.client.put(route, json=body).status_code, 409)
         self.assertEqual(self.conn.execute("SELECT presence_state FROM file_states WHERE current_path='/source/second.jpg'").fetchone()[0], 'present')
-        self.assertEqual(self.conn.execute('SELECT verdict FROM similarity_reviews').fetchone()[0], 'related')
 
 
 if __name__ == "__main__":

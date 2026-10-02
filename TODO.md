@@ -17,7 +17,7 @@ migration/history work for that sample is out of scope.
 - [x] Copy review link with manual fallback, previous/next grouped-gallery set,
   and temporary paged browsing of a set's direct members.
 - [x] Maintainer passed the complete manual checklist: preferences, grouping,
-  filtering/counts, comparison, saved judgments/restoration, selection, all three
+  filtering/counts, comparison, restoration, selection, all three
   review actions, recovery/logging explanations and 200% desktop zoom/reflow.
 - [ ] Future discussion: selected-photo gallery discoverability and grouped-set
   behavior. Show only selected already exists; discuss before adding another control.
@@ -27,19 +27,19 @@ migration/history work for that sample is out of scope.
 ## Expanded destination review workspace
 
 - [x] Expanded comparison workspace with independent temporary rotation, zoom and
-  position; optional linked zoom; candidate paging; metadata comparison; saved
-  pair judgments and server-filtered reviewed/unreviewed progress.
+  position; optional linked zoom; candidate paging; metadata comparison. Deciding
+  is Reject or Keep this one, reject the rest (no pair labels, which changed nothing).
 - [x] Plain Reference photo heading with an accent preview border and explicit
   candidate promotion. File/image properties appear above capture information;
   differences filtering covers all sections, column headings follow scrolling,
   and preview dimensions follow temporary rotation while recorded dimensions stay
   unchanged. See the [UI design contract](docs/ui-design.md#expanded-review-workspace).
 - [x] Restore the open comparison after refresh/bookmark navigation: original Inspector
-  context, promoted reference, candidate, threshold, candidate page, review filter,
-  information/review tab, panel width and current-pair viewing adjustments. Close
+  context, promoted reference, candidate, threshold, candidate page, panel width and
+  current-pair viewing adjustments. Close
   clears the workspace bookmark; missing/stale photos still require a fresh lookup.
-- [ ] Deferred: discuss review-later queues alongside broader catalog tagging needs
-  before implementing a dedicated marker. Saved pair judgments already survive reopening.
+- [x] Review-later queues and tagging: decided as the Needs review in-tray, decision
+  notes only (`docs/webui-spec.md` §7.9); not built.
 - [ ] Assess finding rotated matches that the current pHash search misses.
   Rotating a returned preview helps human comparison but does not change retrieval
   or scores. Keep this separate from viewing controls and saved orientation edits.

@@ -317,7 +317,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 17 and refuses incompatible catalogs before processing.
+initializes schema version 18 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -641,13 +641,6 @@ CREATE TABLE similarity_count_cache (
     count_95 INTEGER NOT NULL CHECK(count_95>=0),
     count_100 INTEGER NOT NULL CHECK(count_100>=0)
 );
-CREATE TABLE similarity_reviews (
-    low_content_id INTEGER NOT NULL REFERENCES contents(content_id),
-    high_content_id INTEGER NOT NULL REFERENCES contents(content_id),
-    verdict TEXT NOT NULL CHECK(verdict IN ('same','related','unrelated')),
-    updated_at TEXT NOT NULL,
-    PRIMARY KEY(low_content_id, high_content_id), CHECK(low_content_id < high_content_id)
-);
 CREATE INDEX idx_contents_phash ON contents(phash);
 CREATE INDEX idx_file_states_path ON file_states(current_path, presence_state);
 
@@ -953,8 +946,7 @@ photo-to-photo cross products. `similarity_count_state` has singleton `id=1`, a
 
 Database triggers invalidate in the same transaction as inserts/deletes or relevant
 updates to photos, contents, destination file states, stored relationships or hash
-completion markers. Metadata-only and no-op updates do not invalidate. Review
-judgments never invalidate counts. A live SQLite snapshot reads either the fresh
+completion markers. Metadata-only and no-op updates do not invalidate. A live SQLite snapshot reads either the fresh
 cache or current catalog relationships; dirty counts are never used. Arbitrary API
 percentages between the six cached thresholds use live aggregation. External file
 changes become visible only when the engine records them; the cache adds no watcher.
@@ -996,16 +988,13 @@ Recovery does not invoke filesystem reconciliation from an interrupted transfer 
 rename: it must not complete a file mutation as a side effect. It may mark an older
 interrupted SIMILARITY job accordingly under the engine lock. Other recovery remains
 with the existing file-operation workflows. The count cache refreshes on settlement.
-No schema change from version 16, catalog migration, photo copy, EXIF edit or deletion
+No schema change, catalog migration, photo copy, EXIF edit or deletion
 is needed for this feature.
 
-`similarity_reviews` stores the user's latest same/related/unrelated judgment for
-an unordered pair of distinct byte identities. These labels do not change matching
-or authorize file operations. The API validates submitted SHA-1 identities inside
-the write transaction, commits at FULL synchronous, and refuses changed or
-unavailable photos. Moves, renames and recomputed visual hashes retain feedback;
-different bytes do not inherit it. Reviews are included in catalog backups;
-saving feedback does not start a backup job.
+**No pair labels.** Deciding between look-alikes is Reject, or Keep this one, reject
+the rest (§9.5, `webui-spec.md` §7.8). *Why not labels such as same / related /
+unrelated:* a label that changes no file, match or action is a note nobody acts on
+(maintainer's decision).
 
 ### 9.4. Renaming a Delivered File
 
@@ -1180,7 +1169,7 @@ refile does not undo the written edit** (decided 2026-10-01): the edit stands, t
 is marked as needing its move, the user is told why, and **Try the move again** repeats
 only the move; the mark stays in the Inspector and log until resolved. An edited photo
 stays the same photo: the edit is a step in its lineage, its earlier SHA-1 values are
-kept, and saved similarity judgments stay attached (§10). There is no user-facing undo:
+kept (§10). There is no user-facing undo:
 each file's history holds every previous value, and a correction is a new recorded edit.
 
 **Catalog backups for edits** are kept apart from job backups (their own retention,

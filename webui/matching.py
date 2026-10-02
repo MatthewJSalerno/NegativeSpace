@@ -119,7 +119,7 @@ def queue(db: Path, *, mode='similar', threshold=90., sort='matches', q='', page
             'page':page,'page_size':page_size,'state':state, 'query_ms': round((time.perf_counter()-started)*1000, 2)}
 
 
-class ReviewChanged(ValueError):
+class PairChanged(ValueError):
     pass
 
 
@@ -128,43 +128,20 @@ def _pair(conn, reference_id, candidate_id):
                         (reference_id, candidate_id)).fetchall()
     by_id = {r['id']: r for r in rows}
     if reference_id == candidate_id or reference_id not in by_id or candidate_id not in by_id:
-        raise ReviewChanged('Both photos must have recorded available destination copies. Refresh the comparison.')
+        raise PairChanged('Both photos must have recorded available destination copies. Refresh the comparison.')
     return by_id[reference_id], by_id[candidate_id]
 
 
-def review(db: Path, reference_id: int, candidate_id: int, *, save=None):
-    """Human labels describe an unordered pair of byte identities, never file paths.
-
-    The submitted digests bind feedback to the content actually reviewed. Labels
-    survive moves and renames; changed content never inherits the old judgment.
-    """
-    if save is not None and save.get('verdict') not in ('same', 'related', 'unrelated', None):
-        raise ValueError('Unknown review verdict')
+def pair(db: Path, reference_id: int, candidate_id: int):
+    """Two photos for side by side: each one's details and their visual similarity."""
     with catalog.connect(db) as conn:
-        if save is not None:
-            conn.execute('PRAGMA synchronous=FULL')
-        conn.execute('BEGIN IMMEDIATE' if save is not None else 'BEGIN')
+        conn.execute('BEGIN')
         a, b = _pair(conn, reference_id, candidate_id)
-        low, high = sorted((a['content_id'], b['content_id']))
-        if save is not None:
-            if (save.get('reference_sha1'), save.get('candidate_sha1')) != (a['sha1_hash'], b['sha1_hash']):
-                raise ReviewChanged('The photo content changed. Refresh and review the current photos.')
-            if low == high:
-                raise ValueError('These photos already have identical bytes; a visual judgment is unnecessary.')
-            if save['verdict'] is None:
-                conn.execute('DELETE FROM similarity_reviews WHERE low_content_id=? AND high_content_id=?', (low, high))
-            else:
-                conn.execute('''INSERT INTO similarity_reviews VALUES(?,?,?,?)
-                    ON CONFLICT(low_content_id,high_content_id) DO UPDATE SET verdict=excluded.verdict, updated_at=excluded.updated_at''',
-                    (low, high, save['verdict'], ns_db.utc_now()))
-            conn.commit()
-        feedback = conn.execute('SELECT verdict,updated_at FROM similarity_reviews WHERE low_content_id=? AND high_content_id=?', (low, high)).fetchone()
         distance = ((int(a['phash'],16) ^ int(b['phash'],16)).bit_count()
                     if all(r['phash_state']=='ok' and ns_similarity.usable(r['phash']) for r in (a,b)) else None)
         return {'reference': {**_item(a), 'sha1':a['sha1_hash']}, 'candidate': {**_item(b), 'sha1':b['sha1_hash']},
-                'exact': low == high, 'distance':distance,
-                'score': round((64-distance)*100/64,2) if distance is not None else None,
-                'feedback':dict(feedback) if feedback else None}
+                'exact': a['content_id'] == b['content_id'], 'distance':distance,
+                'score': round((64-distance)*100/64,2) if distance is not None else None}
 
 
 def diagnostics(db: Path):
@@ -174,19 +151,16 @@ def diagnostics(db: Path):
         state = _state(conn)
         hashes = conn.execute("SELECT COUNT(DISTINCT phash) FROM (SELECT lower(phash) AS phash,phash_state FROM contents) WHERE " + _VALID).fetchone()[0]
         pairs = conn.execute('SELECT COUNT(*) FROM content_similarity').fetchone()[0]
-        reviews = dict(conn.execute('SELECT verdict,COUNT(*) FROM similarity_reviews GROUP BY verdict').fetchall())
         progress = conn.execute("""SELECT run_id,started_at,updated_at,
             MAX(0,(julianday(updated_at)-julianday(started_at))*86400) AS elapsed_seconds
             FROM run_progress WHERE phase='matching' ORDER BY run_id DESC LIMIT 1""").fetchone()
-    return {'state':state, 'distinct_hashes':hashes, 'stored_pairs':pairs, 'reviews':reviews,
+    return {'state':state, 'distinct_hashes':hashes, 'stored_pairs':pairs,
             'last_comparison':dict(progress) if progress else None,
             'query_ms':round((time.perf_counter()-started)*1000,2)}
 
 
-def matches(db: Path, photo_id: int, *, mode='similar', threshold=90., page=1, page_size=30, review_state='all'):
+def matches(db: Path, photo_id: int, *, mode='similar', threshold=90., page=1, page_size=30):
     _check(mode, threshold, 'matches', page, page_size)
-    if review_state not in ('all', 'reviewed', 'unreviewed'):
-        raise ValueError('Unknown review state')
     distance = int(math.floor((100-threshold)*64/100 + 1e-9))
     with catalog.connect(db) as conn:
         conn.execute('BEGIN')
@@ -209,13 +183,10 @@ def matches(db: Path, photo_id: int, *, mode='similar', threshold=90., page=1, p
                          WHERE a.content_id!=:content AND a.phash_state='ok')"""
         params={'content':reference['content_id'],'hash':reference['phash'],'id':photo_id,'distance':distance,
                 'limit':page_size,'offset':(page-1)*page_size}
-        scored += """, judged AS (SELECT s.*,r.verdict FROM scored s LEFT JOIN similarity_reviews r
-          ON r.low_content_id=MIN(s.content_id,:content) AND r.high_content_id=MAX(s.content_id,:content))"""
-        where = {'all': '', 'reviewed': ' WHERE verdict IS NOT NULL', 'unreviewed': ' WHERE verdict IS NULL'}[review_state]
-        stats=conn.execute('WITH '+scope+scored+' SELECT COUNT(*),MAX(width*height),COUNT(verdict) FROM judged',params).fetchone()
-        total = stats[0] if review_state == 'all' else stats[2] if review_state == 'reviewed' else stats[0]-stats[2]
-        rows=conn.execute('WITH '+scope+scored+' SELECT * FROM judged'+where+' ORDER BY distance,id LIMIT :limit OFFSET :offset',params).fetchall()
+        stats=conn.execute('WITH '+scope+scored+' SELECT COUNT(*),MAX(width*height) FROM scored',params).fetchone()
+        total = stats[0]
+        rows=conn.execute('WITH '+scope+scored+' SELECT * FROM scored ORDER BY distance,id LIMIT :limit OFFSET :offset',params).fetchall()
         largest=max(reference['width']*reference['height'] if reference['width'] and reference['height'] else 0,stats[1] or 0) or None
-    return {'reference':_item(reference),'items':[{**_item(r),'score':round((64-r['distance'])*100/64,2), 'verdict':r['verdict']} for r in rows],
-            'total':total,'reviewed_total':stats[2],'unfiltered_total':stats[0],
+    return {'reference':_item(reference),'items':[{**_item(r),'score':round((64-r['distance'])*100/64,2)} for r in rows],
+            'total':total,
             'page':page,'page_size':page_size,'state':state,'availability':'available','largest_pixels':largest}

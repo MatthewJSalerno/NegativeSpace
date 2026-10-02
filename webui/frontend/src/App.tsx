@@ -245,7 +245,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     setOpenId(reference); setLocate(null); setRevealId(null); setInspectorTab("similar");
     setMatchState({ photo: reference, view: { threshold: matchMin, page: 1 } });
     setComparison({ origin: reference, reference, candidate, threshold: matchMin, page: 1,
-      filter: "all", tab: "information", views: {}, linked: false, share: 72 });
+      views: {}, linked: false, share: 72 });
   };
   const [comparisonNavigation, setComparisonNavigation] = useState(0);
   useEffect(() => { if (comparison && comparison.origin !== openId) setComparison(null); }, [openId, comparison]);

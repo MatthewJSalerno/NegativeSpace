@@ -3,7 +3,6 @@ import type { PreviewView } from "./components/ReviewPreview";
 
 export type ComparisonState = {
   origin: number; reference: number; candidate: number | null; threshold: number; page: number;
-  filter: "all" | "reviewed" | "unreviewed"; tab: "information" | "review";
   views: Record<number, PreviewView>; linked: boolean; share: number;
 };
 const id = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value > 0;
@@ -15,7 +14,6 @@ export function readComparison(params: URLSearchParams): ComparisonState | null 
     if (!s || !id(s.origin) || s.origin !== Number(params.get("photo")) || !id(s.reference)
       || (s.candidate !== null && (!id(s.candidate) || s.candidate === s.reference))
       || !MATCH_THRESHOLDS.includes(s.threshold) || !id(s.page) || s.page > 1000000
-      || !["all", "reviewed", "unreviewed"].includes(s.filter) || !["information", "review"].includes(s.tab)
       || typeof s.linked !== "boolean" || !Number.isFinite(s.share) || s.share < 50 || s.share > 82) return null;
     const views: Record<number, PreviewView> = {};
     for (const photo of [s.reference, s.candidate]) {
@@ -26,6 +24,6 @@ export function readComparison(params: URLSearchParams): ComparisonState | null 
         views[photo] = { rotation: v.rotation, zoom: v.zoom, x: v.x, y: v.y };
     }
     return { origin:s.origin, reference:s.reference, candidate:s.candidate, threshold:s.threshold,
-      page:s.page, filter:s.filter, tab:s.tab, views, linked:s.linked, share:s.share };
+      page:s.page, views, linked:s.linked, share:s.share };
   } catch { return null; }
 }

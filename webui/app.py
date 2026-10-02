@@ -10,7 +10,7 @@ import io
 import json
 import sqlite3
 from pathlib import Path
-from typing import List, Optional, Literal
+from typing import List, Optional
 
 from fastapi import Body, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.exception_handlers import http_exception_handler
@@ -46,13 +46,6 @@ class PhotoPositionRequest(BaseModel):
     types: Optional[List[str]] = None
     folders: Optional[List[str]] = None
     ids: Optional[List[StrictInt]] = Field(default=None, max_length=1000)
-
-
-class SimilarityReviewRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-    verdict: Optional[Literal['same', 'related', 'unrelated']]
-    reference_sha1: str
-    candidate_sha1: str
 
 
 def create_app(cfg: Optional[Config] = None) -> FastAPI:
@@ -198,31 +191,18 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def similarity_counts(photo_id: int):
         return matching.counts(cfg.db_path, photo_id)
 
-    @app.get("/api/v1/similar/{photo_id}/review/{other_id}")
-    def similarity_review(photo_id: int, other_id: int):
+    @app.get("/api/v1/similar/{photo_id}/pair/{other_id}")
+    def similarity_pair(photo_id: int, other_id: int):
         try:
-            return matching.review(cfg.db_path, photo_id, other_id)
-        except matching.ReviewChanged as exc:
-            raise HTTPException(409, {'error':'review_changed', 'message':str(exc)})
-
-    @app.put("/api/v1/similar/{photo_id}/review/{other_id}")
-    def save_similarity_review(photo_id: int, other_id: int, body: SimilarityReviewRequest):
-        try:
-            return matching.review(cfg.db_path, photo_id, other_id, save=body.model_dump())
-        except matching.ReviewChanged as exc:
-            raise HTTPException(409, {'error':'review_changed', 'message':str(exc)})
-        except ValueError as exc:
-            raise HTTPException(400, {'error':'invalid_request', 'message':str(exc)})
-        except sqlite3.OperationalError as exc:
-            if 'locked' not in str(exc).lower():
-                raise
-            raise HTTPException(503, {'error':'catalog_busy', 'message':'The catalog is busy. Retry saving your review.'})
+            return matching.pair(cfg.db_path, photo_id, other_id)
+        except matching.PairChanged as exc:
+            raise HTTPException(409, {'error':'pair_changed', 'message':str(exc)})
 
     @app.get("/api/v1/similar/{photo_id}")
     def similar_matches(photo_id: int, mode: str = "similar", threshold: float = Query(90, ge=ns_similarity.MIN_SCORE, le=100),
-                        page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=60), review_state: str = "all"):
+                        page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=60)):
         try:
-            return matching.matches(cfg.db_path, photo_id, mode=mode, threshold=threshold, page=page, page_size=page_size, review_state=review_state)
+            return matching.matches(cfg.db_path, photo_id, mode=mode, threshold=threshold, page=page, page_size=page_size)
         except ValueError as exc:
             raise HTTPException(400, {"error":"invalid_request", "message":str(exc)})
 

@@ -1294,7 +1294,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 17 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 18 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -1601,7 +1601,7 @@ The open photo stays the reference; threshold/page changes leave the main galler
 and explicit checkbox selection intact. Matches can lie outside the gallery's current
 filters. Closing the match list leaves the counts visible. Outside the similarity gallery, first entering the tab
 selects 90%; subsequent photo navigation keeps the tab and threshold, resets match
-paging to one and does not copy a review judgment to another pair. Information-only
+paging to one. Information-only
 browsing loads no match data. Left/Right and Home/End on the tab controls move between
 tabs; they do not navigate photos.
 The URL records `photo`, `tab`, `match` (threshold) and `match_page` alongside gallery filters,
@@ -1650,11 +1650,11 @@ the candidate remains neutral. This marks the comparison reference, not a file
 chosen to keep or a metadata donor.
 
 **Use as reference** on the candidate loads that photo's direct matches at the
-current threshold, resetting to page one and All candidates. Keep the previous
+current threshold, resetting to page one. Keep the previous
 reference displayed as the candidate (it may lie outside the new first page).
-Rotate/zoom state follows each photo; the pair's saved judgment is unchanged.
-Move keyboard focus to the new reference and disable promotion while saving or
-while the pair needs refresh after an error. Promotion does not select a keeper,
+Rotate/zoom state follows each photo.
+Move keyboard focus to the new reference and disable promotion while the pair needs
+refresh after an error. Promotion does not select a keeper,
 metadata donor or action targets. The gallery's reference and selection are
 unchanged: Back to gallery returns to the original Inspector and entry page after
 exploring another reference, keeping the chosen threshold.
@@ -1676,19 +1676,15 @@ its rows, including when narrow layouts scroll the review window as a whole.
 Dimensions beneath previews follow temporary rotation (width and height swap at
 90°/270°) and are labelled Displayed when rotated. Recorded dimensions in the
 information pane, megapixels and file size remain unchanged by viewing transforms.
-The Saved review tab shows the current pair's latest saved judgment. All,
-Unreviewed and Reviewed filters apply before pagination; progress counts are for
-all candidates at the chosen threshold. Judgments shown on thumbnails belong to
-the reference/candidate content pair. Saving prevents navigation until it settles.
-Metadata, candidate and pair failures expose retry rather than invented empty data.
+The status line counts the look-alikes at the chosen threshold, and each candidate
+thumbnail shows its similarity. Metadata, candidate and pair failures expose retry
+rather than invented empty data.
 
-Back to gallery retains the chosen threshold and unfiltered page, or page one when
-a review filter was used. Gallery selection remains unchanged. Review decisions
-survive reopening. The validated `review` URL state restores the current reference,
-candidate, threshold, candidate page, review filter, active pane tab, divider share,
-linked zoom and current-pair viewing transforms across reload. Other candidates'
-transforms last only in the open session. Restoring fetches fresh photo/judgment
-state and never saves a judgment automatically. Invalid state is ignored; missing
+Back to gallery retains the chosen threshold and page. Gallery selection remains
+unchanged. The validated `review` URL state restores the current reference,
+candidate, threshold, candidate page, divider share, linked zoom and current-pair
+viewing transforms across reload. Other candidates' transforms last only in the open
+session. Restoring fetches fresh photo state. Invalid state is ignored; missing
 photos expose errors; pages clamp to the remaining results. Back/Escape clears the
 workspace bookmark and returns focus to the opener or a surviving match control.
 Deferred queues remain future work.
@@ -1696,14 +1692,12 @@ Guidance beside the threshold controls explains that results below 90% are more
 likely to be unrelated: compare photos side by side before using them as clues for
 dates or other details. The comparison dialog repeats this for pairs scoring below
 90%; the actual pair score, not the chosen list threshold, controls that reminder.
-For different byte identities users can save **Same photograph**, **Related
-photograph**, or **Unrelated**, or clear the judgment. Feedback never changes
-photos or matching results. Stale-content refusals require refresh and another
-review. Exact copies do not need a visual judgment.
+Deciding between the photos is **Reject…** or **Keep this one, reject the rest**
+(§7.8). *Why no same / related / unrelated labels:* a label that changes no file,
+match or action is a note nobody acts on (maintainer's decision).
 The expandable **Validation and performance** panel shows distinct usable hashes,
 stored pairs, incomplete/unavailable counts, the most recently
-reported comparison-phase elapsed time, and counts of saved judgments. These
-selected judgments are not presented as whole-library accuracy. Missing timing is
+reported comparison-phase elapsed time. Missing timing is
 shown as not recorded; reported phase time is not a dedicated CPU benchmark.
 
 Hash precomputation covers the full catalog; review results include only destination
@@ -1715,7 +1709,7 @@ stored comparisons must support every offered threshold. Dimensions are captured
 Index; unreadable dimensions display as unknown.
 
 **Separate curation workstream:** target selection, EXIF copy/edit and deletion extend
-the built comparison workspace. Current browsing and judgments never select action
+the built comparison workspace. Current browsing never selects action
 targets or clear the gallery's explicit selection. Future action selection must be
 distinct from opening a reference or choosing a threshold; changing the offered
 match set must not leave hidden action targets armed.
@@ -2358,8 +2352,8 @@ The 75% floor remains available. Identical-set collapsing is implemented for the
 ### Review links and set navigation
 
 Copy review link serializes the current comparison directly, including reference,
-candidate, threshold, review filter/tab, current-pair viewing transforms and linked
-zoom. It does not depend on a pending URL update or replay a saved judgment. Report
+candidate, threshold, current-pair viewing transforms and linked
+zoom. It does not depend on a pending URL update. Report
 success only after the clipboard write succeeds. If clipboard access is unavailable
 or rejected (including local-network HTTP), expose a labelled, selectable read-only
 link for manual copy. Recipients need access to the same instance and catalog.
@@ -2367,8 +2361,8 @@ link for manual copy. Recipients need access to the same instance and catalog.
 Previous set / Next set in review follows the grouped gallery's percentage, filters
 and sort, anchored on the entry reference even after Use as reference. Disable
 unavailable boundaries and loading navigation; request failures offer Retry set
-navigation. Do not navigate during a judgment save. Entering another set starts a
-fresh comparison with temporary viewing transforms reset; no judgment is implied.
+navigation. Entering another set starts a fresh comparison with temporary viewing
+transforms reset.
 Navigation is offered only from the grouped gallery, not an expanded union or a
 set-member scope whose ordering has a different meaning.
 

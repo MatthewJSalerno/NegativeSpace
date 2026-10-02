@@ -500,7 +500,6 @@ function submitJob(path: string, body: Record<string, unknown>): Promise<Run> {
 export interface MatchPhoto {
   id: number; filename: string; file_size: number | null; date_taken: string | null;
   status: string; width: number | null; height: number | null; matches?: number; score?: number;
-  verdict?: MatchVerdict | null;
 }
 export interface MatchPage {
   items: MatchPhoto[]; total: number; page: number; page_size: number;
@@ -509,8 +508,6 @@ export interface MatchPage {
   availability?: "available" | "not_available" | "hash_unavailable";
   largest_pixels?: number | null;
   query_ms?: number;
-  reviewed_total?: number;
-  unfiltered_total?: number;
 }
 
 export const MATCH_THRESHOLDS = [75, 80, 85, 90, 95, 100];
@@ -530,15 +527,13 @@ export interface MatchCounts {
   pending: number;
 }
 
-export type MatchVerdict = "same" | "related" | "unrelated";
-export interface MatchReview {
+// Two photos for side by side.
+export interface MatchPair {
   reference: MatchPhoto & { sha1: string }; candidate: MatchPhoto & { sha1: string };
   exact: boolean; distance: number | null; score: number | null;
-  feedback: { verdict: MatchVerdict; updated_at: string } | null;
 }
 export interface MatchDiagnostics {
-  state: MatchPage["state"]; distinct_hashes: number; stored_pairs: number;
-  reviews: Partial<Record<MatchVerdict, number>>; query_ms: number;
+  state: MatchPage["state"]; distinct_hashes: number; stored_pairs: number; query_ms: number;
   last_comparison: { run_id: number; started_at: string; updated_at: string; elapsed_seconds: number } | null;
 }
 
@@ -558,11 +553,8 @@ export const api = {
   run: (id: number) => request<Run>("GET", `/api/v1/runs/${id}`),
   matchCounts: (photo: number) => request<MatchCounts>("GET", `/api/v1/similar/${photo}/counts`),
   matchDiagnostics: () => request<MatchDiagnostics>("GET", "/api/v1/similar/diagnostics"),
-  matchReview: (reference: number, candidate: number) =>
-    request<MatchReview>("GET", `/api/v1/similar/${reference}/review/${candidate}`),
-  saveMatchReview: (review: MatchReview, verdict: MatchVerdict | null) =>
-    request<MatchReview>("PUT", `/api/v1/similar/${review.reference.id}/review/${review.candidate.id}`,
-      { verdict, reference_sha1: review.reference.sha1, candidate_sha1: review.candidate.sha1 }),
+  matchPair: (reference: number, candidate: number) =>
+    request<MatchPair>("GET", `/api/v1/similar/${reference}/pair/${candidate}`),
   matches: (query: URLSearchParams, photo: number | null = null) =>
     request<MatchPage>("GET", `/api/v1/similar${photo == null ? "" : `/${photo}`}?${query}`),
   status: () => request<Status>("GET", "/api/v1/status"),

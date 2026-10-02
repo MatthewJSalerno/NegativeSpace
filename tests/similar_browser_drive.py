@@ -217,14 +217,14 @@ with sync_playwright() as p:
     expect(position).to_have_text(at(start + 1))
     page.keyboard.press('ArrowLeft')
     expect(position).to_have_text(at(start))
-    # Controls that use the arrows keep them: on a tab, ← → switch tabs, not candidates.
-    information = dialog.get_by_role('tab', name='Information', exact=True)
-    information.focus()
+    # Controls that use the arrows keep them: on the divider, ← → resize, not step.
+    divider = dialog.get_by_role('separator', name='Resize comparison and information')
+    divider.focus()
     page.keyboard.press('ArrowRight')
-    expect(dialog.get_by_role('tab', name='Saved review', exact=True)).to_have_attribute('aria-selected', 'true')
+    expect(divider).to_have_attribute('aria-valuenow', '74')
     expect(position).to_have_text(at(start))
     page.keyboard.press('ArrowLeft')
-    expect(information).to_have_attribute('aria-selected', 'true')
+    expect(divider).to_have_attribute('aria-valuenow', '72')
     expect(candidate_preview).to_contain_text('Viewing rotation: 270°')
     metadata = dialog.get_by_role('region', name='Metadata comparison')
     file_table = metadata.get_by_role('table', name='File and image properties', exact=True)
@@ -307,26 +307,6 @@ with sync_playwright() as p:
     page.keyboard.press('ArrowLeft')
     expect(resize).to_have_attribute('aria-valuenow', '70')
     assert gallery_context(page.url) == gallery_context(before_url)
-    dialog.get_by_role('button', name='Related photograph', exact=True).click()
-    expect(dialog.locator('.review-save-status')).to_contain_text('Saved: Related photograph')
-    expect(dialog.get_by_text('1 of', exact=False).first).to_be_visible()
-    dialog.get_by_role('combobox', name='Review progress').select_option('reviewed')
-    expect(dialog.locator('.review-filmstrip button')).to_have_count(1)
-    expect(dialog.locator('.review-filmstrip button').first).to_contain_text('Related photograph')
-    dialog.get_by_role('tab', name='Saved review', exact=True).click()
-    page.wait_for_function("JSON.parse(new URLSearchParams(location.search).get('review')).filter === 'reviewed' && JSON.parse(new URLSearchParams(location.search).get('review')).tab === 'review'")
-    page.reload()
-    expect(dialog.get_by_role('combobox', name='Review progress')).to_have_value('reviewed')
-    expect(dialog.get_by_role('tab', name='Saved review', exact=True)).to_have_attribute('aria-selected','true')
-    expect(dialog.locator('.review-filmstrip button')).to_have_count(1)
-    dialog.get_by_role('tab', name='Information', exact=True).click()
-    dialog.get_by_role('combobox', name='Review progress').select_option('unreviewed')
-    expect(dialog.locator('.review-filmstrip button')).to_have_count(12)
-    expect(dialog.get_by_role('button', name='Related photograph', exact=True)).to_have_attribute('aria-pressed', 'false')
-    dialog.get_by_role('combobox', name='Review progress').select_option('all')
-    expect(dialog.locator('.review-filmstrip button')).to_have_count(12)
-    dialog.get_by_role('button', name='Next page', exact=True).click()
-    expect(dialog.get_by_role('button', name='Related photograph', exact=True)).to_have_attribute('aria-pressed', 'true')
     dialog.get_by_role('button', name='Reset reference view').click()
     dialog.get_by_role('button', name='Reset candidate view').click()
     full_comparison()
@@ -343,7 +323,6 @@ with sync_playwright() as p:
     # checking that reference promotion leaves it intact.
     page.locator(f'.card[data-id="{reference}"] input').check()
     matches.get_by_role('button', name=re.compile('^Review side by side:')).first.click()
-    expect(dialog.get_by_role('button', name='Related photograph', exact=True)).to_have_attribute('aria-pressed', 'true')
     expect(dialog.get_by_role('slider', name='Zoom reference', exact=True)).to_have_value('1')
     # Failed loads remain errors, not empty metadata or an empty match set.
     page.route('**/api/v1/photos/*/inspect', lambda route: route.fulfill(status=503, json={'detail': {'message': 'Metadata temporarily unavailable'}}))
@@ -359,29 +338,21 @@ with sync_playwright() as p:
     page.unroute('**/api/v1/similar/*?*')
     candidates.get_by_role('button', name='Retry candidates').click()
     expect(dialog.locator('.review-filmstrip button')).to_have_count(12)
-    # A refused save cannot become a success or change the previously saved judgment.
-    def refuse_save(route):
-        if route.request.method == 'PUT':
-            route.fulfill(status=409, json={'detail': {'message': 'The photo content changed. Refresh the comparison.'}})
-        else:
-            route.continue_()
-    page.route('**/api/v1/similar/*/review/*', refuse_save)
-    dialog.get_by_role('button', name='Unrelated', exact=True).click()
+    # A pair that cannot be loaded says so and offers a retry.
+    page.route('**/api/v1/similar/*/pair/*', lambda route: route.fulfill(
+        status=409, json={'detail': {'message': 'The photo content changed. Refresh the comparison.'}}))
+    dialog.get_by_role('button', name='Refresh comparison', exact=True).click()
     expect(dialog.get_by_role('alert')).to_be_visible()
-    expect(dialog.get_by_role('button', name='Unrelated', exact=True)).to_be_disabled()
-    expect(dialog.get_by_role('button', name='Use as reference', exact=True)).to_be_disabled()
-    page.unroute('**/api/v1/similar/*/review/*', refuse_save)
+    page.unroute('**/api/v1/similar/*/pair/*')
     dialog.get_by_role('button', name='Retry comparison').click()
-    expect(dialog.get_by_role('button', name='Related photograph', exact=True)).to_have_attribute('aria-pressed', 'true')
-    # Promoting a candidate queries its direct matches, preserves the pair's
-    # judgment and viewing rotation, and leaves the gallery context untouched.
+    expect(dialog.get_by_role('alert')).to_have_count(0)
+    # Promoting a candidate queries its direct matches, keeps its viewing rotation,
+    # and leaves the gallery context untouched.
     original_url = page.url
     original_name = reference_preview.locator('.review-photo-name > span').inner_text()
     promoted_name = candidate_preview.locator('.review-photo-name > span').inner_text()
     promoted = request.get(f'/api/v1/similar/{reference}?threshold=75&page=2&page_size=12').json()['items'][0]['id']
     dialog.get_by_role('button', name='Rotate candidate left', exact=True).click()
-    dialog.get_by_role('combobox', name='Review progress').select_option('reviewed')
-    expect(dialog.locator('.review-filmstrip button')).to_have_count(1)
     with page.expect_response(lambda r: f'/api/v1/similar/{promoted}?' in r.url):
         dialog.get_by_role('button', name='Use as reference', exact=True).click()
     expect(reference_preview.locator('.review-photo-name > span')).to_have_text(promoted_name)
@@ -389,8 +360,6 @@ with sync_playwright() as p:
     expect(reference_preview).to_be_focused()
     expect(candidate_preview.locator('.review-photo-name > span')).to_have_text(original_name)
     expect(dialog.get_by_role('combobox', name='Minimum similarity')).to_have_value('75')
-    expect(dialog.get_by_role('combobox', name='Review progress')).to_have_value('all')
-    expect(dialog.get_by_role('button', name='Related photograph', exact=True)).to_have_attribute('aria-pressed', 'true')
     expected = request.get(f'/api/v1/similar/{promoted}?threshold=75&page_size=12').json()['items']
     expect(dialog.locator('.review-filmstrip button')).to_have_count(len(expected))
     assert dialog.locator('.review-filmstrip button').evaluate_all('els => els.map(e => e.getAttribute("aria-label"))') == [f'Compare {p["filename"]}' for p in expected]
@@ -400,7 +369,6 @@ with sync_playwright() as p:
     expect(reference_preview.locator('.review-photo-name > span')).to_have_text(promoted_name)
     expect(candidate_preview.locator('.review-photo-name > span')).to_have_text(original_name)
     expect(reference_preview).to_contain_text('Viewing rotation: 270°')
-    expect(dialog.get_by_role('button', name='Related photograph', exact=True)).to_have_attribute('aria-pressed', 'true')
     shot('match-new-reference')
     dialog.get_by_role('button', name='Back to gallery', exact=True).click()
     expect(inspector.locator('.inspector-head h2')).to_have_text(original_name)
@@ -422,13 +390,14 @@ with sync_playwright() as p:
     expect(dialog).to_be_hidden()
     # Focus returns to a real control, so the keyboard carries on (Immich once lost
     # keyboard scrolling after its viewer): the opener while it still exists, otherwise the
-    # shared fallback, since the match list may reload as the comparison closes
+    # Inspector's selected tab (Inspector closeComparison) or the shared fallback, since the
+    # match list may reload as the comparison closes
     # (ui-design.md: "restores the opener on close (or a logical surviving control)").
     page.wait_for_function("""() => {
         const el = document.activeElement;
         return el && el !== document.body && (
             (el.getAttribute('aria-label') || '').startsWith('Review side by side:')
-            || el.matches('[data-focus-home], .actions-menu > button'));
+            || el.matches('[role="tab"][aria-selected="true"], [data-focus-home], .actions-menu > button'));
     }""")
     # Threshold changes are local to the Inspector; a failed request has a retry.
     page.route('**/api/v1/similar/*?*', lambda route: route.fulfill(status=503, content_type='application/json', body='{}'))
@@ -440,7 +409,8 @@ with sync_playwright() as p:
     expect(page).not_to_have_url(re.compile('match_page='))
     summary.get_by_text('Validation and performance', exact=True).click()
     diagnostics = summary.get_by_role('region', name='Matching diagnostics', exact=True)
-    expect(diagnostics.get_by_text('Related photograph judgments', exact=True).locator('+ dd')).to_have_text('1')
+    expect(diagnostics.get_by_text('Stored pairs of different hashes', exact=True)).to_be_visible()
+    expect(diagnostics).not_to_contain_text('judgment')
     summary.get_by_text('Validation and performance', exact=True).click()
     # Back from another screen restores the reference, threshold and gallery view.
     page.get_by_role('link', name='Logs', exact=True).click()

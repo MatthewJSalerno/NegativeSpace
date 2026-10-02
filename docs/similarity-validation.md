@@ -31,8 +31,7 @@ implementation at that scale.
   **Has similar photos** filter uses the 75% floor. Exact-copy information remains
   in photo details, history and Stats.
 - Side-by-side generated previews with linked zoom and position controls.
-- Same/related/unrelated judgments stored against pairs of content identities.
-- Coverage, comparison timing, query timing, and judgment-count diagnostics.
+- Coverage, comparison timing and query timing diagnostics.
 - A synthetic fixture generator, interactive quality report, and catalog benchmark:
   `tools/validate-similarity.py`. Commands are in `tests/README.md`.
 
@@ -90,7 +89,7 @@ before the validation additions; only its affected progress regression was rerun
 after the progress fix. Two genuine-RAW fixture tests were unavailable in that
 earlier full run.
 
-Schema version 14 includes saved judgments. Older catalogs remain refused under
+Older catalogs remain refused under
 the existing no-migration policy. That synthetic checkpoint did not modify or
 measure a real photo library.
 
@@ -100,7 +99,7 @@ The destination scope change passed all 64 API tests, the browser workflow from
 Index's empty review through Copy to destination comparisons, both container builds,
 and specification checks. API cases cover delivered statuses, source-only direct
 links, projected destinations, and missing or changed destination copies while the
-source remains present. Existing judgments survive loss of destination availability.
+source remains present.
 A 1,000-record delivered synthetic catalog smoke check verified nonempty benchmark
 scope at all thresholds. This is not a replacement for the 250,000-record scale run.
 
@@ -162,8 +161,6 @@ browser workflow passed, including setting 75% and retaining it after refresh.
   pairs, rotations, edits, and images with little detail.
 - Profile queue and reference queries at 250,000 records; measure again after each
   optimization and retain the same fixtures for comparison.
-- Keep judgments separate from any future file actions. They do not authorize
-  deletion or metadata edits.
 
 ## Gallery and Inspector integration — 2026-09-29
 
@@ -193,7 +190,7 @@ comparison backfill, photo transfer or catalog migration is required for this UI
 Validation: 68 API tests passed, including cumulative boundary counts, direct rather
 than transitive matching, destination availability, exact-content collapsing and
 agreement among gallery/selection/sidebar queries. The dedicated browser workflow
-covers generated Index/Copy, Inspector paging, side-by-side saved judgments,
+covers generated Index/Copy, Inspector paging, side-by-side comparison,
 selection preservation, URL restoration, failures/retries and narrow dialogs.
 
 The existing full gallery browser scenario and shared UI checks also passed,
@@ -218,7 +215,7 @@ catalog was copied into it. The Compose recipe is `docker/compose.sample.yml`.
 
 The full gallery browser workflow and shared control checks passed with the new
 tabs. Dedicated matching checks cover keyboard tab navigation, remembered threshold,
-URL restoration, match paging, side-by-side judgments, retries and narrow dialogs.
+URL restoration, match paging, side-by-side comparison, retries and narrow dialogs.
 
 ## Branch status — 2026-09-30
 
@@ -231,7 +228,7 @@ Current scope on `feat/similarity-validation`:
 - **Built:** expanded comparison workspace, temporary independent rotation/zoom,
   linked zoom/position, reference emphasis and promotion, file/format/dimension/
   size comparison, EXIF differences, sticky comparison headings, rotation-aware
-  displayed dimensions, and saved pair judgments with reviewed/unreviewed filters.
+  displayed dimensions.
   The two-preview frame grows to fit its controls. Recorded dimensions stay unchanged.
 - **Built:** gallery match-count sorting at six chosen percentages, URL restoration,
   selection retention, a visible **Most matches first** shortcut, compact preview
@@ -298,7 +295,7 @@ For this development sample, the maintainer chose a **fresh catalog rebuild**;
 no upgraded catalog was installed. The updated sample instance starts with empty
 appdata, ready for Create catalog → save settings → Index → Copy. The existing
 sample source and destination mounts are retained. Rebuilding requires new settings
-and creates new catalog history/judgments; transfer destinations already present are
+and creates new catalog history; transfer destinations already present are
 handled by normal engine verification. No further migration/history work is planned
 for this sample. General release migration policy remains a separate TODO item.
 
@@ -314,9 +311,9 @@ explicit limitation; missing, changed or unreadable files need the stated correc
 before retry. Catalog schema remains 16 and no migration is required.
 
 The open comparison is bookmarked in the gallery URL: original Inspector context,
-promoted reference, candidate, threshold, page, review filter, pane tab, divider share,
+promoted reference, candidate, threshold, page, divider share,
 linked zoom and the current pair's temporary rotation/zoom/position. Restoring fetches
-fresh data; it does not replay judgments or modify files. Closing clears the bookmark.
+fresh data; it does not modify files. Closing clears the bookmark.
 Other candidate transforms are session-only; deferred review queues remain pending.
 
 EXIF copy/edit, saved orientation writes and file deletion are a separate workstream,
@@ -474,8 +471,8 @@ No real-library copy, move, repair, EXIF editing or deletion was performed.
 ## Maintainer manual review — 2026-10-01
 
 The maintainer reports all steps validated for defaults/preferences, identical and
-partially overlapping sets, filtering/counts, comparison, saved judgments and
-restoration, and selection. Previous/next set and Show this set in gallery also work.
+partially overlapping sets, filtering/counts, comparison and restoration, and
+selection. Previous/next set and Show this set in gallery also work.
 After receiving the detailed instructions, the maintainer confirmed all Copy review
 link steps validated.
 The maintainer reports recovery/logging passes: logs now explain what failed and

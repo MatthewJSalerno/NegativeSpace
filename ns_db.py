@@ -16,7 +16,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 
 class PhotoStatus:
     """State of one source file in the catalog. A path is unique among files still in the
@@ -506,12 +506,6 @@ FOUNDATION_DDL = (
         PRIMARY KEY(low_hash, high_hash), CHECK(low_hash < high_hash))""",
     "CREATE INDEX idx_similarity_reverse ON content_similarity(high_hash, distance, low_hash)",
     "CREATE TABLE similarity_hashes (phash TEXT PRIMARY KEY)",
-    """CREATE TABLE similarity_reviews (
-        low_content_id INTEGER NOT NULL REFERENCES contents(content_id),
-        high_content_id INTEGER NOT NULL REFERENCES contents(content_id),
-        verdict TEXT NOT NULL CHECK(verdict IN ('same','related','unrelated')),
-        updated_at TEXT NOT NULL,
-        PRIMARY KEY(low_content_id, high_content_id), CHECK(low_content_id < high_content_id))""",
     "CREATE INDEX idx_contents_phash ON contents(phash)",
     "CREATE INDEX idx_file_states_path ON file_states(current_path, presence_state)",
     # Cache state, not lineage: a thumbnail failure is a diagnostic, and
@@ -634,7 +628,7 @@ def require_schema(conn):
         required = {'photos','runs','operations','files','photo_files','source_snapshots',
                     'file_observations','operation_files','settings','run_configs','job_requests',
                     'file_origins','file_states','contents','operation_events','operation_evidence',
-                    'attention_issues','attention_evidence','file_changes','content_similarity','similarity_hashes','similarity_reviews',
+                    'attention_issues','attention_evidence','file_changes','content_similarity','similarity_hashes',
                     'similarity_count_cache','similarity_count_state',
                     'thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state'}
         present = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}

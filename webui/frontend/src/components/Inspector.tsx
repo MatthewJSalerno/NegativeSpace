@@ -115,10 +115,11 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   const openComparison = (candidate: number) => {
     comparisonOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     onComparison({ origin:id, reference:id, candidate,
-    threshold:matchView?.threshold ?? 90, page:matchView?.page ?? 1, filter:"all", tab:"information",
+    threshold:matchView?.threshold ?? 90, page:matchView?.page ?? 1,
     views:{}, linked:false, share:72 });
   };
-  const [reviewsChanged, setReviewsChanged] = useState(0);
+  // Rejects and returns from the comparison, so Similar photos' diagnostics refresh.
+  const [comparisonChanges, setComparisonChanges] = useState(0);
   useEffect(() => { setLineage(false); }, [id]);
 
   useEffect(() => {
@@ -236,7 +237,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
               onKeep={onKeep ? (threshold) => onKeep(id, detail.filename, threshold) : undefined}
               delivered={["Completed", "Copied", "Found_At_Destination"].includes(detail.status)}
               view={matchView} onView={onMatchView} refreshKey={refreshKey}
-              onReview={openComparison} reviewsChanged={reviewsChanged} /></div>}
+              onReview={openComparison} changes={comparisonChanges} /></div>}
           </div>
         </div>
       </div>
@@ -263,7 +264,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
     {comparison != null && <MatchReviewDialog reference={id} candidate={candidate} jobRunning={jobRunning} onNotice={onNotice} onKeep={onKeep}
       workspace={comparison} onWorkspace={onComparison} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet}
       initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}
-      onClose={closeComparison} onSaved={() => setReviewsChanged((n) => n + 1)} />}
+      onClose={closeComparison} onChanged={() => setComparisonChanges((n) => n + 1)} />}
   </>;
 }
 
