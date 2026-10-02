@@ -153,6 +153,12 @@ Logs photo positioning, offscreen Inspector navigation, retained filters, explic
 hidden-photo display, retry, ordinary gallery clicks, manual scrolling and History
 action alignment. Its fixtures are generated photos in isolated containers.
 
+`DRIVER=reject_similar_browser_drive.py sh tests/webui_browser_test.sh` checks rejecting
+from Similar photos and side by side: Reject… per look-alike; in the comparison a Reject…
+under each photo, asked once with Don't ask again, the next look-alike with Return it to
+the library, a new comparison asking again, and the last photo always asked about; Keep
+this one, reject the rest with the kept photo first, full size and never ticked.
+
 `DRIVER=rejects_browser_drive.py sh tests/webui_browser_test.sh` checks Rejects: one
 photo rejected from the Inspector (asked first, starting on Cancel), a selection
 reviewed before rejecting, a folder from the Folders tree, the Rejects view with what it

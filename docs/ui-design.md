@@ -118,6 +118,17 @@ their editing view the whole window (Lightroom's Develop, Immich's viewer).
 - **Narrow windows:** the header wraps (title and subject, then the step control and
   actions); the frame never scrolls sideways.
 
+## Rejecting while comparing
+
+Decided with the maintainer (2026-10-01) and drawn in the PR 3 mockup. A photo's own
+action sits under that photo (`photo-action`, outlined), never in a shared header, so it
+is clear which one goes. Asking once per comparison (**Don't ask again while comparing**,
+reset when it closes) keeps culling quick; leaving none of the compared photos in the
+library always asks, because that is the one reject a person may not intend. The photo
+kept in **Keep this one, reject the rest** is marked **Keeping** in `--good` with a check
+and is shown full size first in the review: the photo kept must be easy to check, never the
+smallest thing on screen. No keyboard shortcut for reject (maintainer's choice).
+
 ## Similarity belongs in the gallery
 
 Review destination photos in the ordinary gallery and its Inspector. Do not add a

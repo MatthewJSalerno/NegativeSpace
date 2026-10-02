@@ -1,6 +1,6 @@
 import { SimilarityRecovery } from "./SimilarityRecovery";
 import { useEffect, useState } from "react";
-import { api, type MatchCounts, type MatchPage } from "../api";
+import { api, type MatchCounts, type MatchPage, type MatchPhoto } from "../api";
 import { count, plural } from "../format";
 import { Thumb } from "./Thumb";
 import { MatchDiagnosticsPanel } from "./MatchDiagnosticsPanel";
@@ -9,9 +9,14 @@ export type MatchView = { threshold: number; page: number } | null;
 
 // The open Inspector photo stays the reference. Choosing a threshold only changes
 // this small, paged list; it never changes the gallery or its explicit selection.
-export function PhotoMatches({ id, delivered, view, onView, refreshKey, onReview, reviewsChanged }: {
-  id: number; delivered: boolean; view: MatchView; onView: (view: MatchView) => void; refreshKey: number;
+export function PhotoMatches({ id, name, delivered, view, onView, refreshKey, onReview, reviewsChanged, jobRunning = false, onReject, onKeep }: {
+  id: number; name?: string; delivered: boolean; view: MatchView; onView: (view: MatchView) => void; refreshKey: number;
   onReview: (id: number) => void; reviewsChanged: number;
+  // Reject one look-alike, or keep this photo and reject every look-alike at this
+  // threshold (webui-spec 7.8); each asks or reviews first.
+  jobRunning?: boolean;
+  onReject?: (photo: MatchPhoto) => void;
+  onKeep?: (threshold: number) => void;
 }) {
   const [summary, setSummary] = useState<MatchCounts | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -73,6 +78,20 @@ export function PhotoMatches({ id, delivered, view, onView, refreshKey, onReview
         {results?.availability === "available" && <>
           <p className="section-note">{plural(results.total, "potential match", "potential matches")}. Review photos for clues about dates, events and other details.</p>
           {results.total === 0 && <p>No recorded matches at this threshold{results.state.pending ? "; comparisons are incomplete" : ""}.</p>}
+          {onKeep && results.total > 0 && <div className="keeping" aria-label="The photo you keep" role="group">
+            <Thumb id={id} alt="" refreshKey={refreshKey} />
+            <span className="keeping-text">
+              <span className="keeping-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>Keeping</span>
+              <strong>{name ?? "This photo"}</strong>
+              <span className="muted">The photo open in this panel</span>
+            </span>
+            <button className="photo-action" disabled={jobRunning}
+                    title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Review the look-alikes before any is rejected."}
+                    onClick={() => onKeep(threshold!)}>
+              Keep {name ?? "this photo"}, reject the other {count(results.total)}…
+            </button>
+          </div>}
           <ul className="inspector-match-list">
             {results.items.map((photo) => <li key={photo.id}>
               <button className="inspector-match" onClick={() => onReview(photo.id)} aria-label={`Review side by side: ${photo.filename}`}>
@@ -81,6 +100,9 @@ export function PhotoMatches({ id, delivered, view, onView, refreshKey, onReview
                   <span className="muted">{photo.width && photo.height ? `${photo.width} × ${photo.height}` : "Dimensions unknown"}</span>
                   <span>Review side by side</span></span>
               </button>
+              {onReject && <button className="photo-action" disabled={jobRunning} aria-label={`Reject ${photo.filename}…`}
+                title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : `Move ${photo.filename} out of the library into Rejects. Nothing is deleted.`}
+                onClick={() => onReject(photo)}>Reject…</button>}
             </li>)}
           </ul>
           {results.total > 12 && <nav className="match-pages" aria-label="Match pages">

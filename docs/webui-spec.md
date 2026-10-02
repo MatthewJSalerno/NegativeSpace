@@ -2080,9 +2080,22 @@ source against the copy in Rejects (or puts it there, when Rejects was emptied).
     to library (n)** in place of Reject, and **Return to library…** in the Inspector of a
     photo in Rejects.
 
+*   **From Similar photos:** each look-alike has its own **Reject…**. Above them the photo
+    open in the panel stands out as **Keeping** (green outline, a check, a large picture)
+    with **Keep IMG_0410.jpg, reject the other 7…**: every look-alike at the chosen
+    percentage, reviewed like Reject selected, the kept photo first as a full-size card
+    with no tick box, whatever the sort or page.
+*   **Side by side:** a **Reject…** under each photo, so it is clear which one goes. The
+    first reject in a comparison asks, with **Don't ask again while comparing** (until the
+    comparison closes); a reject that would leave none of the compared photos in the
+    library always asks ("None of these photos would be left in the library", **Reject it
+    too**). Rejecting the look-alike shows the next one ("Rejected IMG_0412.jpg · next
+    look-alike shown" with **Return it to the library**); rejecting the photo you started
+    from closes the comparison with the same note. One reject at a time: the button reads
+    "Rejecting…" meanwhile. No keyboard shortcut.
+
 **Not built yet:** a photo only similar to a reject goes to Needs review (§7.9), shown
-beside the reject, and is never rejected automatically; Reject from the Similar photos
-tab and side by side.
+beside the reject, and is never rejected automatically.
 
 **Planned: Rejects' size stays in view without noise:** a Stats tile ("340 photos · 1.2 GB · oldest
 rejected 3 months ago"); each Reject result gives the running total; and a line under the

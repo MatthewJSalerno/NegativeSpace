@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { MatchPhoto } from "../api";
 import { bytes } from "../format";
 import { Thumb } from "./Thumb";
@@ -6,9 +6,11 @@ import { Thumb } from "./Thumb";
 export type PreviewView = { rotation: number; zoom: number; x: number; y: number };
 export const DEFAULT_VIEW: PreviewView = { rotation: 0, zoom: 1, x: 50, y: 50 };
 
-export function ReviewPreview({ photo, label, view, onChange, refreshKey, isReference = false, onUseAsReference, referenceDisabled }: {
+export function ReviewPreview({ photo, label, view, onChange, refreshKey, isReference = false, onUseAsReference, referenceDisabled, action }: {
   photo: MatchPhoto; label: string; view: PreviewView; onChange: (next: PreviewView) => void; refreshKey: number; isReference?: boolean;
   onUseAsReference?: () => void; referenceDisabled?: boolean;
+  // The photo's own action under its column (Reject…), so it is clear which photo it acts on.
+  action?: ReactNode;
 }) {
   const viewport = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 1, height: 1 });
@@ -51,6 +53,7 @@ export function ReviewPreview({ photo, label, view, onChange, refreshKey, isRefe
         ? `${view.rotation !== 0 ? "Displayed: " : ""}${sideways ? photo.height : photo.width} × ${sideways ? photo.width : photo.height}`
         : "Dimensions unknown"} · {bytes(photo.file_size)}
         {view.rotation !== 0 && <span className="review-rotation-note">Viewing rotation: {view.rotation}° · not saved to file</span>}</p>
+      {action && <div className="review-photo-action">{action}</div>}
     </div>
   </figure>;
 }

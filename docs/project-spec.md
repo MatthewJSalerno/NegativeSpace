@@ -233,7 +233,7 @@ Specified but not yet on screen:
 *   The Rename and Undated tabs, similarity curation actions, and metadata editing
     (`webui-spec.md` §7.5, with its decided details).
 *   Needs review (`webui-spec.md` §7.9); Rejects' size on Stats, its threshold line, the
-    similar-to-a-reject check, and Reject from Similar photos (`webui-spec.md` §7.8); the destination
+    similar-to-a-reject check (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);
     selections passed in a file, lifting the 1,000-photo limit (`engine-spec.md` §4.1);
     the export-sidecar notice at Index.

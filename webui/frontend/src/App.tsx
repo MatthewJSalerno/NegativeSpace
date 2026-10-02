@@ -93,7 +93,9 @@ function readUrl() {
 // on entry, so unticking a photo there leaves it on screen, unticked.
 // "review" is the selection before a Copy or Move of it: shown in full, with the action
 // in a bar above it, so every photo can be looked at and unticked before committing.
-type Focus = { kind: "selection" | "review" | "job" | "photo" | "set"; ids: number[]; reference?: number; threshold?: number; mode?: ActionMode };
+type Focus = { kind: "selection" | "review" | "job" | "photo" | "set"; ids: number[]; reference?: number; threshold?: number; mode?: ActionMode;
+  // Keep this one, reject the rest: the photo kept, shown first and never ticked.
+  keep?: number; keepName?: string };
 
 export function App() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -435,6 +437,17 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                                           : Promise.resolve({ items: [], total: 0, page: p, page_size: pageSize, missing: [] } as SelectionPage)),
                            JSON.stringify([focus, sort, galleryMinimum]), focusJump, pageSize, refreshKey, setLoadError);
   const focusData: SelectionPage | null = focus ? focused.meta : null;
+  // The photo kept in Keep this one, reject the rest, loaded on its own so it leads the
+  // review whatever the sort or page.
+  const [keptItem, setKeptItem] = useState<PhotoItem | null>(null);
+  const keepId = focus?.kind === "review" ? focus.keep : undefined;
+  useEffect(() => {
+    let live = true;
+    setKeptItem(null);
+    if (keepId != null) api.selection([keepId], "newest", 1, 1, galleryMinimum)
+      .then((s) => { if (live) setKeptItem(s.items[0] ?? null); }, () => undefined);
+    return () => { live = false; };
+  }, [keepId, galleryMinimum, refreshKey]);
   const gallerySummary = focus ? focusData : data;
 
   // What the gallery shows: the results, or only the selection. Every loaded page in
@@ -741,6 +754,26 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
   const askTransfer = (mode: ActionMode, ids?: number[], onCancel?: () => void) =>
     setConfirm(transferConfirm(mode, status, ids, start(mode, ids), onCancel));
+  // Keep this one, reject the rest (webui-spec 7.8): every look-alike of the kept photo at
+  // the threshold, reviewed before anything moves, the kept photo shown first and never ticked.
+  const keepAndReview = async (keep: number, keepName: string, threshold: number) => {
+    setActionError(null);
+    try {
+      const set = await api.photoIds({ view: "all", q: "", undated: false, set_reference: keep, match_min: threshold,
+                                       dates: [], types: [], folders: [] });
+      if (set.over_limit) {
+        setActionError(`${keepName} has more than ${count(set.limit)} look-alikes at ${threshold}%. Choose a higher percentage.`);
+        return;
+      }
+      const rest = set.ids.filter((id) => id !== keep);
+      setComparison(null); setOpenId(null); setLocate(null); setRevealId(null);
+      setSelected(new Set(rest));
+      setFocus({ kind: "review", mode: "reject", ids: rest, keep, keepName });
+      setFocusPage(1);
+    } catch (e) {
+      setActionError(e instanceof ApiError ? e.message : "The look-alikes could not be loaded.");
+    }
+  };
   // A folder's Copy or Move: the engine takes the folder itself (--source-subdir), so
   // there is no 1,000-photo limit, and Retry offers the same folder again.
   const folderShown = shownFolder(folderTree, folders);
@@ -886,7 +919,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           {focus && review && focus.mode && (
             <div className="focus-head review-bar" role="region" aria-label={`Review before ${REVIEW_WORDS[focus.mode].doing}`}>
               <div className="review-text">
-                <strong>Review the {plural(focus.ids.length, "selected photo")} below</strong>
+                <strong>{focus.keep != null ? `Keep ${focus.keepName}, reject its ${plural(focus.ids.length, "look-alike")}` : `Review the ${plural(focus.ids.length, "selected photo")} below`}</strong>
                 <span className="muted"> · untick any you do not want; {plural(reviewIds.length, "photo")} will be {REVIEW_WORDS[focus.mode].done}.</span>
                 <p className="muted">{review.body[0]}</p>
               </div>
@@ -1000,6 +1033,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               {list.first > 1 && <PageBoundary ref={topSentinel} previous pending={list.pending.has(list.first - 1)} error={list.failures.get(list.first - 1)}
                 onLoad={() => { prepend.current = { height: document.documentElement.scrollHeight, y: window.scrollY }; list.load(list.first - 1, true); }} />}
               <Gallery refreshKey={refreshKey} page={{ items: flat.items }} pageOf={flat.pageOf} selected={selected} selectable={!jobRunning} openId={openId}
+                       keepItem={keepId != null ? keptItem : null}
                        onOpen={openFromGallery} onToggle={toggle} onToggleMany={toggleMany}
                        onReviewSet={!focus && view === "similar" && groupSets ? id => reviewSet(id, null) : undefined}
                        onExploreSet={!focus && view === "similar" && groupSets ? setExploreReference : undefined}
@@ -1025,6 +1059,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             <Inspector setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && view === "similar" && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
                        onReject={() => askTransfer("reject", [openId])} onReturn={() => askTransfer("return", [openId])}
+                       onRejectMatch={(id) => askTransfer("reject", [id])} onKeep={(keep, name, threshold) => void keepAndReview(keep, name, threshold)}
+                       onNotice={(text, actions) => setNotice(text, actions)}
                        onTab={(tab) => { setInspectorTab(tab);
                          if (tab === "similar" && !matchView) setMatchState({ photo: openId, view: { threshold: view === "similar" ? matchMin : 90, page: 1 } }); }}
                        onMatchView={(v) => setMatchState({ photo: openId, view: v })} />

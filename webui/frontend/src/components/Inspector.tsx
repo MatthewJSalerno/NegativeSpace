@@ -30,10 +30,14 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn }: SetActions & {
+export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice }: SetActions & {
   // Reject this photo, or return it from Rejects; each asks first.
   onReject?: () => void;
   onReturn?: () => void;
+  // From Similar photos: reject one look-alike, or keep this photo and reject the rest.
+  onRejectMatch?: (id: number) => void;
+  onKeep?: (keep: number, name: string, threshold: number) => void;
+  onNotice?: (text: string, actions: { label: string; run: () => void }[]) => void;
   coveredByDialog?: boolean;
   comparison: ComparisonState | null;
   onComparison: (state: ComparisonState | null) => void;
@@ -227,7 +231,9 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
           </div>
           <div className="inspector-tab-panel" role="tabpanel" id={`${tabId}-similar-panel`}
             aria-labelledby={`${tabId}-similar`} hidden={tab !== "similar"} tabIndex={0}>
-            {detail && tab === "similar" && <div className="inspector-body"><PhotoMatches key={id} id={id}
+            {detail && tab === "similar" && <div className="inspector-body"><PhotoMatches key={id} id={id} name={detail.filename}
+              jobRunning={jobRunning} onReject={onRejectMatch ? (photo) => onRejectMatch(photo.id) : undefined}
+              onKeep={onKeep ? (threshold) => onKeep(id, detail.filename, threshold) : undefined}
               delivered={["Completed", "Copied", "Found_At_Destination"].includes(detail.status)}
               view={matchView} onView={onMatchView} refreshKey={refreshKey}
               onReview={openComparison} reviewsChanged={reviewsChanged} /></div>}
@@ -254,7 +260,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   );
   return <>
     {narrow && comparison == null && !coveredByDialog ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
-    {comparison != null && <MatchReviewDialog reference={id} candidate={candidate}
+    {comparison != null && <MatchReviewDialog reference={id} candidate={candidate} jobRunning={jobRunning} onNotice={onNotice}
       workspace={comparison} onWorkspace={onComparison} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet}
       initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}
       onClose={closeComparison} onSaved={() => setReviewsChanged((n) => n + 1)} />}
