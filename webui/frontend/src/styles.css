@@ -275,7 +275,7 @@ body.dragging { cursor: col-resize; user-select: none; }
    outlined like the Inspector's, so it reads as a button and as belonging to the photo. */
 button.photo-action { border: 1px solid var(--control-border); background: var(--surface); }
 button.photo-action:hover:not(:disabled) { background: var(--surface-2); border-color: var(--control-border); }
-.review-toolbar .review-keep { margin-left: auto; }
+.review-toolbar .review-keep { align-self: end; }
 .review-photo-name { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
 .review-photo-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .review-alone .review-pair { grid-template-columns: minmax(0, 1fr); max-width: 50%; }

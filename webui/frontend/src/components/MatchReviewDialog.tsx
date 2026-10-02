@@ -220,16 +220,16 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       <label>Minimum similarity<select aria-label="Minimum similarity" disabled={busy} value={threshold} onChange={e => {
         setThreshold(Number(e.target.value)); setPage(1); setActive(null);
       }}>{MATCH_THRESHOLDS.map(t => <option key={t} value={t}>{t}% or higher</option>)}</select></label>
-      <label>Review progress<select aria-label="Review progress" disabled={busy} value={filter} onChange={e => {
-        setFilter(e.target.value as ComparisonState["filter"]); setPage(1); setActive(null);
-      }}><option value="all">All candidates</option><option value="unreviewed">Unreviewed</option><option value="reviewed">Reviewed</option></select></label>
-      <button disabled={busy} onClick={() => setReload(n => n + 1)}>Refresh comparison</button>
       {onKeep && lastReference?.id === reference && remaining > 0 && <button className="photo-action review-keep"
         disabled={busy || rejecting != null || jobRunning}
         title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Review the look-alikes before any is rejected. To keep the other photo, use it as the reference first."}
         onClick={() => { const name = lastReference.filename; close(); onKeep(reference, name, threshold); }}>
         Keep {lastReference.filename}, reject the other {count(remaining)}…
       </button>}
+      <label>Review progress<select aria-label="Review progress" disabled={busy} value={filter} onChange={e => {
+        setFilter(e.target.value as ComparisonState["filter"]); setPage(1); setActive(null);
+      }}><option value="all">All candidates</option><option value="unreviewed">Unreviewed</option><option value="reviewed">Reviewed</option></select></label>
+      <button disabled={busy} onClick={() => setReload(n => n + 1)}>Refresh comparison</button>
     </div>
     <p className="section-note">Scores measure visual similarity, not confidence. Even 100% can describe different pictures.
       {threshold < 90 && " Below 90%, results are more likely to be unrelated. Review photos before using them as metadata clues."}</p>
