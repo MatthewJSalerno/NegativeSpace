@@ -20,7 +20,7 @@ import { usePaged } from "./paged";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./components/Confirm";
 import { Tip } from "./components/Tip";
 import { ActionsMenu } from "./components/ActionsMenu";
-import { RejectsLine } from "./components/RejectsLine";
+import { RejectsLine, RejectsReminder } from "./components/RejectsLine";
 import { SearchField } from "./components/ui/SearchField";
 import { LogsPage } from "./components/LogsPage";
 import { SimilarRedirect } from "./components/SimilarRedirect";
@@ -108,6 +108,11 @@ export function App() {
     api.status().then((s) => { setStatus(s); setStatusError(null); },
                       () => setStatusError("The NegativeSpace server is not answering. Check that the container is running.")), []);
   useEffect(() => { loadStatus(); }, [loadStatus]);
+  // Rejects is emptied in a file manager: coming back to the page shows the result.
+  useEffect(() => {
+    window.addEventListener("focus", loadStatus);
+    return () => window.removeEventListener("focus", loadStatus);
+  }, [loadStatus]);
 
   if (statusError) return <div className="center-page"><p className="error">{statusError}</p></div>;
   if (!status) return <div className="center-page muted">Loading…</div>;
@@ -130,7 +135,7 @@ export function App() {
           : path === "/similar"
             ? <SimilarRedirect />
             : <Library status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />}
-      {settingsOpen && <SettingsDialog firstRun={false} onClose={() => setSettingsOpen(false)} onSaved={() => undefined} />}
+      {settingsOpen && <SettingsDialog firstRun={false} onClose={() => setSettingsOpen(false)} onSaved={loadStatus} />}
     </>
   );
 }
@@ -401,6 +406,11 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const results = usePaged((p) => api.photos({ view, sort, match_min: galleryMinimum, group_sets: grouped, q, page: p, page_size: pageSize, undated, dates, types, folders }),
                            JSON.stringify([view, sort, galleryMinimum, grouped, q, undated, dates, types, folders]), jump, pageSize, refreshKey, setLoadError);
   const data: PhotoPage | null = results.meta;
+  // The Rejects view sees an emptied file first; the reminder follows it.
+  const rejectsShown = view === "rejects" ? data?.rejects?.photos : undefined;
+  useEffect(() => {
+    if (rejectsShown != null && rejectsShown !== status.rejects?.photos) refreshStatus();
+  }, [rejectsShown]);
 
   // The tree's counts ignore its own filter, so an unticked month keeps its number;
   // jumping needs the filtered months, to land on the right page.
@@ -772,8 +782,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     try { await review.run(); } finally { setCommitting(false); }
   };
 
-  const askTransfer = (mode: ActionMode, ids?: number[], onCancel?: () => void) =>
-    setConfirm(transferConfirm(mode, status, ids, start(mode, ids), onCancel));
+  const askTransfer = (mode: ActionMode, ids?: number[], onCancel?: () => void, filename?: string) =>
+    setConfirm(transferConfirm(mode, status, ids, start(mode, ids), onCancel, filename));
   // Keep this one, reject the rest (webui-spec 7.8): every look-alike of the kept photo at
   // the threshold, reviewed before anything moves, the kept photo shown first and never ticked.
   const keepAndReview = async (keep: number, keepName: string, threshold: number) => {
@@ -904,6 +914,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
         <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
+        <RejectsReminder status={status} inRejectsView={view === "rejects" && !focus} />
         {actionError && <p className="error banner" role="alert">{actionError} <button onClick={() => setActionError(null)}>Dismiss</button></p>}
       </header>
 
@@ -1079,8 +1090,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                  }} />
             <Inspector setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && view === "similar" && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
-                       onReject={() => askTransfer("reject", [openId])} onReturn={() => askTransfer("return", [openId])}
-                       onRejectMatch={(id) => askTransfer("reject", [id])} onKeep={(keep, name, threshold) => void keepAndReview(keep, name, threshold)}
+                       onReject={(name) => askTransfer("reject", [openId], undefined, name)} onReturn={() => askTransfer("return", [openId])}
+                       onRejectMatch={(id, name) => askTransfer("reject", [id], undefined, name)} onKeep={(keep, name, threshold) => void keepAndReview(keep, name, threshold)}
                        onNotice={(text, actions, photo) => setNotice(text,
                          actions.map((a) => ({ ...a, run: () => { setNotice(null); a.run(); } })), photo)}
                        onTab={(tab) => { setInspectorTab(tab);

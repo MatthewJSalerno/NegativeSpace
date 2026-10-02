@@ -32,10 +32,10 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // page, with its details below; Esc or the close button returns.
 export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice }: SetActions & {
   // Reject this photo, or return it from Rejects; each asks first.
-  onReject?: () => void;
+  onReject?: (filename: string) => void;
   onReturn?: () => void;
   // From Similar photos: reject one look-alike, or keep this photo and reject the rest.
-  onRejectMatch?: (id: number) => void;
+  onRejectMatch?: (id: number, filename: string) => void;
   onKeep?: (keep: number, name: string, threshold: number) => void;
   onNotice?: (text: string, actions: { label: string; run: () => void }[], photo?: number) => void;
   coveredByDialog?: boolean;
@@ -225,7 +225,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
             aria-labelledby={`${tabId}-information`} hidden={tab !== "information"} tabIndex={0}>
             {detail && tab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
               actions={IN_LIBRARY.includes(detail.status) && onReject
-                ? <button onClick={onReject} disabled={jobRunning} title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Move this photo out of the library into Rejects. Nothing is deleted."}>Reject…</button>
+                ? <button onClick={() => onReject(detail.filename)} disabled={jobRunning} title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Move this photo out of the library into Rejects. Nothing is deleted."}>Reject…</button>
                 : IN_REJECTS.includes(detail.status) && onReturn
                   ? <button onClick={onReturn} disabled={jobRunning} title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Move this photo from Rejects back to its date folder."}>Return to library…</button>
                   : null} />}
@@ -233,7 +233,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
           <div className="inspector-tab-panel" role="tabpanel" id={`${tabId}-similar-panel`}
             aria-labelledby={`${tabId}-similar`} hidden={tab !== "similar"} tabIndex={0}>
             {detail && tab === "similar" && <div className="inspector-body"><PhotoMatches key={id} id={id} name={detail.filename}
-              jobRunning={jobRunning} onReject={onRejectMatch ? (photo) => onRejectMatch(photo.id) : undefined}
+              jobRunning={jobRunning} onReject={onRejectMatch ? (photo) => onRejectMatch(photo.id, photo.filename) : undefined}
               onKeep={onKeep ? (threshold) => onKeep(id, detail.filename, threshold) : undefined}
               delivered={["Completed", "Copied", "Found_At_Destination"].includes(detail.status)}
               view={matchView} onView={onMatchView} refreshKey={refreshKey}

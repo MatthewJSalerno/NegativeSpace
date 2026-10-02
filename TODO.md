@@ -4,14 +4,13 @@ Open work, open design questions and the durability claims ledger. Designs live 
 `docs/`; features specified but not yet built are listed in
 [project-spec.md](docs/project-spec.md) §4 ("Specified but not yet on screen").
 
-## Rejects follow-ups
+## Needs review
 
-- [ ] Rejects' size on Stats and the line under the top row past a threshold set in
-  Settings (`docs/webui-spec.md` §7.8).
-- [ ] The "looks like a reject" check: a photo only similar to a reject (small pHash
-  distance) goes to Needs review beside the reject, never rejected automatically.
-  Waits for the Needs review in-tray (§7.9).
-- [ ] Reword the Reject confirmation (maintainer's note, 2026-10-01: later).
+- [ ] The in-tray itself (`docs/webui-spec.md` §7.9).
+- [ ] "Looks like a reject": a photo only similar to a reject (small pHash distance) is
+  never rejected automatically; it waits in Needs review. With the reject still in
+  Rejects: full side by side, Reject it too · Keep it · Keep the old one instead. With
+  the reject emptied: its stored thumbnail and details (`docs/webui-spec.md` §7.8).
 
 ## Similar photos
 

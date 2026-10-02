@@ -193,7 +193,8 @@ service. Built and tested:
         **Types** (folded by default) and, by choice, the source's **Folders** (the
         default) or a **Dates** tree, to show only file types, folders, years and months
         or jump to a date, and continuous scrolling whose page number follows; the
-        **Rejects** view with what Rejects holds and how to empty it;
+        **Rejects** view with what Rejects holds and how to empty it, its tile on Stats,
+        and a reminder on every page once it passes a size or age limit set in Settings;
     *   selection across views (shift-click, the Select menu, Show only selected), and
         Copy, Move, Reject and Return of a selection reviewed on screen before they run;
     *   the job drawer, with live counts, elapsed time and Cancel;
@@ -237,8 +238,8 @@ Specified but not yet on screen:
 *   The destination check, from a lineage tree's copy or on its own.
 *   The Rename and Undated tabs, and metadata editing (`webui-spec.md` §7.5, with its
     decided details).
-*   Needs review (`webui-spec.md` §7.9); Rejects' size on Stats, its threshold line, the
-    similar-to-a-reject check (`webui-spec.md` §7.8); the destination
+*   Needs review (`webui-spec.md` §7.9), with the similar-to-a-reject check
+    (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);
     selections passed in a file, lifting the 1,000-photo limit (`engine-spec.md` §4.1);
     the export-sidecar notice at Index.
@@ -248,7 +249,7 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 18; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
+at schema version 19; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
 It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its

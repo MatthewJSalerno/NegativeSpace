@@ -20,7 +20,7 @@ export function RejectConfirm({ filename, last, rejectedHere, offerDontAsk, onCa
         <strong>None of these photos would be left in the library.</strong>
         {rejectedHere > 0 ? ` You have rejected ${rejectedHere === 1 ? "its look-alike" : `its ${rejectedHere} look-alikes`} in this comparison; this is the last one.` : ""}
       </p>}
-      <p>It moves out of the library into the Rejects folder. Nothing is deleted, and you can return it until you empty Rejects.</p>
+      <p>It moves to the Rejects folder and leaves your library. You can bring it back any time until you manually empty Rejects.</p>
       {offerDontAsk && !last && <label className="checkbox-row">
         <input type="checkbox" checked={dontAsk} onChange={(e) => setDontAsk(e.target.checked)} />
         Don't ask again while comparing

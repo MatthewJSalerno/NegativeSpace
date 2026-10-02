@@ -11,6 +11,7 @@ import { ActionsMenu } from "./ActionsMenu";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./Confirm";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
 import { SearchField } from "./ui/SearchField";
+import { RejectsReminder } from "./RejectsLine";
 
 // Entries loaded at a time as a job's list scrolls on.
 const LOG_BATCH = 100;
@@ -305,6 +306,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
         <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
+        <RejectsReminder status={status} />
       </header>
 
       <main id="main-content" tabIndex={-1} className="logs">

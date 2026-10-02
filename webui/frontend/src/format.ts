@@ -53,6 +53,18 @@ export function day(iso: string | null | undefined): string {
     ? d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "unknown";
 }
 
+// How long ago an instant was, in the coarsest unit that still says something:
+// "today", "12 days ago", "3 months ago", "2 years ago".
+export function ago(iso: string | null | undefined): string {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (Number.isNaN(t)) return "unknown";
+  const days = Math.max(0, Math.floor((Date.now() - t) / 86_400_000));
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  if (days < 45) return rtf.format(-days, "day");
+  if (days < 365) return rtf.format(-Math.round(days / 30.44), "month");
+  return rtf.format(-Math.floor(days / 365.25), "year");
+}
+
 export function epoch(seconds: number | null | undefined): string {
   return seconds == null ? "unknown" : instant(new Date(seconds * 1000).toISOString());
 }

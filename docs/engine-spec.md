@@ -317,7 +317,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 18 and refuses incompatible catalogs before processing.
+initializes schema version 19 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -326,9 +326,11 @@ user catalog as routine repair.
 
 *   Connections enforce foreign keys and bounded lock waits; shared transactions roll
     back on failure, and a settings save must match the revision it read.
-*   Settings are `workers`, `exts` and `backup_retention`. Each run stores its
-    effective configuration in `run_configs` — defaults, then saved settings, then CLI
-    overrides — and later settings changes never alter it.
+*   Settings are `workers`, `exts` and `backup_retention`, and the web interface's
+    Rejects reminder limits `rejects_reminder_bytes` and `rejects_reminder_days` (a
+    positive whole number, or null for off; `REJECTS_REMINDER_DEFAULTS`). Each run stores its
+    effective configuration in `run_configs` — defaults, then saved settings except the
+    reminder limits, then CLI overrides — and later settings changes never alter it.
 *   A file put back at a path whose source a Move or duplicate removal consumed is a
     new arrival with its own photo row and identity; the consumed row keeps its identity,
     evidence and history. With the content still recorded as delivered, the new arrival is
@@ -749,7 +751,7 @@ Explicit initialization is available before Index. Settings saves use narrowly s
 
 ```sql
 CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention')),
+    key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days')),
     value_json TEXT NOT NULL,
     revision INTEGER NOT NULL CHECK(revision > 0),
     updated_at TEXT NOT NULL
@@ -1107,8 +1109,7 @@ a `Rejected` row becomes `Rejected_Emptied`. The Rejects view does not wait for 
 the API filters it against a listing of `dest/rejects`.
 
 **Not built yet:** the pHash check for a file only similar to a reject (with Needs
-review, §9.8), and the Rejects size on Stats and the threshold line. The screens are
-`webui-spec.md` §7.8.
+review, §9.8). The screens are `webui-spec.md` §7.8.
 
 ### 9.6. Writing Metadata Into Files
 

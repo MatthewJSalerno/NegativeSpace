@@ -16,7 +16,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 
 class PhotoStatus:
     """State of one source file in the catalog. A path is unique among files still in the
@@ -442,7 +442,7 @@ FOUNDATION_DDL = (
         file_id INTEGER NOT NULL REFERENCES files(file_id),
         role TEXT NOT NULL CHECK(role IN ('source','destination','retained_copy')), PRIMARY KEY(operation_id,file_id,role))""",
     """CREATE TABLE settings (
-        key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention')),
+        key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days')),
         value_json TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0),
         updated_at TEXT NOT NULL)""",
     """CREATE TABLE run_configs (
@@ -658,6 +658,11 @@ def save_ui_state(conn, values):
     return read_ui_state(conn)
 
 
+# When the web interface reminds the user that Rejects is worth emptying (webui-spec 7.8):
+# past either limit; null switches that limit off.
+REJECTS_REMINDER_DEFAULTS = {'rejects_reminder_bytes': 1_000_000_000, 'rejects_reminder_days': 30}
+
+
 def validate_settings(values):
     if not isinstance(values, dict):
         raise ValueError("settings must be an object")
@@ -669,6 +674,9 @@ def validate_settings(values):
         elif key == 'backup_retention':
             if type(value) is not int or value < 1:
                 raise ValueError("backup_retention must be a positive integer")
+        elif key in REJECTS_REMINDER_DEFAULTS:
+            if value is not None and (type(value) is not int or value < 1):
+                raise ValueError(f"{key} must be a positive integer, or null for off")
         elif key == 'exts':
             if not isinstance(value, list) or not value or any(
                 not isinstance(v, str) or not re.fullmatch(r'\.?[A-Za-z0-9]+', v) for v in value
@@ -725,7 +733,8 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
                     raise RequestConflict("request ID was already used for different input")
                 return row[0], False
         config = dict(defaults or {})
-        config.update({k: v['value'] for k,v in read_settings(conn).items()})
+        # The reminder limits are the web interface's, not a job's.
+        config.update({k: v['value'] for k,v in read_settings(conn).items() if k not in REJECTS_REMINDER_DEFAULTS})
         config.update(overrides or {})
         cur = conn.execute("INSERT INTO runs(mode,source_path,dest_path,file_ids_filter,started_at,status) VALUES(?,?,?,?,?,?)",
                            (mode, source, destination, _json(targeting) if targeting else None, utc_now(), RunStatus.PREPARING))

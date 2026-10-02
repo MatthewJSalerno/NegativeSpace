@@ -10,16 +10,16 @@ export type Confirm = { title: string; body: string[]; action: string; danger?: 
 // Move for all of them), asked the same way on every page. "All" counts what the engine
 // would take across the whole catalog (GET /status), never a view or search.
 export function transferConfirm(mode: ActionMode, status: Status, ids: number[] | { folder: string } | undefined,
-                                run: () => Promise<void>, onCancel?: () => void): Confirm {
+                                run: () => Promise<void>, onCancel?: () => void, filename?: string): Confirm {
   const scope = Array.isArray(ids) ? (ids.length === 1 && (mode === "reject" || mode === "return") ? "this photo" : plural(ids.length, "selected photo"))
     : ids ? `the photos under ${ids.folder}`
     : mode === "copy" ? `every photo not yet copied (${count(status.eligible.copy)})`
       : `every photo not yet moved (${count(status.eligible.move)})`;
   const one = Array.isArray(ids) && ids.length === 1;
   if (mode === "reject") return {
-    title: `Reject ${scope}?`,
+    title: one ? `Reject ${filename ?? "this photo"}?` : Array.isArray(ids) ? `Reject ${plural(ids.length, "photo")}?` : `Reject ${scope}?`,
     action: "Reject",
-    body: [`${one ? "It moves" : "They move"} out of the library into the Rejects folder. Nothing is deleted, and you can return ${one ? "it" : "them"} until you empty Rejects.`],
+    body: [`${one ? "It moves" : "They move"} to the Rejects folder and ${one ? "leaves" : "leave"} your library. You can bring ${one ? "it" : "them"} back any time until you manually empty Rejects.`],
     run,
     onCancel,
   };
