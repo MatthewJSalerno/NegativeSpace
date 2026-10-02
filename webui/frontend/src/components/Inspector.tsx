@@ -10,6 +10,7 @@ import { LineageDialog } from "./LineageDialog";
 import { Thumb } from "./Thumb";
 import { PhotoMatches, type MatchView } from "./PhotoMatches";
 import { MatchReviewDialog } from "./MatchReviewDialog";
+import { SearchField } from "./ui/SearchField";
 
 const STATUS: Record<string, string> = {
   Pending: "Not yet organized", Processing: "In progress", Completed: "Moved to the destination",
@@ -379,8 +380,8 @@ function AllMetadata({ tags }: { tags: [string, unknown][] }) {
         <button className="link" aria-expanded={open} onClick={() => setOpen(!open)}>
           {open ? "Hide all metadata" : `Show all metadata (${tags.length} tags)`}
         </button>
-        {open && <input type="search" placeholder="Filter tags" value={filter} onChange={(e) => setFilter(e.target.value)}
-                        aria-label="Filter the metadata" />}
+        {open && <SearchField placeholder="Filter tags" value={filter} onValueChange={setFilter}
+                              aria-label="Filter the metadata" clearLabel="Clear the filter" />}
       </div>
       {open && (
         <>

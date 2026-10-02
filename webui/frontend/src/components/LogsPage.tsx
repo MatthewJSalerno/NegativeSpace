@@ -10,6 +10,7 @@ import { usePaged } from "../paged";
 import { ActionsMenu } from "./ActionsMenu";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./Confirm";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
+import { SearchField } from "./ui/SearchField";
 
 // Entries loaded at a time as a job's list scrolls on.
 const LOG_BATCH = 100;
@@ -323,8 +324,8 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
         )}
 
         <div className="log-filters">
-          <input type="search" placeholder="Search paths and messages" value={search}
-                 onChange={(e) => setSearch(e.target.value)} aria-label="Search the log" />
+          <SearchField placeholder="Search paths and messages" value={search}
+                       onValueChange={setSearch} aria-label="Search the log" />
           <label className="field-inline"><span>From</span>
             <input type="date" value={dates.from} onChange={(e) => setDates((d) => ({ ...d, from: e.target.value }))} aria-label="From date" />
           </label>

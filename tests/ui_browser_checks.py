@@ -72,6 +72,30 @@ def check_ui(browser, base, _shot):
     expect(page).not_to_have_url(re.compile(r"q="))
     expect(page.locator(".card").first).to_be_visible()
 
+    # The search box clears with its own button, shown only with text, or with Esc;
+    # either way focus stays in the box, and Esc does not reach the open photo.
+    clear = page.get_by_role("button", name="Clear search", exact=True)
+    expect(clear).to_have_count(0)
+    search_box.fill("photo-010")
+    expect(page.locator(".card")).to_have_count(1)
+    box = search_box.bounding_box()
+    button = clear.bounding_box()
+    assert box["x"] < button["x"] and button["x"] + button["width"] <= box["x"] + box["width"] + 1, (box, button)
+    clear.click()
+    expect(search_box).to_have_value("")
+    expect(search_box).to_be_focused()
+    expect(clear).to_have_count(0)
+    expect(page).not_to_have_url(re.compile(r"q="))
+    page.locator(".card-image").first.click()
+    expect(page.locator(".inspector")).to_be_visible()
+    search_box.fill("photo")
+    search_box.press("Escape")
+    expect(search_box).to_have_value("")
+    expect(search_box).to_be_focused()
+    expect(page.locator(".inspector")).to_be_visible()
+    page.get_by_role("button", name="Close", exact=True).click()
+    expect(page.locator(".card").first).to_be_visible()
+
     # Selecting photos must not make the top toolbar taller or move the gallery.
     toolbar = page.locator(".toolbar-row").first
     logs = page.get_by_role("link", name="Logs", exact=True)

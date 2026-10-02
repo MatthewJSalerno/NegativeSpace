@@ -388,21 +388,21 @@ with sync_playwright() as p:
     locked = "/src/photo-129.jpg"
     os.chmod(locked, 0)
     # Counted over the whole catalog, whatever the gallery shows: search does not change it.
-    page.locator(".search").fill("photo-00")
+    page.get_by_role("searchbox", name="Search filenames").fill("photo-00")
     open_actions(page, "Copy").get_by_role("menuitem", name=f"Copy all ({PHOTOS - 3:,})").click()
     dialog = page.get_by_role("alertdialog")
     expect(dialog).to_contain_text(f"every photo not yet copied ({PHOTOS - 3:,})")
     dialog.get_by_role("button", name="Copy").click()
-    page.locator(".search").fill("")
+    page.get_by_role("searchbox", name="Search filenames").fill("")
     expect(banner).to_contain_text("Copy finished with failures", timeout=120_000)
     expect(banner).to_contain_text(
         f"{PHOTOS - 4} of {PHOTOS + DUPLICATES} files copied · 1 failed · {3 + DUPLICATES} skipped "
         f"(3 copied by an earlier job, {DUPLICATES} duplicates: the same content is copied once)")
     # Hovering the failure count gives the reasons; a Failed photo's badge gives its own.
     expect(banner.locator(".tip")).to_have_attribute("data-tip", re.compile(r"Why they failed:\nPermission denied: 1"))
-    page.locator(".search").fill("photo-129")
+    page.get_by_role("searchbox", name="Search filenames").fill("photo-129")
     expect(page.locator(".badge-failed")).to_have_attribute("title", "Failed: Permission denied")
-    page.locator(".search").fill("")
+    page.get_by_role("searchbox", name="Search filenames").fill("")
     shot("6-skip-reasons")
     # Everything copyable is copied, but Move still has every copied photo to finish.
     menu = open_actions(page, "Copy")
@@ -638,16 +638,16 @@ with sync_playwright() as p:
     # All photos resets the other filters, while preserving the search.
     undated_filter.click()
     page.get_by_role("navigation", name="Dates").get_by_label("Show only 2019").check()
-    page.locator(".search").fill("photo")
+    page.get_by_role("searchbox", name="Search filenames").fill("photo")
     expect(page).to_have_url(re.compile(r"q=photo"))
     page.get_by_role("button", name=re.compile(r"^All photos")).click()
     expect(page).not_to_have_url(re.compile(r"undated=1|date="))
     expect(page).to_have_url(re.compile(r"q=photo"))
-    expect(page.locator(".search")).to_have_value("photo")
+    expect(page.get_by_role("searchbox", name="Search filenames")).to_have_value("photo")
     expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS:,} photos")
 
     # A photo with an EXIF date: shown from EXIF, one note for the missing time zone.
-    page.locator(".search").fill("photo-000")
+    page.get_by_role("searchbox", name="Search filenames").fill("photo-000")
     expect(page.locator(".card")).to_have_count(1, timeout=5_000)
     page.locator(".card-image").first.click()
     expect(inspector).to_contain_text("2023-01-15 09:30:00")
@@ -670,7 +670,7 @@ with sync_playwright() as p:
     page.keyboard.press("Escape")
     expect(page).to_have_url(re.compile(r"q=photo-000"))
     page.reload()
-    expect(page.locator(".search")).to_have_value("photo-000")
+    expect(page.get_by_role("searchbox", name="Search filenames")).to_have_value("photo-000")
 
     phone = browser.new_page(viewport={"width": 390, "height": 844}, is_mobile=True)
     phone.goto(BASE)
