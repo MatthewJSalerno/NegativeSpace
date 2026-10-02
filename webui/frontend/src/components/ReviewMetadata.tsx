@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type PhotoDetail } from "../api";
 import { bytes, count, photoDate } from "../format";
+import { SearchField } from "./ui/SearchField";
 
 const valueText = (value: unknown): string => value == null || value === "" ? "Not recorded"
   : typeof value === "object" ? JSON.stringify(value) : String(value);
@@ -82,7 +83,7 @@ export function ReviewMetadata({ reference, candidate, refreshKey }: { reference
         <p className="section-note">A visual match does not establish a shared date or location.</p>
         <label><input type="checkbox" checked={allTags} onChange={e => setAllTags(e.target.checked)} />All recorded tags</label>
         {allTags && <>
-          <input type="search" aria-label="Find metadata field" placeholder="Find a field" value={filter} onChange={e => setFilter(e.target.value)} />
+          <SearchField aria-label="Find metadata field" placeholder="Find a field" value={filter} onValueChange={setFilter} clearLabel="Clear the field search" />
           <ComparisonTable title="All recorded metadata" rows={tagRows} differences={differences} />
         </>}
       </>}

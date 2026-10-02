@@ -21,6 +21,7 @@ import { ConfirmDialog, transferConfirm, type Confirm } from "./components/Confi
 import { Tip } from "./components/Tip";
 import { ActionsMenu } from "./components/ActionsMenu";
 import { RejectsLine } from "./components/RejectsLine";
+import { SearchField } from "./components/ui/SearchField";
 import { LogsPage } from "./components/LogsPage";
 import { SimilarRedirect } from "./components/SimilarRedirect";
 import type { MatchView } from "./components/PhotoMatches";
@@ -836,8 +837,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             </Tip>
           </nav>
           <div className="browse-search">
-            <input className="search" type="search" placeholder="Search filenames" value={search} disabled={!!focus}
-                   onChange={(e) => setSearch(e.target.value)} aria-label="Search filenames" />
+            <SearchField className="search" placeholder="Search filenames" value={search} disabled={!!focus}
+                         onValueChange={setSearch} aria-label="Search filenames" />
             <select value={sort} onChange={(e) => { chooseSort(e.target.value as Sort); }} aria-label="Sort">
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
