@@ -56,7 +56,12 @@ action links share alignment and target height even when one is an anchor and th
 other is a button. Preserve these roles at desktop zoom and narrow widths; do not
 add screen-specific font sizes to repair a shared control.
 
-The first Settings section, Appearance, offers Cool neutral (default) and Warm neutral palettes. The choice applies
+Tabs are one shared control (`ui/Tabs.tsx`, WAI-ARIA "Tabs with automatic activation"):
+one tab stop, ← → move and choose, Home/End go to the ends. The Inspector and Settings
+use it. Settings' tabs and first-run steps are the same four groups (`webui-spec.md` §3);
+a tab with unsaved changes shows a dot, named "unsaved changes" to assistive technology.
+
+The first Settings tab, Appearance, offers Cool neutral (default) and Warm neutral palettes. The choice applies
 immediately, is stored per browser under `ns.palette`, and follows across tabs;
 it is independent of catalog settings and does not require Save settings. System
 light/dark preference applies to either palette. If browser storage is unavailable,

@@ -194,8 +194,9 @@ with sync_playwright() as p:
     expect(reminder.get_by_role("link", name="Open Rejects")).to_have_count(0)
     # Switched off in Settings, the reminder goes.
     page.get_by_role("button", name="Settings").click()
-    page.get_by_label("Remind me by size").uncheck()
-    expect(page.get_by_label("When Rejects holds at least (GB)")).to_be_disabled()
+    page.get_by_role("tab", name="Files").click()
+    page.get_by_label("Remind me when Rejects holds at least", exact=True).uncheck()
+    expect(page.get_by_label("Remind me when Rejects holds at least (GB)")).to_be_disabled()
     shot("r7-reminder-settings")
     page.get_by_role("button", name="Save settings").click()
     expect(page.get_by_role("status").filter(has_text="Saved")).to_be_visible()

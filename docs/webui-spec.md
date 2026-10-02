@@ -260,12 +260,20 @@ must not reset saved preferences. The browser uses the API, never SQLite directl
 One consistent database backup includes settings and lineage. The settings writer
 boundary is defined in §6.1; no second database is required.
 
+**Settings are in four groups:** **Appearance** (the palette), **Files** (file types;
+the Rejects reminder, §7.8), **Backups** (how many to keep, the list, Back up now, how to
+restore) and **Performance** (worker processes). In Settings they are tabs with one **Save
+settings** for all of them, so switching tabs loses nothing; a tab with unsaved changes
+shows a dot, and a save with an error on another tab opens that tab at the field.
+
 **First run shows the settings as the page itself**, before the library exists, and
 says prominently that these are starting values, changeable at any time from the gear
 icon in Settings. Without that, a user can take the screen for the only chance to set
-them. Saving them lands in the Library, where **Index your library** waits, whatever
-page an earlier session left in the address bar. After first run, Settings opens as a
-window over the current view.
+them. It steps through the same four groups ("Step 2 of 4 Files", **Back**, **Next**),
+one per page so each fits without scrolling; Next checks only that step, and nothing is
+saved until **Save and continue** on the last. Saving lands in the Library, where **Index
+your library** waits, whatever page an earlier session left in the address bar. After
+first run, Settings opens as a window over the current view.
 
 **Startup without a usable catalog:** distinguish a missing database from access
 errors and from an invalid or corrupt database. Do not silently replace an existing

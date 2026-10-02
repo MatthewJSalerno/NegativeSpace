@@ -35,6 +35,10 @@ with sync_playwright() as p:
             page.get_by_role('button', name='Settings', exact=True).click()
             panel = page.locator('.modal-shell > .settings')
             expect(panel.locator('section').first).to_have_class('appearance-settings')
+            # In a short window the Files tab, the tallest, scrolls: a cue says there is more
+            # below, then above.
+            page.set_viewport_size({'width':1600,'height':600})
+            page.get_by_role('tab', name='Files').click()
             expect(page.locator('.modal-scroll-cue.below')).to_be_visible()
             expect(page.locator('.modal-scroll-cue.above')).to_have_count(0)
             panel.evaluate('(el) => el.scrollTop = el.scrollHeight')
@@ -43,6 +47,8 @@ with sync_playwright() as p:
             panel.evaluate('(el) => el.scrollTop = 0')
             expect(page.locator('.modal-scroll-cue.above')).to_have_count(0)
             expect(page.locator('.modal-scroll-cue.below')).to_be_visible()
+            page.set_viewport_size({'width':1600,'height':1100})
+            page.get_by_role('tab', name='Appearance').click()
             choice = page.get_by_label('Color palette', exact=True)
             choice.select_option(palette)
             expect(page.locator('html')).to_have_attribute('data-palette',palette)
