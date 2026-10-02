@@ -283,12 +283,12 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(sorted(r[1] for r in results),[False,True])
         with self.assertRaises(db.RequestConflict):self.run_record(request_id='same',overrides={'workers':4})
 
-    def test_file_under_attention_is_excluded_from_keeper_candidates(self):
+    def test_file_under_attention_is_flagged_for_duplicate_removal(self):
         """An unresolved outcome must not let a file authorize deleting anything."""
         photo, run = self.photo()
         with db.transaction(self.conn):
             child = self.delivery(photo, run, created=True, removed=False)
-        self.assertEqual(db.keeper_candidates(self.conn, 'synthetic'), ['/destination/a.jpg'])
+        self.assertEqual(db.paths_needing_attention(self.conn, ['/destination/a.jpg']), set())
         with db.transaction(self.conn):
             op = self.conn.execute(
                 "INSERT INTO operations(run_id,photo_id,status,timestamp) "
@@ -296,7 +296,7 @@ class DatabaseTests(unittest.TestCase):
             db.open_attention_issue(self.conn, operation_id=op, file_id=child,
                                     category='unestablished_outcome',
                                     summary='recovery could not establish the outcome')
-        self.assertEqual(db.keeper_candidates(self.conn, 'synthetic'), [])
+        self.assertEqual(db.paths_needing_attention(self.conn, ['/destination/a.jpg']), {'/destination/a.jpg'})
 
     def test_resolving_an_issue_restores_the_candidate(self):
         photo, run = self.photo()
@@ -307,10 +307,10 @@ class DatabaseTests(unittest.TestCase):
                 "VALUES(?,?,'Failed','t')", (run, photo)).lastrowid
             issue = db.open_attention_issue(self.conn, operation_id=op, file_id=child,
                                             category='unestablished_outcome', summary='x')
-        self.assertEqual(db.keeper_candidates(self.conn, 'synthetic'), [])
+        self.assertEqual(db.paths_needing_attention(self.conn, ['/destination/a.jpg']), {'/destination/a.jpg'})
         with db.transaction(self.conn):
             db.resolve_attention_issue(self.conn, issue)
-        self.assertEqual(db.keeper_candidates(self.conn, 'synthetic'), ['/destination/a.jpg'])
+        self.assertEqual(db.paths_needing_attention(self.conn, ['/destination/a.jpg']), set())
 
     def test_evidence_is_append_only_and_links_to_its_issue(self):
         photo, run = self.photo()

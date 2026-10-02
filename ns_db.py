@@ -1077,20 +1077,19 @@ def thumbnail_cache_totals(conn):
         "WHERE availability='present' GROUP BY size ORDER BY size")]
 
 
-def keeper_candidates(conn, sha1_hash):
-    """Destination paths that may authorize deleting a duplicate source.
-
-    A file carrying an unresolved attention issue is excluded: recovery could
-    not establish what is at that path, and an unknown copy must never
-    authorize removing a known one.
-    """
+def paths_needing_attention(conn, paths):
+    """The destination paths among `paths` whose file carries an unresolved attention
+    issue. Such a copy never authorizes deleting a duplicate source (TODO.md claim 15):
+    recovery could not establish what is at that path, and an unknown copy must never
+    authorize removing a known one, even when its bytes match."""
     require_schema(conn)
-    return [r[0] for r in conn.execute(
-        "SELECT DISTINCT fs.current_path FROM file_states fs "
-        "WHERE fs.location_role='destination' AND fs.presence_state='present' AND fs.sha1_hash=? "
-        "AND NOT EXISTS(SELECT 1 FROM attention_issues ai "
-        "               WHERE ai.file_id=fs.file_id AND ai.resolved_at IS NULL) "
-        "ORDER BY fs.current_path", (sha1_hash,))]
+    paths = list(paths)
+    if not paths:
+        return set()
+    return {r[0] for r in conn.execute(
+        "SELECT DISTINCT fs.current_path FROM file_states fs JOIN json_each(?) p ON p.value = fs.current_path "
+        "WHERE fs.location_role='destination' AND EXISTS(SELECT 1 FROM attention_issues ai "
+        "    WHERE ai.file_id=fs.file_id AND ai.resolved_at IS NULL)", (json.dumps(paths),))}
 
 
 def begin_operation(conn, *, run_id, photo_id, source_path, dest_path, kind, expected=None,

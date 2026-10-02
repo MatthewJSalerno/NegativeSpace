@@ -5845,6 +5845,21 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 (sha1_hash,)
             )
             candidates = [row[0] for row in cursor.fetchall()]
+            # A copy with an unresolved needs-attention issue never authorizes deleting a
+            # source, even with matching bytes (TODO.md claim 15): the source stays until
+            # the issue is resolved, and the outcome says so.
+            flagged = ns_db.paths_needing_attention(conn, candidates)
+            if flagged:
+                candidates = [c for c in candidates if c not in flagged]
+                if not candidates:
+                    reason = (f"Kept: its copy at {sorted(flagged)[0]} has an unresolved needs-attention "
+                              f"issue, so it cannot be relied on to remove this source. Resolve the issue, "
+                              f"then Move again.")
+                    logger.info(f"Kept duplicate source {_display_path(dup_src_str, source_root)}: {reason}")
+                    log_operation(conn, run_id, record_id, dup_src_str, sorted(flagged)[0],
+                                  OPERATION_SKIPPED, reason)
+                    run_progress.add(OPERATION_SKIPPED)
+                    continue
             if not candidates:
                 # Nothing delivered to verify against, so the source stays.
                 # Recorded as an outcome, not only logged: a duplicate selected
