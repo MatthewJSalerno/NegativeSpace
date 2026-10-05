@@ -237,6 +237,8 @@ Specified but not yet on screen:
 *   Each folder's last-scanned time in the Folders tree.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
+*   The thumbnail cache panel in Settings › Performance: free detail previews, repair or
+    rebuild grid thumbnails (the engine jobs exist; `webui-spec.md` §4.2.1).
 *   The Index file-type summary (files found, eligible and excluded by type), which the
     engine records per full Index (`webui-spec.md` §5.1).
 *   The Rename and Undated tabs, and metadata editing (`webui-spec.md` §7.5, with its

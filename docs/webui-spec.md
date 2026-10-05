@@ -287,7 +287,7 @@ boundary is defined in §6.1; no second database is required.
 **Settings are in four groups:** **Appearance** (the palette), **Files** (file types;
 the Rejects reminder, §7.8; with Needs review, the small-image size, §7.9; with the
 editor, where edits are saved, §7.5), **Backups** (how many to keep, the list, Back up now, how to
-restore) and **Performance** (worker processes). In Settings they are tabs with one **Save
+restore) and **Performance** (worker processes; the thumbnail cache, §4.2.1, not yet on screen). In Settings they are tabs with one **Save
 settings** for all of them, so switching tabs loses nothing; a tab with unsaved changes
 shows a dot, and a save with an error on another tab opens that tab at the field.
 
@@ -874,6 +874,12 @@ undecodable file is therefore re-attempted on every scan.
   say **“Preview unavailable; reason not recorded.”** A cache miss awaiting generation
   is a pending preview, not a diagnosed failure. Clear the current unavailable state
   after successful generation while retaining recorded failure history.
+* **Not yet on screen** (the engine side is built): the panel below, and API routes to
+  start a rebuild or free previews. Today `--rebuild-thumbnails` and `--clear-previews` run
+  only from the command line. **It goes in Settings › Performance** (decided 2026-10-05),
+  beside the worker setting, as backups sit in Settings › Backups: thumbnails exist to make
+  browsing fast, and clearing or rebuilding them is occasional housekeeping. Stats'
+  Catalog health keeps the sizes and links to it (**Manage thumbnails**).
 * **Cache size is shown per size, and the two are managed separately.** They have
   different economics and lumping them under one "clear cache" control would mislead:
   grid thumbnails are generated in bulk at Index and their loss blanks the gallery
