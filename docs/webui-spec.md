@@ -2151,7 +2151,13 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   selection offers only shared actions.
 * **A note exists only when a person must decide.** Facts the catalog can compute (every
   similar pair) stay live queries, so the list cannot grow into a copy of the library.
-* **A resolved note leaves the list;** the decision goes into the photo's history.
+* **A resolved note leaves the list;** the decision goes into the photo's history. **A note
+  that stops being true clears itself** (decided 2026-10-05): a corrected date, a file
+  that now reads, a reject returned to the library. The next job or the screen notices,
+  and the photo's history records the note and why it went ("cleared: the date was
+  corrected in job #52"), as the engine's needs-attention issues clear only on evidence.
+  *Why not make the user dismiss it:* answering something that is no longer a problem is
+  busywork, and nothing is lost.
 * **Whether a photo waits depends on its note** (decided 2026-10-05). A note that holds
   its photo keeps it from Copy, Move and edits until answered; the others let it carry
   on as normal and ask afterwards:
