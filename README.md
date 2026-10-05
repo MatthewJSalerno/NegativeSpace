@@ -25,6 +25,7 @@ was first indexed from.
 - [Documentation](#documentation)
 - [Running the engine directly](#running-the-engine-directly)
 - [Notes and details](#notes-and-details)
+- [License](#license)
 
 ## Features
 
@@ -297,3 +298,12 @@ docker run --rm --stop-timeout 300 \
 - **Supported Formats:** 36 extensions — 13 raster (`.jpg`, `.jpeg`, `.jpe`, `.jfif`, `.png`, `.gif`, `.bmp`, `.webp`, `.tif`, `.tiff`, `.heic`, `.heif`, `.avif`) and 23 RAW (`.raw`, `.dng`, `.cr2`, `.cr3`, `.crw`, `.nef`, `.nrw`, `.arw`, `.srf`, `.sr2`, `.raf`, `.orf`, `.rw2`, `.pef`, `.ptx`, `.srw`, `.erf`, `.3fr`, `.fff`, `.iiq`, `.mos`, `.mrw`, `.x3f`). RAW files are decoded via rawpy/LibRaw; the two sets are defined as `RASTER_EXTENSIONS` and `RAW_EXTENSIONS` in `ns_db.py`, with the supported set derived as their union. Narrow a run with `--exts` (dots optional: `--exts jpg,cr2` and `--exts .jpg,.cr2` are equivalent). You may list an extension the engine cannot read, such as `.mov`; the run warns that those files are still catalogued and still carried into the destination by Copy and Move.
 
   **The engine only ever operates on files it supports.** Anything else in `--source` — sidecars, videos, documents, previews, stray archives — is left exactly where it is, untouched and not catalogued; a full Index only counts it, by file type, in its discovery summary. A `--move` therefore does not empty the source directory, and is not meant to: it moves what it can, and reviewing what remains is yours to do. Expect leftovers, and expect them to be the files this tool was never asked to handle.
+
+## License
+
+NegativeSpace is free software: you can redistribute it and/or modify it under the terms
+of the GNU General Public License as published by the Free Software Foundation, either
+version 3 of the License, or (at your option) any later version. It is distributed in the
+hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the
+full text.
