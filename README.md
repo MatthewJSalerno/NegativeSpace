@@ -182,6 +182,7 @@ Specifications are organized by component, not by release phase:
 | [tests/README.md](tests/README.md) | Automated checks, sample instances and manual validation |
 | [similarity-validation.md](docs/similarity-validation.md) | Validation record for visual similarity: measurements and checkpoints |
 | [large-library-performance.md](docs/large-library-performance.md) | The measurement plan and results for libraries of 200,000+ photos |
+| [CHANGELOG.md](CHANGELOG.md) | What changed in each version |
 | [TODO.md](TODO.md) | Open work, open design questions and the durability claims ledger |
 
 ## Notes and details

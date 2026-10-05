@@ -81,6 +81,11 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 
 ## Before the first release
 
+- [ ] **Version 1.0.0 and the changelog:** keep [CHANGELOG.md](CHANGELOG.md) current as each
+  change merges; 1.0.0 is the first release ([Semantic Versioning](https://semver.org/)).
+- [ ] **Say what it runs on:** a minimum Linux and Docker version in the README, and that
+  Mac and Windows are not tested.
+
 - [ ] **One password for the web interface** (`docs/webui-spec.md` §11): generated on first
   start and printed to the container output, changeable in Settings. Until then the README
   tells users to keep the app off the internet.
