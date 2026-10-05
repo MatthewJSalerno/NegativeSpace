@@ -32,6 +32,8 @@ was first indexed from.
 - [Notes and details](#notes-and-details)
 - [License](#license)
 
+![The NegativeSpace gallery](docs/images/gallery.png)
+
 ## Features
 
 - **Organize by date:** `YYYY/MM/DD` from EXIF; photos without a usable date go to
@@ -166,6 +168,13 @@ writable source:** with a read-only one it can only copy, and each photo shows *
 only** with the reason; set `read_only: false` on the source volume in
 `docker/compose.yml` and Move them again.
 
+<p>
+  <img src="docs/images/compare.png" alt="Two look-alikes compared side by side" width="49%">
+  <img src="docs/images/rejects.png" alt="The Rejects view" width="49%">
+</p>
+
+The [user guide](docs/user-guide.md) walks through a first session, with screenshots.
+
 ## Documentation
 
 Specifications are organized by component, not by release phase:
@@ -173,6 +182,7 @@ Specifications are organized by component, not by release phase:
 | Document | Covers |
 | --- | --- |
 | [project-spec.md](docs/project-spec.md) | Scope boundary, architecture, and what exists today — start here |
+| [user-guide.md](docs/user-guide.md) | A first session, start to finish, with screenshots |
 | [recovery.md](docs/recovery.md) | If something goes wrong: what can be recovered, and how to restore a catalog backup |
 | [engine-cli.md](docs/engine-cli.md) | Running the engine as a command, for development and scripting |
 | [engine-spec.md](docs/engine-spec.md) | `ns-engine.py`: hashing, metadata, placement, Copy-Verify-Delete, and the SQLite catalog it owns |

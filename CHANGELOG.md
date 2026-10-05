@@ -12,6 +12,8 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 ### Added
 - README: a security section (there is no sign-in yet), a recovery guide
   ([docs/recovery.md](docs/recovery.md)) and the GPL-3.0 license.
+- A user guide with screenshots ([docs/user-guide.md](docs/user-guide.md)), and screenshots
+  in the README.
 
 ## [0.14.0] - 2026-10-04
 
