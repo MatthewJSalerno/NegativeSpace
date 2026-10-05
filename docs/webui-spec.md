@@ -265,7 +265,8 @@ One consistent database backup includes settings and lineage. The settings write
 boundary is defined in §6.1; no second database is required.
 
 **Settings are in four groups:** **Appearance** (the palette), **Files** (file types;
-the Rejects reminder, §7.8; with the editor, where edits are saved, §7.5), **Backups** (how many to keep, the list, Back up now, how to
+the Rejects reminder, §7.8; with Needs review, the small-image size, §7.9; with the
+editor, where edits are saved, §7.5), **Backups** (how many to keep, the list, Back up now, how to
 restore) and **Performance** (worker processes). In Settings they are tabs with one **Save
 settings** for all of them, so switching tabs loses nothing; a tab with unsaved changes
 shows a dot, and a save with an error on another tab opens that tab at the field.
@@ -2185,12 +2186,24 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   | Looks like a reject (§7.8) | Carries on: filed as normal; rejecting it later moves it to Rejects |
   | Suspicious date | Carries on: filed by the date it has; fixing the date refiles it |
   | Couldn't be read | Nothing to hold: the file failed and stays where it is |
+  | Small image | Held: not organized into the library |
   | Review later (set by the user) | Carries on |
 
   *Why not hold everything:* a look-alike of a reject may not be one, and holding it would
   leave a gap in the library until answered. *Why not carry everything on:* filing an
   unfixed old version beside its fix, or giving a photo another's sidecar, is the wrong
   thing to do and harder to undo than to wait.
+* **Small images** (decided 2026-10-05): a photo whose shorter side is under a size set in
+  Settings › Files gets a note, "Small image: 640 × 480", with **Keep in library** and
+  **Reject**, and waits outside the library until answered, so thumbnails, web downloads
+  and screenshots never reach the library or a gallery app pointed at it. A larger
+  look-alike already in the library is shown beside it, the strongest sign of a junk
+  copy. The size is a setting and can be switched off, since a library of small images
+  would otherwise hold everything; Index reports how many it held ("312 small images are
+  waiting for your decision"). *Why a note, not a view of its own:* filtering, bulk
+  answers and side-by-side review come with Needs review, and the view buttons are
+  already many. *Still to settle when building:* the default size (a shorter side of
+  800 pixels was suggested) and whether the setting starts on.
 * **A held photo always says so:** the job's result counts them ("3 photos waiting for
   your answer"), and the gallery and Inspector show **Waiting for your answer** on each.
 
