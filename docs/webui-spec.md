@@ -1988,9 +1988,10 @@ They help assess returned candidates; retrieval of rotated photos missed by the
 current matcher is a separate concern. The expanded workspace (§7.4) is the
 side-by-side review surface.
 
-**Future end-of-review save:** after a verified orientation-write path exists,
-offer one decision for remaining rotation changes when the user finishes reviewing,
-not on individual Rotate clicks. Show affected photos and their final orientations,
+**Future end-of-review save** (confirmed 2026-10-05): after a verified orientation-write
+path exists, offer one decision for remaining rotation changes when the user finishes
+reviewing, not on individual Rotate clicks: turning to look stays free, and nothing is
+saved by accident. Show affected photos and their final orientations,
 with choices to save selected changes, discard viewing changes, or return to review.
 Track photos across candidate navigation and reference promotion; do not assume the
 currently displayed pair is the only pair rotated. Define consistent exit handling
@@ -1998,6 +1999,14 @@ for Back, Escape and dialog close before shipping. Resetting to the original
 orientation leaves no rotation change to save. General EXIF edits open the shared
 editor rather than being entered in the comparison table. None of this save flow is
 implemented; closing today's workspace discards its viewing transforms.
+
+**Where a photo can be turned** (decided 2026-10-05): in the comparison, in the photo
+panel (the same one question when the panel closes or moves to another photo with turns
+unsaved), and for a selection through **Actions › Rotate…**, which shows the photos
+turned and asks before saving, as Copy's review does. **No turn control on gallery
+thumbnails:** a card is for picking, a stray click would add a photo to the save
+question, and the panel and Actions already cover one photo and many (Google Photos and
+Apple Photos place rotation the same way).
 
 **Future saved rotation is an EXIF edit, never a pixel edit.** The Inspector and bulk edit will offer
 **Rotate left**, **Rotate right** and **Rotate 180°**. Each changes only the EXIF
@@ -2009,9 +2018,11 @@ a working copy, read-back verification of the tag, the expected-rendering rule f
 pHash above, and a new content identity linked to the old one in lineage, since the
 file's bytes change. The grid thumbnail and detail preview follow the new content;
 both already honour `Orientation`. A rotated copy is no longer byte-identical to its
-former duplicates, and history shows that. Where a format's `Orientation` cannot be
-written safely, the control is unavailable with that reason. It never falls back to
-re-encoding, a sidecar, or a catalog-only rotation a gallery would not see.
+former duplicates, and history shows that. The tag goes where the photo's edits are saved (`engine-spec.md` §9.6: in the file, or the
+XMP sidecar that RAW formats use by default, which leaves the photo's bytes and identity
+unchanged). Where neither can take `Orientation` safely, the control is unavailable with
+that reason. It never falls back to re-encoding, to the other storage method, or to a
+catalog-only rotation a gallery would not see.
 
 **A changed date refiles the photo** to the folder its new date implies,
 automatically and with no setting to disable it. Correcting the date *is* the

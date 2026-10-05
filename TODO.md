@@ -65,8 +65,10 @@ Open work, open design questions and the durability claims ledger. Designs live 
   checkboxes. Edits go in the file or an XMP sidecar by format (decided 2026-10-02,
   §9.6): sidecars move with their photos and are part of its lineage.
 - [ ] Saved orientation edits, separate from temporary viewing rotation: one
-  end-of-review decision for photos still rotated, built on the verified EXIF
-  Orientation write (§7.6); no save promise before that works.
+  end-of-review decision for photos still rotated, in the comparison and the photo
+  panel, and Actions › Rotate… for a selection; no control on thumbnails
+  (`docs/webui-spec.md` §7.5). Built on the verified Orientation write; no save promise
+  before that works.
 
 ## Stats
 
