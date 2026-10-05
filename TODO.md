@@ -11,6 +11,8 @@ Open work, open design questions and the durability claims ledger. Designs live 
   never rejected automatically; it waits in Needs review. With the reject still in
   Rejects: full side by side, Reject it too · Keep it · Keep the old one instead. With
   the reject emptied: its stored thumbnail and details (`docs/webui-spec.md` §7.8).
+- [ ] "Which photo is this sidecar for?": a short-named XMP sidecar that could belong to
+  several photos, held with them until the user answers (`docs/engine-spec.md` §9.6).
 
 ## Similar photos
 
@@ -35,7 +37,8 @@ Open work, open design questions and the durability claims ledger. Designs live 
 - [ ] EXIF editing and copying details between photos, with explicit targets, previews
   and per-file history (`docs/webui-spec.md` §7.5, `docs/engine-spec.md` §9.6). The
   reference, donor and targets are distinct roles, never inferred from navigation or
-  checkboxes.
+  checkboxes. Edits go in the file or an XMP sidecar by format (decided 2026-10-02,
+  §9.6): sidecars move with their photos and are part of its lineage.
 - [ ] Saved orientation edits, separate from temporary viewing rotation: one
   end-of-review decision for photos still rotated, built on the verified EXIF
   Orientation write (§7.6); no save promise before that works.

@@ -6,7 +6,7 @@ from pathlib import Path
 import ns_db
 import ns_similarity
 from . import catalog
-from .similarity_sql import AVAILABLE, VALID
+from ns_similarity_cache import AVAILABLE, VALID
 
 THRESHOLDS = (75, 80, 85, 90, 95, 100)
 

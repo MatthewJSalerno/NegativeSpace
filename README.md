@@ -14,6 +14,8 @@ Specifications are organized by component, not by release phase:
 | [api-spec.md](docs/api-spec.md) | The web API as implemented: every route, its parameters, responses and errors |
 | [ui-design.md](docs/ui-design.md) | Shared styling and interaction contract for UI changes |
 | [tests/README.md](tests/README.md) | Automated checks, sample instances and manual validation |
+| [similarity-validation.md](docs/similarity-validation.md) | Validation record for visual similarity: measurements and checkpoints |
+| [large-library-performance.md](docs/large-library-performance.md) | The measurement plan and results for libraries of 200,000+ photos |
 | [TODO.md](TODO.md) | Open work, open design questions and the durability claims ledger |
 
 ## Docker Usage

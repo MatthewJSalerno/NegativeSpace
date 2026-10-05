@@ -4681,9 +4681,9 @@ def main():
                 )
             # Files missing for any OTHER reason are deliberately NOT filtered
             # out: they flow through to process_file_task, which records each
-            # one as Failed with a specific reason. Dropping them here (the
-            # previous behavior) made a stale selection silently shrink, with
-            # nothing in the audit log explaining where those files went.
+            # one as Failed with a specific reason. Dropping them here would
+            # make a stale selection silently shrink, with nothing in the audit
+            # log explaining where those files went.
             candidates = [r[1] for r in rows if r[2] not in SOURCE_CONSUMED_STATUSES]
             logger.info(f"Targeting {len(candidates)} of {len(args.file_ids)} requested file IDs.")
         elif subdir_filter_path is not None:

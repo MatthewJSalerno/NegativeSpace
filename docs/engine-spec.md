@@ -1133,9 +1133,41 @@ answer to "can `Orientation` be written here safely", which the rest of this
 capability needs anyway; a format without one is refused, not re-encoded.
 
 **Write changes back to the metadata source.** Embedded metadata is updated inside
-the delivered photo. Manually entered values also go into that photo. Retained
-source originals are not edited. Unsupported writes fail explicitly rather than
-silently creating a sidecar or storing the correction only in the catalog.
+the delivered photo, or in its XMP sidecar where the settings say so (below). Manually
+entered values go to the same place. Retained source originals are not edited. A format
+that cannot take the chosen method fails explicitly: never a silent fallback to the other
+method, and never a correction stored only in the catalog.
+
+**Where edits are saved** (planned, decided 2026-10-02). Photographers keep RAW edits in
+XMP sidecars rather than inside the RAW, so this is a setting with two groups, set
+separately (Settings › Files): **RAW formats** default to an **XMP sidecar**, with **In
+the file** as the opt-in that brings the RAW consent and warnings; **other formats**
+(JPEG, HEIC, TIFF…) default to **In the file**, with **XMP sidecar** as the option. A
+sidecar leaves the photo's bytes unchanged, so its SHA-1, duplicates and lineage stay put.
+
+*   **Naming:** the full filename plus `.xmp` (`IMG_0001.CR2.xmp`). Immich reads this form
+    first and darktable writes it, and a RAW and its JPEG never share a note; Lightroom
+    reads only `IMG_0001.xmp`, and has no option until someone needs one.
+*   **A photo and its sidecar move together, both or neither,** through Copy, Move, Rename,
+    Reject and Return: if the sidecar cannot move, the photo does not either, and the job
+    says why.
+*   **An existing sidecar is kept and added to:** it travels with the photo, renamed to the
+    full-name form; an edit changes only the edited fields. With both `IMG_0001.xmp` and
+    `IMG_0001.CR2.xmp`, the full-name one wins.
+*   **Sidecars are part of the lineage:** each change records the fields before and after;
+    the sidecar as it first arrived is kept byte for byte in the catalog before the first
+    change, so fields NegativeSpace does not understand survive; its SHA-1 at each step
+    shows any outside change. The way back is a new recorded edit, or **Restore the
+    original sidecar**, itself a recorded step (with no sidecar at first, it removes the
+    one NegativeSpace made).
+*   **A short-named sidecar that could belong to several photos** (`IMG_0001.xmp` beside
+    `IMG_0001.jpg` and `IMG_0001.dng`) is never guessed: one photo of that name, or one the
+    note names inside (Adobe records `crs:RawFileName`), takes it; otherwise the user
+    chooses in Needs review, the answer is recorded and the note renamed to the full-name
+    form. Until then nothing happens to the note or to any photo it could belong to: the
+    job lists them skipped, waiting for the answer, and Index reports how many.
+*   **Still to settle when building:** read-back verification of a sidecar write, as for
+    in-file writes.
 
 **Verify all requested fields before replacement (planned).** Apply a photo's
 requested metadata changes to a temporary working copy and read back every requested
@@ -1166,8 +1198,8 @@ embedded EXIF. **Export sidecars are not read** (decided 2026-10-01): JSON files
 services such as Google Takeout often hold dates a photo lacks, but mature tools exist to
 write them into the photos (Google Photos Takeout Helper, immich-go, ExifTool recipes),
 and each service's format keeps changing. Index detects `.json` files paired with photos
-and tells the user to run such a tool before indexing (`webui-spec.md` §7.5); the engine
-writes no sidecars either.
+and tells the user to run such a tool before indexing (`webui-spec.md` §7.5). Export
+sidecars are a different thing from the XMP sidecars an edit may write.
 
 An edit and any required refile are one user action recording before/after values,
 paths and content identities. **A failed write leaves the file unchanged. A failed

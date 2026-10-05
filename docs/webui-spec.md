@@ -250,7 +250,7 @@ in the other view, show its count and a link rather than implying no matches exi
 * **Folder selection:** users can select a source folder (recursive) and scope the operation to everything currently indexed under it. This maps directly to the engine's `--source-subdir <path>` flag (`engine-spec.md` §4.1). Symlinks are excluded automatically, inherited from the original Index that populated the catalog (a symlink was never indexed as a row in the first place). If a folder hasn't been indexed yet (zero matching rows), show *"No indexed files found under this folder — run an Index first."*
 * **Actions on a selection:** **Actions ▾ → Copy ▸ / Move ▸ → selected (n)** (§4.1); on a
   folder, **this folder (n)**, from the Folders tree (above).
-* **Targeted Execution:** Individual selections use the `--file-ids <id1,id2>` flag; folder selections use `--source-subdir <path>`. These are mutually exclusive targeting mechanisms in a single job — pick one per submission. IDs (not raw file paths) were chosen for the individual case specifically because a database primary key is unambiguous and doesn't depend on path strings staying identical between when the frontend fetched the catalog and when the operation actually runs — and it keeps one targeting implementation rather than a parallel web-only code path, which is what makes the engine directly runnable for debugging and development (see §1).
+* **Targeted Execution:** Individual selections reach the engine as a selection file (`--file-ids-from`, its ids recorded with the job); folder selections use `--source-subdir <path>`. These are mutually exclusive targeting mechanisms in a single job — pick one per submission. IDs (not raw file paths) were chosen for the individual case specifically because a database primary key is unambiguous and doesn't depend on path strings staying identical between when the frontend fetched the catalog and when the operation actually runs — and it keeps one targeting implementation rather than a parallel web-only code path, which is what makes the engine directly runnable for debugging and development (see §1).
 
 ---
 
@@ -265,7 +265,7 @@ One consistent database backup includes settings and lineage. The settings write
 boundary is defined in §6.1; no second database is required.
 
 **Settings are in four groups:** **Appearance** (the palette), **Files** (file types;
-the Rejects reminder, §7.8), **Backups** (how many to keep, the list, Back up now, how to
+the Rejects reminder, §7.8; with the editor, where edits are saved, §7.5), **Backups** (how many to keep, the list, Back up now, how to
 restore) and **Performance** (worker processes). In Settings they are tabs with one **Save
 settings** for all of them, so switching tabs loses nothing; a tab with unsaved changes
 shows a dot, and a save with an error on another tab opens that tab at the field.
@@ -927,7 +927,7 @@ automatically resume blocked work when storage returns. If access fails during a
 action, preserve and report its recorded per-file outcomes rather than claiming
 that no changes occurred.
 
-**Index file-type accounting:** show a summary such as **“15,000
+**Index file-type accounting** *(recorded by the engine; not yet on screen)*: show a summary such as **“15,000
 files found · 12,000 eligible by file type · 3,000 excluded by file type”**, with an
 expandable excluded-count breakdown by extension (including files without an
 extension). Eligibility uses the job's configured extension selection; it does not
@@ -2000,10 +2000,14 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   app derives the difference from one photo). Time-zone tags are never added or changed;
   the screen says the amount is the user's responsibility. The preview flags photos
   landing in the future.
-* **RAW files** are read-only unless RAW editing is enabled (`engine-spec.md` §9.6). With
-  it off, the editor says RAW editing is possible but needs consent and offers **Review
-  and turn on RAW editing…**, the same consent step as Settings, returning to the
-  editable form.
+* **Where edits are saved** (decided 2026-10-02, `engine-spec.md` §9.6): Settings › Files
+  sets it for RAW formats (default **XMP sidecar**) and other formats (default **In the
+  file**). RAW photos are therefore editable out of the box, through their sidecars.
+  Editing inside a RAW file is opt-in: with it off, choosing it offers **Review and turn on
+  RAW editing…**, the consent step with its warnings, returning to the editable form.
+* **A sidecar that could belong to several photos** waits in Needs review (§7.9): "IMG_0001.xmp
+  could belong to IMG_0001.jpg or IMG_0001.dng. Which one?" Until answered, neither the note
+  nor those photos are copied, moved or edited.
 * **An unedited original arriving later** (its bytes match an edited photo's earlier
   SHA-1) is not organized again: it goes to Needs review (§7.9) as "old version of a photo
   you fixed", with **Don't keep it** and **Keep it as its own photo**.
