@@ -1166,6 +1166,16 @@ sidecar leaves the photo's bytes unchanged, so its SHA-1, duplicates and lineage
     chooses in Needs review, the answer is recorded and the note renamed to the full-name
     form. Until then nothing happens to the note or to any photo it could belong to: the
     job lists them skipped, waiting for the answer, and Index reports how many.
+*   **Existing sidecars are read at Index, always** (decided 2026-10-05; no setting). A
+    sidecar holds what someone deliberately corrected (a date, a caption, a rating), and
+    reading it changes nothing on disk. Today an `.xmp` beside a photo is neither read nor
+    carried by Copy and Move, so edits made in another tool stay behind in the source.
+*   **The sidecar wins, field by field** (decided 2026-10-05; no setting): where a sidecar
+    and the embedded EXIF disagree, the sidecar's value is used, as Lightroom, darktable
+    and Immich do, since it records the later correction; a field only the EXIF holds
+    comes from the EXIF. Both values are kept, and every displayed value names its source
+    (`webui-spec.md` §7.5). *Why no priority setting:* few could set it correctly without
+    knowing which tool wrote what, and changing it would silently refile photos.
 *   **Still to settle when building:** read-back verification of a sidecar write, as for
     in-file writes.
 

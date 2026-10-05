@@ -2070,6 +2070,11 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   app derives the difference from one photo). Time-zone tags are never added or changed;
   the screen says the amount is the user's responsibility. The preview flags photos
   landing in the future.
+* **Every displayed value names where it came from** (decided 2026-10-05): the camera's
+  EXIF, an XMP sidecar, the file's modification time, an edit made in NegativeSpace, or a
+  suggestion (the filename, the folder, a look-alike). Where sources disagree, the value
+  used is shown with the other beside it ("2019-07-04, from the sidecar; the camera
+  recorded 2019-07-05").
 * **Where edits are saved** (decided 2026-10-02, `engine-spec.md` §9.6): Settings › Files
   sets it for RAW formats (default **XMP sidecar**) and other formats (default **In the
   file**). RAW photos are therefore editable out of the box, through their sidecars.

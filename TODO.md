@@ -56,6 +56,10 @@ Open work, open design questions and the durability claims ledger. Designs live 
 
 ## Dates and metadata
 
+- [ ] Read XMP sidecars at Index (always on); the sidecar's value wins per field, both
+  kept, each shown with its source; sidecars travel with their photos through Copy, Move,
+  Reject and Return. Today they are neither read nor carried (`docs/engine-spec.md` §9.6).
+
 - [ ] Extend date review to malformed/raw EXIF fields, conflicting capture tags,
   configurable bounds and dismissing known-valid dates if users need these. Current
   flags inspect only the recorded gallery date.
