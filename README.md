@@ -49,16 +49,18 @@ was first indexed from.
 Source and destination must be separate folders, neither inside the other; so must
 `/appdata` and `/backups`.
 
-A minimal `compose.yml`, built from a checkout of this repository:
+A minimal `compose.yml`. Clone the repository, save this as `docker/compose.yml` (or use
+the one already there), then from the `docker/` folder run `docker compose up -d --build`
+and open http://localhost:8080. The images build from the repository root (`..`):
 
 ```yaml
 services:
   web:
-    build: { context: ., dockerfile: docker/web.Dockerfile }
+    build: { context: .., dockerfile: docker/web.Dockerfile }
     ports: ["8080:8080"]
     depends_on: [app]
   app:
-    build: { context: ., dockerfile: docker/app.Dockerfile }
+    build: { context: .., dockerfile: docker/app.Dockerfile }
     environment:
       PUID: 1000
       PGID: 1000
