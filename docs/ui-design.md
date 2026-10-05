@@ -345,6 +345,14 @@ becomes available. If the condition cannot be fixed by the app, state the limita
 instead of offering a retry that cannot help. Verify the remedy changes the reported
 state; refreshing the message alone does not count as recovery.
 
+**Offer hints wherever the catalog has them** (maintainer's standing preference,
+2026-10-05). When the user must decide something, show the clues NegativeSpace already
+holds, each with where it came from: a date suggested from the filename, the folder or a
+dated look-alike; a larger look-alike beside a small image; the reject a new photo
+resembles; the original path and name a file arrived with. A hint is a suggestion the
+user accepts, never a change made for them, and it names its source ("from the
+filename") so it can be judged. Where no hint exists, say so rather than leaving a blank.
+
 Continuous scrolling keeps the existing page and URL model. An appended/prepended
 failure stops announcing loading, shows a readable error and waits for Retry. Retry
 must preserve selection and the visible anchor; old requests must not join a new
