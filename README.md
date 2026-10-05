@@ -30,6 +30,53 @@ was first indexed from.
   for the whole library.
 - **Catalog backups:** automatic, verified and compressed.
 
+## Volumes and settings
+
+| Container path | Holds | Access |
+| --- | --- | --- |
+| `/data/source` | Your photos, as they are | Read-only for Index and Copy; writable only if you Move |
+| `/data/dest` | The organized library (`library/`) and Rejects (`rejects/`) | Read-write |
+| `/appdata` | The catalog, its history and the logs: irreplaceable | Read-write |
+| `/backups` | Catalog backups (not photos), on separate storage from `/appdata` | Read-write |
+| `/cache` | Thumbnails, rebuilt from the photos if lost (optional) | Read-write |
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `PUID` / `PGID` | `1000` | Run as your user, so the files written belong to you (`id -u`, `id -g`) |
+| `TZ` | `UTC` | Time zone for photos without an EXIF date, filed by their file time |
+| Port `8080` | | The web interface |
+
+Source and destination must be separate folders, neither inside the other; so must
+`/appdata` and `/backups`.
+
+A minimal `compose.yml`, built from a checkout of this repository:
+
+```yaml
+services:
+  web:
+    build: { context: ., dockerfile: docker/web.Dockerfile }
+    ports: ["8080:8080"]
+    depends_on: [app]
+  app:
+    build: { context: ., dockerfile: docker/app.Dockerfile }
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: America/New_York
+    volumes:
+      - /path/to/your/photos:/data/source:ro
+      - /path/to/organized:/data/dest
+      - /path/to/appdata:/appdata
+      - /path/to/backups:/backups
+      - cache:/cache
+    stop_grace_period: 5m
+volumes:
+  cache:
+```
+
+The service must be named `app`: the web container sends `/api` to it. The full file,
+with safety checks on every path, is [`docker/compose.yml`](docker/compose.yml).
+
 ## Get started
 
 > **Never mount source and destination to the same underlying folder, or place either folder inside the other.** Different container paths (`/data/source` and `/data/dest`) do not make the storage separate. Check the host folders or network-share mappings, including NFS. Overlapping locations can cause unintended processing or deletion of your photos. This configuration is unsupported. The engine refuses to start when it can see the overlap (the same folder, one inside the other, or one folder mounted at both paths) and never deletes a source that turns out to be the same file as its copy — but it cannot see every alias, such as two separate network mounts of one share.
