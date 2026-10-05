@@ -1219,6 +1219,22 @@ The Dates chart stays within its panel: long year ranges scroll horizontally, wi
 readable year labels and keyboard-accessible year links. The complete counts remain
 available under **As a table**.
 
+**Planned: the Dates chart stays readable whatever the dates** (decided 2026-10-05). A few
+impossible years (year 1, a camera clock set to 2218) currently squash the chart: the
+first screenful shows only stray early years with bars too short to see, and the real
+spread of the library is scrolled out of sight.
+
+* **Its own full-width row** below the tiles, instead of one of the three panels, so many
+  years fit side by side.
+* **Suspicious years are set apart, not plotted:** years the Suspicious dates view flags
+  (before 1800, or more than a year ahead) are counted in one labelled bar at each end,
+  "before 1800: 3", "future: 6", linking to that view, so they neither stretch the axis
+  nor hide the real years.
+* **Every year between the earliest and latest real year is shown,** an empty year as an
+  empty slot, so gaps read as gaps; the bars scale to the busiest real year.
+* Year links, keyboard access and **As a table** stay as they are.
+
+
 "How much space are my duplicates wasting?" is a headline figure for the Stats page, and the catalog already answers it without any engine change. Deduplication acts on two different volumes, though, and conflating them produces a number that is wrong in whichever direction the user's mode does not apply:
 
 | Figure | Where | Realized by |

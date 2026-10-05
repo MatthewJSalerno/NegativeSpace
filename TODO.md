@@ -43,6 +43,11 @@ Open work, open design questions and the durability claims ledger. Designs live 
   end-of-review decision for photos still rotated, built on the verified EXIF
   Orientation write (§7.6); no save promise before that works.
 
+## Stats
+
+- [ ] The Dates chart on its own full-width row, with suspicious years set apart at each
+  end, so a few impossible dates cannot squash it (`docs/webui-spec.md` §5.9).
+
 ## Warnings that need a way out
 
 - [ ] An import-completion summary and a catalog-wide filter for files whose visual
