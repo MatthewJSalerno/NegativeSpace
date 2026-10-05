@@ -122,6 +122,11 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 
 ## Before the first release
 
+- [ ] **Review every message the user sees**, once the screens are settled: a private
+  document listing each message's text with where it appears and the scenario that shows
+  it (screen, condition), drawn from the screens, the API's error messages and the
+  engine's reasons that reach the page, so the maintainer can read them all in one place.
+
 - [ ] **Version 1.0.0 and the changelog:** keep [CHANGELOG.md](CHANGELOG.md) current as each
   change merges; 1.0.0 is the first release ([Semantic Versioning](https://semver.org/)).
 - [ ] **Say what it runs on:** a minimum Linux and Docker version in the README, and that
