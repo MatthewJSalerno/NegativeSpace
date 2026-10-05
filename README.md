@@ -15,6 +15,17 @@ deleted. Interrupted jobs are reconciled on the next start, the catalog is backe
 after every job that changes it, and every photo's history is kept back to the file it
 was first indexed from.
 
+## Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Documentation](#documentation)
+- [Running the engine directly](#running-the-engine-directly)
+- [Notes and details](#notes-and-details)
+
 ## Features
 
 - **Organize by date:** `YYYY/MM/DD` from EXIF; photos without a usable date go to
@@ -30,15 +41,38 @@ was first indexed from.
   for the whole library.
 - **Catalog backups:** automatic, verified and compressed.
 
-## Volumes and settings
+## Requirements
 
-| Container path | Holds | Access |
-| --- | --- | --- |
-| `/data/source` | Your photos, as they are | Read-only for Index and Copy; writable only if you Move |
-| `/data/dest` | The organized library (`library/`) and Rejects (`rejects/`) | Read-write |
-| `/appdata` | The catalog, its history and the logs: irreplaceable | Read-write |
-| `/backups` | Catalog backups (not photos), on separate storage from `/appdata` | Read-write |
-| `/cache` | Thumbnails, rebuilt from the photos if lost (optional) | Read-write |
+- Docker with the Compose plugin (`docker compose`), on Linux. Everything else (ExifTool,
+  the image libraries) is inside the images.
+- Four folders on the host: your photos, an empty destination, and two for the app's own
+  data and its backups (see [Configuration](#configuration)).
+- A desktop browser.
+
+## Quick start
+
+```bash
+git clone https://github.com/MatthewJSalerno/NegativeSpace.git
+cd NegativeSpace/docker
+cp .env.example .env          # set your four folders, and PUID/PGID to `id -u` / `id -g`
+docker compose up -d --build
+```
+
+Open **http://localhost:8080** (or the host's address). The first visit creates the
+catalog and walks you through the settings. `docker compose down` stops it.
+
+## Configuration
+
+All of it lives in `docker/.env` (copied from `docker/.env.example`; git-ignored, so your
+paths never reach the repository), read by `docker/compose.yml`.
+
+| `.env` variable | Container path | Holds | Access |
+| --- | --- | --- | --- |
+| `SOURCE_DIR` | `/data/source` | Your photos, as they are | Read-only (the default); writable only if you Move |
+| `DEST_DIR` | `/data/dest` | The organized library (`library/`) and Rejects (`rejects/`) | Read-write |
+| `APPDATA_DIR` | `/appdata` | The catalog, its history and the logs: irreplaceable | Read-write |
+| `BACKUP_DIR` | `/backups` | Catalog backups (not photos), on separate storage from `/appdata` | Read-write |
+| *(named volume)* | `/cache` | Thumbnails, rebuilt from the photos if lost | Read-write |
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
@@ -46,21 +80,29 @@ was first indexed from.
 | `TZ` | `UTC` | Time zone for photos without an EXIF date, filed by their file time |
 | Port `8080` | | The web interface |
 
-Source and destination must be separate folders, neither inside the other; so must
-`/appdata` and `/backups`.
+> **Never mount source and destination to the same underlying folder, or place either folder inside the other.** Different container paths (`/data/source` and `/data/dest`) do not make the storage separate. Check the host folders or network-share mappings, including NFS. Overlapping locations can cause unintended processing or deletion of your photos. This configuration is unsupported. The engine refuses to start when it can see the overlap (the same folder, one inside the other, or one folder mounted at both paths) and never deletes a source that turns out to be the same file as its copy — but it cannot see every alias, such as two separate network mounts of one share.
 
-A minimal `compose.yml`. Clone the repository, save this as `docker/compose.yml` (or use
-the one already there), then from the `docker/` folder run `docker compose up -d --build`
-and open http://localhost:8080. The images build from the repository root (`..`):
+Source and destination must be separate folders, neither inside the other; so must the
+app data and backup folders. **Point a gallery application such as Immich at
+`DEST_DIR/library`**, not `DEST_DIR`.
+
+If you write your own compose file instead, the essentials are:
 
 ```yaml
 services:
   web:
-    build: { context: .., dockerfile: docker/web.Dockerfile }
-    ports: ["8080:8080"]
-    depends_on: [app]
-  app:
-    build: { context: .., dockerfile: docker/app.Dockerfile }
+    build:
+      context: ..
+      dockerfile: docker/web.Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - app
+
+  app:                            # the web container sends /api to "app"
+    build:
+      context: ..                 # the images build from the repository root
+      dockerfile: docker/app.Dockerfile
     environment:
       PUID: 1000
       PGID: 1000
@@ -71,66 +113,38 @@ services:
       - /path/to/appdata:/appdata
       - /path/to/backups:/backups
       - cache:/cache
-    stop_grace_period: 5m
+    stop_grace_period: 5m         # lets a cancelled job finish the file it is copying
+
 volumes:
   cache:
 ```
 
-The service must be named `app`: the web container sends `/api` to it. The full file,
-with safety checks on every path, is [`docker/compose.yml`](docker/compose.yml).
+Save it in `docker/`, beside the Dockerfiles. The shipped
+[`docker/compose.yml`](docker/compose.yml) adds a check that every folder exists.
 
-## Get started
+To show the exact build beside the version number at the top right of every page,
+build with `NS_BRANCH=$(git branch --show-current) NS_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build`.
 
-> **Never mount source and destination to the same underlying folder, or place either folder inside the other.** Different container paths (`/data/source` and `/data/dest`) do not make the storage separate. Check the host folders or network-share mappings, including NFS. Overlapping locations can cause unintended processing or deletion of your photos. This configuration is unsupported. The engine refuses to start when it can see the overlap (the same folder, one inside the other, or one folder mounted at both paths) and never deletes a source that turns out to be the same file as its copy — but it cannot see every alias, such as two separate network mounts of one share.
+## Usage
 
-NegativeSpace runs as two containers, defined in `docker/compose.yml` (everything Docker lives in `docker/`):
+1. **Index** reads your photos into the catalog. It moves and copies nothing.
+2. **Copy** (never touches the source) or **Move** (removes each source after its copy is
+   verified) everything not yet organized, a folder, or the photos you select. Both show
+   what they will do and ask first.
+3. **Has similar photos** shows look-alikes; open a photo to compare its matches side by
+   side, keep one and reject the rest. Percentages measure visual similarity: below 90%,
+   matches are more likely to be unrelated.
+4. **Reject** moves a photo you do not want to `rejects/`; the **Rejects** view shows what
+   it holds and how to empty it, and **Return to library** brings a photo back.
+5. **Logs** lists every job and failure with its reason and **Retry**; **Stats** gives
+   figures for the whole library; each photo's **lineage** shows everything that happened
+   to it.
 
-| Container | Holds |
-| --- | --- |
-| `web` | The screens, on port 8080. It passes everything under `/api` to `app`. |
-| `app` | The API and the engine it runs, with all the volumes. Its port is not published. |
-
-Put your four folders in `docker/.env` once (copy `docker/.env.example`; the file is
-git-ignored), then build and start both:
-
-```bash
-cp docker/.env.example docker/.env   # then edit the paths in docker/.env
-NS_BRANCH=$(git branch --show-current) NS_COMMIT=$(git rev-parse --short HEAD) \
-  docker compose -f docker/compose.yml up -d --build
-```
-
-`NS_BRANCH` and `NS_COMMIT` are optional: they put the branch and commit beside the
-release number at the top right of every page, so a report names the exact build.
-
-Compose reads `docker/.env` by itself, in any terminal. Without it, compose stops with
-"required variable SOURCE_DIR is missing a value". Setting the same names with
-`export` also works, but only for that terminal.
-
-Open **http://localhost:8080** (or the host's address). `docker compose -f docker/compose.yml down` stops both.
-
-- **First visit:** there is no catalog yet, so the page offers to create one, then shows the settings. Save them to reach the library.
-- **Index** reads your photos into the catalog. It moves and copies nothing.
-- **Copy** or **Move** everything not yet organized, or select photos first. Both ask before they start.
-- After Copy or Move, choose **Has similar photos** in the gallery; opening a photo selects the
-  Inspector's **Similar photos** tab. The initial view uses **90%**, **Most matches
-  first**, and grouping; your changes are remembered. Identical sets appear once,
-  while partially overlapping sets remain separate. Use the **Most matches first** shortcut
-  (also in Sort) and a **Matches at or above** percentage to start with photos having
-  the most qualifying matches; cards show counts across the destination library.
-  Browse matches at 75–100% and review them side
-  by side, comparing format, dimensions, file size and metadata. Percentages measure
-  visual similarity, not confidence; below 90%, results are more likely to be unrelated.
-  Copy a review link, step between gallery sets, or show one set’s members in the
-  gallery. Reject a look-alike from there, or keep one and reject the rest; viewing
-  rotation is temporary. EXIF editing and saved rotation remain future work.
-- **Reject** a photo you do not want: **Reject…** on it, or select photos and use Actions ›
-  **Reject selected**. It moves to the `rejects` folder beside `library`; nothing is deleted.
-  The **Rejects** view shows what it holds and how to empty it, and **Return to library**
-  brings a photo back. You empty the folder yourself.
-- The drawer at the bottom shows a running job's progress and lets you cancel it. Closing the browser does not stop a job.
-- **Move needs a writable source.** It deletes each source file after its copy is verified. With a read-only source a Move can only copy: each photo is shown as **Copied only**, with the reason, and nothing is lost. To Move, set `read_only: false` on the source volume in `docker/compose.yml`, then Move those photos again to remove the originals.
-- Stopping the containers cancels a running job cleanly; the compose file allows five minutes for a large file to finish copying first.
-
+A running job shows its progress at the top of the page and can be cancelled; closing the
+browser does not stop it, and stopping the containers cancels it cleanly. **Move needs a
+writable source:** with a read-only one it can only copy, and each photo shows **Copied
+only** with the reason; set `read_only: false` on the source volume in
+`docker/compose.yml` and Move them again.
 
 ## Documentation
 
@@ -226,7 +240,7 @@ docker run --rm --stop-timeout 300 \
 
 ---
 
-## Configuration & Notes
+## Notes and details
 
 - **User Mapping:** `PUID`/`PGID` match the container process permissions to your host user, preventing root-owned output files. On start, the container gives that user ownership of all of `/appdata`, but only the top of `/data/dest`. Folders and files already in the destination keep their owners, so use the same `PUID`/`PGID` every time. The container refuses to start if `/appdata` is not writable by that user, and warns if `/data/dest` is not.
 - **Timezone (`TZ`):** Controls which `Undated/<year>/` folder a photo lands in when it has **no usable EXIF date** and the engine falls back to the file's modification time. A container does **not** inherit your workstation's timezone — it runs UTC unless told otherwise — so a file modified at 21:00 local time is read as the *next* day. Pass your zone to avoid that:
