@@ -12,6 +12,12 @@ Open work, open design questions and the durability claims ledger. Designs live 
   recorded in the photo's history, never as a failure, and drop out of Move's count and
   Stats' "A Move would free" (`docs/engine-spec.md` §4.2). Copy-only users depend on it.
 
+## Names
+
+- [ ] "Also arrived as" in the photo panel: the other names and folders of identical
+  copies, each with Use this name, plus Rename… and a Has other names filter; the engine's
+  rename and candidate list already exist (`docs/webui-spec.md` §7.3).
+
 ## Views
 
 - [ ] Views named by where a photo is: Library (default), To organize, Rejects, Needs

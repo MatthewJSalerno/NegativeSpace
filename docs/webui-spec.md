@@ -1552,7 +1552,7 @@ shape is stated once.
 **Tab or filter?** A population that comes with its own job to do gets a tab; a
 population that is merely a subset of an existing view, with no action that view
 lacks, gets a filter. Similarity uses the gallery filter and Inspector because review
-begins with a particular photo. Rename remains a planned curation task (Undated photos are a Needs review reason, §3.1),
+begins with a particular photo. Renaming is planned in the photo panel (§7.3; undated photos are a Needs review reason, §3.1),
 with their eventual placement separate from the current gallery matching workflow.
 A "failed operations" screen is Logs filtered to failures and introduces no action
 Logs lacks.
@@ -1585,7 +1585,7 @@ reads as "handled" when nothing has been. After successful duplicate removal, th
 Copy operation or failed cleanup may still remain in source. Show recorded outcomes
 per copy rather than treating every duplicate as removed merely because a Move ran.
 
-### 7.3 The Rename tab
+### 7.3 Renaming, and the names a photo arrived with
 
 When duplicates collapse to one file, the survivor may carry the least useful
 name in its group — a camera-style serial name can survive while the copy
@@ -1594,12 +1594,18 @@ name held the information. This is a presentation problem, not an engine one:
 the alternatives are already catalogued on the `Duplicate`/`Removed_Duplicate`
 rows and on every `operations` row, groupable by `sha1_hash`.
 
-* Lists delivered photos whose duplicate group holds a different filename stem.
-* Default sort **most duplicates first**; also sortable by date taken, filename,
-  destination folder, file size, and most recently moved.
-* Each row shows a framed picture with the group's full paths and filenames
-  beside or beneath it, whichever reads better at width.
-* A **Rename destination file** control sits in the path list.
+**In the photo panel, not a tab** (decided 2026-10-05). Identical copies are the same
+photo, so no choice of name can be wrong and nothing asks: the first-indexed name stays
+until the user changes it.
+
+* The panel lists **Also arrived as**: every other name and folder the group carried,
+  each with **Use this name** (the breadcrumbs of `ui-design.md`, "Validation and
+  feedback"), and **Rename…** to type one.
+* A Library filter, **Has other names**, finds the photos whose group holds a different
+  filename stem, sorted most duplicates first, for working through them.
+* *Why not a Needs review note per group:* a large library holds thousands, and none is a
+  problem. *Why not pick the "best" name automatically:* rules such as "a typed name beats
+  a camera number" fail often enough to annoy; the user decides.
 
 **Workflow.** Pick any filename from the group **or type one**. A typed name
 validates live against the destination folder, so a collision is caught before

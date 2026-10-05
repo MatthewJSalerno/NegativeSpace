@@ -241,7 +241,7 @@ Specified but not yet on screen:
     rebuild grid thumbnails (the engine jobs exist; `webui-spec.md` §4.2.1).
 *   The Index file-type summary (files found, eligible and excluded by type), which the
     engine records per full Index (`webui-spec.md` §5.1).
-*   The Rename tab, undated photos as a Needs review reason with suggested dates, and metadata editing (`webui-spec.md` §7.5, with its
+*   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built), undated photos as a Needs review reason with suggested dates, and metadata editing (`webui-spec.md` §7.5, with its
     decided details).
 *   Needs review (`webui-spec.md` §7.9), with the similar-to-a-reject check
     (`webui-spec.md` §7.8); the destination
