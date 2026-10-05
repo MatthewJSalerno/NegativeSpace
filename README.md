@@ -23,7 +23,6 @@ was first indexed from.
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [Documentation](#documentation)
-- [Running the engine directly](#running-the-engine-directly)
 - [Notes and details](#notes-and-details)
 - [License](#license)
 
@@ -154,6 +153,7 @@ Specifications are organized by component, not by release phase:
 | Document | Covers |
 | --- | --- |
 | [project-spec.md](docs/project-spec.md) | Scope boundary, architecture, and what exists today — start here |
+| [engine-cli.md](docs/engine-cli.md) | Running the engine as a command, for development and scripting |
 | [engine-spec.md](docs/engine-spec.md) | `ns-engine.py`: hashing, metadata, placement, Copy-Verify-Delete, and the SQLite catalog it owns |
 | [webui-spec.md](docs/webui-spec.md) | The browser-facing half: jobs, selection, settings, logs, inspection, curation |
 | [api-spec.md](docs/api-spec.md) | The web API as implemented: every route, its parameters, responses and errors |
@@ -162,84 +162,6 @@ Specifications are organized by component, not by release phase:
 | [similarity-validation.md](docs/similarity-validation.md) | Validation record for visual similarity: measurements and checkpoints |
 | [large-library-performance.md](docs/large-library-performance.md) | The measurement plan and results for libraries of 200,000+ photos |
 | [TODO.md](TODO.md) | Open work, open design questions and the durability claims ledger |
-
-## Running the engine directly
-
-The sections below describe the engine's modes and options in more detail. The commands that run the engine directly are for development and debugging; the web interface runs the same engine for you. They use the `app` image:
-
-```bash
-docker build -f docker/app.Dockerfile -t negativespace .
-```
-
-### Operations Summary
-
-NegativeSpace has three mutually exclusive modes. `--move` and `--copy` cannot be combined — pick at most one:
-
-| Mode | Flag | Source files | Destination |
-| --- | --- | --- | --- |
-| **Index** (default) | *(none)* | Untouched | Nothing written |
-| **Move** | `--move` | Deleted after a verified copy lands at destination; confirmed exact duplicates are also removed from source | Files organized under `library/` into `YYYY/MM/DD`, or `Undated/<year>/` when the engine cannot date them |
-| **Copy** | `--copy` | Never touched — fully non-destructive | Files organized under `library/` into `YYYY/MM/DD`, or `Undated/<year>/` when the engine cannot date them |
-
-**Rejecting** a photo you do not want (a website download, a blurry shot) moves it from `library/` to the same folders under `rejects/` in the destination (`--reject` with `--file-ids` or `--source-subdir`; in the web interface, Actions › Reject or **Reject…** on a photo). NegativeSpace never deletes it: look through the Rejects view, use Return to library for any you want back, then empty `rejects/` yourself. Identical copies stay out of the library: Copy skips them and Move removes their sources only against the verified copy in Rejects.
-
-The Destination column describes `/data/dest` only. Every mode begins with a scan, and the scan generates thumbnails into `/cache` (see Volume Layout) unless `--no-thumbnails` is passed — so "nothing written" above means nothing written *to the destination tree*, not that Index writes nothing at all.
-
-### Run the engine directly: Index
-
-Scan, extract metadata, hash every file (SHA1 + pHash), generate grid thumbnails, and catalog everything into SQLite — including flagging exact duplicates — without moving, copying, or deleting anything. Mount `/data/source` as read-only (`:ro`) for safety; Index never needs write access to it.
-
-```bash
-docker run --rm --stop-timeout 300 \
-  -e PUID=$(id -u) -e PGID=$(id -g) \
-  -v /path/to/your/photos:/data/source:ro \
-  -v /path/to/organized:/data/dest \
-  -v /path/to/appdata:/appdata \
-  -v /path/to/backups:/backups \
-  -v /path/to/cache:/cache \
-  negativespace python3 ns-engine.py
-```
-
-Mounting `/cache` is optional — left unmounted, thumbnails live in the container's writable layer and are regenerated after the container is replaced. Two flags control this:
-
-| Flag | Default | Effect |
-| --- | --- | --- |
-| `--cache` | `/cache` | Directory holding generated thumbnails. Written only by the scan phase. |
-| `--no-thumbnails` | *(off)* | Skip generation entirely. Cataloguing is unchanged; the gallery shows placeholders until a later run generates them. |
-
-A thumbnail is disposable cache and never decides whether a file is catalogued: an unreadable photo, a full disk or an unwritable `/cache` records the reason and lets the Index finish normally.
-
-### Run the engine directly: Move (Copy-Verify-Delete)
-
-Performs pre-flight disk space validation, copies files, verifies SHA1 checksums, and only then deletes originals from the source folder. Confirmed exact duplicates are also removed from source once a verified copy of their content exists at the destination. **Drop `:ro`** — this mode deletes from source, so the container needs write access to it.
-
-```bash
-docker run --rm --stop-timeout 300 \
-  -e PUID=$(id -u) -e PGID=$(id -g) \
-  -v /path/to/your/photos:/data/source \
-  -v /path/to/organized:/data/dest \
-  -v /path/to/appdata:/appdata \
-  -v /path/to/backups:/backups \
-  negativespace python3 ns-engine.py --move
-```
-
-### Run the engine directly: Copy (non-destructive)
-
-Same verified Copy-Verify step as Move, but the source file is never deleted or modified — nothing is ever removed from source, including duplicates. Because of this, `/data/source` can safely **stay `:ro`** even in this mode, unlike `--move`.
-
-```bash
-docker run --rm --stop-timeout 300 \
-  -e PUID=$(id -u) -e PGID=$(id -g) \
-  -v /path/to/your/photos:/data/source:ro \
-  -v /path/to/organized:/data/dest \
-  -v /path/to/appdata:/appdata \
-  -v /path/to/backups:/backups \
-  negativespace python3 ns-engine.py --copy
-```
-
-> **Note:** `--move` against a read-only-mounted source will not corrupt anything: the copy succeeds and only the source deletion fails, so each photo is recorded `Copied`, its operation giving the reason the original was kept, and nothing is ever lost. Re-running is safe and does **not** accumulate duplicate copies: the engine recognizes that an identical copy already exists at the destination and skips rewriting it. Once the source is writable, `--move` finishes the job by deleting the originals. Use `--copy` for read-only sources instead — it is the same verified copy without the futile delete step.
-
----
 
 ## Notes and details
 
@@ -289,7 +211,7 @@ docker run --rm --stop-timeout 300 \
   Your photos are not at risk if you do it — a source is only ever deleted after the engine doing the deleting has verified, live, the copy it made itself. What you get instead is unexplained failures: crash recovery in one catalog can delete a partial file the other is still writing, both can pick the same free filename and one loses the race, and neither knows about the other's files, so the same photo can be delivered twice under different names. Each of those ends as a recorded failure or a redundant copy, never a lost original.
 
   Use one `/appdata` per destination. Several *sources* feeding one destination is fine — that's one catalog with several runs, which is exactly what it's built for.
-- **Cancelling a run.** `docker stop <container>` sends the engine a cancel: it finishes the file it is copying, records every photo it did not reach as `Cancelled`, takes a catalog backup, and settles the run `Cancelled`. Docker waits only **10 seconds** before killing the container by default, and one large file over a network share can take longer than that. The examples above pass `--stop-timeout 300`, which raises that wait for this container, and `docker/compose.yml` sets `stop_grace_period: 5m`. A run killed before it settles is not lost: it is recorded `Interrupted` at the next start and its files are reconciled, but it gets no backup until you run `--backup-now` or the next job that records changes.
+- **Cancelling a run.** `docker stop <container>` sends the engine a cancel: it finishes the file it is copying, records every photo it did not reach as `Cancelled`, takes a catalog backup, and settles the run `Cancelled`. Docker waits only **10 seconds** before killing the container by default, and one large file over a network share can take longer than that. `docker/compose.yml` sets `stop_grace_period: 5m` to allow for it. A run killed before it settles is not lost: it is recorded `Interrupted` at the next start and its files are reconciled, but it gets no backup until you run `--backup-now` or the next job that records changes.
 - **If a run appears stuck.** Cancellation is checked between files, and between batches during a scan, so a worker blocked indefinitely — an unresponsive network mount, a native decoder wedged on a malformed file — can stall a scan with no deadline. The symptom is progress lines stopping while the container stays alive.
 
   `docker stop` is the remedy, and it is safe: it escalates to `SIGKILL`, the kernel releases the lock immediately, and the next run marks the interrupted run `Interrupted` and settles any file left mid-operation. Nothing needs cleaning up by hand.
