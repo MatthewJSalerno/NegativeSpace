@@ -2141,8 +2141,13 @@ beside the gallery.
 * **The comparison workspace** (§7.4) runs in the frame: its address, Back to gallery,
   focus return and candidate stepping are the frame's. A single-photo edit will be the
   same workspace with one column. Esc goes back and ← → step, stopping at the ends.
-* **Still to decide by trying it:** what ‹ › steps through (candidate: whatever the
-  workspace was opened from, named in the header, e.g. "3 of 24 selected").
+* **What ‹ › steps through** (decided 2026-10-05): whatever the workspace was opened
+  from, named in the header so the next step is never a surprise. The comparison steps
+  through the starting photo's look-alikes ("Candidate 1 of 5"); Needs review one by one
+  through the notes of the list it came from, in that list's filter and order; the editor
+  through the gallery's current order and filters, the selection ("3 of 24 selected") or
+  the Needs review list, whichever it was opened from. *Why not always the gallery:*
+  editing a selection would wander off into photos that were not selected.
 * Follows `ui-design.md`; the frame's patterns are added there when built. Visual options
   are chosen from a mockup first.
 
