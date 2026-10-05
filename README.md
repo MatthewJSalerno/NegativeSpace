@@ -1,28 +1,38 @@
 # NegativeSpace
 
-Organizes large photo collections into dated folders using EXIF metadata, hash verification and transactional file moves. You use it through a web interface in your browser; the engine behind it does the file work.
+NegativeSpace puts a large, messy photo collection in order. It reads every photo's date
+from its EXIF metadata and files it under `YYYY/MM/DD`, finds exact duplicates and
+look-alikes, and lets you turn down the photos you do not want. You use it through a web
+interface in your browser; the engine behind it does the file work and records
+everything it does.
 
-## Documentation
+**Your photos come first.** Nothing is deleted on trust: every copy is verified against
+its original's checksum before anything happens to the original, and Move only removes a
+source after its copy has been verified, live, at the destination. Index and Copy never
+write to your source at all, so you can run them against a **read-only** mount of your
+library and only ever let Move write to it. Photos you reject are moved aside, never
+deleted. Interrupted jobs are reconciled on the next start, the catalog is backed up
+after every job that changes it, and every photo's history is kept back to the file it
+was first indexed from.
 
-Specifications are organized by component, not by release phase:
+## Features
 
-| Document | Covers |
-| --- | --- |
-| [project-spec.md](docs/project-spec.md) | Scope boundary, architecture, and what exists today — start here |
-| [engine-spec.md](docs/engine-spec.md) | `ns-engine.py`: hashing, metadata, placement, Copy-Verify-Delete, and the SQLite catalog it owns |
-| [webui-spec.md](docs/webui-spec.md) | The browser-facing half: jobs, selection, settings, logs, inspection, curation |
-| [api-spec.md](docs/api-spec.md) | The web API as implemented: every route, its parameters, responses and errors |
-| [ui-design.md](docs/ui-design.md) | Shared styling and interaction contract for UI changes |
-| [tests/README.md](tests/README.md) | Automated checks, sample instances and manual validation |
-| [similarity-validation.md](docs/similarity-validation.md) | Validation record for visual similarity: measurements and checkpoints |
-| [large-library-performance.md](docs/large-library-performance.md) | The measurement plan and results for libraries of 200,000+ photos |
-| [TODO.md](TODO.md) | Open work, open design questions and the durability claims ledger |
+- **Organize by date:** `YYYY/MM/DD` from EXIF; photos without a usable date go to
+  `Undated/<year>` rather than being given a guessed one.
+- **Duplicates:** exact copies found by content, filed once, with every copy recorded.
+- **Find similar:** visual look-alikes, browsed by percentage and compared side by side.
+- **Reject, without deleting:** turned-down photos move to a Rejects folder you empty
+  yourself, and can be returned until then.
+- **Copy or Move:** select any number of photos, a folder, or everything; reviewed before
+  anything runs.
+- **History and lineage:** every file a photo has been, and every job that touched it.
+- **Logs, retry and stats:** failures with their reasons and a way to fix them; figures
+  for the whole library.
+- **Catalog backups:** automatic, verified and compressed.
 
-## Docker Usage
+## Get started
 
 > **Never mount source and destination to the same underlying folder, or place either folder inside the other.** Different container paths (`/data/source` and `/data/dest`) do not make the storage separate. Check the host folders or network-share mappings, including NFS. Overlapping locations can cause unintended processing or deletion of your photos. This configuration is unsupported. The engine refuses to start when it can see the overlap (the same folder, one inside the other, or one folder mounted at both paths) and never deletes a source that turns out to be the same file as its copy — but it cannot see every alias, such as two separate network mounts of one share.
-
-### Start the web interface
 
 NegativeSpace runs as two containers, defined in `docker/compose.yml` (everything Docker lives in `docker/`):
 
@@ -71,6 +81,25 @@ Open **http://localhost:8080** (or the host's address). `docker compose -f docke
 - The drawer at the bottom shows a running job's progress and lets you cancel it. Closing the browser does not stop a job.
 - **Move needs a writable source.** It deletes each source file after its copy is verified. With a read-only source a Move can only copy: each photo is shown as **Copied only**, with the reason, and nothing is lost. To Move, set `read_only: false` on the source volume in `docker/compose.yml`, then Move those photos again to remove the originals.
 - Stopping the containers cancels a running job cleanly; the compose file allows five minutes for a large file to finish copying first.
+
+
+## Documentation
+
+Specifications are organized by component, not by release phase:
+
+| Document | Covers |
+| --- | --- |
+| [project-spec.md](docs/project-spec.md) | Scope boundary, architecture, and what exists today — start here |
+| [engine-spec.md](docs/engine-spec.md) | `ns-engine.py`: hashing, metadata, placement, Copy-Verify-Delete, and the SQLite catalog it owns |
+| [webui-spec.md](docs/webui-spec.md) | The browser-facing half: jobs, selection, settings, logs, inspection, curation |
+| [api-spec.md](docs/api-spec.md) | The web API as implemented: every route, its parameters, responses and errors |
+| [ui-design.md](docs/ui-design.md) | Shared styling and interaction contract for UI changes |
+| [tests/README.md](tests/README.md) | Automated checks, sample instances and manual validation |
+| [similarity-validation.md](docs/similarity-validation.md) | Validation record for visual similarity: measurements and checkpoints |
+| [large-library-performance.md](docs/large-library-performance.md) | The measurement plan and results for libraries of 200,000+ photos |
+| [TODO.md](TODO.md) | Open work, open design questions and the durability claims ledger |
+
+## Running the engine directly
 
 The sections below describe the engine's modes and options in more detail. The commands that run the engine directly are for development and debugging; the web interface runs the same engine for you. They use the `app` image:
 
