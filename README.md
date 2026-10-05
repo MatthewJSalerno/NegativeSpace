@@ -28,6 +28,7 @@ was first indexed from.
 - [Configuration](#configuration)
 - [Security](#security)
 - [Usage](#usage)
+- [What it doesn't do](#what-it-doesnt-do)
 - [Documentation](#documentation)
 - [Notes and details](#notes-and-details)
 - [License](#license)
@@ -174,6 +175,22 @@ only** with the reason; set `read_only: false` on the source volume in
 </p>
 
 The [user guide](docs/user-guide.md) walks through a first session, with screenshots.
+
+## What it doesn't do
+
+NegativeSpace organizes photo files; it deliberately leaves the rest to other tools. It
+never:
+
+- backs up your photos (keep your own backups);
+- deletes a photo, beyond Move removing an original once its copy is verified;
+- writes to your source for anything else;
+- edits pixels: no cropping, filters or re-saving;
+- manages albums, people or faces (point a gallery app such as Immich at `library/`);
+- has several user accounts, or runs in the cloud.
+
+Not yet: videos and other non-photo files (left untouched for now), editing dates and other
+details, phones and tablets, and Mac or Windows hosts. The full list, with the reasons, is
+in the [web interface spec](docs/webui-spec.md#8-explicitly-out-of-scope).
 
 ## Documentation
 

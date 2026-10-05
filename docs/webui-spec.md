@@ -2196,8 +2196,27 @@ general tagging system: personal labels (people, albums) belong to gallery appli
 
 ## 8. Explicitly Out of Scope
 
-* **The engine-side capabilities these workflows depend on** — the destination check, the perceptual pair table, destination deletion, and EXIF writing — are specified in `engine-spec.md` §9, not here. This document covers what the user sees and does; that one covers what the engine must be able to do first. The destination check and renaming are implemented.
-* **Multi-user auth/sessions** — not addressed in this spec. Add as a separate concern if the web UI needs to be exposed beyond a single trusted user on a local/private network.
+What NegativeSpace deliberately does not do (decided 2026-10-05). **Never** is outside what
+the tool is for; **Not yet** is planned or possible later. The README's "What it doesn't
+do" is the short form of this table: **change both together** whenever a scope decision
+changes, and move a row out once it is built.
+
+| Not done | | Why |
+| --- | --- | --- |
+| Back up your photos | Never | Backup tools do it better; NegativeSpace backs up only its catalog (§9) |
+| Delete photos, beyond Move removing originals after a verified copy | Never | Rejects is emptied by the user; the app never deletes a photo |
+| Write to the source, except Move removing originals | Never | The library stays read-only for everything else |
+| Edit pixels (crop, filters, re-saving) | Never | Rotation is metadata only (§7.5); editing belongs to photo editors |
+| Albums, people, faces, keywords for browsing | Never | Gallery applications such as Immich do this; NegativeSpace organizes files for them, and Needs review notes are for decisions only (§7.9) |
+| Several users with their own accounts | Never | A single person's tool; one password is planned (§11) |
+| Run in the cloud, or sync between machines | Never | It works on mounted folders |
+| Videos and other non-photo files | Not yet | Deferred until photo organizing is complete; until then they are left untouched |
+| Edit dates and other metadata | Not yet | Planned: the editor (§7.5), with XMP sidecars for RAW (`engine-spec.md` §9.6) |
+| Mobile and touch | Not yet | Built for desktop browsers; phones are not tested |
+| Mac and Windows hosts | Not yet | Tested on Linux only |
+
+The engine-side capabilities these workflows depend on are specified in `engine-spec.md`
+§9; this document covers what the user sees and does.
 
 ## 9. Catalog Backups
 
