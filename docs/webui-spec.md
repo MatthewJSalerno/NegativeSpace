@@ -2145,6 +2145,25 @@ general tagging system: personal labels (people, albums) belong to gallery appli
 * **A note exists only when a person must decide.** Facts the catalog can compute (every
   similar pair) stay live queries, so the list cannot grow into a copy of the library.
 * **A resolved note leaves the list;** the decision goes into the photo's history.
+* **Whether a photo waits depends on its note** (decided 2026-10-05). A note that holds
+  its photo keeps it from Copy, Move and edits until answered; the others let it carry
+  on as normal and ask afterwards:
+
+  | Note | While it waits |
+  | --- | --- |
+  | Which photo is this sidecar for? (§7.5) | Held: the sidecar and every photo it could belong to |
+  | Old version of a photo you fixed | Held: not organized into the library |
+  | Looks like a reject (§7.8) | Carries on: filed as normal; rejecting it later moves it to Rejects |
+  | Suspicious date | Carries on: filed by the date it has; fixing the date refiles it |
+  | Couldn't be read | Nothing to hold: the file failed and stays where it is |
+  | Review later (set by the user) | Carries on |
+
+  *Why not hold everything:* a look-alike of a reject may not be one, and holding it would
+  leave a gap in the library until answered. *Why not carry everything on:* filing an
+  unfixed old version beside its fix, or giving a photo another's sidecar, is the wrong
+  thing to do and harder to undo than to wait.
+* **A held photo always says so:** the job's result counts them ("3 photos waiting for
+  your answer"), and the gallery and Inspector show **Waiting for your answer** on each.
 
 ## 8. Explicitly Out of Scope
 
