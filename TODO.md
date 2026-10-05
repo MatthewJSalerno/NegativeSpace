@@ -25,6 +25,9 @@ Open work, open design questions and the durability claims ledger. Designs live 
   never rejected automatically; it waits in Needs review. With the reject still in
   Rejects: full side by side, Reject it too · Keep it · Keep the old one instead. With
   the reject emptied: its stored thumbnail and details (`docs/webui-spec.md` §7.8).
+- [ ] "No capture date": suggested dates from the name, the folder or a dated look-alike,
+  answered in bulk through the editor; the photo stays under `Undated/` meanwhile
+  (`docs/webui-spec.md` §3.1).
 - [ ] "Small image": photos under a size set in Settings wait outside the library for Keep
   or Reject, a larger look-alike shown beside them (`docs/webui-spec.md` §7.9).
 - [ ] "Which photo is this sidecar for?": a short-named XMP sidecar that could belong to

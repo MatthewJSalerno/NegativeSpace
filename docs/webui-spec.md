@@ -376,11 +376,21 @@ clues, not silently used as capture dates. `CreateDate` and `DateTime` are not
 accepted as capture dates: both are real timestamps that describe the file rather
 than the photograph.
 
-The Undated view provides counts and filters for photos with other date clues but
-no usable capture date, photos with other metadata but no usable date fields, and
+**Undated photos are a Needs review reason** (decided 2026-10-05, §7.9), not a tab of
+their own: "No capture date", with **Use this date** and **Choose another**, the photo
+carrying on under `Undated/` meanwhile. Its filters split photos with other date clues
+but no usable capture date, photos with other metadata but no usable date fields, and
 photos with no readable metadata. Classification uses embedded metadata rather than
-engine-added bookkeeping fields. Selecting a count opens the matching photos for
-manual review in the shared editor. Show original paths/names and clearly label
+engine-added bookkeeping fields. Each note **suggests** a date with where it came from,
+never applied without the user:
+
+* **from the name** (`IMG_20190704_153012.jpg`, `2019-07-04 Beach.jpg`), often exact;
+* **from the folder** (`Summer 2019/`, `2019/07 July/`), usually a year or month;
+* **from a look-alike** that has a capture date (§7.4), such as the original a copy was
+  downloaded from;
+* **by hand, in bulk:** a batch set to one date keeps each photo's own time of day (§7.5).
+
+Answers within the reason are made in bulk, a batch at a time, through the editor. Show original paths/names and clearly label
 capture, digitization and modification dates. Do not automatically promote a clue
 to a capture date. Preserve original and subsequent placement decisions in lineage.
 
@@ -1542,7 +1552,7 @@ shape is stated once.
 **Tab or filter?** A population that comes with its own job to do gets a tab; a
 population that is merely a subset of an existing view, with no action that view
 lacks, gets a filter. Similarity uses the gallery filter and Inspector because review
-begins with a particular photo. Rename and Undated remain planned curation tasks,
+begins with a particular photo. Rename remains a planned curation task (Undated photos are a Needs review reason, §3.1),
 with their eventual placement separate from the current gallery matching workflow.
 A "failed operations" screen is Logs filtered to failures and introduces no action
 Logs lacks.
@@ -2213,6 +2223,7 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   | Suspicious date | Carries on: filed by the date it has; fixing the date refiles it |
   | Couldn't be read | Nothing to hold: the file failed and stays where it is |
   | Small image | Held: not organized into the library |
+  | No capture date (§3.1) | Carries on: stays filed under `Undated/` until dated |
   | Review later (set by the user) | Carries on |
 
   *Why not hold everything:* a look-alike of a reject may not be one, and holding it would
