@@ -2234,6 +2234,11 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   corrected in job #52"), as the engine's needs-attention issues clear only on evidence.
   *Why not make the user dismiss it:* answering something that is no longer a problem is
   busywork, and nothing is lost.
+* **Review later** (decided 2026-10-05): the one note a user sets. **Review later** sits
+  beside **Reject…** in the photo panel, with an optional short note ("check the date");
+  **Done** clears it. Not in Actions: it is a photo-by-photo bookmark, and it holds
+  nothing. It stays a plain "come back to this": no names, colours or lists, which
+  would make it the general tagging that belongs to gallery applications.
 * **Whether a photo waits depends on its note** (decided 2026-10-05). A note that holds
   its photo keeps it from Copy, Move and edits until answered; the others let it carry
   on as normal and ask afterwards:

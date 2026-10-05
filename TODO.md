@@ -34,6 +34,8 @@ Open work, open design questions and the durability claims ledger. Designs live 
 - [ ] "No capture date": suggested dates from the name, the folder or a dated look-alike,
   answered in bulk through the editor; the photo stays under `Undated/` meanwhile
   (`docs/webui-spec.md` §3.1).
+- [ ] "Review later": a button beside Reject… in the photo panel, with an optional short
+  note; Done clears it (`docs/webui-spec.md` §7.9).
 - [ ] "Small image": photos under a size set in Settings wait outside the library for Keep
   or Reject, a larger look-alike shown beside them (`docs/webui-spec.md` §7.9).
 - [ ] "Which photo is this sidecar for?": a short-named XMP sidecar that could belong to
