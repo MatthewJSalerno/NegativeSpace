@@ -133,6 +133,12 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 
 - [ ] **Decide on catalog migration.** `ns_db.py` stamps `catalog_schema.version` and refuses any catalog whose version it does not recognise. While every catalog is a development catalog, refusal plus a fresh Index is enough; that stops being acceptable once a user holds history that cannot be recreated.
 
+## Later
+
+- [ ] **Reports**, not designed yet. A first candidate: a checksum list (`sha1sum` format)
+  of the library, and of the source, so a user who copies and then deletes originals
+  themselves can verify every copy with standard tools, independently of NegativeSpace.
+
 ## Other
 
 Deferred performance and robustness work — a stalled worker having no deadline, the unchanged-file check loading every settled row, batch barriers at submission tails — lives in `engine-spec.md` §8 with the condition that should bring each one back. This file tracks claims that need enforcing; that section tracks work deliberately postponed.
