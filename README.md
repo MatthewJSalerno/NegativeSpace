@@ -163,6 +163,12 @@ A built-in password is planned before the first release.
    figures for the whole library; each photo's **lineage** shows everything that happened
    to it.
 
+**Copy or Move: your choice.** Copy never touches your source, so it can stay read-only for
+good: check the library your own way, outside NegativeSpace, and delete the originals
+yourself when you are confident. Move deletes each original once its copy is verified, and
+needs a writable source. Copy now and Move later works too. Use whichever you feel safe
+with.
+
 A running job shows its progress at the top of the page and can be cancelled; closing the
 browser does not stop it, and stopping the containers cancels it cleanly. **Move needs a
 writable source:** with a read-only one it can only copy, and each photo shows **Copied

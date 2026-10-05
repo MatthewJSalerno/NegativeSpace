@@ -58,6 +58,11 @@ take everything, one folder, or the photos you select, and each asks first.
 
 ![Copy finished](images/copy-finished.png)
 
+Which to use is your choice. If you would rather not give any app write access to your
+originals, use Copy only: the source stays read-only, you check the library your own way,
+and you delete the originals yourself once you are confident. NegativeSpace never needs
+to delete anything for its library to be complete.
+
 ## 5. Similar photos
 
 **Has similar photos** lists photos with look-alikes. Open one and choose **Similar

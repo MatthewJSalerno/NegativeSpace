@@ -4,6 +4,14 @@ Open work, open design questions and the durability claims ledger. Designs live 
 `docs/`; features specified but not yet built are listed in
 [project-spec.md](docs/project-spec.md) §4 ("Specified but not yet on screen").
 
+## Copy, then delete the originals yourself
+
+- [ ] A Copied photo whose original was deleted outside NegativeSpace is not recorded: a
+  full Index checks for missing originals only among photos not yet copied. It should read
+  as normal ("original removed outside NegativeSpace; the copy is in the library"),
+  recorded in the photo's history, never as a failure, and drop out of Move's count and
+  Stats' "A Move would free" (`docs/engine-spec.md` §4.2). Copy-only users depend on it.
+
 ## Views
 
 - [ ] Views named by where a photo is: Library (default), To organize, Rejects, Needs
