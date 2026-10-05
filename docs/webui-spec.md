@@ -2293,6 +2293,7 @@ changes, and move a row out once it is built.
 | Albums, people, faces, keywords for browsing | Never | Gallery applications such as Immich do this; NegativeSpace organizes files for them, and Needs review notes are for decisions only (§7.9) |
 | Several users with their own accounts | Never | A single person's tool; one password is planned (§11) |
 | Run in the cloud, or sync between machines | Never | It works on mounted folders |
+| Published container images | Never | Users build the images from a clone, so what runs is the code they can read (decided 2026-10-05) |
 | Videos and other non-photo files | Not yet | Deferred until photo organizing is complete; until then they are left untouched |
 | Edit dates and other metadata | Not yet | Planned: the editor (§7.5), with XMP sidecars for RAW (`engine-spec.md` §9.6) |
 | Mobile and touch | Not yet | Built for desktop browsers; phones are not tested |

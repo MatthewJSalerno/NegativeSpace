@@ -192,7 +192,8 @@ never:
 - writes to your source for anything else;
 - edits pixels: no cropping, filters or re-saving;
 - manages albums, people or faces (point a gallery app such as Immich at `library/`);
-- has several user accounts, or runs in the cloud.
+- has several user accounts, or runs in the cloud;
+- comes as a published image: you build it from this repository (see [Quick start](#quick-start)).
 
 Not yet: videos and other non-photo files (left untouched for now), editing dates and other
 details, phones and tablets, and Mac or Windows hosts. The full list, with the reasons, is
