@@ -15,6 +15,11 @@ deleted. Interrupted jobs are reconciled on the next start, the catalog is backe
 after every job that changes it, and every photo's history is kept back to the file it
 was first indexed from.
 
+> **NegativeSpace is not a backup of your photos.** It protects files while it moves
+> them, but the backups it makes are of its catalog, never of your photos. Keeping your
+> own backups of your photos is your responsibility. See
+> [If something goes wrong](docs/recovery.md).
+
 ## Contents
 
 - [Features](#features)
@@ -40,7 +45,8 @@ was first indexed from.
 - **History and lineage:** every file a photo has been, and every job that touched it.
 - **Logs, retry and stats:** failures with their reasons and a way to fix them; figures
   for the whole library.
-- **Catalog backups:** automatic, verified and compressed.
+- **Catalog backups:** automatic, verified and compressed copies of the catalog: its
+  record of your photos and their history, **not the photos themselves**.
 
 ## Requirements
 
@@ -167,6 +173,7 @@ Specifications are organized by component, not by release phase:
 | Document | Covers |
 | --- | --- |
 | [project-spec.md](docs/project-spec.md) | Scope boundary, architecture, and what exists today — start here |
+| [recovery.md](docs/recovery.md) | If something goes wrong: what can be recovered, and how to restore a catalog backup |
 | [engine-cli.md](docs/engine-cli.md) | Running the engine as a command, for development and scripting |
 | [engine-spec.md](docs/engine-spec.md) | `ns-engine.py`: hashing, metadata, placement, Copy-Verify-Delete, and the SQLite catalog it owns |
 | [webui-spec.md](docs/webui-spec.md) | The browser-facing half: jobs, selection, settings, logs, inspection, curation |
@@ -203,7 +210,7 @@ Specifications are organized by component, not by release phase:
     Thumbnails live under `/cache/thumbnails/`, keyed by the photo's **content hash** rather than its catalog id or path, and fanned out by the hash's first two characters: `/cache/thumbnails/ab/abcdef….jpg`. The `thumbnails/` segment exists so a future cache of some other kind has an obvious place to go rather than being mixed in beside these. Byte-identical duplicates share a single thumbnail instead of generating one apiece, and the cache survives a catalog rebuild, since content hashes are stable where row ids are not.
   - `/backups`: Catalog backups. After every Index, Copy or Move that recorded changes, the engine writes one verified, self-contained snapshot of the catalog here, compressed with [Zstandard](https://facebook.github.io/zstd/) (`ns-catalog-<UTC time>-<attempt>-<trigger>.db.zst`, no `-wal`/`-shm` companions). A full-library catalog of about 520 MB compresses to about 20 MB. `--backup-now` writes a manual one; it takes the engine lock, so it is refused while a job runs. **This must be a mounted volume.** Left unmounted, `/backups` is just a folder inside the container, and a backup there would disappear with it, so the engine records the backup as failed instead of writing it. A failed backup is logged beside the job's result and never changes it.
 
-    The latest 20 automatic backups are kept (the `backup_retention` setting). The oldest beyond that are removed only after a newer one succeeds. Manual backups are never removed by the engine. To restore, stop the container and set the current `ns_sqlite.db` and any `-wal`/`-shm` files aside. Decompress the chosen backup with `zstd -d <file>.db.zst`; the Zstandard page links the command-line tool and the Windows archive managers that open `.zst`. Copy the resulting `.db` into `/appdata/db/` as `ns_sqlite.db`, then start the container again. A restored catalog does not undo anything done to photos.
+    The latest 20 automatic backups are kept (the `backup_retention` setting). The oldest beyond that are removed only after a newer one succeeds. Manual backups are never removed by the engine. To restore one, follow [If something goes wrong](docs/recovery.md#restore-a-catalog-backup). A restored catalog does not undo anything done to photos, and no catalog backup contains a photo.
 
     **Kept separate from `/appdata` on purpose, and for the opposite reason to `/cache`.** A backup written inside the directory it is backing up dies with it, and losing `/appdata` is exactly the failure a backup exists to survive. Mount it on different storage from the catalog if you can.
 
