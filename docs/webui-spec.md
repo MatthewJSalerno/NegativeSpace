@@ -2131,7 +2131,7 @@ reject emptied, its stored thumbnail and details stand in for it.
 
 ### 7.9 Needs review
 
-**Planned** (decided 2026-10-01). One **Needs review** screen lists photos waiting for a
+**Planned** (decided 2026-10-01). **Needs review** lists photos waiting for a
 decision. Each carries a **note**: a reason, the job that raised it, when, and optionally a
 related photo, opened side by side in comparison. **Notes are for decisions only**, not a
 general tagging system: personal labels (people, albums) belong to gallery applications.
@@ -2140,6 +2140,13 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   it · Keep it as its own photo; looks like a reject: Reject it too · Keep it · Keep the old one instead; suspicious
   date: Edit date · It's correct; couldn't be read: Recheck after fixing · Leave it;
   review later: Done. A new kind of review is a new reason, not a new screen.
+* **Where it lives** (decided 2026-10-05): a Library view, **Needs review (n)**, beside the
+  others, so its count is always in sight; each note's reason and buttons show on the
+  photo's card and in the Inspector. **Review one by one** opens the workspace (§7.7),
+  which steps through the notes with ‹ ›, each note's photos side by side with its
+  buttons. *Why not a page of its own:* finding notes then works like the rest of the
+  Library (filters, selection, bulk answers), and working through them reuses the
+  workspace built for such tasks.
 * **Filter by reason; bulk within one reason** (preview and one confirmation). A mixed
   selection offers only shared actions.
 * **A note exists only when a person must decide.** Facts the catalog can compute (every
