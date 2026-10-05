@@ -345,11 +345,11 @@ becomes available. If the condition cannot be fixed by the app, state the limita
 instead of offering a retry that cannot help. Verify the remedy changes the reported
 state; refreshing the message alone does not count as recovery.
 
-**Show where every value came from** (maintainer's standing preference, 2026-10-05).
-Wherever a date or other detail is displayed (gallery, photo panel, comparison, editor,
-Stats), say its source: the camera's EXIF, an XMP sidecar, the file's modification time, an
-edit made in NegativeSpace, or a suggestion. A value with no stated source reads as a fact
-it may not be.
+**Say where details came from, without cluttering** (maintainer's standing preference,
+2026-10-05). Where metadata is displayed, one source line per block ("Details from: XMP
+sidecar · file's EXIF"), not a label on every field; mark only the values that matter: a
+small **XMP** tag on a value taken from the sidecar, a file-time date marked as such, and
+every suggestion with its source.
 
 **Offer hints wherever the catalog has them** (maintainer's standing preference,
 2026-10-05). When the user must decide something, show the clues NegativeSpace already
