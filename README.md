@@ -21,6 +21,7 @@ was first indexed from.
 - [Requirements](#requirements)
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
+- [Security](#security)
 - [Usage](#usage)
 - [Documentation](#documentation)
 - [Notes and details](#notes-and-details)
@@ -124,6 +125,19 @@ Save it in `docker/`, beside the Dockerfiles. The shipped
 
 To show the exact build beside the version number at the top right of every page,
 build with `NS_BRANCH=$(git branch --show-current) NS_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build`.
+
+## Security
+
+**NegativeSpace has no login yet.** Anyone who can open its page can use every button,
+including **Move**, which deletes source photos once their copies are verified. So:
+
+- Keep it on your own network, and never forward its port (8080) to the internet.
+- For access from elsewhere, use a VPN (such as WireGuard or Tailscale) or a reverse
+  proxy that asks for a password first (such as Authelia, Authentik, or nginx with
+  basic authentication).
+- Leave the source folder read-only unless you are about to Move.
+
+A built-in password is planned before the first release.
 
 ## Usage
 

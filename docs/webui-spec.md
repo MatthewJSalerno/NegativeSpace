@@ -2398,3 +2398,27 @@ expand or clear the existing selection. Filters are disabled while it is open;
 Back to results restores the previous gallery filters/page. Reload leaves this
 session-only scope. Browsing is not limited in members. No EXIF edit, deletion, image
 processing or persisted group is implied.
+
+## 11. Access and Sign-in
+
+**Today there is no sign-in** (decided 2026-10-05): anyone who can reach the web port can
+use every action, Move included. The README says so and tells users to keep the app on
+their own network, behind a VPN or an authenticating reverse proxy, never exposed to the
+internet.
+
+**Planned before the first release: one password** (decided 2026-10-05). NegativeSpace is
+a single-person tool, so one password, not user accounts.
+
+* **First start generates it.** The app creates a random password and prints it once to
+  the container output (`docker compose logs app`), in a block that is easy to find,
+  saying where it came from and that it should be changed. Only a hash of it is stored.
+* **Sign in, then change it.** Until signed in, the page shows only the sign-in form.
+  Settings offers **Change password**, asking for the current one.
+* **Every route needs it,** the job feed included; the API refuses without a valid session.
+* **Still to settle when building:** the hash (an established one such as scrypt or
+  Argon2, chosen by measurement and named); where it is kept (application data, and
+  whether catalog backups include it); session length and cookie settings; how a
+  forgotten password is reset (a command run inside the container is the likely route,
+  since whoever can run it already controls the files); and whether a reverse proxy's
+  sign-in can stand in for it.
+

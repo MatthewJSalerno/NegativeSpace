@@ -245,6 +245,7 @@ Specified but not yet on screen:
     (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);
     the export-sidecar notice at Index.
+*   Sign-in: one password, generated on first start (`webui-spec.md` §11).
 *   Videos and other non-photo formats are deliberately deferred until photo organizing
     is complete.
 

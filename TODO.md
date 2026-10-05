@@ -81,6 +81,10 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 
 ## Before the first release
 
+- [ ] **One password for the web interface** (`docs/webui-spec.md` §11): generated on first
+  start and printed to the container output, changeable in Settings. Until then the README
+  tells users to keep the app off the internet.
+
 - [ ] **Decide on catalog migration.** `ns_db.py` stamps `catalog_schema.version` and refuses any catalog whose version it does not recognise. While every catalog is a development catalog, refusal plus a fresh Index is enough; that stops being acceptable once a user holds history that cannot be recreated.
 
 ## Other
