@@ -11,12 +11,13 @@ import json
 import os
 import re
 import sqlite3
+import stat
 from datetime import datetime, timezone
 from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 20
 
 class PhotoStatus:
     """State of one source file in the catalog. A path is unique among files still in the
@@ -362,6 +363,115 @@ class RequestConflict(RuntimeError):
     pass
 
 
+class SelectionRefused(ValueError):
+    """A selection a job cannot take as given; the job is refused whole."""
+
+
+# --- Selections passed to the engine in a file (engine-spec 4.1) --------------
+# The command line has a length limit, so the web interface passes the photos it
+# selected in a file: a header naming the job's request, then one photo id per line,
+# ascending. The count and checksum catch a cut-off or damaged file; they are not a
+# defence against someone who can write application data, who could change the
+# catalog beside it anyway. Only the catalog keeps the selection (run_selections).
+
+SELECTION_MAGIC = "NegativeSpace selection 1"
+SELECTION_FILE_MAX_BYTES = 64 * 1024 * 1024    # about three million ids
+MAX_PHOTO_ID = 2**63 - 1
+
+
+def selection_body(ids) -> bytes:
+    return "".join(f"{i}\n" for i in ids).encode("ascii")
+
+
+def selection_digest(ids) -> str:
+    return hashlib.sha256(selection_body(ids)).hexdigest()
+
+
+def normalize_selection(ids) -> list:
+    """Photo ids as a selection: positive 64-bit integers, unique, ascending."""
+    if not isinstance(ids, (list, tuple)) or not ids or any(
+            type(i) is not int or not 1 <= i <= MAX_PHOTO_ID for i in ids):
+        raise SelectionRefused("a selection is a non-empty list of positive 64-bit photo ids")
+    return sorted(set(ids))
+
+
+def write_selection_file(folder: Path, request_id: str, ids) -> Path:
+    """Writes a selection for the engine into `folder`, private to this user, under a
+    name made from the request ID only. Written to a fresh temporary file, flushed to
+    disk, then renamed into place, so the engine never reads part of one."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", request_id or ""):
+        raise SelectionRefused("invalid request ID")
+    ids = normalize_selection(ids)
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    info = os.lstat(folder)
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
+        raise SelectionRefused(f"{folder} is not a folder owned by this user")
+    os.chmod(folder, 0o700)
+    final, temp = folder / f"{request_id}.ids", folder / f".{request_id}.ids.tmp"
+    body = selection_body(ids)
+    header = (f"{SELECTION_MAGIC}\nrequest {request_id}\ncount {len(ids)}\n"
+              f"sha256 {hashlib.sha256(body).hexdigest()}\n").encode("ascii")
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        with os.fdopen(fd, "wb") as out:
+            out.write(header + body)
+            out.flush()
+            os.fsync(out.fileno())
+        if os.path.lexists(final):
+            raise SelectionRefused(f"a selection for request {request_id} already exists")
+        os.rename(temp, final)
+    except BaseException:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(temp)
+        raise
+    dir_fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
+    return final
+
+
+def read_selection_file(path, request_id: str) -> list:
+    """The photo ids in a selection file, or SelectionRefused saying what is wrong. A
+    plain file only (never followed through a link), within the size cap, for this
+    request, its count and checksum matching, every id a positive 64-bit integer
+    written plainly, ascending without repeats."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except OSError as exc:
+        raise SelectionRefused(f"the selection file cannot be opened ({exc.strerror})") from exc
+    info = os.fstat(fd)
+    if not stat.S_ISREG(info.st_mode) or info.st_size > SELECTION_FILE_MAX_BYTES:
+        os.close(fd)
+        raise SelectionRefused("the selection is not a plain file" if not stat.S_ISREG(info.st_mode)
+                               else "the selection file is larger than any selection can be")
+    with os.fdopen(fd, "rb") as handle:
+        data = handle.read(SELECTION_FILE_MAX_BYTES + 1)
+    lines = data.split(b"\n")
+    if len(lines) < 5 or lines[0] != SELECTION_MAGIC.encode():
+        raise SelectionRefused("the file is not a NegativeSpace selection")
+    head = [re.fullmatch(rb"(request|count|sha256) (\S+)", line) for line in lines[1:4]]
+    if any(m is None for m in head) or [m[1] for m in head] != [b"request", b"count", b"sha256"]:
+        raise SelectionRefused("the selection's header is damaged")
+    if head[0][2].decode("ascii", "replace") != request_id:
+        raise SelectionRefused("the selection was written for a different request")
+    body = b"\n".join(lines[4:])
+    if not re.fullmatch(rb"[0-9a-f]{64}", head[2][2]) or hashlib.sha256(body).hexdigest() != head[2][2].decode():
+        raise SelectionRefused("the selection's checksum does not match: the file is incomplete or damaged")
+    if lines[-1] != b"":
+        raise SelectionRefused("the selection does not end with a complete line")
+    ids, previous = [], 0
+    for line in lines[4:-1]:
+        if not re.fullmatch(rb"[1-9][0-9]{0,18}", line) or int(line) > MAX_PHOTO_ID or int(line) <= previous:
+            raise SelectionRefused("every selected id must be a positive whole number, ascending, without repeats")
+        previous = int(line)
+        ids.append(previous)
+    if not re.fullmatch(rb"[0-9]+", head[1][2]) or int(head[1][2]) != len(ids) or not ids:
+        raise SelectionRefused("the selection's count does not match its photos")
+    return ids
+
+
 def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
@@ -445,6 +555,11 @@ FOUNDATION_DDL = (
         key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days')),
         value_json TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0),
         updated_at TEXT NOT NULL)""",
+    # The photos a run was asked to act on, recorded with the run itself: what the user
+    # chose, including photos the run then skipped (engine-spec 4.1).
+    """CREATE TABLE run_selections (
+        run_id INTEGER NOT NULL REFERENCES runs(id), photo_id INTEGER NOT NULL,
+        PRIMARY KEY(run_id, photo_id)) WITHOUT ROWID""",
     """CREATE TABLE run_configs (
         run_id INTEGER PRIMARY KEY REFERENCES runs(id),
         effective_config_json TEXT NOT NULL)""",
@@ -714,15 +829,23 @@ def save_settings(conn, values, *, expected_revisions):
 
 
 def create_run(conn, *, mode, source, destination, targeting=None, request_id=None,
-               submitted=None, defaults=None, overrides=None):
+               submitted=None, defaults=None, overrides=None, selection=None, strict_selection=False):
     """Engine-owned acceptance primitive. Caller owns the file-operation lock.
 
     Same request/payload returns (existing_id, False), without consulting changed
     settings. This does not launch workers or permit the API to bypass engine locking.
+
+    `selection`, the photo ids the run was asked to act on, is recorded in
+    run_selections with the run, in one transaction; the run's targeting is its count
+    and checksum. With `strict_selection` (a selection passed in a file) every id must
+    be catalogued under `source`, or SelectionRefused and nothing is recorded.
     """
     require_schema(conn)
     if request_id is not None and (not isinstance(request_id, str) or not request_id or len(request_id) > 256):
         raise ValueError("invalid request ID")
+    if selection is not None:
+        selection = normalize_selection(selection)
+        targeting = {'selection': len(selection), 'sha256': selection_digest(selection)}
     payload = _json({'mode': mode, 'source': source, 'destination': destination,
                      'targeting': targeting, 'submitted': submitted, 'overrides': overrides or {}})
     with transaction(conn):
@@ -740,6 +863,18 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
                            (mode, source, destination, _json(targeting) if targeting else None, utc_now(), RunStatus.PREPARING))
         run_id = cur.lastrowid
         conn.execute("INSERT INTO run_configs VALUES(?,?)", (run_id, _json(config)))
+        if selection is not None:
+            conn.executemany("INSERT INTO run_selections VALUES(?,?)", ((run_id, i) for i in selection))
+            if strict_selection:
+                root = str(source).rstrip("/")
+                held = conn.execute(
+                    "SELECT COUNT(*) FROM run_selections s JOIN photos p ON p.id = s.photo_id WHERE s.run_id = ? "
+                    "AND (p.source_path = ? OR (p.source_path >= ? AND p.source_path < ?))",
+                    (run_id, root, root + "/", root + "0")).fetchone()[0]
+                if held != len(selection):
+                    raise SelectionRefused(
+                        f"{len(selection) - held:,} of the {len(selection):,} selected photos are no longer "
+                        f"catalogued in this source. Nothing was changed; choose the photos again.")
         if request_id is not None:
             conn.execute("INSERT INTO job_requests VALUES(?,?,?)", (request_id, run_id, payload))
         return run_id, True

@@ -12,6 +12,7 @@ const STEP: Record<string, string> = {
 };
 const PRESENCE: Record<string, string> = { present: "Present", removed: "Removed", missing: "Missing" };
 const MODE: Record<string, "index" | "copy" | "move"> = { INDEX: "index", COPY: "copy", MOVE: "move" };
+const JOB: Record<string, string> = { INDEX: "Index", COPY: "Copy", MOVE: "Move", REJECT: "Reject", RETURN: "Return to library" };
 
 // A photo's lineage as a tree (webui-spec 6.3): one node per file (the source, each copy
 // made from it, each exact duplicate), with the steps that happened to it. A file opens
@@ -100,6 +101,18 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
         {error && <p className="error">{error}</p>}
         {!tree && !error && <p className="muted">Loading…</p>}
         {tree && <ul className="lineage-tree">{roots.map((f) => node(f))}</ul>}
+        {tree && tree.selected_by.length > 0 && (
+          <p className="lineage-selected">
+            Selected by hand for{" "}
+            {tree.selected_by.map((s, i) => (
+              <span key={s.run_id}>{i > 0 && " · "}
+                <a href={logUrl({ run: s.run_id })} onClick={(e) => { onClose(); follow(e); }}>
+                  {JOB[s.mode] ?? s.mode} (job #{s.run_id}, {instant(s.started_at)})
+                </a>
+              </span>
+            ))}
+          </p>
+        )}
         <p><a href={logUrl({ photo: photoId })} onClick={(e) => { onClose(); follow(e); }}>Open in the log</a></p>
     </Modal>
   );

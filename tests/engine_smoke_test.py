@@ -4580,6 +4580,60 @@ def an_interrupted_rename_is_settled_from_what_is_on_disk():
                   f"two different files were not left alone with a note: {op} {issues}")
 
 
+@test
+def selection_file_targets_a_job_and_is_recorded_with_it():
+    """--file-ids-from (engine-spec 4.1): how the web interface passes a selection of any
+    size. The ids never appear on the command line or in the log; they are recorded with
+    the run; a damaged file, another request's file or a photo no longer catalogued
+    refuses the whole job, touching nothing."""
+    import ns_db
+    case = new_case("selection_file")
+    for name in ("a", "b", "c"):
+        make_photo(case / "src" / f"{name}.jpg", f"SEL-{name}", date="2021:05:01 10:00:00")
+    run_engine(case)
+    run_engine(case, "--copy")
+    a_id, b_id = int(_ids(case, "a.jpg")), int(_ids(case, "b.jpg"))
+    folder = case / "selections"
+    runs_before = len(rows(case, "SELECT id FROM runs"))
+
+    # Refused before anything starts: no request ID, another request's file, a damaged one.
+    path = ns_db.write_selection_file(folder, "chosen", [a_id, b_id])
+    out = engine_output(run_engine(case, "--reject", "--file-ids-from", path, expect_rc=2))
+    check("needs --request-id" in out, f"no request ID was not refused: {out[-300:]}")
+    out = engine_output(run_engine(case, "--reject", "--file-ids-from", path, "--request-id", "other", expect_rc=2))
+    check("different request" in out, f"another request's selection was not refused: {out[-300:]}")
+    damaged = folder / "damaged.ids"
+    damaged.write_bytes(path.read_bytes()[:-1])
+    out = engine_output(run_engine(case, "--reject", "--file-ids-from", damaged, "--request-id", "chosen", expect_rc=2))
+    check("checksum" in out or "complete line" in out, f"a damaged selection was not refused: {out[-300:]}")
+    # A photo no longer catalogued: the whole job is refused, nothing recorded or moved.
+    gone = ns_db.write_selection_file(folder, "gone", [a_id, 999_999])
+    out = engine_output(run_engine(case, "--reject", "--file-ids-from", gone, "--request-id", "gone", expect_rc=1))
+    check("1 of the 2 selected photos are no longer catalogued" in out, f"refusal: {out[-300:]}")
+    check(len(rows(case, "SELECT id FROM runs")) == runs_before, "a refused selection recorded a run")
+    check(_tree(case, "rejects") == [], "a refused selection moved a photo")
+
+    # Accepted: exactly the selection is rejected, recorded with the run, never logged.
+    out = engine_output(run_engine(case, "--reject", "--file-ids-from", path, "--request-id", "chosen"))
+    check(_tree(case, "rejects") == ["2021/05/01/a.jpg", "2021/05/01/b.jpg"], f"rejects: {_tree(case, 'rejects')}")
+    run = rows(case, "SELECT id, file_ids_filter FROM runs ORDER BY id DESC LIMIT 1")[0]
+    check(json.loads(run["file_ids_filter"]) == {"selection": 2, "sha256": ns_db.selection_digest(sorted([a_id, b_id]))},
+          f"the run's targeting: {run['file_ids_filter']}")
+    held = [r["photo_id"] for r in rows(case, "SELECT photo_id FROM run_selections WHERE run_id = ? ORDER BY photo_id",
+                                        (run["id"],))]
+    check(held == sorted([a_id, b_id]), f"the run's selection: {held}")
+    check("Targeted photos: 2 selected (from a selection file)." in out, "the log does not say what was targeted")
+    check("Targeted file IDs" not in out and f"[{min(a_id, b_id)}, " not in out, "the log lists the photo ids")
+    check(path.exists(), "the engine deleted a selection file it did not write")
+    # The command line's own list is recorded the same way.
+    run_engine(case, "--return-to-library", "--file-ids", str(a_id))
+    run = rows(case, "SELECT id, file_ids_filter FROM runs ORDER BY id DESC LIMIT 1")[0]
+    check(json.loads(run["file_ids_filter"])["selection"] == 1, f"--file-ids targeting: {run['file_ids_filter']}")
+    check(rows(case, "SELECT photo_id FROM run_selections WHERE run_id = ?", (run["id"],)) == [{"photo_id": a_id}],
+          "--file-ids was not recorded with its run")
+    _assert_lineage_complete(case, "after selections")
+
+
 def _ids(case, *names):
     found = {Path(r["source_path"]).name: r["id"] for r in rows(case, "SELECT id, source_path FROM photos")}
     return ",".join(str(found[n]) for n in names)

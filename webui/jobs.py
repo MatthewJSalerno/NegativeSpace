@@ -12,6 +12,7 @@ import time
 import uuid
 from typing import Optional
 
+import ns_db
 from . import catalog
 from .config import Config
 
@@ -19,9 +20,6 @@ MODES = {"index": None, "copy": "--copy", "move": "--move",
          "reject": "--reject", "return": "--return-to-library"}
 # Reject and Return to library act on what the user chose, never on everything.
 NEEDS_SELECTION = {"reject", "return"}
-# Each selected id becomes part of the engine's command line, which has a real
-# OS length limit; larger selections use a folder (webui-spec 2).
-MAX_FILE_IDS = 1000
 # Photo ids are SQLite signed 64-bit integers.
 MAX_PHOTO_ID = 2**63 - 1
 
@@ -56,9 +54,11 @@ class JobRefused(Exception):
         self.status, self.body = status, body
 
 
-def validate_request(cfg: Config, mode: str, file_ids=None, source_subdir=None) -> list:
-    """The engine flags for a job request, validated here as well as by the engine
-    (webui-spec 5.6): defence in depth, and a clean 400 instead of a failed job."""
+def validate_request(cfg: Config, mode: str, file_ids=None, source_subdir=None) -> tuple:
+    """The engine flags for a job request and its selection (ascending photo ids, or
+    None), validated here as well as by the engine (webui-spec 5.6): defence in depth,
+    and a clean 400 instead of a failed job. A selection reaches the engine in a file
+    (_launch), whatever its size."""
     if not isinstance(mode, str) or mode not in MODES:
         raise JobRefused(400, {"error": "invalid_request", "message": f"Unknown job mode: {mode!r}."})
     if file_ids is not None and source_subdir is not None:
@@ -68,17 +68,13 @@ def validate_request(cfg: Config, mode: str, file_ids=None, source_subdir=None) 
         raise JobRefused(400, {"error": "invalid_request",
                                "message": "Choose photos or a folder to act on."})
     flags = [MODES[mode]] if MODES[mode] else []
+    selection = None
     if file_ids is not None:
-        if (not isinstance(file_ids, list) or not file_ids
-                or any(type(i) is not int or not 1 <= i <= MAX_PHOTO_ID for i in file_ids)):
+        try:
+            selection = ns_db.normalize_selection(file_ids)
+        except ns_db.SelectionRefused:
             raise JobRefused(400, {"error": "invalid_request",
                                    "message": "file_ids must be a non-empty list of positive 64-bit integer photo ids."})
-        ids = sorted(set(file_ids))
-        if len(ids) > MAX_FILE_IDS:
-            raise JobRefused(400, {"error": "selection_too_large", "limit": MAX_FILE_IDS,
-                                   "message": f"{MAX_FILE_IDS:,} file limit for individual selection - "
-                                              f"try Folder Selection for larger batches."})
-        flags += ["--file-ids", ",".join(str(i) for i in ids)]
     if source_subdir is not None:
         if not isinstance(source_subdir, str) or not source_subdir or "\0" in source_subdir:
             raise JobRefused(400, {"error": "invalid_request", "message": "The folder is empty or invalid."})
@@ -89,7 +85,7 @@ def validate_request(cfg: Config, mode: str, file_ids=None, source_subdir=None) 
             raise JobRefused(400, {"error": "invalid_request",
                                    "message": "The folder must be inside the source."})
         flags += ["--source-subdir", normal]
-    return flags
+    return flags, selection
 
 
 class JobRunner:
@@ -102,6 +98,13 @@ class JobRunner:
         self._procs = {}                      # run_id -> Popen
         self._previews = threading.BoundedSemaphore(PREVIEW_CONCURRENCY)
         self._backing_up = False
+        # A selection file lives only until its engine has read it; one left by a server
+        # that stopped mid-start is no one's.
+        for leftover in self._selections().glob("*.ids*") if self._selections().is_dir() else ():
+            leftover.unlink(missing_ok=True)
+
+    def _selections(self):
+        return self.cfg.base / "selections"
 
     # -- The lock -------------------------------------------------------------
 
@@ -161,15 +164,19 @@ class JobRunner:
 
     def start(self, mode: str, file_ids=None, source_subdir=None, request_id=None) -> int:
         validate_request_id(request_id)
-        flags = validate_request(self.cfg, mode, file_ids, source_subdir)
+        flags, selection = validate_request(self.cfg, mode, file_ids, source_subdir)
         status = catalog.status(self.cfg.db_path)
         if status["state"] != "ok":
             raise JobRefused(409, {"error": f"catalog_{status['state']}", "message": status["detail"]})
         if mode != "index" and status["photos"] == 0:
             raise JobRefused(409, {"error": "catalog_empty",
                                    "message": "Run a Scan first - NegativeSpace acts on indexed photos."})
+        # No fixed limit: a selection is bounded by the catalog it was chosen from.
+        if selection is not None and len(selection) > status["photos"]:
+            raise JobRefused(400, {"error": "invalid_request",
+                                   "message": "The selection names more photos than the catalog holds."})
         with self._start_lock:
-            return self._launch(flags, request_id)
+            return self._launch(flags, request_id, selection)
 
     def repair_similarity(self, scope, photo_id=None, request_id=None):
         validate_request_id(request_id)
@@ -203,29 +210,32 @@ class JobRunner:
                     raise JobRefused(409, {"error": "scope_changed", "message": "The source or destination changed. Start a new job with the intended folders."})
                 mode = row["mode"].lower()
                 targeting = json.loads(row["file_ids_filter"]) if row["file_ids_filter"] else {}
-                if not isinstance(targeting, dict) or set(targeting) - {"file_ids", "source_subdir"}:
+                if not isinstance(targeting, dict) or set(targeting) - {"selection", "sha256", "source_subdir"}:
                     raise JobRefused(409, {"error": "scope_changed", "message": "This job's scope cannot be retried safely."})
+                # The job's own record of what it was asked to act on.
+                chosen = [r[0] for r in conn.execute(
+                    "SELECT photo_id FROM run_selections WHERE run_id = ? ORDER BY photo_id", (run_id,))] or None
                 prior = conn.execute("SELECT submitted_request_json FROM job_requests WHERE run_id=?", (run_id,)).fetchone()
                 submitted = (json.loads(prior[0]).get("submitted") or {}) if prior else {}
             if question == "network_destination":
                 if mode != "move":
                     raise JobRefused(409, {"error": "stale_question", "message": "Network confirmation applies only to Move."})
                 mode = "copy" if answer == "copy" else "move"
-            flags = validate_request(self.cfg, mode, targeting.get("file_ids"), targeting.get("source_subdir"))
+            flags, selection = validate_request(self.cfg, mode, chosen, targeting.get("source_subdir"))
             # Carry only explicit answers from the preceding request in this chain.
             # New jobs through /start never inherit permission from an earlier run.
             if answer == "confirm_empty" or submitted.get("confirm_source_empty") is True:
                 flags.append("--confirm-source-empty")
             if mode == "move" and (answer == "confirm_move" or submitted.get("confirm_network_destination") is True):
                 flags.append("--confirm-network-destination")
-            replay = self._replay(flags, request_id)
+            replay = self._replay(flags, request_id, selection)
             if replay is not None:
                 return replay
             if not current:
                 raise JobRefused(409, {"error": "stale_question", "message": "This question is no longer current. Refresh the job status."})
-            return self._launch(flags, request_id)
+            return self._launch(flags, request_id, selection)
 
-    def _replay(self, flags, request_id):
+    def _replay(self, flags, request_id, selection=None):
         if request_id is None:
             return None
         record = catalog.request_record(self.cfg.db_path, request_id)
@@ -233,8 +243,8 @@ class JobRunner:
             return None
         def argument(flag):
             return flags[flags.index(flag) + 1] if flag in flags else None
-        targeting = ({"file_ids": [int(i) for i in argument("--file-ids").split(",")]}
-                     if "--file-ids" in flags else {"source_subdir": argument("--source-subdir")}
+        targeting = ({"selection": len(selection), "sha256": ns_db.selection_digest(selection)}
+                     if selection else {"source_subdir": argument("--source-subdir")}
                      if "--source-subdir" in flags else None)
         expected = {"mode": "MOVE" if "--move" in flags else "COPY" if "--copy" in flags else "INDEX",
                     "source": str(self.cfg.source.resolve()), "destination": str(self.cfg.dest.resolve()),
@@ -255,14 +265,27 @@ class JobRunner:
             raise JobRefused(409, {"error": "request_conflict", "message": "This request ID was already used for different input."})
         return record["run_id"]
 
-    def _launch(self, flags, request_id=None):
-        """Start with the API start lock held; the engine owns the filesystem lock."""
-        replay = self._replay(flags, request_id)
+    def _launch(self, flags, request_id=None, selection=None):
+        """Start with the API start lock held; the engine owns the filesystem lock. A
+        selection goes to the engine in a file named by the request ID (never by the
+        client), removed once the engine has recorded it with the run or stopped."""
+        replay = self._replay(flags, request_id, selection)
         if replay is not None:
             return replay
         if self._probe_lock():
             raise self._busy()
         request_id = request_id or uuid.uuid4().hex
+        selection_file = None
+        if selection:
+            selection_file = ns_db.write_selection_file(self._selections(), request_id, selection)
+            flags = [*flags, "--file-ids-from", str(selection_file)]
+        try:
+            return self._spawn(flags, request_id, selection)
+        finally:
+            if selection_file is not None:
+                selection_file.unlink(missing_ok=True)
+
+    def _spawn(self, flags, request_id, selection):
         log = self.cfg.base / "logs" / "engine-console.log"
         log.parent.mkdir(parents=True, exist_ok=True)
         with open(log, "w") as out:
@@ -289,7 +312,7 @@ class JobRunner:
         # The engine refuses mismatched reuse; do not return that other payload's
         # run merely because its ID has appeared in the acceptance table.
         try:
-            self._replay(flags, request_id)
+            self._replay(flags, request_id, selection)
         except JobRefused:
             threading.Thread(target=proc.wait, daemon=True).start()
             raise
@@ -397,5 +420,9 @@ def _last_error(log_path) -> Optional[str]:
         return None
     for line in reversed(lines):
         if "FATAL" in line or "error:" in line:
-            return line.split("] ", 1)[-1].strip()
+            # Only the reason, for a person: not the log's time, level and process, the
+            # word FATAL, or argparse's "ns-engine.py: error:".
+            reason = line.split("] ", 1)[-1]
+            reason = re.sub(r"^\(pid:[^)]*\)\s*", "", reason)
+            return re.sub(r"^(FATAL:|\S+: error:)\s*", "", reason).strip()
     return lines[-1].strip() if lines else None

@@ -93,9 +93,10 @@ security concern, specified in `webui-spec.md` §5.6.
     *   `--reject` and `--return-to-library`, each with `--file-ids` or `--source-subdir` (required) — rejecting organized photos and returning rejected ones (§9.5). `REJECT` and `RETURN` jobs under the engine lock that back up the catalog first and record the selection as Copy and Move do.
     *   The database write-queue size is intentionally **not** configurable — left as a hardcoded internal constant rather than exposed, since there was no concrete need identified for tuning it separately from `--workers`.
 *   **Targeted Processing** (mutually exclusive with each other — pick at most one, or omit both for a full directory scan):
-    *   `--file-ids <id1,id2,...>` — comma-separated `photos.id` values from a prior Index. Bypasses the directory scan entirely; looks up each ID's `source_path` directly and processes exactly those files. IDs not found in the database are logged as a warning and skipped, not treated as fatal. This is what a web UI's individual/multi-select maps onto, but works identically from the CLI. **Planned** (decided 2026-10-01): the web interface will always pass ids in a file instead (`--file-ids-from <path>`), lifting the 1,000-photo selection limit that the command line's length imposes. The engine refuses the whole job, touching no file, unless the file was written atomically, carries the job's request ID, its header count and checksum match, every entry is a unique positive integer, and every id is still catalogued inside the source. The file is kept with the job's record.
+    *   `--file-ids <id1,id2,...>` — comma-separated `photos.id` values from a prior Index. Bypasses the directory scan entirely; looks up each ID's `source_path` directly and processes exactly those files. IDs not found in the database are logged as a warning and skipped, not treated as fatal. For the command line; the web interface passes its selections with `--file-ids-from`, since the command line's length is limited. The ids are recorded with the run in `run_selections`, in the transaction that creates it; the run's `file_ids_filter` holds `{"selection": n, "sha256": ...}`, never the list. Every lookup reads the selection through that table, so no query carries the ids as bound values (SQLite allows 250,000 per statement here).
+    *   `--file-ids-from <path>` with `--request-id <id>` — the same, read from a selection file (`ns_db.write_selection_file`), of any size: a header (`NegativeSpace selection 1`, `request <id>`, `count <n>`, `sha256 <hex of the id lines>`), then one id per line, ascending, no repeats. Refused before anything starts unless it is a plain file (never followed through a link), within 64 MB, written for this request, its count and checksum matching, every line a positive 64-bit integer written plainly. The whole job is then refused, recording nothing and touching no file, if any id is not catalogued under this run's source: checked inside the transaction that would record the run. The engine never deletes the file; the API removes the ones it wrote once the run is recorded or the engine has stopped. The ids are logged as a count only.
     *   `--source-subdir <path>` — scopes the operation to every already-indexed file whose `source_path` falls under this directory, recursively. Queries the existing `photos` catalog by prefix rather than re-walking the filesystem, which means it inherently excludes symlinks (they were already excluded at the original Index that populated those rows) and — critically — avoids passing a large ID list as a command-line argument at all. This is the mechanism behind the web UI's "select a folder" option, and the recommended path for large selections instead of enumerating thousands of individual `--file-ids` (see `webui-spec.md` §2 for the UI-side selection-size limit this replaces for bulk operations). Only reflects files known as of the last Index over that path — newly added files need a rescan first, same as the whole-library case. The prefix match is a literal, case-sensitive range comparison on the path, not SQL `LIKE`: `LIKE` treats `%` and `_` as wildcards (`My_Photos` would match `MyXPhotos`) and ignores letter case (`Album` would match `album`), and under `--move` either one would delete sources the user never selected. Both the Index-mode rescan and the Move/Copy targeting share one builder so they cannot disagree about which files a subdirectory contains.
-    *   **Every run is bounded by its own `--source` root** — full, `--file-ids` or `--source-subdir` alike. One catalog can hold rows from several source roots; an unbounded run would act on every `Pending` row in the catalog and move another root's photos. `--file-ids` recorded under a different root are left out with a warning.
+    *   **Every run is bounded by its own `--source` root** — full, `--file-ids` or `--source-subdir` alike. One catalog can hold rows from several source roots; an unbounded run would act on every `Pending` row in the catalog and move another root's photos. `--file-ids` recorded under a different root are left out with a warning; a `--file-ids-from` selection holding one is refused whole.
 *   **Operational Modes** (mutually exclusive — at most one flag; the engine will refuse to start if more than one is given):
     *   **Index (default, no flag):** Full scan (or `--file-ids`/`--source-subdir`-scoped lookup), hashing, metadata resolution, and destination-path computation. Every result is written to the database (including duplicate flagging), but no file is copied, moved, or deleted.
     *   **`--move`:** Runs the Copy-Verify-Delete protocol (§4.2) for every targeted `Pending` file. Source files are deleted only after a verified copy lands at the destination. Confirmed exact duplicates are also removed from source once a verified copy of their content exists elsewhere at the destination.
@@ -283,7 +284,7 @@ The three transfer tables below — current state, runs, and the audit log — e
 | `id` | Integer | Primary Key, autoincrement |
 | `mode` | Text | `INDEX`, `MOVE`, or `COPY` |
 | `source_path` / `dest_path` | Text | As passed to this invocation |
-| `file_ids_filter` | Text | Self-describing JSON object naming which mechanism scoped the run — `{"file_ids": [101, 102]}` or `{"source_subdir": "sd_card/day1"}` — or NULL for a full directory scan. Despite its name it holds either mechanism. |
+| `file_ids_filter` | Text | Self-describing JSON object naming which mechanism scoped the run — `{"selection": 2, "sha256": "..."}` (its photo ids are in `run_selections`) or `{"source_subdir": "sd_card/day1"}` — or NULL for a full directory scan. Despite its name it holds either mechanism. |
 | `started_at` / `ended_at` | Text | ISO timestamps, UTC with offset (§4.3). `ended_at` is set when the run settles itself and stays NULL for `Interrupted`, whose moment of death is unknown |
 | `status` | Text | The run's lifecycle, not whether its work succeeded (`webui-spec.md` §5.5). Active: `Preparing` (accepted; reconciling earlier work before any requested file work), `Running`, `Cancelling` (cancel received; the current file is finishing). Terminal: `Completed`, `Cancelled` (cancellation stopped work that remained), `Failed` (a job-level error prevented normal completion), `Interrupted` (died without settling). `ns_db.RUN_TRANSITIONS` is the only way between them: terminal states are final, `Preparing` never ends `Completed`, and `Cancelling` may, because a job that finished before its cancellation took effect reports what actually happened |
 | `reconciled_by_run_id` | Integer | For an `Interrupted` run, the run whose startup found it dead. That run's `started_at` is when the death was noticed, not when it happened |
@@ -317,7 +318,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `ns_db.py`
-initializes schema version 19 and refuses incompatible catalogs before processing.
+initializes schema version 20 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -393,7 +394,7 @@ CREATE TABLE runs (
     dest_path TEXT,
     file_ids_filter TEXT,   -- Self-describing JSON object naming which
                             -- targeting mechanism scoped the run:
-                            --   {"file_ids": [101, 102]}
+                            --   {"selection": 2, "sha256": "..."} (ids in run_selections)
                             --   {"source_subdir": "sd_card/day1"}
                             -- NULL for a full directory scan. Always the
                             -- object form; the column name predates
@@ -531,6 +532,12 @@ CREATE TABLE operation_files (
     role TEXT NOT NULL CHECK(role IN ('source','destination','retained_copy')),
     PRIMARY KEY(operation_id,file_id,role)
 );
+
+-- The photos a run was asked to act on (--file-ids or --file-ids-from), with the run:
+-- what the user chose, including photos the run then skipped.
+CREATE TABLE run_selections (
+    run_id INTEGER NOT NULL REFERENCES runs(id), photo_id INTEGER NOT NULL,
+    PRIMARY KEY(run_id, photo_id)) WITHOUT ROWID;
 
 -- Frozen at job start: defaults, then saved settings, then CLI overrides. A
 -- later settings change cannot alter a run that already began.

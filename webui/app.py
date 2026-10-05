@@ -297,7 +297,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.post("/api/v1/photos/selection")
     def get_selection(body: dict = Body(...)):
-        """A POST only because a selection of 1,000 ids is too long for a URL; it reads."""
+        """A POST only because a selection's ids are too long for a URL; it reads."""
         try:
             return catalog.photos_by_ids(cfg.db_path, body.get("ids"), sort=body.get("sort", "newest"),
                                          page=body.get("page", 1), page_size=body.get("page_size", 60), match_min=body.get("match_min", 75))
@@ -404,12 +404,9 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def operation_photo_ids(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
                             photo: Optional[int] = None, q: Optional[str] = None, since: Optional[str] = None,
                             until: Optional[str] = None, requested_only: bool = False):
-        """The distinct photos behind the filtered operations, for Retry. More than the
-        job limit is reported, never cut silently."""
-        from .jobs import MAX_FILE_IDS
-        ids = catalog.operation_photo_ids(cfg.db_path, MAX_FILE_IDS, requested_only,
-                                          **_log_filters(run, status, photo, q, since, until))
-        return {"photo_ids": ids[:MAX_FILE_IDS], "more_than_limit": len(ids) > MAX_FILE_IDS, "limit": MAX_FILE_IDS}
+        """The distinct photos behind the filtered operations, for Retry: all of them."""
+        return {"photo_ids": catalog.operation_photo_ids(cfg.db_path, requested_only,
+                                                         **_log_filters(run, status, photo, q, since, until))}
 
     @app.get("/api/v1/runs")
     def get_runs(limit: int = Query(100, ge=1, le=500)):

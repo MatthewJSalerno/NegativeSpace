@@ -491,5 +491,5 @@ ordinary, individually selectable cards, with server paging and normal sort cont
 This temporary scope bypasses the saved gallery filters and does not auto-select,
 expand or clear the existing selection. Filters are disabled while it is open;
 Back to results restores the previous gallery filters/page. Reload leaves this
-session-only scope. Selection limits still apply, but browsing is not limited to
-1,000 members. No EXIF edit, reject, image processing or persisted group is implied.
+session-only scope. Browsing is not limited in members. No EXIF edit, reject, image
+processing or persisted group is implied.

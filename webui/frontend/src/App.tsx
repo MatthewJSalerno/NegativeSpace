@@ -35,7 +35,6 @@ const MIN_GALLERY = 420;
 // The left panel's width limits when dragged.
 const SIDE_MIN = 180;
 const SIDE_MAX = 560;
-const MAX_SELECTION = 1000; // mirrors the API's --file-ids limit (webui-spec 2)
 const VIEW_LABEL: Record<View, string> = { all: "All photos", unorganized: "Not yet organized", organized: "Organized", similar: "Has similar photos", suspicious: "Suspicious dates", rejects: "Rejects" };
 // The review bar's words for each job a selection can be reviewed for.
 const REVIEW_WORDS: Record<ActionMode, { doing: string; done: string; button: string }> = {
@@ -429,7 +428,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   useEffect(() => {
     let live = true;
     const ids = [...selected];
-    if (ids.length === 0 || ids.length > MAX_SELECTION) setSelectionActions({ reject: 0, return: 0 });
+    if (ids.length === 0) setSelectionActions({ reject: 0, return: 0 });
     else api.selection(ids, "newest", 1, 1, galleryMinimum)
       .then((s) => live && setSelectionActions(s.actions ?? { reject: 0, return: 0 }), () => live && setSelectionActions({ reject: 0, return: 0 }));
     return () => { live = false; };
@@ -704,10 +703,6 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     if (focus && !memberBrowse) { toggleIds(focus.ids, true); return; }
     try {
       const got = await api.photoIds(memberBrowse ?? { view, match_min: galleryMinimum, group_sets: grouped, q, undated, dates, types, folders });
-      if (got.over_limit) {
-        setNotice(`${count(got.total)} photos are shown: more than the ${count(got.limit)}-photo selection limit. Use Actions for all photos, or narrow the view.`);
-        return;
-      }
       toggleIds(got.ids, true);
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : "The photos could not be selected.");
@@ -791,10 +786,6 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     try {
       const set = await api.photoIds({ view: "all", q: "", undated: false, set_reference: keep, match_min: threshold,
                                        dates: [], types: [], folders: [] });
-      if (set.over_limit) {
-        setActionError(`${keepName} has more than ${count(set.limit)} look-alikes at ${threshold}%. Choose a higher percentage.`);
-        return;
-      }
       const rest = set.ids.filter((id) => id !== keep);
       setComparison(null); setOpenId(null); setLocate(null); setRevealId(null);
       setSelected(new Set(rest));
@@ -841,7 +832,6 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const currentSide = () => sideWidth ?? side.current?.getBoundingClientRect().width ?? 240;
 
   const noPhotos = status.photos === 0;
-  const tooMany = selected.size > MAX_SELECTION;
 
   const screenSelected = screenItems.filter((i) => selected.has(i.id)).length;
   const onPager = focus ? setFocusPage : setPage;
@@ -854,7 +844,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           <nav className="pages" aria-label="Pages">
             <a className="button-link active" href="/" onClick={follow} aria-current="page">Library</a>
             <ActionsMenu
-              state={{ jobRunning, noPhotos, selected: selected.size, tooMany, maxSelection: MAX_SELECTION,
+              state={{ jobRunning, noPhotos, selected: selected.size,
                        eligible: status.eligible, copied: status.copied,
                        folder: folderShown ? { name: folderLabel(folderShown.path), eligible: folderShown.eligible } : null,
                        folders: folders.length,
@@ -868,7 +858,6 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             <div className="selection-line" role="region" aria-label="Selection">
               <strong>{plural(selected.size, "photo")} selected</strong>
               {!focus && outside > 0 && <span> · {count(outside)} outside this view</span>}
-              {tooMany && <span className="error"> · {count(MAX_SELECTION)} file limit for individual selection</span>}
               {focus
                 ? <button className="link" onClick={backToResults}>Back to results</button>
                 : <button className="link" onClick={showSelected}>Show only selected</button>}
@@ -956,7 +945,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                 <p className="muted">{review.body[0]}</p>
               </div>
               <button className={review.danger ? "danger" : "primary"} onClick={commit}
-                      disabled={committing || jobRunning || reviewIds.length === 0 || reviewIds.length > MAX_SELECTION}
+                      disabled={committing || jobRunning || reviewIds.length === 0}
                       title={reviewIds.length === 0 ? "Every photo is unticked." : jobRunning ? "A job is running." : undefined}>
                 {REVIEW_WORDS[focus.mode].button} {plural(reviewIds.length, "photo")}
               </button>
@@ -1010,9 +999,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                   <span>{grouped ? `${count(data.total)} sets matching filters` : `Showing ${count(data.total)} of ${plural(data.counts[view], "photo")}`}</span>
                 </Tip>
                 {data && data.total > 0 && (
-                  <> · <button className="link" onClick={selectAll} disabled={jobRunning || data.total > MAX_SELECTION}
-                               title={data.total > MAX_SELECTION ? `More than the ${count(MAX_SELECTION)}-photo selection limit.`
-                                      : jobRunning ? "Selection is unavailable while a job is running." : undefined}>
+                  <> · <button className="link" onClick={selectAll} disabled={jobRunning}
+                               title={jobRunning ? "Selection is unavailable while a job is running." : undefined}>
                     Select these {count(data.total)}
                   </button></>
                 )}
@@ -1053,7 +1041,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
             <>
               <div className="gallery-head">
                 <SelectMenu onScreen={screenItems.length} screenSelected={screenSelected}
-                            total={list.meta.total} selected={selected.size} max={MAX_SELECTION}
+                            total={list.meta.total} selected={selected.size}
                             disabledWhy={jobRunning ? "Selection is unavailable while a job is running." : null}
                             onSelectScreen={() => toggleMany(screenItems, true)} onSelectAll={selectAll}
                             onUnselectScreen={() => toggleMany(screenItems, false)} onUnselectAll={clearSelection} />

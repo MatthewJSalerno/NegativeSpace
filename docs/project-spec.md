@@ -241,7 +241,6 @@ Specified but not yet on screen:
 *   Needs review (`webui-spec.md` §7.9), with the similar-to-a-reject check
     (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);
-    selections passed in a file, lifting the 1,000-photo limit (`engine-spec.md` §4.1);
     the export-sidecar notice at Index.
 *   Videos and other non-photo formats are deliberately deferred until photo organizing
     is complete.
@@ -249,7 +248,7 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 19; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
+at schema version 20; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
 It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its

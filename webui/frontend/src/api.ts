@@ -355,6 +355,8 @@ export interface Lineage {
   photos: number[];
   files: LineageFile[];
   operations: LineageOperation[];
+  // The jobs this photo was chosen for by hand (a selection), whatever each did with it.
+  selected_by: { run_id: number; mode: string; status: string; started_at: string }[];
 }
 
 export interface Stats {
@@ -596,7 +598,7 @@ export const api = {
   // `folders` here keeps ticked folders listed; the tree's counts ignore its own filter.
   folders: (params: BrowseFilters) => request<FolderTree>("GET", `/api/v1/photos/folders?${browseQuery(params)}`),
   photoIds: (params: BrowseFilters) =>
-    request<{ ids: number[]; total: number; limit: number; over_limit: boolean }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
+    request<{ ids: number[]; total: number }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
   selection: (ids: number[], sort: Sort, page: number, page_size: number, match_min = 75) =>
     request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size, match_min }),
   operations: (f: LogFilters, page: number, pageSize: number) => {
@@ -611,7 +613,7 @@ export const api = {
     return `/api/v1/operations/export?${p}`;
   },
   retryIds: (f: LogFilters, requestedOnly = false) =>
-    request<{ photo_ids: number[]; more_than_limit: boolean; limit: number }>(
+    request<{ photo_ids: number[] }>(
       "GET", `/api/v1/operations/photo-ids?${logQuery(f)}${requestedOnly ? "&requested_only=true" : ""}`),
   backups: () => request<Backups>("GET", "/api/v1/backups"),
   backupNow: () => request<BackupAttempt>("POST", "/api/v1/backups"),

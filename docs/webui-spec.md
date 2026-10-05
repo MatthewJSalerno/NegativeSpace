@@ -97,8 +97,8 @@ Users can select individual files or multiple files across grid views to run tar
   visible right now), **Select all in this view (n)** (every photo the view, search and
   dates show, scrolled to or not), **Unselect all on screen** and **Unselect all**; the two
   on-screen items only while the view holds more photos than the screen shows, counted again
-  whenever the gallery changes size (the photo panel opening or closing). Select all is refused whole above the 1,000-photo
-  limit, never cut short (`GET /photos/ids`); an item that would do nothing says why.
+  whenever the gallery changes size (the photo panel opening or closing). Select all takes
+  every photo the view shows, however many (`GET /photos/ids`); an item that would do nothing says why.
   Keep the total selected count visible and repeat it in bulk-action previews, including
   metadata edits and rejects.
 * **Selection across views:** retain explicit photo selections when changing pages
@@ -139,8 +139,7 @@ Users can select individual files or multiple files across grid views to run tar
   only some are ticked. The filter is in the address, named above the gallery
   (**“Showing 412 of 1,160 photos · only June 2023, 2019 · Select these 412 · Show all
   dates”**; **Select these**
-  selects what the filter shows, as Select all in this view does, refused above the
-  1,000-photo limit. The boxes themselves only filter: unchecking a month to look
+  selects what the filter shows, as Select all in this view does. The boxes themselves only filter: unchecking a month to look
   elsewhere must never change the selection). The tree's own counts ignore it, so an
   unticked month keeps its number. On a
   narrow screen the panel opens from a **Browse** button.
@@ -162,9 +161,8 @@ Users can select individual files or multiple files across grid views to run tar
   paths can be wide; a name wider than the panel ends in "…", whole on hover.
 * **A folder's Copy or Move:** with exactly one folder shown, **Actions ▾ → Copy ▸ / Move ▸
   → this folder: Family scans (318)** takes that folder and its subfolders, however many
-  photos: the engine is given the folder (`--source-subdir`), not a list of photos, so the
-  1,000-photo limit does not apply. The count is what the job would take, whatever the
-  view. Otherwise the item stays in the menu, disabled, and says why: **"Show one folder
+  photos: the engine is given the folder (`--source-subdir`), not a list of photos. The count
+  is what the job would take, whatever the view. Otherwise the item stays in the menu, disabled, and says why: **"Show one folder
   to act on it."** with several ticked, **"Show a folder in the Folders tree to act on
   it."** with none, and the files directly in the source folder, which are no folder of
   their own, are selected instead. It is confirmed as Copy all and Move all are, and a
@@ -242,8 +240,14 @@ Search matches current and original filenames, including names of related remove
 duplicates, without merging their histories. Folder paths are not filename-search
 matches. Distinguish not-yet-organized and organized photos; when a search has matches
 in the other view, show its count and a link rather than implying no matches exist.
-* **Selection size limit** *(planned to be lifted, decided 2026-10-01: selections will always be passed to the engine in a validated file, `engine-spec.md` §4.1, removing this cap and its messages; until then the rule below holds)*: Individual multi-select (including "Select all on page") is capped at a configurable maximum (default: 1,000 files) per job submission — this isn't an arbitrary UX restriction, it's because each selected file becomes an integer in the `--file-ids` command-line argument passed to the engine, and there's a real OS limit on total command-line length. Exceeding the cap shows a clear message (e.g. *"1,000 file limit for individual selection — try Folder Selection below for larger batches"*) rather than silently truncating the selection or attempting a job that might fail at spawn time.
-* **Folder Selection (for large batches):** Instead of "select all matching current filter" against individual files, users can select a source folder (recursive) and scope the operation to everything currently indexed under it. This maps directly to the engine's `--source-subdir <path>` flag (`engine-spec.md` §4.1) rather than enumerating individual IDs, which sidesteps the command-line length limit entirely — there's no practical upper bound on how many files a folder selection can cover. Symlinks are excluded automatically, inherited from the original Index that populated the catalog (a symlink was never indexed as a row in the first place). If a folder hasn't been indexed yet (zero matching rows), show *"No indexed files found under this folder — run an Index first."*
+* **No selection size limit** (decided 2026-10-04): a selection can hold every photo in the
+  catalog. The API passes it to the engine in a validated file (`engine-spec.md` §4.1), never
+  on the command line, whose length is limited; the engine records it with the job, so each
+  photo's lineage shows the jobs it was chosen for. The bounds are the catalog (never more
+  ids than photos) and a 16 MB request, about 1.5 million ids. *Why not a higher fixed
+  limit:* every limit needs messages and a way around it, and the catalog's size is already
+  the natural bound.
+* **Folder selection:** users can select a source folder (recursive) and scope the operation to everything currently indexed under it. This maps directly to the engine's `--source-subdir <path>` flag (`engine-spec.md` §4.1). Symlinks are excluded automatically, inherited from the original Index that populated the catalog (a symlink was never indexed as a row in the first place). If a folder hasn't been indexed yet (zero matching rows), show *"No indexed files found under this folder — run an Index first."*
 * **Actions on a selection:** **Actions ▾ → Copy ▸ / Move ▸ → selected (n)** (§4.1); on a
   folder, **this folder (n)**, from the Folders tree (above).
 * **Targeted Execution:** Individual selections use the `--file-ids <id1,id2>` flag; folder selections use `--source-subdir <path>`. These are mutually exclusive targeting mechanisms in a single job — pick one per submission. IDs (not raw file paths) were chosen for the individual case specifically because a database primary key is unambiguous and doesn't depend on path strings staying identical between when the frontend fetched the catalog and when the operation actually runs — and it keeps one targeting implementation rather than a parallel web-only code path, which is what makes the engine directly runnable for debugging and development (see §1).
@@ -430,7 +434,7 @@ kept · 0 of 4,836 files moved · 4,836 copied only: the original could not be r
 and its hover gives the reasons (**"Why originals were kept: Read-only file system:
 4,836"**). The log has a **Copied only** status with its own filter, a hint that the copy
 is at the destination, and **Move the n copied-only photos again** to finish the job once
-the source can be written (above 1,000 photos, through **Move everything**). The gallery badge reads **Copied only**, with the reason
+the source can be written. The gallery badge reads **Copied only**, with the reason
 on hover; the Inspector's history and the lineage tree say **original kept**. *Why not
 ask on the first failure:* nothing is lost either way, and a question nobody is there to
 answer would stall an overnight job; a clear account afterwards serves better.
@@ -1045,12 +1049,9 @@ log of no statuses shows nothing. *Why not buttons:* a row of toggle buttons gre
 and did not say whether it meant one status or several. The Inspector's
 **Open in the log**, under History, opens the log for that photo. Each failure carries a plain hint drawn from its
 recorded reason, and **Retry**, inside the job it belongs to, runs the same mode again over the photos behind
-that job's shown failures, and says what it did beside the button. Over the 1,000 photos a
-retry can name one by one (§2's selection limit), it says so there and offers, as a button,
-**the job's own scope again, never more**: **Move everything** / **Copy everything** after a
-job over everything, **Move this folder again** after a folder's job. A Move re-reads failed
-photos and takes copied-only ones, so nothing is left out. A selection holds at most 1,000
-photos and its retry leaves out rows settling earlier jobs' work, so it always fits.
+that job's shown failures, however many, and says what it did beside the button. A Move's
+retry takes its copied-only photos too, so nothing is left out; a selection's retry leaves
+out rows settling earlier jobs' work, so it names only photos the selection held.
 
 A searchable table logging every operation performed by the engine:
 * **Columns:** Timestamp, Mode (`MOVE`/`COPY`), Source Path, Destination Path, Status (`Completed`, `Copied`, `Removed_Duplicate`, `Found_At_Destination`, `Failed`), and System Error Message.
@@ -1149,7 +1150,7 @@ Because the engine's flags are now assembled by FastAPI from HTTP request bodies
 * **`--source-subdir` carries user-chosen input** from the folder picker and is the most exposed parameter. The engine already resolves it and rejects anything escaping `--source` via `..` — that check is load-bearing once the API constructs arguments, and must not be removed as a redundant-looking sanity check. FastAPI should validate independently rather than relying solely on the engine; defense in depth is the point, and the API can return a clean `400` instead of a failed job.
 * **`--exts` is the subject of the validation feature in §3.2.** The engine normalizes the leading dot and casing but does not otherwise constrain the value, so the API owns deciding which extensions are acceptable. Scope is limited to the mounted source directory, so the risk is indexing unintended file types rather than reading outside the volume — but a user-facing field still needs a server-side allowlist, not just client-side checks.
 
-Note also the `--file-ids` length ceiling described in §2: the 1,000-item selection cap is a real OS command-line limit, and enforcing it is the API's responsibility. Folder selections use `--source-subdir` precisely to sidestep it.
+* **A selection travels in a file, never on the command line** (§2). The API names it from the request ID alone (already limited to letters, digits, `_` and `-`), never from anything the client sends as a path, and writes it under application data in a folder only the application's user can open (`0700`, the file `0600`): created fresh, never through a link, flushed to disk and renamed into place whole. The engine reads only a plain file, under a size cap, written for its own request, whose count and checksum match, every line one id, ascending, no repeats; and refuses the whole job, recording nothing, if any photo is no longer catalogued in this source. The checksum catches a cut-off or damaged file; it is no defence against someone who can write application data, who could change the catalog beside it anyway. The file is removed once the engine has recorded the selection with the run.
 
 ---
 
@@ -1300,7 +1301,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 19 and refuses incompatible catalogs. Settings saves
+`ns_db.py` stamps schema version 20 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -2391,5 +2392,5 @@ ordinary, individually selectable cards, with server paging and normal sort cont
 This temporary scope bypasses the saved gallery filters and does not auto-select,
 expand or clear the existing selection. Filters are disabled while it is open;
 Back to results restores the previous gallery filters/page. Reload leaves this
-session-only scope. Selection limits still apply, but browsing is not limited to
-1,000 members. No EXIF edit, deletion, image processing or persisted group is implied.
+session-only scope. Browsing is not limited in members. No EXIF edit, deletion, image
+processing or persisted group is implied.
