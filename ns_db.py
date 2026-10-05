@@ -256,7 +256,10 @@ def sql_values(values):
         raise ValueError("invalid status constant")
     return ", ".join("'" + value + "'" for value in values)
 
-def _create_legacy_tables(conn):
+
+def _create_core_tables(conn):
+    """photos, runs and operations with their indexes: the tables FOUNDATION_DDL's
+    lineage, settings and backup tables refer to."""
     conn.execute(f"""
         CREATE TABLE IF NOT EXISTS photos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -721,7 +724,7 @@ def initialize(db_path):
             if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='catalog_schema'").fetchone():
                 require_schema(conn)
                 return
-            _create_legacy_tables(conn)
+            _create_core_tables(conn)
             for statement in FOUNDATION_DDL:
                 conn.execute(statement)
             import ns_similarity_cache

@@ -54,8 +54,9 @@ Two consequences follow, and both shape decisions in each component spec:
 **Photo-format scope:** this is a photo organizer, not a general-purpose image
 manager. Do not expand format support solely to edit metadata in arbitrary image
 formats. Where a selected photo cannot store requested embedded metadata, report
-that limitation and leave it unchanged; no automatic sidecar or catalog-only edit
-fallback. Existing indexing support is not a promise of metadata-write support.
+that limitation and leave it unchanged; no silent fallback to another storage method
+or to a catalog-only edit. Where edits go, in the file or an XMP sidecar, is a setting
+(`engine-spec.md` §9.6). Existing indexing support is not a promise of metadata-write support.
 This scope decision does not remove formats from the current engine.
 
 *   **Primary:** Professional photographers and content creators managing
@@ -144,7 +145,7 @@ with what it needs:
 
 | Gap | Where | Blocks |
 | :--- | :--- | :--- |
-| Writing embedded EXIF (sidecars remain a future option) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
+| Writing metadata: in the file, or an XMP sidecar (the default for RAW; decided) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
 
 Further gaps between the documented web workflows and what the engine can answer
 (`engine-spec.md` §9.8):
@@ -236,6 +237,8 @@ Specified but not yet on screen:
 *   Each folder's last-scanned time in the Folders tree.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
+*   The Index file-type summary (files found, eligible and excluded by type), which the
+    engine records per full Index (`webui-spec.md` §5.1).
 *   The Rename and Undated tabs, and metadata editing (`webui-spec.md` §7.5, with its
     decided details).
 *   Needs review (`webui-spec.md` §7.9), with the similar-to-a-reject check

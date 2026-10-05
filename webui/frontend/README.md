@@ -23,5 +23,11 @@ listening on port 8000. The browser test (`tests/webui_browser_test.sh`) drives 
 | `src/api.ts` | The API's response shapes and the fetch wrapper |
 | `src/jobs.ts` | The live job feed and the words the drawer uses for counts and outcomes |
 | `src/format.ts` | Sizes, counts, and date display rules (`webui-spec.md` §10) |
+| `src/nav.ts` | Moving between pages without reloading; the address bar is the source of truth |
+| `src/paged.ts` | Continuous scrolling with stable photo identities and page jumps |
+| `src/appearance.ts` | The colour palette, remembered per browser |
+| `src/comparisonState.ts` | The comparison workspace's state in the address |
+| `src/rejecting.ts` | Rejecting and returning single photos from the similarity screens |
 | `src/App.tsx` | First run, the library view, selection, confirmations |
-| `src/components/` | Gallery, thumbnail, Inspector, job drawer, settings |
+| `src/components/` | The screens: gallery, Inspector, comparison, logs, stats, settings, dialogs |
+| `src/components/ui/` | Shared controls: Modal, Field, MenuButton, SearchField, Tabs, Workspace |

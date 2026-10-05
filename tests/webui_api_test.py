@@ -991,7 +991,7 @@ class JobsAndCatalog(ApiCase):
 
     def test_overlapping_checks_never_report_a_job_that_is_not_running(self):
         # The page checks every second and on every refresh; two checks at once
-        # used to see each other's hold on the start lock and show a job.
+        # must not take each other's hold on the start lock for a job.
         import threading
         self.create_catalog()
         self.cfg.lock_path.touch()

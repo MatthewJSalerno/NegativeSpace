@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 import ns_db
-from .similarity_sql import matched_ids, match_counts_cte, match_distance, comparison_state
+from ns_similarity_cache import matched_ids, match_counts_cte, match_distance, comparison_state
 from ns_db import (PhotoStatus, RunStatus, OPERATION_SKIPPED, OPERATION_CANCELLED, OPERATION_RENAMED,
                    OPERATION_RETURNED, IN_REJECTS_STATUSES)
 
