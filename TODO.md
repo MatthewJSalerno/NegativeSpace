@@ -4,6 +4,12 @@ Open work, open design questions and the durability claims ledger. Designs live 
 `docs/`; features specified but not yet built are listed in
 [project-spec.md](docs/project-spec.md) §4 ("Specified but not yet on screen").
 
+## Views
+
+- [ ] Views named by where a photo is: Library (default), To organize, Rejects, Needs
+  review; Has similar photos, Suspicious dates and No capture date become filters within a
+  place; All photos goes (`docs/webui-spec.md` §2).
+
 ## Needs review
 
 - [ ] The in-tray itself (`docs/webui-spec.md` §7.9).

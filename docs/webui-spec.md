@@ -234,6 +234,26 @@ preserves the search text, including **No capture date** and **All photos**.
 retains the search; it is not shown as chosen while a filter or search narrows the
 gallery. The other views keep the filters, to narrow within a view.
 
+**Planned: views named by where a photo is** (decided 2026-10-05). Today's views
+(All photos, Not yet organized, Organized, Has similar photos, Suspicious dates, Rejects)
+mix places with ways of looking, and **All photos** mixes the source and the library, so
+a user cannot tell what is where. They become four places:
+
+| View | Holds | Replaces |
+| --- | --- | --- |
+| **Library** (the default) | Photos in the destination's `library/` | Organized |
+| **To organize** | Photos in the source not yet in the library | Not yet organized |
+| **Rejects** | Photos in `rejects/` | Rejects (unchanged) |
+| **Needs review** | Photos waiting on a decision (§7.9), including source photos that failed and held small images | (new) |
+
+A copied photo belongs to the Library; its untouched original in the source is not
+counted again. **All photos** goes: it only ever meant everything mixed together.
+**Has similar photos**, **Suspicious dates** and **No capture date** stop being views and
+become filters within a place ("Library · has similar photos"), as No capture date
+already is. *Why:* the view buttons then answer one question, where is it, and drop from
+six to four. *Still to settle when building:* how the filters are offered, and what the
+first visit shows before anything is in the library (To organize).
+
 **Main-page browsing:** default to newest first by recorded photo date, clearly
 distinguishing filesystem fallback dates from capture dates; offer size sorting.
 Search matches current and original filenames, including names of related removed
