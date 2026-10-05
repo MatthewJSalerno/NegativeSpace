@@ -22,15 +22,18 @@ deletion and are not reliably detected by the engine.
   target, bypassing the directory scan and processing exactly these
   already-cataloged files. A file must have gone through at least one prior
   Index for its ID to exist. This is what powers selection-scoped
-  operations from the web UI — e.g. "Move just these 3 photos" —
-  but works identically from the CLI. Mutually exclusive with
-  --source-subdir.
+  operations from the CLI — e.g. "Move just these 3 photos". The command
+  line has a length limit, so the web UI passes its selections with
+  --file-ids-from instead. Either way the ids are recorded with the run
+  (run_selections). Mutually exclusive with --source-subdir.
+- --file-ids-from <path> --request-id <id> (Optional) The same, read from a
+  selection file (ns_db.write_selection_file) of any size. The job is
+  refused whole, touching nothing, if the file is damaged or names a photo
+  no longer catalogued in this source.
 - --source-subdir <path> (Optional) Path, relative to --source, scoping the
   run to already-cataloged files beneath it. Queries the catalog by
-  source_path prefix instead of walking the filesystem or enumerating IDs,
-  which is what lets the web UI offer "operate on this whole folder" for
-  selections far larger than --file-ids can express (there is a real OS
-  limit on command-line length). Mutually exclusive with --file-ids.
+  source_path prefix instead of walking the filesystem or enumerating IDs.
+  Mutually exclusive with --file-ids and --file-ids-from.
 
 Per-file failures never abort a run: an unreadable, vanished, or otherwise
 unprocessable file is recorded as status='Failed' with a human-readable
@@ -57,7 +60,7 @@ default Index):
   is missing, changed, unreadable or not put there by NegativeSpace.
 - --rename PHOTO_ID --name NAME [--dry-run] / --rename-candidates PHOTO_ID: give a
   delivered file a new name, or list the names its duplicate group carried.
-- --reject / --return-to-library, with --file-ids or --source-subdir: move organized
+- --reject / --return-to-library, with --file-ids(-from) or --source-subdir: move organized
   photos from dest/library to dest/rejects, or back (spec §9.5). Nothing is deleted.
 - --repair-similarity missing|comparisons: recover missing visual hashes from
   destination originals, or resume stored-hash comparisons; never edits photos.
@@ -736,21 +739,22 @@ def init_database(db_path: str):
 def start_run(
     db_path: str, mode: str, source_path: str, dest_path: str,
     file_ids: Optional[List[int]], source_subdir: Optional[str] = None,
-    *, defaults=None, overrides=None, request_id=None, submitted=None
+    *, defaults=None, overrides=None, request_id=None, submitted=None, strict_selection=False
 ) -> Tuple[int, bool]:
     """
     Inserts the `runs` row for this invocation and returns (run_id, created).
     `file_ids` and `source_subdir` are mutually exclusive targeting
     mechanisms (enforced at the CLI level) — at most one is ever set.
     Persisted as a self-describing JSON object so the audit trail can tell
-    which targeting mechanism (if any) scoped the run.
+    which targeting mechanism (if any) scoped the run; a selection's photo ids
+    go to run_selections with the run, its targeting their count and checksum.
 
     With a `request_id` already bound to identical input, no row is inserted:
     created is False and run_id is the run that request produced. The same ID
     with different input raises ns_db.RequestConflict.
     """
     if file_ids:
-        targeting_filter = json.dumps({"file_ids": file_ids})
+        targeting_filter = None          # ns_db.create_run records the selection itself
     elif source_subdir:
         targeting_filter = json.dumps({"source_subdir": source_subdir})
     else:
@@ -761,6 +765,7 @@ def start_run(
             targeting=json.loads(targeting_filter) if targeting_filter else None,
             defaults=defaults, overrides=overrides,
             request_id=request_id, submitted=submitted,
+            selection=file_ids or None, strict_selection=strict_selection,
         )
 
 
@@ -2120,6 +2125,13 @@ def _path_prefix_clause(root: Path) -> tuple:
     )
 
 
+def _log_selection(args):
+    """How many photos a run was asked to act on: the count, never the ids, which can
+    be hundreds of thousands and are recorded with the run (run_selections)."""
+    logger.info(f"Targeted photos: {len(args.file_ids):,} selected"
+                f"{' (from a selection file)' if args.file_ids_from else ''}.")
+
+
 def _targeting_predicate(args) -> tuple:
     """
     Returns (sql_fragment, params) narrowing a `photos` query to whatever this
@@ -2139,8 +2151,8 @@ def _targeting_predicate(args) -> tuple:
         return _path_prefix_clause((root / args.source_subdir).resolve())
     clause, params = _path_prefix_clause(root)
     if args.file_ids:
-        placeholders = ','.join('?' * len(args.file_ids))
-        return clause + f" AND id IN ({placeholders})", params + list(args.file_ids)
+        # The run's own record of its selection: no limit on how many ids it holds.
+        return clause + " AND id IN (SELECT photo_id FROM run_selections WHERE run_id = ?)", params + [args.run_id]
     return clause, params
 
 
@@ -3375,7 +3387,10 @@ def run_maintenance_job(args, db_path: Path, lock_fd, *, mode: str, label: str, 
                       args.source_subdir) if targeted else (None, None, None))
             run_id, created = start_run(str(db_path), mode, *where, defaults=defaults,
                                         overrides=overrides, request_id=args.request_id,
-                                        submitted=submitted)
+                                        submitted=submitted, strict_selection=bool(args.file_ids_from))
+        except ns_db.SelectionRefused as exc:
+            logger.error(f"FATAL: {exc}")
+            return 1
         except ns_db.RequestConflict:
             logger.error(f"FATAL: request ID {args.request_id!r} was already used for a different "
                          f"submission. Nothing was started. A new attempt needs a new request ID.")
@@ -3384,6 +3399,9 @@ def run_maintenance_job(args, db_path: Path, lock_fd, *, mode: str, label: str, 
             logger.warning(f"Request ID {args.request_id!r} was already accepted as run #{run_id}. "
                            f"Nothing was started.")
             return EXIT_REQUEST_ALREADY_ACCEPTED
+        args.run_id = run_id
+        if targeted and args.file_ids:
+            _log_selection(args)
         with contextlib.closing(get_db_connection(str(db_path))) as conn:
             config = json.loads(conn.execute(
                 "SELECT effective_config_json FROM run_configs WHERE run_id=?", (run_id,)).fetchone()[0])
@@ -4263,12 +4281,19 @@ def main():
              "Bypasses the full directory scan — processes exactly these already-cataloged files."
     )
     targeting_group.add_argument(
+        "--file-ids-from", type=str, default=None, metavar="PATH",
+        help="Photo IDs to target, read from a selection file (ns_db.write_selection_file): how the "
+             "web interface passes a selection of any size, which the command line's length limit "
+             "would not allow as --file-ids. Needs --request-id, which the file must name. The job is "
+             "refused whole, touching nothing, if the file is damaged or any photo is no longer "
+             "catalogued in this source. The selection is recorded with the run; the file is not kept."
+    )
+    targeting_group.add_argument(
         "--source-subdir", type=str, default=None,
         help="Path, relative to --source, to scope this run to. Queries already-cataloged rows whose "
              "source_path falls under <source>/<subdir> instead of walking the filesystem or enumerating "
-             "--file-ids — the mechanism behind the web UI's folder-selection option for batches too large "
-             "for --file-ids. Only reflects files known as of the last Index over that path. "
-             "Mutually exclusive with --file-ids."
+             "photo IDs. Only reflects files known as of the last Index over that path. "
+             "Mutually exclusive with --file-ids and --file-ids-from."
     )
 
     # Only one mode may be active per run — default (no flag) is the existing
@@ -4346,8 +4371,15 @@ def main():
         parser.error("--rename needs --name.")
     if (args.name is not None or args.dry_run) and args.rename is None:
         parser.error("--name and --dry-run go with --rename.")
+    if args.file_ids_from is not None:
+        if not args.request_id:
+            parser.error("--file-ids-from needs --request-id, which the selection file names.")
+        try:
+            args.file_ids = ns_db.read_selection_file(args.file_ids_from, args.request_id)
+        except ns_db.SelectionRefused as exc:
+            parser.error(f"--file-ids-from: {exc}. Nothing was started.")
     if (args.reject or args.return_to_library) and not (args.file_ids or args.source_subdir):
-        parser.error("--reject and --return-to-library need --file-ids or --source-subdir.")
+        parser.error("--reject and --return-to-library need --file-ids, --file-ids-from or --source-subdir.")
     if args.rebuild_thumbnails and args.no_thumbnails:
         parser.error("--rebuild-thumbnails makes thumbnails; it cannot be combined with --no-thumbnails.")
 
@@ -4498,7 +4530,7 @@ def main():
         f"used for date bucketing when a file has no EXIF date. Pass -e TZ=<zone> to change it."
     )
     if args.file_ids:
-        logger.info(f"Targeted file IDs: {args.file_ids}")
+        _log_selection(args)
     if subdir_filter_path is not None:
         logger.info(f"Targeted source subdirectory: {subdir_filter_path}")
 
@@ -4531,8 +4563,12 @@ def main():
             defaults={"workers": MAX_WORKER_PROCESSES, "exts": sorted(SUPPORTED_EXTENSIONS)},
             overrides={**({"workers": args.workers} if args.workers is not None else {}),
                        **({"exts": sorted(normalize_extensions(args.exts))} if args.exts is not None else {})},
-            request_id=args.request_id, submitted=submitted,
+            request_id=args.request_id, submitted=submitted, strict_selection=bool(args.file_ids_from),
         )
+    except ns_db.SelectionRefused as exc:
+        logger.error(f"FATAL: {exc}")
+        release_single_instance_lock(lock_fd)
+        sys.exit(1)
     except ns_db.RequestConflict:
         logger.error(
             f"FATAL: request ID {args.request_id!r} was already used for a different submission. "
@@ -4555,6 +4591,7 @@ def main():
         )
         release_single_instance_lock(lock_fd)
         sys.exit(EXIT_REQUEST_ALREADY_ACCEPTED)
+    args.run_id = run_id
     with contextlib.closing(get_db_connection(str(db_path))) as config_conn:
         config = json.loads(config_conn.execute(
             "SELECT effective_config_json FROM run_configs WHERE run_id=?", (run_id,)
@@ -4615,22 +4652,25 @@ def main():
             # scanning the filesystem. A file must have gone through at least
             # one prior Index for its ID to exist at all.
             conn = get_db_connection(str(db_path))
-            placeholders = ','.join('?' * len(args.file_ids))
             rows = conn.execute(
-                f"SELECT id, source_path, status FROM photos WHERE id IN ({placeholders})", args.file_ids
+                "SELECT id, source_path, status FROM photos WHERE id IN "
+                "(SELECT photo_id FROM run_selections WHERE run_id = ?)", (run_id,)
             ).fetchall()
             conn.close()
             found_ids = {r[0] for r in rows}
-            missing = set(args.file_ids) - found_ids
+            missing = sorted(set(args.file_ids) - found_ids)
             if missing:
-                logger.warning(f"file-ids not found in database (never indexed?): {sorted(missing)}")
+                logger.warning(f"{len(missing):,} file id(s) not found in the catalog (never indexed?): "
+                               f"{missing[:20]}{' …' if len(missing) > 20 else ''}")
             # Bounded by this run's --source like every other targeting mode:
             # an ID recorded under another source root is not this run's to act on.
             outside = [r for r in rows if not _is_under(r[1], source_path)]
             if outside:
+                outside_ids = sorted(r[0] for r in outside)
                 logger.warning(
                     f"{len(outside)} requested file ID(s) belong to a different source root than "
-                    f"{source_path} and are left out of this run: {sorted(r[0] for r in outside)}"
+                    f"{source_path} and are left out of this run: "
+                    f"{outside_ids[:20]}{' …' if len(outside_ids) > 20 else ''}"
                 )
                 rows = [r for r in rows if _is_under(r[1], source_path)]
             already_done = [r for r in rows if r[2] in SOURCE_CONSUMED_STATUSES]

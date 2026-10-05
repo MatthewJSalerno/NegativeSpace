@@ -466,17 +466,6 @@ with sync_playwright() as p:
     # What Retry did is said beside it, not at the top of the page.
     expect(page.locator(".retry .notice")).to_contain_text("Retrying 1 photo as a new Copy")
     expect(page.locator(".finished-banner")).to_contain_text("Copy", timeout=60_000)
-    # Over the limit a retry can name one by one, it offers the job over everything
-    # that covers those photos, as a button (simulated: the fixture is far smaller).
-    page.route("**/api/v1/operations/photo-ids*", lambda r: r.fulfill(
-        json={"photo_ids": [], "more_than_limit": True, "limit": 1000}))
-    retry.click()
-    note = page.locator(".retry .notice")
-    expect(note).to_contain_text("more than the 1,000 a retry can name one by one")
-    note.get_by_role("button", name="Copy everything").click()
-    expect(page.get_by_role("alertdialog")).to_contain_text("Copy every photo not yet copied")
-    page.keyboard.press("Escape")
-    page.unroute("**/api/v1/operations/photo-ids*")
     os.chmod(locked, 0o644)
     # Status boxes: arriving from a message ticks only what it named; All statuses ticks
     # every one again, which is no filter at all.

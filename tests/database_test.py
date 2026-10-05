@@ -569,6 +569,109 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn('Copy and Move would carry them into the destination', mov['warning'])
         self.assertEqual(db.SUPPORTED_EXTENSIONS, db.RASTER_EXTENSIONS | db.RAW_EXTENSIONS)
 
+class SelectionFileTests(unittest.TestCase):
+    """A selection passed to the engine in a file (engine-spec 4.1): written privately
+    and whole, read strictly, refused whole when anything is off."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.folder = Path(self.tmp.name) / 'selections'
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_written_privately_and_read_back_exactly(self):
+        path = db.write_selection_file(self.folder, 'req-1', [5, 3, 3, 2**63 - 1])
+        self.assertEqual(path.name, 'req-1.ids')
+        self.assertEqual(os.stat(self.folder).st_mode & 0o777, 0o700)
+        self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+        self.assertEqual(list(self.folder.iterdir()), [path], 'a temporary file was left behind')
+        self.assertEqual(db.read_selection_file(path, 'req-1'), [3, 5, 2**63 - 1])
+        with self.assertRaises(db.SelectionRefused):
+            db.write_selection_file(self.folder, 'req-1', [1])          # never replaced
+        for bad in ('../escape', 'a/b', '', 'x' * 129):
+            with self.assertRaises(db.SelectionRefused):
+                db.write_selection_file(self.folder, bad, [1])
+        self.assertFalse((Path(self.tmp.name) / 'escape.ids').exists())
+
+    def test_anything_off_is_refused(self):
+        path = db.write_selection_file(self.folder, 'req', [1, 2, 3])
+        good = path.read_bytes()
+        head, body = good.split(b'\n', 4)[:4], good.split(b'\n', 4)[4]
+        def damaged(data):
+            target = self.folder / 'damaged.ids'
+            target.write_bytes(data)
+            return target
+        def resign(lines):
+            body = b''.join(line + b'\n' for line in lines)
+            import hashlib
+            return (b'NegativeSpace selection 1\nrequest req\ncount %d\nsha256 %s\n'
+                    % (len(lines), hashlib.sha256(body).hexdigest().encode()) + body)
+        cases = {
+            'other request': (path, 'other'),
+            'cut short': (damaged(good[:-2]), 'req'),
+            'checksum': (damaged(good.replace(b'\n3\n', b'\n4\n')), 'req'),
+            'count': (damaged(good.replace(b'count 3', b'count 4')), 'req'),
+            'not a selection': (damaged(b'1\n2\n'), 'req'),
+            'repeated id': (damaged(resign([b'1', b'1'])), 'req'),
+            'descending': (damaged(resign([b'2', b'1'])), 'req'),
+            'leading zero': (damaged(resign([b'01'])), 'req'),
+            'zero': (damaged(resign([b'0'])), 'req'),
+            'beyond 64 bits': (damaged(resign([str(2**63).encode()])), 'req'),
+            'not a number': (damaged(resign([b'1; rm -rf /'])), 'req'),
+            'empty': (damaged(resign([])), 'req'),
+            'missing': (self.folder / 'none.ids', 'req'),
+            'a folder': (self.folder, 'req'),
+        }
+        link = self.folder / 'link.ids'
+        link.symlink_to(path)
+        cases['a link'] = (link, 'req')
+        for name, (target, request) in cases.items():
+            with self.subTest(name), self.assertRaises(db.SelectionRefused):
+                db.read_selection_file(target, request)
+        self.assertEqual(db.read_selection_file(damaged(resign([b'1', b'9'])), 'req'), [1, 9])
+
+    def test_a_selection_is_recorded_with_its_run_whatever_its_size(self):
+        """Beyond SQLite's limit on bound values in one statement (250,000 here), which a
+        list of ids written into a query would hit."""
+        conn = None
+        catalog = Path(self.tmp.name) / 'catalog.db'
+        db.initialize(catalog)
+        conn = db.connect(catalog)
+        try:
+            ids = list(range(1, 300_002))
+            run, created = db.create_run(conn, mode='COPY', source='/source', destination='/destination',
+                                         request_id='big', selection=ids)
+            self.assertTrue(created)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM run_selections WHERE run_id=?', (run,)).fetchone()[0],
+                             len(ids))
+            targeting = json.loads(conn.execute('SELECT file_ids_filter FROM runs WHERE id=?', (run,)).fetchone()[0])
+            self.assertEqual(targeting, {'selection': len(ids), 'sha256': db.selection_digest(ids)},
+                             'the run records the count and checksum, not the list')
+            # The same request again is the same job; a different selection is a conflict.
+            self.assertEqual(db.create_run(conn, mode='COPY', source='/source', destination='/destination',
+                                           request_id='big', selection=list(reversed(ids))), (run, False))
+            with self.assertRaises(db.RequestConflict):
+                db.create_run(conn, mode='COPY', source='/source', destination='/destination',
+                              request_id='big', selection=ids[:-1])
+            # Strict: every id catalogued under the source, or nothing is recorded.
+            with db.transaction(conn):
+                conn.execute("INSERT INTO photos(source_path,status) VALUES('/source/a.jpg','Pending')")
+                conn.execute("INSERT INTO photos(source_path,status) VALUES('/elsewhere/b.jpg','Pending')")
+            inside, outside = [r[0] for r in conn.execute('SELECT id FROM photos ORDER BY id')]
+            before = conn.execute('SELECT COUNT(*) FROM runs').fetchone()[0]
+            for chosen in ([inside, outside], [inside, 999_999_999]):
+                with self.assertRaises(db.SelectionRefused):
+                    db.create_run(conn, mode='COPY', source='/source', destination='/destination',
+                                  selection=chosen, strict_selection=True)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM runs').fetchone()[0], before, 'a refused selection left a run')
+            run, _ = db.create_run(conn, mode='COPY', source='/source', destination='/destination',
+                                   selection=[inside], strict_selection=True)
+            self.assertEqual(conn.execute('SELECT photo_id FROM run_selections WHERE run_id=?', (run,)).fetchall(), [(inside,)])
+        finally:
+            conn.close()
+
+
 class SimilarityTests(unittest.TestCase):
     setUp = DatabaseTests.setUp
     tearDown = DatabaseTests.tearDown

@@ -201,8 +201,6 @@ _UNDATED = ("(json_extract(p.metadata_json, '$.date_source') = 'file_mtime' "
 
 
 _DATE_TAKEN = "json_extract(p.metadata_json, '$.date_taken')"
-# The largest selection the engine can be handed as --file-ids (jobs.MAX_FILE_IDS).
-SELECTION_MAX = 1000
 
 
 def _dates_clause(dates):
@@ -479,8 +477,8 @@ def photo_position(db_path: Path, photo_id: int, *, view="all", sort="newest", p
     filtered, params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, set_reference=set_reference)
     where = _view_clause(view, match_min) + filtered
     if ids is not None:
-        if len(ids) > SELECTION_MAX or any(type(i) is not int or i < 1 for i in ids):
-            raise ValueError("ids must contain at most 1000 positive photo ids")
+        if any(type(i) is not int or i < 1 for i in ids):
+            raise ValueError("ids must be positive photo ids")
         where, params = "p.id IN (SELECT value FROM json_each(?))", (json.dumps(ids),)
     include_counts = view == "similar" and ids is None and sort == "matches"
     prefix, columns, source = _counted_list(sort, match_min, include=include_counts, ids=ids)
@@ -500,17 +498,15 @@ def photo_position(db_path: Path, photo_id: int, *, view="all", sort="newest", p
 
 
 def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,
-              folders=None, root=None, limit=SELECTION_MAX, match_min=75, group_sets=False, set_reference=None) -> dict:
+              folders=None, root=None, match_min=75, group_sets=False, set_reference=None) -> dict:
     """Every photo id the gallery would show for these filters, across all pages, for
-    Select all. More than `limit` is refused with the total, never cut short: a
-    partial Select all would silently act on some of what the user saw."""
+    Select all: all of them, never cut short."""
     _check_view(view)
     filtered, params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, set_reference=set_reference)
     base = f"FROM photos p WHERE {_view_clause(view, match_min)}" + filtered
     with connect(db_path) as conn:
-        total = conn.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
-        ids = [] if total > limit else [r[0] for r in conn.execute(f"SELECT p.id {base} ORDER BY p.id", params)]
-    return {"ids": ids, "total": total, "limit": limit, "over_limit": total > limit}
+        ids = [r[0] for r in conn.execute(f"SELECT p.id {base} ORDER BY p.id", params)]
+    return {"ids": ids, "total": len(ids)}
 
 
 def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, match_min=75) -> dict:
@@ -518,8 +514,8 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, ma
     time (webui-spec 2, Show only selected and the review before Copy/Move). `missing` names ids no longer in the catalog,
     so a selection is never silently shortened."""
     _check_view("similar" if sort == "matches" else "all", sort, page, page_size)
-    if not isinstance(ids, list) or any(type(i) is not int or i < 1 for i in ids) or len(ids) > SELECTION_MAX:
-        raise ValueError(f"ids must be a list of at most {SELECTION_MAX:,} photo ids")
+    if not isinstance(ids, list) or any(type(i) is not int or i < 1 for i in ids):
+        raise ValueError("ids must be a list of photo ids")
     wanted = sorted(set(ids))
     # json_each reads the list as a table, with no write to the catalog.
     join = "FROM photos p JOIN json_each(?) w ON w.value = p.id"
@@ -1048,10 +1044,10 @@ def iter_operations(db_path: Path, **filters):
             yield _op_dict(row)
 
 
-def operation_photo_ids(db_path: Path, limit: int, requested_only=False, **filters) -> list:
+def operation_photo_ids(db_path: Path, requested_only=False, **filters) -> list:
     """The distinct photos behind matching operations, for retrying failures: taken
     from the operations, never from photos.status, which can disagree with a failed
-    attempt (webui-spec 5.3). At most `limit` + 1, so the caller can tell it was cut.
+    attempt (webui-spec 5.3).
     `requested_only` leaves out rows settling an earlier job's interrupted work, so a
     retry of a selection names only photos that selection held."""
     where, params = _operations_where(**filters)
@@ -1060,7 +1056,7 @@ def operation_photo_ids(db_path: Path, limit: int, requested_only=False, **filte
         where += " AND o.reconciles_operation_id IS NULL"
     with connect(db_path) as conn:
         return [r[0] for r in conn.execute(
-            f"SELECT DISTINCT o.photo_id {_OP_FROM}{where} ORDER BY o.photo_id LIMIT ?", params + [limit + 1])]
+            f"SELECT DISTINCT o.photo_id {_OP_FROM}{where} ORDER BY o.photo_id", params)]
 
 
 def list_runs(db_path: Path, limit=100) -> list:
@@ -1182,6 +1178,10 @@ def photo_lineage(db_path: Path, photo_id: int) -> Optional[dict]:
             "o.source_path, o.dest_path, (o.reconciles_operation_id IS NOT NULL) AS recovery "
             f"FROM operations o LEFT JOIN runs r ON r.id = o.run_id WHERE o.id IN ({','.join('?' * len(op_ids))}) "
             "ORDER BY o.id", op_ids)] if op_ids else []
+        # The jobs this photo was chosen for by hand, whatever each then did with it.
+        selected_by = [dict(r) for r in conn.execute(
+            "SELECT r.id AS run_id, r.mode, r.status, r.started_at FROM run_selections s "
+            "JOIN runs r ON r.id = s.run_id WHERE s.photo_id = ? ORDER BY r.id", (photo_id,))]
     by_op = {}
     for r in links:
         by_op.setdefault(r["operation_id"], []).append({"file_id": r["file_id"], "role": r["role"]})
@@ -1193,7 +1193,8 @@ def photo_lineage(db_path: Path, photo_id: int) -> Optional[dict]:
     for op in operations:
         op["recovery"] = bool(op["recovery"])
         op["files"] = by_op.get(op["id"], [])
-    return {"photo_id": photo_id, "sha1": photo["sha1_hash"], "photos": photos, "files": files, "operations": operations}
+    return {"photo_id": photo_id, "sha1": photo["sha1_hash"], "photos": photos, "files": files, "operations": operations,
+            "selected_by": selected_by}
 
 
 # --- Library stats (webui-spec 5.9) ---------------------------------------------

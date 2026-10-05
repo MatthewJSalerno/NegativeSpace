@@ -236,11 +236,9 @@ disk listing, so every folder offered holds photos a job can act on:
 Every photo id the gallery shows for the same `view`, `q`, `undated`, `date`, `type` and `folder`, across
 all pages: **Select all**.
 
-    {"ids": [3, 7, ...], "total": 412, "limit": 1000, "over_limit": false}
+    {"ids": [3, 7, ...], "total": 412}
 
-Over the 1,000-photo selection limit (the engine's `--file-ids`), `ids` is empty and
-`over_limit` true: refused whole, never cut short, because a partial Select all would
-act on only some of what was shown.
+All of them, however many: a selection has no fixed limit (`webui-spec.md` §2).
 
 ### `POST /api/v1/photos/position`
 
@@ -248,7 +246,7 @@ Read-only lookup of one photo's zero-based position, one-based page and adjacent
 IDs in the gallery's ordering. The JSON body requires positive integer `photo_id`;
 optional fields are `view`, `sort`, `page_size` (1–240, default 60), `q`, `undated`,
 `dates`, `types`, `folders` and `match_min`, with the same filter meanings as the gallery.
-An optional `ids` list (at most 1,000 positive integers) scopes a selection instead
+An optional `ids` list (positive integers, any number) scopes a selection instead
 of the normal filters. POST keeps that selection out of URL length limits.
 
     {"photo_id": 7, "sort": "newest", "page_size": 60}
@@ -267,11 +265,10 @@ The selected photos, whatever view, search or dates would hide them (Show only s
     ->  {"items": [...as GET /photos...], "page": 1, "page_size": 60, "total": 2, "missing": [99999],
          "actions": {"reject": 2, "return": 0}}
 
-It reads; it is a POST because 1,000 ids is too long for a URL. `missing` names ids no
-longer in the catalog, so a selection is never silently shortened. `actions` counts what
-Reject (photos in the library) and Return to library (photos in Rejects) would take of
-the whole selection, for the Actions menu. More than 1,000 ids
-is `400 invalid_request`.
+It reads; it is a POST because a selection's ids are too long for a URL. `missing` names
+ids no longer in the catalog, so a selection is never silently shortened. `actions` counts
+what Reject (photos in the library) and Return to library (photos in Rejects) would take
+of the whole selection, for the Actions menu.
 `sort=matches` with optional integer `match_min` (default 75) orders an explicit
 selection by library-wide counts without filtering out selected files. This also
 works for `/photos/position` when `ids` is supplied. Items without an available
@@ -314,14 +311,16 @@ Everything recorded about a photo's files, for the lineage tree (`webui-spec.md`
                 "photo_id", "photo_status"}, ...],
      "operations": [{"id", "run_id", "mode", "status", "timestamp", "error_message", "photo_id",
                      "source_path", "dest_path", "recovery",
-                     "files": [{"file_id", "role": "source" | "destination" | "retained_copy"}]}, ...]}
+                     "files": [{"file_id", "role": "source" | "destination" | "retained_copy"}]}, ...],
+     "selected_by": [{"run_id", "mode", "status", "started_at"}, ...]}
 
 `files` holds the photo's source file and every file descended from it (a copy records
 the file it came from; an indexed file records itself as its own origin), and the same
 for each duplicate. `matches` says whether the file's recorded
 content is the photo's. `operations` is every operation that touched any of them, oldest
-first, with the role each file played. A copy's size is its origin's: it was verified
-byte for byte when made. An unknown photo is `404 unknown_photo`.
+first, with the role each file played. `selected_by` is every job the photo was chosen for
+in a selection (`run_selections`), whatever that job then did with it. A copy's size is
+its origin's: it was verified byte for byte when made. An unknown photo is `404 unknown_photo`.
 
 ### `GET /api/v1/photos/{id}/thumbnail`
 
@@ -359,9 +358,16 @@ An accepted ID with the same normalized request returns its original run without
 spawning, even during a different active job; different input returns
 `409 request_conflict`. Acceptance is durable in the engine's `job_requests` table.
 *   **Validated before anything runs:** mode, one targeting at most, ids as positive
-    integers no greater than `2^63 - 1` (at most 1,000, the command-line limit; `400 selection_too_large` with
-    `limit`), and a folder that stays inside the source. Everything else is
-    `400 invalid_request`.
+    integers no greater than `2^63 - 1`, never more ids than the catalog holds photos (no
+    other limit), and a folder that stays inside the source. Everything else is
+    `400 invalid_request`. A request body is at most 16 MB (the web container's
+    proxy), about 1.5 million ids.
+*   **A selection reaches the engine in a file**, never on its command line: written under
+    application data (`selections/<request_id>.ids`, the folder `0700`, the file `0600`),
+    named by the request ID only, and removed once the engine has recorded it with the run
+    or stopped (`engine-spec.md` §4.1). If any photo is no longer catalogued in this source
+    the engine refuses the whole job, recording nothing: `409 engine_refused` with the
+    reason.
     Folder names preserve significant whitespace, including whitespace-only components;
     browsing and starting a folder job use the same literal names.
 *   **Refusals:** a missing or unusable catalog is `409 catalog_*`, and Copy or Move
@@ -495,10 +501,9 @@ the columns of an item above.
 
 ### `GET /api/v1/operations/photo-ids`
 
-`{"photo_ids": [...], "more_than_limit": false, "limit": 1000}`: the distinct photos behind
-the filtered operations, for **Retry**, which starts the same mode again with these
-`file_ids`. They come from the operations, never from `photos.status`, and rows with no
-photo are left out. More than the job limit is reported, never cut silently.
+`{"photo_ids": [...]}`: the distinct photos behind the filtered operations, all of them,
+for **Retry**, which starts the same mode again with these `file_ids`. They come from the
+operations, never from `photos.status`, and rows with no photo are left out.
 `requested_only=true` also leaves out rows settling an earlier job's interrupted work
 (`reconciles_operation_id`), so a retry of a selection names only photos it held.
 
@@ -596,9 +601,13 @@ the original, so a later archive carries the duplicates.
      "status": "Preparing" | "Running" | "Cancelling" | "Completed" | "Cancelled" |
                "Failed" | "Interrupted",
      "started_at", "ended_at", "reconciled_by_run_id",
-     "targeting": {"file_ids": [...]} | {"source_subdir": "..."} | null,
+     "targeting": {"selection": 2, "sha256": "..."} | {"source_subdir": "..."} | null,
      "progress": [<phase>, ...],
      "outcome": <outcome>}
+
+**`targeting`** for a selection is its size and the checksum of its ids, never the ids,
+which can run to hundreds of thousands: they are recorded with the run in
+`run_selections`, and each photo's lineage lists the jobs it was chosen for.
 
 **`progress`** is the engine's `run_progress` (`engine-spec.md` §4.3): one entry per phase
 the run entered, in order, with the last being the current one. Each entry is
@@ -648,7 +657,6 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
 | Code | Status | Meaning |
 | :--- | :--- | :--- |
 | `invalid_request` | 400 | A malformed or disallowed request |
-| `selection_too_large` | 400 | More than 1,000 ids; `limit` gives the cap |
 | `invalid_settings` | 400 | A setting value the engine would reject |
 | `unknown_photo`, `unknown_run` | 404 | No such photo or run |
 | `catalog_missing`, `catalog_incompatible`, `catalog_error` | 409 | No usable catalog; nothing was changed |

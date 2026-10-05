@@ -59,7 +59,7 @@ with sync_playwright() as p:
     page = open_page()
     page.get_by_role('button', name='Copy instead (recommended)', exact=True).click()
     copied = confirm_answer(page, 'Copy instead')
-    assert copied['mode'] == 'COPY' and copied['targeting'] == {'file_ids':[photo['id']]}
+    assert copied['mode'] == 'COPY' and copied['targeting']['selection'] == 1
     assert original.exists()
     page.close()
     start(mode='move', file_ids=[photo['id']])

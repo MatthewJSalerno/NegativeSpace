@@ -62,7 +62,7 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
           <nav className="pages" aria-label="Pages">
             <a className="button-link" href="/" onClick={follow}>Library</a>
             <ActionsMenu
-              state={{ jobRunning, noPhotos: status.photos === 0, selected: 0, tooMany: false, maxSelection: 1000,
+              state={{ jobRunning, noPhotos: status.photos === 0, selected: 0,
                        eligible: status.eligible, copied: status.copied }}
               onIndex={startJob("index")}
               onTransfer={(mode) => (mode === "copy" || mode === "move")

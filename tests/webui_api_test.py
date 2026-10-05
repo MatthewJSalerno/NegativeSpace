@@ -305,13 +305,19 @@ class SafetyQuestions(ApiCase):
         with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
             photo_id = conn.execute("SELECT id FROM photos WHERE source_path=?", (str(chosen),)).fetchone()[0]
         targeting = {"file_ids":[photo_id]} if scope == "ids" else {"source_subdir":"chosen"} if scope == "folder" else {}
+        recorded = ({"selection": 1, "sha256": ns_db.selection_digest([photo_id])} if scope == "ids"
+                    else targeting or None)
         refused = self.wait_for(self.start(mode="move", **targeting))
         self.assertEqual(refused["questions"], ["network_destination"])
         self.assertTrue(chosen.exists() and other.exists())
         self.assertEqual(list(self.cfg.dest.rglob('*.jpg')), [])
         copied = self.answer(refused, "network_destination", "copy")
         self.assertEqual(copied["mode"], "COPY")
-        self.assertEqual(copied["targeting"], targeting or None)
+        self.assertEqual(copied["targeting"], recorded)
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual([r[0] for r in conn.execute("SELECT photo_id FROM run_selections WHERE run_id = ?",
+                                                         (copied["id"],))], [photo_id] if scope == "ids" else [],
+                             "the answer's job did not carry the original selection")
         self.assertTrue(chosen.exists() and other.exists())
         self.assertEqual(copied["questions"], [])
         # A new Move must ask again; permission is not global.
@@ -334,7 +340,7 @@ class SafetyQuestions(ApiCase):
                      {"question":"network_destination", "answer":True}):
             self.assertEqual(self.client.post(f"/api/v1/runs/{refused['id']}/answer", json=body).status_code, 400)
         moved = self.answer(refused, "network_destination", "confirm_move")
-        self.assertEqual(moved["targeting"], targeting or None)
+        self.assertEqual(moved["targeting"], recorded)
         self.assertEqual(moved["outcome"]["verdict"], "success")
         self.assertFalse(chosen.exists())
         self.assertEqual(other.exists(), scope != "all")
@@ -763,7 +769,7 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual([m["month"] for m in jump["months"]], ["2023-11"])
 
         ids = self.client.get("/api/v1/photos/ids", params={"date": "2020"}).json()
-        self.assertEqual((ids["total"], ids["over_limit"]), (1, False))
+        self.assertEqual(ids["total"], 1)
         self.assertEqual(ids["ids"], [i["id"] for i in photos(date=["2020"])["items"]],
                          "Select all must take exactly the photos the filters show")
 
@@ -926,11 +932,11 @@ class JobsAndCatalog(ApiCase):
                             self.assertEqual(folder["eligible"], {"copy": 0, "move": 0})
                             folders.extend(folder["folders"])
 
-    def test_select_all_over_the_limit_is_refused_whole_not_cut_short(self):
+    def test_select_all_takes_every_photo_shown_with_no_limit(self):
         self.index_library()
-        from webui import catalog
-        over = catalog.photo_ids(self.cfg.db_path, limit=1)
-        self.assertEqual((over["over_limit"], over["total"], over["ids"]), (True, 2, []))
+        every = self.client.get("/api/v1/photos/ids").json()
+        self.assertEqual((every["total"], len(every["ids"])), (2, 2))
+        self.assertEqual(set(every), {"ids", "total"}, "no limit fields remain")
 
     def test_the_selection_shows_photos_every_filter_hides_and_names_missing_ones(self):
         self.index_library()
@@ -940,8 +946,9 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual([i["id"] for i in shown["items"]], [dated_2020])
         self.assertEqual((shown["total"], shown["missing"]), (1, [99999]),
                          "a photo gone from the catalog must be named, not silently dropped")
-        refused = self.client.post("/api/v1/photos/selection", json={"ids": list(range(1, 1002))})
-        self.assertEqual(refused.status_code, 400)
+        # No limit on how many: an unknown id is named, never refused or dropped.
+        many = self.client.post("/api/v1/photos/selection", json={"ids": [dated_2020, *range(100_000, 102_000)]}).json()
+        self.assertEqual((many["total"], len(many["missing"])), (1, 2_000))
 
     def test_exif_dates_keep_their_own_time_zones_and_the_undated_filter_finds_the_rest(self):
         make_photo(self.cfg.source / "dated.jpg", "dated", exif={
@@ -1035,7 +1042,8 @@ class JobsAndCatalog(ApiCase):
                             ({"mode": "move", "source_subdir": "../elsewhere"}, "invalid_request"),
                             ({"mode": "move", "source_subdir": "/etc"}, "invalid_request"),
                             ({"mode": "move", "file_ids": ["1; rm -rf /"]}, "invalid_request"),
-                            ({"mode": "move", "file_ids": list(range(1, 1002))}, "selection_too_large")):
+                            # No fixed limit, but never more photos than the catalog holds.
+                            ({"mode": "move", "file_ids": list(range(1, 5))}, "invalid_request")):
             response = self.client.post("/api/v1/jobs/start", json=body)
             self.assertEqual((response.status_code, response.json()["error"]), (400, error), body)
         with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
@@ -1060,10 +1068,52 @@ class JobsAndCatalog(ApiCase):
         with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 1)
 
-    def test_largest_sqlite_photo_id_is_a_valid_unknown_selection(self):
+    def test_a_selection_reaches_the_engine_in_a_private_file_and_is_kept_with_the_job(self):
+        import stat
+        import subprocess
         self.index_library()
-        run = self.wait_for(self.start(mode="copy", file_ids=[2**63 - 1]))
-        self.assertEqual((run["status"], run["outcome"]["verdict"]), ("Completed", "no_change"))
+        chosen = self.client.get("/api/v1/photos/ids").json()["ids"]
+        real, seen = subprocess.Popen, []
+        def spy(argv, **kw):
+            path = Path(argv[argv.index("--file-ids-from") + 1]) if "--file-ids-from" in argv else None
+            seen.append({"argv": argv, "path": path, "data": path.read_bytes() if path else None,
+                         "mode": stat.S_IMODE(path.stat().st_mode) if path else None,
+                         "folder": stat.S_IMODE(path.parent.stat().st_mode) if path else None})
+            return real(argv, **kw)
+        with patch("webui.jobs.subprocess.Popen", side_effect=spy):
+            run = self.wait_for(self.start(mode="copy", file_ids=list(reversed(chosen)), request_id="chosen-photos"))
+        (call,) = seen
+        self.assertNotIn("--file-ids", call["argv"], "photo ids on the command line")
+        self.assertEqual(call["path"], self.cfg.base / "selections" / "chosen-photos.ids",
+                         "the file is named by the request ID, under application data")
+        self.assertEqual((call["mode"], call["folder"]), (0o600, 0o700), "the selection is not private")
+        self.assertTrue(call["data"].startswith(b"NegativeSpace selection 1\nrequest chosen-photos\n"))
+        self.assertFalse(call["path"].exists(), "the selection file outlived the start")
+        self.assertEqual(run["targeting"], {"selection": len(chosen), "sha256": ns_db.selection_digest(sorted(chosen))})
+        self.assertEqual(run["outcome"]["succeeded"], len(chosen))
+        with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
+            self.assertEqual([r[0] for r in conn.execute(
+                "SELECT photo_id FROM run_selections WHERE run_id = ? ORDER BY photo_id", (run["id"],))], sorted(chosen))
+        # Worked back from a photo: the jobs it was chosen for.
+        lineage = self.client.get(f"/api/v1/photos/{chosen[0]}/lineage").json()
+        self.assertEqual([(s["run_id"], s["mode"]) for s in lineage["selected_by"]], [(run["id"], "COPY")])
+        # The same request again is the same job, not a second one.
+        self.assertEqual(self.start(mode="copy", file_ids=chosen, request_id="chosen-photos"), run["id"])
+
+    def test_a_selection_naming_a_photo_not_catalogued_is_refused_whole(self):
+        self.index_library()
+        known = self.client.get("/api/v1/photos/ids").json()["ids"][0]
+        for chosen in ([2**63 - 1], [known, 2**63 - 1]):
+            response = self.client.post("/api/v1/jobs/start", json={"mode": "copy", "file_ids": chosen})
+            self.assertEqual((response.status_code, response.json()["error"]), (409, "engine_refused"), chosen)
+            message = response.json()["message"]
+            self.assertEqual(message, f"1 of the {len(chosen)} selected photos are no longer catalogued in this source. "
+                                      "Nothing was changed; choose the photos again.", "only the reason, for a person")
+        with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 1, "a refused selection recorded a run")
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM run_selections").fetchone()[0], 0)
+        self.assertEqual(list(self.cfg.dest.rglob("*.jpg")), [], "a refused selection touched a file")
+        self.assertEqual(list((self.cfg.base / "selections").iterdir()), [], "a selection file was left behind")
 
     def test_the_job_stream_sends_the_current_state_on_connect(self):
         self.index_library()
@@ -1114,7 +1164,7 @@ class LogAndErrorCenter(ApiCase):
                          {str(copy["id"]): 1}, "job counts must apply every filter, so a job with no match is hidden")
 
         retry = self.client.get("/api/v1/operations/photo-ids", params={"run": copy["id"], "status": "Failed"}).json()
-        self.assertEqual((retry["photo_ids"], retry["more_than_limit"]), ([op["photo_id"]], False))
+        self.assertEqual(retry, {"photo_ids": [op["photo_id"]]})
 
         history = self.client.get("/api/v1/operations", params={"photo": op["photo_id"]}).json()
         self.assertEqual(sorted(i["status"] for i in history["items"]), ["Failed", "Pending"],

@@ -5,8 +5,8 @@ import { ConfirmDialog, type Confirm } from "./Confirm";
 export function SafetyQuestions({ run, onLeave }: { run: Run; onLeave: () => void }) {
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const scope = Array.isArray(run.targeting?.file_ids)
-    ? `${run.targeting.file_ids.length} selected photos`
+  const scope = typeof run.targeting?.selection === "number"
+    ? `${run.targeting.selection.toLocaleString()} selected photos`
     : typeof run.targeting?.source_subdir === "string"
       ? `folder “${run.targeting.source_subdir}” and its subfolders` : "the whole source";
   const ask = (question: SafetyQuestion, answer: SafetyAnswer, title: string, body: string[], danger = false) => {
