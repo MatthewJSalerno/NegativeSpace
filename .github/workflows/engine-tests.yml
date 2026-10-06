@@ -55,22 +55,22 @@ jobs:
         # Both containers as in docker/compose.yml, driven by headless Chromium through
         # first run, Scan, gallery, Inspector, selection, Copy and settings. On the
         # host because it starts the containers and a Playwright container.
-        run: sh tests/webui_browser_test.sh
+        run: sh tests/browser/webui_browser_test.sh
 
       - name: Appearance palettes in a browser
-        run: DRIVER=appearance_browser_drive.py sh tests/webui_browser_test.sh
+        run: DRIVER=appearance_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Gallery photo positioning in a browser
-        run: DRIVER=gallery_position_browser_drive.py sh tests/webui_browser_test.sh
+        run: DRIVER=gallery_position_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Similar photo review in a browser
-        run: DRIVER=similar_browser_drive.py sh tests/webui_browser_test.sh
+        run: DRIVER=similar_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Rejects in a browser
-        run: DRIVER=rejects_browser_drive.py sh tests/webui_browser_test.sh
+        run: DRIVER=rejects_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Rejecting from similar photos in a browser
-        run: DRIVER=reject_similar_browser_drive.py sh tests/webui_browser_test.sh
+        run: DRIVER=reject_similar_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Synthetic similarity validation
         run: |
@@ -140,7 +140,7 @@ jobs:
             negativespace python3 -m unittest discover -s tests -p selection_ownership_test.py -v
 
       - name: Scenario library
-        # tests/make_scenarios.py never writes to its seed folder, and the real
+        # tools/make_scenarios.py never writes to its seed folder, and the real
         # engine indexes what it builds as its manifest says.
         run: |
           docker run --rm \

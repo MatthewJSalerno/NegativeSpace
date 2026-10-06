@@ -233,17 +233,17 @@ class RequestIdentity(ApiCase):
             spawn.assert_not_called()
 
     def test_conflicting_acceptance_between_lookup_and_launch_is_not_returned(self):
-        from webui import catalog
+        from webui import outcomes
         self.create_catalog()
         make_photo(self.cfg.source / 'sample.jpg', 'late-acceptance')
         self.wait_for(self.start(mode='index', request_id='late-binding'))
-        original = catalog.request_record
+        original = outcomes.request_record
         calls = []
         def appearing_record(*args):
             calls.append(1)
             return None if len(calls) == 1 else original(*args)
         # Simulate another acceptor winning between the initial check and spawn.
-        with patch('webui.jobs.catalog.request_record', side_effect=appearing_record), patch('webui.jobs.subprocess.Popen'):
+        with patch('webui.jobs.outcomes.request_record', side_effect=appearing_record), patch('webui.jobs.subprocess.Popen'):
             response = self.client.post('/api/v1/jobs/start', json={'mode':'copy', 'request_id':'late-binding'})
         self.assertEqual((response.status_code, response.json()['error']), (409, 'request_conflict'))
         self.assertGreaterEqual(len(calls), 2)

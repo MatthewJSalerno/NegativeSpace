@@ -1,6 +1,6 @@
 """Run just the shared UI checks in the same isolated browser fixture.
 
-    DRIVER=ui_browser_drive.py sh tests/webui_browser_test.sh
+    DRIVER=ui_browser_drive.py sh tests/browser/webui_browser_test.sh
 """
 import sys
 import time

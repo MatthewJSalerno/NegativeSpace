@@ -44,7 +44,7 @@ class SyntheticQueryTests(unittest.TestCase):
     def test_mixed_excludes_unavailable_and_failed_hashes(self):
         db, _ = self.fixture('mixed')
         expected = {i for i in range(1,101) if i%11 and i%29 and i%37}
-        result = benchmark.catalog.list_photos(db,view='similar',match_min=90,page_size=200)
+        result = benchmark.gallery.list_photos(db,view='similar',match_min=90,page_size=200)
         self.assertEqual({p['id'] for p in result['items']},expected)
         self.assertGreater(benchmark.query(db,'filtered',90)['total'],0)
 

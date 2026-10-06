@@ -1,5 +1,5 @@
 #!/bin/sh
-# Checks that tests/make_sample_tree.sh keeps its central promise: the sample
+# Checks that tools/make_sample_tree.sh keeps its central promise: the sample
 # is built OUTSIDE the library, and the library is never written to.
 #
 #   sh tests/sampler_test.sh
@@ -13,7 +13,7 @@
 # to keep that line honest.
 set -eu
 
-SAMPLER=$(cd "$(dirname "$0")" && pwd)/make_sample_tree.sh
+SAMPLER=$(cd "$(dirname "$0")/.." && pwd)/tools/make_sample_tree.sh
 WORK=$(mktemp -d)
 FAILED=0
 

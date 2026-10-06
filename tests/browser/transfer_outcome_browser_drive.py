@@ -1,6 +1,6 @@
 """Prerequisite scan failures remain visible in Copy/Move banners and Logs.
 
-    DRIVER=transfer_outcome_browser_drive.py sh tests/webui_browser_test.sh
+    DRIVER=transfer_outcome_browser_drive.py sh tests/browser/webui_browser_test.sh
 
 Uses only the harness's disposable, generated source files.
 """

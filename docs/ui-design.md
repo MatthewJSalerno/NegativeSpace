@@ -383,10 +383,10 @@ and load buttons remain available alongside scroll-triggered loading.
 
 ## Verification and remaining scope
 
-`tests/ui_browser_checks.py` runs through the isolated browser harness after the
+`tests/browser/ui_browser_checks.py` runs through the isolated browser harness after the
 existing product scenario. It exercises dialog focus and nested restoration, menus,
 field errors, help, both-theme destructive contrast, failed loading, narrow-screen
-layout and forced-color focus. `tests/webui_browser_test.sh` is the entry point.
+layout and forced-color focus. `tests/browser/webui_browser_test.sh` is the entry point.
 
 Before making a WCAG conformance claim for the supported desktop experience, review
 all screens with a screen reader, keyboard alone and text scaling/zoom; include

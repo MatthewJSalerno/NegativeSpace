@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from engine import ns_db
 from engine import ns_similarity
 from engine import ns_similarity_recovery
-from . import catalog
+from . import catalog, catalog_backups, gallery, lineage, oplog, outcomes, stats
 from . import matching
 from .config import Config, build_version
 from .jobs import JobRefused, JobRunner, validate_request_id
@@ -175,7 +175,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         if set(body) - {'scope','photo_id','request_id'}:
             raise HTTPException(400, {'error':'invalid_request', 'message':'Unknown recovery option.'})
         run_id = jobs.repair_similarity(body.get('scope'), body.get('photo_id'), body.get('request_id'))
-        return catalog.get_run(cfg.db_path, run_id)
+        return outcomes.get_run(cfg.db_path, run_id)
 
     @app.get("/api/v1/similar/{photo_id}/sets")
     def reference_sets(photo_id: int, threshold: int = Query(90, ge=75, le=100),
@@ -211,13 +211,13 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/api/v1/stats")
     def get_stats():
-        return catalog.library_stats(cfg.db_path, cfg.backups, cfg.base, cfg.source)
+        return stats.library_stats(cfg.db_path, cfg.backups, cfg.base, cfg.source)
 
     # -- Catalog backups (webui-spec 9) ----------------------------------------
 
     @app.get("/api/v1/backups")
     def get_backups():
-        return dict(catalog.backups(cfg.db_path, cfg.backups, cfg.base), job_active=jobs.active() is not None)
+        return dict(catalog_backups.backups(cfg.db_path, cfg.backups, cfg.base), job_active=jobs.active() is not None)
 
     @app.post("/api/v1/backups")
     def post_backup():
@@ -227,7 +227,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/api/v1/backups/{attempt_id}/download")
     def download_backup(attempt_id: int):
-        path = catalog.backup_download(cfg.db_path, cfg.backups, attempt_id)
+        path = catalog_backups.backup_download(cfg.db_path, cfg.backups, attempt_id)
         if path is None:
             raise HTTPException(404, {"error": "backup_unavailable", "message": "Backup file no longer available."})
         return FileResponse(path, filename=path.name, media_type="application/octet-stream")
@@ -243,7 +243,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
                    date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
                    folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1)):
         try:
-            return catalog.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size,
+            return gallery.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size,
                                        undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run)
         except ValueError as exc:
             raise _bad_request(exc)
@@ -253,7 +253,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
                      date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
                      folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1)):
         try:
-            return catalog.timeline(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
+            return gallery.timeline(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
                                     folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run)
         except ValueError as exc:
             raise _bad_request(exc)
@@ -262,7 +262,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_types(view: str = "all", q: Optional[str] = None, undated: bool = False,
                   date: Optional[List[str]] = Query(None), folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1)):
         try:
-            return {"types": catalog.file_types(cfg.db_path, view=view, q=q, undated=undated, dates=date,
+            return {"types": gallery.file_types(cfg.db_path, view=view, q=q, undated=undated, dates=date,
                                                 folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run)}
         except ValueError as exc:
             raise _bad_request(exc)
@@ -274,7 +274,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         """The source's folders with their counts; `folder` names ticked folders, which stay
         listed at 0 but do not narrow the counts (the tree ignores its own filter)."""
         try:
-            return catalog.folder_tree(cfg.db_path, cfg.source, view=view, q=q, undated=undated, dates=date,
+            return gallery.folder_tree(cfg.db_path, cfg.source, view=view, q=q, undated=undated, dates=date,
                                        types=type, keep=folder, match_min=match_min, group_sets=group_sets, run=run)
         except ValueError as exc:
             raise _bad_request(exc)
@@ -284,7 +284,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
                       date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
                       folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1)):
         try:
-            return catalog.photo_ids(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
+            return gallery.photo_ids(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
                                      folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run)
         except ValueError as exc:
             raise _bad_request(exc)
@@ -292,7 +292,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.post("/api/v1/photos/position")
     def get_photo_position(body: PhotoPositionRequest):
         try:
-            return catalog.photo_position(cfg.db_path, root=cfg.source, **body.model_dump())
+            return gallery.photo_position(cfg.db_path, root=cfg.source, **body.model_dump())
         except ValueError as exc:
             raise _bad_request(exc)
 
@@ -300,7 +300,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_selection(body: dict = Body(...)):
         """A POST only because a selection's ids are too long for a URL; it reads."""
         try:
-            return catalog.photos_by_ids(cfg.db_path, body.get("ids"), sort=body.get("sort", "newest"),
+            return gallery.photos_by_ids(cfg.db_path, body.get("ids"), sort=body.get("sort", "newest"),
                                          page=body.get("page", 1), page_size=body.get("page_size", 60), match_min=body.get("match_min", 75),
                                          action=body.get("action"))
         except (ValueError, TypeError) as exc:
@@ -308,14 +308,14 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/api/v1/photos/{photo_id}/inspect")
     def inspect(photo_id: int):
-        found = catalog.inspect_photo(cfg.db_path, photo_id)
+        found = gallery.inspect_photo(cfg.db_path, photo_id)
         if found is None:
             raise HTTPException(404, {"error": "unknown_photo", "message": "No catalogued photo has this id."})
         return found
 
     @app.get("/api/v1/photos/{photo_id}/lineage")
-    def lineage(photo_id: int):
-        found = catalog.photo_lineage(cfg.db_path, photo_id)
+    def get_lineage(photo_id: int):
+        found = lineage.photo_lineage(cfg.db_path, photo_id)
         if found is None:
             raise HTTPException(404, {"error": "unknown_photo", "message": "No such photo."})
         return found
@@ -337,9 +337,9 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
                                  "failure_category": answer.get("failure_category"),
                                  "failure_detail": answer.get("failure_detail")}, status_code=404)
         with catalog.connect(cfg.db_path) as conn:
-            if not catalog.photo_exists(conn, photo_id):
+            if not gallery.photo_exists(conn, photo_id):
                 raise HTTPException(404, {"error": "unknown_photo", "message": "No catalogued photo has this id."})
-            record = catalog.thumbnail_record(conn, photo_id, catalog.GRID_SIZE)
+            record = gallery.thumbnail_record(conn, photo_id, catalog.GRID_SIZE)
         if record and record[1] == "present":
             path = catalog.cache_file(cfg.cache, record[0])
             if path:
@@ -362,8 +362,8 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_operations(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
                        photo: Optional[int] = None, q: Optional[str] = None, since: Optional[str] = None,
                        until: Optional[str] = None, page: int = Query(1, ge=1),
-                       page_size: int = Query(100, ge=1, le=catalog.LOG_PAGE_MAX)):
-        return catalog.list_operations(cfg.db_path, page=page, page_size=page_size,
+                       page_size: int = Query(100, ge=1, le=oplog.LOG_PAGE_MAX)):
+        return oplog.list_operations(cfg.db_path, page=page, page_size=page_size,
                                        **_log_filters(run, status, photo, q, since, until))
 
     @app.get("/api/v1/operations/export")
@@ -383,7 +383,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             out = io.StringIO()
             writer = csv.DictWriter(out, fieldnames=columns, extrasaction="ignore")
             writer.writeheader()
-            for item in catalog.iter_operations(cfg.db_path, **filters):
+            for item in oplog.iter_operations(cfg.db_path, **filters):
                 writer.writerow(item)
                 if out.tell() > 64_000:
                     yield out.getvalue()
@@ -393,7 +393,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
         def rows_json():
             yield "["
-            for n, item in enumerate(catalog.iter_operations(cfg.db_path, **filters)):
+            for n, item in enumerate(oplog.iter_operations(cfg.db_path, **filters)):
                 yield ("," if n else "") + json.dumps({k: item[k] for k in columns})
             yield "]"
 
@@ -407,12 +407,12 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
                             photo: Optional[int] = None, q: Optional[str] = None, since: Optional[str] = None,
                             until: Optional[str] = None, requested_only: bool = False):
         """The distinct photos behind the filtered operations, for Retry: all of them."""
-        return {"photo_ids": catalog.operation_photo_ids(cfg.db_path, requested_only,
+        return {"photo_ids": oplog.operation_photo_ids(cfg.db_path, requested_only,
                                                          **_log_filters(run, status, photo, q, since, until))}
 
     @app.get("/api/v1/runs")
     def get_runs(limit: int = Query(100, ge=1, le=500)):
-        return {"runs": catalog.list_runs(cfg.db_path, limit=limit)}
+        return {"runs": oplog.list_runs(cfg.db_path, limit=limit)}
 
     # -- Jobs -----------------------------------------------------------------
 
@@ -423,20 +423,20 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         if set(body) - {"mode", "file_ids", "source_subdir", "request_id"}:
             raise JobRefused(400, {"error": "invalid_request", "message": "Unsupported job fields. Answer safety questions through the original job."})
         run_id = jobs.start(body.get("mode"), body.get("file_ids"), body.get("source_subdir"), body.get("request_id"))
-        return catalog.get_run(cfg.db_path, run_id)
+        return outcomes.get_run(cfg.db_path, run_id)
 
     @app.post("/api/v1/runs/{run_id}/answer", status_code=202)
     def answer_question(run_id: int, body: dict = Body(...)):
         if not {"question", "answer"} <= set(body) or set(body) - {"question", "answer", "request_id"}:
             raise JobRefused(400, {"error": "invalid_request", "message": "Provide question, answer and an optional request_id; the original job supplies the scope."})
         new_id = jobs.answer(run_id, body["question"], body["answer"], body.get("request_id"))
-        return catalog.get_run(cfg.db_path, new_id)
+        return outcomes.get_run(cfg.db_path, new_id)
 
     @app.get("/api/v1/job-requests/{request_id}")
     def lookup_request(request_id: str):
         validate_request_id(request_id)
-        record = catalog.request_record(cfg.db_path, request_id)
-        return {"state": "accepted", "run": catalog.get_run(cfg.db_path, record["run_id"])} if record else {"state": "unknown", "run": None}
+        record = outcomes.request_record(cfg.db_path, request_id)
+        return {"state": "accepted", "run": outcomes.get_run(cfg.db_path, record["run_id"])} if record else {"state": "unknown", "run": None}
 
     @app.post("/api/v1/jobs/{run_id}/cancel", status_code=202)
     def cancel_job(run_id: int):
@@ -445,11 +445,11 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/api/v1/jobs/active")
     def active_job():
-        return {"active": jobs.active(), "last": catalog.last_run(cfg.db_path)}
+        return {"active": jobs.active(), "last": outcomes.last_run(cfg.db_path)}
 
     @app.get("/api/v1/runs/{run_id}")
     def get_run(run_id: int):
-        run = catalog.get_run(cfg.db_path, run_id)
+        run = outcomes.get_run(cfg.db_path, run_id)
         if run is None:
             raise HTTPException(404, {"error": "unknown_run", "message": "No such job."})
         return run
@@ -471,7 +471,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         try:
             while True:
                 state = await run_in_threadpool(lambda: {"active": jobs.active(),
-                                                         "last": catalog.last_run(cfg.db_path)})
+                                                         "last": outcomes.last_run(cfg.db_path)})
                 encoded = json.dumps(state, sort_keys=True, default=str)
                 if encoded != previous:
                     await ws.send_text(encoded)

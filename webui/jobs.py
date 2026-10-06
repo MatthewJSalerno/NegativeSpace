@@ -15,7 +15,7 @@ import uuid
 from typing import Optional
 
 from engine import ns_db
-from . import catalog
+from . import catalog, catalog_backups, outcomes
 from .config import ENGINE_CWD, Config
 
 MODES = {"index": None, "copy": "--copy", "move": "--move",
@@ -181,7 +181,7 @@ class JobRunner:
         holds the lock is shown as interrupted and awaiting reconciliation; the API
         never writes that - the next engine run does (webui-spec 5.7)."""
         busy = self.engine_busy()
-        run = catalog.newest_active_run(self.cfg.db_path)
+        run = outcomes.newest_active_run(self.cfg.db_path)
         if run is None:
             # An engine is starting, backing up, or was run by hand outside this server.
             return {"id": None, "mode": "backup" if self._backing_up else None, "status": "Preparing", "unrecorded": True} if busy else None
@@ -238,7 +238,7 @@ class JobRunner:
                 row = conn.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
                 if row is None:
                     raise JobRefused(409, {"error": "stale_question", "message": "This question is no longer current. Refresh the job status."})
-                current = question in catalog.safety_questions(conn, dict(row))
+                current = question in outcomes.safety_questions(conn, dict(row))
                 if row["source_path"] != str(self.cfg.source.resolve()) or row["dest_path"] != str(self.cfg.dest.resolve()):
                     raise JobRefused(409, {"error": "scope_changed", "message": "The source or destination changed. Start a new job with the intended folders."})
                 mode = row["mode"].lower()
@@ -271,7 +271,7 @@ class JobRunner:
     def _replay(self, flags, request_id, selection=None):
         if request_id is None:
             return None
-        record = catalog.request_record(self.cfg.db_path, request_id)
+        record = outcomes.request_record(self.cfg.db_path, request_id)
         if record is None:
             return None
         def argument(flag):
@@ -353,7 +353,7 @@ class JobRunner:
                            "Check application-data storage and engine permissions, then retry the same request."}) from exc
         deadline = time.monotonic() + RUN_APPEAR_SECONDS
         while True:
-            run_id = catalog.run_for_request(self.cfg.db_path, request_id)
+            run_id = outcomes.run_for_request(self.cfg.db_path, request_id)
             if run_id is not None:
                 break
             if proc.poll() is not None:
@@ -387,7 +387,7 @@ class JobRunner:
         self._procs.pop(run_id, None)
 
     def _busy(self) -> JobRefused:
-        run = catalog.newest_active_run(self.cfg.db_path)
+        run = outcomes.newest_active_run(self.cfg.db_path)
         active = {k: run[k] for k in ("id", "mode", "started_at")} if run else None
         return JobRefused(409, {"error": "job_already_running", "active_run": active,
                                 "message": "A job is already running - wait for it to finish or cancel it."})
@@ -398,7 +398,7 @@ class JobRunner:
         be signalled; one started before a restart has no handle here."""
         proc = self._procs.get(run_id)
         if proc is None or proc.poll() is not None:
-            run = catalog.get_run(self.cfg.db_path, run_id)
+            run = outcomes.get_run(self.cfg.db_path, run_id)
             if run is None:
                 raise JobRefused(404, {"error": "unknown_run", "message": "No such job."})
             if run["status"] not in catalog.ns_db.ACTIVE_RUN_STATUSES:
@@ -434,7 +434,7 @@ class JobRunner:
         with self._start_lock:
             if self._probe_lock():
                 raise self._busy()
-            before = catalog.newest_backup_attempt(self.cfg.db_path)
+            before = catalog_backups.newest_backup_attempt(self.cfg.db_path)
             self._backing_up = True
             try:
                 proc = subprocess.run(self.cfg.engine_argv("--backup-now"), cwd=ENGINE_CWD, stdin=subprocess.DEVNULL,
@@ -444,7 +444,7 @@ class JobRunner:
                                        "message": "The backup did not finish in time. Check the backup storage."})
             finally:
                 self._backing_up = False
-            attempt = catalog.newest_backup_attempt(self.cfg.db_path)
+            attempt = catalog_backups.newest_backup_attempt(self.cfg.db_path)
         if attempt is None or (before is not None and attempt["attempt_id"] == before["attempt_id"]):
             output = (proc.stderr + proc.stdout)
             if "another NegativeSpace engine process is already running" in output:

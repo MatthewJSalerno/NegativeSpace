@@ -1,4 +1,4 @@
-"""NETWORK_FIXTURE=1 DRIVER=safety_questions_browser_drive.py sh tests/webui_browser_test.sh"""
+"""NETWORK_FIXTURE=1 DRIVER=safety_questions_browser_drive.py sh tests/browser/webui_browser_test.sh"""
 import shutil
 import sys
 import tempfile

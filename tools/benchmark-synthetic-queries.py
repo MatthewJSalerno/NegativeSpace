@@ -20,7 +20,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from engine import ns_db
 from engine import ns_similarity_cache
-from webui import catalog, matching, reference_sets
+from webui import gallery, matching, reference_sets
 
 PROFILES = ('sparse', 'equal', 'dense', 'mixed')
 SCENARIOS = ('gallery', 'grouped', 'last_page', 'filtered', 'inspector', 'related', 'members', 'position')
@@ -115,15 +115,15 @@ def build_fixture(directory, photos, profile, seed=91, dense_photos=4096, max_ed
 def query(db, scenario, threshold):
     args = {'view':'similar','match_min':threshold,'sort':'matches','page_size':60}
     if scenario == 'gallery':
-        return catalog.list_photos(db, **args)
+        return gallery.list_photos(db, **args)
     if scenario == 'grouped':
-        return catalog.list_photos(db, **args, group_sets=True)
+        return gallery.list_photos(db, **args, group_sets=True)
     if scenario == 'last_page':
         # Counts are part of the actual API workflow, and intentionally timed.
-        first = catalog.list_photos(db, **args)
-        return catalog.list_photos(db, **args, page=max(1,math.ceil(first['total']/60)))
+        first = gallery.list_photos(db, **args)
+        return gallery.list_photos(db, **args, page=max(1,math.ceil(first['total']/60)))
     if scenario == 'filtered':
-        return catalog.list_photos(db, **args, group_sets=True, types=['jpg'], dates=['2020'])
+        return gallery.list_photos(db, **args, group_sets=True, types=['jpg'], dates=['2020'])
     if scenario == 'inspector':
         return {'counts':matching.counts(db,1),'matches':matching.matches(db,1,threshold=threshold,page_size=12)}
     if scenario == 'related':
@@ -133,9 +133,9 @@ def query(db, scenario, threshold):
         include = [first['related'][0]['id']] if first['related'] else []
         return reference_sets.browse(db,1,threshold=threshold,include=include,page_size=12)
     if scenario == 'members':
-        return catalog.list_photos(db, **{**args,'view':'all'}, set_reference=1)
+        return gallery.list_photos(db, **{**args,'view':'all'}, set_reference=1)
     if scenario == 'position':
-        return catalog.photo_position(db,1,view='similar',sort='matches',match_min=threshold,group_sets=True)
+        return gallery.photo_position(db,1,view='similar',sort='matches',match_min=threshold,group_sets=True)
     raise ValueError('Unknown scenario')
 
 

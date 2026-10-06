@@ -1,4 +1,4 @@
-"""tests/make_scenarios.py against a seed folder it must never write to, and the real
+"""tools/make_scenarios.py against a seed folder it must never write to, and the real
 engine's Index against what it builds, so the manifest's expectations are checked
 rather than assumed.
 
@@ -17,7 +17,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SCRIPT = REPO / "tests" / "make_scenarios.py"
+SCRIPT = REPO / "tools" / "make_scenarios.py"
 sys.path.insert(0, str(REPO))
 from PIL import Image  # noqa: E402
 

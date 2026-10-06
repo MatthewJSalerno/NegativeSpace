@@ -5,7 +5,7 @@ from pathlib import Path
 
 from engine import ns_db
 from engine import ns_similarity
-from . import catalog
+from . import catalog, gallery
 from engine.ns_similarity_cache import AVAILABLE, VALID
 
 THRESHOLDS = (75, 80, 85, 90, 95, 100)
@@ -38,7 +38,7 @@ def counts(db: Path, photo_id: int):
 # Availability is recorded evidence, not a fresh filesystem verification. Destructive
 # curation is deliberately absent; its future preview must verify files independently.
 _BASE = f"""raw AS (
- SELECT {catalog._LIST_COLUMNS}, c.content_id, lower(c.phash) AS phash,
+ SELECT {gallery._LIST_COLUMNS}, c.content_id, lower(c.phash) AS phash,
         c.phash_state, c.width, c.height,
         ROW_NUMBER() OVER (PARTITION BY c.content_id ORDER BY p.id) AS representative
  FROM photos p JOIN contents c ON c.digest=p.sha1_hash AND c.hash_algorithm='sha1'
