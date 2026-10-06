@@ -1116,7 +1116,9 @@ every job; while any is set, a job with nothing matching is left out. A finished
 job's banner links to its log, opened on that job, and, when it failed, to **View failures**.
 A dismissed banner stays dismissed on every page, in every browser, and after the
 browser's data is cleared: the dismissal is kept with the catalog (`PUT /api/v1/ui-state`),
-and covers that job and every earlier one. The Logs page has the Library's top row
+and covers that job and every earlier one. The catalog's record wins over the browser's
+copy, which stands in only until the catalog answers: a copy left from an earlier catalog,
+whose job numbers ran higher, would otherwise hide every new banner. The Logs page has the Library's top row
 without **Jobs**, whose jobs belong with the photos; the page links never move. The
 active filters are named in one line with one reset (**"Showing: job #3 · Failed ·
 “photo-00” · Clear all filters"**). An open job's entries load in batches of 100 as the

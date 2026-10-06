@@ -18,6 +18,11 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
   maintenance jobs, backups and the command line. `ns_db.py` and the `ns_similarity`
   modules moved into it. No behaviour changed.
 
+### Fixed
+- After a catalog was replaced, finished-job banners vanished as each job ended: the
+  browser remembered a dismissal from the old catalog's higher job numbers. The catalog's
+  record of what was dismissed now wins.
+
 ## [0.15.0] - 2026-10-06
 
 ### Changed

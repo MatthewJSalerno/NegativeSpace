@@ -188,10 +188,12 @@ export function useDismissedRun(): [number | null, (id: number) => void] {
     try { return Number(localStorage.getItem(DISMISSED_KEY)) || null; } catch { return null; }
   });
   const [known, setKnown] = useState(false);
+  // The catalog's record wins once it answers: this browser's copy may belong to an earlier
+  // catalog whose job numbers ran higher, and would hide every banner up to it. The copy
+  // stands in only while the catalog cannot be read.
   useEffect(() => {
-    api.uiState().then((state) => {
-      if (state.dismissed_run != null) setId((cur) => Math.max(cur ?? 0, state.dismissed_run as number));
-    }, () => undefined).finally(() => setKnown(true));
+    api.uiState().then((state) => setId(state.dismissed_run ?? null), () => undefined)
+      .finally(() => setKnown(true));
   }, []);
   const dismiss = useCallback((run: number) => {
     setId(run);

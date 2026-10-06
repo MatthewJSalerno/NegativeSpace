@@ -412,6 +412,11 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"date=2019"))
     expect(banner).to_contain_text("Copy finished", timeout=60_000)
     expect(banner).to_contain_text("3 of 3 files copied")
+    # A dismissal this browser kept from an earlier catalog, whose job numbers ran higher,
+    # must not hide this catalog's banners: the catalog's record wins.
+    page.evaluate("localStorage.setItem('ns.dismissedRun', '999')")
+    page.reload()
+    expect(banner).to_contain_text("3 of 3 files copied")
     banner.get_by_role("button", name="Show these photos").click()
     job = page.get_by_role("region", name="A job's photos")
     expect(job).to_contain_text(re.compile(r"The 3 photos in Copy #\d+"))
