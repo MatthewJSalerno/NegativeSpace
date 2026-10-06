@@ -34,6 +34,11 @@ export interface Status {
 export type View = "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects";
 // A job acting on photos; Reject and Return to library need a selection or a folder.
 export type ActionMode = "copy" | "move" | "reject" | "return";
+// Where a photo is, for selecting: a selection holds library photos or photos in Rejects,
+// never both (webui-spec 2), so each action on it has one meaning.
+export type Place = "library" | "rejects";
+export const placeOf = (status: string): Place =>
+  status === "Rejected" || status === "Rejected_Copied" ? "rejects" : "library";
 export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name" | "matches";
 
 export interface PhotoItem {
@@ -125,8 +130,8 @@ export interface SelectionPage {
   page_size: number;
   total: number;
   missing: number[];
-  // Among the selected photos: in the library (Reject takes them) and in Rejects
-  // (Return to library takes them).
+  // Those in Rejects: a selection holds one place (Place, below).
+  in_rejects?: number[];
   // What each action would take of the selection, for the selection bar.
   actions?: { copy: number; move: number; reject: number; return: number };
 }
@@ -599,7 +604,7 @@ export const api = {
   // `folders` here keeps ticked folders listed; the tree's counts ignore its own filter.
   folders: (params: BrowseFilters) => request<FolderTree>("GET", `/api/v1/photos/folders?${browseQuery(params)}`),
   photoIds: (params: BrowseFilters) =>
-    request<{ ids: number[]; total: number }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
+    request<{ ids: number[]; total: number; in_rejects: number[] }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
   selection: (ids: number[], sort: Sort, page: number, page_size: number, match_min = 75) =>
     request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size, match_min }),
   operations: (f: LogFilters, page: number, pageSize: number) => {

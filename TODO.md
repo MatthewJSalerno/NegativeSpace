@@ -55,6 +55,10 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Views
 
+- [ ] **Same-named photos look identical on a card:** a card shows only the filename, so two
+  different photos named alike (in different source folders) read as one photo in two
+  places. Show the source folder on hover, or beside the name when the view holds both.
+
 - [ ] **After a job, stay where you were** (decided 2026-10-06, `docs/webui-spec.md`,
   Selective File Processing): the finished banner's **Show these n** opens the job's photos; filters work
   inside that screen; its line gives the outcome; no "0 photos selected" bar. Mockup:

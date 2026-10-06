@@ -187,7 +187,7 @@ service. Built and tested:
     *   the first-run screens, landing in the Library to Index;
     *   settings as a window over the page, with catalog backups (list, Back up now,
         download);
-    *   the top row: the logo, Library, the **Organize** menu on the Library page (Index;
+    *   the top row: the logo, Library, the **Jobs** menu on the Library page (Index;
         Copy and Move for the one folder shown or all), Logs, the selection bar (Copy, Move,
         Reject or Return to library for the ticked photos, only what applies), and the
         build beside Settings;

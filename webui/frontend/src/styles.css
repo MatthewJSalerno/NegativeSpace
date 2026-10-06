@@ -417,7 +417,7 @@ button.photo-action:hover:not(:disabled) { background: var(--surface-2); border-
   .job-detail, .job-count { grid-column: 2; }
 }
 
-/* The Organize menu, after Library in the page links. */
+/* The Jobs menu, after Library in the page links. */
 .actions-menu { position: relative; }
 .actions-menu > button { font: inherit; cursor: pointer; }
 .button-link.active-soft { border-color: var(--accent); color: var(--accent); }

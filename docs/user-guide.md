@@ -25,10 +25,10 @@ Rejects. **Backups** explains what NegativeSpace backs up (its catalog, not your
 
 ## 2. Index: read your photos
 
-The library starts empty. **Organize** holds the jobs for the whole library; each item says
+The library starts empty. **Jobs** holds the jobs for the whole library; each item says
 what it does, and why when it cannot run yet.
 
-![The Organize menu before anything is indexed](images/organize-menu.png)
+![The Jobs menu before anything is indexed](images/jobs-menu.png)
 
 **Index** reads every photo in your source: its date, a checksum of its content, and a
 small thumbnail. It moves and copies nothing, and never writes to your source. Its progress
@@ -51,11 +51,13 @@ from, and its history.
 
 ## 4. Copy or Move
 
-**Organize › Copy** files every photo not yet organized into the destination's `library/`
+**Jobs › Copy** files every photo not yet organized into the destination's `library/`
 folder, under `YYYY/MM/DD`, and never touches your source. **Move** does the same, then
 removes each original once its copy is verified (it needs a writable source). Either can
-take everything or one folder from Organize. Tick photos instead and the bar at the top
+take everything or one folder from Jobs. Tick photos instead and the bar at the top
 offers what applies to them: Copy, Move, Reject, or Return to library. Each asks first.
+A selection holds library photos or photos in Rejects, never both, so each action means
+one thing.
 
 ![Three photos selected: the bar offers Move and Reject](images/selection-bar.png)
 
@@ -88,6 +90,10 @@ destination. Nothing is deleted: the **Rejects** view shows what it holds, **Ret
 library** brings a photo back, and you empty the folder yourself (**How to empty
 Rejects** says how). A reminder appears on every page once Rejects grows past a size or
 age you set in Settings.
+
+If you Move, a rejected photo's original in your source is deleted too, once its copy in
+Rejects is verified, so the source can end up empty. That copy is then the only one:
+empty Rejects and the photo is gone. Every Move that includes rejected photos says so first.
 
 ![The Rejects view](images/rejects.png)
 

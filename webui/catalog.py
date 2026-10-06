@@ -500,13 +500,16 @@ def photo_position(db_path: Path, photo_id: int, *, view="all", sort="newest", p
 def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,
               folders=None, root=None, match_min=75, group_sets=False, set_reference=None) -> dict:
     """Every photo id the gallery would show for these filters, across all pages, for
-    Select all: all of them, never cut short."""
+    Select all: all of them, never cut short. `in_rejects` names those in Rejects, since a
+    selection holds library photos or photos in Rejects, never both (webui-spec 2)."""
     _check_view(view)
     filtered, params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, set_reference=set_reference)
     base = f"FROM photos p WHERE {_view_clause(view, match_min)}" + filtered
     with connect(db_path) as conn:
-        ids = [r[0] for r in conn.execute(f"SELECT p.id {base} ORDER BY p.id", params)]
-    return {"ids": ids, "total": len(ids)}
+        rows = conn.execute(f"SELECT p.id, p.status IN ({ns_db.sql_values(IN_REJECTS_STATUSES)}) {base} ORDER BY p.id",
+                            params).fetchall()
+    ids = [r[0] for r in rows]
+    return {"ids": ids, "total": len(ids), "in_rejects": [r[0] for r in rows if r[1]]}
 
 
 def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, match_min=75) -> dict:
@@ -520,7 +523,9 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, ma
     # json_each reads the list as a table, with no write to the catalog.
     join = "FROM photos p JOIN json_each(?) w ON w.value = p.id"
     with connect(db_path) as conn:
-        found = {r[0] for r in conn.execute(f"SELECT p.id {join}", (json.dumps(wanted),))}
+        places = conn.execute(f"SELECT p.id, p.status IN ({ns_db.sql_values(IN_REJECTS_STATUSES)}) {join}",
+                              (json.dumps(wanted),)).fetchall()
+        found = {r[0] for r in places}
         prefix, columns, source = _counted_list(sort, match_min, ids=wanted)
         rows = conn.execute(prefix + f"SELECT {columns} {source} JOIN json_each(?) w ON w.value=p.id "
                             f"ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?",
@@ -537,6 +542,7 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, ma
             (json.dumps(wanted),)).fetchone()
     return {"items": items, "page": page, "page_size": page_size, "total": len(found),
             "missing": [i for i in wanted if i not in found],
+            "in_rejects": sorted(r[0] for r in places if r[1]),
             "actions": {"copy": copy, "move": move, "reject": reject, "return": back}}
 
 

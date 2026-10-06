@@ -179,10 +179,10 @@ def check_ui(browser, base, _shot):
 
     # Commands have arrow navigation, disabled-item explanations, submenu return,
     # and trigger restoration. A confirmation starts on its safe action.
-    actions = page.get_by_role("button", name="Organize", exact=True)
+    actions = page.get_by_role("button", name="Jobs", exact=True)
     actions.focus()
     page.keyboard.press("Enter")
-    menu = page.get_by_role("menu", name="Organize", exact=True)
+    menu = page.get_by_role("menu", name="Jobs", exact=True)
     expect(menu.get_by_role("menuitem", name=re.compile(r"^Index"))).to_be_focused()
     page.keyboard.press("End")
     move = menu.get_by_role("menuitem", name="Move", exact=True)
@@ -362,8 +362,8 @@ def check_ui(browser, base, _shot):
     phone = browser.new_page(viewport={"width": 320, "height": 700}, is_mobile=True, has_touch=True)
     phone.goto(base)
     expect(phone.locator(".card").first).to_be_visible()
-    phone.get_by_role("button", name="Organize", exact=True).click()
-    box = phone.get_by_role("menu", name="Organize", exact=True).bounding_box()
+    phone.get_by_role("button", name="Jobs", exact=True).click()
+    box = phone.get_by_role("menu", name="Jobs", exact=True).bounding_box()
     assert box and box["x"] >= 0 and box["x"] + box["width"] <= 320, box
     phone.keyboard.press("Escape")
     phone.get_by_role("button", name="Settings", exact=True).click()

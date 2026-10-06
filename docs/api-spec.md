@@ -223,7 +223,7 @@ disk listing, so every folder offered holds photos a job can act on:
     `undated`, `date` and `type`; `folder` does not narrow it, so an unticked folder keeps
     its count. A folder named in `folder` stays listed at 0, so it can be unticked.
 *   **`eligible`** is what a Copy or a Move of the folder would take (`--source-subdir`,
-    `ns_db.TRANSFER_ELIGIBLE`), whatever the filters: Organize's "this folder".
+    `ns_db.TRANSFER_ELIGIBLE`), whatever the filters: Jobs' "this folder".
 *   **`name`** folds a chain of folders, each holding one folder and no photos of its own,
     into one row: `"Camera / Nikon D750"`, with `path` the deepest folder.
 *   **`top_files`** are the photos directly in the source folder, in no subfolder
@@ -236,9 +236,11 @@ disk listing, so every folder offered holds photos a job can act on:
 Every photo id the gallery shows for the same `view`, `q`, `undated`, `date`, `type` and `folder`, across
 all pages: **Select all**.
 
-    {"ids": [3, 7, ...], "total": 412}
+    {"ids": [3, 7, ...], "total": 412, "in_rejects": [7]}
 
 All of them, however many: a selection has no fixed limit (`webui-spec.md` §2).
+`in_rejects` names those in Rejects: a selection holds library photos or photos in Rejects,
+never both, so Select all takes one place and says how many it left out.
 
 ### `POST /api/v1/photos/position`
 
@@ -264,10 +266,11 @@ The selected photos, whatever view, search or dates would hide them (Show only s
 
     {"ids": [3, 7, 99999], "sort": "newest", "page": 1, "page_size": 60}
     ->  {"items": [...as GET /photos...], "page": 1, "page_size": 60, "total": 2, "missing": [99999],
-         "actions": {"copy": 0, "move": 2, "reject": 2, "return": 0}}
+         "in_rejects": [], "actions": {"copy": 0, "move": 2, "reject": 2, "return": 0}}
 
 It reads; it is a POST because a selection's ids are too long for a URL. `missing` names
-ids no longer in the catalog, so a selection is never silently shortened. `actions` counts
+ids no longer in the catalog, so a selection is never silently shortened. `in_rejects`
+names those in Rejects, as for `/photos/ids` (Select all on a job's photos). `actions` counts
 what each action would take of the whole selection, for the selection bar: Copy and Move by
 the engine's own rule (`ns_db.TRANSFER_ELIGIBLE`, as `eligible` in `GET /status`), Reject
 (photos in the library) and Return to library (photos in Rejects).

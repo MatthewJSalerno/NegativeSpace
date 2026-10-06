@@ -5,7 +5,7 @@ import { PageBoundary } from "./components/ui/PageBoundary";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Logo } from "./components/Logo";
 import { VersionTag, versionText } from "./components/VersionTag";
-import { api, ApiError, MATCH_THRESHOLDS, type ActionMode, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Sort, type Status, type Timeline, type View } from "./api";
+import { api, ApiError, MATCH_THRESHOLDS, type ActionMode, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Sort, type Status, type Timeline, type View } from "./api";
 import { count, plural } from "./format";
 import { useDismissedRun, useJobFeed } from "./jobs";
 import { Gallery } from "./components/Gallery";
@@ -19,7 +19,7 @@ import { SelectMenu } from "./components/SelectMenu";
 import { usePaged } from "./paged";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./components/Confirm";
 import { Tip } from "./components/Tip";
-import { OrganizeMenu } from "./components/OrganizeMenu";
+import { JobsMenu } from "./components/JobsMenu";
 import { SelectionBar, type SelectionCounts } from "./components/SelectionBar";
 import { RejectsLine, RejectsReminder } from "./components/RejectsLine";
 import { SearchField } from "./components/ui/SearchField";
@@ -297,6 +297,10 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const [datesOpen, setDatesOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  // Library photos or photos in Rejects, never both (webui-spec 2): set by the first photo
+  // ticked, cleared with the selection.
+  const [place, setPlace] = useState<Place | null>(null);
+  useEffect(() => { if (selected.size === 0) setPlace(null); }, [selected]);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   useNavigation(() => {
@@ -326,7 +330,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     }, () => undefined);
     return () => { live = false; };
   }, [refreshKey]);
-  // What Reject and Return to library would take of the selection, for Actions.
+  // What each action would take of the selection, for the selection bar.
   const [selectionActions, setSelectionActions] = useState<SelectionCounts>(NO_ACTIONS);
   const [dismissedId, dismissRun] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
@@ -695,18 +699,38 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     else setPage(Math.floor(first / size) + 1);
   };
 
-  const toggleIds = (ids: number[], on: boolean) => setSelected((cur) => {
-    const next = new Set(cur);
-    for (const id of ids) { if (on) next.add(id); else next.delete(id); }
-    return next;
-  });
-  const toggle = (item: PhotoItem, on: boolean) => toggleIds([item.id], on);
-  const toggleMany = (items: PhotoItem[], on: boolean) => toggleIds(items.map((i) => i.id), on);
+  // Adding photos needs their place; callers pass only photos of the selection's place.
+  const toggleIds = (ids: number[], on: boolean, idsPlace?: Place) => {
+    if (on && idsPlace) setPlace((cur) => cur ?? idsPlace);
+    setSelected((cur) => {
+      const next = new Set(cur);
+      for (const id of ids) { if (on) next.add(id); else next.delete(id); }
+      return next;
+    });
+  };
+  // Ticking keeps to the selection's place; with nothing selected, the first photo sets it.
+  const toggleMany = (items: PhotoItem[], on: boolean) => {
+    if (!on) { toggleIds(items.map((i) => i.id), false); return; }
+    const target = place ?? (items.length ? placeOf(items[0].status) : null);
+    if (!target) return;
+    toggleIds(items.filter((i) => placeOf(i.status) === target).map((i) => i.id), true, target);
+  };
+  const toggle = (item: PhotoItem, on: boolean) => toggleMany([item], on);
+  // Select all takes one place: the selection's, else the library's if any are shown. It
+  // says how many of the other place it left out.
   const selectAll = async () => {
-    if (focus && !memberBrowse) { toggleIds(focus.ids, true); return; }
     try {
-      const got = await api.photoIds(memberBrowse ?? { view, match_min: galleryMinimum, group_sets: grouped, q, undated, dates, types, folders });
-      toggleIds(got.ids, true);
+      const got = focus && !memberBrowse
+        ? { ids: focus.ids, in_rejects: (await api.selection(focus.ids, "newest", 1, 1, galleryMinimum)).in_rejects ?? [] }
+        : await api.photoIds(memberBrowse ?? { view, match_min: galleryMinimum, group_sets: grouped, q, undated, dates, types, folders });
+      const rejected = new Set(got.in_rejects);
+      const library = got.ids.filter((id) => !rejected.has(id));
+      const target: Place = place ?? (library.length > 0 ? "library" : "rejects");
+      const take = target === "library" ? library : got.ids.filter((id) => rejected.has(id));
+      toggleIds(take, true, target);
+      const left = got.ids.length - take.length;
+      if (left > 0) setNotice(`${target === "library" ? plural(left, "photo in Rejects was", "photos in Rejects were")
+        : plural(left, "library photo was", "library photos were")} left out: photos in Rejects and library photos can't be selected together.`);
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : "The photos could not be selected.");
     }
@@ -765,14 +789,14 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   // full selection can be scrolled, opened and unticked before committing.
   const transferSelected = (mode: ActionMode) => {
     if (selected.size === 1) {
-      askTransfer(mode, [...selected]);
+      askTransfer(mode, [...selected], undefined, undefined, place === "rejects");
       return;
     }
     setFocus({ kind: "review", mode, ids: [...selected] });
     setFocusPage(1);
   };
   const reviewIds = focus?.kind === "review" ? focus.ids.filter((id) => selected.has(id)) : [];
-  const review = focus?.kind === "review" && focus.mode ? transferConfirm(focus.mode, status, reviewIds, start(focus.mode, reviewIds)) : null;
+  const review = focus?.kind === "review" && focus.mode ? transferConfirm(focus.mode, status, reviewIds, start(focus.mode, reviewIds), undefined, undefined, place === "rejects") : null;
   const [committing, setCommitting] = useState(false);
   const commit = async () => {
     if (!review) return;
@@ -780,8 +804,8 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     try { await review.run(); } finally { setCommitting(false); }
   };
 
-  const askTransfer = (mode: ActionMode, ids?: number[], onCancel?: () => void, filename?: string) =>
-    setConfirm(transferConfirm(mode, status, ids, start(mode, ids), onCancel, filename));
+  const askTransfer = (mode: ActionMode, ids?: number[], onCancel?: () => void, filename?: string, inRejects = false) =>
+    setConfirm(transferConfirm(mode, status, ids, start(mode, ids), onCancel, filename, inRejects));
   // Keep this one, reject the rest (webui-spec 7.8): every look-alike of the kept photo at
   // the threshold, reviewed before anything moves, the kept photo shown first and never ticked.
   const keepAndReview = async (keep: number, keepName: string, threshold: number) => {
@@ -789,17 +813,20 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     try {
       const set = await api.photoIds({ view: "all", q: "", undated: false, set_reference: keep, match_min: threshold,
                                        dates: [], types: [], folders: [] });
-      const rest = set.ids.filter((id) => id !== keep);
+      // Look-alikes already in Rejects are not rejected again, and a selection holds one place.
+      const rejected = new Set(set.in_rejects);
+      const rest = set.ids.filter((id) => id !== keep && !rejected.has(id));
       setComparison(null); setOpenId(null); setLocate(null); setRevealId(null);
       setSelected(new Set(rest));
+      setPlace("library");
       setFocus({ kind: "review", mode: "reject", ids: rest, keep, keepName });
       setFocusPage(1);
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : "The look-alikes could not be loaded.");
     }
   };
-  // A folder's Copy or Move: the engine takes the folder itself (--source-subdir), so
-  // there is no 1,000-photo limit, and Retry offers the same folder again.
+  // A folder's Copy or Move: the engine takes the folder itself (--source-subdir), and
+  // Retry offers the same folder again.
   const folderShown = shownFolder(folderTree, folders);
   const askFolder = (mode: ActionMode) => {
     if (!folderShown) return;
@@ -846,7 +873,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           <h1 className="brand"><Logo />NegativeSpace</h1>
           <nav className="pages" aria-label="Pages">
             <a className="button-link active" href="/" onClick={follow} aria-current="page">Library</a>
-            <OrganizeMenu
+            <JobsMenu
               state={{ jobRunning, noPhotos, eligible: status.eligible, copied: status.copied,
                        folder: folderShown ? { name: folderLabel(folderShown.path), eligible: folderShown.eligible } : null,
                        folders: folders.length }}
@@ -856,7 +883,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           </nav>
           {(selected.size > 0 || (focus && focus.kind !== "photo")) && (
             <SelectionBar selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
-                          counts={selectionActions} jobRunning={jobRunning} onAction={transferSelected}
+                          counts={selectionActions} place={place} jobRunning={jobRunning} onAction={transferSelected}
                           onShowSelected={showSelected} onBack={backToResults} onClear={clearSelection} />
           )}
           <div className="toolbar-actions">
@@ -1047,7 +1074,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                 <button onClick={list.retryRefresh}>Retry updates</button></div>}
               {list.first > 1 && <PageBoundary ref={topSentinel} previous pending={list.pending.has(list.first - 1)} error={list.failures.get(list.first - 1)}
                 onLoad={() => { prepend.current = { height: document.documentElement.scrollHeight, y: window.scrollY }; list.load(list.first - 1, true); }} />}
-              <Gallery refreshKey={refreshKey} page={{ items: flat.items }} pageOf={flat.pageOf} selected={selected} selectable={!jobRunning} openId={openId}
+              <Gallery refreshKey={refreshKey} page={{ items: flat.items }} pageOf={flat.pageOf} selected={selected} place={place} selectable={!jobRunning} openId={openId}
                        keepItem={keepId != null ? keptItem : null}
                        onOpen={openFromGallery} onToggle={toggle} onToggleMany={toggleMany}
                        onReviewSet={!focus && view === "similar" && groupSets ? id => reviewSet(id, null) : undefined}

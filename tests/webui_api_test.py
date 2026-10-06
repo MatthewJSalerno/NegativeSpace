@@ -584,7 +584,11 @@ class JobsAndCatalog(ApiCase):
         chosen = self.client.post("/api/v1/photos/selection",
                                   json={"ids": [p["id"] for p in listed], "page_size": 1}).json()
         self.assertEqual(chosen["actions"], {"copy": 0, "move": len(listed), "reject": len(listed) - 2, "return": 2},
-                         "Actions would offer Reject or Return for photos it cannot take")
+                         "the selection bar would offer Reject or Return for photos it cannot take")
+        in_rejects = sorted(p["id"] for p in rejects["items"])
+        self.assertEqual(chosen["in_rejects"], in_rejects, "the selection does not say which photos are in Rejects")
+        self.assertEqual(self.client.get("/api/v1/photos/ids", params={"view": "rejects"}).json()["in_rejects"], in_rejects,
+                         "Select all cannot keep a selection to one place")
         searched = self.client.get("/api/v1/photos", params={"view": "rejects", "q": "IMG_0002"}).json()
         self.assertEqual((searched["matches"]["rejects"], searched["matches"]["all"], searched["matches"]["undated"]),
                          (1, 0, 1), "the view buttons' counts do not follow the search")
@@ -975,7 +979,7 @@ class JobsAndCatalog(ApiCase):
         self.index_library()
         every = self.client.get("/api/v1/photos/ids").json()
         self.assertEqual((every["total"], len(every["ids"])), (2, 2))
-        self.assertEqual(set(every), {"ids", "total"}, "no limit fields remain")
+        self.assertEqual(set(every), {"ids", "total", "in_rejects"}, "no limit fields remain")
 
     def test_the_selection_shows_photos_every_filter_hides_and_names_missing_ones(self):
         self.index_library()

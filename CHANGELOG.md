@@ -9,13 +9,17 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
-## [0.15.0] - 2026-10-05
+## [0.15.0] - 2026-10-06
 
 ### Changed
 - Actions on ticked photos are in a selection bar at the top, which shows only what applies
   to them, each with its count: Copy, Move, Reject, Return to library. The **Actions** menu
-  is now **Organize**, with the jobs for the whole library (Index; Copy and Move of one
+  is now **Jobs**, with the jobs for the whole library (Index; Copy and Move of one
   folder or all), on the Library page only.
+- A selection holds library photos or photos in Rejects, never both: the other place's tick
+  boxes are disabled while anything is selected, and Select all says what it left out.
+  A selection in Rejects offers Return to library first; its Move warns that the copies in
+  Rejects become the only ones.
 
 ### Added
 - README: a security section (there is no sign-in yet), a recovery guide

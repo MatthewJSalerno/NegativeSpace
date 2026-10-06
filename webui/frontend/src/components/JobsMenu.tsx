@@ -5,7 +5,7 @@ import { count } from "../format";
 type Mode = "copy" | "move";
 
 // Why an item cannot run, or null when it can. Every disabled item says why.
-export interface OrganizeState {
+export interface JobsState {
   jobRunning: boolean;
   noPhotos: boolean;
   eligible: Record<Mode, number>;
@@ -17,12 +17,12 @@ export interface OrganizeState {
   folders?: number;
 }
 
-// The Organize menu (webui-spec 4), on the Library page: the library-wide jobs. Index, and
+// The Jobs menu (webui-spec 4), on the Library page: the library-wide jobs. Index, and
 // Copy and Move each for the one folder the Folders tree shows or for every photo the
 // engine would take. Actions on ticked photos are the selection bar's. The counts are the
 // whole catalog's (GET /status) or the folder's, never the gallery's current view or search.
-export function OrganizeMenu({ state, onIndex, onTransfer }: {
-  state: OrganizeState;
+export function JobsMenu({ state, onIndex, onTransfer }: {
+  state: JobsState;
   onIndex: () => void;
   onTransfer: (mode: ActionMode, scope: "folder" | "all") => void;
 }) {
@@ -64,5 +64,5 @@ export function OrganizeMenu({ state, onIndex, onTransfer }: {
       ],
     })),
   ];
-  return <MenuButton label="Organize" items={items} />;
+  return <MenuButton label="Jobs" items={items} />;
 }

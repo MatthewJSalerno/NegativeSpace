@@ -23,8 +23,8 @@ with sync_playwright() as p:
         return wait(response.json()['id'])
 
     def index_ui(page):
-        page.get_by_role('button', name='Organize', exact=True).click()
-        page.get_by_role('menu', name='Organize', exact=True).get_by_role('menuitem', name=re.compile('^Index')).click()
+        page.get_by_role('button', name='Jobs', exact=True).click()
+        page.get_by_role('menu', name='Jobs', exact=True).get_by_role('menuitem', name=re.compile('^Index')).click()
 
     start(mode='index')
     # Drop only the response, then let another tab finish a newer job first.

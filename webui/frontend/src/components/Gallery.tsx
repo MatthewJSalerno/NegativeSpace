@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import type { PhotoItem } from "../api";
+import { placeOf, type Place, type PhotoItem } from "../api";
 import { epoch, isFallbackDate, photoDate, plural } from "../format";
 import { Thumb } from "./Thumb";
 
@@ -8,7 +8,7 @@ const STATUS_BADGE: Record<string, string> = {
   Processing: "In progress", Rejected: "Rejected", Rejected_Copied: "Rejected",
 };
 
-export function Gallery({ page: shown, pageOf, refreshKey, selected, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold, onReviewSet, onExploreSet, keepItem }: {
+export function Gallery({ page: shown, pageOf, refreshKey, selected, place, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold, onReviewSet, onExploreSet, keepItem }: {
   // Keep this one, reject the rest: the kept photo comes first, full size, marked
   // Keeping, with no tick box, so it cannot be rejected with the rest.
   keepItem?: PhotoItem | null;
@@ -19,6 +19,8 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, selectable,
   onReviewSet?: (id: number) => void; onExploreSet?: (id: number) => void;
   refreshKey: number;
   selected: Set<number>;
+  // The selection's place: a photo of the other place cannot join it (webui-spec 2).
+  place: Place | null;
   selectable: boolean;
   openId: number | null;
   onOpen: (id: number) => void;
@@ -49,6 +51,7 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, selectable,
     <ul className="grid">
       {page.items.map((item, index) => {
         const isSelected = selected.has(item.id);
+        const otherPlace = place != null && placeOf(item.status) !== place;
         return (
           <li key={item.id} data-page={pageOfShown?.[index]} data-id={item.id} className={`card ${isSelected ? "selected" : ""} ${openId === item.id ? "open" : ""} ${item.id === keepId ? "card-keep" : ""}`}>
             <div className="card-preview">
@@ -63,11 +66,13 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, selectable,
               <span className="card-keeping"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>Keeping</span>
             ) : (
-            <label className="card-check" title={selectable ? undefined : "Selection is unavailable while a job is running."}>
+            <label className="card-check" title={!selectable ? "Selection is unavailable while a job is running."
+              : otherPlace ? (place === "library" ? "Photos in Rejects can't be selected with library photos. Clear the selection first."
+                : "Library photos can't be selected with photos in Rejects. Clear the selection first.") : undefined}>
               <input
                 type="checkbox"
                 checked={isSelected}
-                disabled={!selectable}
+                disabled={!selectable || otherPlace}
                 onChange={() => undefined}
                 onClick={(e) => toggle(index, e.shiftKey)}
                 aria-label={`Select ${item.filename}`}
