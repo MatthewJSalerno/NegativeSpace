@@ -49,6 +49,18 @@ deletion and are not reliably detected by the engine.
   run to already-cataloged files beneath it. Queries the catalog by
   source_path prefix instead of walking the filesystem or enumerating IDs.
   Mutually exclusive with --file-ids and --file-ids-from.
+- --cache <path> (Optional) Generated thumbnails and previews (default: /cache).
+  Reproducible from the photos, so safe to delete and to leave out of backups.
+- --backups <path> (Optional) Catalog backups (default: /backups). Must be separate
+  storage from --base: a backup inside what it backs up dies with it.
+- --no-thumbnails: skip thumbnail generation during the scan; the gallery shows
+  placeholders until a later run makes them.
+- --force-rehash: re-read every file even if its size and modification time are
+  unchanged since the last Index (normally such files are skipped unread).
+- --confirm-network-destination: Move to a network-share destination anyway. Without it
+  a Move there stops before copying or deleting and asks; confirm only for a share
+  exported 'sync', or use --copy.
+- --confirm-source-empty: answer that an empty --source really is empty, not unplugged.
 
 Per-file failures never abort a run: an unreadable, vanished, or otherwise
 unprocessable file is recorded as status='Failed' with a human-readable
@@ -79,6 +91,7 @@ default Index):
   photos from dest/library to dest/rejects, or back (spec §9.5). Nothing is deleted.
 - --repair-similarity missing|comparisons: recover missing visual hashes from
   destination originals, or resume stored-hash comparisons; never edits photos.
+  --repair-photo PHOTO_ID limits the missing-hash recovery to one photo.
 
 Cancellation: sending SIGTERM or SIGINT (e.g. `docker stop`, or Ctrl+C)
 during a --move/--copy run lets the file currently being copy-verified

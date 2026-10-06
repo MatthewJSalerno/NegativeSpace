@@ -4626,7 +4626,6 @@ def an_interrupted_rename_is_settled_from_what_is_on_disk():
     one inode), settles one that never happened, and leaves two different files alone
     with a needs-attention note. Nothing is ever deleted that is not the same file.
     """
-    import argparse
     engine = _load_engine()
     for scenario in ("both_names", "not_started", "different_files"):
         case, photo, old = _renamable_case(f"rename_recovery_{scenario}")
@@ -5353,7 +5352,7 @@ def raw_files_produce_thumbnails_through_rawpy():
     sources = [p for p in sorted(Path(raw_dir).iterdir())
                if p.is_file() and p.suffix.lower() in RAW_SUFFIXES][:3]
     if not sources:
-        raise Fail(f"SKIP: no RAW files with a known extension in NS_TEST_RAW_DIR")
+        raise Fail("SKIP: no RAW files with a known extension in NS_TEST_RAW_DIR")
 
     from PIL import Image
     case = new_case("thumbraw")
