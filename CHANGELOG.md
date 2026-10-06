@@ -27,6 +27,8 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
   with failures" (an Index that found most files unchanged included), with every file
   failed it "finished, nothing succeeded", and only a job an error ended "stopped by an
   error". Each job in Logs offers **Show these photos in the library**.
+- A review holds only the photos its action takes, and counts the rest: "3 selected
+  photos are left out: Reject takes only photos already organized."
 
 ### Added
 - README: a security section (there is no sign-in yet), a recovery guide

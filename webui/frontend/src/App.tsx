@@ -38,6 +38,14 @@ const SIDE_MIN = 180;
 const SIDE_MAX = 560;
 const VIEW_LABEL: Record<View, string> = { all: "All photos", unorganized: "Not yet organized", organized: "Organized", similar: "Has similar photos", suspicious: "Suspicious dates", rejects: "Rejects" };
 // The review bar's words for each job a selection can be reviewed for.
+// Why a review left selected photos out: what each action takes (catalog.ACTION_STATUSES).
+const TAKES: Record<ActionMode, string> = {
+  copy: "Copy takes only photos not yet copied",
+  move: "Move takes only photos not yet moved",
+  reject: "Reject takes only photos already organized",
+  return: "Return to library takes only photos in Rejects",
+};
+
 const REVIEW_WORDS: Record<ActionMode, { doing: string; done: string; button: string }> = {
   copy: { doing: "copying", done: "copied", button: "Copy these" },
   move: { doing: "moving", done: "moved", button: "Move these" },
@@ -96,7 +104,9 @@ function readUrl() {
 // in a bar above it, so every photo can be looked at and unticked before committing.
 type Focus = { kind: "selection" | "review" | "photo" | "set"; ids: number[]; reference?: number; threshold?: number; mode?: ActionMode;
   // Keep this one, reject the rest: the photo kept, shown first and never ticked.
-  keep?: number; keepName?: string };
+  keep?: number; keepName?: string;
+  // A review: selected photos its action does not take, left out of it and counted.
+  leftOut?: number };
 
 const NO_ACTIONS: SelectionCounts = { copy: 0, move: 0, reject: 0, return: 0 };
 
@@ -821,13 +831,22 @@ function Library({ status, refreshStatus, onOpenSettings }: {
 
   // A single photo confirms in place. Multiple photos need a review where the
   // full selection can be scrolled, opened and unticked before committing.
-  const transferSelected = (mode: ActionMode) => {
+  // The review holds only the photos the action takes; the rest are counted, not shown,
+  // so a Reject never offers photos it would skip.
+  const transferSelected = async (mode: ActionMode) => {
     if (selected.size === 1) {
       askTransfer(mode, [...selected], undefined, undefined, place === "rejects");
       return;
     }
-    setFocus({ kind: "review", mode, ids: [...selected] });
-    setFocusPage(1);
+    setActionError(null);
+    try {
+      const ids = [...selected];
+      const takes = (await api.selection(ids, "newest", 1, 1, galleryMinimum, mode)).takes ?? ids;
+      setFocus({ kind: "review", mode, ids: takes, leftOut: ids.length - takes.length });
+      setFocusPage(1);
+    } catch (e) {
+      setActionError(e instanceof ApiError ? e.message : "The selected photos could not be checked.");
+    }
   };
   const reviewIds = focus?.kind === "review" ? focus.ids.filter((id) => selected.has(id)) : [];
   const review = focus?.kind === "review" && focus.mode ? transferConfirm(focus.mode, status, reviewIds, start(focus.mode, reviewIds), undefined, undefined, place === "rejects") : null;
@@ -999,6 +1018,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
                 <strong>{focus.keep != null ? `Keeping ${focus.keepName}` : `Review before ${REVIEW_WORDS[focus.mode].doing}`}</strong>
                 <span className="muted"> · {count(reviewIds.length)} of {plural(focus.ids.length, focus.keep != null ? "look-alike" : "selected photo")} will
                   be {REVIEW_WORDS[focus.mode].done}. Untick any you {focus.keep != null ? "want to keep" : "don't want"}.</span>
+                {focus.leftOut ? <p className="muted">{plural(focus.leftOut, "selected photo is", "selected photos are")} left out: {TAKES[focus.mode]}.</p> : null}
                 <p className="muted">{review.body[0]}</p>
               </div>
               <button className={review.danger ? "danger" : "primary"} onClick={commit}

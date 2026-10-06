@@ -137,6 +137,8 @@ export interface SelectionPage {
   in_rejects?: number[];
   // What each action would take of the selection, for the selection bar.
   actions?: { copy: number; move: number; reject: number; return: number };
+  // With `action`: the selected photos that action takes, for its review.
+  takes?: number[];
 }
 
 export interface Timeline {
@@ -608,8 +610,8 @@ export const api = {
   folders: (params: BrowseFilters) => request<FolderTree>("GET", `/api/v1/photos/folders?${browseQuery(params)}`),
   photoIds: (params: BrowseFilters) =>
     request<{ ids: number[]; total: number; in_rejects: number[] }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
-  selection: (ids: number[], sort: Sort, page: number, page_size: number, match_min = 75) =>
-    request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size, match_min }),
+  selection: (ids: number[], sort: Sort, page: number, page_size: number, match_min = 75, action?: ActionMode) =>
+    request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size, match_min, ...(action ? { action } : {}) }),
   operations: (f: LogFilters, page: number, pageSize: number) => {
     const p = logQuery(f);
     p.set("page", String(page));

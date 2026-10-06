@@ -585,6 +585,10 @@ class JobsAndCatalog(ApiCase):
                                   json={"ids": [p["id"] for p in listed], "page_size": 1}).json()
         self.assertEqual(chosen["actions"], {"copy": 0, "move": len(listed), "reject": len(listed) - 2, "return": 2},
                          "the selection bar would offer Reject or Return for photos it cannot take")
+        takes = self.client.post("/api/v1/photos/selection", json={"ids": [p["id"] for p in listed], "page_size": 1,
+                                                                    "action": "reject"}).json()["takes"]
+        self.assertEqual(len(takes), len(listed) - 2, "a Reject's review would hold photos it skips")
+        self.assertEqual(self.client.post("/api/v1/photos/selection", json={"ids": [1], "action": "delete"}).status_code, 400)
         in_rejects = sorted(p["id"] for p in rejects["items"])
         self.assertEqual(chosen["in_rejects"], in_rejects, "the selection does not say which photos are in Rejects")
         self.assertEqual(self.client.get("/api/v1/photos/ids", params={"view": "rejects"}).json()["in_rejects"], in_rejects,

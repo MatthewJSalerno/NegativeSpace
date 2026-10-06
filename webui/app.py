@@ -301,7 +301,8 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         """A POST only because a selection's ids are too long for a URL; it reads."""
         try:
             return catalog.photos_by_ids(cfg.db_path, body.get("ids"), sort=body.get("sort", "newest"),
-                                         page=body.get("page", 1), page_size=body.get("page_size", 60), match_min=body.get("match_min", 75))
+                                         page=body.get("page", 1), page_size=body.get("page_size", 60), match_min=body.get("match_min", 75),
+                                         action=body.get("action"))
         except (ValueError, TypeError) as exc:
             raise _bad_request(ValueError(str(exc)))
 

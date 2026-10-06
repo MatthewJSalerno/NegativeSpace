@@ -428,6 +428,17 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"date=2019"))
     only_2019.uncheck()
     expect(page.locator(".views")).to_contain_text("Organized (3)", timeout=5_000)
+    # A review holds only what its action takes: of everything selected, Reject takes the
+    # three organized photos and says how many it left out.
+    select(f"Select all in this view ({PHOTOS})")
+    line.get_by_role("button", name="Reject (3)…").click()
+    rejecting = page.get_by_role("region", name="Review before rejecting")
+    expect(rejecting).to_contain_text("3 of 3 selected photos will be moved to Rejects")
+    expect(rejecting).to_contain_text(f"{PHOTOS - 3} selected photos are left out: Reject takes only photos already organized.")
+    expect(page.locator(".card")).to_have_count(3)
+    rejecting.get_by_role("button", name="Cancel").click()
+    line.get_by_role("button", name="Clear").click()
+    expect(line).to_have_count(0)
 
     # Copy all, with one photo made unreadable to the app: the three already copied
     # and the duplicates are skipped with their reasons, and the failure is offered.

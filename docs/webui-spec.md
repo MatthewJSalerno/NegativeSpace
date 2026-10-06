@@ -128,7 +128,8 @@ Users can select individual files or multiple files across grid views to run tar
 * **Copy or Move a single selected photo confirms in a dialog**, preserving the
   gallery and Dates/Folders panel instead of switching into selection review.
 * **Copy, Move, Reject or Return of multiple selected photos is reviewed first, never confirmed over the photos.** It shows
-  every selected photo, whatever hides them, with a bar pinned above them: **"Review before
+  every selected photo the action takes, whatever hides them (the others are counted:
+  "3 selected photos are left out: Reject takes only photos already organized"), with a bar pinned above them: **"Review before
   copying** · 23 of 25 selected photos will be copied. Untick any you don't want." (one
   count pair, said once; Keep this one, reject the rest reads **"Keeping IMG_0410.jpg** ·
   7 of 9 look-alikes will be moved to Rejects. Untick any you want to keep."), what the

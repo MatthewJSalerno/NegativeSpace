@@ -537,7 +537,14 @@ def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, t
     return {"ids": ids, "total": len(ids), "in_rejects": [r[0] for r in rows if r[1]]}
 
 
-def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, match_min=75) -> dict:
+# What each action on a selection takes (the selection bar's counts and a review's photos):
+# Copy and Move by the engine's own rule (ns_db.TRANSFER_ELIGIBLE), Reject photos in the
+# library, Return to library photos in Rejects (engine-spec 9.5).
+ACTION_STATUSES = {"copy": ns_db.TRANSFER_ELIGIBLE["copy"], "move": ns_db.TRANSFER_ELIGIBLE["move"],
+                   "reject": DELIVERED, "return": IN_REJECTS_STATUSES}
+
+
+def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, match_min=75, action=None) -> dict:
     """The selected photos, whatever view, search or dates would hide them, one page at a
     time (webui-spec 2, Show only selected and the review before Copy/Move). `missing` names ids no longer in the catalog,
     so a selection is never silently shortened."""
@@ -556,19 +563,23 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, ma
                             f"ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?",
                             (json.dumps(wanted), page_size, (page - 1) * page_size)).fetchall()
         items = _items(conn, rows)
-        # What each action would take of them, for the selection bar: Copy and Move by the
-        # engine's own rule (ns_db.TRANSFER_ELIGIBLE), Reject photos in the library, Return
-        # photos in Rejects (engine-spec 9.5).
-        copy, move, reject, back = conn.execute(
-            f"SELECT COALESCE(SUM(p.status IN ({ns_db.sql_values(ns_db.TRANSFER_ELIGIBLE['copy'])})), 0), "
-            f"COALESCE(SUM(p.status IN ({ns_db.sql_values(ns_db.TRANSFER_ELIGIBLE['move'])})), 0), "
-            f"COALESCE(SUM(p.status IN ({ns_db.sql_values(DELIVERED)})), 0), "
-            f"COALESCE(SUM(p.status IN ({ns_db.sql_values(IN_REJECTS_STATUSES)})), 0) {join}",
-            (json.dumps(wanted),)).fetchone()
+        # What each action would take of them, for the selection bar.
+        counts = conn.execute(
+            "SELECT " + ", ".join(f"COALESCE(SUM(p.status IN ({ns_db.sql_values(v)})), 0)" for v in ACTION_STATUSES.values())
+            + f" {join}", (json.dumps(wanted),)).fetchone()
+        # The photos one action takes, for its review: never the ones it would skip.
+        takes = None
+        if action is not None:
+            if action not in ACTION_STATUSES:
+                raise ValueError(f"unknown action: {action}")
+            takes = [r[0] for r in conn.execute(
+                f"SELECT p.id {join} WHERE p.status IN ({ns_db.sql_values(ACTION_STATUSES[action])}) ORDER BY p.id",
+                (json.dumps(wanted),))]
     return {"items": items, "page": page, "page_size": page_size, "total": len(found),
             "missing": [i for i in wanted if i not in found],
             "in_rejects": sorted(r[0] for r in places if r[1]),
-            "actions": {"copy": copy, "move": move, "reject": reject, "return": back}}
+            "actions": dict(zip(ACTION_STATUSES, counts)),
+            **({"takes": takes} if takes is not None else {})}
 
 
 def timeline(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,

@@ -278,7 +278,9 @@ The selected photos, whatever view, search or dates would hide them (Show only s
 
 It reads; it is a POST because a selection's ids are too long for a URL. `missing` names
 ids no longer in the catalog, so a selection is never silently shortened. `in_rejects`
-names those in Rejects, as for `/photos/ids` (Select all on a job's photos). `actions` counts
+names those in Rejects, as for `/photos/ids` (Select all on a job's photos). With
+`"action": "copy" | "move" | "reject" | "return"`, `takes` lists the selected photos that
+action takes, for its review (any other action is 400). `actions` counts
 what each action would take of the whole selection, for the selection bar: Copy and Move by
 the engine's own rule (`ns_db.TRANSFER_ELIGIBLE`, as `eligible` in `GET /status`), Reject
 (photos in the library) and Return to library (photos in Rejects).
