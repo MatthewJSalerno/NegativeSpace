@@ -1199,11 +1199,11 @@ Job responses should carry both: the lifecycle status **and** the derived counts
 | `runs.status` is `Preparing` / `Running` | in progress, with live counts |
 | `runs.status` is `Cancelling` | cancellation requested, still stopping (§4.1); keep counts live |
 | succeeded > 0, failed = 0 | success |
-| succeeded > 0, failed > 0 | partial success — surface the failed count and link the Error Center |
+| failed > 0, and something succeeded, was skipped or needed nothing (an Index's unchanged files) | **finished with failures** — surface the failed count and link the Error Center |
 | a Move with copied-only photos, failed = 0 | originals kept (warning) — the copied-only count and its reasons, never a success or a failure |
-| succeeded = 0, failed > 0 | **failure**, regardless of `runs.status` being `Completed` |
+| failed > 0 and nothing else | **finished, nothing succeeded** (red) — the job ran to its end, so never "failed" |
 | no changes, no failures or scan issues, and run completed | neutral completion with prominent counts and skip reasons; not an error |
-| `runs.status` is `Cancelled` / `Interrupted` / `Failed` | that status wins; still show counts for what was done before it ended. `Interrupted` has no end time; show its duration as unavailable (§4.1) |
+| `runs.status` is `Cancelled` / `Interrupted` / `Failed` | that status wins (`Failed` reads **stopped by an error**: the job did not finish); still show counts for what was done before it ended. `Interrupted` has no end time; show its duration as unavailable (§4.1) |
 
 **No-change results lead with counts.** For example, **“0 of 120 files moved ·
 120 skipped”**, followed by **“All 120 are already recorded as delivered to the

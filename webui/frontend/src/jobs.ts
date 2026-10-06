@@ -134,7 +134,8 @@ export function skipReasons(reasons: Record<string, number>): string {
 }
 
 const VERDICT: Record<string, string> = {
-  success: "finished", partial: "finished with failures", originals_kept: "finished, originals kept", failed: "failed", no_change: "had nothing to do",
+  success: "finished", partial: "finished with failures", originals_kept: "finished, originals kept",
+  none_succeeded: "finished, nothing succeeded", stopped: "stopped by an error", no_change: "had nothing to do",
   cancelled: "was cancelled", interrupted: "was interrupted", running: "is running",
 };
 

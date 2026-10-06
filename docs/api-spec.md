@@ -654,8 +654,8 @@ and `done` is always the sum of `counts`.
 **`outcome`** is derived from classified progress, never from `status` alone: a run
 where every file failed still ends `Completed` (`webui-spec.md` §5.5).
 
-    {"verdict": "success" | "partial" | "originals_kept" | "failed" | "no_change" |
-                "cancelled" | "interrupted" | "running",
+    {"verdict": "success" | "partial" | "originals_kept" | "none_succeeded" | "no_change" |
+                "stopped" | "cancelled" | "interrupted" | "running",
      "succeeded": 2, "failed": 0, "skipped": 1, "cancelled": 0, "copied_only": 0,
      "run_level_issues": 0, "recovered_earlier_work": 0,
      "total": 3, "counts": {"Copied": 2, "Skipped": 1},
@@ -671,10 +671,12 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
     Recovery of earlier runs is `recovered_earlier_work`, and failures with no photo,
     such as an unreadable folder, are `run_level_issues`.
 *   **Verdict:** an active status is `running`. A terminal Cancelled, Interrupted or
-    Failed wins. Otherwise: a Move with copied-only photos and no failures or issues is
-    `originals_kept`; successes with no failures or issues are `success`, successes or
-    copied-only photos with some are `partial`, failures or issues with neither are
-    `failed`, and nothing done is `no_change`.
+    Failed wins (`cancelled`, `interrupted`, `stopped`: an error ended the job).
+    Otherwise: a Move with copied-only photos and no failures or issues is
+    `originals_kept`; successes with no failures or issues are `success`; failures or
+    issues alongside successes, copied-only photos or skips (an Index's unchanged files)
+    are `partial`; failures or issues with nothing else are `none_succeeded`; and nothing
+    done is `no_change`. A job that ran to its end is never called failed.
 *   **`copied_only`** is, for a Move, its photos copied but not moved because the
     original could not be deleted (the `Copied` count of a Move). They are not in
     `succeeded`, nor in `failed`; `kept_reasons` groups them by reason, made readable as

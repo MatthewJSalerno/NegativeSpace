@@ -382,7 +382,7 @@ class TransferScanFailures(ApiCase):
         run = self.wait_for(self.start(mode=mode, file_ids=ids))
         outcome = run["outcome"]
         self.assertEqual((outcome["verdict"], outcome["succeeded"], outcome["failed"], outcome["total"]),
-                         ("failed", 0, 2, 2) if all_failed else ("partial", 1, 1, 2))
+                         ("none_succeeded", 0, 2, 2) if all_failed else ("partial", 1, 1, 2))
         self.assertEqual(sum(outcome["failure_reasons"].values()), 2 if all_failed else 1)
         failures = self.client.get("/api/v1/operations", params={"run":run["id"], "status":"Failed"}).json()
         self.assertEqual(failures["total"], outcome["failed"])
@@ -1556,8 +1556,15 @@ class DerivedOutcome(ApiCase):
     def test_verdicts(self):
         self.create_catalog()
         scan = ("scanning", 3, {"unchanged": 3})
-        self.assertEqual(self.run_with("MOVE", [scan, ("transferring", 3, {"Failed": 3})])["verdict"], "failed",
+        self.assertEqual(self.run_with("MOVE", [scan, ("transferring", 3, {"Failed": 3})])["verdict"], "none_succeeded",
                          "a Completed run where every file failed read as success")
+        self.assertEqual(self.run_with("INDEX", [("scanning", 10, {"unchanged": 7, "failed": 3})])["verdict"], "partial",
+                         "an Index that checked every file and could not read three read as failed")
+        self.assertEqual(self.run_with("COPY", [scan, ("transferring", 3, {"Skipped": 2, "Failed": 1})])["verdict"],
+                         "partial", "skipped files with one failure read as nothing succeeded")
+        self.assertEqual(self.run_with("COPY", [scan, ("transferring", 3, {"Copied": 1})],
+                                       status=ns_db.RunStatus.FAILED)["verdict"], "stopped",
+                         "a job an error stopped did not say so")
         self.assertEqual(self.run_with("COPY", [scan, ("transferring", 3, {"Copied": 2, "Failed": 1})])["verdict"],
                          "partial")
         self.assertEqual(self.run_with("COPY", [scan, ("transferring", 3, {"Skipped": 3})])["verdict"], "no_change")

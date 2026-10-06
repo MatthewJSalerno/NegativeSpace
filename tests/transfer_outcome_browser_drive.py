@@ -41,12 +41,13 @@ with sync_playwright() as p:
         run = run_job(mode=mode, file_ids=ids)
         outcome = run['outcome']
         assert (outcome['verdict'], outcome['failed'], outcome['total']) == (
-            'failed' if all_failed else 'partial', 2 if all_failed else 1, 2), outcome
+            'none_succeeded' if all_failed else 'partial', 2 if all_failed else 1, 2), outcome
         # Move's good photo is copied-only because this harness mounts source :ro.
         page = browser.new_page(viewport={'width':1400, 'height':900})
         page.goto(sys.argv[1])
         banner = page.locator('.finished-banner')
         expect(banner).to_contain_text(f"{outcome['failed']} failed")
+        expect(banner).to_contain_text("finished, nothing succeeded" if all_failed else "finished with failures")
         link = banner.get_by_role('link', name='View failures', exact=True)
         expect(link).to_be_visible()
         link.click()

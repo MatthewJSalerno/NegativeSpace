@@ -769,7 +769,7 @@ _REQUESTED_PHASES = {"INDEX": ("scanning",), "COPY": ("scanning", "transferring"
                      "SIMILARITY": ("scanning", "matching"), "REBUILD": ("rebuilding_thumbnails",), "CHECK": ("checking_destination",),
                      "REJECT": ("transferring",), "RETURN": ("transferring",)}
 _TERMINAL_WINS = {RunStatus.CANCELLED: "cancelled", RunStatus.INTERRUPTED: "interrupted",
-                  RunStatus.FAILED: "failed"}
+                  RunStatus.FAILED: "stopped"}
 
 
 # Why a photo was skipped, by the start of the reason the engine recorded. The engine
@@ -857,10 +857,13 @@ def _outcome(conn, run: dict, progress: list) -> dict:
         verdict = "originals_kept"
     elif succeeded and not failed and not issues:
         verdict = "success"
-    elif succeeded or copied_only:
+    # A job that ran to its end never reads "failed" (webui-spec 5.5): with some work done,
+    # or some found to need none, it finished with failures; with nothing but failures,
+    # it finished and nothing succeeded. Only a job an error stopped is "stopped".
+    elif (failed or issues) and (succeeded or copied_only or skipped):
         verdict = "partial"
     elif failed or issues:
-        verdict = "failed"
+        verdict = "none_succeeded"
     else:
         verdict = "no_change"
     total = sum(p["total"] or 0 for p in main) if main and all(p["total"] is not None for p in main) else None

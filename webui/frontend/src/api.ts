@@ -191,7 +191,7 @@ export interface Phase {
   updated_at: string;
 }
 
-export type Verdict = "success" | "partial" | "originals_kept" | "failed" | "no_change" | "cancelled" | "interrupted" | "running";
+export type Verdict = "success" | "partial" | "originals_kept" | "none_succeeded" | "stopped" | "no_change" | "cancelled" | "interrupted" | "running";
 
 export interface Outcome {
   verdict: Verdict;
