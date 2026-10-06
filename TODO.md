@@ -18,6 +18,23 @@ Open work, open design questions and the durability claims ledger. Designs live 
   copies, each with Use this name, plus Rename… and a Has other names filter; the engine's
   rename and candidate list already exist (`docs/webui-spec.md` §7.3).
 
+## One screen per job
+
+Found 2026-10-05 looking for screens that do the same job twice.
+
+- [ ] **Two "Reject?" dialogs:** the general confirmation (`Confirm.tsx`) and the
+  comparison's own (`RejectConfirm.tsx`) ask the same question; their wording already had
+  to be changed in both. Make one dialog, with "Don't ask again while comparing" and the
+  "none of these photos would be left" warning as options.
+- [ ] **Three views of a photo's history** to decide on: the photo panel's History list,
+  the lineage tree, and the log filtered to the photo. Perhaps the panel shows the last few
+  steps and links to the tree.
+- [ ] **Explore reference sets** is its own window and grid showing much the same groups
+  as the Similar photos tab, the Has similar photos view and Show this set in gallery.
+  Decide whether it can be a section or filter within the Similar photos tab.
+- [ ] **Needs review mockup** (on hold): boards in the design canvas; its two-photo note
+  reuses the comparison workspace, which gains the "Will be rejected" marking.
+
 ## Views
 
 - [ ] Views named by where a photo is: Library (default), To organize, Rejects, Needs
