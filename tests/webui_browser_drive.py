@@ -201,6 +201,15 @@ with sync_playwright() as p:
     # number NEWER + 1. Checking it shows only that year, and the address keeps it.
     dates = page.get_by_role("navigation", name="Dates")
     expect(dates.get_by_label("Show only June 2019")).to_be_visible()   # every year starts unfolded
+    # The order button beside the heading sets the gallery's date order, and the Sort menu
+    # with it; sorted otherwise, it offers date order.
+    sort_menu = page.get_by_role("combobox", name="Sort")
+    dates.get_by_role("button", name=re.compile(r"^Newest first")).click()
+    expect(sort_menu).to_have_value("oldest")
+    expect(dates.get_by_role("button", name=re.compile(r"^Oldest first"))).to_contain_text("Oldest")
+    sort_menu.select_option("largest")
+    dates.get_by_role("button", name=re.compile(r"^Date order")).click()
+    expect(sort_menu).to_have_value("newest")
     dates.get_by_role("button", name="2019", exact=True).click()
     expect(page).to_have_url(re.compile(rf"page={NEWER // 60 + 1}\b"))
     expect(page.locator(".card-sub", has_text="2019").first).to_be_visible()

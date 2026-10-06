@@ -1002,7 +1002,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
               <BrowseBySwitch value={browseBy} onChange={setBrowseBy} />
               {browseBy === "folders"
                 ? <FoldersPanel tree={folderTree} folders={folders} onFolders={changeFolders} />
-                : <DatesPanel timeline={timeline} dates={dates} current={currentDates} oldestFirst={sort === "oldest"} onDates={changeDates}
+                : <DatesPanel timeline={timeline} dates={dates} current={currentDates} oldestFirst={browseSort === "oldest"}
+                              sortedByDate={browseSort === "newest" || browseSort === "oldest"}
+                              onOrder={(oldest) => chooseSort(oldest ? "oldest" : "newest")} onDates={changeDates}
                               onJump={(key) => { jumpTo(key); setDatesOpen(false); }} />}
             </aside>
             <div className="divider side-divider" role="separator" aria-orientation="vertical" aria-label="Resize the left panel"

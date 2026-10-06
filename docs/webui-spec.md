@@ -165,7 +165,11 @@ Users can select individual files or multiple files across grid views to run tar
   the gallery's date sort (oldest first lists the oldest year and month first; No date
   stays last, as both date sorts place it). Clicking a name
   goes to the page it starts on
-  (a sort that is not by date switches to Newest first and says so). The boxes, under a
+  (a sort that is not by date switches to Newest first and says so). Beside the heading,
+  an order button sets the gallery's date order and the Sort menu with it: **↓ Newest**
+  (click for oldest first), **↑ Oldest** (click for newest first), or **↕ Date** when the
+  gallery is sorted otherwise (click for newest first). A word goes with the arrow: an
+  arrow alone does not say which end is first. The boxes, under a
   **Show only** header, narrow the gallery to the ticked years and months; none ticked,
   the default, shows every date. A year's box ticks its months and shows a dash when
   only some are ticked. The filter is in the address, named above the gallery
