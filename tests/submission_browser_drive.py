@@ -23,8 +23,8 @@ with sync_playwright() as p:
         return wait(response.json()['id'])
 
     def index_ui(page):
-        page.get_by_role('button', name=re.compile('^Actions')).click()
-        page.get_by_role('menu', name='Actions', exact=True).get_by_role('menuitem', name=re.compile('^Index')).click()
+        page.get_by_role('button', name='Organize', exact=True).click()
+        page.get_by_role('menu', name='Organize', exact=True).get_by_role('menuitem', name=re.compile('^Index')).click()
 
     start(mode='index')
     # Drop only the response, then let another tab finish a newer job first.
@@ -58,7 +58,7 @@ with sync_playwright() as p:
 
     # A POST that never reached the server remains unknown across a reload.
     page = browser.new_page(viewport={'width':1400, 'height':900})
-    page.goto(sys.argv[1] + '/logs')  # same submission behavior from Logs
+    page.goto(sys.argv[1])
     ids = []
     held_responses = []
     def drop_first(route):
@@ -111,10 +111,7 @@ with sync_playwright() as p:
     page.route('**/api/v1/jobs/start', lose_copy)
     blocked[0] = True
     page.route('**/api/v1/job-requests/*', lookup)
-    page.get_by_role('button', name=re.compile('^Actions')).click()
-    menu = page.get_by_role('menu', name='Actions', exact=True)
-    menu.get_by_role('menuitem', name='Copy', exact=True).click()
-    menu.get_by_role('menuitem', name='Copy selected (1)').click()
+    page.get_by_role('region', name='Selection').get_by_role('button', name='Copy (1)…').click()
     modal = page.get_by_role('alertdialog')
     modal.get_by_role('button', name='Copy', exact=True).click()
     expect(modal.get_by_role('status', name='Job submission status')).to_contain_text('Checking job status')

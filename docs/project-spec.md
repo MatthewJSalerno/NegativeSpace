@@ -187,9 +187,10 @@ service. Built and tested:
     *   the first-run screens, landing in the Library to Index;
     *   settings as a window over the page, with catalog backups (list, Back up now,
         download);
-    *   the top row: the logo, Library, the **Actions** menu (Index; Copy and Move for the
-        selection, the one folder shown, or all; Reject selected, or Return selected to
-        library in the Rejects view), Logs, the selection, and the build beside Settings;
+    *   the top row: the logo, Library, the **Organize** menu on the Library page (Index;
+        Copy and Move for the one folder shown or all), Logs, the selection bar (Copy, Move,
+        Reject or Return to library for the ticked photos, only what applies), and the
+        build beside Settings;
     *   the gallery, with its views, sorts and search, a resizable left panel with
         **Types** (folded by default) and, by choice, the source's **Folders** (the
         default) or a **Dates** tree, to show only file types, folders, years and months

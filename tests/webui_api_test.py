@@ -583,7 +583,7 @@ class JobsAndCatalog(ApiCase):
 
         chosen = self.client.post("/api/v1/photos/selection",
                                   json={"ids": [p["id"] for p in listed], "page_size": 1}).json()
-        self.assertEqual(chosen["actions"], {"reject": len(listed) - 2, "return": 2},
+        self.assertEqual(chosen["actions"], {"copy": 0, "move": len(listed), "reject": len(listed) - 2, "return": 2},
                          "Actions would offer Reject or Return for photos it cannot take")
         searched = self.client.get("/api/v1/photos", params={"view": "rejects", "q": "IMG_0002"}).json()
         self.assertEqual((searched["matches"]["rejects"], searched["matches"]["all"], searched["matches"]["undated"]),

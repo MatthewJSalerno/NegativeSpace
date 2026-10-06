@@ -223,7 +223,7 @@ disk listing, so every folder offered holds photos a job can act on:
     `undated`, `date` and `type`; `folder` does not narrow it, so an unticked folder keeps
     its count. A folder named in `folder` stays listed at 0, so it can be unticked.
 *   **`eligible`** is what a Copy or a Move of the folder would take (`--source-subdir`,
-    `ns_db.TRANSFER_ELIGIBLE`), whatever the filters: Actions' "this folder".
+    `ns_db.TRANSFER_ELIGIBLE`), whatever the filters: Organize's "this folder".
 *   **`name`** folds a chain of folders, each holding one folder and no photos of its own,
     into one row: `"Camera / Nikon D750"`, with `path` the deepest folder.
 *   **`top_files`** are the photos directly in the source folder, in no subfolder
@@ -264,12 +264,13 @@ The selected photos, whatever view, search or dates would hide them (Show only s
 
     {"ids": [3, 7, 99999], "sort": "newest", "page": 1, "page_size": 60}
     ->  {"items": [...as GET /photos...], "page": 1, "page_size": 60, "total": 2, "missing": [99999],
-         "actions": {"reject": 2, "return": 0}}
+         "actions": {"copy": 0, "move": 2, "reject": 2, "return": 0}}
 
 It reads; it is a POST because a selection's ids are too long for a URL. `missing` names
 ids no longer in the catalog, so a selection is never silently shortened. `actions` counts
-what Reject (photos in the library) and Return to library (photos in Rejects) would take
-of the whole selection, for the Actions menu.
+what each action would take of the whole selection, for the selection bar: Copy and Move by
+the engine's own rule (`ns_db.TRANSFER_ELIGIBLE`, as `eligible` in `GET /status`), Reject
+(photos in the library) and Return to library (photos in Rejects).
 `sort=matches` with optional integer `match_min` (default 75) orders an explicit
 selection by library-wide counts without filtering out selected files. This also
 works for `/photos/position` when `ids` is supplied. Items without an available

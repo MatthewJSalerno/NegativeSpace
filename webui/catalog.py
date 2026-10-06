@@ -526,14 +526,18 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, ma
                             f"ORDER BY {SORTS[sort]} LIMIT ? OFFSET ?",
                             (json.dumps(wanted), page_size, (page - 1) * page_size)).fetchall()
         items = _items(conn, rows)
-        # What Reject and Return to library would act on among them, for Actions: photos
-        # in the library, and photos in Rejects (engine-spec 9.5).
-        reject, back = conn.execute(
-            f"SELECT COALESCE(SUM(p.status IN ({ns_db.sql_values(DELIVERED)})), 0), "
+        # What each action would take of them, for the selection bar: Copy and Move by the
+        # engine's own rule (ns_db.TRANSFER_ELIGIBLE), Reject photos in the library, Return
+        # photos in Rejects (engine-spec 9.5).
+        copy, move, reject, back = conn.execute(
+            f"SELECT COALESCE(SUM(p.status IN ({ns_db.sql_values(ns_db.TRANSFER_ELIGIBLE['copy'])})), 0), "
+            f"COALESCE(SUM(p.status IN ({ns_db.sql_values(ns_db.TRANSFER_ELIGIBLE['move'])})), 0), "
+            f"COALESCE(SUM(p.status IN ({ns_db.sql_values(DELIVERED)})), 0), "
             f"COALESCE(SUM(p.status IN ({ns_db.sql_values(IN_REJECTS_STATUSES)})), 0) {join}",
             (json.dumps(wanted),)).fetchone()
     return {"items": items, "page": page, "page_size": page_size, "total": len(found),
-            "missing": [i for i in wanted if i not in found], "actions": {"reject": reject, "return": back}}
+            "missing": [i for i in wanted if i not in found],
+            "actions": {"copy": copy, "move": move, "reject": reject, "return": back}}
 
 
 def timeline(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,

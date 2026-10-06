@@ -19,7 +19,8 @@ import { SelectMenu } from "./components/SelectMenu";
 import { usePaged } from "./paged";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./components/Confirm";
 import { Tip } from "./components/Tip";
-import { ActionsMenu } from "./components/ActionsMenu";
+import { OrganizeMenu } from "./components/OrganizeMenu";
+import { SelectionBar, type SelectionCounts } from "./components/SelectionBar";
 import { RejectsLine, RejectsReminder } from "./components/RejectsLine";
 import { SearchField } from "./components/ui/SearchField";
 import { LogsPage } from "./components/LogsPage";
@@ -95,6 +96,8 @@ function readUrl() {
 type Focus = { kind: "selection" | "review" | "job" | "photo" | "set"; ids: number[]; reference?: number; threshold?: number; mode?: ActionMode;
   // Keep this one, reject the rest: the photo kept, shown first and never ticked.
   keep?: number; keepName?: string };
+
+const NO_ACTIONS: SelectionCounts = { copy: 0, move: 0, reject: 0, return: 0 };
 
 export function App() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -324,7 +327,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     return () => { live = false; };
   }, [refreshKey]);
   // What Reject and Return to library would take of the selection, for Actions.
-  const [selectionActions, setSelectionActions] = useState({ reject: 0, return: 0 });
+  const [selectionActions, setSelectionActions] = useState<SelectionCounts>(NO_ACTIONS);
   const [dismissedId, dismissRun] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
   const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
@@ -428,9 +431,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   useEffect(() => {
     let live = true;
     const ids = [...selected];
-    if (ids.length === 0) setSelectionActions({ reject: 0, return: 0 });
+    if (ids.length === 0) setSelectionActions(NO_ACTIONS);
     else api.selection(ids, "newest", 1, 1, galleryMinimum)
-      .then((s) => live && setSelectionActions(s.actions ?? { reject: 0, return: 0 }), () => live && setSelectionActions({ reject: 0, return: 0 }));
+      .then((s) => live && setSelectionActions(s.actions ?? NO_ACTIONS), () => live && setSelectionActions(NO_ACTIONS));
     return () => { live = false; };
   }, [selected, galleryMinimum, refreshKey]);
   useEffect(() => {
@@ -843,26 +846,18 @@ function Library({ status, refreshStatus, onOpenSettings }: {
           <h1 className="brand"><Logo />NegativeSpace</h1>
           <nav className="pages" aria-label="Pages">
             <a className="button-link active" href="/" onClick={follow} aria-current="page">Library</a>
-            <ActionsMenu
-              state={{ jobRunning, noPhotos, selected: selected.size,
-                       eligible: status.eligible, copied: status.copied,
+            <OrganizeMenu
+              state={{ jobRunning, noPhotos, eligible: status.eligible, copied: status.copied,
                        folder: folderShown ? { name: folderLabel(folderShown.path), eligible: folderShown.eligible } : null,
-                       folders: folders.length,
-                       rejects: { ...selectionActions, inRejectsView: view === "rejects" && !focus } }}
+                       folders: folders.length }}
               onIndex={start("index")}
-              onTransfer={(mode, scope) => (scope === "selected" ? transferSelected(mode)
-                                           : scope === "folder" ? askFolder(mode) : askTransfer(mode))} />
+              onTransfer={(mode, scope) => (scope === "folder" ? askFolder(mode) : askTransfer(mode))} />
             <a className="button-link" href="/logs" onClick={follow}>Logs</a>
           </nav>
           {(selected.size > 0 || (focus && focus.kind !== "photo")) && (
-            <div className="selection-line" role="region" aria-label="Selection">
-              <strong>{plural(selected.size, "photo")} selected</strong>
-              {!focus && outside > 0 && <span> · {count(outside)} outside this view</span>}
-              {focus
-                ? <button className="link" onClick={backToResults}>Back to results</button>
-                : <button className="link" onClick={showSelected}>Show only selected</button>}
-              {selected.size > 0 && <button className="link" onClick={clearSelection}>Clear</button>}
-            </div>
+            <SelectionBar selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
+                          counts={selectionActions} jobRunning={jobRunning} onAction={transferSelected}
+                          onShowSelected={showSelected} onBack={backToResults} onClear={clearSelection} />
           )}
           <div className="toolbar-actions">
             <VersionTag version={status.version} />

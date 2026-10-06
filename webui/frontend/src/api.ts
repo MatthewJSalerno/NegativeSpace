@@ -127,7 +127,8 @@ export interface SelectionPage {
   missing: number[];
   // Among the selected photos: in the library (Reject takes them) and in Rejects
   // (Return to library takes them).
-  actions?: { reject: number; return: number };
+  // What each action would take of the selection, for the selection bar.
+  actions?: { copy: number; move: number; reject: number; return: number };
 }
 
 export interface Timeline {

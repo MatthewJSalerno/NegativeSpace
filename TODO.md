@@ -55,10 +55,6 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Views
 
-- [ ] **Selection bar and Organize menu** (decided 2026-10-05, `docs/webui-spec.md` §4):
-  actions on ticked photos move to a selection bar in the top bar (only what applies to
-  them); **Actions** becomes **Organize ▾** with the library-wide jobs, on the Library page
-  only. Mockup first.
 - [ ] **"A job is already running" just after a job finishes:** the engine keeps its lock
   while it takes the catalog backup that follows a settled run, so a start in that moment
   is refused with no running job shown. Say what is happening ("finishing the last job's
@@ -116,7 +112,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
   §9.6): sidecars move with their photos and are part of its lineage.
 - [ ] Saved orientation edits, separate from temporary viewing rotation: one
   end-of-review decision for photos still rotated, in the comparison and the photo
-  panel, and Actions › Rotate… for a selection; no control on thumbnails
+  panel, and the selection bar's Rotate… for a selection; no control on thumbnails
   (`docs/webui-spec.md` §7.5). Built on the verified Orientation write; no save promise
   before that works.
 

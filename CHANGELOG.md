@@ -9,6 +9,14 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-05
+
+### Changed
+- Actions on ticked photos are in a selection bar at the top, which shows only what applies
+  to them, each with its count: Copy, Move, Reject, Return to library. The **Actions** menu
+  is now **Organize**, with the jobs for the whole library (Index; Copy and Move of one
+  folder or all), on the Library page only.
+
 ### Added
 - README: a security section (there is no sign-in yet), a recovery guide
   ([docs/recovery.md](docs/recovery.md)) and the GPL-3.0 license.

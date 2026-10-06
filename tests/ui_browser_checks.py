@@ -111,11 +111,16 @@ def check_ui(browser, base, _shot):
         assert button.bounding_box()["height"] >= 36
     # A single photo needs confirmation without replacing the browsing context.
     card_count = page.locator(".card").count()
+    # The bar's counts arrive just after the tick; Move applies to copied and uncopied alike.
+    expect(selection.get_by_role("button", name="Move (1)…")).to_be_visible()
+    offered = 0
     for action in ("Copy", "Move"):
-        page.get_by_role("button", name=re.compile(r"^Actions")).click()
-        menu = page.get_by_role("menu", name="Actions", exact=True)
-        menu.get_by_role("menuitem", name=action, exact=True).click()
-        menu.get_by_role("menuitem", name=f"{action} selected (1)").click()
+        # The selection bar shows only what applies: Copy only before the photo is copied.
+        button = selection.get_by_role("button", name=f"{action} (1)…")
+        if button.count() == 0:
+            continue
+        offered += 1
+        button.click()
         confirm_one = page.get_by_role("alertdialog")
         expect(confirm_one).to_be_visible()
         expect(confirm_one).to_contain_text(f"{action} 1 selected photo?")
@@ -124,6 +129,7 @@ def check_ui(browser, base, _shot):
         expect(page.locator(".review-bar")).to_have_count(0)
         confirm_one.get_by_role("button", name="Cancel", exact=True).click()
         expect(selection).to_contain_text("1 photo selected")
+    assert offered, "the selection bar offered neither Copy nor Move"
     selection.get_by_role("button", name="Clear", exact=True).click()
     expect(selection).to_have_count(0)
 
@@ -173,14 +179,12 @@ def check_ui(browser, base, _shot):
 
     # Commands have arrow navigation, disabled-item explanations, submenu return,
     # and trigger restoration. A confirmation starts on its safe action.
-    actions = page.get_by_role("button", name=re.compile(r"^Actions"))
+    actions = page.get_by_role("button", name="Organize", exact=True)
     actions.focus()
     page.keyboard.press("Enter")
-    menu = page.get_by_role("menu", name="Actions", exact=True)
+    menu = page.get_by_role("menu", name="Organize", exact=True)
     expect(menu.get_by_role("menuitem", name=re.compile(r"^Index"))).to_be_focused()
     page.keyboard.press("End")
-    expect(menu.get_by_role("menuitem", name=re.compile(r"^Reject selected"))).to_be_focused()
-    page.keyboard.press("ArrowUp")
     move = menu.get_by_role("menuitem", name="Move", exact=True)
     expect(move).to_be_focused()
     page.keyboard.press("ArrowRight")
@@ -358,8 +362,8 @@ def check_ui(browser, base, _shot):
     phone = browser.new_page(viewport={"width": 320, "height": 700}, is_mobile=True, has_touch=True)
     phone.goto(base)
     expect(phone.locator(".card").first).to_be_visible()
-    phone.get_by_role("button", name=re.compile(r"^Actions")).click()
-    box = phone.get_by_role("menu", name="Actions", exact=True).bounding_box()
+    phone.get_by_role("button", name="Organize", exact=True).click()
+    box = phone.get_by_role("menu", name="Organize", exact=True).bounding_box()
     assert box and box["x"] >= 0 and box["x"] + box["width"] <= 320, box
     phone.keyboard.press("Escape")
     phone.get_by_role("button", name="Settings", exact=True).click()

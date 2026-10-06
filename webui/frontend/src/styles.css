@@ -417,7 +417,7 @@ button.photo-action:hover:not(:disabled) { background: var(--surface-2); border-
   .job-detail, .job-count { grid-column: 2; }
 }
 
-/* The Actions menu, after Library in the page links. */
+/* The Organize menu, after Library in the page links. */
 .actions-menu { position: relative; }
 .actions-menu > button { font: inherit; cursor: pointer; }
 .button-link.active-soft { border-color: var(--accent); color: var(--accent); }
@@ -732,6 +732,10 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .dates-caret, .dates-name { padding: 0; }
 .selection-line { outline: 0; background: var(--surface-2); gap: var(--space-2); }
 .selection-line button { padding-top: 0; padding-bottom: 0; }
+/* The selection bar's actions: outlined, as a photo's own actions are, between the count
+   and its links. */
+.selection-actions { display: inline-flex; flex-wrap: wrap; gap: var(--space-2); }
+.selection-line .selection-actions button { padding: 0 var(--space-3); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 800px) {
   :root { --control-height: 44px; }

@@ -25,10 +25,10 @@ Rejects. **Backups** explains what NegativeSpace backs up (its catalog, not your
 
 ## 2. Index: read your photos
 
-The library starts empty. **Actions** holds everything that changes files; each item says
+The library starts empty. **Organize** holds the jobs for the whole library; each item says
 what it does, and why when it cannot run yet.
 
-![The Actions menu before anything is indexed](images/actions-menu.png)
+![The Organize menu before anything is indexed](images/organize-menu.png)
 
 **Index** reads every photo in your source: its date, a checksum of its content, and a
 small thumbnail. It moves and copies nothing, and never writes to your source. Its progress
@@ -51,10 +51,11 @@ from, and its history.
 
 ## 4. Copy or Move
 
-**Actions › Copy** files every photo not yet organized into the destination's `library/`
+**Organize › Copy** files every photo not yet organized into the destination's `library/`
 folder, under `YYYY/MM/DD`, and never touches your source. **Move** does the same, then
 removes each original once its copy is verified (it needs a writable source). Either can
-take everything, one folder, or the photos you select, and each asks first.
+take everything or one folder from Organize. Tick photos instead and the bar at the top
+offers what applies to them: Copy, Move, Reject, or Return to library. Each asks first.
 
 ![Copy finished](images/copy-finished.png)
 

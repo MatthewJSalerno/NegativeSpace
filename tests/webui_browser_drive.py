@@ -4,7 +4,7 @@ Run by tests/webui_browser_test.sh against both containers holding generated pho
 NEWER photos dated in one year and OLDER in an earlier one, plus exact copies. It walks
 first run, settings and backups, Index, the gallery's scrolling and date tree, the
 Inspector (metadata, history, lineage), selection with its review before Copy, the
-Actions menu, the log, and search, and fails on any browser console error.
+Organize menu, the selection bar, the log, and search, and fails on any browser console error.
 
 The unit suites cannot see the screens. This found a gallery that never refreshed
 after a job too short to be seen running, and an Inspector that crashed on a date
@@ -24,9 +24,9 @@ PHOTOS = NEWER + OLDER
 errors = []
 server_errors = []
 def open_actions(page, branch=None):
-    """Opens the Actions menu, and Copy or Move within it; returns the menu."""
-    page.get_by_role("button", name=re.compile(r"^Actions")).click()
-    menu = page.get_by_role("menu", name="Actions")
+    """Opens the Organize menu, and Copy or Move within it; returns the menu."""
+    page.get_by_role("button", name="Organize", exact=True).click()
+    menu = page.get_by_role("menu", name="Organize")
     if branch:
         menu.get_by_role("menuitem", name=branch, exact=True).click()
     return menu
@@ -100,7 +100,7 @@ with sync_playwright() as p:
     # The logo at the top left, in its own proportions.
     logo = page.locator(".brand .logo").bounding_box()
     assert logo and logo["x"] < 40 and abs(logo["width"] / logo["height"] - 991 / 956) < 0.05, f"logo: {logo}"
-    # The Actions menu: every item that cannot run says why.
+    # The Organize menu: every item that cannot run says why.
     menu = open_actions(page, "Move")
     expect(menu.get_by_role("menuitem", name=re.compile(r"^Move all"))).to_be_disabled()
     expect(menu).to_contain_text("Index your library first")
@@ -152,7 +152,7 @@ with sync_playwright() as p:
     trip.get_by_role("checkbox").check()
     expect(page.locator(".gallery-filters")).to_contain_text(f"Showing 10 of {PHOTOS} photos")
     expect(page).to_have_url(re.compile(r"folder=trip"))
-    # One folder shown: Actions offers it, however many photos it holds.
+    # One folder shown: Organize offers it, however many photos it holds.
     item = open_actions(page, "Copy").get_by_role("menuitem", name=re.compile(r"^Copy this folder: trip \/ day 1 \(10\)"))
     expect(item).to_be_enabled()
     item.click()
@@ -386,17 +386,17 @@ with sync_playwright() as p:
     checks.nth(2).click(modifiers=["Shift"])
     only_2019.check()
     expect(line).to_contain_text("3 outside this view")
-    # Copy selected shows every selected photo to review, with the action in a bar above
-    # them, not a dialog over them. Cancel returns to the view it came from.
+    # Copy from the selection bar shows every selected photo to review, with the action in
+    # a bar above them, not a dialog over them. Cancel returns to the view it came from.
     review = page.get_by_role("region", name="Review before copying")
-    open_actions(page, "Copy").get_by_role("menuitem", name="Copy selected (3)").click()
+    line.get_by_role("button", name="Copy (3)…").click()
     expect(review).to_contain_text("Review before copying")
     expect(review).to_contain_text("3 of 3 selected photos will be copied.")
     expect(page.get_by_role("alertdialog")).to_have_count(0)
     review.get_by_role("button", name="Cancel").click()
     expect(review).to_have_count(0)
     expect(page).to_have_url(re.compile(r"date=2019"))
-    open_actions(page, "Copy").get_by_role("menuitem", name="Copy selected (3)").click()
+    line.get_by_role("button", name="Copy (3)…").click()
     expect(page.locator(".card")).to_have_count(3)
     # Unchecking one there changes what will be copied; the photo stays on screen.
     page.locator(".card-check input").first.click()
@@ -443,15 +443,16 @@ with sync_playwright() as p:
     menu.get_by_role("menuitem", name="Move", exact=True).click()
     expect(menu.get_by_role("menuitem", name=f"Move all ({PHOTOS - 1:,})")).to_be_enabled()
     expect(menu).to_contain_text(f"including {PHOTOS - 1:,} already copied")
-    shot("6b-actions-menu")
+    shot("6b-organize-menu")
     page.keyboard.press("Escape")
 
     # The Error Center: the log filtered to this job's failures, with what to do and Retry.
     banner.get_by_role("link", name="View failures").click()
     expect(page).to_have_url(re.compile(r"/logs\?run=\d+&status=Failed"))
     expect(page.get_by_role("heading", name="Failures")).to_be_visible()
-    # The same top row as the Library, and the filters named in one line with one reset.
-    expect(page.get_by_role("button", name=re.compile(r"^Actions"))).to_be_visible()
+    # The same top row as the Library, without Organize (its jobs belong with the photos),
+    # and the filters named in one line with one reset.
+    expect(page.get_by_role("button", name="Organize", exact=True)).to_have_count(0)
     expect(page.locator(".dates-filter-line")).to_contain_text(re.compile(r"Showing: job #\d+ · Failed"))
     # Grouped by job: the job the banner named is the only one listed, and it is open.
     expect(page.locator(".job-group")).to_have_count(1)
