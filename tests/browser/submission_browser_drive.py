@@ -12,7 +12,8 @@ with sync_playwright() as p:
     def wait(run_id):
         for _ in range(600):
             run = request.get(f'/api/v1/runs/{run_id}').json()
-            if run['status'] not in ('Preparing', 'Running', 'Cancelling'):
+            if (run['status'] not in ('Preparing', 'Running', 'Cancelling')
+                    and request.get('/api/v1/jobs/active').json()['active'] is None):
                 return run
             time.sleep(.1)
         raise AssertionError('Job did not settle')

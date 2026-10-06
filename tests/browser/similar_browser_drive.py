@@ -20,7 +20,8 @@ with sync_playwright() as p:
         run = request.post('/api/v1/jobs/start', data={'mode': mode}).json()['id']
         for _ in range(600):
             outcome = request.get(f'/api/v1/runs/{run}').json()
-            if outcome['status'] not in ('Preparing', 'Running', 'Cancelling'):
+            if (outcome['status'] not in ('Preparing', 'Running', 'Cancelling')
+                    and request.get('/api/v1/jobs/active').json()['active'] is None):
                 break
             time.sleep(.2)
         assert outcome['status'] == 'Completed', outcome

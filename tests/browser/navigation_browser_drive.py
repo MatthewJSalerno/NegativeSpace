@@ -13,7 +13,8 @@ with sync_playwright() as p:
     run_id = response.json()['id']
     for _ in range(600):
         run = request.get(f'/api/v1/runs/{run_id}').json()
-        if run['status'] not in ('Preparing', 'Running', 'Cancelling'):
+        if (run['status'] not in ('Preparing', 'Running', 'Cancelling')
+                and request.get('/api/v1/jobs/active').json()['active'] is None):
             break
         time.sleep(.2)
     else:

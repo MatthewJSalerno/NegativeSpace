@@ -668,3 +668,10 @@ expensive work, and use `benchmark-synthetic-queries.py` for A/B measurements.
 For a short 500k trial use `--photos 500000 --scenarios inspector related --repeats 3`;
 this deliberately produces no p95. Keep repeat settings identical for its candidate
 run, and use a new output directory for every profile/revision.
+
+### Waiting for a job in browser drivers
+
+A terminal run record does not mean the engine has released its lock: the catalog
+backup runs after settlement. Before starting another job or asserting a finished
+banner, wait for both a terminal run status and `GET /api/v1/jobs/active` returning
+`active: null`. Do not retry a refused start to hide an unexpected refusal.

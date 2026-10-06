@@ -10,7 +10,8 @@ with sync_playwright() as p:
     assert request.post('/api/v1/catalog').ok
     run = request.post('/api/v1/jobs/start', data={'mode':'index'}).json()['id']
     for _ in range(600):
-        if request.get(f'/api/v1/runs/{run}').json()['status'] not in ('Preparing', 'Running', 'Cancelling'):
+        if (request.get(f'/api/v1/runs/{run}').json()['status'] not in ('Preparing', 'Running', 'Cancelling')
+                and request.get('/api/v1/jobs/active').json()['active'] is None):
             break
         time.sleep(.2)
     else:

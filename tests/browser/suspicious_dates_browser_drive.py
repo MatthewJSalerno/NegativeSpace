@@ -14,7 +14,8 @@ with sync_playwright() as p:
     def wait(run):
         for _ in range(600):
             result = request.get(f'/api/v1/runs/{run}').json()
-            if result['status'] not in ('Preparing','Running','Cancelling'):
+            if (result['status'] not in ('Preparing','Running','Cancelling')
+                    and request.get('/api/v1/jobs/active').json()['active'] is None):
                 assert result['status'] == 'Completed', result
                 return
             time.sleep(.2)

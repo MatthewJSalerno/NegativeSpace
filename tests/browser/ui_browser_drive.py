@@ -15,7 +15,8 @@ with sync_playwright() as p:
     run = request.post('/api/v1/jobs/start', data={"mode": "index"}).json()
     for _ in range(180):
         result = request.get(f'/api/v1/runs/{run["id"]}').json()
-        if result['status'] == 'Completed':
+        if (result['status'] == 'Completed'
+                and request.get('/api/v1/jobs/active').json()['active'] is None):
             break
         time.sleep(1)
     else:
