@@ -2,7 +2,7 @@
 # Builds a small, hard-linked sample of a photo library, for validating a
 # change against real files without waiting for the whole library.
 #
-#   sh tests/make_sample_tree.sh [--no-raw | --all-types] <library> <sample> [every-Nth]
+#   sh tools/make_sample_tree.sh [--no-raw | --all-types] <library> <sample> [every-Nth]
 #
 # --all-types samples every file, not only photos: sidecars, videos, previews,
 # files with no extension. That is what exercises the Index's file-type
@@ -44,8 +44,8 @@
 set -eu
 
 usage() {
-    echo "usage: sh tests/make_sample_tree.sh [--no-raw | --all-types] <library> <sample> [every-Nth, default 25]" >&2
-    echo "   eg: sh tests/make_sample_tree.sh /photos/library /photos/sample 25" >&2
+    echo "usage: sh tools/make_sample_tree.sh [--no-raw | --all-types] <library> <sample> [every-Nth, default 25]" >&2
+    echo "   eg: sh tools/make_sample_tree.sh /photos/library /photos/sample 25" >&2
     echo "       --no-raw     sample only raster formats; smaller and faster, no RAW coverage" >&2
     echo "       --all-types  sample every file, not only photos (exercises file-type accounting)" >&2
     exit 2

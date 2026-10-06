@@ -230,7 +230,7 @@ service. Built and tested:
         Suspicious-date review flags recorded years without modifying them. The design
         is in [ui-design.md](ui-design.md) and `webui-spec.md` §7.
 
-    `tests/webui_browser_test.sh` drives them in a real browser.
+    `tests/browser/webui_browser_test.sh` drives them in a real browser.
 
 *   **The log and the Error Center:** grouped by job, each job loading as it scrolls;
     filters by job, status, photo, text and date, named in one line with Clear all;

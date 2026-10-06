@@ -16,7 +16,7 @@ docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp -v "$PWD/..":/webui -w /we
 ```
 
 `npm run dev` serves the screens with live reload and proxies `/api` to an app container
-listening on port 8000. The browser test (`tests/webui_browser_test.sh`) drives the built screens.
+listening on port 8000. The browser test (`tests/browser/webui_browser_test.sh`) drives the built screens.
 
 | File | Holds |
 | --- | --- |

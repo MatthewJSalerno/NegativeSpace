@@ -1,4 +1,4 @@
-"""SUBMISSION_FIXTURE=1 DRIVER=submission_browser_drive.py sh tests/webui_browser_test.sh"""
+"""SUBMISSION_FIXTURE=1 DRIVER=submission_browser_drive.py sh tests/browser/webui_browser_test.sh"""
 import re
 import sys
 import time

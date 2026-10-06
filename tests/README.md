@@ -119,7 +119,7 @@ runs on the host:
 
 ```bash
 docker build -f docker/app.Dockerfile -t negativespace . && docker build -f docker/web.Dockerfile -t negativespace-web .
-sh tests/webui_browser_test.sh
+sh tests/browser/webui_browser_test.sh
 ```
 
 `IMAGE=<tag>` and `WEB_IMAGE=<tag>` test other builds, and `SHOTS=<folder>` keeps
@@ -171,7 +171,7 @@ establishing a mobile release requirement.
 
 ### What each driver checks
 
-`DRIVER=similar_browser_drive.py sh tests/webui_browser_test.sh` checks the empty review after Index, then Copies
+`DRIVER=similar_browser_drive.py sh tests/browser/webui_browser_test.sh` checks the empty review after Index, then Copies
 the isolated generated fixtures and checks cumulative Inspector counts, inline match
 pagination, gallery selection preservation, side-by-side review,
 reload/Back state, request failure retries, legacy bookmarks and narrow Inspector dialogs.
@@ -182,7 +182,7 @@ workspace frame is checked there too: its header stays in view while the window 
 ← → step candidates from wherever the comparison opened, tabs keep their own arrow keys,
 and Esc returns to the gallery with focus back on the opening control.
 
-`SIMILARITY_RECOVERY_FIXTURE=1 DRIVER=similarity_recovery_browser_drive.py sh tests/webui_browser_test.sh`
+`SIMILARITY_RECOVERY_FIXTURE=1 DRIVER=similarity_recovery_browser_drive.py sh tests/browser/webui_browser_test.sh`
 opts into mounting **only the harness's disposable generated catalog** to arrange
 missing/unsupported hashes. It exercises warning-to-recovery navigation, disabled
 busy actions, real repair and comparison-only jobs, refreshed results, failed-load
@@ -190,18 +190,18 @@ retry, unsupported-format limitations and narrow reflow. It never accesses a rea
 library. `similar_browser_drive.py` additionally checks comparison refresh with
 rotation/zoom/position, filtered review/tab restoration, and malformed bookmarks.
 
-`DRIVER=gallery_position_browser_drive.py sh tests/webui_browser_test.sh` checks
+`DRIVER=gallery_position_browser_drive.py sh tests/browser/webui_browser_test.sh` checks
 Logs photo positioning, offscreen Inspector navigation, retained filters, explicit
 hidden-photo display, retry, ordinary gallery clicks, manual scrolling and History
 action alignment. Its fixtures are generated photos in isolated containers.
 
-`DRIVER=reject_similar_browser_drive.py sh tests/webui_browser_test.sh` checks rejecting
+`DRIVER=reject_similar_browser_drive.py sh tests/browser/webui_browser_test.sh` checks rejecting
 from Similar photos and side by side: Reject… per look-alike; in the comparison a Reject…
 under each photo, asked once with Don't ask again, the next look-alike with Return it to
 the library, a new comparison asking again, and the last photo always asked about; Keep
 this one, reject the rest with the kept photo first, full size and never ticked.
 
-`DRIVER=rejects_browser_drive.py sh tests/webui_browser_test.sh` checks Rejects: one
+`DRIVER=rejects_browser_drive.py sh tests/browser/webui_browser_test.sh` checks Rejects: one
 photo rejected from the Inspector (asked first by name, starting on Cancel), a selection
 reviewed before rejecting, the Rejects view with what it holds and How to empty Rejects,
 Return to library, the selection bar for photos in Rejects (Return first, and a Move that
@@ -209,7 +209,7 @@ warns its copies in Rejects become the only ones), one place per selection (libr
 photos' tick boxes disabled while a photo in Rejects is selected), the view at a narrow width, the reminder past a size limit on every
 page and switched off in Settings, and the Rejects tile on Stats.
 
-`DRIVER=appearance_browser_drive.py SHOTS=/tmp/ns-shots sh tests/webui_browser_test.sh`
+`DRIVER=appearance_browser_drive.py SHOTS=/tmp/ns-shots sh tests/browser/webui_browser_test.sh`
 checks both neutral palettes in light/dark modes, text and input contrast, local
 preference persistence, cross-tab updates, blocked storage, and narrow controls.
 It also checks that Appearance is first in Settings and that dialog scroll cues
@@ -296,7 +296,7 @@ Run `python3 -m unittest discover -s tests -p suspicious_dates_test.py` with app
 dependencies. It verifies boundary years, missing/fallback dates, paged membership,
 selection IDs, browse endpoints and unchanged metadata. For the generated browser
 fixture use `DRIVER=suspicious_dates_browser_drive.py SIMILARITY_RECOVERY_FIXTURE=1`
-with `tests/webui_browser_test.sh` and the built IMAGE/WEB_IMAGE. The opt-in catalog
+with `tests/browser/webui_browser_test.sh` and the built IMAGE/WEB_IMAGE. The opt-in catalog
 mount contains only disposable generated data. Checks cover the view, reload,
 Inspector reasons, comparison date review and narrow reflow.
 
@@ -493,7 +493,7 @@ Open a candidate using **Review side by side** to enter the expanded workspace:
    distinguishes it from the candidate. Promotion does not select a keeper or donor.
 
 The generated-catalog browser check is `DRIVER=similar_browser_drive.py sh
-tests/webui_browser_test.sh` (set `IMAGE`/`WEB_IMAGE` to the builds under test).
+tests/browser/webui_browser_test.sh` (set `IMAGE`/`WEB_IMAGE` to the builds under test).
 Metadata writes and end-of-review orientation saving are tracked in
 [TODO.md](../TODO.md#dates-and-metadata). These are not current
 validation steps. The workspace compares, rejects and keeps one of a set; closing it
@@ -524,7 +524,7 @@ duplicate cleanup is exercised. Deleting from the sample never touches the libra
 it is safe to point `--move` at.
 
 ```bash
-sh tests/make_sample_tree.sh [--no-raw | --all-types] <library> <sample> [every-Nth, default 25]
+sh tools/make_sample_tree.sh [--no-raw | --all-types] <library> <sample> [every-Nth, default 25]
 ```
 
 `--all-types` samples every file, not only photos — what the Index's file-type
@@ -573,10 +573,10 @@ path owned by root.
 mkdir -p /photos/demos
 docker run --rm --user "$(id -u):$(id -g)" --entrypoint python3 \
   -v /photos:/photos -v "$PWD":/app -w /app negativespace \
-  tests/make_scenarios.py build --seed-dir /photos/seed --out /photos/demos/demo \
+  tools/make_scenarios.py build --seed-dir /photos/seed --out /photos/demos/demo \
     [--exif-donors /photos/seed/exiftool-samples] [--replace] [--seed N]
 # Index and Copy with SOURCE_DIR=/photos/demos/demo/library, then:
-docker run ... tests/make_scenarios.py change --out /photos/demos/demo [--dest <your DEST_DIR>]
+docker run ... tools/make_scenarios.py change --out /photos/demos/demo [--dest <your DEST_DIR>]
 # Index and Copy again: the lineage tree now has changes to show.
 ```
 

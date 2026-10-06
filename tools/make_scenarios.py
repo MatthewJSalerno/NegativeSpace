@@ -33,7 +33,7 @@ seed and OUT on one filesystem AND one mount, so mount their common parent once:
     mkdir -p /photos/demos                  # before the first run: docker would make it root's
     docker run --rm --user "$(id -u):$(id -g)" --entrypoint python3 \\
       -v /photos:/photos -v "$PWD":/app -w /app negativespace \\
-      tests/make_scenarios.py build --seed-dir /photos/seed --out /photos/demos/demo \\
+      tools/make_scenarios.py build --seed-dir /photos/seed --out /photos/demos/demo \\
         [--exif-donors /photos/seed/exiftool-samples]
 """
 import argparse
@@ -249,7 +249,7 @@ def prepare_out(out: Path, replace: bool):
         shutil.rmtree(out / LIBRARY, ignore_errors=True)
         (out / "manifest.json").unlink(missing_ok=True)
     out.mkdir(exist_ok=True)
-    (out / MARKER).write_text("Made by tests/make_scenarios.py; replaced by build --replace.\n")
+    (out / MARKER).write_text("Made by tools/make_scenarios.py; replaced by build --replace.\n")
 
 
 def build(args):

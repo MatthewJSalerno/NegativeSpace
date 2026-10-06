@@ -1,6 +1,6 @@
 """Drives the built web interface in a real browser (Playwright, headless Chromium).
 
-Run by tests/webui_browser_test.sh against both containers holding generated photos:
+Run by tests/browser/webui_browser_test.sh against both containers holding generated photos:
 NEWER photos dated in one year and OLDER in an earlier one, plus exact copies. It walks
 first run, settings and backups, Index, the gallery's scrolling and date tree, the
 Inspector (metadata, history, lineage), selection with its review before Copy, the

@@ -2,12 +2,12 @@
 # The built web interface in a real browser, end to end, arranged as in
 # docker/compose.yml: an app container (API and engine) and a web container
 # (screens, proxying /api to the app), driven by a Playwright container
-# (tests/webui_browser_drive.py). Runs on the host because it starts containers.
+# (tests/browser/webui_browser_drive.py). Runs on the host because it starts containers.
 # Every folder is made with mktemp under /tmp.
 #
 #   docker build -f docker/app.Dockerfile -t negativespace .
 #   docker build -f docker/web.Dockerfile -t negativespace-web .
-#   sh tests/webui_browser_test.sh
+#   sh tests/browser/webui_browser_test.sh
 #
 # SHOTS=<folder> saves screenshots of the main screens there, for review by eye.
 set -eu
