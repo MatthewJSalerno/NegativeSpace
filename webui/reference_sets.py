@@ -3,7 +3,7 @@
 Only explicitly selected one-hop references are expanded. No transitive traversal,
 clustering, cached group membership or photo writes.
 """
-from . import catalog
+from . import catalog, gallery
 from engine.ns_similarity_cache import AVAILABLE, VALID, match_distance, comparison_state
 
 MAX_RELATED = 6
@@ -70,7 +70,7 @@ def browse(db, reference_id, *, threshold=90, include=(), page=1, related_page=1
         related_ids = [r[0] for r in conn.execute(root_sql+'''SELECT id FROM members WHERE id!=?
           ORDER BY distance,id LIMIT ? OFFSET ?''',(*root_params,reference_id,page_size,(related_page-1)*page_size))]
         lookup_ids = list(dict.fromkeys([*all_ids,*member_ids,*related_ids]))
-        lookup = {r['id']:dict(r) for r in conn.execute(f'''SELECT {catalog._LIST_COLUMNS}
+        lookup = {r['id']:dict(r) for r in conn.execute(f'''SELECT {gallery._LIST_COLUMNS}
           FROM photos p WHERE p.id IN ({','.join('?' for _ in lookup_ids)})''',lookup_ids)}
         def photo(i):
             return {k:v for k,v in lookup[i].items() if k!='sha1_hash'}

@@ -37,9 +37,9 @@ with tempfile.TemporaryDirectory(prefix='ns-match-sort-scale-') as tmp:
             'members':result['total'], 'returned':len(result['items'])}),flush=True)
 
     # Full grouped gallery, not only a bounded exploration of one reference.
-    from webui import catalog
+    from webui import gallery
     started = time.perf_counter()
-    grouped = catalog.list_photos(db, view='similar', sort='matches', match_min=90, group_sets=True)
+    grouped = gallery.list_photos(db, view='similar', sort='matches', match_min=90, group_sets=True)
     assert 1 < grouped['total'] < n
     assert len(grouped['items']) == 60
     print(json.dumps({'grouped_gallery_seconds':round(time.perf_counter()-started,3),

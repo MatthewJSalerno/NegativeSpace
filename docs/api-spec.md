@@ -1,8 +1,9 @@
 # API Specification: NegativeSpace Web API
 
 The HTTP and WebSocket interface between the browser and the engine, as implemented in
-`webui/` (`app.py` routes, `catalog.py` reads, `jobs.py` job control). This document
-is the reference for what exists. `webui-spec.md` designs the screens that use it;
+`webui/` (`app.py` routes; catalog reads in `catalog.py` and, by area, `gallery.py`,
+`outcomes.py`, `oplog.py`, `catalog_backups.py`, `lineage.py` and `stats.py`; `jobs.py`
+job control). This document is the reference for what exists. `webui-spec.md` designs the screens that use it;
 `engine-spec.md` defines the catalog it reads. A route in code that this document does
 not describe fails CI (`tools/check-api-spec.py`).
 

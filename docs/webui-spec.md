@@ -508,7 +508,7 @@ answer would stall an overnight job; a clear account afterwards serves better.
 
 A finished job's banner explains its skips, grouped by the reason each photo recorded,
 for example **"5 skipped (3 copied by an earlier job, 2 duplicates: the same content is
-copied once)"**. The API groups them from the engine's reason text (`webui/catalog.py`).
+copied once)"**. The API groups them from the engine's reason text (`webui/outcomes.py`).
 
 **Which build is running** shows at the top right, beside Settings, on every page and on
 the first-run and catalog-problem screens: **"v0.1.0 · main · 2c4728f"**, the release in

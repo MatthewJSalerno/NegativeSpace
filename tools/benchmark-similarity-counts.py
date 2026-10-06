@@ -9,7 +9,7 @@ from pathlib import Path
 import tempfile,time,json,sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from engine import ns_db
-from webui import catalog
+from webui import gallery
 n=250000
 with tempfile.TemporaryDirectory(prefix='ns-match-sort-scale-') as tmp:
     db=Path(tmp)/'catalog.sqlite';ns_db.initialize(db);c=ns_db.connect(db)
@@ -28,11 +28,11 @@ with tempfile.TemporaryDirectory(prefix='ns-match-sort-scale-') as tmp:
     c.close()
     print(json.dumps({'photos':n,'fixture_and_cache_seconds':round(time.perf_counter()-t,2)}),flush=True)
     for sort in ('matches','newest'):
-        t=time.perf_counter();result=catalog.list_photos(db,view='similar',sort=sort,match_min=75)
+        t=time.perf_counter();result=gallery.list_photos(db,view='similar',sort=sort,match_min=75)
         assert result['total']==n
         print(json.dumps({'sort':sort,'query_seconds':round(time.perf_counter()-t,3),'first_count':result['items'][0]['similar_count']}),flush=True)
-    t=time.perf_counter();pos=catalog.photo_position(db,photo_id=100000,view='similar',sort='matches',match_min=75)
+    t=time.perf_counter();pos=gallery.photo_position(db,photo_id=100000,view='similar',sort='matches',match_min=75)
     print(json.dumps({'position_seconds':round(time.perf_counter()-t,3),'found':pos['position'] is not None}),flush=True)
-    t=time.perf_counter(); selection=catalog.photos_by_ids(db,list(range(1,1001)),sort='matches',match_min=75)
+    t=time.perf_counter(); selection=gallery.photos_by_ids(db,list(range(1,1001)),sort='matches',match_min=75)
     assert selection['total']==1000
     print(json.dumps({'selection_seconds':round(time.perf_counter()-t,3)}),flush=True)
