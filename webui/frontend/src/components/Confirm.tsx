@@ -10,7 +10,8 @@ export type Confirm = { title: string; body: string[]; action: string; danger?: 
 // Move for all of them), asked the same way on every page. "All" counts what the engine
 // would take across the whole catalog (GET /status), never a view or search.
 export function transferConfirm(mode: ActionMode, status: Status, ids: number[] | { folder: string } | undefined,
-                                run: () => Promise<void>, onCancel?: () => void, filename?: string): Confirm {
+                                run: () => Promise<void>, onCancel?: () => void, filename?: string,
+                                inRejects = false): Confirm {
   const scope = Array.isArray(ids) ? (ids.length === 1 && (mode === "reject" || mode === "return") ? "this photo" : plural(ids.length, "selected photo"))
     : ids ? `the photos under ${ids.folder}`
     : mode === "copy" ? `every photo not yet copied (${count(status.eligible.copy)})`
@@ -34,10 +35,13 @@ export function transferConfirm(mode: ActionMode, status: Status, ids: number[] 
     title: mode === "move" ? `Move ${scope}?` : `Copy ${scope}?`,
     action: mode === "move" ? "Move" : "Copy",
     danger: mode === "move",
-    body: mode === "move" ? [
+    body: mode === "move" && inRejects ? [
+      // A selection in Rejects (webui-spec 2): the warning first, as the review shows only it.
+      `${one ? "This photo is" : "These photos are"} in Rejects. Move deletes ${one ? "its original" : "their originals"} from your source once ${one ? "its copy" : "each copy"} in Rejects is verified. ${one ? "That copy becomes the only one" : "Those copies become the only ones"}: empty Rejects and ${one ? "it is" : "they are"} gone.`,
+    ] : mode === "move" ? [
       "Each photo is copied into the destination's date folders, checked byte for byte, and only then deleted from the source.",
       ...(!ids && status.copied > 0 ? [`${plural(status.copied, "photo is", "photos are")} already copied: each of their copies is verified again before its source is deleted.`] : []),
-      ...(!ids && status.rejected_with_source > 0 ? [`${plural(status.rejected_with_source, "rejected photo still has its source", "rejected photos still have their sources")}: each source is deleted once its copy in Rejects is verified.`] : []),
+      ...(!ids && status.rejected_with_source > 0 ? [`${plural(status.rejected_with_source, "rejected photo still has its source", "rejected photos still have their sources")}: each source is deleted once its copy in Rejects is verified, and that copy becomes the only one: empty Rejects and it is gone.`] : []),
       "Duplicate copies in the source are removed once a matching copy is confirmed at the destination.",
     ] : [
       "Each photo is copied into the destination's date folders and checked byte for byte. Nothing in the source is changed or deleted.",

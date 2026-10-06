@@ -70,6 +70,11 @@ export function activeTitle(run: Run): string {
   return run.mode ? MODE_ACTIVE[run.mode] ?? run.mode : "Starting a job";
 }
 
+// Jobs that act on photos, whose photos the Library can show (webui-spec 2, after a job).
+export function showsPhotos(run: Run): boolean {
+  return ["COPY", "MOVE", "REJECT", "RETURN", "RENAME"].includes(run.mode ?? "") && (run.outcome?.total ?? 0) > 0;
+}
+
 export function modeName(mode: string | null): string {
   return mode ? MODE_NAME[mode] ?? mode : "Job";
 }
@@ -129,7 +134,8 @@ export function skipReasons(reasons: Record<string, number>): string {
 }
 
 const VERDICT: Record<string, string> = {
-  success: "finished", partial: "finished with failures", originals_kept: "finished, originals kept", failed: "failed", no_change: "had nothing to do",
+  success: "finished", partial: "finished with failures", originals_kept: "finished, originals kept",
+  none_succeeded: "finished, nothing succeeded", stopped: "stopped by an error", no_change: "had nothing to do",
   cancelled: "was cancelled", interrupted: "was interrupted", running: "is running",
 };
 

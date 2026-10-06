@@ -9,6 +9,27 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-06
+
+### Changed
+- Actions on ticked photos are in a selection bar at the top, which shows only what applies
+  to them, each with its count: Copy, Move, Reject, Return to library. The **Actions** menu
+  is now **Jobs**, with the jobs for the whole library (Index; Copy and Move of one
+  folder or all), on the Library page only.
+- A selection holds library photos or photos in Rejects, never both: the other place's tick
+  boxes are disabled while anything is selected, and Select all says what it left out.
+  A selection in Rejects offers Return to library first; its Move warns that the copies in
+  Rejects become the only ones.
+- After a job you stay where you were, and nothing stays selected. The finished banner's
+  **Show these photos** opens the job's photos (from any page), where search, dates,
+  types and folders narrow them; **Back to results** restores your filters.
+- A job that ran to its end is never called failed: with some files failed it "finished
+  with failures" (an Index that found most files unchanged included), with every file
+  failed it "finished, nothing succeeded", and only a job an error ended "stopped by an
+  error". Each job in Logs offers **Show these photos in the library**.
+- A review holds only the photos its action takes, and counts the rest: "3 selected
+  photos are left out: Reject takes only photos already organized."
+
 ### Added
 - README: a security section (there is no sign-in yet), a recovery guide
   ([docs/recovery.md](docs/recovery.md)) and the GPL-3.0 license.

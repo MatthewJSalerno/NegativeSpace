@@ -187,17 +187,19 @@ service. Built and tested:
     *   the first-run screens, landing in the Library to Index;
     *   settings as a window over the page, with catalog backups (list, Back up now,
         download);
-    *   the top row: the logo, Library, the **Actions** menu (Index; Copy and Move for the
-        selection, the one folder shown, or all; Reject selected, or Return selected to
-        library in the Rejects view), Logs, the selection, and the build beside Settings;
+    *   the top row: the logo, Library, the **Jobs** menu on the Library page (Index;
+        Copy and Move for the one folder shown or all), Logs, the selection bar (Copy, Move,
+        Reject or Return to library for the ticked photos, only what applies), and the
+        build beside Settings;
     *   the gallery, with its views, sorts and search, a resizable left panel with
         **Types** (folded by default) and, by choice, the source's **Folders** (the
         default) or a **Dates** tree, to show only file types, folders, years and months
         or jump to a date, and continuous scrolling whose page number follows; the
         **Rejects** view with what Rejects holds and how to empty it, its tile on Stats,
         and a reminder on every page once it passes a size or age limit set in Settings;
-    *   selection across views (shift-click, the Select menu, Show only selected), and
-        Copy, Move, Reject and Return of a selection reviewed on screen before they run;
+    *   selection across views (shift-click, the Select menu, Show only selected), one
+        place per selection (library photos or photos in Rejects, never both), and Copy,
+        Move, Reject and Return of a selection reviewed on screen before they run;
     *   the job drawer, with live counts, elapsed time and Cancel;
     *   the split Inspector, with a movable divider, the 1024px preview, the file's own
         details apart from the photo's EXIF information, Show all metadata, the

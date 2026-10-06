@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, type JobState, type Run } from "../api";
 import { duration, instant } from "../format";
-import { activeTitle, countsLine, currentPhase, reasonsText, phaseLabel, summary, type Connection } from "../jobs";
+import { activeTitle, countsLine, currentPhase, reasonsText, phaseLabel, showsPhotos, summary, type Connection } from "../jobs";
 import { Tip } from "./Tip";
 import { follow, logUrl } from "../nav";
 import { SafetyQuestions } from "./SafetyQuestions";
@@ -88,10 +88,12 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
 }
 
 // A finished job's result, at the top of the page under the toolbar, until dismissed.
-export function FinishedBanner({ jobs, dismissedId, onDismiss }: {
+export function FinishedBanner({ jobs, dismissedId, onDismiss, onShowPhotos }: {
   jobs: JobState;
   dismissedId: number | null;
   onDismiss: (id: number) => void;
+  // The Library shows them in place; elsewhere the button is a link to the Library.
+  onShowPhotos?: (id: number) => void;
 }) {
   // Dismissing a job's banner covers it and every earlier job; a newer one still shows.
   const run = !jobs.active && jobs.last && jobs.last.id != null && (dismissedId == null || jobs.last.id > dismissedId)
@@ -112,6 +114,9 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss }: {
         </span>
       </div>
       <span className="banner-links">
+        {run.id != null && showsPhotos(run as Run) && (onShowPhotos
+          ? <button className="link" onClick={() => onShowPhotos(run.id!)}>Show these photos</button>
+          : <a href={`/?run=${run.id}`} onClick={follow}>Show these photos</a>)}
         {(run.outcome.failed > 0 || run.outcome.run_level_issues > 0) && run.id != null && (
           <a href={logUrl({ run: run.id, status: "Failed" })} onClick={follow}>View failures</a>
         )}

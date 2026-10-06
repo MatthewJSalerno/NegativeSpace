@@ -3,8 +3,6 @@ import { api, ApiError, type Stats, type Status } from "../api";
 import { ago, bytes, count, instant, photoDate, plural } from "../format";
 import { useDismissedRun, useJobFeed } from "../jobs";
 import { follow, useHeaderHeight } from "../nav";
-import { ActionsMenu } from "./ActionsMenu";
-import { ConfirmDialog, transferConfirm, type Confirm } from "./Confirm";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
 import { Logo } from "./Logo";
 import { VersionTag } from "./VersionTag";
@@ -33,7 +31,6 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
 }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [dismissedId, dismissRun] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
   const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
@@ -50,9 +47,6 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
     return () => { live = false; };
   }, [lastKey]);
 
-  const startJob = (mode: "index" | "copy" | "move") => async () => {
-    try { await api.startJob({ mode }); } catch (e) { setError(e instanceof ApiError ? e.message : "The job could not be started."); }
-  };
 
   return (
     <div className="app">
@@ -61,12 +55,6 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
           <h1 className="brand"><Logo />NegativeSpace</h1>
           <nav className="pages" aria-label="Pages">
             <a className="button-link" href="/" onClick={follow}>Library</a>
-            <ActionsMenu
-              state={{ jobRunning, noPhotos: status.photos === 0, selected: 0,
-                       eligible: status.eligible, copied: status.copied }}
-              onIndex={startJob("index")}
-              onTransfer={(mode) => (mode === "copy" || mode === "move")
-                && setConfirm(transferConfirm(mode, status, undefined, startJob(mode)))} />
             <a className="button-link" href="/logs" onClick={follow}>Logs</a>
           </nav>
           <div className="toolbar-actions">
@@ -86,7 +74,6 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
         {!stats && !error && <p className="muted">Loading…</p>}
         {stats && <StatsBody s={stats} onOpenSettings={onOpenSettings} />}
       </main>
-      {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
     </div>
   );
 }

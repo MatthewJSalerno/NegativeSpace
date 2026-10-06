@@ -34,6 +34,11 @@ export interface Status {
 export type View = "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects";
 // A job acting on photos; Reject and Return to library need a selection or a folder.
 export type ActionMode = "copy" | "move" | "reject" | "return";
+// Where a photo is, for selecting: a selection holds library photos or photos in Rejects,
+// never both (webui-spec 2), so each action on it has one meaning.
+export type Place = "library" | "rejects";
+export const placeOf = (status: string): Place =>
+  status === "Rejected" || status === "Rejected_Copied" ? "rejects" : "library";
 export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name" | "matches";
 
 export interface PhotoItem {
@@ -82,7 +87,9 @@ export interface BrowseFilters {
   set_reference?: number;
   group_sets?: boolean;
   match_min?: number;
-  view: View;
+  // "job" with `run`: the photos a job recorded, wherever they are now (webui-spec 2).
+  view: View | "job";
+  run?: number;
   q: string;
   undated: boolean;
   dates?: string[];
@@ -111,6 +118,7 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
   if (f.set_reference != null) query.set("set_reference", String(f.set_reference));
   if (f.group_sets) query.set("group_sets", "true");
   if (f.match_min != null) query.set("match_min", String(f.match_min));
+  if (f.run != null) query.set("run", String(f.run));
   if (f.q) query.set("q", f.q);
   if (f.undated) query.set("undated", "true");
   (f.dates ?? []).forEach((d) => query.append("date", d));
@@ -125,9 +133,12 @@ export interface SelectionPage {
   page_size: number;
   total: number;
   missing: number[];
-  // Among the selected photos: in the library (Reject takes them) and in Rejects
-  // (Return to library takes them).
-  actions?: { reject: number; return: number };
+  // Those in Rejects: a selection holds one place (Place, below).
+  in_rejects?: number[];
+  // What each action would take of the selection, for the selection bar.
+  actions?: { copy: number; move: number; reject: number; return: number };
+  // With `action`: the selected photos that action takes, for its review.
+  takes?: number[];
 }
 
 export interface Timeline {
@@ -182,7 +193,7 @@ export interface Phase {
   updated_at: string;
 }
 
-export type Verdict = "success" | "partial" | "originals_kept" | "failed" | "no_change" | "cancelled" | "interrupted" | "running";
+export type Verdict = "success" | "partial" | "originals_kept" | "none_succeeded" | "stopped" | "no_change" | "cancelled" | "interrupted" | "running";
 
 export interface Outcome {
   verdict: Verdict;
@@ -598,9 +609,9 @@ export const api = {
   // `folders` here keeps ticked folders listed; the tree's counts ignore its own filter.
   folders: (params: BrowseFilters) => request<FolderTree>("GET", `/api/v1/photos/folders?${browseQuery(params)}`),
   photoIds: (params: BrowseFilters) =>
-    request<{ ids: number[]; total: number }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
-  selection: (ids: number[], sort: Sort, page: number, page_size: number, match_min = 75) =>
-    request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size, match_min }),
+    request<{ ids: number[]; total: number; in_rejects: number[] }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
+  selection: (ids: number[], sort: Sort, page: number, page_size: number, match_min = 75, action?: ActionMode) =>
+    request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size, match_min, ...(action ? { action } : {}) }),
   operations: (f: LogFilters, page: number, pageSize: number) => {
     const p = logQuery(f);
     p.set("page", String(page));

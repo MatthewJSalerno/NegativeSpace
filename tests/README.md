@@ -135,7 +135,7 @@ of the checkout, build that copy under another tag, and run with `IMAGE` set to 
 | `large_selection_browser_drive.py` | `SIMILARITY_RECOVERY_FIXTURE=1` | Show only selected and Inspector navigation across page boundaries with more than 1,000 selected photos |
 | `preview_refresh_browser_drive.py` | | Inspector refresh after jobs, thumbnail retry |
 | `transfer_outcome_browser_drive.py` | | Copy/Move with failed scans |
-| `rejects_browser_drive.py` | | Reject, Rejects view, reminder, Stats tile |
+| `rejects_browser_drive.py` | | Reject, Rejects view, one place per selection, reminder, Stats tile |
 | `similar_browser_drive.py` | | Similar photos and the comparison workspace |
 | `reject_similar_browser_drive.py` | | Rejecting from Similar photos and side by side |
 | `similarity_recovery_browser_drive.py` | `SIMILARITY_RECOVERY_FIXTURE=1` | Recovering missing visual hashes |
@@ -202,7 +202,9 @@ this one, reject the rest with the kept photo first, full size and never ticked.
 `DRIVER=rejects_browser_drive.py sh tests/webui_browser_test.sh` checks Rejects: one
 photo rejected from the Inspector (asked first by name, starting on Cancel), a selection
 reviewed before rejecting, the Rejects view with what it holds and How to empty Rejects,
-Return to library, the view at a narrow width, the reminder past a size limit on every
+Return to library, the selection bar for photos in Rejects (Return first, and a Move that
+warns its copies in Rejects become the only ones), one place per selection (library
+photos' tick boxes disabled while a photo in Rejects is selected), the view at a narrow width, the reminder past a size limit on every
 page and switched off in Settings, and the Rejects tile on Stats.
 
 `DRIVER=appearance_browser_drive.py SHOTS=/tmp/ns-shots sh tests/webui_browser_test.sh`

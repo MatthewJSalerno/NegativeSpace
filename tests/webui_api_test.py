@@ -382,7 +382,7 @@ class TransferScanFailures(ApiCase):
         run = self.wait_for(self.start(mode=mode, file_ids=ids))
         outcome = run["outcome"]
         self.assertEqual((outcome["verdict"], outcome["succeeded"], outcome["failed"], outcome["total"]),
-                         ("failed", 0, 2, 2) if all_failed else ("partial", 1, 1, 2))
+                         ("none_succeeded", 0, 2, 2) if all_failed else ("partial", 1, 1, 2))
         self.assertEqual(sum(outcome["failure_reasons"].values()), 2 if all_failed else 1)
         failures = self.client.get("/api/v1/operations", params={"run":run["id"], "status":"Failed"}).json()
         self.assertEqual(failures["total"], outcome["failed"])
@@ -583,8 +583,16 @@ class JobsAndCatalog(ApiCase):
 
         chosen = self.client.post("/api/v1/photos/selection",
                                   json={"ids": [p["id"] for p in listed], "page_size": 1}).json()
-        self.assertEqual(chosen["actions"], {"reject": len(listed) - 2, "return": 2},
-                         "Actions would offer Reject or Return for photos it cannot take")
+        self.assertEqual(chosen["actions"], {"copy": 0, "move": len(listed), "reject": len(listed) - 2, "return": 2},
+                         "the selection bar would offer Reject or Return for photos it cannot take")
+        takes = self.client.post("/api/v1/photos/selection", json={"ids": [p["id"] for p in listed], "page_size": 1,
+                                                                    "action": "reject"}).json()["takes"]
+        self.assertEqual(len(takes), len(listed) - 2, "a Reject's review would hold photos it skips")
+        self.assertEqual(self.client.post("/api/v1/photos/selection", json={"ids": [1], "action": "delete"}).status_code, 400)
+        in_rejects = sorted(p["id"] for p in rejects["items"])
+        self.assertEqual(chosen["in_rejects"], in_rejects, "the selection does not say which photos are in Rejects")
+        self.assertEqual(self.client.get("/api/v1/photos/ids", params={"view": "rejects"}).json()["in_rejects"], in_rejects,
+                         "Select all cannot keep a selection to one place")
         searched = self.client.get("/api/v1/photos", params={"view": "rejects", "q": "IMG_0002"}).json()
         self.assertEqual((searched["matches"]["rejects"], searched["matches"]["all"], searched["matches"]["undated"]),
                          (1, 0, 1), "the view buttons' counts do not follow the search")
@@ -975,7 +983,7 @@ class JobsAndCatalog(ApiCase):
         self.index_library()
         every = self.client.get("/api/v1/photos/ids").json()
         self.assertEqual((every["total"], len(every["ids"])), (2, 2))
-        self.assertEqual(set(every), {"ids", "total"}, "no limit fields remain")
+        self.assertEqual(set(every), {"ids", "total", "in_rejects"}, "no limit fields remain")
 
     def test_the_selection_shows_photos_every_filter_hides_and_names_missing_ones(self):
         self.index_library()
@@ -1106,6 +1114,34 @@ class JobsAndCatalog(ApiCase):
             spawn.assert_not_called()
         with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 1)
+
+    def test_a_jobs_photos_are_a_view_that_every_filter_narrows(self):
+        """webui-spec 2, after a job: view=job with run=<id> shows the photos that job
+        recorded, wherever they are now, and search, the facets and Select all apply."""
+        self.index_library()
+        listed = self.client.get("/api/v1/photos", params={"page_size": 240}).json()["items"]
+        self.assertGreater(len(listed), 1)
+        chosen = [listed[0]["id"]]
+        run = self.wait_for(self.start(mode="copy", file_ids=chosen))
+        scope = {"view": "job", "run": run["id"]}
+        shown = self.client.get("/api/v1/photos", params=scope).json()
+        self.assertEqual(sorted(p["id"] for p in shown["items"]), sorted(chosen), "the job view shows other photos")
+        self.assertEqual(shown["total"], len(chosen))
+        self.assertEqual(shown["counts"]["all"], len(listed), "the view buttons count only the job's photos")
+        self.assertEqual(sorted(self.client.get("/api/v1/photos/ids", params=scope).json()["ids"]), sorted(chosen))
+        searched = self.client.get("/api/v1/photos", params={**scope, "q": listed[0]["filename"]}).json()
+        self.assertEqual([p["id"] for p in searched["items"]], chosen, "search does not find the job's photo")
+        other = self.client.get("/api/v1/photos", params={**scope, "q": listed[1]["filename"]}).json()
+        self.assertEqual(other["total"], 0, "search inside a job finds photos outside it")
+        self.assertEqual(other["counts"]["job"], len(chosen), "the job's own count follows the search")
+        for facet in ("timeline", "types", "folders"):
+            with self.subTest(facet=facet):
+                self.assertEqual(self.client.get(f"/api/v1/photos/{facet}", params=scope).status_code, 200)
+        types = self.client.get("/api/v1/photos/types", params=scope).json()["types"]
+        self.assertEqual(sum(t["photos"] for t in types), len(chosen), "the Types counts are not the job's")
+        found = self.client.post("/api/v1/photos/position", json={"photo_id": chosen[0], **scope}).json()
+        self.assertIsNotNone(found["position"], "a job's photo cannot be located in its view")
+        self.assertEqual(self.client.get("/api/v1/photos", params={"view": "job", "run": 0}).status_code, 422)
 
     def test_a_selection_reaches_the_engine_in_a_private_file_and_is_kept_with_the_job(self):
         import stat
@@ -1524,8 +1560,15 @@ class DerivedOutcome(ApiCase):
     def test_verdicts(self):
         self.create_catalog()
         scan = ("scanning", 3, {"unchanged": 3})
-        self.assertEqual(self.run_with("MOVE", [scan, ("transferring", 3, {"Failed": 3})])["verdict"], "failed",
+        self.assertEqual(self.run_with("MOVE", [scan, ("transferring", 3, {"Failed": 3})])["verdict"], "none_succeeded",
                          "a Completed run where every file failed read as success")
+        self.assertEqual(self.run_with("INDEX", [("scanning", 10, {"unchanged": 7, "failed": 3})])["verdict"], "partial",
+                         "an Index that checked every file and could not read three read as failed")
+        self.assertEqual(self.run_with("COPY", [scan, ("transferring", 3, {"Skipped": 2, "Failed": 1})])["verdict"],
+                         "partial", "skipped files with one failure read as nothing succeeded")
+        self.assertEqual(self.run_with("COPY", [scan, ("transferring", 3, {"Copied": 1})],
+                                       status=ns_db.RunStatus.FAILED)["verdict"], "stopped",
+                         "a job an error stopped did not say so")
         self.assertEqual(self.run_with("COPY", [scan, ("transferring", 3, {"Copied": 2, "Failed": 1})])["verdict"],
                          "partial")
         self.assertEqual(self.run_with("COPY", [scan, ("transferring", 3, {"Skipped": 3})])["verdict"], "no_change")

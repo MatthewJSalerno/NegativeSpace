@@ -4,11 +4,9 @@ import { StatsLink } from "./StatsPage";
 import { VersionTag } from "./VersionTag";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
-import { reasonsText, modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
+import { reasonsText, modeName, showsPhotos, summary, useDismissedRun, useJobFeed } from "../jobs";
 import { follow, photoUrl, useHeaderHeight, useNavigation } from "../nav";
 import { usePaged } from "../paged";
-import { ActionsMenu } from "./ActionsMenu";
-import { ConfirmDialog, transferConfirm, type Confirm } from "./Confirm";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
 import { SearchField } from "./ui/SearchField";
 import { RejectsReminder } from "./RejectsLine";
@@ -107,7 +105,6 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
   const [dismissedId, dismissRun] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
   const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
-  const [confirm, setConfirm] = useState<Confirm | null>(null);
   useNavigation(() => {
     if (window.location.pathname !== "/logs") return;
     const next = readFilters();
@@ -157,16 +154,6 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
   // A job finishing changes the log.
   const lastKey = jobs.last && !jobRunning ? `${jobs.last.id}:${jobs.last.status}` : null;
   useEffect(() => { if (lastKey) { setRefreshKey((k) => k + 1); refreshStatus(); } }, [lastKey]);
-
-  // The Actions menu, as in the Library: whole-library actions start here too.
-  const startJob = (mode: "index" | "copy" | "move") => async () => {
-    setNotice(null);
-    try {
-      await api.startJob({ mode });
-    } catch (e) {
-      setNotice(e instanceof ApiError ? e.message : "The job could not be started.");
-    }
-  };
 
   const set = (patch: Partial<LogFilters>) => setFilters((f) => ({ ...f, ...patch }));
   const toggleRun = (id: number) => setExpanded((cur) => {
@@ -256,12 +243,6 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
           <h1 className="brand"><Logo />NegativeSpace</h1>
           <nav className="pages" aria-label="Pages">
             <a className="button-link" href="/" onClick={follow}>Library</a>
-            <ActionsMenu
-              state={{ jobRunning, noPhotos: status.photos === 0, selected: 0,
-                       eligible: status.eligible, copied: status.copied }}
-              onIndex={startJob("index")}
-              onTransfer={(mode) => (mode === "copy" || mode === "move")
-                && setConfirm(transferConfirm(mode, status, undefined, startJob(mode)))} />
             <a className="button-link active" href="/logs" onClick={follow} aria-current="page">Logs</a>
           </nav>
           <div className="toolbar-actions">
@@ -378,7 +359,6 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
         </ol>
         <p className="muted back"><a href="/" onClick={follow}>← Back to the library</a></p>
       </main>
-      {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
     </div>
   );
 }
@@ -422,8 +402,9 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
 
   return (
     <div className="job-body">
-      {(canRetry || note) && (
+      {(canRetry || note || showsPhotos(run)) && (
         <div className="retry">
+          {showsPhotos(run) && <a className="button-link" href={`/?run=${run.id}`} onClick={follow}>Show these photos in the library</a>}
           {canRetry && (
             <button onClick={onRetry} disabled={jobRunning} title={jobRunning ? "A job is running." : undefined}>
               {retryLabel}

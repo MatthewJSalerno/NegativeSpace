@@ -102,6 +102,18 @@ Users can select individual files or multiple files across grid views to run tar
   every photo the view shows, however many (`GET /photos/ids`); an item that would do nothing says why.
   Keep the total selected count visible and repeat it in bulk-action previews, including
   metadata edits and rejects.
+* **One place per selection** (decided 2026-10-06): a selection holds library photos or
+  photos in Rejects, never both, so every action on it has one meaning. The first photo
+  ticked sets the place; while anything is selected, the other place's tick boxes are
+  disabled, saying "Photos in Rejects can't be selected with library photos. Clear the
+  selection first." (or the reverse). Select all and a Shift-click range take the
+  selection's place (with nothing selected, the library's if the view shows any) and say
+  how many they left out. A selection in Rejects offers **Return to library** first, then
+  **Move**, which deletes the rejected photos' originals from the source once each copy in
+  Rejects is verified; its review and hover text say so, and that the copies in Rejects
+  become the only ones. *Why disabled, not cleared:* a selection built across pages is
+  never lost to one stray tick. *Why keep Move for Rejects:* a source that ends empty
+  should not need deleting in two places; the warning makes the consequence plain.
 * **Selection across views:** retain explicit photo selections when changing pages
   or filters. The top row, after **Logs**, shows the total and the number outside the
   displayed view, for example **“25 selected · 10 outside this view”**, with **Show
@@ -116,7 +128,8 @@ Users can select individual files or multiple files across grid views to run tar
 * **Copy or Move a single selected photo confirms in a dialog**, preserving the
   gallery and Dates/Folders panel instead of switching into selection review.
 * **Copy, Move, Reject or Return of multiple selected photos is reviewed first, never confirmed over the photos.** It shows
-  every selected photo, whatever hides them, with a bar pinned above them: **"Review before
+  every selected photo the action takes, whatever hides them (the others are counted:
+  "3 selected photos are left out: Reject takes only photos already organized"), with a bar pinned above them: **"Review before
   copying** · 23 of 25 selected photos will be copied. Untick any you don't want." (one
   count pair, said once; Keep this one, reject the rest reads **"Keeping IMG_0410.jpg** ·
   7 of 9 look-alikes will be moved to Rejects. Untick any you want to keep."), what the
@@ -124,9 +137,24 @@ Users can select individual files or multiple files across grid views to run tar
   similarity view's grouping, threshold and match counts do not follow into a review. The photos can be scrolled, opened and unticked; the button's count
   follows the ticks, and an unticked photo stays on screen. **Why not a dialog:** one
   over the photos hid them and stopped the scrolling the review needs. **Cancel**
-  returns to the view it came from; committing keeps those photos on screen as **the
-  photos in the job just started**, so their statuses can be watched, until **Back to
-  results**. Copy all and Move all still confirm in a dialog: there is no selection to review.
+  returns to the view it came from, and so does committing. Copy all and Move all still
+  confirm in a dialog: there is no selection to review.
+* **After a job, stay where you were** (decided 2026-10-06). Starting a job clears the
+  selection and leaves the gallery where it was. The finished banner of a job that acted
+  on photos (Copy, Move, Reject, Return to library, Rename) offers **Show these photos**,
+  on every page, and so does each such job in Logs (**Show these photos in the library**,
+  beside Retry): the gallery then shows the photos that job recorded, wherever they are
+  now, library or Rejects (`view=job&run=<id>`, in the address). Its line reads "The 400
+  photos in Copy #3 · 398 of 400 files copied · 2 skipped · Back to results" ("their status
+  updates when the job ends" while it runs), and each photo's badge shows where it stands.
+  It opens with no search, dates, types or folders, so none of the job's photos is hidden
+  by a filter left on; then every filter narrows it ("Showing 37 of 400 photos"), and
+  Select all, ticking and the selection bar work as anywhere. **Back to results** restores
+  the filters it opened over; a view button leaves it with the filters as they are. With
+  nothing ticked, the selection bar is hidden. *Why not land on the job's photos:* it
+  took you from where you were after every job, with the page's controls greyed out,
+  while most jobs need no follow-up. *Why not a tab or chip for the job:* the banner and
+  Logs already lead there.
 * **Date tree:** a **Dates** panel left of the gallery lists years and their months with
   counts for the current view and search, every year unfolded to start, every month with
   a photo on screen highlighted as the gallery scrolls (photos, not pages: a month of a few
@@ -160,7 +188,7 @@ Users can select individual files or multiple files across grid views to run tar
   has one (a moved photo under the folder it came from), and they are what a job can act
   on. The left panel's edge can be dragged, or moved with the arrow keys, since folder
   paths can be wide; a name wider than the panel ends in "…", whole on hover.
-* **A folder's Copy or Move:** with exactly one folder shown, **Actions ▾ → Copy ▸ / Move ▸
+* **A folder's Copy or Move:** with exactly one folder shown, **Jobs ▾ → Copy ▸ / Move ▸
   → this folder: Family scans (318)** takes that folder and its subfolders, however many
   photos: the engine is given the folder (`--source-subdir`), not a list of photos. The count
   is what the job would take, whatever the view. Otherwise the item stays in the menu, disabled, and says why: **"Show one folder
@@ -269,8 +297,8 @@ in the other view, show its count and a link rather than implying no matches exi
   limit:* every limit needs messages and a way around it, and the catalog's size is already
   the natural bound.
 * **Folder selection:** users can select a source folder (recursive) and scope the operation to everything currently indexed under it. This maps directly to the engine's `--source-subdir <path>` flag (`engine-spec.md` §4.1). Symlinks are excluded automatically, inherited from the original Index that populated the catalog (a symlink was never indexed as a row in the first place). If a folder hasn't been indexed yet (zero matching rows), show *"No indexed files found under this folder — run an Index first."*
-* **Actions on a selection:** **Actions ▾ → Copy ▸ / Move ▸ → selected (n)** (§4.1); on a
-  folder, **this folder (n)**, from the Folders tree (above).
+* **Actions on a selection:** the selection bar's **Copy (n)…** and **Move (n)…** (§4.1); on a
+  folder, Jobs' **this folder (n)**, from the Folders tree (above).
 * **Targeted Execution:** Individual selections reach the engine as a selection file (`--file-ids-from`, its ids recorded with the job); folder selections use `--source-subdir <path>`. These are mutually exclusive targeting mechanisms in a single job — pick one per submission. IDs (not raw file paths) were chosen for the individual case specifically because a database primary key is unambiguous and doesn't depend on path strings staying identical between when the frontend fetched the catalog and when the operation actually runs — and it keeps one targeting implementation rather than a parallel web-only code path, which is what makes the engine directly runnable for debugging and development (see §1).
 
 ---
@@ -480,31 +508,26 @@ the first-run and catalog-problem screens: **"v0.1.0 · main · 2c4728f"**, the 
 `VERSION` and the branch and commit the image was built from, so a report names the
 exact code. `VERSION` is raised with each merged change that alters behaviour.
 
-The Library's actions live in one **Actions** menu, after **Library** in the page links:
-**Index**, **Copy ▸** and **Move ▸**, the last two each offering **selected (n)** (the
-photos selected in the Library), **this folder** (the one folder the Folders tree shows)
-and **all (n)**; then **Reject selected (n)** and **Return selected to library (n)**,
-following what is selected (§7.8).
+Actions are in two places (decided 2026-10-05), the pattern of Google Photos, Apple Photos
+and Gmail, so that no menu has to adapt to what is selected:
 
-**Planned: a selection bar and an Organize menu** (decided 2026-10-05). The Actions menu
-mixes library-wide jobs with actions on the ticked photos, which is why it keeps adapting
-(counts of 0, disabled reasons, items that change with the view). It splits in two, the
-pattern of Google Photos, Apple Photos and Gmail:
-
-* **A selection bar** in place of today's selection line, in the sticky top bar: "4 photos
-  selected", then the actions that apply to them only, **Copy…**, **Move…**, **Reject…**
-  for library photos, **Return to library…** for photos in Rejects (both, with counts, for
-  a mix), then Show only selected and Clear. An action that does not apply is absent, not
-  disabled; each still asks first, through the same review. It appears only while
-  photos are selected.
-* **Organize ▾**, on the Library page only: the library-wide jobs, **Index**, Copy and Move
-  of everything not yet done, and Copy or Move of the folder the Folders tree shows. Logs
-  and Stats lose the menu; Logs keeps **Run an Index** where a failure needs it.
-  *Why "Organize":* it says what the jobs are for and matches the views (Library, To
-  organize); "Actions" would overlap the selection bar.
+* **The selection bar**, in the sticky top bar while photos are selected: "4 photos
+  selected", then only the actions that apply to them, each with its count:
+  **Copy (n)…** and **Move (n)…** by the engine's rule (`ns_db.TRANSFER_ELIGIBLE`),
+  **Reject (n)…** for photos in the library, **Return to library (n)…** for photos in
+  Rejects (§7.8). A selection is one place (§2): library photos get Copy, Move and Reject;
+  photos in Rejects get Return to library first, then a Move that warns what it deletes.
+  Then Show only selected (or Back to results) and Clear. An action that
+  takes none of them is absent, not disabled; each asks first, through the same review.
+  While a job runs the actions wait, saying why.
+* **Jobs ▾**, after **Library** on the Library page only: the library-wide jobs,
+  **Index**, and **Copy ▸** / **Move ▸** of **this folder** (the one folder the Folders tree
+  shows) and **all (n)**. *Why "Jobs":* it holds exactly the jobs, and pairs with Logs,
+  which lists them; "Organize" sat over the Organized view and would clash with To
+  organize, and "Actions" would overlap the selection bar. Logs and Stats have no menu; Logs offers
+  **Run an Index** where a failure needs it.
 * *Why the top bar, not a floating bottom bar:* the selection count is already read there,
   the bar stays in view, and a bottom bar would cover the last row of photos.
-* A mockup comes before it is built.
 The toolbar's second row holds the views,
 search and sort. Every item carries a one-line explanation, and one that cannot run
 replaces it with why: a job is running, nothing is indexed, nothing is selected, or
@@ -1093,9 +1116,8 @@ every job; while any is set, a job with nothing matching is left out. A finished
 job's banner links to its log, opened on that job, and, when it failed, to **View failures**.
 A dismissed banner stays dismissed on every page, in every browser, and after the
 browser's data is cleared: the dismissal is kept with the catalog (`PUT /api/v1/ui-state`),
-and covers that job and every earlier one. The Logs page has the Library's top row,
-**Actions ▾** included, so the page links never move and whole-library actions start from
-either page (Copy and Move selected are disabled there: selecting is the Library's). The
+and covers that job and every earlier one. The Logs page has the Library's top row
+without **Jobs**, whose jobs belong with the photos; the page links never move. The
 active filters are named in one line with one reset (**"Showing: job #3 · Failed ·
 “photo-00” · Clear all filters"**). An open job's entries load in batches of 100 as the
 list scrolls, and the job's header line, with its collapse arrow, stays at the top
@@ -1178,11 +1200,11 @@ Job responses should carry both: the lifecycle status **and** the derived counts
 | `runs.status` is `Preparing` / `Running` | in progress, with live counts |
 | `runs.status` is `Cancelling` | cancellation requested, still stopping (§4.1); keep counts live |
 | succeeded > 0, failed = 0 | success |
-| succeeded > 0, failed > 0 | partial success — surface the failed count and link the Error Center |
+| failed > 0, and something succeeded, was skipped or needed nothing (an Index's unchanged files) | **finished with failures** — surface the failed count and link the Error Center |
 | a Move with copied-only photos, failed = 0 | originals kept (warning) — the copied-only count and its reasons, never a success or a failure |
-| succeeded = 0, failed > 0 | **failure**, regardless of `runs.status` being `Completed` |
+| failed > 0 and nothing else | **finished, nothing succeeded** (red) — the job ran to its end, so never "failed" |
 | no changes, no failures or scan issues, and run completed | neutral completion with prominent counts and skip reasons; not an error |
-| `runs.status` is `Cancelled` / `Interrupted` / `Failed` | that status wins; still show counts for what was done before it ended. `Interrupted` has no end time; show its duration as unavailable (§4.1) |
+| `runs.status` is `Cancelled` / `Interrupted` / `Failed` | that status wins (`Failed` reads **stopped by an error**: the job did not finish); still show counts for what was done before it ended. `Interrupted` has no end time; show its duration as unavailable (§4.1) |
 
 **No-change results lead with counts.** For example, **“0 of 120 files moved ·
 120 skipped”**, followed by **“All 120 are already recorded as delivered to the
@@ -2031,10 +2053,10 @@ implemented; closing today's workspace discards its viewing transforms.
 
 **Where a photo can be turned** (decided 2026-10-05): in the comparison, in the photo
 panel (the same one question when the panel closes or moves to another photo with turns
-unsaved), and for a selection through **Actions › Rotate…**, which shows the photos
+unsaved), and for a selection through the selection bar's **Rotate…**, which shows the photos
 turned and asks before saving, as Copy's review does. **No turn control on gallery
 thumbnails:** a card is for picking, a stray click would add a photo to the save
-question, and the panel and Actions already cover one photo and many (Google Photos and
+question, and the panel and the selection bar already cover one photo and many (Google Photos and
 Apple Photos place rotation the same way).
 
 **Future saved rotation is an EXIF edit, never a pixel edit.** The Inspector and bulk edit will offer
@@ -2187,9 +2209,9 @@ the application never deletes a photo, and the user empties Rejects on the host.
 identical to a reject is kept out of the library: a Copy skips it and a Move removes its
 source against the copy in Rejects (or puts it there, when Rejects was emptied).
 
-*   **Where:** Actions › **Reject selected (n)**, reviewed first as for Copy and Move, and
+*   **Where:** the selection bar's **Reject (n)…**, reviewed first as for Copy and Move, and
     **Reject…** in the Inspector for one photo. `n` counts only the selected photos in the
-    library, so before any Copy or Move it reads 0 and says why. Each asks first, starting
+    library, and the button is absent when there are none. Each asks first, starting
     on Cancel: "Reject IMG_0412.jpg?" (or "Reject 12 photos?") and "It moves to the Rejects
     folder and leaves your library. You can bring it back any time until you manually
     empty Rejects." No folder reject: select the folder's photos instead.
@@ -2198,20 +2220,18 @@ source against the copy in Rejects (or puts it there, when Rejects was emptied).
     holds 12 photos · 22 KB · oldest rejected Oct 1, 2026" and **How to empty Rejects**,
     which expands in the page. A photo the user deleted from the folder leaves the view at
     once.
-*   **Reject and Return follow the selection, not the view** (decided 2026-10-05): Actions
-    offers **Reject selected (n)** for selected photos in the library, **Return selected to
-    library (n)** for selected photos in Rejects, and both, each with its own count, for a
-    mix, so the photos a Reject just moved can be returned from the job's own view. Return
-    never appears when only library photos are selected. With nothing eligible selected,
-    the Rejects view shows Return and other views Reject, disabled, each saying why. In
-    the Inspector, **Return to library…** for a photo in Rejects. *Why not by view:* after
-    a Reject the screen shows the job's photos, not the Rejects view, and the menu offered
-    a Reject of 0 with a reason that was not true.
+*   **Reject and Return follow the selection, not the view** (decided 2026-10-05): the
+    selection bar offers **Reject (n)…** for selected photos in the library, **Return to
+    library (n)…** for selected photos in Rejects (a selection never holds both, §2), so the
+    photos a Reject just moved can be returned from the job's own view. Return never
+    appears when library photos are selected. In the Inspector, **Return to library…** for a photo in
+    Rejects. *Why not by view:* after a Reject the screen shows the job's photos, not the
+    Rejects view.
 
 *   **From Similar photos:** each look-alike has its own **Reject…**. Above them the photo
     open in the panel stands out as **Keeping** (green outline, a check, a large picture)
     with **Keep IMG_0410.jpg, reject the other 7…**: every look-alike at the chosen
-    percentage, reviewed like Reject selected, the kept photo first as a full-size card
+    percentage, reviewed like the selection bar's Reject, the kept photo first as a full-size card
     with no tick box, whatever the sort or page.
 *   **Side by side:** a **Reject…** under each photo, so it is clear which one goes. The
     first reject in a comparison asks, with **Don't ask again while comparing** (until the
@@ -2276,7 +2296,7 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   busywork, and nothing is lost.
 * **Review later** (decided 2026-10-05): the one note a user sets. **Review later** sits
   beside **Reject…** in the photo panel, with an optional short note ("check the date");
-  **Done** clears it. Not in Actions: it is a photo-by-photo bookmark, and it holds
+  **Done** clears it. Not in the selection bar: it is a photo-by-photo bookmark, and it holds
   nothing. It stays a plain "come back to this": no names, colours or lists, which
   would make it the general tagging that belongs to gallery applications.
 * **Whether a photo waits depends on its note** (decided 2026-10-05). A note that holds

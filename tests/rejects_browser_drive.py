@@ -23,9 +23,8 @@ def run_job(request, mode):
     raise AssertionError(f"{mode} timed out")
 
 
-def actions_menu(page):
-    page.get_by_role("button", name=re.compile(r"^Actions")).click()
-    return page.get_by_role("menu", name="Actions")
+def selection_bar(page):
+    return page.get_by_role("region", name="Selection")
 
 
 def view_button(page, name):
@@ -51,17 +50,15 @@ with sync_playwright() as p:
         page.get_by_role("button", name="Dismiss", exact=True).first.click()
         expect(banner).to_have_count(0)
 
-    # Before any Copy or Move nothing is in the library, so Reject cannot run and says why;
-    # Return to library is not offered outside the Rejects view.
+    # Before any Copy or Move nothing is in the library: the selection bar offers only what
+    # applies, Copy and Move, never a Reject or Return of none.
     page.goto(BASE)
     page.locator(".card-check input").first.click()
-    menu = actions_menu(page)
-    reject = menu.get_by_role("menuitem", name=re.compile(r"^Reject selected \(0\)"))
-    expect(reject).to_be_disabled()
-    expect(reject).to_contain_text("None of the selected photos is in the library yet")
-    expect(menu.get_by_role("menuitem", name=re.compile(r"^Return"))).to_have_count(0)
-    page.keyboard.press("Escape")
-    page.get_by_role("region", name="Selection").get_by_role("button", name="Clear").click()
+    bar = selection_bar(page)
+    expect(bar.get_by_role("button", name="Copy (1)…")).to_be_visible()
+    expect(bar.get_by_role("button", name=re.compile(r"^Reject"))).to_have_count(0)
+    expect(bar.get_by_role("button", name=re.compile(r"^Return"))).to_have_count(0)
+    bar.get_by_role("button", name="Clear").click()
 
     run_job(request, "copy")
     page.goto(BASE)
@@ -122,7 +119,7 @@ with sync_playwright() as p:
     view_button(page, "All photos").click()
     page.locator(".card-check input").nth(0).click()
     page.locator(".card-check input").nth(1).click()
-    actions_menu(page).get_by_role("menuitem", name="Reject selected (2)").click()
+    selection_bar(page).get_by_role("button", name="Reject (2)…").click()
     review = page.get_by_role("region", name="Review before rejecting")
     expect(review).to_contain_text("Review before rejecting")
     expect(review).to_contain_text("2 of 2 selected photos will be moved to Rejects. Untick any you don't want.")
@@ -130,24 +127,29 @@ with sync_playwright() as p:
     shot("r3-review-before-reject")
     review.get_by_role("button", name="Reject these 2 photos").click()
     expect(banner).to_contain_text("2 of 2 photos moved to Rejects", timeout=60_000)
+    # Back on All photos, which the rejected photos have left; the banner opens the job's.
+    expect(page.get_by_role("region", name="Review before rejecting")).to_have_count(0)
+    banner.get_by_role("button", name="Show these photos").click()
+    expect(page.get_by_role("region", name="A job's photos")).to_contain_text(re.compile(r"The 2 photos in Reject #\d+"))
     dismiss_banner()
 
-    # Still in the job's own view, Actions follows what is selected: these photos are in
-    # Rejects now, so it offers Return, not a Reject of none.
+    # In the job's photos, the selection bar follows what is selected: these photos are in
+    # Rejects now, so it offers Return, not Reject.
     expect(page.locator(".card")).to_have_count(2)
     page.locator(".card-check input").nth(0).click()
     page.locator(".card-check input").nth(1).click()
-    menu = actions_menu(page)
-    expect(menu.get_by_role("menuitem", name="Return selected to library (2)")).to_be_enabled()
-    expect(menu.get_by_role("menuitem", name=re.compile(r"^Reject selected"))).to_have_count(0)
-    page.keyboard.press("Escape")
-    page.get_by_role("region", name="Selection").get_by_role("button", name="Clear").click()
+    bar = selection_bar(page)
+    expect(bar.get_by_role("button", name="Return to library (2)…")).to_be_enabled()
+    expect(bar.get_by_role("button", name=re.compile(r"^Reject"))).to_have_count(0)
+    bar.get_by_role("button", name="Clear").click()
 
     # From the job's log: a photo opens in the Inspector, which returns it, with the
     # action outlined so it reads as a button.
     run = request.get("/api/v1/runs").json()["runs"][0]
     assert run["mode"] == "REJECT", run
     page.goto(f"{BASE}/logs?run={run['id']}")
+    show = page.get_by_role("link", name="Show these photos in the library")
+    expect(show).to_have_attribute("href", f"/?run={run['id']}")
     page.locator("a[href*='photo=']").first.click()
     back = page.locator(".inspector-actions").get_by_role("button", name="Return to library…", exact=True)
     expect(back).to_be_visible()
@@ -158,7 +160,7 @@ with sync_playwright() as p:
     expect(banner).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
     dismiss_banner()
 
-    # In the Rejects view, Actions offers Return to library and not Reject.
+    # In the Rejects view, the selection bar offers Return to library and not Reject.
     page.goto(f"{BASE}/?view=rejects")
     expect(page.locator(".card")).to_have_count(1)
     page.set_viewport_size({"width": 700, "height": 900})
@@ -167,9 +169,32 @@ with sync_playwright() as p:
     shot("r4-rejects-narrow")
     page.set_viewport_size({"width": 1400, "height": 900})
     page.locator(".card-check input").nth(0).click()
-    menu = actions_menu(page)
-    expect(menu.get_by_role("menuitem", name=re.compile(r"^Reject"))).to_have_count(0)
-    menu.get_by_role("menuitem", name="Return selected to library (1)").click()
+    bar = selection_bar(page)
+    expect(bar.get_by_role("button", name=re.compile(r"^Reject"))).to_have_count(0)
+    # A selection in Rejects offers Return first, then a Move that says what it deletes.
+    expect(bar.locator(".selection-actions button").first).to_have_text("Return to library (1)…")
+    move = bar.get_by_role("button", name="Move (1)…")
+    expect(move).to_have_attribute("title", re.compile("Those copies become the only ones"))
+    move.click()
+    dialog = page.get_by_role("alertdialog")
+    expect(dialog).to_contain_text("This photo is in Rejects. Move deletes its original from your source")
+    expect(dialog).to_contain_text("empty Rejects and it is gone")
+    dialog.get_by_role("button", name="Cancel", exact=True).click()
+    # One place per selection (webui-spec 2): library photos cannot join it. All photos
+    # never shows photos in Rejects, so its Select all takes library photos only.
+    view_button(page, "All photos").click()
+    other = page.locator(".card:not(.selected) .card-check").first
+    expect(other.locator("input")).to_be_disabled()
+    expect(other).to_have_attribute("title", re.compile("Library photos can't be selected with photos in Rejects"))
+    selection_bar(page).get_by_role("button", name="Clear", exact=True).click()
+    page.get_by_role("button", name="Select", exact=True).click()
+    page.get_by_role("menuitem", name=re.compile(r"^Select all in this view")).click()
+    expect(selection_bar(page).get_by_role("button", name=re.compile(r"^Return"))).to_have_count(0)
+    selection_bar(page).get_by_role("button", name="Clear", exact=True).click()
+    page.goto(f"{BASE}/?view=rejects")
+    page.locator(".card-check input").nth(0).click()
+    bar = selection_bar(page)
+    bar.get_by_role("button", name="Return to library (1)…").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Return to library", exact=True).click()
     expect(banner).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
     expect(view_button(page, "Rejects")).to_contain_text("(0)")

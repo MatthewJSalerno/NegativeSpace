@@ -223,7 +223,7 @@ disk listing, so every folder offered holds photos a job can act on:
     `undated`, `date` and `type`; `folder` does not narrow it, so an unticked folder keeps
     its count. A folder named in `folder` stays listed at 0, so it can be unticked.
 *   **`eligible`** is what a Copy or a Move of the folder would take (`--source-subdir`,
-    `ns_db.TRANSFER_ELIGIBLE`), whatever the filters: Actions' "this folder".
+    `ns_db.TRANSFER_ELIGIBLE`), whatever the filters: Jobs' "this folder".
 *   **`name`** folds a chain of folders, each holding one folder and no photos of its own,
     into one row: `"Camera / Nikon D750"`, with `path` the deepest folder.
 *   **`top_files`** are the photos directly in the source folder, in no subfolder
@@ -236,9 +236,19 @@ disk listing, so every folder offered holds photos a job can act on:
 Every photo id the gallery shows for the same `view`, `q`, `undated`, `date`, `type` and `folder`, across
 all pages: **Select all**.
 
-    {"ids": [3, 7, ...], "total": 412}
+    {"ids": [3, 7, ...], "total": 412, "in_rejects": [7]}
 
 All of them, however many: a selection has no fixed limit (`webui-spec.md` §2).
+`in_rejects` names those in Rejects: a selection holds library photos or photos in Rejects,
+never both, so Select all takes one place and says how many it left out.
+
+**A job's photos.** `GET /photos`, `/photos/ids`, `/photos/timeline`, `/photos/types`,
+`/photos/folders` and the body of `POST /photos/position` take `run=<job id>` (a positive
+integer, else 422), which keeps the photos that job recorded an outcome for, and
+`view=job`, which shows them wherever they are now, library or Rejects (copies a Move
+removed are left out, as in every view). Every other filter narrows them. `GET /photos`
+then also returns `counts.job`, the job's photos before any filter; the other `counts`
+and `matches` keep counting the views, which leave the job.
 
 ### `POST /api/v1/photos/position`
 
@@ -264,12 +274,16 @@ The selected photos, whatever view, search or dates would hide them (Show only s
 
     {"ids": [3, 7, 99999], "sort": "newest", "page": 1, "page_size": 60}
     ->  {"items": [...as GET /photos...], "page": 1, "page_size": 60, "total": 2, "missing": [99999],
-         "actions": {"reject": 2, "return": 0}}
+         "in_rejects": [], "actions": {"copy": 0, "move": 2, "reject": 2, "return": 0}}
 
 It reads; it is a POST because a selection's ids are too long for a URL. `missing` names
-ids no longer in the catalog, so a selection is never silently shortened. `actions` counts
-what Reject (photos in the library) and Return to library (photos in Rejects) would take
-of the whole selection, for the Actions menu.
+ids no longer in the catalog, so a selection is never silently shortened. `in_rejects`
+names those in Rejects, as for `/photos/ids` (Select all on a job's photos). With
+`"action": "copy" | "move" | "reject" | "return"`, `takes` lists the selected photos that
+action takes, for its review (any other action is 400). `actions` counts
+what each action would take of the whole selection, for the selection bar: Copy and Move by
+the engine's own rule (`ns_db.TRANSFER_ELIGIBLE`, as `eligible` in `GET /status`), Reject
+(photos in the library) and Return to library (photos in Rejects).
 `sort=matches` with optional integer `match_min` (default 75) orders an explicit
 selection by library-wide counts without filtering out selected files. This also
 works for `/photos/position` when `ids` is supplied. Items without an available
@@ -642,8 +656,8 @@ and `done` is always the sum of `counts`.
 **`outcome`** is derived from classified progress, never from `status` alone: a run
 where every file failed still ends `Completed` (`webui-spec.md` §5.5).
 
-    {"verdict": "success" | "partial" | "originals_kept" | "failed" | "no_change" |
-                "cancelled" | "interrupted" | "running",
+    {"verdict": "success" | "partial" | "originals_kept" | "none_succeeded" | "no_change" |
+                "stopped" | "cancelled" | "interrupted" | "running",
      "succeeded": 2, "failed": 0, "skipped": 1, "cancelled": 0, "copied_only": 0,
      "run_level_issues": 0, "recovered_earlier_work": 0,
      "total": 3, "counts": {"Copied": 2, "Skipped": 1},
@@ -659,10 +673,12 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
     Recovery of earlier runs is `recovered_earlier_work`, and failures with no photo,
     such as an unreadable folder, are `run_level_issues`.
 *   **Verdict:** an active status is `running`. A terminal Cancelled, Interrupted or
-    Failed wins. Otherwise: a Move with copied-only photos and no failures or issues is
-    `originals_kept`; successes with no failures or issues are `success`, successes or
-    copied-only photos with some are `partial`, failures or issues with neither are
-    `failed`, and nothing done is `no_change`.
+    Failed wins (`cancelled`, `interrupted`, `stopped`: an error ended the job).
+    Otherwise: a Move with copied-only photos and no failures or issues is
+    `originals_kept`; successes with no failures or issues are `success`; failures or
+    issues alongside successes, copied-only photos or skips (an Index's unchanged files)
+    are `partial`; failures or issues with nothing else are `none_succeeded`; and nothing
+    done is `no_change`. A job that ran to its end is never called failed.
 *   **`copied_only`** is, for a Move, its photos copied but not moved because the
     original could not be deleted (the `Copied` count of a Move). They are not in
     `succeeded`, nor in `failed`; `kept_reasons` groups them by reason, made readable as
