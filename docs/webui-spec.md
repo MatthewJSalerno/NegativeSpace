@@ -127,6 +127,18 @@ Users can select individual files or multiple files across grid views to run tar
   returns to the view it came from; committing keeps those photos on screen as **the
   photos in the job just started**, so their statuses can be watched, until **Back to
   results**. Copy all and Move all still confirm in a dialog: there is no selection to review.
+
+  **Planned: after a job, stay where you were** (decided 2026-10-06). Committing a review
+  returns to the view it came from, and the finished banner offers **Show these n**,
+  which opens the job's photos on the same screen as Show only selected. Its line reads
+  "The 400 photos in Copy #3 · 398 copied · 2 skipped · Back to results" (no "just
+  started" once the job ends), each photo shows what the job did to it, and search,
+  Folders, Dates and Types narrow the job's photos instead of being disabled; a view tab
+  leaves it, as Back to results does. With nothing ticked, the selection bar is hidden,
+  not "0 photos selected". *Why not land on the job's photos:* it took you from where you
+  were after every job, with the page's controls greyed out, while most jobs need no
+  follow-up. *Why not a tab or chip for the job:* the banner and Logs already lead there,
+  and the existing screen does the job once its filters work.
 * **Date tree:** a **Dates** panel left of the gallery lists years and their months with
   counts for the current view and search, every year unfolded to start, every month with
   a photo on screen highlighted as the gallery scrolls (photos, not pages: a month of a few
