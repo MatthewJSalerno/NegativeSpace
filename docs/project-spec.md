@@ -200,7 +200,10 @@ service. Built and tested:
     *   selection across views (shift-click, the Select menu, Show only selected), one
         place per selection (library photos or photos in Rejects, never both), and Copy,
         Move, Reject and Return of a selection reviewed on screen before they run;
-    *   the job drawer, with live counts, elapsed time and Cancel;
+    *   the job drawer, with live counts, elapsed time and Cancel; after a job, the gallery
+        stays where it was and the finished banner names the job ("Copy #8 finished",
+        never "failed" for a job that ran to its end) with **Show these photos**: the
+        job's photos, wherever they are now, which search and the filters narrow;
     *   the split Inspector, with a movable divider, the 1024px preview, the file's own
         details apart from the photo's EXIF information, Show all metadata, the
         photo's recent history, its lineage tree in a window of its own, and **Reject…**
@@ -232,7 +235,8 @@ service. Built and tested:
 *   **The log and the Error Center:** grouped by job, each job loading as it scrolls;
     filters by job, status, photo, text and date, named in one line with Clear all;
     failure hints with their fixes as buttons, and failure reasons on hover; a Move that
-    could only copy shown as Copied only, never as failed; Retry; and CSV/JSON export.
+    could only copy shown as Copied only, never as failed; Retry; **Show these photos in
+    the library** for each job that acted on photos; and CSV/JSON export.
 
 Specified but not yet on screen:
 *   The unbacked-changes line on every page, and Retry backup in the finished-job banner.

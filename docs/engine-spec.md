@@ -12,7 +12,9 @@ boundary, architecture and component status in
 The engine is the workhorse. It runs as a standalone CLI process; the web UI's
 API layer invokes it as a child process rather than replacing it, which is why
 its flags stay documented and usable even though end users never type them
-(see `webui-spec.md` §1).
+(see `webui-spec.md` §1). It is the `engine/` package, run as `python -m engine`; the
+package docstring (`engine/__init__.py`) lists its modules by area and the rule that
+they refer to one another as `module.name`.
 
 **The engine is the only component that touches photo files.** It owns the catalog schema and writes photo state and operation history. The
 browser accesses neither SQLite nor photo files directly. The API writes settings through shared database/validation code; the web UI
