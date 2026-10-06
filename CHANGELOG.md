@@ -9,6 +9,16 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-10-06
+
+### Changed
+- Internal reorganisation, no change on screen: the API's catalog reads split by area
+  (`gallery`, `outcomes`, `oplog`, `catalog_backups`, `lineage`, `stats`); the Library and
+  first-run screens out of `App.tsx` (`LibraryPage.tsx`, `FirstRun.tsx`); 28 restating
+  rules at the end of `styles.css` folded into the rules they restate (every element's
+  computed style compared before and after); browser tests in `tests/browser/`, the
+  library builders in `tools/`.
+
 ## [0.16.0] - 2026-10-06
 
 ### Added
