@@ -134,6 +134,12 @@ kept in **Keep this one, reject the rest** is marked **Keeping** in `--good` wit
 and is shown full size first in the review: the photo kept must be easy to check, never the
 smallest thing on screen. No keyboard shortcut for reject (maintainer's choice).
 
+**A photo's history has three views, each with its own job** (confirmed 2026-10-05; not
+duplicates): the photo panel shows the photo's information and leads to everything about
+it; the **lineage tree** traces the photo back to its origin through every file and copy;
+the **log** shows the jobs and the work each did. Keep each to its job rather than merging
+them.
+
 **One "Reject?" dialog everywhere** (decided 2026-10-05). Every reject question, from the
 gallery, the photo panel, the comparison or Needs review, is the same dialog with the same
 wording, spacing and button order: the title names the photo ("Reject IMG_0412.jpg?", or

@@ -27,9 +27,6 @@ Found 2026-10-05 looking for screens that do the same job twice.
   (`Confirm.tsx`) and the comparison's own (`RejectConfirm.tsx`) become a single dialog,
   with "Don't ask again while comparing" and the last-photo warning appearing only where
   they apply. Every later reject question uses it.
-- [ ] **Three views of a photo's history** to decide on: the photo panel's History list,
-  the lineage tree, and the log filtered to the photo. Perhaps the panel shows the last few
-  steps and links to the tree.
 - [ ] **Explore reference sets** is its own window and grid showing much the same groups
   as the Similar photos tab, the Has similar photos view and Show this set in gallery.
   Decide whether it can be a section or filter within the Similar photos tab.
