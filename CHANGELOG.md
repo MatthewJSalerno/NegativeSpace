@@ -15,6 +15,13 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 - A user guide with screenshots ([docs/user-guide.md](docs/user-guide.md)), and screenshots
   in the README.
 
+## [0.14.2] - 2026-10-05
+
+### Fixed
+- Actions offers Reject or Return to library by what is selected, not by the view: the
+  photos a Reject just moved can be returned from the job's own view, and a mixed
+  selection offers both, each with its own count.
+
 ## [0.14.1] - 2026-10-05
 
 ### Fixed

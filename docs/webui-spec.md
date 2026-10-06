@@ -483,8 +483,8 @@ exact code. `VERSION` is raised with each merged change that alters behaviour.
 The Library's actions live in one **Actions** menu, after **Library** in the page links:
 **Index**, **Copy ▸** and **Move ▸**, the last two each offering **selected (n)** (the
 photos selected in the Library), **this folder** (the one folder the Folders tree shows)
-and **all (n)**; then **Reject selected (n)**, counting only selected photos in the
-library, or in the Rejects view **Return selected to library (n)** in its place (§7.8).
+and **all (n)**; then **Reject selected (n)** and **Return selected to library (n)**,
+following what is selected (§7.8).
 The toolbar's second row holds the views,
 search and sort. Every item carries a one-line explanation, and one that cannot run
 replaces it with why: a job is running, nothing is indexed, nothing is selected, or
@@ -2178,9 +2178,15 @@ source against the copy in Rejects (or puts it there, when Rejects was emptied).
     holds 12 photos · 22 KB · oldest rejected Oct 1, 2026" and **How to empty Rejects**,
     which expands in the page. A photo the user deleted from the folder leaves the view at
     once.
-*   **Return to library:** only in the Rejects view, where Actions offers **Return selected
-    to library (n)** in place of Reject, and **Return to library…** in the Inspector of a
-    photo in Rejects.
+*   **Reject and Return follow the selection, not the view** (decided 2026-10-05): Actions
+    offers **Reject selected (n)** for selected photos in the library, **Return selected to
+    library (n)** for selected photos in Rejects, and both, each with its own count, for a
+    mix, so the photos a Reject just moved can be returned from the job's own view. Return
+    never appears when only library photos are selected. With nothing eligible selected,
+    the Rejects view shows Return and other views Reject, disabled, each saying why. In
+    the Inspector, **Return to library…** for a photo in Rejects. *Why not by view:* after
+    a Reject the screen shows the job's photos, not the Rejects view, and the menu offered
+    a Reject of 0 with a reason that was not true.
 
 *   **From Similar photos:** each look-alike has its own **Reject…**. Above them the photo
     open in the panel stands out as **Keeping** (green outline, a check, a large picture)

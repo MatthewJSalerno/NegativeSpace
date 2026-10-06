@@ -132,6 +132,17 @@ with sync_playwright() as p:
     expect(banner).to_contain_text("2 of 2 photos moved to Rejects", timeout=60_000)
     dismiss_banner()
 
+    # Still in the job's own view, Actions follows what is selected: these photos are in
+    # Rejects now, so it offers Return, not a Reject of none.
+    expect(page.locator(".card")).to_have_count(2)
+    page.locator(".card-check input").nth(0).click()
+    page.locator(".card-check input").nth(1).click()
+    menu = actions_menu(page)
+    expect(menu.get_by_role("menuitem", name="Return selected to library (2)")).to_be_enabled()
+    expect(menu.get_by_role("menuitem", name=re.compile(r"^Reject selected"))).to_have_count(0)
+    page.keyboard.press("Escape")
+    page.get_by_role("region", name="Selection").get_by_role("button", name="Clear").click()
+
     # From the job's log: a photo opens in the Inspector, which returns it, with the
     # action outlined so it reads as a button.
     run = request.get("/api/v1/runs").json()["runs"][0]
