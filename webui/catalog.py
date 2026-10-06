@@ -584,7 +584,7 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
     act on. Each folder counts its photos recursively under the view, search, dates and
     types (the folder filter itself does not apply, so an unticked folder keeps its
     number), and, whatever the filters, the photos a Copy or a Move of it would take
-    (ns_db.TRANSFER_ELIGIBLE), for Actions. A chain of folders each holding only one
+    (ns_db.TRANSFER_ELIGIBLE), for the Jobs menu. A chain of folders each holding only one
     folder and no photos is one row ("Camera / Nikon D750"). A folder in `keep` stays
     listed at 0, so a ticked folder can be unticked. Photos outside the source folder
     (a catalog shared with another source) are counted in `outside`, not placed."""

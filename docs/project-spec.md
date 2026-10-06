@@ -197,8 +197,9 @@ service. Built and tested:
         or jump to a date, and continuous scrolling whose page number follows; the
         **Rejects** view with what Rejects holds and how to empty it, its tile on Stats,
         and a reminder on every page once it passes a size or age limit set in Settings;
-    *   selection across views (shift-click, the Select menu, Show only selected), and
-        Copy, Move, Reject and Return of a selection reviewed on screen before they run;
+    *   selection across views (shift-click, the Select menu, Show only selected), one
+        place per selection (library photos or photos in Rejects, never both), and Copy,
+        Move, Reject and Return of a selection reviewed on screen before they run;
     *   the job drawer, with live counts, elapsed time and Cancel;
     *   the split Inspector, with a movable divider, the 1024px preview, the file's own
         details apart from the photo's EXIF information, Show all metadata, the

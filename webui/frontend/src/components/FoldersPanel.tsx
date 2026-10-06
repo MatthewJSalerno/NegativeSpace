@@ -127,7 +127,7 @@ export function FoldersPanel({ tree, folders, onFolders }: {
   );
 }
 
-// The one folder shown, for Actions' "this folder", found in the tree; null unless
+// The one folder shown, for the Jobs menu's "this folder", found in the tree; null unless
 // exactly one real folder is ticked.
 export function shownFolder(tree: FolderTree | null, folders: string[]): FolderNode | null {
   if (!tree || folders.length !== 1 || folders[0] === TOP_FILES) return null;

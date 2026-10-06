@@ -511,7 +511,9 @@ and Gmail, so that no menu has to adapt to what is selected:
   selected", then only the actions that apply to them, each with its count:
   **Copy (n)…** and **Move (n)…** by the engine's rule (`ns_db.TRANSFER_ELIGIBLE`),
   **Reject (n)…** for photos in the library, **Return to library (n)…** for photos in
-  Rejects (§7.8), then Show only selected (or Back to results) and Clear. An action that
+  Rejects (§7.8). A selection is one place (§2): library photos get Copy, Move and Reject;
+  photos in Rejects get Return to library first, then a Move that warns what it deletes.
+  Then Show only selected (or Back to results) and Clear. An action that
   takes none of them is absent, not disabled; each asks first, through the same review.
   While a job runs the actions wait, saying why.
 * **Jobs ▾**, after **Library** on the Library page only: the library-wide jobs,
@@ -2225,7 +2227,7 @@ source against the copy in Rejects (or puts it there, when Rejects was emptied).
 *   **From Similar photos:** each look-alike has its own **Reject…**. Above them the photo
     open in the panel stands out as **Keeping** (green outline, a check, a large picture)
     with **Keep IMG_0410.jpg, reject the other 7…**: every look-alike at the chosen
-    percentage, reviewed like Reject selected, the kept photo first as a full-size card
+    percentage, reviewed like the selection bar's Reject, the kept photo first as a full-size card
     with no tick box, whatever the sort or page.
 *   **Side by side:** a **Reject…** under each photo, so it is clear which one goes. The
     first reject in a comparison asks, with **Don't ask again while comparing** (until the
