@@ -8,7 +8,7 @@ capacity. Prepared relationships intentionally do not represent all possible pai
 from pathlib import Path
 import tempfile,time,json,sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import ns_db
+from engine import ns_db
 from webui import catalog
 n=250000
 with tempfile.TemporaryDirectory(prefix='ns-match-sort-scale-') as tmp:
@@ -22,7 +22,7 @@ with tempfile.TemporaryDirectory(prefix='ns-match-sort-scale-') as tmp:
         c.executemany("INSERT INTO file_states(file_id,current_path,location_role,presence_state,sha1_hash) VALUES(?,?,'destination','present',?)",((i+1,f'/destination/{i}.jpg',f'{i:040x}') for i in range(n)))
         c.executemany('INSERT INTO similarity_hashes VALUES(?)',((f'{i:016x}',) for i in range(n//5)))
         c.executemany('INSERT INTO content_similarity VALUES(?,?,?)',((f'{i:016x}',f'{i+1:016x}',(i^(i+1)).bit_count()) for i in range(n//5-1)))
-    import ns_similarity_cache
+    from engine import ns_similarity_cache
     tcache=time.perf_counter(); ns_similarity_cache.refresh(c)
     print(json.dumps({'cache_seconds':round(time.perf_counter()-tcache,3), 'cache_bytes':c.execute("SELECT SUM(pgsize) FROM dbstat WHERE name IN ('similarity_count_cache','similarity_count_state')").fetchone()[0]}),flush=True)
     c.close()

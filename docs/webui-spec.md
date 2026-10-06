@@ -10,13 +10,13 @@ behavior is documented as implemented, not as a mobile support requirement.
 
 ## 1. System Overview & Architecture
 
-The NegativeSpace Web Interface provides a modern web UI for the containerized Python engine (`ns-engine.py`). It transforms the CLI engine into an interactive application supporting real-time operation monitoring, selective file processing, context-aware duplicate resolution, detailed metadata inspection, dedicated runtime settings management, extension validation, and audit logging.
+The NegativeSpace Web Interface provides a modern web UI for the containerized Python engine (`engine/`). It transforms the CLI engine into an interactive application supporting real-time operation monitoring, selective file processing, context-aware duplicate resolution, detailed metadata inspection, dedicated runtime settings management, extension validation, and audit logging.
 
 **Deployment:** two containers (`docker/compose.yml`). `web` (nginx) serves the built
 React screens and passes `/api`, including the WebSocket, to `app`, which runs FastAPI
 and the engine it spawns. Only `web` publishes a port.
 
-**The web UI is the interface.** The engine's command-line flags are an *internal* calling convention between FastAPI and the engine — not a supported end-user surface. Users interact with NegativeSpace through the web UI; nothing in the user-facing documentation should direct them to invoke `ns-engine.py` by hand.
+**The web UI is the interface.** The engine's command-line flags are an *internal* calling convention between FastAPI and the engine — not a supported end-user surface. Users interact with NegativeSpace through the web UI; nothing in the user-facing documentation should direct them to invoke `python -m engine` by hand.
 
 The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engine reference documentation stays in the repository. Anyone cloning the project to understand, debug, or extend it benefits from being able to run the engine directly, and hiding the flags would buy nothing — anyone who can execute the engine can read its source. The distinction is *documented for users* versus *available to developers*, not *present* versus *absent*.
 
@@ -33,7 +33,7 @@ The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engi
 | SQLite (WAL) / Subprocess
 +-----------------------------------------------------------------------------------+
 |                                   Engine Core                                     |
-|   (ns-engine.py --workers N --exts ex1,ex2 --file-ids-from selection-file   |
+|   (python -m engine --workers N --exts ex1,ex2 --file-ids-from selection-file   |
 |                        --source-subdir path)                                      |
 +-----------------------------------------------------------------------------------+
 ```
@@ -49,7 +49,7 @@ The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engi
 1. User triggers an Index scan (full directory or, on a repeat visit,
    just a "Rescan" to pick up newly added files).
    -> FastAPI checks for an already-active job (409 if one exists, §5.7)
-   -> FastAPI spawns: python3 ns-engine.py
+   -> FastAPI spawns: python3 -m engine
    -> Engine scans the full source directory, hashes everything, flags
       duplicates, captures metadata, and populates SQLite.
 
@@ -64,9 +64,9 @@ The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engi
 
 5. FastAPI re-checks for an active job (409 if one exists), then spawns
    the engine, scoped one of two ways:
-   python3 ns-engine.py --move --file-ids-from selection-file --request-id request-id
+   python3 -m engine --move --file-ids-from selection-file --request-id request-id
      (or --copy; the API writes the validated selection file)
-   python3 ns-engine.py --move --source-subdir sd_card/day1
+   python3 -m engine --move --source-subdir sd_card/day1
 
 6. The frontend shows aggregate progress and elapsed runtime (§4.1), refreshed
    about once per second. Per-file outcomes remain available through Logs.
@@ -150,8 +150,11 @@ Users can select individual files or multiple files across grid views to run tar
   It opens with no search, dates, types or folders, so none of the job's photos is hidden
   by a filter left on; then every filter narrows it ("Showing 37 of 400 photos"), and
   Select all, ticking and the selection bar work as anywhere. **Back to results** restores
-  the filters it opened over; a view button leaves it with the filters as they are. With
-  nothing ticked, the selection bar is hidden. *Why not land on the job's photos:* it
+  the filters it opened over; a view button leaves it with the filters as they are. A
+  job started from a job's photos takes the view with it when it ends ("The 2 photos in
+  Return to library #8"), so the line above them and the finished banner, which names
+  its job too ("Return to library #8 finished"), describe the same job. With nothing
+  ticked, the selection bar is hidden. *Why not land on the job's photos:* it
   took you from where you were after every job, with the page's controls greyed out,
   while most jobs need no follow-up. *Why not a tab or chip for the job:* the banner and
   Logs already lead there.
@@ -845,10 +848,10 @@ The Gallery grid and Inspector's "Media Preview" both need something to actually
 **Status — grid generation is implemented.** The scan writes one 320px JPEG per
 content identity, records it in `thumbnail_cache`, and reuses it for
 byte-identical duplicates; `--no-thumbnails` turns it off and `--cache` relocates
-it. The 1024px detail preview is generated on first view by `ns-engine.py --preview
-<photo_id>` (`engine-spec.md` §4.1), and **Free up** is `ns-engine.py --clear-previews`;
+it. The 1024px detail preview is generated on first view by `python -m engine --preview
+<photo_id>` (`engine-spec.md` §4.1), and **Free up** is `python -m engine --clear-previews`;
 the cache-size figures are `ns_db.thumbnail_cache_totals`, and the rebuild job is
-`ns-engine.py --rebuild-thumbnails missing|all`. Still unbuilt: orphan cleanup after an
+`python -m engine --rebuild-thumbnails missing|all`. Still unbuilt: orphan cleanup after an
 interrupted edit, which waits on metadata editing itself. Removing thumbnails whose content no catalogued
 photo holds any more is implemented (`engine-spec.md` §9.8). One documented behavior is also not
 met — recorded failure history is **not** retained across a successful
@@ -1080,7 +1083,7 @@ If operations fail, an Error Banner highlights the failures, sourced directly fr
 
 Some failures have no photo at all. A folder the scan could not read is recorded as a `Failed` operation with `photo_id` NULL and the folder as `source_path` — the photos inside it were never examined, so there is no catalog row to attach to. Left-join `photos` (an inner join drops these), and present such a row as a folder the user needs to fix permissions on, not as a file.
 
-**`Skipped` is an outcome, not a failure.** A run records `Skipped` for a selected photo it deliberately left alone — a duplicate whose original carries its content, or a photo an earlier run already delivered — with a reason naming what holds that content (`Duplicate of photo #N ...`, or `Already copied to <path> by an earlier run`). **The already-copied reason reports what the catalog records, not a fresh check:** that run read and verified nothing, so the UI must not present it as confirmation the destination file is still present and intact. **Do not offer a re-index as the way to find out.** Index walks `--source` and never inspects `--dest`; and since `Copied` is a settled status, the unchanged-file skip means a plain re-Index does not even re-read the source. The row stays `Copied`, the next Copy reports `Skipped` again, and the destination file is still missing. What `--force-rehash` does is re-read sources and reset those rows to `Pending`, so a later Copy delivers the file again: a repair, not a check. The genuine answer to "is the destination still intact?" is the destination check (`ns-engine.py --check-destination`, `engine-spec.md` §9.1), which reads the destination: offer it here, and show the latest check's finding for the photo when there is one. Show these as informational, grouped apart from failures, and link the named original: a user who selected only the duplicate needs to know which photo to select instead. They exist so that every photo in a selection ends the job with a recorded outcome; a job whose selection held only duplicates used to finish green with nothing recorded at all.
+**`Skipped` is an outcome, not a failure.** A run records `Skipped` for a selected photo it deliberately left alone — a duplicate whose original carries its content, or a photo an earlier run already delivered — with a reason naming what holds that content (`Duplicate of photo #N ...`, or `Already copied to <path> by an earlier run`). **The already-copied reason reports what the catalog records, not a fresh check:** that run read and verified nothing, so the UI must not present it as confirmation the destination file is still present and intact. **Do not offer a re-index as the way to find out.** Index walks `--source` and never inspects `--dest`; and since `Copied` is a settled status, the unchanged-file skip means a plain re-Index does not even re-read the source. The row stays `Copied`, the next Copy reports `Skipped` again, and the destination file is still missing. What `--force-rehash` does is re-read sources and reset those rows to `Pending`, so a later Copy delivers the file again: a repair, not a check. The genuine answer to "is the destination still intact?" is the destination check (`python -m engine --check-destination`, `engine-spec.md` §9.1), which reads the destination: offer it here, and show the latest check's finding for the photo when there is one. Show these as informational, grouped apart from failures, and link the named original: a user who selected only the duplicate needs to know which photo to select instead. They exist so that every photo in a selection ends the job with a recorded outcome; a job whose selection held only duplicates used to finish green with nothing recorded at all.
 
 For that case specifically, the recorded `error_message` reads `Duplicate verification failed: ...`, and the underlying cause is worth distinguishing in the UI: a `ChecksumMismatch` means the two files' contents differ, while an `OSError` means one of them could not be read and the comparison never happened. Neither should be presented as "the destination is a verified backup", and neither should suggest deleting anything by hand.
 
@@ -1116,7 +1119,9 @@ every job; while any is set, a job with nothing matching is left out. A finished
 job's banner links to its log, opened on that job, and, when it failed, to **View failures**.
 A dismissed banner stays dismissed on every page, in every browser, and after the
 browser's data is cleared: the dismissal is kept with the catalog (`PUT /api/v1/ui-state`),
-and covers that job and every earlier one. The Logs page has the Library's top row
+and covers that job and every earlier one. The catalog's record wins over the browser's
+copy, which stands in only until the catalog answers: a copy left from an earlier catalog,
+whose job numbers ran higher, would otherwise hide every new banner. The Logs page has the Library's top row
 without **Jobs**, whose jobs belong with the photos; the page links never move. The
 active filters are named in one line with one reset (**"Showing: job #3 · Failed ·
 “photo-00” · Clear all filters"**). An open job's entries load in batches of 100 as the
@@ -1405,7 +1410,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`ns_db.py` stamps schema version 20 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 20 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -1428,7 +1433,7 @@ manages settings through the API, which writes settings using shared Python data
 and validation code. The browser never accesses SQLite directly. API settings writes
 do not authorize arbitrary photo-state or history updates. Initialization uses the
 engine-owned schema routines without requiring Index; the API defines no competing
-schema. The shared functions are in `ns_db.py`, and the API calls them (`webui/`).
+schema. The shared functions are in `engine/ns_db.py`, and the API calls them (`webui/`).
 
 Use short transactions with bounded lock waits and report save failure truthfully.
 Settings can be saved during processing; each job retains its starting configuration.
@@ -1672,7 +1677,7 @@ related current references without rewriting history. A missing or changed targe
 stops the operation and shows §7.6 guidance.
 
 **Engine calls** (`engine-spec.md` §9.4): the candidate names come from
-`ns-engine.py --rename-candidates <id>`; the live check of a typed name is
+`python -m engine --rename-candidates <id>`; the live check of a typed name is
 `--rename <id> --name <name> --dry-run`, which prints the resolved path, or the reason
 there is none, and takes no lock; confirming runs `--rename <id> --name <name>` as a
 job. Its outcome and the actual resulting name are its `Renamed` (or `Failed`) operation.

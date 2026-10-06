@@ -19,6 +19,19 @@ import zstandard
 
 SCHEMA_VERSION = 20
 
+# --- Status vocabularies -----------------------------------------------------
+#
+# Every value any of the three tables may hold in its `status` column, named
+# once, because scattered literals fail silently: SQLite accepts any string,
+# and a misspelling in a WHERE clause matches zero rows rather than
+# raising. A typo in the duplicate-cleanup anchor check would simply stop
+# removing duplicate sources; a typo in the 'Processing' marker would make
+# crash recovery blind to a file interrupted mid-move. Nothing would error and
+# nothing would be logged.
+#
+# The CHECK constraints are generated from these same tuples, so the database
+# enforces exactly the set the code knows about, ad-hoc sqlite3 sessions included.
+
 class PhotoStatus:
     """State of one source file in the catalog. A path is unique among files still in the
     source (idx_photos_live_source); a row whose source was consumed keeps its path."""
@@ -733,7 +746,7 @@ def initialize(db_path):
             _create_core_tables(conn)
             for statement in FOUNDATION_DDL:
                 conn.execute(statement)
-            import ns_similarity_cache
+            from engine import ns_similarity_cache
             for statement in ns_similarity_cache.DDL:
                 conn.execute(statement)
             for table in ('files', 'file_origins', 'source_snapshots', 'file_observations', 'operation_files',

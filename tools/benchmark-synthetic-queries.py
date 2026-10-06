@@ -18,8 +18,8 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import ns_db
-import ns_similarity_cache
+from engine import ns_db
+from engine import ns_similarity_cache
 from webui import catalog, matching, reference_sets
 
 PROFILES = ('sparse', 'equal', 'dense', 'mixed')

@@ -10,9 +10,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-import ns_db
-from ns_similarity_cache import matched_ids, match_counts_cte, match_distance, comparison_state
-from ns_db import (PhotoStatus, RunStatus, OPERATION_SKIPPED, OPERATION_CANCELLED, OPERATION_RENAMED,
+from engine import ns_db
+from engine.ns_similarity_cache import matched_ids, match_counts_cte, match_distance, comparison_state
+from engine.ns_db import (PhotoStatus, RunStatus, OPERATION_SKIPPED, OPERATION_CANCELLED, OPERATION_RENAMED,
                    OPERATION_RETURNED, IN_REJECTS_STATUSES)
 
 GRID_SIZE = 320
@@ -730,7 +730,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
             "WHERE pf.photo_id = ?", (photo_id,)).fetchone()
     visual_issue = None
     if content is not None and (content['phash_state'] != 'ok' or not content['phash']):
-        import ns_similarity_recovery
+        from engine import ns_similarity_recovery
         visual_issue = ns_similarity_recovery.describe({'kind':'missing_hash',
             'id':photo_id, 'dest_path':p['dest_path'] or p['source_path'] or '',
             'phash_state':content['phash_state']})['message']
@@ -784,7 +784,7 @@ _TERMINAL_WINS = {RunStatus.CANCELLED: "cancelled", RunStatus.INTERRUPTED: "inte
 
 
 # Why a photo was skipped, by the start of the reason the engine recorded. The engine
-# writes these sentences (ns-engine.py _duplicate_skip_reason and the Copy/Move loop);
+# writes these sentences (engine/transfer.py: _duplicate_skip_reason and the Copy/Move loop);
 # tests/webui_api_test.py runs real jobs so a reworded reason fails there, not here.
 _SKIP_REASONS = (("Duplicate", "duplicate"), ("Already copied", "already_copied"),
                  ("Already rejected", "already_rejected"), ("Already in Rejects", "already_in_rejects"),

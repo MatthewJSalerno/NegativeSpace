@@ -36,9 +36,11 @@ docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -e NS_TEST_RAW_DIR=/raw \
 
 Flags: `--filter NAME` runs tests whose name contains NAME (a filter matching nothing
 is an error), `--keep` leaves the workspace on disk, `-v` shows engine output, and
-`--engine PATH` runs the suite against another copy of `ns-engine.py` — the way to
-prove a test catches the defect it guards against. The module docstring is the
-authoritative reference.
+`--engine PATH` runs the suite against another copy of the engine (the folder holding its
+`engine/` package) — the way to prove a test catches the defect it guards against. The
+test file's docstring is the authoritative reference. Fault-injection tests load the
+engine in-process as one namespace: `engine.X = f` replaces X in the module that defines
+it, which every caller looks up.
 
 The suite does **not** run under pytest: pytest mis-collects its `@test` registration
 decorator and errors without running anything.
@@ -79,7 +81,7 @@ docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app \
 ## Web API suite — `webui_api_test.py`
 
 The FastAPI layer (`webui/`) through FastAPI's test client, against a real catalog.
-Jobs start the real `ns-engine.py` as a child process, as in production, so the
+Jobs start the real engine (`python -m engine`) as a child process, as in production, so the
 request-to-run handshake, the engine lock, cancellation and the derived outcome are
 tested together:
 

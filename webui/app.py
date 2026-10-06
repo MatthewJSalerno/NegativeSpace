@@ -18,9 +18,9 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
-import ns_db
-import ns_similarity
-import ns_similarity_recovery
+from engine import ns_db
+from engine import ns_similarity
+from engine import ns_similarity_recovery
 from . import catalog
 from . import matching
 from .config import Config, build_version

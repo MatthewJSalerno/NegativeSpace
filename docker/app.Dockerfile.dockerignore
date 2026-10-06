@@ -3,6 +3,7 @@
 .git
 webui/frontend
 **/__pycache__
+private
 *-private.md
 ai-memory
 ai-reviews

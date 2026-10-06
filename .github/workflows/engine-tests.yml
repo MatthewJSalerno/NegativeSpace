@@ -30,14 +30,14 @@ jobs:
         # os.cpu_count() reports the host; the engine must use what --cpus allows.
         run: |
           got=$(docker run --rm --cpus 2 --entrypoint python3 negativespace -c \
-                "import ns_db; c = ns_db.available_cpus(); print(c['available'], c['limited_by'])")
+                "from engine import ns_db; c = ns_db.available_cpus(); print(c['available'], c['limited_by'])")
           echo "with --cpus 2: $got"
           if [ "$got" != "2 cpu_quota" ] && [ "$(nproc)" -gt 2 ]; then
             echo "::error::the engine ignored the container's CPU limit"; exit 1
           fi
 
       - name: Engine starts and parses its CLI
-        run: docker run --rm negativespace python3 ns-engine.py --help
+        run: docker run --rm negativespace python3 -m engine --help
 
       - name: Timezone database is present
         # Without tzdata, -e TZ=<zone> is silently ignored and the container
@@ -125,7 +125,7 @@ jobs:
             negativespace python3 -m unittest discover -s tests -p database_test.py -v
 
       - name: Web API
-        # The API against a real engine and catalog: jobs run the real ns-engine.py.
+        # The API against a real engine and catalog: jobs run the real engine.
         run: |
           docker run --rm \
             -e PUID=$(id -u) -e PGID=$(id -g) \

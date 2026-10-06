@@ -1,5 +1,5 @@
 """Exact closed-neighborhood equality, without expanding equal-hash photo pairs."""
-from ns_similarity_cache import AVAILABLE, VALID, match_distance
+from engine.ns_similarity_cache import AVAILABLE, VALID, match_distance
 
 
 def representatives(minimum, filtered):

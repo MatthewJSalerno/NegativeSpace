@@ -3,8 +3,11 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 REPO = Path(__file__).resolve().parent.parent
+# Where engine commands run: the folder holding the engine package.
+ENGINE_CWD = REPO
 
 
 @dataclass(frozen=True)
@@ -17,7 +20,9 @@ class Config:
     dest: Path = Path("/data/dest")
     cache: Path = Path("/cache")
     backups: Path = Path("/backups")
-    engine: Path = REPO / "ns-engine.py"
+    # A script to run in place of the engine package (`python -m engine`), for tests
+    # that wrap the real engine; None runs the engine itself.
+    engine: Optional[Path] = None
     python: str = sys.executable
 
     @property
@@ -39,8 +44,10 @@ class Config:
 
     def engine_argv(self, *args) -> list:
         """An engine command as an argument list, never a shell string: arguments
-        built from HTTP requests are a trust boundary (webui-spec 5.6)."""
-        return [self.python, str(self.engine), "--source", str(self.source), "--dest", str(self.dest),
+        built from HTTP requests are a trust boundary (webui-spec 5.6). Run it from
+        ENGINE_CWD, where `python -m engine` finds the package."""
+        program = [str(self.engine)] if self.engine else ["-m", "engine"]
+        return [self.python, *program, "--source", str(self.source), "--dest", str(self.dest),
                 "--base", str(self.base), "--cache", str(self.cache), "--backups", str(self.backups),
                 *[str(a) for a in args]]
 

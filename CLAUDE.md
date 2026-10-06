@@ -6,7 +6,7 @@ appearance and interaction standard. Keep design decisions there so assistants
 share one maintained reference.
 
 A photo-organizing engine with a web UI, run as two containers (`docker/compose.yml`):
-`app` holds `ns-engine.py` and the FastAPI layer that runs it (`webui/app.py`,
+`app` holds the engine (`engine/`, run as `python -m engine`) and the FastAPI layer that runs it (`webui/app.py`,
 `catalog.py`, `jobs.py`); `web` serves the React + TypeScript screens
 (`webui/frontend`) with nginx and passes `/api` to `app`. All Docker files live in
 `docker/`; both images build from the repository root. CLI args are the internal

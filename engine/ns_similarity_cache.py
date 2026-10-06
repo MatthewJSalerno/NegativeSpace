@@ -1,6 +1,6 @@
 """Disposable, transactionally invalidated similarity counts in the catalog."""
-import ns_db
-import ns_similarity
+from engine import ns_db
+from engine import ns_similarity
 
 DELIVERED = ns_db.sql_values((ns_db.PhotoStatus.COMPLETED, ns_db.PhotoStatus.COPIED,
                               ns_db.PhotoStatus.FOUND_AT_DESTINATION))

@@ -34,9 +34,8 @@ ARG NS_BRANCH=
 ARG NS_COMMIT=
 ENV NS_BRANCH=$NS_BRANCH NS_COMMIT=$NS_COMMIT
 COPY VERSION ./
-COPY ns-engine.py ns_db.py ns_similarity.py ns_similarity_cache.py ns_similarity_recovery.py ./
+COPY engine/*.py ./engine/
 COPY webui/*.py ./webui/
-RUN chmod 644 ns-engine.py
 
 # Source and destination MUST map to separate, non-overlapping underlying
 # folders. Never mount the same folder at both paths, or nest one in the other.

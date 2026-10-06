@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-End-to-end smoke tests for ns-engine.py.
+End-to-end smoke tests for the engine (engine/, run as `python -m engine`).
 
 Run this INSIDE the container (or anywhere ExifTool, Pillow, imagehash and
 rawpy are installed) — it drives the real engine as a subprocess against real
@@ -16,7 +16,7 @@ source is deleted) — a window a subprocess offers no way to act inside.
     python3 tests/engine_smoke_test.py
 
 Options:
-    --engine PATH   path to ns-engine.py (default: alongside this file's parent)
+    --engine PATH   the folder holding the engine package (default: this file's parent's parent)
     --keep          leave the workspace on disk for inspection
     --filter NAME   run only tests whose name contains NAME
     -v              show engine stdout for each run
@@ -50,7 +50,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-ENGINE = None
+ENGINE = None            # the folder holding the engine package; engine commands run there
 WORKSPACE = None
 VERBOSE = False
 RESULTS = []
@@ -86,14 +86,14 @@ def run_engine(case, *args, expect_rc=0, timeout=300):
     # make_photo() produces byte-identical files for a given seed — so without
     # this, one case's thumbnail would be reused as another's cache hit and any
     # assertion about what a run generated would depend on test order.
-    cmd = [sys.executable, str(ENGINE),
+    cmd = [sys.executable, "-m", "engine",
            "--source", str(case / "src"),
            "--dest", str(case / "dest"),
            "--base", str(case / "appdata"),
            "--cache", str(case / "cache"),
            "--backups", str(case / "backups")] + [str(a) for a in args]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=ENGINE)
     except subprocess.TimeoutExpired as e:
         # Surface what the engine managed to print before it stalled. Without
         # this a hang reports only the command line — which is what happened in
@@ -117,13 +117,13 @@ def run_engine(case, *args, expect_rc=0, timeout=300):
 
 def spawn_engine(case, *args):
     """Starts the engine without waiting, for signal/kill tests."""
-    cmd = [sys.executable, str(ENGINE),
+    cmd = [sys.executable, "-m", "engine",
            "--source", str(case / "src"),
            "--dest", str(case / "dest"),
            "--base", str(case / "appdata"),
            "--cache", str(case / "cache"),
            "--backups", str(case / "backups")] + [str(a) for a in args]
-    return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=ENGINE)
 
 
 def db(case):
@@ -891,7 +891,7 @@ def real_raw_files_decode_when_supplied():
     raw_dir = os.environ.get("NS_TEST_RAW_DIR")
     if not raw_dir or not Path(raw_dir).is_dir():
         raise Fail("SKIP: set NS_TEST_RAW_DIR to a folder of real RAW files to run this")
-    # Kept in step with RAW_EXTENSIONS in ns_db.py. A filter narrower than
+    # Kept in step with RAW_EXTENSIONS in engine/ns_db.py. A filter narrower than
     # the engine's advertised set silently skips the very fixtures it is given
     # — a missing .cr3 would make a Canon fixture look like "no RAW files
     # found" rather than a decode failure.
@@ -1196,19 +1196,70 @@ def _run_fixture_move(engine, args, db_path, destination, run_id):
     return engine._run_move_or_copy(args, db_path, destination, run_id)
 
 
+class _Engine:
+    """The engine's modules as one namespace, for the fault-injection tests: `engine.X`
+    is X from the module that defines it, and `engine.X = f` replaces it there. Engine
+    modules call each other as `module.name`, so a replacement reaches every caller."""
+
+    def __init__(self, owners):
+        object.__setattr__(self, "_owners", owners)
+
+    def __getattr__(self, name):
+        if name in self._owners:
+            return getattr(self._owners[name], name)
+        # Not the engine's own: a module or name the engine imports (engine.os, engine.ns_db).
+        for module in set(self._owners.values()):
+            if name in vars(module):
+                return getattr(module, name)
+        raise AttributeError(name)
+
+    def __setattr__(self, name, value):
+        setattr(self._owners[name], name, value)
+
+    def __delattr__(self, name):
+        # mock.patch.object ends a patch by deleting the name and setting the original.
+        delattr(self._owners[name], name)
+
+
 def _load_engine():
-    """Imports ns-engine.py in-process, for the fault-injection tests below."""
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("ns_engine_under_test", ENGINE)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    # With no handler configured, engine warnings reach Python's last-resort
-    # stderr handler and interleave with the test report. These tests assert
-    # on return values and files, never on log text.
+    """Imports the engine in-process, fresh, for the fault-injection tests below: each
+    call re-imports the engine's own modules, so one test's state (a set cancellation,
+    a replaced function) never reaches the next. The shared ns_* modules stay loaded."""
+    import ast
+    import importlib
     import logging
-    module.logger.addHandler(logging.NullHandler())
-    module.logger.propagate = False
-    return module
+    import pkgutil
+    import engine as package
+    split = [m.name for m in pkgutil.iter_modules(package.__path__)
+             if not m.name.startswith("ns_") and m.name != "__main__"]
+    for name in split:
+        # The package keeps each imported module as an attribute, and `from engine
+        # import store` reads that first: clear both, or the fresh modules would
+        # import the previous ones.
+        sys.modules.pop(f"engine.{name}", None)
+        if name in vars(package):
+            delattr(package, name)
+    owners = {}
+    for name in split:
+        module = importlib.import_module(f"engine.{name}")
+        for node in ast.parse(Path(module.__file__).read_text()).body:
+            targets = ([node.name] if isinstance(node, (ast.FunctionDef, ast.ClassDef)) else
+                       [t.id for t in getattr(node, "targets", [getattr(node, "target", None)])
+                        if isinstance(t, ast.Name)])
+            for target in targets:
+                owners[target] = module
+    # With no handler configured, engine warnings reach Python's last-resort stderr
+    # handler and interleave with the test report. These tests assert on return values
+    # and files, never on log text.
+    logger = sys.modules["engine.runtime"].logger
+    logger.addHandler(logging.NullHandler())
+    logger.propagate = False
+    # The optional-library checks bind names inside try blocks.
+    deps = sys.modules["engine.deps"]
+    for name in vars(deps):
+        if name.isupper() or name in ("Image", "ImageOps", "imagehash", "rawpy", "pyexiftool"):
+            owners.setdefault(name, deps)
+    return _Engine(owners)
 
 
 def _last_run_failures(case):
@@ -2340,7 +2391,7 @@ def a_move_that_cannot_remove_the_original_records_the_copy():
     check(len(dest_files(case)) == 2, f"expected the 2 verified copies at the destination, got {dest_files(case)}")
     kept = rows(case, "SELECT run_id, error_message FROM operations WHERE status = 'Copied' ORDER BY id")
     check(len(kept) == 4, f"expected a Copied operation per photo per Move, got {kept}")
-    import ns_db
+    from engine import ns_db
     check(all(k["error_message"].startswith(ns_db.ORIGINAL_KEPT) and "Permission denied" in k["error_message"]
               for k in kept), f"each should say the original was kept, and why: {kept}")
     check(not rows(case, "SELECT 1 FROM operations WHERE status = 'Failed'"),
@@ -3607,7 +3658,7 @@ def foundation_reimport_after_move_keeps_old_lineage():
 
 @test
 def foundation_settings_are_frozen_in_actual_engine_runs():
-    import ns_db
+    from engine import ns_db
     case = new_case("foundation_settings")
     path = case / "appdata" / "db" / "ns_sqlite.db"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -3917,7 +3968,7 @@ def index_records_what_the_walk_found_by_file_type():
     symlink is not a regular file, and a folder the walk cannot read makes the
     counts partial.
     """
-    import ns_db
+    from engine import ns_db
     case = new_case("discovery_counts")
     src = case / "src"
     make_photo(src / "a.jpg", "a")
@@ -4309,10 +4360,10 @@ def progress_is_written_while_a_job_runs():
     # Output to a file, not a pipe nobody reads until the end: a full pipe would
     # block the engine and the loop below would wait forever.
     log = open(case / "engine-output.txt", "w")
-    proc = subprocess.Popen([sys.executable, str(ENGINE), "--source", str(case / "src"),
+    proc = subprocess.Popen([sys.executable, "-m", "engine", "--source", str(case / "src"),
                              "--dest", str(case / "dest"), "--base", str(case / "appdata"),
                              "--cache", str(case / "cache"), "--backups", str(case / "backups"),
-                             "--workers", "1"], stdout=log, stderr=subprocess.STDOUT)
+                             "--workers", "1"], stdout=log, stderr=subprocess.STDOUT, cwd=ENGINE)
     seen = set()
     db_path = case / "appdata" / "db" / "ns_sqlite.db"
     while proc.poll() is None:
@@ -4430,10 +4481,7 @@ def a_destination_check_reports_what_is_not_intact_and_changes_nothing():
           and p[-1]["counts"] == {"missing": 1, "changed": 2, "unknown": 3},
           f"full check progress: {p}")
 
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("ns_db_for_check", ENGINE.parent / "ns_db.py")
-    ns = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ns)
+    from engine import ns_db as ns
     conn = db(case)
     try:
         report = ns.read_destination_check(conn, rows(case, "SELECT MAX(id) m FROM runs")[0]["m"])
@@ -4620,7 +4668,7 @@ def selection_file_targets_a_job_and_is_recorded_with_it():
     size. The ids never appear on the command line or in the log; they are recorded with
     the run; a damaged file, another request's file or a photo no longer catalogued
     refuses the whole job, touching nothing."""
-    import ns_db
+    from engine import ns_db
     case = new_case("selection_file")
     for name in ("a", "b", "c"):
         make_photo(case / "src" / f"{name}.jpg", f"SEL-{name}", date="2021:05:01 10:00:00")
@@ -5428,7 +5476,7 @@ def _run_main_in_process(case, move_or_copy_result, *extra):
 
     engine._run_move_or_copy = finished_then_cancelled
     saved = sys.argv
-    sys.argv = ["ns-engine.py", "--source", str(case / "src"), "--dest", str(case / "dest"),
+    sys.argv = ["engine", "--source", str(case / "src"), "--dest", str(case / "dest"),
                 "--base", str(case / "appdata"), "--cache", str(case / "cache"),
                 "--backups", str(case / "backups"), *extra]
     try:
@@ -5700,7 +5748,7 @@ def retention_prunes_only_automatic_backups_and_only_after_a_success():
     file goes, and its record stays, marked pruned rather than missing. The
     manual backup is untouched however many automatic ones follow.
     """
-    import ns_db
+    from engine import ns_db
     case = new_case("backup_retention")
     make_photo(case / "src" / "a.jpg", "a")
     run_engine(case)
@@ -5774,7 +5822,7 @@ def main():
     global ENGINE, WORKSPACE, VERBOSE
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--engine", default=str(Path(__file__).resolve().parent.parent / "ns-engine.py"))
+    ap.add_argument("--engine", default=str(Path(__file__).resolve().parent.parent))
     ap.add_argument("--keep", action="store_true", help="leave the workspace on disk")
     ap.add_argument("--filter", default="", help="only run tests whose name contains this")
     ap.add_argument("-v", "--verbose", action="store_true", help="show engine output")
@@ -5782,7 +5830,7 @@ def main():
 
     ENGINE = Path(args.engine).resolve()
     VERBOSE = args.verbose
-    if not ENGINE.exists():
+    if not (ENGINE / "engine" / "__main__.py").exists():
         print(f"engine not found: {ENGINE}", file=sys.stderr)
         return 2
 

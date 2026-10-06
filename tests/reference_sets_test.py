@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import webui_api_test as fixtures
-import ns_db
+from engine import ns_db
 
 
 class ReferenceSetsTests(fixtures.ApiCase):

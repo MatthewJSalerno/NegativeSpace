@@ -9,6 +9,23 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-10-06
+
+### Changed
+- The engine is a package, `engine/`, run as `python3 -m engine` (was `ns-engine.py`), and
+  its single 6,000-line file is split by area: scanning, Copy and Move, Rename/Reject/Return,
+  reconciliation, the copy-verify-delete steps, catalog writes, file reading, thumbnails,
+  maintenance jobs, backups and the command line. `ns_db.py` and the `ns_similarity`
+  modules moved into it. No behaviour changed.
+
+### Fixed
+- After a catalog was replaced, finished-job banners vanished as each job ended: the
+  browser remembered a dismissal from the old catalog's higher job numbers. The catalog's
+  record of what was dismissed now wins.
+- A job's photos and the finished banner could describe two different jobs (a Reject's
+  photos, then a Return of them). The banner now names its job ("Return to library #8
+  finished"), and a job started from a job's photos takes the view with it when it ends.
+
 ## [0.15.0] - 2026-10-06
 
 ### Changed
