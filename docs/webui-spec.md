@@ -485,6 +485,26 @@ The Library's actions live in one **Actions** menu, after **Library** in the pag
 photos selected in the Library), **this folder** (the one folder the Folders tree shows)
 and **all (n)**; then **Reject selected (n)** and **Return selected to library (n)**,
 following what is selected (§7.8).
+
+**Planned: a selection bar and an Organize menu** (decided 2026-10-05). The Actions menu
+mixes library-wide jobs with actions on the ticked photos, which is why it keeps adapting
+(counts of 0, disabled reasons, items that change with the view). It splits in two, the
+pattern of Google Photos, Apple Photos and Gmail:
+
+* **A selection bar** in place of today's selection line, in the sticky top bar: "4 photos
+  selected", then the actions that apply to them only, **Copy…**, **Move…**, **Reject…**
+  for library photos, **Return to library…** for photos in Rejects (both, with counts, for
+  a mix), then Show only selected and Clear. An action that does not apply is absent, not
+  disabled; each still asks first, through the same review. It appears only while
+  photos are selected.
+* **Organize ▾**, on the Library page only: the library-wide jobs, **Index**, Copy and Move
+  of everything not yet done, and Copy or Move of the folder the Folders tree shows. Logs
+  and Stats lose the menu; Logs keeps **Run an Index** where a failure needs it.
+  *Why "Organize":* it says what the jobs are for and matches the views (Library, To
+  organize); "Actions" would overlap the selection bar.
+* *Why the top bar, not a floating bottom bar:* the selection count is already read there,
+  the bar stays in view, and a bottom bar would cover the last row of photos.
+* A mockup comes before it is built.
 The toolbar's second row holds the views,
 search and sort. Every item carries a one-line explanation, and one that cannot run
 replaces it with why: a job is running, nothing is indexed, nothing is selected, or

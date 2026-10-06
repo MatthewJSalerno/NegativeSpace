@@ -55,9 +55,10 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Views
 
-- [ ] **Discuss the Actions button's placement** (raised 2026-10-05): it sits in the top
-  bar on every page, Logs and Stats included. Is it needed everywhere, or should it adapt
-  to the page, for example appearing only where photos are shown and selected?
+- [ ] **Selection bar and Organize menu** (decided 2026-10-05, `docs/webui-spec.md` §4):
+  actions on ticked photos move to a selection bar in the top bar (only what applies to
+  them); **Actions** becomes **Organize ▾** with the library-wide jobs, on the Library page
+  only. Mockup first.
 - [ ] **"A job is already running" just after a job finishes:** the engine keeps its lock
   while it takes the catalog backup that follows a settled run, so a start in that moment
   is refused with no running job shown. Say what is happening ("finishing the last job's
