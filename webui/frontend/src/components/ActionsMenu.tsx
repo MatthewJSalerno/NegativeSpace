@@ -72,20 +72,30 @@ export function ActionsMenu({ state, onIndex, onTransfer }: {
           onClick: () => onTransfer(mode, "all") },
       ],
     })),
-    // Reject takes photos in the library, so it waits for a Copy or Move; Return to
-    // library takes photos in Rejects and is offered only in the Rejects view.
-    ...(!state.rejects ? [] : state.rejects.inRejectsView ? [{
-      label: `Return selected to library (${count(state.rejects.return)})`,
-      hint: "Move the selected photos from Rejects back to their date folders.",
-      why: selectedWhy ?? (state.rejects.return === 0 ? "None of the selected photos is in Rejects." : null),
-      onClick: () => onTransfer("return", "selected"),
-    }] : [{
-      label: `Reject selected (${count(state.rejects.reject)})`,
-      hint: "Move the selected photos out of the library into Rejects. Nothing is deleted.",
-      why: selectedWhy ?? (state.rejects.reject === 0
-        ? "None of the selected photos is in the library yet. Reject works on photos already copied or moved." : null),
-      onClick: () => onTransfer("reject", "selected"),
-    }]),
+    // Reject and Return to library follow what is selected, wherever it is shown: Reject
+    // for photos in the library, Return for photos in Rejects, both for a mix, each with
+    // its own count. With neither, the view decides which one explains why.
+    ...(!state.rejects ? [] : rejectItems(state.rejects, selectedWhy, onTransfer)),
   ];
   return <MenuButton label="Actions" items={items} />;
+}
+
+function rejectItems(r: { reject: number; return: number; inRejectsView: boolean }, selectedWhy: string | null,
+                     onTransfer: (mode: ActionMode, scope: "selected" | "folder" | "all") => void): MenuEntry[] {
+  const reject = {
+    label: `Reject selected (${count(r.reject)})`,
+    hint: "Move the selected photos out of the library into Rejects. Nothing is deleted.",
+    why: selectedWhy ?? (r.reject === 0 ? "None of the selected photos is in the library yet. Reject works on photos already copied or moved." : null),
+    onClick: () => onTransfer("reject", "selected"),
+  };
+  const back = {
+    label: `Return selected to library (${count(r.return)})`,
+    hint: "Move the selected photos from Rejects back to their date folders.",
+    why: selectedWhy ?? (r.return === 0 ? "None of the selected photos is in Rejects." : null),
+    onClick: () => onTransfer("return", "selected"),
+  };
+  if (r.reject > 0 && r.return > 0) return [reject, back];
+  if (r.return > 0) return [back];
+  if (r.reject > 0) return [reject];
+  return [r.inRejectsView ? back : reject];
 }
