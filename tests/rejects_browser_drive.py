@@ -80,7 +80,7 @@ with sync_playwright() as p:
     expect(dialog.get_by_role("button", name="Cancel")).to_be_focused()
     shot("r1-confirm-reject")
     dialog.get_by_role("button", name="Reject", exact=True).click()
-    expect(banner).to_contain_text("Reject finished", timeout=60_000)
+    expect(banner).to_contain_text(re.compile(r"Reject #\d+ finished"), timeout=60_000)
     expect(banner).to_contain_text("1 of 1 photo moved to Rejects")
     expect(page.locator(".card")).to_have_count(0)
     expect(view_button(page, "All photos")).to_contain_text("(0)")
@@ -238,6 +238,21 @@ with sync_playwright() as p:
     expect(page.get_by_role("status").filter(has_text="Saved")).to_be_visible()
     expect(reminder).to_have_count(0)
     assert request.get("/api/v1/settings").json()["rejects_reminder_bytes"]["value"] is None
+
+    # A job started from a job's photos: they follow to it once it ends, so the line above
+    # them and the banner, each naming its job, describe the same one.
+    reject = next(r for r in request.get("/api/v1/runs").json()["runs"] if r["mode"] == "REJECT")
+    page.goto(f"{BASE}/?run={reject['id']}")
+    line_above = page.get_by_role("region", name="A job's photos")
+    expect(line_above).to_contain_text(f"The 1 photo in Reject #{reject['id']}")
+    page.locator(".card-check input").first.click()
+    selection_bar(page).get_by_role("button", name="Return to library (1)…").click()
+    page.get_by_role("alertdialog").get_by_role("button", name="Return to library", exact=True).click()
+    expect(banner).to_contain_text(re.compile(r"Return to library #\d+ finished"), timeout=60_000)
+    returned = request.get("/api/v1/runs").json()["runs"][0]
+    assert returned["mode"] == "RETURN", returned
+    expect(line_above).to_contain_text(f"The 1 photo in Return to library #{returned['id']}")
+    expect(banner).to_contain_text(f"Return to library #{returned['id']} finished")
 
     assert not errors, f"browser errors: {errors}"
     print("Rejects browser checks passed")

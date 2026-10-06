@@ -141,9 +141,11 @@ const VERDICT: Record<string, string> = {
 
 // "Copy finished - 0 of 23 copied · 23 failed": counts lead, never a bare status
 // (webui-spec 5.5).
-export function summary(run: Run): { headline: string; detail: string; tone: "good" | "warn" | "bad" | "neutral" } {
+// `numbered` names the job ("Copy #8 finished"), for the finished banner: beside a job's
+// photos it may describe a different job than the one shown (webui-spec 2, after a job).
+export function summary(run: Run, numbered = false): { headline: string; detail: string; tone: "good" | "warn" | "bad" | "neutral" } {
   const outcome = run.outcome as Outcome;
-  const name = modeName(run.mode);
+  const name = numbered && run.id != null ? `${modeName(run.mode)} #${run.id}` : modeName(run.mode);
   const headline = `${name} ${VERDICT[outcome.verdict] ?? outcome.verdict}`;
   const lead =
     run.mode === "COPY" && outcome.total != null

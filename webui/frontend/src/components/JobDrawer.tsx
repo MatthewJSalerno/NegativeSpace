@@ -99,7 +99,7 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss, onShowPhotos }: {
   const run = !jobs.active && jobs.last && jobs.last.id != null && (dismissedId == null || jobs.last.id > dismissedId)
     ? jobs.last : null;
   if (!run || !run.outcome) return null;
-  const s = summary(run as Run);
+  const s = summary(run as Run, true);
   const ended = run.ended_at ? Date.parse(run.ended_at) : null;
   const started = run.started_at ? Date.parse(run.started_at) : null;
   return (

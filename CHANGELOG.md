@@ -22,6 +22,9 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 - After a catalog was replaced, finished-job banners vanished as each job ended: the
   browser remembered a dismissal from the old catalog's higher job numbers. The catalog's
   record of what was dismissed now wins.
+- A job's photos and the finished banner could describe two different jobs (a Reject's
+  photos, then a Return of them). The banner now names its job ("Return to library #8
+  finished"), and a job started from a job's photos takes the view with it when it ends.
 
 ## [0.15.0] - 2026-10-06
 

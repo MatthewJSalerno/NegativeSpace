@@ -251,6 +251,9 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   // A job's photos (webui-spec 2, after a job): a scope over the gallery, opened from the
   // finished banner; every filter narrows it, and a view button or Back to results leaves it.
   const [jobRun, setJobRun] = useState<number | null>(initial.run);
+  // A job started from a job's photos, which the view moves to when it ends, so the line
+  // above them and the finished banner describe the same job.
+  const [followJob, setFollowJob] = useState<number | null>(null);
   const browseView: View | "job" = jobRun != null ? "job" : view;
   const [folderTree, setFolderTree] = useState<FolderTree | null>(null);
   const [browseBy, setBrowseBy] = useState<BrowseBy>(() => initialBrowseBy(initial.folders, initial.dates));
@@ -683,12 +686,18 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   // A job's photos open unfiltered, so none of them is hidden by a filter left on; Back to
   // results puts the filters back. A view button leaves the job with the filters as they are.
   const jobFilters = useRef<{ q: string; undated: boolean; dates: string[]; types: string[]; folders: string[] } | null>(null);
+  useEffect(() => {
+    if (followJob == null || jobs.active || jobs.last?.id !== followJob) return;
+    setFollowJob(null);
+    if (jobRun != null) { setJobRun(followJob); setPage(1); }
+  }, [followJob, jobs.active, jobs.last?.id]);
   const showJob = (id: number) => {
     if (jobRun == null) jobFilters.current = { q, undated, dates, types, folders };
     setFocus(null); setJobRun(id);
     setQ(""); setSearch(""); setUndated(false); setDates([]); setTypes([]); setFolders([]); setPage(1);
   };
   const leaveJob = () => {
+    setFollowJob(null);
     const was = jobFilters.current;
     jobFilters.current = null;
     setJobRun(null);
@@ -696,7 +705,7 @@ function Library({ status, refreshStatus, onOpenSettings }: {
     setPage(1);
   };
   const chooseView = (v: View) => {
-    setJobRun(null); jobFilters.current = null;
+    setJobRun(null); jobFilters.current = null; setFollowJob(null);
     sortChoices.current[view] = sort;
     setView(v);
     setSort(sortChoices.current[v] ?? savedSort(v));
@@ -817,12 +826,14 @@ function Library({ status, refreshStatus, onOpenSettings }: {
   const start = (mode: "index" | ActionMode, fileIds?: number[]) => async () => {
     setActionError(null);
     try {
-      await api.startJob(fileIds ? { mode, file_ids: fileIds } : { mode });
+      const run = await api.startJob(fileIds ? { mode, file_ids: fileIds } : { mode });
       if (fileIds) {
         // Back where the user was (webui-spec 2, after a job): the review or the selection
         // shown closes; the finished banner opens the job's photos.
         setSelected(new Set());
         setFocus((cur) => (cur && (cur.kind === "review" || cur.kind === "selection") ? null : cur));
+        // Started from a job's photos: they follow to this job once it ends.
+        if (jobRun != null && run.id != null) setFollowJob(run.id);
       }
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : "The job could not be started.");

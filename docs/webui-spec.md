@@ -150,8 +150,11 @@ Users can select individual files or multiple files across grid views to run tar
   It opens with no search, dates, types or folders, so none of the job's photos is hidden
   by a filter left on; then every filter narrows it ("Showing 37 of 400 photos"), and
   Select all, ticking and the selection bar work as anywhere. **Back to results** restores
-  the filters it opened over; a view button leaves it with the filters as they are. With
-  nothing ticked, the selection bar is hidden. *Why not land on the job's photos:* it
+  the filters it opened over; a view button leaves it with the filters as they are. A
+  job started from a job's photos takes the view with it when it ends ("The 2 photos in
+  Return to library #8"), so the line above them and the finished banner, which names
+  its job too ("Return to library #8 finished"), describe the same job. With nothing
+  ticked, the selection bar is hidden. *Why not land on the job's photos:* it
   took you from where you were after every job, with the page's controls greyed out,
   while most jobs need no follow-up. *Why not a tab or chip for the job:* the banner and
   Logs already lead there.

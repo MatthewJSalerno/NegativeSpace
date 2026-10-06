@@ -113,7 +113,7 @@ with sync_playwright() as p:
     # Index; the result shows at the top of the page, and the gallery refreshes itself.
     page.get_by_role("button", name="Index your library").click()
     banner = page.locator(".finished-banner")
-    expect(banner).to_contain_text("Index finished", timeout=180_000)
+    expect(banner).to_contain_text(re.compile(r"Index #\d+ finished"), timeout=180_000)
     expect(banner).to_contain_text(f"{PHOTOS + DUPLICATES:,} new or changed, including {DUPLICATES:,} duplicate")
     top = banner.bounding_box()["y"]
     browse = page.locator(".toolbar-browse").bounding_box()
@@ -410,7 +410,7 @@ with sync_playwright() as p:
     expect(review).to_have_count(0)
     expect(line).to_have_count(0)
     expect(page).to_have_url(re.compile(r"date=2019"))
-    expect(banner).to_contain_text("Copy finished", timeout=60_000)
+    expect(banner).to_contain_text(re.compile(r"Copy #\d+ finished"), timeout=60_000)
     expect(banner).to_contain_text("3 of 3 files copied")
     # A dismissal this browser kept from an earlier catalog, whose job numbers ran higher,
     # must not hide this catalog's banners: the catalog's record wins.
@@ -456,7 +456,7 @@ with sync_playwright() as p:
     expect(dialog).to_contain_text(f"every photo not yet copied ({PHOTOS - 3:,})")
     dialog.get_by_role("button", name="Copy").click()
     page.get_by_role("searchbox", name="Search filenames").fill("")
-    expect(banner).to_contain_text("Copy finished with failures", timeout=120_000)
+    expect(banner).to_contain_text(re.compile(r"Copy #\d+ finished with failures"), timeout=120_000)
     expect(banner).to_contain_text(
         f"{PHOTOS - 4} of {PHOTOS + DUPLICATES} files copied · 1 failed · {3 + DUPLICATES} skipped "
         f"(3 copied by an earlier job, {DUPLICATES} duplicates: the same content is copied once)")
