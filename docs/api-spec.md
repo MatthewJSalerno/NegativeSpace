@@ -253,9 +253,10 @@ of the normal filters. POST keeps that selection out of URL length limits.
     -> {"position": 80, "page": 2, "previous_id": 8, "next_id": 6}
 
 All four values are null if the photo is absent from that scope. A missing neighbor
-is null at the first/last photo. Invalid body types, photo/page-size bounds, and
-selection length return 422. Invalid filter/sort values or nonpositive selection
-IDs return 400. The server computes rank without returning preceding pages.
+is null at the first/last photo. Invalid body types and photo/page-size bounds
+return 422. Invalid filter/sort values or nonpositive selection IDs return 400.
+There is no selection-count cap; the web proxy's 16 MiB request-body limit still
+applies. The server computes rank without returning preceding pages.
 
 ### `POST /api/v1/photos/selection`
 
@@ -368,6 +369,24 @@ spawning, even during a different active job; different input returns
     or stopped (`engine-spec.md` §4.1). If any photo is no longer catalogued in this source
     the engine refuses the whole job, recording nothing: `409 engine_refused` with the
     reason.
+    Failure to prepare the selection is `503 selection_unavailable`; this attempt
+    starts no engine. Publication failure removes the temporary or final file only
+    when it still identifies the file this attempt created, preserving pre-existing
+    inputs. After successful cleanup, retry with the same request ID once the
+    storage fault is corrected. Cleanup errors are reported rather than hidden.
+    Publication and cleanup hold an exclusive OS lock on
+    `selection-start.lock` under application data. The API passes that open
+    descriptor to its engine child, so an API crash cannot release the child's
+    protection before it reads the selection. The lock file is never unlinked;
+    each holder closes its descriptor instead of explicitly unlocking the shared
+    description. The child retains its descriptor until exit.
+    Startup skips cleanup while this lock is held. Startup and the next selected
+    submission reclaim abandoned regular files owned by the API user only while
+    holding the lock: `<request_id>.ids` and `.<request_id>.ids.tmp`, with valid
+    request-ID spelling. Unrelated names, directories and symlinks are preserved.
+    A selected submission that cannot acquire the lock returns
+    `409 job_already_running`, including before the engine has recorded a run.
+    An already accepted request still replays its existing run.
     Folder names preserve significant whitespace, including whitespace-only components;
     browsing and starting a folder job use the same literal names.
 *   **Refusals:** a missing or unusable catalog is `409 catalog_*`, and Copy or Move
@@ -379,6 +398,10 @@ spawning, even during a different active job; different input returns
     waits (up to 30 s) until the engine records the run for that request. An engine that
     exits first is `409 engine_refused` with its own reason, or `500` for an unexpected
     exit. One that never records a run is `500 engine_start_timeout`.
+    Failure to open the engine log or spawn the process is `500 engine_start_failed`;
+    the selection is cleaned up and the same request ID can be retried after correcting
+    the reported storage or process-permission error. These 5xx responses retain the
+    browser's existing Check again / Retry same request workflow.
 
 ### `POST /api/v1/runs/{id}/answer`
 
@@ -669,6 +692,8 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
 | `catalog_busy` | 503 | The catalog could not take a settings write in time |
 | `backup_unavailable` | 404 | The backup's file is not present to download |
 | `engine_start_timeout` | 500 | The engine recorded no run in time |
+| `engine_start_failed` | 500 | The log could not be opened or the engine process could not be spawned |
+| `selection_unavailable` | 503 | The selection input could not be prepared; this attempt started no engine |
 | `backup_timeout` | 500 | Back up now did not finish in 10 minutes |
 
 ### `GET /api/v1/similar`
@@ -839,7 +864,7 @@ browse scope with that reference plus its recorded direct destination matches at
 `match_min`. It excludes source-only/unavailable identities and does not recursively
 expand related sets. The UI uses this filter without grouped collapse or saved
 gallery filters for its temporary member scope. Pagination, sorting, photo positioning
-and existing Select all limits apply normally. Unknown or unavailable references
+and Select all operate on the resulting scope without a fixed selection limit. Unknown or unavailable references
 produce an empty scope. This is a read-only catalog filter, not an engine command.
 
 For `set_reference`, `view=all` also permits `sort=matches`, retaining a usable

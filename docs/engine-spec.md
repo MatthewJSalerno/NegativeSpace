@@ -1033,7 +1033,7 @@ and invokes the destination-mismatch guidance in `webui-spec.md` §7.6.
 Record both paths for lineage and manual correction. There is no user-facing undo;
 a later rename is a new action validated against the current state.
 
-**How it is built.** `--rename PHOTO_ID --name NAME` is a `RENAME` job under the engine lock (`rename_delivered_file`); `--rename ... --dry-run` prints the resolved path as JSON without the lock, which is the live check a typed name needs; `--rename-candidates PHOTO_ID` prints the group's other names, from every copy's source path current and historical. Each step stops the rename before any file changes:
+**How it is built.** `--rename PHOTO_ID --name NAME` is a `RENAME` job under the engine lock (`rename_delivered_file`); `--rename ... --dry-run` prints the resolved path as JSON without the lock, which is the live check a typed name needs; `--rename-candidates PHOTO_ID` prints the group's other names, from every copy's source path current and historical. Planning, verification and backup precede any file changes; durable intent makes later uncertainty recoverable:
 
 1.  **Plan** against the files there now (`plan_rename`). The requested stem gets the file's real extension: a trailing extension the engine reads, or the current one, is dropped, so `Beach.PNG` on a JPEG becomes `Beach.jpg`, while `Trip.2019` keeps its dot. A name that is empty, holds `/`, starts with `.` (hidden files are skipped) or exceeds 255 bytes is refused. The same name again changes nothing and takes no backup.
 2.  **Verify the file live**: present, with the catalog's SHA-1. A missing or changed file is recorded `Failed` with the destination-mismatch guidance (`webui-spec.md` §7.6).
@@ -1041,11 +1041,41 @@ a later rename is a new action validated against the current state.
 4.  **Record intent** durably, then **rename without overwriting**, then fsync the folder. `_rename_noreplace` uses Linux `renameat2(RENAME_NOREPLACE)`, one atomic step. Where the filesystem lacks it (NFS among them) it uses link-then-unlink, which is still no-overwrite, since `link()` fails on a taken name. A filesystem with neither is refused. **Why not fall back to `rename()`:** it silently replaces a file created at the new name in the meantime, and the no-overwrite promise is not weakened to accommodate it.
 5.  **In one commit:** every `photos` row naming the old path (the anchor and its `Duplicate`/`Removed_Duplicate`/`Found_At_Destination` rows) names the new one, the file identity's `file_states.current_path` moves with it, and the operation settles `Renamed`. Earlier operations keep the paths true at their time.
 
-**Recovery** (`_reconcile_interrupted_renames`) settles a rename a killed run left unsettled, from what is on disk:
-*   Only the new name exists: the rename happened, and the catalog catches up.
-*   Both names on one inode: link-then-unlink stopped between its steps. Removing the old name finishes it and loses nothing, since both names are one file.
-*   Only the old name exists: it never happened.
-*   Anything else, such as two different files or neither: it is recorded unestablished with a needs-attention note, and nothing is removed.
+**Errors after intent.** A preparation failure, a taken new name or a filesystem
+without a no-replace primitive is a settled refusal: no photo moved. Other errors
+from the rename primitive can be ambiguous, particularly on a share, and a later
+directory-sync error does not undo a successful rename. These attempts are shown
+as `Failed`, with observed path evidence and an attention issue, but retain their
+intent without a terminal event so startup recovery can find them. The catalog's
+photo location/status remains last-known, explicitly described as uncertain, until
+verification establishes the outcome. The run fails and the message directs the
+user to restore destination access and run Index before retrying the action.
+For link-then-unlink, an unlink error leaves both names available for recovery;
+the engine does not attempt another unlink to roll the new name back.
+
+**Recovery** (`_reconcile_interrupted_renames`) settles a Rename, Reject or Return
+a failed or killed run left unsettled. A surviving path alone is not proof: recovery requires
+a readable regular file whose SHA-1 matches the intent. Verification does not follow
+symlinks; it checks file identity, size and modification/change times during hashing,
+then rechecks both paths before settling the outcome or removing an old link.
+
+*   Only the verified new name exists: the relocation happened, and the catalog catches up.
+*   Both names on the same verified inode: link-then-unlink stopped between its steps.
+    Recovery fsyncs the retained name's directory before removing the old link, then
+    fsyncs the old directory and records success.
+*   Only the verified old name exists: the relocation never happened.
+*   Anything else, including different files, missing paths, non-regular or unreadable
+    files, changed content or paths, or an intent without an expected hash: record an
+    unestablished outcome and an attention issue explaining what needs outside review.
+    Do not remove anything or update the photo's recorded location/status.
+
+Stat and hash evidence is committed with the recovery outcome. A directory-sync
+failure leaves the intent unsettled for another recovery attempt; failure to sync
+the retained entry cannot remove the old hard link. Recovery retries the old
+directory's sync even when the old name is already absent. Verified completion or
+verified non-execution resolves the attempt's attention issue in the same commit,
+linked to its recovery event. Unverifiable content keeps the issue open and replaces
+retry guidance with outside-review guidance; no repeated ineffective retry is offered.
 
 The rename itself is recorded after its pre-action backup, so the next start reports it among changes not yet in a backup until a later backup covers it.
 
@@ -1112,7 +1142,9 @@ photo the user only rejected. An interrupted Move of a rejected photo stays reje
 **Emptying is noticed, never done.** Every job starts by looking for rejected files gone
 from Rejects (one `lstat` each, skipped when the destination's `library/` is absent, as
 on an unmounted share): each is recorded `Emptied` once, its file identity `missing`, and
-a `Rejected` row becomes `Rejected_Emptied`. The Rejects view does not wait for a job:
+a `Rejected` row becomes `Rejected_Emptied`. A missing old path with an unresolved
+relocation outcome is excluded: an uncertain Return must not be reclassified as
+emptying Rejects, on this start or later ones. The Rejects view does not wait for a job:
 the API filters it against a listing of `dest/rejects`.
 
 **Not built yet:** the pHash check for a file only similar to a reject (with Needs

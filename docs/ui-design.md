@@ -447,8 +447,10 @@ this set; stale expansions are rejected rather than silently dropped. Incomplete
 coverage links to matching information and recovery. No persisted group membership,
 keeper inference, EXIF editing or rejecting is introduced by exploring sets.
 
-Review-later tagging remains deferred for a separate discussion of broader catalog
-annotations. Do not implement a dedicated marker until that discussion.
+Review later belongs to the planned Needs review in-tray (`webui-spec.md` §7.9).
+Its notes record decisions awaiting a person, with reason-specific actions and
+resolved decisions retained in history. This is not a general tagging system;
+computed similar-photo sets remain live queries rather than stored review notes.
 
 ### Failed visual processing
 

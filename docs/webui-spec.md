@@ -33,7 +33,7 @@ The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engi
 | SQLite (WAL) / Subprocess
 +-----------------------------------------------------------------------------------+
 |                                   Engine Core                                     |
-|   (ns-engine.py --workers N --exts ex1,ex2 --file-ids id1,id2               |
+|   (ns-engine.py --workers N --exts ex1,ex2 --file-ids-from selection-file   |
 |                        --source-subdir path)                                      |
 +-----------------------------------------------------------------------------------+
 ```
@@ -64,7 +64,8 @@ The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engi
 
 5. FastAPI re-checks for an active job (409 if one exists), then spawns
    the engine, scoped one of two ways:
-   python3 ns-engine.py --move --file-ids 101,102,105  (or --copy)
+   python3 ns-engine.py --move --file-ids-from selection-file --request-id request-id
+     (or --copy; the API writes the validated selection file)
    python3 ns-engine.py --move --source-subdir sd_card/day1
 
 6. The frontend shows aggregate progress and elapsed runtime (§4.1), refreshed
@@ -79,7 +80,7 @@ The flags are deliberately **not** hidden (no `argparse.SUPPRESS`), and the engi
 The full-directory Index (step 1) is the one operation that is *not*
 selection-scoped — there's nothing to select from until the catalog
 exists. Every operation after that can be either whole-directory or
-scoped to a specific selection via `--file-ids`.
+scoped to a specific selection via `--file-ids-from`.
 
 ### Action Mode Selection
 The UI allows switching between execution modes prior to triggering operations:
@@ -166,7 +167,7 @@ Users can select individual files or multiple files across grid views to run tar
   to act on it."** with several ticked, **"Show a folder in the Folders tree to act on
   it."** with none, and the files directly in the source folder, which are no folder of
   their own, are selected instead. It is confirmed as Copy all and Move all are, and a
-  Retry past the limit offers **Move this folder again** (§5.3).
+  Retry preserves that folder scope (§5.3).
 * **Types:** above Dates, folded by default to one line that names any type checked (a
   type filter in the address opens it; open or folded is remembered per browser): the
   file types the library holds (by extension), with counts
@@ -1181,6 +1182,13 @@ Only one engine process may run at a time — see `engine-spec.md` §4.1/§7 for
   The pre-check must not decide from an active `runs.status` alone. A row orphaned by a crash stays active until the next engine run reconciles it, so a pre-check that trusted the table would refuse to start that very run: every job blocked, permanently, by a process that no longer exists. If the probe *acquires* the lock, any active rows are stale, and the engine about to be spawned marks them `Interrupted` during its own startup. Two requests can still race between the probe's release and the engine's own acquisition. The engine's lock decides, and the losing engine exits non-zero with its FATAL message, which the API reports as a 409.
 * **Authoritative guarantee (engine):** The `flock` in `engine-spec.md` §4.1 is what actually prevents data corruption if the fast check above is ever wrong or stale — see the FastAPI-restart case below. Even if FastAPI's own bookkeeping says "nothing running" incorrectly, a second engine process attempting to start will still be refused by the lock and exit cleanly with a logged error, never silently racing a real in-progress run.
 
+Before run acceptance, a child may still be waiting to read its selection, without
+holding the engine lock yet. Selection publication and cleanup therefore use a
+separate inherited OS lock (`api-spec.md` §5). API startup preserves these inputs
+while a submitting process or child holds that lock. Once all holders exit,
+startup or the next selected submission can reclaim abandoned inputs. No age or
+unrecorded-run assumption establishes abandonment, and same-ID retry remains safe.
+
 **FastAPI-restart edge case:** if FastAPI itself restarts (redeploy, crash) while a job is running, its in-memory job/WebSocket-subscriber state is lost, but the engine subprocess is *not* killed by its parent dying — it keeps running under the protection of its own lock. On startup, FastAPI finds such a job by querying `runs` for any row in an active state (`Preparing`, `Running`, `Cancelling`). Two cases:
 1. **The engine process is genuinely still alive** (the common case) — FastAPI should treat this as an active job for UI purposes (allow reconnecting clients to replay/stream it per §4.1) without being able to directly re-attach to the subprocess's stdout; the `operations` log is what makes this possible without that direct attachment.
 2. **The engine process died too, before a later engine run could mark that row `Interrupted`** (`engine-spec.md` §4.2) — a double failure that leaves an active row with nothing behind it. FastAPI tells the two cases apart with a **non-blocking `flock` on the same lock file as a liveness probe**: if the probe acquires it, no engine owns any active row. FastAPI then **presents** those rows as interrupted, awaiting reconciliation, with duration unavailable. It does not write them. The next engine run records them `Interrupted` and names itself as the run that found them.
@@ -1428,8 +1436,9 @@ Everything above is about getting files *in*. This section is about curating
 what is already there — a different activity, with a different safety story.
 
 **These workflows depend on engine capabilities in `engine-spec.md` §9.** The
-destination check, renaming a delivered file, and read-only similarity review are built;
-deleting under `--dest` and writing EXIF are not. This
+destination check, renaming a delivered file, similarity review, Reject and Return
+are built; metadata writing is planned. The application never permanently deletes
+destination photos. This
 section specifies what the user does; that one specifies what the engine must be
 able to do first.
 
@@ -1518,8 +1527,8 @@ The gallery Inspector reviews visually similar, different-content photos. It has
 exact-copy mode: Copy and Move already avoid writing exact duplicates to the
 destination. Exact-copy counts and recorded outcomes remain in photo details,
 history and Stats. Visual review includes destination photos only. The workflow is
-**Index → Copy or Move → review and curate destination photos**; EXIF editing and
-match cleanup remain future work. Before delivery, the Inspector explains the Copy or
+**Index → Copy or Move → review and curate destination photos**. Reject and Keep
+are built (§7.8); EXIF editing remains planned. Before delivery, the Inspector explains the Copy or
 Move step. Old `/similar` bookmarks redirect into the gallery; an existing reference
 opens its Inspector matches. There is no exact-copy matching dropdown.
 
@@ -1637,8 +1646,8 @@ failure retry and refreshed remaining counts are available. Successful recovery
 keeps its results dialog open even when the originating warning disappears.
 An ordinary Index may skip unchanged files and is not a general hash repair.
 URL state preserves filters, reference and pages on reload or browser navigation.
-Donor/keeper selection, discard and EXIF actions below remain future work; the current
-review does not select targets or modify files.
+Metadata donor/target selection and EXIF writes remain planned. The current review
+offers explicit Reject and Keep actions (§7.8); browsing alone changes no files.
 
 **Expanded review:** each match offers **Review side by side**, opening the
 workspace with the Inspector's reference, threshold and candidate page. Two large
@@ -1715,9 +1724,10 @@ records remain accessible without being offered as actionable missing files. The
 stored comparisons must support every offered threshold. Dimensions are captured during
 Index; unreadable dimensions display as unknown.
 
-**Separate curation workstream:** target selection, EXIF copy/edit and deletion extend
-the built comparison workspace. Current browsing never selects action
-targets or clear the gallery's explicit selection. Future action selection must be
+**Planned metadata workstream:** donor and target selection and EXIF copy/edit extend
+the built comparison workspace. Reject and Keep are implemented (§7.8). Browsing
+alone never selects action targets or clears the gallery's explicit selection.
+Future metadata target selection must be
 distinct from opening a reference or choosing a threshold; changing the offered
 match set must not leave hidden action targets armed.
 
@@ -1728,31 +1738,26 @@ may have the correct metadata while a larger original is worth keeping, so a sin
 "primary" must not control both verbs. No role is inferred from the last photo
 clicked, resolution or file size. Each designation is explicit and visibly labelled.
 A user can choose another donor or keeper after comparison; the original reference
-has no implicit protection from a later explicit deletion selection. Deletion
+has no implicit protection from a later explicit Reject selection. Reject
 previews must exclude explicit keepers; metadata previews identify the donor, chosen
 fields and target photographs separately.
 
-**Select all exists, and is always guarded.** Deleting twenty-nine of thirty by
-hand is not a workflow. But a select-all never acts directly — it raises a
-cancellable confirmation that **states the number of files and names the
-consequence**:
+**Selecting photos never rejects them directly.** Rejecting a selection opens the
+review in §2, with its count, the photos to keep or untick, and an explicit action
+to move the selected files to Rejects. Keep this one, reject the rest uses the same
+review (§7.8). The application never permanently deletes destination photos.
 
-> **Permanently delete these 400 files?** This cannot be undone. NegativeSpace
-> cannot recover deleted files. History retains their original locations, but
-> recovery is only possible if you still have the originals or another photo backup.
-
-The count carries the warning. "Are you sure?" is noise a user learns to
-dismiss; "400 photos" is what stops someone who meant to select four.
-
-**Discarding deletes.** It does not quarantine — see `engine-spec.md` §9.5 for
-the reasoning and the full record retained after deletion. Every user-requested
-destination deletion carries the warning, not only Select All. Show recorded original
-locations as historical information; a prior Copy does not prove the source survives.
-Only claim another matching copy is available after checking it. Catalog backups
-cannot recover pixels. Keep deleted entries in history, not actionable photo lists;
-show each outcome and stop on detected destination mismatches (§7.6).
+**Rejects preserves the file until the user empties it outside the app.** See
+`engine-spec.md` §9.5 for the safety rationale. Return to library is available while
+the rejected file remains. Historical paths and a prior Copy do not prove another
+copy survives; only claim one is available after checking it. Catalog backups
+cannot recover pixels. Emptied rejects retain their history, leave actionable lists,
+and remain recognizable by content. Detected destination mismatches follow §7.6.
 
 ### 7.5 Editing metadata
+
+**Planned, not implemented.** This section specifies the shared editor and its
+write behavior. Temporary comparison rotation is implemented separately below.
 
 **Leaving an editor with unsaved changes:** when in-app navigation or closing the
 editor would discard changed input, ask **“Discard your unsaved changes?”** with
@@ -1782,9 +1787,10 @@ optional timezone offset distinct, consistent with §10.
 hash matches another catalogued photo, update the exact-duplicate relationship and
 show it in the result with a link to review the matching photos. Preserve both files
 and their individual lineage; do not automatically delete, merge away a file's
-history, or trigger duplicate cleanup as part of a metadata edit. Any deletion is
-a separate explicit action with its own preview and confirmation. A catalog hash
-match does not replace live verification required before duplicate deletion.
+history, or trigger duplicate cleanup as part of a metadata edit. Rejecting an
+unwanted destination copy is a separate explicit action with its own review and
+confirmation (§7.8). A catalog hash match never authorizes source deletion without
+the engine's live verification.
 
 **This is the feature that makes the engine modify a photo file.** Everything
 else copies, verifies and deletes *sources*; nothing has ever altered content.
@@ -1855,17 +1861,19 @@ applied to hundreds of scans that all carry a scanner's wrong date.
   placeholder. Users may manually correct individual times afterward; batch history
   identifies all affected photos and their before/after values. Preserve known
   timezone information according to §10, without inventing an absent offset.
-* **Write back to the metadata source:** today edits update embedded EXIF in the
-  delivered photo, including manually entered values. Unsupported writes fail
-  clearly. Sidecar support remains a future option; see `engine-spec.md` §9.6.
+* **Write through the chosen method:** planned edits update the delivered photo
+  or its XMP sidecar according to the format's setting (`engine-spec.md` §9.6).
+  RAW defaults to XMP; other formats default to in-file edits. Unsupported writes
+  fail clearly, with no silent switch of method or catalog-only correction.
 * **Preview unsupported writes:** before confirmation, identify selected photos
-  that cannot store the requested embedded fields, with counts and per-photo reasons
+  that cannot store the requested fields through the chosen method, with counts and per-photo reasons
   (for example, **“18 photos can be updated · 2 cannot store the selected field.”**).
   Leave those unsupported photos unchanged and make the actionable subset explicit
   before the user confirms. Do not silently apply only part of the requested field
-  set to an unsupported photo. Do not create sidecars or substitute catalog-only
-  edits. This is a photo organizer; supporting arbitrary image formats is outside
-  scope. Existing read/index support does not imply embedded-write support, and this
+  set to an unsupported photo. Do not silently substitute a sidecar, an in-file
+  write or a catalog-only edit for the chosen method. This is a photo organizer;
+  supporting arbitrary image formats is outside scope. Existing read/index support
+  does not imply write support, and this
   decision does not change the current engine's extension list. Runtime write failures
   still follow the per-photo failure reporting rules in §7.1.
 
@@ -1945,14 +1953,17 @@ implemented; closing today's workspace discards its viewing transforms.
 `Orientation` tag, which viewers and galleries apply when displaying the photo.
 The pixel data is never decoded and re-saved: re-encoding a JPEG loses quality on
 every save, and a rotation that changed pixels would be a different photograph.
-It goes through the same confirmed edit as any other field: the pre-action backup,
+An in-file orientation write goes through the same confirmed edit as any other field: the pre-action backup,
 a working copy, read-back verification of the tag, the expected-rendering rule for
 pHash above, and a new content identity linked to the old one in lineage, since the
 file's bytes change. The grid thumbnail and detail preview follow the new content;
 both already honour `Orientation`. A rotated copy is no longer byte-identical to its
 former duplicates, and history shows that. Where a format's `Orientation` cannot be
-written safely, the control is unavailable with that reason. It never falls back to
-re-encoding, a sidecar, or a catalog-only rotation a gallery would not see.
+written safely through the chosen method, the control is unavailable with that
+reason. An explicitly chosen XMP write follows the sidecar contract in
+`engine-spec.md` §9.6, preserving photo bytes and recording the sidecar's changes.
+There is no silent fallback between methods, pixel re-encoding, or catalog-only
+rotation. Both write paths remain unbuilt.
 
 **A changed date refiles the photo** to the folder its new date implies,
 automatically and with no setting to disable it. Correcting the date *is* the
@@ -2148,7 +2159,7 @@ general tagging system: personal labels (people, albums) belong to gallery appli
 
 ## 8. Explicitly Out of Scope
 
-* **The engine-side capabilities these workflows depend on** — the destination check, the perceptual pair table, destination deletion, and EXIF writing — are specified in `engine-spec.md` §9, not here. This document covers what the user sees and does; that one covers what the engine must be able to do first. The destination check and renaming are implemented.
+* **The engine-side capabilities these workflows depend on** — the destination check, the perceptual pair table, Reject/Return, and metadata writing — are specified in `engine-spec.md` §9, not here. This document covers what the user sees and does; that one covers what the engine must be able to do first. The destination check, renaming and Reject/Return are implemented; metadata writing is planned.
 * **Multi-user auth/sessions** — not addressed in this spec. Add as a separate concern if the web UI needs to be exposed beyond a single trusted user on a local/private network.
 
 ## 9. Catalog Backups
@@ -2205,7 +2216,7 @@ photos. Keep separate photo backups; a catalog backup does not make deletion rev
 
 | Trigger | Behavior |
 | :--- | :--- |
-| Before a confirmed EXIF edit, rename or destination deletion | One automatic backup per user action, including a bulk selection; refiling is part of the edit, not another trigger |
+| Before a confirmed rename, Reject or Return; also before metadata edits when implemented | One automatic backup per user action, including a bulk selection; refiling is part of the edit, not another trigger |
 | After Index, Copy or Move records changes | One backup after the job ends, including failed or cancelled jobs with recorded changes |
 | Browsing, searching, comparing or thumbnail generation | No automatic backup |
 | Edit preview finds no metadata changes or required refiling | No edit execution and no automatic edit backup |

@@ -415,6 +415,7 @@ def write_selection_file(folder: Path, request_id: str, ids) -> Path:
     header = (f"{SELECTION_MAGIC}\nrequest {request_id}\ncount {len(ids)}\n"
               f"sha256 {hashlib.sha256(body).hexdigest()}\n").encode("ascii")
     fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    owned = os.fstat(fd)
     try:
         with os.fdopen(fd, "wb") as out:
             out.write(header + body)
@@ -423,15 +424,20 @@ def write_selection_file(folder: Path, request_id: str, ids) -> Path:
         if os.path.lexists(final):
             raise SelectionRefused(f"a selection for request {request_id} already exists")
         os.rename(temp, final)
+        dir_fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
     except BaseException:
-        with contextlib.suppress(FileNotFoundError):
-            os.unlink(temp)
+        # A failed publication may have reached either name. Remove only this
+        # attempt's inode, preserving an existing selection or a replaced name.
+        for path in (temp, final):
+            with contextlib.suppress(FileNotFoundError):
+                current = os.lstat(path)
+                if (current.st_dev, current.st_ino) == (owned.st_dev, owned.st_ino):
+                    os.unlink(path)
         raise
-    dir_fd = os.open(folder, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(dir_fd)
-    finally:
-        os.close(dir_fd)
     return final
 
 
