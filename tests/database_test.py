@@ -827,4 +827,40 @@ class SimilarityTests(unittest.TestCase):
         self.assertTrue(ns_similarity.refresh(self.conn))
 
 
+class ModuleBindingTests(unittest.TestCase):
+    def test_project_functions_are_read_from_their_defining_modules(self):
+        import ast
+        import importlib
+        import inspect
+        root = Path(__file__).resolve().parents[1]
+        violations = []
+        for package in ('engine', 'webui'):
+            for path in (root / package).glob('*.py'):
+                for node in ast.walk(ast.parse(path.read_text())):
+                    if not isinstance(node, ast.ImportFrom) or not node.module:
+                        continue
+                    module_name = package + '.' + node.module if node.level else node.module
+                    if not module_name.startswith(('engine.', 'webui.')):
+                        continue
+                    module = importlib.import_module(module_name)
+                    for alias in node.names:
+                        value = getattr(module, alias.name, None)
+                        if inspect.isfunction(value):
+                            violations.append(f'{path.relative_to(root)}:{node.lineno}: {alias.name}')
+        self.assertEqual(violations, [], 'Functions must be accessed as module.name')
+
+    def test_similarity_callers_observe_replaced_functions(self):
+        from unittest.mock import patch
+        from engine import ns_similarity_cache
+        from webui import equivalent_sets, gallery, reference_sets
+        class Replaced(Exception):
+            pass
+        with patch.object(ns_similarity_cache, 'match_distance', side_effect=Replaced):
+            for call in (lambda: gallery._view_clause('all', 90),
+                         lambda: equivalent_sets.representatives(90, ''),
+                         lambda: reference_sets.browse(None, 1, threshold=90)):
+                with self.subTest(call=call), self.assertRaises(Replaced):
+                    call()
+
+
 if __name__ == '__main__':unittest.main()

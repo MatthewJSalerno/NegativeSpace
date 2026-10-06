@@ -88,6 +88,18 @@ class ApiCase(unittest.TestCase):
 
 
 class FirstRunAndSettings(ApiCase):
+    def test_api_observes_replaced_config_and_request_validation(self):
+        from webui import config, jobs
+        version = {'release': 'fixture', 'branch': None, 'commit': None}
+        with patch.object(config, 'build_version', return_value=version) as replaced:
+            self.assertEqual(self.client.get('/api/v1/status').json()['version'], version)
+            replaced.assert_called_once()
+        with patch.object(jobs, 'validate_request_id', side_effect=jobs.JobRefused(
+                400, {'error': 'invalid_request', 'message': 'fixture refusal'})) as replaced:
+            response = self.client.get('/api/v1/job-requests/example')
+            self.assertEqual(response.status_code, 400)
+            replaced.assert_called_once_with('example')
+
     def test_a_missing_catalog_is_reported_and_created_only_on_request(self):
         status = self.client.get("/api/v1/status").json()
         self.assertEqual((status["state"], status["application_data"]), ("missing", str(self.cfg.base)))

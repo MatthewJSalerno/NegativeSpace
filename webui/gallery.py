@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from engine import ns_db
-from engine.ns_similarity_cache import (matched_ids, match_counts_cte, match_distance, comparison_state)
+from engine import ns_similarity_cache
 from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
 from . import catalog
 
@@ -153,25 +153,25 @@ def _filters(q, undated, dates, types=None, folders=None, root=None, *, group_se
     if set_reference is not None:
         if type(set_reference) is not int or not 1 <= set_reference <= 2**63-1:
             raise ValueError("set_reference must be a positive photo ID")
-        from .reference_sets import _membership
-        distance = match_distance(match_min)
-        filtered += " AND p.id IN (" + _membership([set_reference]) + "SELECT id FROM members)"
+        from . import reference_sets
+        distance = ns_similarity_cache.match_distance(match_min)
+        filtered += " AND p.id IN (" + reference_sets._membership([set_reference]) + "SELECT id FROM members)"
         params += (set_reference, distance, distance)
     if group_sets:
-        from .equivalent_sets import representatives
-        return " AND p.id IN (" + representatives(match_min, filtered) + ")", params
+        from . import equivalent_sets
+        return " AND p.id IN (" + equivalent_sets.representatives(match_min, filtered) + ")", params
     return filtered, params
 
 
 def _view_clause(view, match_min=75):
-    match_distance(match_min)
+    ns_similarity_cache.match_distance(match_min)
     if view == "job":
         # A job's photos wherever they are now, library or Rejects; `run` names the job.
         return f"p.status NOT IN ({ns_db.sql_values(catalog.COPIES)})"
     if view == "suspicious":
         return f"p.status IN ({ns_db.sql_values(catalog.VIEWS[view])}) AND ({_date_warning_sql()}) IS NOT NULL"
     if view == "similar":
-        return f"p.id IN ({matched_ids(match_min)})"
+        return f"p.id IN ({ns_similarity_cache.matched_ids(match_min)})"
     if view == "rejects":
         return f"p.status IN ({ns_db.sql_values(catalog.VIEWS[view])}) AND in_rejects(p.dest_path)"
     return f"p.status IN ({ns_db.sql_values(catalog.VIEWS[view])})"
@@ -225,12 +225,12 @@ def _rejected_at(conn, photo_id):
 
 
 def _counted_list(sort, match_min, *, include=False, ids=None):
-    match_distance(match_min)
+    ns_similarity_cache.match_distance(match_min)
     if sort == "matches" or include:
         # Drive similarity pages from counts. A LEFT JOIN combined with the
         # membership IN query can make SQLite rescan every count per photo.
         # Explicit selections keep the outer join, bounded to their own IDs.
-        return ("WITH " + match_counts_cte(match_min, ids) + " ",
+        return ("WITH " + ns_similarity_cache.match_counts_cte(match_min, ids) + " ",
                 _LIST_COLUMNS + ", mc.similar_count",
                 "FROM match_counts mc JOIN photos p ON p.id=mc.id" if include else
                 "FROM photos p LEFT JOIN match_counts mc ON mc.id=p.id")
@@ -282,7 +282,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             + filtered + f" ORDER BY {catalog.SORTS[sort]} LIMIT ? OFFSET ?",
             filtered_params + (page_size, (page - 1) * page_size)).fetchall()
         items = _items(conn, rows)
-        state = comparison_state(conn) if view == "similar" else None
+        state = ns_similarity_cache.comparison_state(conn) if view == "similar" else None
         rejects = catalog.rejects_summary(conn) if view == "rejects" else None
     return {"items": items, "page": page, "page_size": page_size, "total": total, "counts": counts,
             "matches": matches, "similarity": {"threshold": match_min, **state} if state is not None else None,

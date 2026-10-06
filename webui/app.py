@@ -22,8 +22,9 @@ from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, oplog, outcomes, stats
 from . import matching
-from .config import Config, build_version
-from .jobs import JobRefused, JobRunner, validate_request_id
+from . import config, jobs as job_commands
+from .config import Config
+from .jobs import JobRefused, JobRunner
 
 # The drawer refreshes about once a second (webui-spec 4.1); the engine writes its
 # progress snapshot at the same cadence.
@@ -81,7 +82,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_status():
         """First-screen state, and the container paths to name in guidance (webui-spec 3)."""
         return dict(catalog.status(cfg.db_path), application_data=str(cfg.base), catalog_backups=str(cfg.backups),
-                    version=build_version(),
+                    version=config.build_version(),
                     active_job=jobs.active())
 
     @app.post("/api/v1/catalog", status_code=201)
@@ -433,7 +434,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/api/v1/job-requests/{request_id}")
     def lookup_request(request_id: str):
-        validate_request_id(request_id)
+        job_commands.validate_request_id(request_id)
         record = outcomes.request_record(cfg.db_path, request_id)
         return {"state": "accepted", "run": outcomes.get_run(cfg.db_path, record["run_id"])} if record else {"state": "unknown", "run": None}
 

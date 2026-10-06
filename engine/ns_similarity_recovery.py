@@ -1,7 +1,8 @@
 """Destination-only missing-hash work and user-facing recovery classifications."""
 from pathlib import Path
 from engine import ns_db
-from engine.ns_similarity_cache import AVAILABLE, comparison_state
+from engine import ns_similarity_cache
+from engine.ns_similarity_cache import AVAILABLE
 
 REASONS = {
     'not_supported': ('unsupported', 'This format is not supported by the visual decoder. The file may still be a valid image; check it in an external viewer or install decoder support.', False),
@@ -60,5 +61,5 @@ def report(conn, *, page=1, page_size=30, photo_id=None):
     cursor = conn.execute(sql + ' ORDER BY a.id LIMIT ? OFFSET ?', (*params,page_size,(page-1)*page_size))
     names = [c[0] for c in cursor.description]
     items = [describe(dict(zip(names,row))) for row in cursor]
-    return {'items':items, 'total':total, 'retryable':retryable, 'generatable':generatable, 'state':comparison_state(conn),
+    return {'items':items, 'total':total, 'retryable':retryable, 'generatable':generatable, 'state':ns_similarity_cache.comparison_state(conn),
             'page':page, 'page_size':page_size}
