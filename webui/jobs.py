@@ -1,11 +1,13 @@
 """Starting, watching and cancelling engine jobs (webui-spec 5.6, 5.7)."""
 import errno
+import contextlib
 import fcntl
 import json
 import os
 import posixpath
 import re
 import signal
+import stat
 import subprocess
 import threading
 import time
@@ -98,13 +100,44 @@ class JobRunner:
         self._procs = {}                      # run_id -> Popen
         self._previews = threading.BoundedSemaphore(PREVIEW_CONCURRENCY)
         self._backing_up = False
-        # A selection file lives only until its engine has read it; one left by a server
-        # that stopped mid-start is no one's.
-        for leftover in self._selections().glob("*.ids*") if self._selections().is_dir() else ():
-            leftover.unlink(missing_ok=True)
+        if self._selections().is_dir():
+            with self._selection_lease() as lease:
+                if lease is not None:
+                    self._cleanup_selections()
 
     def _selections(self):
         return self.cfg.base / "selections"
+
+    @contextlib.contextmanager
+    def _selection_lease(self):
+        """Coordinate publication and cleanup across API processes and engine children.
+
+        Never unlink this lock file. Closing releases this process's reference;
+        LOCK_UN would also release a surviving child's inherited lock.
+        """
+        fd = os.open(self.cfg.base / 'selection-start.lock',
+                     os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+        try:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError as exc:
+                if exc.errno not in (errno.EWOULDBLOCK, errno.EAGAIN):
+                    raise
+                yield None
+            else:
+                yield fd
+        finally:
+            os.close(fd)
+
+    def _cleanup_selections(self):
+        """With the selection lease held, no participating writer or child uses these."""
+        for path in self._selections().glob('*'):
+            if not re.fullmatch(r'(?:[A-Za-z0-9_-]{1,128}\.ids|\.[A-Za-z0-9_-]{1,128}\.ids\.tmp)', path.name):
+                continue
+            with contextlib.suppress(FileNotFoundError):
+                info = path.lstat()
+                if stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid():
+                    path.unlink()
 
     # -- The lock -------------------------------------------------------------
 
@@ -275,22 +308,49 @@ class JobRunner:
         if self._probe_lock():
             raise self._busy()
         request_id = request_id or uuid.uuid4().hex
-        selection_file = None
-        if selection:
-            selection_file = ns_db.write_selection_file(self._selections(), request_id, selection)
-            flags = [*flags, "--file-ids-from", str(selection_file)]
-        try:
-            return self._spawn(flags, request_id, selection)
-        finally:
-            if selection_file is not None:
-                selection_file.unlink(missing_ok=True)
+        with contextlib.ExitStack() as ownership:
+            selection_file, lease = None, None
+            try:
+                if selection:
+                    try:
+                        lease = ownership.enter_context(self._selection_lease())
+                        if lease is None:
+                            raise self._busy()
+                        # Reclaim files abandoned since startup, before reusing a request ID.
+                        self._cleanup_selections()
+                        replay = self._replay(flags, request_id, selection)
+                        if replay is not None:
+                            return replay
+                        selection_file = ns_db.write_selection_file(self._selections(), request_id, selection)
+                    except (OSError, ns_db.SelectionRefused) as exc:
+                        raise JobRefused(503, {"error": "selection_unavailable",
+                            "message": f"The selection could not be prepared: {exc}. "
+                                       "This attempt did not start the engine. Check application-data storage "
+                                       "and any pending submission before retrying the same request."}) from exc
+                    flags = [*flags, "--file-ids-from", str(selection_file)]
+                return self._spawn(flags, request_id, selection, selection_lease=lease)
+            finally:
+                if selection_file is not None:
+                    selection_file.unlink(missing_ok=True)
 
-    def _spawn(self, flags, request_id, selection):
+    def _spawn(self, flags, request_id, selection, *, selection_lease=None):
         log = self.cfg.base / "logs" / "engine-console.log"
-        log.parent.mkdir(parents=True, exist_ok=True)
-        with open(log, "w") as out:
-            proc = subprocess.Popen(self.cfg.engine_argv("--request-id", request_id, *flags),
-                                    stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT)
+        proc = None
+        try:
+            log.parent.mkdir(parents=True, exist_ok=True)
+            with open(log, "w") as out:
+                # The engine releases the inherited lock once it has read its selection.
+                proc = subprocess.Popen(self.cfg.engine_argv("--request-id", request_id, *flags),
+                                        stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT,
+                                        pass_fds=(() if selection_lease is None else (selection_lease,)),
+                                        env=(None if selection_lease is None else
+                                             {**os.environ, "NS_SELECTION_LEASE_FD": str(selection_lease)}))
+        except OSError as exc:
+            if proc is not None:
+                raise  # A failure closing the log is not evidence the child never started.
+            raise JobRefused(500, {"error": "engine_start_failed",
+                "message": f"The engine could not be started: {exc}. "
+                           "Check application-data storage and engine permissions, then retry the same request."}) from exc
         deadline = time.monotonic() + RUN_APPEAR_SECONDS
         while True:
             run_id = catalog.run_for_request(self.cfg.db_path, request_id)

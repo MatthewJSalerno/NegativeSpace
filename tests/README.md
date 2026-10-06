@@ -49,6 +49,22 @@ content before success, reject unreadable/non-file/changed candidates, check bot
 operations' destination participation, and inject a lineage-write failure to prove
 the recovery transaction rolls back. Run this subset with `--filter verified_recovery`.
 
+The `relocation_recovery` tests cover interrupted Rename, Reject and Return. They
+refuse changed content, non-regular/unreadable files and missing intent hashes;
+replace either path after hashing to check stability; verify success and repeated
+recovery; and inject a directory-sync failure before old-link removal. They also
+ensure an uncertain Return is not subsequently recorded as emptied Rejects. Run
+this subset with `--filter relocation_recovery`. The `an_interrupted` tests also
+cover relocations that stopped before the file moved.
+
+The `relocation_failure` tests inject failures into actual Rename, Reject and Return
+calls: each post-rename directory sync, native and hard-link primitives, old-link
+removal, and ambiguous replies before/after a rename. They check that the original
+intent survives and a subsequent Index repairs the catalog without another
+relocation. Confirmed refusals, persistent recovery-sync failures, changed content
+and attention-issue resolution are covered too. Run with `--filter relocation_failure`,
+or `--filter relocation_` for both relocation subsets.
+
 ## Catalog contract suite — `database_test.py`
 
 The catalog's contracts — schema initialization, settings revisions, concurrent
@@ -75,6 +91,22 @@ docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app \
 To prove a test catches a defect in the API, copy the checkout, change the copy, and
 mount the copy as `/app`: the API is imported in-process, so `--engine` cannot reach it.
 
+## Selection ownership — `selection_ownership_test.py`
+
+Cross-process submission and cleanup against generated fixtures. A fixture pauses
+the real engine before it reads its selection; tests start another API instance,
+kill the submitting API process, and verify the surviving child still accepts
+exactly one job. They also cover an abandoned writer before spawn, same-ID retry,
+and cleanup that preserves unrelated files and directories. CI runs this suite.
+
+```bash
+docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app \
+  negativespace python3 -m unittest discover -s tests -p selection_ownership_test.py -v
+```
+
+`selection_engine_fixture.py` is only a test wrapper; it resumes the real engine
+after the test releases the pause. It is not an alternative production engine.
+
 ## Web interface in a browser — `webui_browser_test.sh`
 
 Both containers as `docker/compose.yml` arranges them (`app`, and `web` proxying `/api`
@@ -100,6 +132,7 @@ of the checkout, build that copy under another tag, and run with `IMAGE` set to 
 | `appearance_browser_drive.py` | | Palettes, contrast, storage, narrow controls |
 | `navigation_browser_drive.py` | | Links, Back/Forward, restoration |
 | `gallery_position_browser_drive.py` | | Positioning a photo from Logs, hidden photos |
+| `large_selection_browser_drive.py` | `SIMILARITY_RECOVERY_FIXTURE=1` | Show only selected and Inspector navigation across page boundaries with more than 1,000 selected photos |
 | `preview_refresh_browser_drive.py` | | Inspector refresh after jobs, thumbnail retry |
 | `transfer_outcome_browser_drive.py` | | Copy/Move with failed scans |
 | `rejects_browser_drive.py` | | Reject, Rejects view, reminder, Stats tile |

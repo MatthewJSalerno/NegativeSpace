@@ -12,9 +12,12 @@ with sync_playwright() as p:
     assert request.post('/api/v1/catalog').ok
 
     def wait(run_id):
+        # Settled, and the engine idle: it still holds its lock for the catalog backup
+        # it takes after a run settles, and a start in that moment is refused.
         for _ in range(600):
             run = request.get(f'/api/v1/runs/{run_id}').json()
-            if run['status'] not in ('Preparing', 'Running', 'Cancelling'):
+            if (run['status'] not in ('Preparing', 'Running', 'Cancelling')
+                    and request.get('/api/v1/jobs/active').json()['active'] is None):
                 return run
             time.sleep(.2)
         raise AssertionError('Job did not settle')

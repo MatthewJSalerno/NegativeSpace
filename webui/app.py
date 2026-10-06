@@ -45,7 +45,7 @@ class PhotoPositionRequest(BaseModel):
     dates: Optional[List[str]] = None
     types: Optional[List[str]] = None
     folders: Optional[List[str]] = None
-    ids: Optional[List[StrictInt]] = Field(default=None, max_length=1000)
+    ids: Optional[List[StrictInt]] = None
 
 
 def create_app(cfg: Optional[Config] = None) -> FastAPI:

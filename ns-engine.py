@@ -3008,6 +3008,17 @@ def request_id_arg(value: str) -> str:
     return value
 
 
+def _release_selection_lease():
+    """The API hands this engine its selection lock (NS_SELECTION_LEASE_FD), so a
+    restarting server cannot delete a selection the engine has not read yet. Once
+    read, the lock is let go: held until the process exits, it refused the next
+    selected job in the moments after this one had already finished."""
+    fd = os.environ.pop("NS_SELECTION_LEASE_FD", None)
+    if fd is not None:
+        with contextlib.suppress(ValueError, OSError):
+            os.close(int(fd))
+
+
 def parse_file_ids(value: str) -> List[int]:
     try:
         return [int(x.strip()) for x in value.split(',') if x.strip()]
@@ -3607,14 +3618,9 @@ def _rename_noreplace(old: str, new: str) -> str:
             raise NoReplaceUnsupported(exc.errno, f"this filesystem supports neither an atomic "
                                                   f"no-replace rename nor hard links ({exc.strerror})")
         raise
-    try:
-        os.unlink(old)
-    except OSError:
-        # The new name is ours and holds the same inode: take it back, so the file
-        # is left exactly as found.
-        with contextlib.suppress(OSError):
-            os.unlink(new)
-        raise
+    # If unlink fails, preserve both names and the durable intent. Rolling the
+    # link back is another fallible mutation and can erase recovery's evidence.
+    os.unlink(old)
     return "link"
 
 
@@ -3712,7 +3718,8 @@ def rename_delivered_file(db_path: Path, dest_root: Path, backups_dir: Path, bas
                           run_id: int, photo_id: int, name: str) -> str:
     """Gives a delivered file a new name (engine-spec 9.4). Returns the run outcome.
 
-    In order, each step stopping the rename before any file changes:
+    Planning, verification and backup precede any file changes. Once intent is
+    recorded, an uncertain filesystem error remains recoverable:
       1. Plan it against the files there now; the same name again changes nothing.
       2. Verify the file live: present, and its SHA-1 still the catalog's. A missing
          or changed file is a destination mismatch (webui-spec 7.6), recorded Failed.
@@ -3770,17 +3777,13 @@ def rename_delivered_file(db_path: Path, dest_root: Path, backups_dir: Path, bas
                                        dest_path=new, kind="rename",
                                        expected={"old_path": old, "new_path": new, "file_id": file_id,
                                                  "sha1_hash": plan["sha1"]})
+        phase = "rename"
         try:
             method = _rename_noreplace(old, new)
+            phase = "sync"
             _fsync_directory(Path(new).parent)
-        except (FileExistsError, OSError) as exc:
-            reason = ("the new name was taken a moment ago" if isinstance(exc, FileExistsError)
-                      else str(exc))
-            note = f"Not renamed: {reason}. Nothing was changed."
-            with ns_db.transaction(conn):
-                ns_db.settle_operation(conn, op, status=PhotoStatus.FAILED, step="rename",
-                                       outcome="failed", error_message=note)
-            logger.error(f"{note} ({old})")
+        except OSError as exc:
+            _record_relocation_failure(conn, op, "rename", phase, old, new, file_id, exc)
             return RunStatus.FAILED
         with ns_db.transaction(conn):
             _record_rename(conn, op, old, new, file_id, detail={"method": method})
@@ -3810,26 +3813,78 @@ def _record_relocation(conn, operation_id, old: str, new: str, file_id, *, detai
         conn.execute("UPDATE file_states SET current_path = ?, revision = revision + 1 WHERE file_id = ?",
                      (new, file_id))
         conn.execute("INSERT OR IGNORE INTO operation_files VALUES (?,?,'destination')", (operation_id, file_id))
-    ns_db.settle_operation(conn, operation_id, status=operation_status, step=step, outcome="completed",
-                           detail=dict(detail or {}, old_path=old, new_path=new))
+    return ns_db.settle_operation(conn, operation_id, status=operation_status, step=step, outcome="completed",
+                                 detail=dict(detail or {}, old_path=old, new_path=new))
 
 
 # What an interrupted move within the destination was, in recovery's messages.
 _RELOCATION_NOUNS = {"rename": "rename", "reject": "reject", "return": "return to the library"}
 
 
+def _record_relocation_failure(conn, operation_id, kind, phase, old, new, file_id, exc):
+    """Record a refusal only when no photo mutation was possible. Otherwise keep
+    the intent recoverable, with last-known catalog state and explicit uncertainty.
+    Returns whether recovery is needed. A failed attempt is not a terminal outcome.
+    """
+    uncertain = not (phase == "prepare" or
+                     (phase == "rename" and isinstance(exc, (FileExistsError, NoReplaceUnsupported))))
+    noun = _RELOCATION_NOUNS[kind]
+    if uncertain:
+        note = (f"The {noun} could not be confirmed: {exc}. The file may already be at {new}; "
+                f"the catalog still records {old}. Restore destination access, then run Index "
+                "to verify both paths and recover the recorded operation before trying this action again.")
+    else:
+        reason = "the new name was taken a moment ago" if isinstance(exc, FileExistsError) else str(exc)
+        note = f"The {noun} was refused: {reason}. No photo was moved."
+    with ns_db.transaction(conn):
+        if uncertain:
+            # unsettled_operations deliberately uses terminal events, not status.
+            # Logs can report this attempt as Failed without hiding it from recovery.
+            conn.execute("UPDATE operations SET status=?,error_message=? WHERE id=?",
+                         (PhotoStatus.FAILED, note, operation_id))
+            evidence = []
+            for role, path in (("source", old), ("destination", new)):
+                state = _recovery_observe(Path(path))
+                evidence.append(ns_db.record_evidence(conn, operation_id=operation_id,
+                    location_role=role, observed_path=path, observation_kind="stat",
+                    result="unreadable" if state == "not_file" else state,
+                    details={"state": state, "phase": phase, "error": str(exc)}))
+            ns_db.open_attention_issue(conn, operation_id=operation_id, file_id=file_id,
+                category="unestablished_outcome", summary=note, evidence_ids=evidence)
+        else:
+            ns_db.settle_operation(conn, operation_id, status=PhotoStatus.FAILED, step=kind,
+                                   outcome="failed", error_message=note)
+    logger.error(note)
+    return uncertain
+
+
 def _reconcile_interrupted_renames(conn, run_id: int):
-    """Settles a rename, reject or return to the library that a killed run left without
+    """Settles a rename, reject or return to the library that a failed or killed run left without
     an outcome, from what is on disk. All three are one no-replace rename within the
     destination (_rename_noreplace).
 
-    The intent names both paths. Only the new name present: the rename happened, so
-    the catalog catches up. Both present on one inode: link-then-unlink stopped
-    between its steps; removing the old name finishes it and loses nothing, since
-    both names are the same file. Only the old name present: nothing happened.
-    Anything else - both gone, two different files, unreadable - cannot be
-    established and needs attention; nothing is removed.
+    Success requires a stable regular file matching the intent's hash. Both names
+    on that verified inode mean link-then-unlink stopped between its steps; recheck
+    both names before removing the old link. Only the verified old name present
+    means nothing happened. Unverifiable outcomes need attention, without removal.
     """
+    def observe(path):
+        try:
+            info = os.lstat(path)
+            return info if stat.S_ISREG(info.st_mode) else "not_file"
+        except FileNotFoundError:
+            return None
+        except OSError:
+            return "unreadable"
+
+    def signature(info):
+        if not isinstance(info, os.stat_result):
+            return info
+        return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+    def state_name(info):
+        return "present" if isinstance(info, os.stat_result) else info or "absent"
+
     for operation_id, photo_id, old, new in ns_db.unsettled_operations(conn):
         intent = conn.execute("SELECT detail_json FROM operation_events WHERE operation_id = ? AND "
                               "step = 'intent'", (operation_id,)).fetchone()
@@ -3840,49 +3895,90 @@ def _reconcile_interrupted_renames(conn, run_id: int):
         expected = detail.get("expected") or {}
         file_id = expected.get("file_id")
         noun = _RELOCATION_NOUNS[kind]
-        states = {}
-        for role, path in (("old", old), ("new", new)):
-            try:
-                states[role] = os.lstat(path)
-            except FileNotFoundError:
-                states[role] = None
-            except OSError:
-                states[role] = "unreadable"
+        states = {"old": observe(old), "new": observe(new)}
+        o, n = states["old"], states["new"]
+        same_file = (isinstance(o, os.stat_result) and isinstance(n, os.stat_result)
+                     and (o.st_dev, o.st_ino) == (n.st_dev, n.st_ino))
+        candidate = ("new" if isinstance(n, os.stat_result) and (o is None or same_file) else
+                     "old" if isinstance(o, os.stat_result) and n is None else None)
+        verification, verified = None, {}
+        if candidate:
+            verification, verified = _recovery_verify(Path(new if candidate == "new" else old),
+                                                      expected.get("sha1_hash"))
+            if verification == "match" and candidate == "new":
+                # Establish the retained directory entry before dropping an old hard link.
+                _fsync_directory(Path(new).parent)
         conn.execute("BEGIN IMMEDIATE")
+        recovered_event = None
         for role, path in (("source", old), ("destination", new)):
             state = states["old" if role == "source" else "new"]
             ns_db.record_evidence(conn, operation_id=operation_id, location_role=role, observed_path=path,
                                   observation_kind="stat",
-                                  result=("unreadable" if state == "unreadable" else
-                                          "present" if state else "absent"))
-        o, n = states["old"], states["new"]
-        same_file = (o not in (None, "unreadable") and n not in (None, "unreadable")
-                     and (o.st_dev, o.st_ino) == (n.st_dev, n.st_ino))
-        if n not in (None, "unreadable") and (o is None or same_file):
+                                  result="unreadable" if state == "not_file" else state_name(state),
+                                  details={"state": state_name(state)})
+        if verification == "match":
+            for role, path in (("old", old), ("new", new)):
+                current = observe(path)
+                if signature(current) != signature(states[role]):
+                    verification = "changed"
+                    verified.setdefault("changed_paths", []).append(role)
+                    ns_db.record_evidence(conn, operation_id=operation_id,
+                        location_role="source" if role == "old" else "destination", observed_path=path,
+                        observation_kind="stat", result="unreadable" if current == "not_file" else state_name(current),
+                        details={"state": state_name(current), "after_verification": True})
+        if candidate:
+            ns_db.record_evidence(conn, operation_id=operation_id,
+                location_role="destination" if candidate == "new" else "source",
+                observed_path=new if candidate == "new" else old, observation_kind="sha1",
+                result=verification if verification in ("match", "mismatch") else "unreadable",
+                details={**verified, "verification": verification})
+        if candidate == "new" and verification == "match":
             if same_file:
                 os.unlink(old)
+            # Retry the old-directory barrier even when a prior attempt already
+            # removed the old name and failed on this very sync.
+            if same_file or Path(old).parent != Path(new).parent:
                 _fsync_directory(Path(old).parent)
-            _record_relocation(conn, operation_id, old, new, file_id,
+            recovered_event = _record_relocation(conn, operation_id, old, new, file_id,
                                detail={"recovered": True, "status_before": expected.get("status_before")},
                                step="recovery",
                                operation_status=expected.get("operation_status", OPERATION_RENAMED),
                                photo_id=photo_id if kind != "rename" else None,
                                status_after=expected.get("status_after"))
             logger.info(f"Recovered an interrupted {noun}: {old} is now {new}.")
-        elif o not in (None, "unreadable") and n is None:
-            ns_db.settle_operation(conn, operation_id, status=PhotoStatus.FAILED, step="recovery",
+        elif candidate == "old" and verification == "match":
+            recovered_event = ns_db.settle_operation(conn, operation_id, status=PhotoStatus.FAILED, step="recovery",
                                    outcome="not_started", error_message=f"The {noun} was interrupted "
                                    "before it happened; the file stays where it was. Nothing was changed.")
         else:
+            reason = {"mismatch": "the content differs from the recorded hash",
+                      "changed": "a file or path changed during verification",
+                      "unreadable": "the file could not be read",
+                      "not_file": "the path is not a regular file",
+                      "unestablished": "the intent records no expected hash"}.get(verification)
+            old_state = "not a regular file" if o == "not_file" else state_name(o)
+            new_state = "not a regular file" if n == "not_file" else state_name(n)
             note = (f"An interrupted {noun} could not be settled: the old path {old} is "
-                    f"{'unreadable' if o == 'unreadable' else 'present' if o else 'absent'} and the new "
-                    f"path {new} is {'unreadable' if n == 'unreadable' else 'present' if n else 'absent'}"
-                    f"{' (a different file)' if o and n and not same_file else ''}. Nothing was removed.")
+                    f"{old_state} and the new path {new} is {new_state}"
+                    f"{' (a different file)' if o and n and not same_file else ''}"
+                    f"{'; ' + reason if reason else ''}. Nothing was removed. "
+                    "Review both locations outside NegativeSpace before taking further action.")
             ns_db.settle_operation(conn, operation_id, status=PhotoStatus.FAILED, step="recovery",
                                    outcome="unestablished", error_message=note)
-            ns_db.open_attention_issue(conn, operation_id=operation_id, category="unestablished_outcome",
-                                       summary=note, file_id=file_id)
+            if conn.execute("SELECT 1 FROM attention_issues WHERE operation_id=? "
+                            "AND category='unestablished_outcome' AND resolved_at IS NULL",
+                            (operation_id,)).fetchone():
+                conn.execute("UPDATE attention_issues SET summary=? WHERE operation_id=? "
+                             "AND category='unestablished_outcome' AND resolved_at IS NULL", (note, operation_id))
+            else:
+                ns_db.open_attention_issue(conn, operation_id=operation_id, category="unestablished_outcome",
+                                           summary=note, file_id=file_id)
             logger.warning(note)
+        if recovered_event is not None:
+            for (issue_id,) in conn.execute("SELECT issue_id FROM attention_issues WHERE operation_id=? "
+                                           "AND category='unestablished_outcome' AND resolved_at IS NULL",
+                                           (operation_id,)).fetchall():
+                ns_db.resolve_attention_issue(conn, issue_id, event_id=recovered_event)
         conn.commit()
 
 
@@ -3995,6 +4091,7 @@ def relocate_in_destination(db_path: Path, dest_root: Path, backups_dir: Path, b
             return RunStatus.FAILED
 
         done = failed = 0
+        needs_recovery = False
         for index, (photo_id, src, old, sha1, status, metadata_json) in enumerate(act):
             if cancel_requested.is_set():
                 remaining = act[index:]
@@ -4055,18 +4152,17 @@ def relocate_in_destination(db_path: Path, dest_root: Path, backups_dir: Path, b
                     expected={"old_path": old, "new_path": new, "file_id": file_id, "sha1_hash": sha1,
                               "status_before": status, "status_after": status_after,
                               "operation_status": operation_status})
+            phase = "prepare"
             try:
                 _mkdir_durable(Path(new).parent)
+                phase = "rename"
                 method = _rename_noreplace(old, new)
+                phase = "sync"
                 _fsync_directory(Path(new).parent)
                 _fsync_directory(Path(old).parent)
-            except (FileExistsError, OSError) as exc:
-                reason = "its new place was taken a moment ago" if isinstance(exc, FileExistsError) else str(exc)
-                note = f"Not {past}: {reason}. Nothing was changed."
-                with ns_db.transaction(conn):
-                    ns_db.settle_operation(conn, operation_id, status=PhotoStatus.FAILED, step=kind,
-                                           outcome="failed", error_message=note)
-                logger.error(f"{note} ({old})")
+            except OSError as exc:
+                uncertain = _record_relocation_failure(conn, operation_id, kind, phase, old, new, file_id, exc)
+                needs_recovery = needs_recovery or uncertain
                 failed += 1
                 run_progress.add(PhotoStatus.FAILED)
                 continue
@@ -4085,7 +4181,7 @@ def relocate_in_destination(db_path: Path, dest_root: Path, backups_dir: Path, b
         logger.info(f"{verb}: {done:,} photo(s) {past}" + (f", {failed:,} failed" if failed else "") +
                     f". Rejects now holds {held:,} photo(s), {size / 1e6:,.1f} MB, in "
                     f"{ns_db.rejects_root(dest_root)}; empty it yourself when you are sure.")
-        return RunStatus.COMPLETED
+        return RunStatus.FAILED if needs_recovery else RunStatus.COMPLETED
     finally:
         conn.close()
 
@@ -4103,6 +4199,13 @@ def _notice_emptied_rejects(conn, run_id: int) -> int:
             f"SELECT id, source_path, dest_path, status FROM photos WHERE dest_path IS NOT NULL "
             f"AND status IN ({sql_values(IN_REJECTS_STATUSES)}) ORDER BY id").fetchall():
         if marker not in path or not os.path.isdir(ns_db.library_root(path[:path.rindex(marker)])):
+            continue
+        # An uncertain relocation can explain a missing old Rejects path. Its
+        # attention issue must not be overwritten by an inference that the user
+        # emptied the file; this applies on later starts as well as this one.
+        if conn.execute("SELECT 1 FROM attention_issues a JOIN operations o ON o.id=a.operation_id "
+                        "WHERE a.resolved_at IS NULL AND a.category='unestablished_outcome' "
+                        "AND o.photo_id=? AND o.source_path=? LIMIT 1", (photo_id, path)).fetchone():
             continue
         try:
             os.lstat(path)
@@ -4378,6 +4481,8 @@ def main():
             args.file_ids = ns_db.read_selection_file(args.file_ids_from, args.request_id)
         except ns_db.SelectionRefused as exc:
             parser.error(f"--file-ids-from: {exc}. Nothing was started.")
+        finally:
+            _release_selection_lease()
     if (args.reject or args.return_to_library) and not (args.file_ids or args.source_subdir):
         parser.error("--reject and --return-to-library need --file-ids, --file-ids-from or --source-subdir.")
     if args.rebuild_thumbnails and args.no_thumbnails:

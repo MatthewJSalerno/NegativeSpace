@@ -688,9 +688,48 @@ class JobsAndCatalog(ApiCase):
         selected = self.client.post("/api/v1/photos/position", json={"photo_id": ids[0], "ids": [ids[0]], "q": "no-match"})
         self.assertEqual(selected.json()["page"], 1)
         for body in ({"photo_id": True}, {"photo_id": ids[0], "page_size": 0},
-                     {"photo_id": ids[0], "ids": [True]}, {"photo_id": ids[0], "ids": [1] * 1001}):
+                     {"photo_id": ids[0], "ids": [True]}, {"photo_id": ids[0], "ids": ["1"]},
+                     {"photo_id": ids[0], "ids": [1.5]}, {"photo_id": ids[0], "ids": "1"}):
             self.assertEqual(self.client.post("/api/v1/photos/position", json=body).status_code, 422)
+        for invalid in (0, -1):
+            response = self.client.post("/api/v1/photos/position", json={"photo_id": ids[0], "ids": [invalid]})
+            self.assertEqual((response.status_code, response.json()["error"]), (400, "invalid_request"))
         self.assertEqual(self.client.post("/api/v1/photos/position", json={"photo_id": ids[0], "sort": "invalid"}).status_code, 400)
+
+    def test_photo_position_navigates_large_selections_across_pages(self):
+        self.create_catalog()
+        with sqlite3.connect(self.cfg.db_path) as conn:
+            conn.executemany("INSERT INTO photos(id,source_path,status,file_size) VALUES(?,?,'Pending',?)",
+                             [(i, str(self.cfg.source / f"photo-{i:04d}.jpg"), i)
+                              for i in range(1, 2411)])
+        chosen = list(range(1, 2411, 2))  # 1,205 selected photos, interleaved with unselected ones.
+        missing = 2**63 - 1
+        ids = list(reversed(chosen)) + [chosen[0], missing]
+        for sort, ordered in (("name", chosen), ("largest", list(reversed(chosen)))):
+            with self.subTest(sort=sort):
+                pages = []
+                for page in range(1, 22):
+                    response = self.client.post("/api/v1/photos/selection", json={
+                        "ids": ids, "sort": sort, "page": page, "page_size": 60})
+                    self.assertEqual(response.status_code, 200, response.text)
+                    self.assertEqual(response.json()["total"], len(chosen))
+                    self.assertEqual(response.json()["missing"], [missing])
+                    pages.extend(p["id"] for p in response.json()["items"])
+                self.assertEqual(pages, ordered)
+                # Both sides of page boundaries, the old cap, and the endpoints.
+                for index in (0, 59, 60, 999, 1000, 1199, 1200, 1204):
+                    response = self.client.post("/api/v1/photos/position", json={
+                        "photo_id": ordered[index], "ids": ids, "sort": sort,
+                        "page_size": 60, "view": "organized", "q": "no-match"})
+                    self.assertEqual(response.status_code, 200, response.text)
+                    self.assertEqual(response.json(), {
+                        "position": index, "page": index // 60 + 1,
+                        "previous_id": ordered[index - 1] if index else None,
+                        "next_id": ordered[index + 1] if index + 1 < len(ordered) else None})
+        for photo_id, selected in ((2, ids), (missing, ids), (chosen[0], [])):
+            response = self.client.post("/api/v1/photos/position", json={"photo_id": photo_id, "ids": selected})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json(), dict.fromkeys(("position", "page", "previous_id", "next_id")))
 
     def test_stats_accept_numeric_camera_and_lens_metadata(self):
         self.index_library()
@@ -1099,6 +1138,76 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual([(s["run_id"], s["mode"]) for s in lineage["selected_by"]], [(run["id"], "COPY")])
         # The same request again is the same job, not a second one.
         self.assertEqual(self.start(mode="copy", file_ids=chosen, request_id="chosen-photos"), run["id"])
+
+    def test_selection_start_failures_can_retry_the_same_request_once(self):
+        import errno
+        import stat
+
+        self.index_library()
+        chosen = self.client.get('/api/v1/photos/ids').json()['ids']
+        real_fsync = os.fsync
+
+        def fail_directory_sync(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError(errno.EIO, 'injected directory sync failure')
+            return real_fsync(fd)
+
+        for stage, status, code in (('publication', 503, 'selection_unavailable'),
+                                    ('log_open', 500, 'engine_start_failed'),
+                                    ('spawn', 500, 'engine_start_failed')):
+            with self.subTest(stage=stage):
+                body = {'mode': 'copy', 'file_ids': chosen, 'request_id': f'retry-{stage}'}
+                before = len(self.client.get('/api/v1/runs').json()['runs'])
+                with contextlib.ExitStack() as patches:
+                    spawn = patches.enter_context(patch('webui.jobs.subprocess.Popen',
+                        side_effect=OSError(errno.EACCES, 'injected spawn failure')))
+                    if stage == 'publication':
+                        patches.enter_context(patch('ns_db.os.fsync', side_effect=fail_directory_sync))
+                    elif stage == 'log_open':
+                        patches.enter_context(patch('webui.jobs.open', create=True,
+                            side_effect=OSError(errno.EACCES, 'injected log-open failure')))
+                    response = self.client.post('/api/v1/jobs/start', json=body)
+                    self.assertEqual((response.status_code, response.json()['error']), (status, code))
+                    self.assertIn('message', response.json())
+                    if stage != 'spawn':
+                        spawn.assert_not_called()
+                    else:
+                        spawn.assert_called_once()
+                self.assertEqual(list((self.cfg.base / 'selections').iterdir()), [])
+                self.assertEqual(len(self.client.get('/api/v1/runs').json()['runs']), before)
+                self.assertEqual(self.client.get(f'/api/v1/job-requests/{body["request_id"]}').json(),
+                                 {'state': 'unknown', 'run': None})
+                run = self.wait_for(self.start(**body))
+                self.assertEqual(run['status'], 'Completed')
+                self.assertEqual(self.start(**body), run['id'])
+                self.assertEqual(len(self.client.get('/api/v1/runs').json()['runs']), before + 1)
+                self.assertEqual(list((self.cfg.base / 'selections').iterdir()), [])
+                with sqlite3.connect(self.cfg.db_path) as conn:
+                    self.assertEqual([r[0] for r in conn.execute(
+                        'SELECT photo_id FROM run_selections WHERE run_id=? ORDER BY photo_id', (run['id'],))],
+                        sorted(chosen))
+
+    def test_selection_start_refusal_keeps_an_active_input(self):
+        self.index_library()
+        chosen = self.client.get('/api/v1/photos/ids').json()['ids']
+        path = ns_db.write_selection_file(self.cfg.base / 'selections', 'pending-selection', chosen)
+        original = path.read_bytes()
+        with self.app_jobs()._selection_lease(), patch('webui.jobs.subprocess.Popen') as spawn:
+            response = self.client.post('/api/v1/jobs/start', json={
+                'mode': 'copy', 'file_ids': chosen, 'request_id': 'pending-selection'})
+            self.assertEqual((response.status_code, response.json()['error']), (409, 'job_already_running'))
+            spawn.assert_not_called()
+        self.assertEqual(path.read_bytes(), original)
+        self.assertFalse((path.parent / '.pending-selection.ids.tmp').exists())
+
+    def test_a_selected_job_can_start_the_moment_the_last_one_finished(self):
+        """The engine holds the selection lock only until it has read its selection: held
+        to process exit, it refused the next selected start just after a job settled."""
+        self.index_library()
+        chosen = self.client.get("/api/v1/photos/ids").json()["ids"]
+        for attempt in range(3):
+            run = self.wait_for(self.start(mode="copy", file_ids=chosen))
+            self.assertEqual(run["status"], "Completed", attempt)
 
     def test_a_selection_naming_a_photo_not_catalogued_is_refused_whole(self):
         self.index_library()

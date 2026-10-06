@@ -4,6 +4,23 @@ Open work, open design questions and the durability claims ledger. Designs live 
 `docs/`; features specified but not yet built are listed in
 [project-spec.md](docs/project-spec.md) §4 ("Specified but not yet on screen").
 
+## "Couldn't confirm what happened" issues are invisible and never clear
+
+- [ ] **Found 2026-10-05; rare, but a dead end.** When recovery cannot establish what
+  happened to a photo (an interrupted or failed Move, Rename, Reject or Return whose files
+  cannot be verified; `engine-spec.md` §4.2 and §9.4), it records the evidence and opens an
+  `unestablished_outcome` attention issue. Three gaps remain:
+  - **Invisible:** the screens show only the empty-source and network-share issues; a
+    per-photo issue appears in no panel, log view or count.
+  - **Never clears once recovery gives up:** an issue resolves only when a later recovery
+    verifies the outcome; one settled as unestablished is never looked at again.
+  - **Silently blocks:** under claim 15 such a library copy never authorizes removing a
+    duplicate's original.
+
+  Planned fix: a Needs review note, "Couldn't confirm what happened to this photo", held,
+  showing its evidence, with **Check it now**: a destination check of that file whose
+  verified result clears the issue (`docs/webui-spec.md` §7.9).
+
 ## Copy, then delete the originals yourself
 
 - [ ] A Copied photo whose original was deleted outside NegativeSpace is not recorded: a
@@ -37,6 +54,14 @@ Found 2026-10-05 looking for screens that do the same job twice.
   reuses the comparison workspace, which gains the "Will be rejected" marking.
 
 ## Views
+
+- [ ] **Discuss the Actions button's placement** (raised 2026-10-05): it sits in the top
+  bar on every page, Logs and Stats included. Is it needed everywhere, or should it adapt
+  to the page, for example appearing only where photos are shown and selected?
+- [ ] **"A job is already running" just after a job finishes:** the engine keeps its lock
+  while it takes the catalog backup that follows a settled run, so a start in that moment
+  is refused with no running job shown. Say what is happening ("finishing the last job's
+  catalog backup") and offer to start when it is done, or wait briefly before refusing.
 
 - [ ] Views named by where a photo is: Library (default), To organize, Rejects, Needs
   review; Has similar photos, Suspicious dates and No capture date become filters within a

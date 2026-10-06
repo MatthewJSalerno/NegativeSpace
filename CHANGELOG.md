@@ -15,6 +15,17 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 - A user guide with screenshots ([docs/user-guide.md](docs/user-guide.md)), and screenshots
   in the README.
 
+## [0.14.1] - 2026-10-05
+
+### Fixed
+- Reject, Return to library and Rename: a disk error after a file has moved no longer
+  records "nothing was changed"; the next job verifies both locations and settles it.
+  Recovery checks a file's type and checksum before believing it moved.
+- Selections: a restarting server no longer deletes a selection an engine has not read
+  yet; a failed selection write cleans up only its own file, so the same request can be
+  retried; failures to start come back as clear errors.
+- The photo panel's position lookup no longer stops at 1,000 selected photos.
+
 ## [0.14.0] - 2026-10-04
 
 ### Changed

@@ -4263,6 +4263,41 @@ def a_cancelled_transfer_counts_what_it_did_not_reach():
           f"a cancelled transfer's progress: {p}")
 
 
+def _check_mid_scan_progress(seen):
+    # Discovery may publish an unknown total. Require a determinate partial scan,
+    # and keep diagnostics sortable when unknown and known totals coexist.
+    check(any(phase == "scanning" and total is not None and 0 < done < total
+              for phase, total, done in seen),
+          f"no snapshot was observed mid-scan; saw {sorted(seen, key=repr)}")
+
+
+@test
+def progress_assertion_accepts_mixed_totals():
+    """Unknown totals must not hide a valid intermediate scan snapshot."""
+    for done in (0, 1):
+        snapshots = [("scanning", None, done), ("scanning", 10, 3),
+                     ("scanning", 10, 10)]
+        for seen in (snapshots, list(reversed(snapshots)), set(snapshots)):
+            _check_mid_scan_progress(seen)
+
+
+@test
+def progress_assertion_requires_intermediate_scan():
+    """Unknown totals, other phases and completed scans cannot satisfy the check."""
+    for seen in ([], [("scanning", None, 1)], [("scanning", 10, 0)],
+                 [("scanning", 10, 10)], [("transferring", 10, 3)],
+                 [("scanning", None, 0), ("scanning", 10, 10)]):
+        try:
+            _check_mid_scan_progress(seen)
+        except Fail as exc:
+            check("no snapshot was observed mid-scan; saw" in str(exc),
+                  f"missing progress diagnostic: {exc}")
+            check(all(repr(row) in str(exc) for row in seen),
+                  f"diagnostic omitted snapshots: {exc}")
+        else:
+            raise Fail(f"accepted snapshots without intermediate scan progress: {seen}")
+
+
 @test
 def progress_is_written_while_a_job_runs():
     """About once a second while work happens, not only at the end: a reader polling
@@ -4290,8 +4325,7 @@ def progress_is_written_while_a_job_runs():
         time.sleep(0.1)
     log.close()
     check(proc.returncode == 0, f"the run failed: {proc.returncode}")
-    check(any(r[0] == "scanning" and 0 < r[2] < r[1] for r in seen),
-          f"no snapshot was observed mid-scan; saw {sorted(seen)}")
+    _check_mid_scan_progress(seen)
 
 
 @test
@@ -4557,7 +4591,7 @@ def an_interrupted_rename_is_settled_from_what_is_on_disk():
             engine.ns_db.begin_operation(conn, run_id=run_id, photo_id=photo, source_path=str(old),
                                          dest_path=str(new), kind="rename",
                                          expected={"old_path": str(old), "new_path": str(new),
-                                                   "file_id": file_id})
+                                                   "file_id": file_id, "sha1_hash": engine.compute_sha1(old)})
         conn.close()
         if scenario == "both_names":
             os.link(old, new)
@@ -4806,6 +4840,7 @@ def an_interrupted_reject_is_settled_from_what_is_on_disk():
             engine.ns_db.begin_operation(conn, run_id=run_id, photo_id=photo["id"], source_path=str(old),
                                          dest_path=str(new), kind="reject",
                                          expected={"old_path": str(old), "new_path": str(new), "file_id": file_id,
+                                                   "sha1_hash": engine.compute_sha1(old),
                                                    "status_before": "Completed", "status_after": "Rejected",
                                                    "operation_status": "Rejected"})
         conn.close()
@@ -4821,6 +4856,410 @@ def an_interrupted_reject_is_settled_from_what_is_on_disk():
         else:
             check(old.exists() and status == {"status": "Completed", "dest_path": str(old)},
                   f"a reject that never happened changed the photo: {status}")
+
+
+def _relocation_recovery_case(kind, label, *, both_names=False, record_hash=True):
+    engine = _load_engine()
+    case = new_case(f"relocation_{kind}_{label}")
+    make_photo(case / 'src' / 'a.jpg', 'relocation-evidence')
+    run_engine(case)
+    run_engine(case, '--move')
+    photo = rows(case, 'SELECT id, dest_path, sha1_hash, status FROM photos')[0]
+    if kind == 'return':
+        run_engine(case, '--reject', '--file-ids', photo['id'])
+        photo = rows(case, 'SELECT id, dest_path, sha1_hash, status FROM photos')[0]
+    old = Path(photo['dest_path'])
+    new = (old.with_name('Recovered.jpg') if kind == 'rename' else
+           case / 'dest' / ('library' if kind == 'return' else 'rejects') / old.relative_to(
+               case / 'dest' / ('rejects' if kind == 'return' else 'library')))
+    new.parent.mkdir(parents=True, exist_ok=True)
+    database = case / 'appdata/db/ns_sqlite.db'
+    with contextlib.closing(engine.get_db_connection(str(database))) as conn:
+        file_id = conn.execute('SELECT file_id FROM file_states WHERE current_path=?', (str(old),)).fetchone()[0]
+        run_id = conn.execute('SELECT MAX(id) FROM runs').fetchone()[0]
+        status_after = 'Rejected' if kind == 'reject' else 'Completed'
+        operation_status = {'rename': 'Renamed', 'reject': 'Rejected', 'return': 'Returned'}[kind]
+        with engine.ns_db.transaction(conn):
+            operation = engine.ns_db.begin_operation(conn, run_id=run_id, photo_id=photo['id'],
+                source_path=str(old), dest_path=str(new), kind=kind, expected={
+                    'old_path': str(old), 'new_path': str(new), 'file_id': file_id,
+                    **({'sha1_hash': photo['sha1_hash']} if record_hash else {}), 'status_before': photo['status'],
+                    'status_after': status_after, 'operation_status': operation_status})
+            conn.execute("INSERT INTO runs(id,mode,started_at,status) VALUES(1000,'INDEX','test','Preparing')")
+    if both_names:
+        os.link(old, new)
+    else:
+        old.rename(new)
+    return engine, case, photo, old, new, operation, file_id
+
+
+def _check_unestablished_relocation(case, photo, old, operation, file_id):
+    check(rows(case, 'SELECT status, dest_path, sha1_hash FROM photos WHERE id=?', (photo['id'],)) ==
+          [{'status': photo['status'], 'dest_path': str(old), 'sha1_hash': photo['sha1_hash']}],
+          'unverified relocation changed the photo identity or location')
+    check(rows(case, 'SELECT current_path FROM file_states WHERE file_id=?', (file_id,)) ==
+          [{'current_path': str(old)}], 'unverified relocation moved the file identity')
+    check(rows(case, 'SELECT status FROM operations WHERE id=?', (operation,)) == [{'status': 'Failed'}],
+          'unverified relocation was recorded as successful')
+    check(rows(case, "SELECT 1 FROM attention_issues WHERE operation_id=? AND resolved_at IS NULL", (operation,)),
+          'unverified relocation opened no attention issue')
+
+
+@test
+def relocation_recovery_refuses_unverified_files():
+    for kind in ('rename', 'reject', 'return'):
+        for problem in ('mismatch', 'directory', 'symlink', 'fifo', 'unreadable', 'missing_hash'):
+            engine, case, photo, old, new, op, file_id = _relocation_recovery_case(
+                kind, problem, record_hash=problem != 'missing_hash')
+            original = new.read_bytes()
+            if problem == 'mismatch':
+                new.write_bytes(b'changed elsewhere')
+            elif problem in ('directory', 'symlink', 'fifo'):
+                new.unlink()
+                if problem == 'directory':
+                    new.mkdir()
+                elif problem == 'fifo':
+                    os.mkfifo(new)
+                else:
+                    target = case / 'src' / 'target.jpg'
+                    target.write_bytes(original)
+                    new.symlink_to(target)
+            elif problem == 'unreadable':
+                new.chmod(0)
+            try:
+                engine.reconcile_interrupted_state(case / 'appdata/db/ns_sqlite.db', 1000)
+                _check_unestablished_relocation(case, photo, old, op, file_id)
+                check(os.path.lexists(new) and not old.exists(), 'uncertain recovery changed the files')
+                check(rows(case, "SELECT 1 FROM operation_evidence WHERE operation_id=? AND "
+                           "(result='mismatch' OR json_extract(details_json,'$.state')='not_file' OR "
+                           "json_extract(details_json,'$.verification') IN ('unreadable','unestablished'))", (op,)),
+                      f'{problem}: missing verification-failure evidence')
+                engine.reconcile_interrupted_state(case / 'appdata/db/ns_sqlite.db', 1000)
+                _check_unestablished_relocation(case, photo, old, op, file_id)
+                check(not rows(case, "SELECT 1 FROM operations WHERE status='Emptied'"),
+                      'uncertain relocation was relabelled as emptied Rejects')
+            finally:
+                if problem == 'unreadable':
+                    new.chmod(0o644)
+
+
+@test
+def relocation_recovery_requires_stable_paths_before_removing_old_name():
+    from unittest.mock import patch
+    for kind in ('rename', 'reject', 'return'):
+        for change in ('content', 'new_path', 'old_path'):
+            engine, case, photo, old, new, op, file_id = _relocation_recovery_case(kind, change, both_names=True)
+            if change == 'content':
+                new.write_bytes(b'edited hard-linked content')
+            original_verify = engine._recovery_verify
+            injected = []
+
+            def replace_after_hash(path, expected):
+                result = original_verify(path, expected)
+                if change != 'content':
+                    victim = new if change == 'new_path' else old
+                    replacement = victim.with_name('replacement')
+                    replacement.write_bytes(victim.read_bytes())  # Even identical bytes cannot prove stable identity.
+                    os.replace(replacement, victim)
+                    injected.append(True)
+                return result
+
+            with patch.object(engine, '_recovery_verify', side_effect=replace_after_hash):
+                engine.reconcile_interrupted_state(case / 'appdata/db/ns_sqlite.db', 1000)
+            check(old.exists() and new.exists(), f'{change}: recovery deleted an uncertain name')
+            _check_unestablished_relocation(case, photo, old, op, file_id)
+            if change != 'content':
+                check(injected, 'replacement injection was not reached')
+
+
+@test
+def relocation_recovery_verifies_and_records_success_once():
+    for kind in ('rename', 'reject', 'return'):
+        for both in (False, True):
+            engine, case, photo, old, new, op, file_id = _relocation_recovery_case(kind, str(both), both_names=both)
+            original = new.read_bytes()
+            database = case / 'appdata/db/ns_sqlite.db'
+            engine.reconcile_interrupted_state(database, 1000)
+            check(new.read_bytes() == original and not old.exists(), 'verified relocation did not finish')
+            check(rows(case, 'SELECT status FROM operations WHERE id=?', (op,)) ==
+                  [{'status': {'rename': 'Renamed', 'reject': 'Rejected', 'return': 'Returned'}[kind]}],
+                  'verified relocation has the wrong outcome')
+            check(rows(case, 'SELECT status, dest_path, sha1_hash FROM photos WHERE id=?', (photo['id'],)) ==
+                  [{'status': 'Rejected' if kind == 'reject' else 'Completed',
+                    'dest_path': str(new), 'sha1_hash': photo['sha1_hash']}],
+                  'verified relocation did not preserve the photo identity and update its location')
+            check(rows(case, "SELECT 1 FROM operation_evidence WHERE operation_id=? AND "
+                       "observation_kind='sha1' AND result='match'", (op,)), 'success has no hash evidence')
+            _assert_lineage_complete(case, f'{kind} recovery')
+            count = rows(case, 'SELECT COUNT(*) n FROM operation_events WHERE operation_id=?', (op,))
+            engine.reconcile_interrupted_state(database, 1000)
+            check(rows(case, 'SELECT COUNT(*) n FROM operation_events WHERE operation_id=?', (op,)) == count,
+                  'repeat recovery settled the same relocation twice')
+
+
+@test
+def relocation_recovery_keeps_old_link_until_new_entry_is_synced():
+    from unittest.mock import patch
+    for kind in ('rename', 'reject', 'return'):
+        engine, case, photo, old, new, op, file_id = _relocation_recovery_case(kind, 'sync', both_names=True)
+        database = case / 'appdata/db/ns_sqlite.db'
+        with patch.object(engine, '_fsync_directory', side_effect=OSError('injected sync failure')):
+            try:
+                engine.reconcile_interrupted_state(database, 1000)
+            except OSError as exc:
+                check('injected sync failure' in str(exc), 'unexpected sync failure')
+            else:
+                raise Fail('recovery ignored a directory sync failure')
+        check(old.exists() and new.exists(), 'recovery removed old link before retained entry was synced')
+        check(rows(case, "SELECT 1 FROM operation_events WHERE operation_id=? AND step='recovery'", (op,)) == [],
+              'failed durability check settled the relocation')
+        engine.reconcile_interrupted_state(database, 1000)
+        check(new.exists() and not old.exists(), 'retry after directory sync failure did not recover')
+
+
+def _relocation_failure_case(kind, label):
+    from types import SimpleNamespace
+    engine = _load_engine()
+    case = new_case(f'relocation_failure_{kind}_{label}')
+    make_photo(case / 'src' / 'a.jpg', 'relocation-failure')
+    run_engine(case)
+    run_engine(case, '--copy')
+    photo = rows(case, 'SELECT id, dest_path, status, sha1_hash FROM photos')[0]
+    if kind == 'return':
+        run_engine(case, '--reject', '--file-ids', photo['id'])
+        photo = rows(case, 'SELECT id, dest_path, status, sha1_hash FROM photos')[0]
+    old = Path(photo['dest_path'])
+    new = (old.with_name('Renamed.jpg') if kind == 'rename' else
+           case / 'dest' / ('library' if kind == 'return' else 'rejects') / old.relative_to(
+               case / 'dest' / ('rejects' if kind == 'return' else 'library')))
+    database = case / 'appdata/db/ns_sqlite.db'
+    with contextlib.closing(engine.get_db_connection(str(database))) as conn:
+        with engine.ns_db.transaction(conn):
+            conn.execute('INSERT INTO runs(id,mode,started_at,status) VALUES(1000,?,?,?)',
+                         (kind.upper(), engine.ns_db.utc_now(), 'Running'))
+    engine.run_progress.bind(str(database), 1000)
+
+    def invoke():
+        common = (database, case / 'dest', case / 'backups', case / 'appdata', 1000)
+        if kind == 'rename':
+            outcome = engine.rename_delivered_file(*common, photo['id'], 'Renamed')
+        else:
+            args = SimpleNamespace(source=str(case / 'src'), source_subdir=None, file_ids=None, run_id=1000)
+            outcome = engine.relocate_in_destination(*common, args, kind == 'return')
+        engine.finish_run(str(database), 1000, outcome)
+        return outcome
+
+    return engine, case, photo, old, new, invoke
+
+
+def _check_relocation_failure_is_recoverable(engine, case, photo, old):
+    with contextlib.closing(engine.get_db_connection(str(case / 'appdata/db/ns_sqlite.db'))) as conn:
+        pending = engine.ns_db.unsettled_operations(conn, photo['id'])
+    check(len(pending) == 1, 'filesystem error lost its recoverable relocation intent')
+    op = pending[0][0]
+    failed = rows(case, 'SELECT error_message FROM operations WHERE id=?', (op,))[0]['error_message']
+    check(failed and 'Nothing was changed' not in failed and 'Index' in failed,
+          f'uncertain relocation has misleading or unactionable guidance: {failed}')
+    check(rows(case, "SELECT 1 FROM attention_issues WHERE operation_id=? AND resolved_at IS NULL", (op,)),
+          'uncertain relocation has no attention issue')
+    check(rows(case, 'SELECT status,dest_path FROM photos WHERE id=?', (photo['id'],)) ==
+          [{'status': photo['status'], 'dest_path': str(old)}], 'uncertain relocation claimed a settled location')
+    return op
+
+
+@test
+def relocation_failure_after_each_directory_sync_is_recoverable():
+    from unittest.mock import patch
+    import errno
+    for kind in ('rename', 'reject', 'return'):
+        for primitive in ('native', 'link'):
+            for failed_sync in range(1, 2 if kind == 'rename' else 3):
+                engine, case, photo, old, new, invoke = _relocation_failure_case(kind, f'{primitive}_{failed_sync}')
+                original = old.read_bytes()
+                real_sync = engine._fsync_directory
+                real_rename = engine._rename_noreplace
+                syncs, methods = [], []
+
+                def rename(a, b):
+                    method = real_rename(a, b)
+                    methods.append(method)
+                    return method
+
+                def sync(path):
+                    if methods:
+                        syncs.append(Path(path))
+                        if len(syncs) == failed_sync:
+                            raise OSError(errno.EIO, 'injected directory sync failure')
+                    return real_sync(path)
+
+                with contextlib.ExitStack() as stack:
+                    if primitive == 'link':
+                        stack.enter_context(patch.object(engine.ctypes, 'CDLL', return_value=object()))
+                    stack.enter_context(patch.object(engine, '_rename_noreplace', side_effect=rename))
+                    stack.enter_context(patch.object(engine, '_fsync_directory', side_effect=sync))
+                    outcome = invoke()
+                check(len(syncs) == failed_sync and methods == ['link' if primitive == 'link' else 'renameat2'],
+                      'requested primitive/sync failure was not reached')
+                check(new.read_bytes() == original and not old.exists(), 'sync failure lost or repeated the file')
+                op = _check_relocation_failure_is_recoverable(engine, case, photo, old)
+                check(outcome == 'Failed', 'uncertain relocation reported a successful run')
+                # A real subsequent job must settle the original intent without another relocation.
+                run_engine(case)
+                expected_status = 'Rejected_Copied' if kind == 'reject' else 'Copied'
+                check(rows(case, 'SELECT dest_path,status FROM photos WHERE id=?', (photo['id'],)) ==
+                      [{'dest_path': str(new), 'status': expected_status}], 'next job did not repair relocation state')
+                check(new.read_bytes() == original and not old.exists(), 'recovery changed delivered bytes')
+                check(not rows(case, 'SELECT 1 FROM attention_issues WHERE operation_id=? AND resolved_at IS NULL', (op,)),
+                      'verified recovery left its attention issue open')
+                check(rows(case, "SELECT COUNT(*) n FROM operation_events WHERE operation_id=? AND step<>'intent'", (op,)) ==
+                      [{'n': 1}], 'recovery did not settle the original operation exactly once')
+                check(rows(case, 'SELECT current_path FROM file_states WHERE location_role=? AND sha1_hash=?',
+                           ('destination', photo['sha1_hash'])) == [{'current_path': str(new)}],
+                      'recovery left file identity at the old path')
+                _assert_lineage_complete(case, f'{kind} sync failure recovery')
+                run_engine(case)
+                check(rows(case, "SELECT COUNT(*) n FROM operation_events WHERE operation_id=? AND step<>'intent'", (op,)) ==
+                      [{'n': 1}], 'a later job repeated relocation settlement')
+
+
+@test
+def relocation_failure_during_link_unlink_keeps_both_names_for_recovery():
+    from unittest.mock import patch
+    import errno
+    for kind in ('rename', 'reject', 'return'):
+        engine, case, photo, old, new, invoke = _relocation_failure_case(kind, 'unlink')
+        original = old.read_bytes()
+        real_unlink = engine.os.unlink
+
+        def unlink(path, *args, **kwargs):
+            if Path(path) == old:
+                raise OSError(errno.EIO, 'injected old-link removal failure')
+            return real_unlink(path, *args, **kwargs)
+
+        with patch.object(engine.ctypes, 'CDLL', return_value=object()), patch.object(engine.os, 'unlink', side_effect=unlink):
+            outcome = invoke()
+        check(old.exists() and new.exists(), 'failed unlink discarded the new link instead of preserving evidence')
+        check(old.read_bytes() == new.read_bytes() == original, 'failed unlink changed photo content')
+        op = _check_relocation_failure_is_recoverable(engine, case, photo, old)
+        check(outcome == 'Failed', 'partial relocation reported a successful run')
+        run_engine(case)
+        check(not old.exists() and new.read_bytes() == original, 'next job did not finish the partial relocation')
+        check(not rows(case, 'SELECT 1 FROM attention_issues WHERE operation_id=? AND resolved_at IS NULL', (op,)),
+              'completed partial relocation still needs attention')
+
+
+@test
+def relocation_failure_with_an_ambiguous_rename_reply_is_recoverable():
+    from unittest.mock import patch
+    import errno
+    for kind in ('rename', 'reject', 'return'):
+        for moved in (False, True):
+            engine, case, photo, old, new, invoke = _relocation_failure_case(kind, f'unknown_{moved}')
+            original = old.read_bytes()
+            rename = engine._rename_noreplace
+
+            def ambiguous(a, b):
+                if moved:
+                    rename(a, b)
+                raise OSError(errno.EIO, 'injected ambiguous rename reply')
+
+            with patch.object(engine, '_rename_noreplace', side_effect=ambiguous):
+                outcome = invoke()
+            check(outcome == 'Failed', 'ambiguous reply reported success')
+            op = _check_relocation_failure_is_recoverable(engine, case, photo, old)
+            run_engine(case)
+            survivor = new if moved else old
+            check(survivor.read_bytes() == original, 'ambiguous reply lost photo bytes')
+            check(rows(case, 'SELECT dest_path FROM photos WHERE id=?', (photo['id'],)) ==
+                  [{'dest_path': str(survivor)}], 'recovery guessed the ambiguous rename result')
+            check(rows(case, "SELECT outcome FROM operation_events WHERE operation_id=? AND step='recovery'", (op,)) ==
+                  [{'outcome': 'completed' if moved else 'not_started'}], 'wrong recovery conclusion')
+            check(not rows(case, 'SELECT 1 FROM attention_issues WHERE operation_id=? AND resolved_at IS NULL', (op,)),
+                  'established outcome left an attention issue')
+
+
+@test
+def relocation_failure_recovery_requires_fresh_evidence_and_durability():
+    from unittest.mock import patch
+    import errno
+    for kind in ('rename', 'reject', 'return'):
+        for problem in ('changed', 'sync'):
+            engine, case, photo, old, new, invoke = _relocation_failure_case(kind, f'recovery_{problem}')
+            real_sync = engine._fsync_directory
+
+            def sync(path):
+                if new.exists() and not old.exists():
+                    raise OSError(errno.EIO, 'injected sync failure')
+                return real_sync(path)
+
+            with patch.object(engine, '_fsync_directory', side_effect=sync):
+                invoke()
+            op = _check_relocation_failure_is_recoverable(engine, case, photo, old)
+            if problem == 'changed':
+                new.write_bytes(b'externally changed after failed relocation')
+                run_engine(case)
+                issue = rows(case, 'SELECT summary FROM attention_issues WHERE operation_id=? AND resolved_at IS NULL', (op,))
+                check(len(issue) == 1 and 'outside NegativeSpace' in issue[0]['summary'] and 'run Index' not in issue[0]['summary'],
+                      'failed verification still offers an ineffective retry or loses attention')
+                check(rows(case, 'SELECT status,dest_path FROM photos WHERE id=?', (photo['id'],)) ==
+                      [{'status': photo['status'], 'dest_path': str(old)}], 'unverified recovery changed catalog state')
+            else:
+                called = []
+
+                def fail_old_directory(path):
+                    called.append(Path(path))
+                    if Path(path) == old.parent:
+                        raise OSError(errno.EIO, 'injected old directory sync failure')
+                    return real_sync(path)
+
+                with patch.object(engine, '_fsync_directory', side_effect=fail_old_directory):
+                    try:
+                        engine.reconcile_interrupted_state(case / 'appdata/db/ns_sqlite.db', 1000)
+                    except OSError:
+                        pass
+                    else:
+                        raise Fail('recovery skipped the old-directory durability barrier')
+                check(old.parent in called, 'old-directory fault injection was not reached')
+                _check_relocation_failure_is_recoverable(engine, case, photo, old)
+                check(not rows(case, "SELECT 1 FROM operation_events WHERE operation_id=? AND step<>'intent'", (op,)),
+                      'failed recovery durably recorded a terminal outcome')
+                run_engine(case)
+                check(not rows(case, 'SELECT 1 FROM attention_issues WHERE operation_id=? AND resolved_at IS NULL', (op,)),
+                      'successful retry did not clear attention')
+
+
+@test
+def relocation_failure_before_mutation_is_a_settled_refusal():
+    from unittest.mock import patch
+    import errno
+    for kind in ('rename', 'reject', 'return'):
+        for problem in ('collision', 'unsupported', 'prepare'):
+            if kind == 'rename' and problem == 'prepare':
+                continue  # Rename stays in its existing directory.
+            engine, case, photo, old, new, invoke = _relocation_failure_case(kind, problem)
+            original = old.read_bytes()
+            rename = engine._rename_noreplace
+
+            def refuse(a, b):
+                if problem == 'collision':
+                    Path(b).write_bytes(b'another file took the name')
+                    return rename(a, b)
+                raise engine.NoReplaceUnsupported(errno.ENOTSUP, 'injected unsupported operation')
+
+            with contextlib.ExitStack() as stack:
+                if problem == 'prepare':
+                    stack.enter_context(patch.object(engine, '_mkdir_durable', side_effect=OSError(errno.EIO, 'injected preparation failure')))
+                else:
+                    stack.enter_context(patch.object(engine, '_rename_noreplace', side_effect=refuse))
+                invoke()
+            check(old.read_bytes() == original, 'a refusal changed the original file')
+            if problem == 'collision':
+                check(new.read_bytes() == b'another file took the name', 'collision overwrote an unrelated file')
+            with contextlib.closing(engine.get_db_connection(str(case / 'appdata/db/ns_sqlite.db'))) as conn:
+                check(not engine.ns_db.unsettled_operations(conn), 'confirmed refusal unnecessarily needs recovery')
+            check(not rows(case, 'SELECT 1 FROM attention_issues WHERE resolved_at IS NULL'), 'confirmed refusal opened uncertainty')
+            check(rows(case, "SELECT COUNT(*) n FROM operations WHERE run_id=1000 AND status='Failed'") == [{'n': 1}],
+                  'confirmed refusal was not recorded')
 
 
 @test

@@ -597,39 +597,123 @@ class SelectionFileTests(unittest.TestCase):
     def test_anything_off_is_refused(self):
         path = db.write_selection_file(self.folder, 'req', [1, 2, 3])
         good = path.read_bytes()
-        head, body = good.split(b'\n', 4)[:4], good.split(b'\n', 4)[4]
-        def damaged(data):
-            target = self.folder / 'damaged.ids'
-            target.write_bytes(data)
-            return target
+
         def resign(lines):
             body = b''.join(line + b'\n' for line in lines)
             import hashlib
             return (b'NegativeSpace selection 1\nrequest req\ncount %d\nsha256 %s\n'
                     % (len(lines), hashlib.sha256(body).hexdigest().encode()) + body)
         cases = {
-            'other request': (path, 'other'),
-            'cut short': (damaged(good[:-2]), 'req'),
-            'checksum': (damaged(good.replace(b'\n3\n', b'\n4\n')), 'req'),
-            'count': (damaged(good.replace(b'count 3', b'count 4')), 'req'),
-            'not a selection': (damaged(b'1\n2\n'), 'req'),
-            'repeated id': (damaged(resign([b'1', b'1'])), 'req'),
-            'descending': (damaged(resign([b'2', b'1'])), 'req'),
-            'leading zero': (damaged(resign([b'01'])), 'req'),
-            'zero': (damaged(resign([b'0'])), 'req'),
-            'beyond 64 bits': (damaged(resign([str(2**63).encode()])), 'req'),
-            'not a number': (damaged(resign([b'1; rm -rf /'])), 'req'),
-            'empty': (damaged(resign([])), 'req'),
-            'missing': (self.folder / 'none.ids', 'req'),
-            'a folder': (self.folder, 'req'),
+            'other request': (good, 'other', 'different request'),
+            'cut short': (good[:-2], 'req', 'checksum does not match'),
+            'checksum': (good.replace(b'\n3\n', b'\n4\n'), 'req', 'checksum does not match'),
+            'count': (good.replace(b'count 3', b'count 4'), 'req', 'count does not match'),
+            'not a selection': (b'1\n2\n', 'req', 'not a NegativeSpace selection'),
+            'repeated id': (resign([b'1', b'1']), 'req', 'ascending, without repeats'),
+            'descending': (resign([b'2', b'1']), 'req', 'ascending, without repeats'),
+            'leading zero': (resign([b'01']), 'req', 'positive whole number'),
+            'zero': (resign([b'0']), 'req', 'positive whole number'),
+            'beyond 64 bits': (resign([str(2**63).encode()]), 'req', 'positive whole number'),
+            'not a number': (resign([b'1; rm -rf /']), 'req', 'positive whole number'),
+            'empty': (resign([]), 'req', 'count does not match'),
         }
+        # Store bytes above, then write a separate fixture for each assertion:
+        # writing one shared path while building the cases overwrites earlier cases.
+        for name, (data, request, reason) in cases.items():
+            with self.subTest(name):
+                target = self.folder / f'{name}.ids'
+                target.write_bytes(data)
+                with self.assertRaisesRegex(db.SelectionRefused, reason):
+                    db.read_selection_file(target, request)
+
         link = self.folder / 'link.ids'
         link.symlink_to(path)
-        cases['a link'] = (link, 'req')
-        for name, (target, request) in cases.items():
+        for name, target in (('missing', self.folder / 'none.ids'),
+                             ('a folder', self.folder), ('a link', link)):
             with self.subTest(name), self.assertRaises(db.SelectionRefused):
-                db.read_selection_file(target, request)
-        self.assertEqual(db.read_selection_file(damaged(resign([b'1', b'9'])), 'req'), [1, 9])
+                db.read_selection_file(target, 'req')
+        valid = self.folder / 'valid.ids'
+        valid.write_bytes(resign([b'1', b'9']))
+        self.assertEqual(db.read_selection_file(valid, 'req'), [1, 9])
+
+    def test_selection_publication_failures_allow_same_request_retry(self):
+        from contextlib import ExitStack, contextmanager
+        import errno
+        import stat
+        from unittest.mock import patch
+
+        real_open, real_fdopen, real_fsync = os.open, os.fdopen, os.fsync
+        for stage in ('write', 'file_fsync', 'rename', 'directory_open', 'directory_fsync'):
+            with self.subTest(stage=stage):
+                folder = self.folder / stage
+                failure = OSError(errno.EIO, f'injected {stage} failure')
+
+                @contextmanager
+                def fail_write(fd, *args):
+                    with real_fdopen(fd, *args) as handle:
+                        with patch.object(handle, 'write', side_effect=failure):
+                            yield handle
+
+                def fail_open(path, flags, *args):
+                    if flags & os.O_DIRECTORY:
+                        raise failure
+                    return real_open(path, flags, *args)
+
+                def fail_sync(fd):
+                    directory = stat.S_ISDIR(os.fstat(fd).st_mode)
+                    if directory == (stage == 'directory_fsync'):
+                        raise failure
+                    return real_fsync(fd)
+
+                with ExitStack() as patches:
+                    if stage == 'write':
+                        patches.enter_context(patch('ns_db.os.fdopen', side_effect=fail_write))
+                    elif stage == 'rename':
+                        patches.enter_context(patch('ns_db.os.rename', side_effect=failure))
+                    elif stage == 'directory_open':
+                        patches.enter_context(patch('ns_db.os.open', side_effect=fail_open))
+                    else:
+                        patches.enter_context(patch('ns_db.os.fsync', side_effect=fail_sync))
+                    with self.assertRaises(OSError) as raised:
+                        db.write_selection_file(folder, 'retry', [2, 1])
+                    self.assertIs(raised.exception, failure)
+                self.assertEqual(list(folder.iterdir()), [], 'failed publication left a selection file')
+                path = db.write_selection_file(folder, 'retry', [2, 1])
+                self.assertEqual(db.read_selection_file(path, 'retry'), [1, 2])
+
+    def test_selection_publication_cleanup_preserves_other_files(self):
+        from unittest.mock import patch
+        import errno
+        import stat
+
+        path = db.write_selection_file(self.folder, 'existing', [1])
+        original = path.read_bytes()
+        with self.assertRaises(db.SelectionRefused):
+            db.write_selection_file(self.folder, 'existing', [2])
+        self.assertEqual(path.read_bytes(), original)
+        self.assertEqual(list(self.folder.iterdir()), [path])
+
+        temporary = self.folder / '.busy.ids.tmp'
+        temporary.write_bytes(b'another writer owns this file')
+        with self.assertRaises(FileExistsError):
+            db.write_selection_file(self.folder, 'busy', [2])
+        self.assertEqual(temporary.read_bytes(), b'another writer owns this file')
+
+        replacement = db.write_selection_file(self.folder, 'replacement', [3])
+        replacement_bytes = replacement.read_bytes()
+        final = self.folder / 'changing.ids'
+        real_fsync = os.fsync
+
+        def replace_then_fail(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                os.replace(replacement, final)
+                raise OSError(errno.EIO, 'injected failure after replacement')
+            return real_fsync(fd)
+
+        with patch('ns_db.os.fsync', side_effect=replace_then_fail), self.assertRaises(OSError):
+            db.write_selection_file(self.folder, 'changing', [2])
+        self.assertEqual(final.read_bytes(), replacement_bytes, 'cleanup erased another file')
+        self.assertFalse((self.folder / '.changing.ids.tmp').exists())
 
     def test_a_selection_is_recorded_with_its_run_whatever_its_size(self):
         """Beyond SQLite's limit on bound values in one statement (250,000 here), which a
