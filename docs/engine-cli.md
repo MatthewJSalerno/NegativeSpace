@@ -2,9 +2,10 @@
 
 Most people use NegativeSpace through its web interface, which runs this same engine for
 them (see the [README](../README.md)). This page is for development, debugging and
-scripting: the engine's modes and options as a command (`ns-engine.py`). Its full
-behaviour is in [engine-spec.md](engine-spec.md), and every flag is listed by
-`python3 ns-engine.py --help` and the module docstring at the top of `ns-engine.py`.
+scripting: the engine's modes and options as a command (`python3 -m engine`, run from the
+folder holding `engine/`, which is `/app` in the image). Its full behaviour is in
+[engine-spec.md](engine-spec.md), and every flag is listed by `python3 -m engine --help`
+and the package docstring in `engine/__init__.py`.
 
 The commands use the `app` image, built from the repository root:
 
@@ -38,7 +39,7 @@ docker run --rm --stop-timeout 300 \
   -v /path/to/appdata:/appdata \
   -v /path/to/backups:/backups \
   -v /path/to/cache:/cache \
-  negativespace python3 ns-engine.py
+  negativespace python3 -m engine
 ```
 
 Mounting `/cache` is optional — left unmounted, thumbnails live in the container's writable layer and are regenerated after the container is replaced. Two flags control this:
@@ -61,7 +62,7 @@ docker run --rm --stop-timeout 300 \
   -v /path/to/organized:/data/dest \
   -v /path/to/appdata:/appdata \
   -v /path/to/backups:/backups \
-  negativespace python3 ns-engine.py --move
+  negativespace python3 -m engine --move
 ```
 
 ## Copy (non-destructive)
@@ -75,7 +76,7 @@ docker run --rm --stop-timeout 300 \
   -v /path/to/organized:/data/dest \
   -v /path/to/appdata:/appdata \
   -v /path/to/backups:/backups \
-  negativespace python3 ns-engine.py --copy
+  negativespace python3 -m engine --copy
 ```
 
 > **Note:** `--move` against a read-only-mounted source will not corrupt anything: the copy succeeds and only the source deletion fails, so each photo is recorded `Copied`, its operation giving the reason the original was kept, and nothing is ever lost. Re-running is safe and does **not** accumulate duplicate copies: the engine recognizes that an identical copy already exists at the destination and skips rewriting it. Once the source is writable, `--move` finishes the job by deleting the originals. Use `--copy` for read-only sources instead — it is the same verified copy without the futile delete step.

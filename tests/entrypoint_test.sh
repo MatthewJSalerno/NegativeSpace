@@ -35,7 +35,7 @@ touch "$WORK/dest/2020/01/01/existing.jpg" "$WORK/appdata/db/ns_sqlite.db"
 
 docker run --rm -e PUID=$MAPPED -e PGID=$MAPPED \
     -v "$WORK/dest":/data/dest -v "$WORK/appdata":/appdata \
-    "$IMAGE" python3 ns-engine.py --help >/dev/null
+    "$IMAGE" python3 -m engine --help >/dev/null
 
 expect_owner "$WORK/dest" "$MAPPED" "the destination root is handed to the mapped user"
 expect_owner "$WORK/dest/2020" "$ME" "folders already in the destination keep their owner"

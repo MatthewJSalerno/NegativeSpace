@@ -21,8 +21,8 @@ import imagehash
 from PIL import Image, ImageDraw, ImageEnhance
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import ns_db
-import ns_similarity
+from engine import ns_db
+from engine import ns_similarity
 from webui import matching
 
 

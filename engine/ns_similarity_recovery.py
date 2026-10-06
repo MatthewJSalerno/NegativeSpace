@@ -1,7 +1,7 @@
 """Destination-only missing-hash work and user-facing recovery classifications."""
 from pathlib import Path
-import ns_db
-from ns_similarity_cache import AVAILABLE, comparison_state
+from engine import ns_db
+from engine.ns_similarity_cache import AVAILABLE, comparison_state
 
 REASONS = {
     'not_supported': ('unsupported', 'This format is not supported by the visual decoder. The file may still be a valid image; check it in an external viewer or install decoder support.', False),

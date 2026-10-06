@@ -13,7 +13,7 @@ import time
 
 from fastapi.testclient import TestClient
 
-import ns_db
+from engine import ns_db
 from webui.app import create_app
 from webui.jobs import JobRunner
 from webui_api_test import ApiCase, make_photo
@@ -117,7 +117,7 @@ print(JobRunner(cfg).start(**json.loads(sys.argv[3])), flush=True)
         script = '''
 import json, sys, time
 from pathlib import Path
-import ns_db
+from engine import ns_db
 from webui.config import Config
 from webui.jobs import JobRunner
 base = Path(sys.argv[1])

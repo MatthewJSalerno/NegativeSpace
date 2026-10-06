@@ -14,9 +14,9 @@ import time
 import uuid
 from typing import Optional
 
-import ns_db
+from engine import ns_db
 from . import catalog
-from .config import Config
+from .config import ENGINE_CWD, Config
 
 MODES = {"index": None, "copy": "--copy", "move": "--move",
          "reject": "--reject", "return": "--return-to-library"}
@@ -340,7 +340,7 @@ class JobRunner:
             log.parent.mkdir(parents=True, exist_ok=True)
             with open(log, "w") as out:
                 # The engine releases the inherited lock once it has read its selection.
-                proc = subprocess.Popen(self.cfg.engine_argv("--request-id", request_id, *flags),
+                proc = subprocess.Popen(self.cfg.engine_argv("--request-id", request_id, *flags), cwd=ENGINE_CWD,
                                         stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT,
                                         pass_fds=(() if selection_lease is None else (selection_lease,)),
                                         env=(None if selection_lease is None else
@@ -437,7 +437,7 @@ class JobRunner:
             before = catalog.newest_backup_attempt(self.cfg.db_path)
             self._backing_up = True
             try:
-                proc = subprocess.run(self.cfg.engine_argv("--backup-now"), stdin=subprocess.DEVNULL,
+                proc = subprocess.run(self.cfg.engine_argv("--backup-now"), cwd=ENGINE_CWD, stdin=subprocess.DEVNULL,
                                       capture_output=True, text=True, timeout=BACKUP_TIMEOUT_SECONDS)
             except subprocess.TimeoutExpired:
                 raise JobRefused(500, {"error": "backup_timeout",
@@ -461,7 +461,7 @@ class JobRunner:
         """The engine's --preview answer (engine-spec 4.1): it takes no lock, so a
         photo can be opened while a job runs."""
         with self._previews:
-            proc = subprocess.run(self.cfg.engine_argv("--preview", photo_id), stdin=subprocess.DEVNULL,
+            proc = subprocess.run(self.cfg.engine_argv("--preview", photo_id), cwd=ENGINE_CWD, stdin=subprocess.DEVNULL,
                                   capture_output=True, text=True, timeout=120)
         lines = [line for line in proc.stdout.splitlines() if line.strip()]
         try:
@@ -481,7 +481,7 @@ def _last_error(log_path) -> Optional[str]:
     for line in reversed(lines):
         if "FATAL" in line or "error:" in line:
             # Only the reason, for a person: not the log's time, level and process, the
-            # word FATAL, or argparse's "ns-engine.py: error:".
+            # word FATAL, or argparse's "engine: error:".
             reason = line.split("] ", 1)[-1]
             reason = re.sub(r"^\(pid:[^)]*\)\s*", "", reason)
             return re.sub(r"^(FATAL:|\S+: error:)\s*", "", reason).strip()

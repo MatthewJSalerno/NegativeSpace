@@ -1,6 +1,6 @@
 """The web API against a real engine and a real catalog (webui-spec 5-6).
 
-Jobs run the actual ns-engine.py as a child process, as they do in production, so
+Jobs run the actual engine (python -m engine) as a child process, as they do in production, so
 these tests cover the request-to-run handshake, the lock, cancellation and the
 derived outcome together rather than each against a stub.
 
@@ -25,9 +25,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fastapi.testclient import TestClient  # noqa: E402
 from PIL import Image  # noqa: E402
 
-import ns_db  # noqa: E402
+from engine import ns_db  # noqa: E402
 from webui.app import create_app  # noqa: E402
-from webui.config import Config  # noqa: E402
+from webui.config import ENGINE_CWD, Config  # noqa: E402
 
 
 def make_photo(path: Path, seed: str, size=(64, 48), mtime=None, exif=None):
@@ -288,10 +288,10 @@ class SafetyQuestions(ApiCase):
     def network_case(self, scope):
         # Real engine and filesystem actions; inject only network-type detection.
         wrapper = self.root / "network_engine.py"
-        wrapper.write_text("import importlib,sys\n"
-            f"sys.path.insert(0, {str(self.cfg.engine.parent)!r})\n"
-            "m=importlib.import_module('ns-engine')\n"
-            "m.filesystem_type=lambda path: 'nfs'\nif __name__ == '__main__': m.main()\n")
+        wrapper.write_text("import sys\n"
+            f"sys.path.insert(0, {str(ENGINE_CWD)!r})\n"
+            "from engine import cli, transfer\n"
+            "transfer.filesystem_type=lambda path: 'nfs'\nif __name__ == '__main__': cli.main()\n")
         from dataclasses import replace
         self.client.close()
         self.cfg = replace(self.cfg, engine=wrapper)
@@ -1198,7 +1198,7 @@ class JobsAndCatalog(ApiCase):
                     spawn = patches.enter_context(patch('webui.jobs.subprocess.Popen',
                         side_effect=OSError(errno.EACCES, 'injected spawn failure')))
                     if stage == 'publication':
-                        patches.enter_context(patch('ns_db.os.fsync', side_effect=fail_directory_sync))
+                        patches.enter_context(patch('engine.ns_db.os.fsync', side_effect=fail_directory_sync))
                     elif stage == 'log_open':
                         patches.enter_context(patch('webui.jobs.open', create=True,
                             side_effect=OSError(errno.EACCES, 'injected log-open failure')))
@@ -1609,11 +1609,11 @@ class MatchingTests(ApiCase):
         return photo
 
     def refresh(self):
-        import ns_similarity
+        from engine import ns_similarity
         self.assertTrue(ns_similarity.refresh(self.conn))
 
     def test_cached_counts_equal_live_reads_and_invalidate_transactionally(self):
-        import ns_similarity_cache as cache
+        from engine import ns_similarity_cache as cache
         a = self.photo('reference', 'a', '0000000000000000')
         self.photo('byte-copy', 'a', '0000000000000000')
         for d in (0, 3, 4, 6, 7, 9, 10, 12, 13, 16, 17):
@@ -1750,7 +1750,7 @@ class MatchingTests(ApiCase):
         failed = self.photo('unavailable', 'failed', None)
         self.refresh()
         if warm:
-            import ns_similarity_cache
+            from engine import ns_similarity_cache
             self.assertTrue(ns_similarity_cache.refresh(self.conn))
         query = '/api/v1/photos?view=similar&sort=matches&match_min=90'
         result = self.client.get(query).json()

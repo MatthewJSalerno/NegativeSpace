@@ -48,7 +48,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ns_db import RASTER_EXTENSIONS, RAW_EXTENSIONS, SUPPORTED_EXTENSIONS  # noqa: E402
+from engine.ns_db import RASTER_EXTENSIONS, RAW_EXTENSIONS, SUPPORTED_EXTENSIONS  # noqa: E402
 
 from PIL import Image, ImageDraw, ImageFile  # noqa: E402
 

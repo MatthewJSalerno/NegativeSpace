@@ -13,7 +13,7 @@ import threading
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import ns_db as db
+from engine import ns_db as db
 
 
 class DatabaseTests(unittest.TestCase):
@@ -667,13 +667,13 @@ class SelectionFileTests(unittest.TestCase):
 
                 with ExitStack() as patches:
                     if stage == 'write':
-                        patches.enter_context(patch('ns_db.os.fdopen', side_effect=fail_write))
+                        patches.enter_context(patch('engine.ns_db.os.fdopen', side_effect=fail_write))
                     elif stage == 'rename':
-                        patches.enter_context(patch('ns_db.os.rename', side_effect=failure))
+                        patches.enter_context(patch('engine.ns_db.os.rename', side_effect=failure))
                     elif stage == 'directory_open':
-                        patches.enter_context(patch('ns_db.os.open', side_effect=fail_open))
+                        patches.enter_context(patch('engine.ns_db.os.open', side_effect=fail_open))
                     else:
-                        patches.enter_context(patch('ns_db.os.fsync', side_effect=fail_sync))
+                        patches.enter_context(patch('engine.ns_db.os.fsync', side_effect=fail_sync))
                     with self.assertRaises(OSError) as raised:
                         db.write_selection_file(folder, 'retry', [2, 1])
                     self.assertIs(raised.exception, failure)
@@ -710,7 +710,7 @@ class SelectionFileTests(unittest.TestCase):
                 raise OSError(errno.EIO, 'injected failure after replacement')
             return real_fsync(fd)
 
-        with patch('ns_db.os.fsync', side_effect=replace_then_fail), self.assertRaises(OSError):
+        with patch('engine.ns_db.os.fsync', side_effect=replace_then_fail), self.assertRaises(OSError):
             db.write_selection_file(self.folder, 'changing', [2])
         self.assertEqual(final.read_bytes(), replacement_bytes, 'cleanup erased another file')
         self.assertFalse((self.folder / '.changing.ids.tmp').exists())
@@ -762,7 +762,7 @@ class SimilarityTests(unittest.TestCase):
 
     def test_hash_index_matches_brute_force_at_every_supported_distance(self):
         import random
-        from ns_similarity import HashIndex
+        from engine.ns_similarity import HashIndex
         rng = random.Random(73)
         values = {rng.getrandbits(64) for _ in range(150)}
         for base in list(values)[:20]:
@@ -777,7 +777,7 @@ class SimilarityTests(unittest.TestCase):
             self.assertEqual(set(index.near(value)), expected)
 
     def test_hash_index_grows_and_checks_across_chunk_boundaries(self):
-        from ns_similarity import HashIndex
+        from engine.ns_similarity import HashIndex
         index = HashIndex()
         for value in range(65540):
             index.add(value)
@@ -791,7 +791,7 @@ class SimilarityTests(unittest.TestCase):
         self.assertEqual(list(wide.near(0)), [(0x000f000f000f000f, 16)])
 
     def test_comparisons_resume_atomically_and_equal_hashes_need_no_pairs(self):
-        import ns_similarity
+        from engine import ns_similarity
         with db.transaction(self.conn):
             for i in range(300):
                 db.content_for_digest(self.conn, digest=str(i), phash=f'{i:016x}', phash_state='ok')
@@ -812,7 +812,7 @@ class SimilarityTests(unittest.TestCase):
         self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM content_similarity').fetchone()[0], len(expected))
 
     def test_cancel_during_a_hash_rolls_back_its_pairs_and_completion_marker(self):
-        import ns_similarity
+        from engine import ns_similarity
         with db.transaction(self.conn):
             for i in range(12):
                 db.content_for_digest(self.conn, digest=str(i), phash=f'{i:016x}', phash_state='ok')

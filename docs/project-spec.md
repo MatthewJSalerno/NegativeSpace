@@ -3,7 +3,7 @@
 This is the entry point. It states what the project is for, where its boundaries
 are, and what exists today. The detail lives in two component specifications:
 
-*   **[engine-spec.md](./engine-spec.md)** — `ns-engine.py`: reading source
+*   **[engine-spec.md](./engine-spec.md)** — the engine (`engine/`): reading source
     files, hashing, metadata, placement, the Copy-Verify-Delete protocol, and the
     SQLite catalog it owns.
 *   **[webui-spec.md](./webui-spec.md)** — the browser-facing half: job

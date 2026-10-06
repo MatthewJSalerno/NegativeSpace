@@ -4,7 +4,7 @@ Only explicitly selected one-hop references are expanded. No transitive traversa
 clustering, cached group membership or photo writes.
 """
 from . import catalog
-from ns_similarity_cache import AVAILABLE, VALID, match_distance, comparison_state
+from engine.ns_similarity_cache import AVAILABLE, VALID, match_distance, comparison_state
 
 MAX_RELATED = 6
 

@@ -164,9 +164,9 @@ class MakeScenarios(unittest.TestCase):
         work = self.root / "engine"
         for name in ("dest", "appdata", "cache", "backups"):
             (work / name).mkdir(parents=True)
-        subprocess.run([sys.executable, str(REPO / "ns-engine.py"), "--source", str(self.out / "library"),
+        subprocess.run([sys.executable, "-m", "engine", "--source", str(self.out / "library"),
                         "--dest", str(work / "dest"), "--base", str(work / "appdata"), "--cache", str(work / "cache"),
-                        "--backups", str(work / "backups")], capture_output=True, text=True, timeout=600)
+                        "--backups", str(work / "backups")], capture_output=True, text=True, timeout=600, cwd=REPO)
         db = sqlite3.connect(work / "appdata" / "db" / "ns_sqlite.db")
         status = dict(db.execute("SELECT status, COUNT(*) FROM photos GROUP BY status").fetchall())
         files = self.manifest()["files"]

@@ -340,7 +340,7 @@ its origin's: it was verified byte for byte when made. An unknown photo is `404 
 ### `GET /api/v1/photos/{id}/thumbnail`
 
 `size=grid` (default) serves the 320px grid thumbnail from the cache. `size=preview`
-serves the 1024px detail preview: the API runs `ns-engine.py --preview <id>`, which makes
+serves the 1024px detail preview: the API runs `python -m engine --preview <id>`, which makes
 it on first request and takes no engine lock, and serves the file it names. At most two
 previews are made at once.
 

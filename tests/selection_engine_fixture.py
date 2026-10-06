@@ -14,5 +14,5 @@ if __name__ == '__main__':
         if time.monotonic() > deadline:
             raise SystemExit('Selection fixture was not released')
         time.sleep(.02)
-    engine = Path(__file__).resolve().parents[1] / 'ns-engine.py'
-    os.execv(sys.executable, [sys.executable, str(engine), *sys.argv[1:]])
+    os.chdir(Path(__file__).resolve().parents[1])
+    os.execv(sys.executable, [sys.executable, '-m', 'engine', *sys.argv[1:]])

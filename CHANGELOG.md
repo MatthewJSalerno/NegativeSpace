@@ -9,6 +9,15 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-10-06
+
+### Changed
+- The engine is a package, `engine/`, run as `python3 -m engine` (was `ns-engine.py`), and
+  its single 6,000-line file is split by area: scanning, Copy and Move, Rename/Reject/Return,
+  reconciliation, the copy-verify-delete steps, catalog writes, file reading, thumbnails,
+  maintenance jobs, backups and the command line. `ns_db.py` and the `ns_similarity`
+  modules moved into it. No behaviour changed.
+
 ## [0.15.0] - 2026-10-06
 
 ### Changed

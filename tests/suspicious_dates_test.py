@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from webui_api_test import ApiCase
-import ns_db
+from engine import ns_db
 
 class SuspiciousDates(ApiCase):
     def test_policy_and_browse_paths_preserve_metadata(self):

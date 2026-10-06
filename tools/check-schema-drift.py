@@ -33,7 +33,7 @@ spec_tables = {r[0] for r in con.execute(
 spec_cols = {t: {r[1] for r in con.execute(f"PRAGMA table_info({t})")} for t in spec_tables}
 
 sys.path.insert(0, ".")
-import ns_db  # noqa: E402
+from engine import ns_db  # noqa: E402
 
 with tempfile.TemporaryDirectory() as tmp:
     db = pathlib.Path(tmp) / "drift.db"

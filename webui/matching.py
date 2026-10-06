@@ -3,10 +3,10 @@ import math
 import time
 from pathlib import Path
 
-import ns_db
-import ns_similarity
+from engine import ns_db
+from engine import ns_similarity
 from . import catalog
-from ns_similarity_cache import AVAILABLE, VALID
+from engine.ns_similarity_cache import AVAILABLE, VALID
 
 THRESHOLDS = (75, 80, 85, 90, 95, 100)
 
