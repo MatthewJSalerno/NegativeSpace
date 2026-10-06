@@ -9,7 +9,6 @@ import csv
 import io
 import json
 import sqlite3
-from pathlib import Path
 from typing import List, Optional
 
 from fastapi import Body, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect

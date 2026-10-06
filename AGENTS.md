@@ -29,6 +29,17 @@ not an optional example. Read the relevant behavior in
   alongside the implementation so future work follows the same decision. Keep the
   detailed rules in that document rather than copying them into agent-specific files.
 
+## Code layout
+
+The engine is the `engine/` package (run as `python -m engine`); the API is `webui/`; the
+screens are `webui/frontend/src` (`App.tsx` is the page shell, each page in `components/`).
+In both Python packages, a module calls another module's functions, and reads anything
+rebound at runtime, as `module.name`, never through `from module import name`: one binding
+per name, so a test that replaces a function replaces it for every caller. Constants and
+classes (`PhotoStatus`, `Config`) may be imported by name. `engine/__init__.py` lists the engine's modules by area.
+Browser tests are in `tests/browser/`, the other suites in `tests/`, tools and the sample
+library builders in `tools/`.
+
 ## Repository context and privacy
 
 Component specifications start at [docs/project-spec.md](docs/project-spec.md).

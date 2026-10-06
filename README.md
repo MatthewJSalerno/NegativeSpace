@@ -150,10 +150,12 @@ A built-in password is planned before the first release.
 
 ## Usage
 
-1. **Index** reads your photos into the catalog. It moves and copies nothing.
+1. **Jobs › Index** reads your photos into the catalog. It moves and copies nothing.
 2. **Copy** (never touches the source) or **Move** (removes each source after its copy is
-   verified) everything not yet organized, a folder, or the photos you select. Both show
-   what they will do and ask first.
+   verified): everything not yet organized or one folder from **Jobs**, or the photos you
+   tick, from the bar at the top, which offers only what applies to them. Both show what
+   they will do and ask first. When a job finishes you stay where you were, and **Show
+   these photos** in its banner shows what it did.
 3. **Has similar photos** shows look-alikes; open a photo to compare its matches side by
    side, keep one and reject the rest. Percentages measure visual similarity: below 90%,
    matches are more likely to be unrelated.
