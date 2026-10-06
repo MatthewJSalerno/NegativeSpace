@@ -27,9 +27,12 @@ Found 2026-10-05 looking for screens that do the same job twice.
   (`Confirm.tsx`) and the comparison's own (`RejectConfirm.tsx`) become a single dialog,
   with "Don't ask again while comparing" and the last-photo warning appearing only where
   they apply. Every later reject question uses it.
-- [ ] **Explore reference sets** is its own window and grid showing much the same groups
-  as the Similar photos tab, the Has similar photos view and Show this set in gallery.
-  Decide whether it can be a section or filter within the Similar photos tab.
+- [ ] **Remove Explore reference sets** (decided 2026-10-05), leaving no trace: the window
+  (`ReferenceSets.tsx`), the Explore related sets button on set cards, its API route
+  (`/similar/{id}/sets`), its tests and its spec and API-spec text. The comparison covers it:
+  ‹ › steps through a photo's look-alikes and **Use as reference** walks into a neighbouring
+  set. Only the combined view of several overlapping sets goes; if it is ever missed, it
+  returns as a section of the Similar photos tab, not a window.
 - [ ] **Needs review mockup** (on hold): boards in the design canvas; its two-photo note
   reuses the comparison workspace, which gains the "Will be rejected" marking.
 
