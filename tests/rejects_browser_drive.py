@@ -148,6 +148,8 @@ with sync_playwright() as p:
     run = request.get("/api/v1/runs").json()["runs"][0]
     assert run["mode"] == "REJECT", run
     page.goto(f"{BASE}/logs?run={run['id']}")
+    show = page.get_by_role("link", name="Show these photos in the library")
+    expect(show).to_have_attribute("href", f"/?run={run['id']}")
     page.locator("a[href*='photo=']").first.click()
     back = page.locator(".inspector-actions").get_by_role("button", name="Return to library…", exact=True)
     expect(back).to_be_visible()

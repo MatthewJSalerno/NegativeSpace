@@ -4,7 +4,7 @@ import { StatsLink } from "./StatsPage";
 import { VersionTag } from "./VersionTag";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
-import { reasonsText, modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
+import { reasonsText, modeName, showsPhotos, summary, useDismissedRun, useJobFeed } from "../jobs";
 import { follow, photoUrl, useHeaderHeight, useNavigation } from "../nav";
 import { usePaged } from "../paged";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
@@ -402,8 +402,9 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
 
   return (
     <div className="job-body">
-      {(canRetry || note) && (
+      {(canRetry || note || showsPhotos(run)) && (
         <div className="retry">
+          {showsPhotos(run) && <a className="button-link" href={`/?run=${run.id}`} onClick={follow}>Show these photos in the library</a>}
           {canRetry && (
             <button onClick={onRetry} disabled={jobRunning} title={jobRunning ? "A job is running." : undefined}>
               {retryLabel}

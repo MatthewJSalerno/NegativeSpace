@@ -141,7 +141,8 @@ Users can select individual files or multiple files across grid views to run tar
 * **After a job, stay where you were** (decided 2026-10-06). Starting a job clears the
   selection and leaves the gallery where it was. The finished banner of a job that acted
   on photos (Copy, Move, Reject, Return to library, Rename) offers **Show these photos**,
-  on every page: the gallery then shows the photos that job recorded, wherever they are
+  on every page, and so does each such job in Logs (**Show these photos in the library**,
+  beside Retry): the gallery then shows the photos that job recorded, wherever they are
   now, library or Rejects (`view=job&run=<id>`, in the address). Its line reads "The 400
   photos in Copy #3 · 398 of 400 files copied · 2 skipped · Back to results" ("their status
   updates when the job ends" while it runs), and each photo's badge shows where it stands.

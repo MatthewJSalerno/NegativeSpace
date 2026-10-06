@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, type JobState, type Run } from "../api";
 import { duration, instant } from "../format";
-import { activeTitle, countsLine, currentPhase, reasonsText, phaseLabel, summary, type Connection } from "../jobs";
+import { activeTitle, countsLine, currentPhase, reasonsText, phaseLabel, showsPhotos, summary, type Connection } from "../jobs";
 import { Tip } from "./Tip";
 import { follow, logUrl } from "../nav";
 import { SafetyQuestions } from "./SafetyQuestions";
@@ -88,9 +88,6 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
 }
 
 // A finished job's result, at the top of the page under the toolbar, until dismissed.
-// Jobs that act on photos, whose photos the gallery can show (webui-spec 2, after a job).
-const PHOTO_JOBS = ["COPY", "MOVE", "REJECT", "RETURN", "RENAME"];
-
 export function FinishedBanner({ jobs, dismissedId, onDismiss, onShowPhotos }: {
   jobs: JobState;
   dismissedId: number | null;
@@ -117,7 +114,7 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss, onShowPhotos }: {
         </span>
       </div>
       <span className="banner-links">
-        {run.id != null && PHOTO_JOBS.includes(run.mode ?? "") && (run.outcome.total ?? 0) > 0 && (onShowPhotos
+        {run.id != null && showsPhotos(run as Run) && (onShowPhotos
           ? <button className="link" onClick={() => onShowPhotos(run.id!)}>Show these photos</button>
           : <a href={`/?run=${run.id}`} onClick={follow}>Show these photos</a>)}
         {(run.outcome.failed > 0 || run.outcome.run_level_issues > 0) && run.id != null && (
