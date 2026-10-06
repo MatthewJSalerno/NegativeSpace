@@ -57,6 +57,8 @@ removes each original once its copy is verified (it needs a writable source). Ei
 take everything or one folder from Organize. Tick photos instead and the bar at the top
 offers what applies to them: Copy, Move, Reject, or Return to library. Each asks first.
 
+![Three photos selected: the bar offers Move and Reject](images/selection-bar.png)
+
 ![Copy finished](images/copy-finished.png)
 
 Which to use is your choice. If you would rather not give any app write access to your
