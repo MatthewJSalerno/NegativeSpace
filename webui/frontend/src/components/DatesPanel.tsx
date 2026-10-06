@@ -16,13 +16,17 @@ export function dateLabel(key: string): string {
 // The date tree (webui-spec 2): years with their months, with counts for the current
 // view and search. Clicking a name jumps the gallery there; the boxes under "Show only"
 // narrow it to the checked years and months. None checked shows every date.
-export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJump }: {
+export function DatesPanel({ timeline, dates, current, oldestFirst, sortedByDate, onOrder, onDates, onJump }: {
   timeline: Timeline | null;
   dates: string[];
   // Every month with a photo on screen ("2023-06").
   current: string[];
   // The gallery's date order: oldest first lists the oldest year and month first.
   oldestFirst: boolean;
+  // Whether the gallery is in date order at all (not by size, name or matches), and the
+  // gallery's sort to set from the order button: the Sort menu follows (webui-spec 2).
+  sortedByDate: boolean;
+  onOrder: (oldestFirst: boolean) => void;
   onDates: (dates: string[]) => void;
   onJump: (key: string) => void;
 }) {
@@ -81,6 +85,14 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, onDates, onJ
     <nav className="dates-panel" aria-label="Dates" ref={panel}>
       <div className="dates-head">
         <h2>Dates</h2>
+        <button type="button" className="dates-order" onClick={() => onOrder(sortedByDate && !oldestFirst)}
+                aria-label={!sortedByDate ? "Date order: show newest first"
+                  : oldestFirst ? "Oldest first: show newest first instead" : "Newest first: show oldest first instead"}
+                title={!sortedByDate ? "Show the gallery by date, newest first"
+                  : oldestFirst ? "Oldest first. Click for newest first." : "Newest first. Click for oldest first."}>
+          <span aria-hidden="true">{!sortedByDate ? "↕" : oldestFirst ? "↑" : "↓"}</span>{" "}
+          {!sortedByDate ? "Date" : oldestFirst ? "Oldest" : "Newest"}
+        </button>
         <Tip text="Check years or months to show only those. Uncheck them all to show everything."><span className="dates-show-only">Show only</span></Tip>
       </div>
       <ul className="dates-tree">

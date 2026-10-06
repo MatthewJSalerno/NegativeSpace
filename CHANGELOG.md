@@ -9,6 +9,13 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-06
+
+### Added
+- The Dates panel has an order button beside its heading (**↓ Newest**, **↑ Oldest**, or
+  **↕ Date** when sorted otherwise) that sets the gallery's date order; the Sort menu
+  follows it, and it follows the Sort menu.
+
 ## [0.15.1] - 2026-10-06
 
 ### Changed
