@@ -136,21 +136,23 @@ Users can select individual files or multiple files across grid views to run tar
   similarity view's grouping, threshold and match counts do not follow into a review. The photos can be scrolled, opened and unticked; the button's count
   follows the ticks, and an unticked photo stays on screen. **Why not a dialog:** one
   over the photos hid them and stopped the scrolling the review needs. **Cancel**
-  returns to the view it came from; committing keeps those photos on screen as **the
-  photos in the job just started**, so their statuses can be watched, until **Back to
-  results**. Copy all and Move all still confirm in a dialog: there is no selection to review.
-
-  **Planned: after a job, stay where you were** (decided 2026-10-06). Committing a review
-  returns to the view it came from, and the finished banner offers **Show these n**,
-  which opens the job's photos on the same screen as Show only selected. Its line reads
-  "The 400 photos in Copy #3 · 398 copied · 2 skipped · Back to results" (no "just
-  started" once the job ends), each photo shows what the job did to it, and search,
-  Folders, Dates and Types narrow the job's photos instead of being disabled; a view tab
-  leaves it, as Back to results does. With nothing ticked, the selection bar is hidden,
-  not "0 photos selected". *Why not land on the job's photos:* it took you from where you
-  were after every job, with the page's controls greyed out, while most jobs need no
-  follow-up. *Why not a tab or chip for the job:* the banner and Logs already lead there,
-  and the existing screen does the job once its filters work.
+  returns to the view it came from, and so does committing. Copy all and Move all still
+  confirm in a dialog: there is no selection to review.
+* **After a job, stay where you were** (decided 2026-10-06). Starting a job clears the
+  selection and leaves the gallery where it was. The finished banner of a job that acted
+  on photos (Copy, Move, Reject, Return to library, Rename) offers **Show these photos**,
+  on every page: the gallery then shows the photos that job recorded, wherever they are
+  now, library or Rejects (`view=job&run=<id>`, in the address). Its line reads "The 400
+  photos in Copy #3 · 398 of 400 files copied · 2 skipped · Back to results" ("their status
+  updates when the job ends" while it runs), and each photo's badge shows where it stands.
+  It opens with no search, dates, types or folders, so none of the job's photos is hidden
+  by a filter left on; then every filter narrows it ("Showing 37 of 400 photos"), and
+  Select all, ticking and the selection bar work as anywhere. **Back to results** restores
+  the filters it opened over; a view button leaves it with the filters as they are. With
+  nothing ticked, the selection bar is hidden. *Why not land on the job's photos:* it
+  took you from where you were after every job, with the page's controls greyed out,
+  while most jobs need no follow-up. *Why not a tab or chip for the job:* the banner and
+  Logs already lead there.
 * **Date tree:** a **Dates** panel left of the gallery lists years and their months with
   counts for the current view and search, every year unfolded to start, every month with
   a photo on screen highlighted as the gallery scrolls (photos, not pages: a month of a few

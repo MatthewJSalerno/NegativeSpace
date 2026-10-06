@@ -242,6 +242,14 @@ All of them, however many: a selection has no fixed limit (`webui-spec.md` §2).
 `in_rejects` names those in Rejects: a selection holds library photos or photos in Rejects,
 never both, so Select all takes one place and says how many it left out.
 
+**A job's photos.** `GET /photos`, `/photos/ids`, `/photos/timeline`, `/photos/types`,
+`/photos/folders` and the body of `POST /photos/position` take `run=<job id>` (a positive
+integer, else 422), which keeps the photos that job recorded an outcome for, and
+`view=job`, which shows them wherever they are now, library or Rejects (copies a Move
+removed are left out, as in every view). Every other filter narrows them. `GET /photos`
+then also returns `counts.job`, the job's photos before any filter; the other `counts`
+and `matches` keep counting the views, which leave the job.
+
 ### `POST /api/v1/photos/position`
 
 Read-only lookup of one photo's zero-based position, one-based page and adjacent

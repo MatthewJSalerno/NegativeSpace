@@ -87,7 +87,9 @@ export interface BrowseFilters {
   set_reference?: number;
   group_sets?: boolean;
   match_min?: number;
-  view: View;
+  // "job" with `run`: the photos a job recorded, wherever they are now (webui-spec 2).
+  view: View | "job";
+  run?: number;
   q: string;
   undated: boolean;
   dates?: string[];
@@ -116,6 +118,7 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
   if (f.set_reference != null) query.set("set_reference", String(f.set_reference));
   if (f.group_sets) query.set("group_sets", "true");
   if (f.match_min != null) query.set("match_min", String(f.match_min));
+  if (f.run != null) query.set("run", String(f.run));
   if (f.q) query.set("q", f.q);
   if (f.undated) query.set("undated", "true");
   (f.dates ?? []).forEach((d) => query.append("date", d));

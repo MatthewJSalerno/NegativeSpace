@@ -59,11 +59,6 @@ Found 2026-10-05 looking for screens that do the same job twice.
   different photos named alike (in different source folders) read as one photo in two
   places. Show the source folder on hover, or beside the name when the view holds both.
 
-- [ ] **After a job, stay where you were** (decided 2026-10-06, `docs/webui-spec.md`,
-  Selective File Processing): the finished banner's **Show these n** opens the job's photos; filters work
-  inside that screen; its line gives the outcome; no "0 photos selected" bar. Mockup:
-  the design canvas "Job results as a view".
-
 - [ ] **"A job is already running" just after a job finishes:** the engine keeps its lock
   while it takes the catalog backup that follows a settled run, so a start in that moment
   is refused with no running job shown. Say what is happening ("finishing the last job's

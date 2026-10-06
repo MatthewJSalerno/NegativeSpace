@@ -88,10 +88,15 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
 }
 
 // A finished job's result, at the top of the page under the toolbar, until dismissed.
-export function FinishedBanner({ jobs, dismissedId, onDismiss }: {
+// Jobs that act on photos, whose photos the gallery can show (webui-spec 2, after a job).
+const PHOTO_JOBS = ["COPY", "MOVE", "REJECT", "RETURN", "RENAME"];
+
+export function FinishedBanner({ jobs, dismissedId, onDismiss, onShowPhotos }: {
   jobs: JobState;
   dismissedId: number | null;
   onDismiss: (id: number) => void;
+  // The Library shows them in place; elsewhere the button is a link to the Library.
+  onShowPhotos?: (id: number) => void;
 }) {
   // Dismissing a job's banner covers it and every earlier job; a newer one still shows.
   const run = !jobs.active && jobs.last && jobs.last.id != null && (dismissedId == null || jobs.last.id > dismissedId)
@@ -112,6 +117,9 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss }: {
         </span>
       </div>
       <span className="banner-links">
+        {run.id != null && PHOTO_JOBS.includes(run.mode ?? "") && (run.outcome.total ?? 0) > 0 && (onShowPhotos
+          ? <button className="link" onClick={() => onShowPhotos(run.id!)}>Show these photos</button>
+          : <a href={`/?run=${run.id}`} onClick={follow}>Show these photos</a>)}
         {(run.outcome.failed > 0 || run.outcome.run_level_issues > 0) && run.id != null && (
           <a href={logUrl({ run: run.id, status: "Failed" })} onClick={follow}>View failures</a>
         )}

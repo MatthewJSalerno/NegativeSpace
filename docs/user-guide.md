@@ -57,7 +57,8 @@ removes each original once its copy is verified (it needs a writable source). Ei
 take everything or one folder from Jobs. Tick photos instead and the bar at the top
 offers what applies to them: Copy, Move, Reject, or Return to library. Each asks first.
 A selection holds library photos or photos in Rejects, never both, so each action means
-one thing.
+one thing. When a job finishes, you are where you were; **Show these photos** in its
+banner shows what it did, and you can search and filter them like any other photos.
 
 ![Three photos selected: the bar offers Move and Reject](images/selection-bar.png)
 

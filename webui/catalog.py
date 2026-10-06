@@ -278,15 +278,27 @@ def _folders_clause(folders, root):
     return " AND (" + " OR ".join(parts) + ")", tuple(params)
 
 
-def _filters(q, undated, dates, types=None, folders=None, root=None, *, group_sets=False, match_min=75, set_reference=None):
-    """Search, no-capture-date, date-tree, type and folder filters, shared by the list,
-    its ids and its counts, so Select all takes exactly what the gallery shows."""
+def _run_clause(run):
+    """The photos a job recorded an outcome for: the gallery's "job" view (webui-spec 2,
+    after a job). Copies a Move removed are left out, as every view leaves them out."""
+    if run is None:
+        return "", ()
+    if type(run) is not int or not 1 <= run <= 2**63-1:
+        raise ValueError("run must be a positive job id")
+    return " AND p.id IN (SELECT o.photo_id FROM operations o WHERE o.run_id = ? AND o.photo_id IS NOT NULL)", (run,)
+
+
+def _filters(q, undated, dates, types=None, folders=None, root=None, *, group_sets=False, match_min=75, set_reference=None, run=None):
+    """Search, no-capture-date, date-tree, type and folder filters, and a job's photos,
+    shared by the list, its ids and its counts, so Select all takes exactly what the
+    gallery shows."""
     search, search_params = _search_clause(q)
     date_sql, date_params = _dates_clause(dates)
     type_sql, type_params = _types_clause(types)
     folder_sql, folder_params = _folders_clause(folders, root) if folders else ("", ())
-    filtered = search + (f" AND {_UNDATED}" if undated else "") + date_sql + type_sql + folder_sql
-    params = tuple(search_params) + date_params + type_params + folder_params
+    run_sql, run_params = _run_clause(run)
+    filtered = run_sql + search + (f" AND {_UNDATED}" if undated else "") + date_sql + type_sql + folder_sql
+    params = run_params + tuple(search_params) + date_params + type_params + folder_params
     if set_reference is not None:
         if type(set_reference) is not int or not 1 <= set_reference <= 2**63-1:
             raise ValueError("set_reference must be a positive photo ID")
@@ -302,6 +314,9 @@ def _filters(q, undated, dates, types=None, folders=None, root=None, *, group_se
 
 def _view_clause(view, match_min=75):
     match_distance(match_min)
+    if view == "job":
+        # A job's photos wherever they are now, library or Rejects; `run` names the job.
+        return f"p.status NOT IN ({ns_db.sql_values(COPIES)})"
     if view == "suspicious":
         return f"p.status IN ({ns_db.sql_values(VIEWS[view])}) AND ({_date_warning_sql()}) IS NOT NULL"
     if view == "similar":
@@ -312,7 +327,7 @@ def _view_clause(view, match_min=75):
 
 
 def _check_view(view, sort=None, page=None, page_size=None):
-    if view not in VIEWS:
+    if view not in VIEWS and view != "job":
         raise ValueError(f"unknown view: {view}")
     if sort is not None and sort not in SORTS:
         raise ValueError(f"unknown sort: {sort}")
@@ -427,9 +442,11 @@ def _counted_list(sort, match_min, *, include=False, ids=None):
 
 
 def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, page_size=60, undated=False,
-                dates=None, types=None, folders=None, root=None, match_min=75, group_sets=False, set_reference=None) -> dict:
+                dates=None, types=None, folders=None, root=None, match_min=75, group_sets=False, set_reference=None,
+                run=None) -> dict:
     _check_view("similar" if set_reference is not None and sort == "matches" else view, sort, page, page_size)
-    filtered, filtered_params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, set_reference=set_reference)
+    filtered, filtered_params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, set_reference=set_reference, run=run)
+    run_sql, run_params = _run_clause(run)
     with connect(db_path) as conn:
         conn.execute('BEGIN')
         # The view buttons count the whole library: "All photos" is every photo, whatever
@@ -445,15 +462,22 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             scope_filter, scope_params = (filtered, filtered_params) if name == view else (raw_filtered, raw_params)
             matches[name] = (conn.execute(base + scope_filter, scope_params).fetchone()[0]
                              if scope_filter else counts[name])
-        total = matches[view]
+        # The view buttons leave a job's photos, so they count without it; its own total
+        # is counted here.
+        total = matches[view] if view in VIEWS else conn.execute(
+            f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}" + filtered, filtered_params).fetchone()[0]
+        if view not in VIEWS:
+            # The job's photos before any filter, for "Showing 37 of 400".
+            counts[view] = conn.execute(
+                f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}" + run_sql, run_params).fetchone()[0]
         # No capture date under every other filter, for its button, as the views are counted.
-        no_date, no_date_params = _filters(q, True, dates, types, folders, root, match_min=match_min, set_reference=set_reference)
+        no_date, no_date_params = _filters(q, True, dates, types, folders, root, match_min=match_min, set_reference=set_reference, run=run)
         matches["undated"] = conn.execute(
             f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}" + no_date,
             no_date_params).fetchone()[0]
         # How many photos in this view have no capture date, whatever else is on, for its label.
         counts["undated"] = conn.execute(
-            f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)} AND {_UNDATED}"
+            f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)} AND {_UNDATED}" + run_sql, run_params
         ).fetchone()[0]
         prefix, columns, source = _counted_list(sort, match_min, include=view == "similar")
         where = "mc.similar_count>0" if view == "similar" else _view_clause(view, match_min)
@@ -470,11 +494,12 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
 
 
 def photo_position(db_path: Path, photo_id: int, *, view="all", sort="newest", page_size=60,
-                   q=None, undated=False, dates=None, types=None, folders=None, root=None, ids=None, match_min=75, group_sets=False, set_reference=None) -> dict:
+                   q=None, undated=False, dates=None, types=None, folders=None, root=None, ids=None, match_min=75, group_sets=False, set_reference=None,
+                   run=None) -> dict:
     """Locate one photo and its neighbors without transferring preceding gallery pages."""
     _check_view(view)
     _check_view("similar" if (ids is not None or set_reference is not None) and sort == "matches" else view, sort, 1, page_size)
-    filtered, params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, set_reference=set_reference)
+    filtered, params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, set_reference=set_reference, run=run)
     where = _view_clause(view, match_min) + filtered
     if ids is not None:
         if any(type(i) is not int or i < 1 for i in ids):
@@ -498,12 +523,12 @@ def photo_position(db_path: Path, photo_id: int, *, view="all", sort="newest", p
 
 
 def photo_ids(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,
-              folders=None, root=None, match_min=75, group_sets=False, set_reference=None) -> dict:
+              folders=None, root=None, match_min=75, group_sets=False, set_reference=None, run=None) -> dict:
     """Every photo id the gallery would show for these filters, across all pages, for
     Select all: all of them, never cut short. `in_rejects` names those in Rejects, since a
     selection holds library photos or photos in Rejects, never both (webui-spec 2)."""
     _check_view(view)
-    filtered, params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, set_reference=set_reference)
+    filtered, params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, set_reference=set_reference, run=run)
     base = f"FROM photos p WHERE {_view_clause(view, match_min)}" + filtered
     with connect(db_path) as conn:
         rows = conn.execute(f"SELECT p.id, p.status IN ({ns_db.sql_values(IN_REJECTS_STATUSES)}) {base} ORDER BY p.id",
@@ -547,14 +572,14 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, ma
 
 
 def timeline(db_path: Path, *, view="all", q=None, undated=False, dates=None, types=None,
-             folders=None, root=None, match_min=75, group_sets=False) -> dict:
+             folders=None, root=None, match_min=75, group_sets=False, run=None) -> dict:
     """Photos per month for a view and search, newest month first: the date tree's counts
     and the page each month starts on. Months are the recorded date's calendar month (a
     file date for an undated photo, as the gallery shows it); `undated` counts rows with
     no date at all, which every date sort places last. The tree asks without `dates`, so
     an unticked month keeps its count; jumping asks with them, to land on the right page."""
     _check_view(view)
-    filtered, params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min)
+    filtered, params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, run=run)
     base = f"FROM photos p WHERE {_view_clause(view, match_min)}" + filtered
     with connect(db_path) as conn:
         months = [{"month": r[0], "count": r[1]} for r in conn.execute(
@@ -566,11 +591,11 @@ def timeline(db_path: Path, *, view="all", q=None, undated=False, dates=None, ty
     return {"months": months, "undated": undated}
 
 
-def file_types(db_path: Path, *, view="all", q=None, undated=False, dates=None, folders=None, root=None, match_min=75, group_sets=False) -> list:
+def file_types(db_path: Path, *, view="all", q=None, undated=False, dates=None, folders=None, root=None, match_min=75, group_sets=False, run=None) -> list:
     """Photos per file type for the Types section: the view, search, dates and folders
     apply, the Types filter itself does not, so an unchecked type keeps its count. Most first."""
     _check_view(view)
-    filtered, params = _filters(q, undated, dates, None, folders, root, group_sets=group_sets and view == "similar", match_min=match_min)
+    filtered, params = _filters(q, undated, dates, None, folders, root, group_sets=group_sets and view == "similar", match_min=match_min, run=run)
     with connect(db_path) as conn:
         return [{"type": r[0], "photos": r[1]} for r in conn.execute(
             f"SELECT {_TYPE_OF} AS t, COUNT(*) AS n FROM photos p WHERE {_view_clause(view, match_min)}"
@@ -578,7 +603,7 @@ def file_types(db_path: Path, *, view="all", q=None, undated=False, dates=None, 
 
 
 def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False, dates=None, types=None,
-                keep=None, match_min=75, group_sets=False) -> dict:
+                keep=None, match_min=75, group_sets=False, run=None) -> dict:
     """The source's folders for the Folders tree (webui-spec 2): built from catalogued
     source paths, never a disk listing, so every folder offered holds photos a job can
     act on. Each folder counts its photos recursively under the view, search, dates and
@@ -589,7 +614,7 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
     listed at 0, so a ticked folder can be unticked. Photos outside the source folder
     (a catalog shared with another source) are counted in `outside`, not placed."""
     _check_view(view)
-    filtered, params = _filters(q, undated, dates, types, group_sets=group_sets and view == "similar", match_min=match_min)
+    filtered, params = _filters(q, undated, dates, types, group_sets=group_sets and view == "similar", match_min=match_min, run=run)
     base = str(root).rstrip("/") + "/"
     # COALESCE: a filter can be NULL rather than false (a search against a photo with no
     # destination path yet), and NULL is not a count. An unclassified photo's NULL

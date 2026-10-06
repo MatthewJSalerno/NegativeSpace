@@ -127,10 +127,14 @@ with sync_playwright() as p:
     shot("r3-review-before-reject")
     review.get_by_role("button", name="Reject these 2 photos").click()
     expect(banner).to_contain_text("2 of 2 photos moved to Rejects", timeout=60_000)
+    # Back on All photos, which the rejected photos have left; the banner opens the job's.
+    expect(page.get_by_role("region", name="Review before rejecting")).to_have_count(0)
+    banner.get_by_role("button", name="Show these photos").click()
+    expect(page.get_by_role("region", name="A job's photos")).to_contain_text(re.compile(r"The 2 photos in Reject #\d+"))
     dismiss_banner()
 
-    # Still in the job's own view, the selection bar follows what is selected: these photos
-    # are in Rejects now, so it offers Return, not Reject.
+    # In the job's photos, the selection bar follows what is selected: these photos are in
+    # Rejects now, so it offers Return, not Reject.
     expect(page.locator(".card")).to_have_count(2)
     page.locator(".card-check input").nth(0).click()
     page.locator(".card-check input").nth(1).click()

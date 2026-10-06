@@ -20,6 +20,9 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
   boxes are disabled while anything is selected, and Select all says what it left out.
   A selection in Rejects offers Return to library first; its Move warns that the copies in
   Rejects become the only ones.
+- After a job you stay where you were, and nothing stays selected. The finished banner's
+  **Show these photos** opens the job's photos (from any page), where search, dates,
+  types and folders narrow them; **Back to results** restores your filters.
 
 ### Added
 - README: a security section (there is no sign-in yet), a recovery guide

@@ -1111,6 +1111,34 @@ class JobsAndCatalog(ApiCase):
         with contextlib.closing(sqlite3.connect(self.cfg.db_path)) as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 1)
 
+    def test_a_jobs_photos_are_a_view_that_every_filter_narrows(self):
+        """webui-spec 2, after a job: view=job with run=<id> shows the photos that job
+        recorded, wherever they are now, and search, the facets and Select all apply."""
+        self.index_library()
+        listed = self.client.get("/api/v1/photos", params={"page_size": 240}).json()["items"]
+        self.assertGreater(len(listed), 1)
+        chosen = [listed[0]["id"]]
+        run = self.wait_for(self.start(mode="copy", file_ids=chosen))
+        scope = {"view": "job", "run": run["id"]}
+        shown = self.client.get("/api/v1/photos", params=scope).json()
+        self.assertEqual(sorted(p["id"] for p in shown["items"]), sorted(chosen), "the job view shows other photos")
+        self.assertEqual(shown["total"], len(chosen))
+        self.assertEqual(shown["counts"]["all"], len(listed), "the view buttons count only the job's photos")
+        self.assertEqual(sorted(self.client.get("/api/v1/photos/ids", params=scope).json()["ids"]), sorted(chosen))
+        searched = self.client.get("/api/v1/photos", params={**scope, "q": listed[0]["filename"]}).json()
+        self.assertEqual([p["id"] for p in searched["items"]], chosen, "search does not find the job's photo")
+        other = self.client.get("/api/v1/photos", params={**scope, "q": listed[1]["filename"]}).json()
+        self.assertEqual(other["total"], 0, "search inside a job finds photos outside it")
+        self.assertEqual(other["counts"]["job"], len(chosen), "the job's own count follows the search")
+        for facet in ("timeline", "types", "folders"):
+            with self.subTest(facet=facet):
+                self.assertEqual(self.client.get(f"/api/v1/photos/{facet}", params=scope).status_code, 200)
+        types = self.client.get("/api/v1/photos/types", params=scope).json()["types"]
+        self.assertEqual(sum(t["photos"] for t in types), len(chosen), "the Types counts are not the job's")
+        found = self.client.post("/api/v1/photos/position", json={"photo_id": chosen[0], **scope}).json()
+        self.assertIsNotNone(found["position"], "a job's photo cannot be located in its view")
+        self.assertEqual(self.client.get("/api/v1/photos", params={"view": "job", "run": 0}).status_code, 422)
+
     def test_a_selection_reaches_the_engine_in_a_private_file_and_is_kept_with_the_job(self):
         import stat
         import subprocess
