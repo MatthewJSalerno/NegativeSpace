@@ -11,22 +11,17 @@ __pycache__/
 logs/
 volumes/
 
-# AI Conversations
+# Private notes, never pushed: local working notes (*-private.md), review
+# documents (ai-reviews/, REVIEW_LOG.md) and assistant memory (ai-memory/), all
+# under private/. They quote real library paths, filenames and machine details,
+# which CLAUDE.md forbids putting in the repository.
+private/
+# The same names anywhere else stay ignored too, so a note written to an old
+# location can never be committed by accident.
+*-private.md
 REVIEW_LOG.md
 ai-reviews/
-
-# Assistant memory — kept in the repo so any model reviewing this code can
-# read the standing decisions, but never pushed: these notes quote real
-# library paths and maintainer machine details, which CLAUDE.md forbids.
 ai-memory/
-
-# Local working notes — deliberately not pushed.
-# The pattern covers any future note too: these files quote real directory
-# names, filenames and paths from the library, which CLAUDE.md forbids putting
-# in the repository. The explicit names are kept so the intent stays readable.
-*-private.md
-todo-private.md
-pains-private.md
 webui/frontend/node_modules/
 webui/frontend/dist/
 docker/.env

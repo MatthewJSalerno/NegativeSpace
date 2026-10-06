@@ -36,6 +36,6 @@ Validation against a real library must not publish personal filenames, directory
 names, machine details, or raw run output in repository files or commit/PR text.
 Use generated fixtures and aggregate validation results.
 
-Code reviews and audits follow `ai-reviews/review-process.md` (git-ignored): documents are
+Code reviews and audits follow `private/ai-reviews/review-process.md` (git-ignored): documents are
 named and logged there, and never committed to this repository; a pull request description
 carries the summary.
