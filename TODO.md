@@ -22,10 +22,11 @@ Open work, open design questions and the durability claims ledger. Designs live 
 
 Found 2026-10-05 looking for screens that do the same job twice.
 
-- [ ] **Two "Reject?" dialogs:** the general confirmation (`Confirm.tsx`) and the
-  comparison's own (`RejectConfirm.tsx`) ask the same question; their wording already had
-  to be changed in both. Make one dialog, with "Don't ask again while comparing" and the
-  "none of these photos would be left" warning as options.
+- [ ] **Merge the two "Reject?" dialogs into one** (decided 2026-10-05,
+  `docs/ui-design.md`, "Rejecting while comparing"): the general confirmation
+  (`Confirm.tsx`) and the comparison's own (`RejectConfirm.tsx`) become a single dialog,
+  with "Don't ask again while comparing" and the last-photo warning appearing only where
+  they apply. Every later reject question uses it.
 - [ ] **Three views of a photo's history** to decide on: the photo panel's History list,
   the lineage tree, and the log filtered to the photo. Perhaps the panel shows the last few
   steps and links to the tree.

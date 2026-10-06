@@ -134,6 +134,16 @@ kept in **Keep this one, reject the rest** is marked **Keeping** in `--good` wit
 and is shown full size first in the review: the photo kept must be easy to check, never the
 smallest thing on screen. No keyboard shortcut for reject (maintainer's choice).
 
+**One "Reject?" dialog everywhere** (decided 2026-10-05). Every reject question, from the
+gallery, the photo panel, the comparison or Needs review, is the same dialog with the same
+wording, spacing and button order: the title names the photo ("Reject IMG_0412.jpg?", or
+"Reject 12 photos?"), then "It moves to the Rejects folder and leaves your library. You can
+bring it back any time until you manually empty Rejects.", Cancel focused first. Two parts
+appear only where they apply: **Don't ask again while comparing** in the comparison, and
+the last-photo warning ("None of these photos would be left in the library") with **Reject
+it too** as the button. *Why not a dialog per screen:* two separate ones already drifted
+and had to be reworded in both places.
+
 ## Similarity belongs in the gallery
 
 Review destination photos in the ordinary gallery and its Inspector. Do not add a
