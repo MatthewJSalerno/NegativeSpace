@@ -40,6 +40,13 @@ classes (`PhotoStatus`, `Config`) may be imported by name. `engine/__init__.py` 
 Browser tests are in `tests/browser/`, the other suites in `tests/`, tools and the sample
 library builders in `tools/`.
 
+## This machine
+
+Before creating folders, mounting volumes or starting containers, read
+`private/environment-private.md` in the maintainer's main working folder (git-ignored, so a
+clone has no copy): where to write, the sample photos to use, and what never to touch.
+Its paths never go into this repository.
+
 ## Repository context and privacy
 
 Component specifications start at [docs/project-spec.md](docs/project-spec.md).
