@@ -503,11 +503,17 @@ with sync_playwright() as p:
     expect(rows.first).to_contain_text("Check its permissions")
     shot("7-failures")
     retry = page.get_by_role("button", name=re.compile(r"^Retry the 1 failed photo"))
-    retry.click()
+    # Correct the generated file before Retry; otherwise completion depends on whether
+    # the worker or chmod wins. Wait for this new job, never an older Copy banner.
+    os.chmod(locked, 0o644)
+    with page.expect_response(lambda r: r.url.endswith("/api/v1/jobs/start") and r.request.method == "POST") as retried:
+        retry.click()
+    assert retried.value.ok, retried.value.text()
+    retry_id = retried.value.json()["id"]
     # What Retry did is said beside it, not at the top of the page.
     expect(page.locator(".retry .notice")).to_contain_text("Retrying 1 photo as a new Copy")
-    expect(page.locator(".finished-banner")).to_contain_text("Copy", timeout=60_000)
-    os.chmod(locked, 0o644)
+    expect(page.locator(".finished-banner")).to_contain_text(f"Copy #{retry_id} finished", timeout=60_000)
+    expect(page.locator(".finished-banner")).to_contain_text("1 of 1 file copied")
     # Status boxes: arriving from a message ticks only what it named; All statuses ticks
     # every one again, which is no filter at all.
     statuses = page.locator(".status-checks")
