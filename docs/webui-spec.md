@@ -259,7 +259,8 @@ scroll pixel position or a transient review. Logs links replace the log's filter
 and expand the single linked job. Recording local control or scroll changes in the
 address does not itself count as navigation or reset the current selection.
 
-**No capture date** is a quick filter beside the views, with its count. It shows the
+**No capture date** is a quick filter beside the views, with its count and no adjacent
+information icon. It shows the
 photos whose EXIF has no date taken, which are filed under Undated by their file's
 modification date, counted in the current view. It combines with the view and the
 search; the view counts show photos matching the active filters, and the filter line says

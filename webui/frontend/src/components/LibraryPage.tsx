@@ -935,7 +935,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
         <div className="review-chips" role="group" aria-label="Filter photos">
           {view !== "unorganized" && <button aria-pressed={similar} disabled={!!focus} className={similar ? "active" : ""} onClick={() => { setSimilar(!similar); setPage(1); const scope: View = !similar ? "similar" : view; setSort(sortChoices.current[scope] ?? savedSort(scope)); }}>Has similar photos {filterCount(data?.chips?.similar ?? 0)}</button>}
           <button aria-pressed={suspicious} disabled={!!focus} className={suspicious ? "active" : ""} onClick={() => { setSuspicious(!suspicious); setPage(1); }}>Suspicious dates {filterCount(data?.chips?.suspicious ?? 0)}</button>
-          <Tip text="Photos whose EXIF has no date taken. They are filed under Undated, by their file’s modification date. Enabled filters combine: a photo must match every chosen filter."><button aria-pressed={undated} disabled={!!focus} className={undated ? "active" : ""} onClick={() => { setUndated(!undated); setPage(1); }}>No capture date {filterCount(data?.chips?.undated ?? 0)}</button></Tip>
+          <button aria-pressed={undated} disabled={!!focus} className={undated ? "active" : ""} onClick={() => { setUndated(!undated); setPage(1); }}>No capture date {filterCount(data?.chips?.undated ?? 0)}</button>
           {view !== "unorganized" && <button disabled={!!focus} title="Open Needs review filtered to small images"
                   onClick={() => { chooseView("review"); setReason("small"); }}>Small images</button>}
         </div>

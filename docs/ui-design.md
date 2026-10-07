@@ -168,7 +168,8 @@ unavailable hashes are reported separately, not presented as proof of uniqueness
 
 Keep the same card geometry and shared summary row in All photos, Has similar
 photos and No capture date. Match badges must not add a metadata row to cards.
-Use the same active-view surface for No capture date. Put long filter descriptions
+Use the same active-view surface for No capture date. Its filter chip has no adjacent
+information icon. Put long filter descriptions
 and count-scope explanations in shared help, keeping filter-reset/selection actions
 visible. Similarity controls and essential below-90% guidance may wrap at smaller
 widths; never hide them behind a help control or clip them for a fixed row height.
