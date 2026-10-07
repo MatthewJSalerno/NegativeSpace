@@ -188,7 +188,7 @@ missing/unsupported hashes. It exercises warning-to-recovery navigation, disable
 busy actions, real repair and comparison-only jobs, refreshed results, failed-load
 retry, unsupported-format limitations and narrow reflow. It never accesses a real
 library. `similar_browser_drive.py` additionally checks comparison refresh with
-rotation/zoom/position, filtered review/tab restoration, and malformed bookmarks.
+rotation/zoom/position, Inspector tab/threshold/page restoration, and malformed bookmarks.
 
 `DRIVER=gallery_position_browser_drive.py sh tests/browser/webui_browser_test.sh` checks
 Logs photo positioning, offscreen Inspector navigation, retained filters, explicit
