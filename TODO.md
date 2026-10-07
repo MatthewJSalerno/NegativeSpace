@@ -51,7 +51,9 @@ Found 2026-10-05 looking for screens that do the same job twice.
   set. Only the combined view of several overlapping sets goes; if it is ever missed, it
   returns as a section of the Similar photos tab, not a window.
 - [ ] **Needs review mockup** (on hold): boards in the design canvas; its two-photo note
-  reuses the comparison workspace, which gains the "Will be rejected" marking.
+  reuses the comparison workspace, which gains the "Will be rejected" marking. Settled
+  2026-10-07: reasons as a row of chips (board 1), and a small image's look-alikes as a
+  hint, unticked in a bulk Keep (board 5).
 
 ## Views
 
@@ -81,7 +83,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [ ] "Review later": a button beside Reject… in the photo panel, with an optional short
   note; Done clears it (`docs/webui-spec.md` §7.9).
 - [ ] "Small image": photos under a size set in Settings wait outside the library for Keep
-  or Reject, a larger look-alike shown beside them (`docs/webui-spec.md` §7.9).
+  or Reject; the note names its look-alikes ("3 at 90%, the largest in your library"), and
+  those with a larger one start unticked in a bulk Keep (`docs/webui-spec.md` §7.9).
 - [ ] "Which photo is this sidecar for?": a short-named XMP sidecar that could belong to
   several photos, held with them until the user answers (`docs/engine-spec.md` §9.6).
 

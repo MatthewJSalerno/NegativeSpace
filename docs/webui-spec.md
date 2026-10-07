@@ -2293,7 +2293,10 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   Library (filters, selection, bulk answers), and working through them reuses the
   workspace built for such tasks.
 * **Filter by reason; bulk within one reason** (preview and one confirmation). A mixed
-  selection offers only shared actions.
+  selection offers only shared actions. The reasons are a row of chips above the photos,
+  each with its count ("All reasons (31) · No capture date (12) · Small image (9) · …"),
+  beside **Review one by one** (decided 2026-10-07). *Why not tick boxes in the left
+  panel:* that panel holds Folders and Dates, which still apply inside Needs review.
 * **A note exists only when a person must decide.** Facts the catalog can compute (every
   similar pair) stay live queries, so the list cannot grow into a copy of the library.
 * **A resolved note leaves the list;** the decision goes into the photo's history. **A note
@@ -2332,8 +2335,14 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   Settings › Files gets a note, "Small image: 640 × 480", with **Keep in library** and
   **Reject**, and waits outside the library until answered, so thumbnails, web downloads
   and screenshots never reach the library or a gallery app pointed at it. A larger
-  look-alike already in the library is shown beside it, the strongest sign of a junk
-  copy. The size is a setting and can be switched off, since a library of small images
+  look-alike already in the library is the strongest sign of a junk copy, so the note
+  says what it matches (decided 2026-10-07): *"3 look-alikes at 90% · the largest,
+  4000 × 3000, is in your library"*, at the percentage chosen for similar photos, opening
+  the side by side. One by one, it is shown beside that look-alike with **Reject it (keep
+  the larger one)** and **Keep both**. In a bulk **Keep in library**, photos with a larger
+  look-alike in the library start unticked, and the review says why ("2 have a larger
+  look-alike in your library and are left unticked"), so a bulk answer never files a
+  shrunken copy unless it is ticked on purpose. The size is a setting and can be switched off, since a library of small images
   would otherwise hold everything; Index reports how many it held ("312 small images are
   waiting for your decision"). *Why a note, not a view of its own:* filtering, bulk
   answers and side-by-side review come with Needs review, and the view buttons are
