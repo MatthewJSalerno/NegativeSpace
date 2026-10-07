@@ -483,7 +483,7 @@ def thumbnail_record(conn, photo_id: int, size: int):
     failure_category, failure_detail), or None when nothing was recorded (pending)."""
     row = conn.execute(
         "SELECT t.cache_filename, t.availability, t.failure_category, t.failure_detail FROM photos p "
-        "JOIN contents c ON c.digest = p.sha1_hash "
+        "JOIN contents c ON c.digest = p.sha1_hash AND c.hash_algorithm = 'sha1' "
         "JOIN thumbnail_cache t ON t.content_id = c.content_id AND t.size = ? WHERE p.id = ?",
         (size, photo_id)).fetchone()
     return tuple(row) if row else None
@@ -512,7 +512,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         if p is None:
             return None
         meta = json.loads(p["metadata_json"]) if p["metadata_json"] else {}
-        content = conn.execute("SELECT width, height, phash, phash_state FROM contents WHERE digest = ?",
+        content = conn.execute("SELECT width, height, phash, phash_state FROM contents WHERE hash_algorithm = 'sha1' AND digest = ?",
                                (p["sha1_hash"],)).fetchone() if p["sha1_hash"] else None
         copies = [dict(r) for r in conn.execute(
             "SELECT id, status, source_path, dest_path, file_size FROM photos "

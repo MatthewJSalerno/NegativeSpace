@@ -96,7 +96,7 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
             "json_extract(p.metadata_json, '$.date_source') AS date_source, "
             "json_extract(p.metadata_json, '$.DateTimeOriginal') AS original, "
             "json_extract(p.metadata_json, '$.OffsetTimeOriginal') AS offset, c.width, c.height "
-            f"FROM photos p LEFT JOIN contents c ON c.digest = p.sha1_hash WHERE p.status IN ({shown})").fetchall()
+            f"FROM photos p LEFT JOIN contents c ON c.digest = p.sha1_hash AND c.hash_algorithm = 'sha1' WHERE p.status IN ({shown})").fetchall()
         dup = conn.execute(
             f"SELECT COUNT(*) AS copies, COALESCE(SUM(file_size), 0) AS bytes, "
             f"COALESCE(SUM(CASE WHEN status = ? THEN file_size END), 0) AS in_source, "

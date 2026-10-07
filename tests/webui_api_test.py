@@ -751,6 +751,19 @@ class JobsAndCatalog(ApiCase):
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(response.json(), dict.fromkeys(("position", "page", "previous_id", "next_id")))
 
+    def test_photo_reads_use_the_sha1_content_identity(self):
+        self.index_library()
+        expected = self.client.get('/api/v1/stats').json()['library']
+        photo = self.client.get('/api/v1/photos').json()['items'][0]['id']
+        inspector = self.client.get(f'/api/v1/photos/{photo}').json()
+        with sqlite3.connect(self.cfg.db_path) as conn:
+            # The schema keys contents by algorithm AND digest. A different
+            # algorithm's row must not duplicate a photo or supply its dimensions.
+            conn.execute("INSERT INTO contents(hash_algorithm,digest,width,height) "
+                         "SELECT 'fixture-algorithm',digest,1,1 FROM contents WHERE hash_algorithm='sha1'")
+        self.assertEqual(self.client.get('/api/v1/stats').json()['library'], expected)
+        self.assertEqual(self.client.get(f'/api/v1/photos/{photo}').json(), inspector)
+
     def test_stats_accept_numeric_camera_and_lens_metadata(self):
         self.index_library()
         for make, model, lens, camera, lens_name in (
