@@ -138,9 +138,22 @@ class ReviewTests(ApiCase):
             c.execute("INSERT INTO photos(source_path,status) VALUES(?,'Failed')",(str(self.cfg.source/'broken.jpg'),))
             c.commit()
         summary=self.client.get('/api/v1/photos?view=unorganized&q=absent').json()['index_summary']
-        self.assertEqual(summary,dict(photos=2,duplicates=1,small=1,minimum=800,unknown_dimensions=1,suspicious=0,undated=2,failed=1,similar=None))
+        self.assertEqual(summary,dict(photos=2,duplicates=1,small=1,minimum=800,unknown_dimensions=1,suspicious=0,undated=2,failed=1,similar=None,last_index=None))
         self.assertEqual(self.client.get('/api/v1/photos?view=review').json()['total'],1)
         self.assertIsNone(self.client.get('/api/v1/photos?view=organized').json()['index_summary'])
         self.enable(None)
         summary=self.client.get('/api/v1/photos?view=unorganized').json()['index_summary']
         self.assertIsNone(summary['minimum'])
+
+    def test_summary_dismissal_identity_follows_finished_index_only(self):
+        def summary_index():
+            return self.client.get('/api/v1/photos?view=unorganized').json()['index_summary']['last_index']
+        with ns_db.connect(self.cfg.db_path) as c:
+            first=c.execute("INSERT INTO runs(mode,status,started_at,ended_at) VALUES('INDEX','Completed','2026-01-01T00:00:00Z','2026-01-01T00:01:00Z')").lastrowid
+            c.execute("INSERT INTO runs(mode,status,started_at,ended_at) VALUES('COPY','Completed','2026-01-02T00:00:00Z','2026-01-02T00:01:00Z')")
+            pending=c.execute("INSERT INTO runs(mode,status,started_at) VALUES('INDEX','Running','2026-01-03T00:00:00Z')").lastrowid
+            c.commit()
+        self.assertEqual(summary_index(),dict(id=first,started_at='2026-01-01T00:00:00Z'))
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("UPDATE runs SET status='Completed',ended_at='2026-01-03T00:01:00Z' WHERE id=?",(pending,));c.commit()
+        self.assertEqual(summary_index(),dict(id=pending,started_at='2026-01-03T00:00:00Z'))

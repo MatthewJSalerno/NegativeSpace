@@ -240,6 +240,8 @@ def _index_summary(conn):
     result['duplicates'] = conn.execute(f"""SELECT COUNT(*) FROM photos d WHERE d.status='Duplicate'
         AND EXISTS (SELECT 1 FROM photos p WHERE {where} AND p.sha1_hash=d.sha1_hash)""").fetchone()[0]
     result['similar'] = None  # Source-only visual comparisons are not calculated.
+    last_index = conn.execute("SELECT id, started_at FROM runs WHERE mode='INDEX' AND ended_at IS NOT NULL ORDER BY id DESC LIMIT 1").fetchone()
+    result['last_index'] = dict(last_index) if last_index else None
     return result
 
 

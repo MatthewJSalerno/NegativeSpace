@@ -248,6 +248,18 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     setFocus(null); setPendingJump(null); setNoticeState(null); setActionError(null);
   });
   const [refreshKey, setRefreshKey] = useState(0);
+  const [closedIndexSummary, setClosedIndexSummary] = useState<string | null>(() => {
+    try { return localStorage.getItem("ns.closedIndexSummary"); } catch { return null; }
+  });
+  const summaryToggle = useRef<HTMLButtonElement>(null);
+  const toggleIndexSummary = (key: string | null) => {
+    setClosedIndexSummary(key);
+    try {
+      if (key == null) localStorage.removeItem("ns.closedIndexSummary");
+      else localStorage.setItem("ns.closedIndexSummary", key);
+    } catch { /* Dismissal still works for this visit without storage. */ }
+    requestAnimationFrame(() => summaryToggle.current?.focus({ preventScroll: true }));
+  };
   useEffect(() => { setRefreshKey(n => n + 1); }, [status]);
   useEffect(() => {
     const update = () => setRefreshKey(n => n + 1);
@@ -880,6 +892,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
 
   const screenSelected = screenItems.filter((i) => selected.has(i.id)).length;
   const onPager = focus ? setFocusPage : setPage;
+  const indexSummaryKey = JSON.stringify(data?.index_summary?.last_index ?? null);
+  const indexSummaryClosed = closedIndexSummary === indexSummaryKey;
 
   return (
     <div className={`app ${openId != null ? "with-inspector" : ""}`}>
@@ -1034,8 +1048,13 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               {" "}<button className="link" onClick={() => { setSimilar(false); setSuspicious(false); setUndated(false); setReason("all"); if (sort === "matches") setSort("newest"); setQ(""); setSearch(""); setDates([]); setTypes([]); setFolders([]); setPage(1); }}>Clear filters</button>
             </p>}
           </div>}
-          {!focus && view === "unorganized" && data?.index_summary && data.index_summary.photos > 0 && <section className="notice index-summary" aria-label="Index summary">
-            <h3>Index summary</h3>
+          {!focus && view === "unorganized" && data?.index_summary && data.index_summary.photos > 0 && (indexSummaryClosed
+            ? <button ref={summaryToggle} onClick={() => toggleIndexSummary(null)}>Show index summary</button>
+            : <section className="notice index-summary" aria-label="Index summary">
+            <div className="index-summary-heading"><h3>Index summary</h3>
+              <button ref={summaryToggle} className="icon" aria-label="Close index summary" title="Close index summary"
+                onClick={() => toggleIndexSummary(indexSummaryKey)}>✕</button>
+            </div>
             <p>Your photos are indexed. Copy or move them to build your library.</p>
             <p className="section-note">Facts about all photos still to organize, before gallery filters. Size and date findings do not prevent Copy or Move.</p>
             <dl>
@@ -1050,7 +1069,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             <p className="section-note">Identical content is organized once. Files with processing errors: {count(data.index_summary.failed)}. <a href="/logs" onClick={follow}>View job details</a></p>
             <button className="primary" disabled={jobRunning || !status.eligible.copy} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.copy ? "No photos are eligible for Copy." : undefined} onClick={() => askTransfer("copy")}>Copy all photos…</button>{" "}
             <button disabled={jobRunning || !status.eligible.move} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.move ? "No photos are eligible for Move." : undefined} onClick={() => askTransfer("move")}>Move all photos…</button>
-          </section>}
+          </section>)}
           {!focus && view === "review" && <>
             {reviewReturn && <button onClick={backToLibrary}>← Back to Library</button>}
             <p className="notice">Photos awaiting a decision, wherever they live. These photos also appear in their location; the counts do not add together.</p>

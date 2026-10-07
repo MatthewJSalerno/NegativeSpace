@@ -56,6 +56,22 @@ with sync_playwright() as p:
     expect(size_help.locator('.help-content')).to_contain_text('does not mean the file is damaged or is not a photo')
     size_help.locator('.help-trigger').focus()
     page.keyboard.press('Escape')
+    summary.get_by_role('button',name='Close index summary',exact=True).click()
+    expect(summary).to_have_count(0)
+    show_summary=page.get_by_role('button',name='Show index summary',exact=True)
+    expect(show_summary).to_be_focused()
+    page.reload()
+    expect(show_summary).to_be_visible()
+    expect(summary).to_have_count(0)
+    page.get_by_role('button',name='No capture date',exact=False).first.click()
+    expect(summary).to_have_count(0)
+    page.get_by_role('button',name='No capture date',exact=False).first.click()
+    show_summary.click()
+    expect(summary.get_by_role('button',name='Close index summary',exact=True)).to_be_focused()
+    summary.get_by_role('button',name='Close index summary',exact=True).click()
+    # A finished new Index resets dismissal without reloading the page.
+    job('index')
+    expect(summary).to_be_visible(timeout=15_000)
     assert get('photos?view=review')['total']==0
     assert get('photos?view=organized')['total']==0
     page.get_by_role('button',name='Copy all photos…',exact=True).click()

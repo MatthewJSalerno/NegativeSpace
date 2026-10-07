@@ -919,7 +919,9 @@ review and organized/similar cards include compact location and current reason d
 per-photo review endpoint. Unorganized listings include `index_summary` (null elsewhere):
 `photos`, `duplicates` (extra Duplicate records sharing content with a remaining source
 photo), `small`, `minimum` (null when disabled), `unknown_dimensions`, `suspicious`,
-`undated`, `failed` and `similar` (null: source comparisons are uncalculated). The summary
+`undated`, `failed` and `similar` (null: source comparisons are uncalculated), plus
+`last_index` (`{id, started_at}` for the latest Index with an end time, or null). This
+identity scopes browser dismissal to that Index; other jobs do not reset it. The summary
 is unfiltered and catalog-only, with no filesystem reads. Existing view names remain accepted
 for old links. The UI offers organized (Library), unorganized (Not organized), rejects
 and review, with similarity/date conditions as chips. Settings adds

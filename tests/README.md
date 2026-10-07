@@ -716,3 +716,8 @@ The review browser driver also covers first-step navigation, source Index summar
 Copy confirmation, Library review markers, focused inbox entry and return with search,
 sort and checkbox selection intact. Review API tests distinguish source size facts
 from destination reminders and check current Library reasons without event histories.
+
+The Index summary can be closed and reopened from Not organized. The review browser
+check covers close/show focus, dismissal after refresh and filtering, and automatic
+reopening after a new Index finishes. Review API coverage verifies that Copy and an
+unfinished Index do not change the completed-Index identity used for dismissal.

@@ -306,6 +306,11 @@ filters. Similarity says **Not calculated for source photos**; a disabled size r
 **Rule disabled**. Date chips already filter the source gallery; the other summary values
 are informational (additional source filters remain planned). Copy all/Move all lead to
 the same confirmations as Jobs. Index failures link to Logs for specific evidence.
+The Index summary has **Close index summary** and a compact **Show index summary**
+control to reopen it. Dismissal is remembered in this browser across refreshes and
+navigation for that finished Index; the next finished Index reveals the updated
+summary. Copy/Move and other jobs do not reopen it. Closing changes no photos or
+selection, and Jobs retains Copy/Move. Focus follows the close/show control.
 An empty Library says **No photos organized yet** and links to Not organized.
 When nothing remains to organize, Not organized offers **Go to Library** if delivered
 photos exist.

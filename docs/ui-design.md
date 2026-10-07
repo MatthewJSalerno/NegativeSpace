@@ -546,6 +546,11 @@ Not organized starts with Index source. After Index, its neutral Index summary d
 remaining indexed photos, identical extra copies, size and date facts, plus a clear
 Copy/Move next step using the existing confirmation. Counts cover the whole location,
 not gallery filters; disabled size rules and uncalculated similarity are explicit.
+The Index summary has **Close index summary** and a compact **Show index summary**
+control to reopen it. Dismissal is remembered in this browser across refreshes and
+navigation for that finished Index; the next finished Index reveals the updated
+summary. Copy/Move and other jobs do not reopen it. Closing changes no photos or
+selection, and Jobs retains Copy/Move. Focus follows the close/show control.
 An empty Library explains how to populate it and links to Not organized.
 
 Library contains delivered, active photos only. Cards with unresolved reasons show a
