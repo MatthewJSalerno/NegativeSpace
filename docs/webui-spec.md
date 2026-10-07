@@ -2353,7 +2353,8 @@ general tagging system: personal labels (people, albums) belong to gallery appli
 * **Small images are a cleanup suggestion, never an import restriction** (decided
   2026-10-07). Copy and Move process eligible photos normally, regardless of resolution.
   Delivered photos whose shorter side is below the configured minimum appear in
-  Needs review → Small images. Unknown dimensions are not treated as small. Gallery cards say **Below minimum image size**.
+  Needs review → Small images. Unknown dimensions are not treated as small. Gallery cards say **Below minimum image size**, with the dimensions and configured minimum
+  available through hover/focus help and its information button.
   The Inspector and workspace explain dimensions and the rule, e.g. "640 × 480 — below your 800-pixel minimum on
   the shorter side", with **Change in Settings** opening Files directly.
 * **The user chooses at first run.** Files labels the choice **Small-image reminders (required)** and asks whether to enable reminders;

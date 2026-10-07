@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { placeOf, type Place, type PhotoItem } from "../api";
 import { epoch, isFallbackDate, photoDate, plural } from "../format";
 import { Thumb } from "./Thumb";
+import { Tip } from "./Tip";
 
 const STATUS_BADGE: Record<string, string> = {
   Completed: "Moved", Copied: "Copied", Found_At_Destination: "At destination", Failed: "Failed",
@@ -101,7 +102,7 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
                 {item.duplicates > 0 && <span className="badge">{plural(item.duplicates, "duplicate")}</span>}
               </span>
             </div>
-            {onReview && item.review && <div className="review-card-notes"><span className="section-note">Location: {item.review.location}</span>{item.review.reasons.map(n=><p key={n.reason}>{n.reason === "small" ? "Below minimum image size" : `${n.label}: ${n.message}`}</p>)}<button onClick={()=>onReview(item.id)}>Review photo</button></div>}
+            {onReview && item.review && <div className="review-card-notes"><span className="section-note">Location: {item.review.location}</span>{item.review.reasons.map(n=><p key={n.reason}>{n.reason === "small" ? <Tip text={n.message}><span>Below minimum image size</span></Tip> : `${n.label}: ${n.message}`}</p>)}<button onClick={()=>onReview(item.id)}>Review photo</button></div>}
             {onExploreSet && <div className="set-card-actions">
               <strong>Reference set · {plural((item.similar_count ?? 0) + 1, "photo")}</strong>
               <span className="section-note">Identical sets shown once. Explore members and related sets.</span>
