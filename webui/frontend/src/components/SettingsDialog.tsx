@@ -186,6 +186,21 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
   const reset = () => settings && (setWorkers(String(settings.workers.value)), setRetention(String(settings.backup_retention.value)),
                                    setExts(settings.exts.value), showReminder(settings), setMessage(null), setFieldErrors({}));
 
+  const smallImageSettings = (
+    <section className={firstRun ? "notice notice-first-run" : undefined}>
+        <h3>Small-image review</h3>
+        {firstRun && <p id="small-required"><strong>Choose On or Off to continue.</strong> Either choice is valid; you can change it later in Settings.</p>}
+        <p>A cleanup suggestion after Copy or Move, never an import restriction. Mark reviewed clears a photo’s size reminder; select unwanted photos to Reject.</p>
+        <label htmlFor="settings-small-choice">Small-image reminders{firstRun && <strong> (required)</strong>}</label>
+        <select id="settings-small-choice" required={firstRun} value={smallChoice} disabled={saving} aria-invalid={smallChoice !== "on" && !!fieldErrors.small} aria-describedby={[firstRun && "small-required", "small-hint", smallChoice !== "on" && fieldErrors.small && "small-error"].filter(Boolean).join(" ")} onChange={e => setSmallChoice(e.target.value)}>
+          <option value="" disabled>Choose…</option><option value="on">On — suggest small images</option><option value="off">Off</option>
+        </select>
+        {smallChoice === "on" && <Field id="settings-small" label="Minimum shorter side (pixels)" type="number" min={1} step={1} value={smallMin} disabled={saving} onChange={e => setSmallMin(e.target.value)} error={fieldErrors.small} />}
+        {smallChoice !== "on" && fieldErrors.small && <p id="small-error" className="error" role="alert">{fieldErrors.small}</p>}
+        <p id="small-hint" className="muted">For example, 640 × 480 is below an 800-pixel minimum. Changing or disabling this rule updates Needs review without moving files. Photos already marked reviewed stay reviewed.</p>
+      </section>
+  );
+
   const panels: Record<Group, ReactNode> = settings ? {
     appearance: (
       <section className="appearance-settings">
@@ -199,6 +214,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
       </section>
     ),
     files: (<>
+      {firstRun && smallImageSettings}
       <section>
         <h3>File types</h3>
         <p className="muted">NegativeSpace looks for these kinds of files in your source folder. Files of other types are left where they are.</p>
@@ -220,17 +236,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
           <button disabled={saving} onClick={addCustom}>Add file type</button>
         </div>
       </section>
-      <section>
-        <h3>Small-image review</h3>
-        <p>A cleanup suggestion after Copy or Move, never an import restriction. Mark reviewed clears a photo’s size reminder; select unwanted photos to Reject.</p>
-        <label htmlFor="settings-small-choice">Small-image reminders{firstRun && <span className="muted"> (required)</span>}</label>
-        <select id="settings-small-choice" required={firstRun} value={smallChoice} disabled={saving} aria-invalid={smallChoice !== "on" && !!fieldErrors.small} aria-describedby={smallChoice !== "on" && fieldErrors.small ? "small-hint small-error" : "small-hint"} onChange={e => setSmallChoice(e.target.value)}>
-          <option value="" disabled>Choose…</option><option value="on">On — suggest small images</option><option value="off">Off</option>
-        </select>
-        {smallChoice === "on" && <Field id="settings-small" label="Minimum shorter side (pixels)" type="number" min={1} step={1} value={smallMin} disabled={saving} onChange={e => setSmallMin(e.target.value)} error={fieldErrors.small} />}
-        {smallChoice !== "on" && fieldErrors.small && <p id="small-error" className="error" role="alert">{fieldErrors.small}</p>}
-        <p id="small-hint" className="muted">For example, 640 × 480 is below an 800-pixel minimum. Changing or disabling this rule updates Needs review without moving files. Photos already marked reviewed stay reviewed.</p>
-      </section>
+      {!firstRun && smallImageSettings}
       <section>
         <h3>Rejects reminder</h3>
         <p className="muted">

@@ -902,7 +902,10 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .review-card-notes { padding: var(--space-2); }
 
 .index-summary { margin-block: var(--space-3); }
-.index-summary h2 { margin-top: 0; }
+.index-summary h3 { margin-top: 0; font-size: var(--type-md); }
 .index-summary dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); }
 .index-summary dt { font-weight: 600; }
 .index-summary dd { margin: var(--space-1) 0 0; }
+
+.gallery-context { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-3); }
+.gallery-context h2 { margin: 0; font-size: var(--type-md); }

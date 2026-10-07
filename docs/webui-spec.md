@@ -297,8 +297,10 @@ six to four. Settled 2026-10-07:
 After Index, Library and Rejects remain empty until files are delivered or rejected;
 automatic small-image cleanup remains destination-only. The neutral **Index summary**
 shows the remaining indexed photo count, additional identical copies of those photos,
-known small dimensions under the configured rule, missing/suspicious dates, unknown
-dimensions and processing failures. These counts cover the whole location, not active
+known small dimensions under the configured rule, missing/suspicious dates, **Image size
+unavailable** and processing failures. Image size unavailable means no usable width and
+height were recorded; help explains possible unsupported formats, unreadable files or
+incomplete processing without labelling these files corrupt or non-photos. These counts cover the whole location, not active
 filters. Similarity says **Not calculated for source photos**; a disabled size rule says
 **Rule disabled**. Date chips already filter the source gallery; the other summary values
 are informational (additional source filters remain planned). Copy all/Move all lead to
@@ -370,8 +372,8 @@ says prominently that these are starting values, changeable at any time from the
 icon in Settings. Without that, a user can take the screen for the only chance to set
 them. It steps through the same four groups ("Step 2 of 4 Files", **Back**, **Next**),
 one per page so each fits without scrolling; Next checks only that step, and nothing is
-saved until **Save and continue** on the last. Saving lands in the Library, where **Index
-your library** waits, whatever page an earlier session left in the address bar. After
+saved until **Save and continue** on the last. Saving lands in Not organized, where **Index
+source** waits, whatever page an earlier session left in the address bar. After
 first run, Settings opens as a window over the current view.
 
 **Startup without a usable catalog:** distinguish a missing database from access
@@ -2378,7 +2380,8 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   The Inspector and workspace explain dimensions and the rule, e.g. "640 × 480 — below your 800-pixel minimum on
   the shorter side", with **Change in Settings** opening Files directly.
 * **The user chooses at first run.** Files labels the choice **Small-image reminders (required)** and asks whether to enable reminders;
-  neither option is preselected for a new catalog. Enabling suggests 800 pixels, editable
+  the choice appears first in the Files step in an accent-bordered notice, with bold
+  **(required)** and **Choose On or Off to continue**. Neither option is preselected for a new catalog. Enabling suggests 800 pixels, editable
   by the user. Later Settings can lower, raise or disable the rule. Changes update the
   inbox without moving files or launching jobs. A catalog with no choice saved has no
   automatic size rule until one is configured.

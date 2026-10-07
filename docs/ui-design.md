@@ -555,7 +555,9 @@ sidebar. Name active restrictions visibly and provide Clear filters without chan
 place or selection. Search offers a route to filename matches in other locations.
 
 Small-image review is destination cleanup, never a Copy/Move restriction. First-run
-Files labels the on/off choice **(required)**, offering an editable 800-pixel shorter-side
+Files places the required on/off choice first in an accent-bordered notice, with a bold
+**(required)** label and **Choose On or Off to continue**. Both choices are valid; nothing
+is preselected. It offers an editable 800-pixel shorter-side
 minimum if enabled. Settings can adjust or disable it. Mark reviewed acknowledges one
 photo's size concern; it is not Keep, selection, relocation or approval of other reasons.
 Checkboxes continue to select photos to Reject. Never untick photos because the app
@@ -575,3 +577,11 @@ Keep a **Small images** shortcut beside **No capture date** in the gallery toolb
 It opens Needs review with the Small images reason selected, preserving search,
 other filters and explicit photo selection. Concise card text must not remove this
 entry point; the reason chips remain available inside Needs review.
+
+The current gallery location is a section heading above its content, consistently across
+views. Active restrictions and Clear filters sit beside it in supporting text; an
+unfiltered view does not repeat its name in a small muted breadcrumb.
+The Index summary labels absent positive width/height as **Image size unavailable**.
+Shared help explains that unsupported formats, unreadable files or incomplete processing
+can cause this; it does not diagnose corruption or a non-photo. These files are not counted
+as small. Processing failures remain a separate count with a route to job details.

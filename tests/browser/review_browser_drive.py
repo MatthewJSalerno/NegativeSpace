@@ -33,6 +33,8 @@ with sync_playwright() as p:
     choice=page.get_by_label('Small-image reminders (required)',exact=True)
     expect(choice).to_have_value('')
     expect(choice).to_have_attribute('required','')
+    expect(page.get_by_text('Choose On or Off to continue.',exact=True)).to_be_visible()
+    expect(page.locator('.settings-panel section').first).to_contain_text('Small-image review')
     if os.environ.get('SHOTS'): page.screenshot(path=os.environ['SHOTS']+'/review-first-run-required.png',full_page=True)
     page.get_by_role('button',name='Next',exact=True).click()
     expect(page.get_by_text('Choose whether to suggest small images for review.',exact=True)).to_be_visible()
@@ -48,6 +50,12 @@ with sync_playwright() as p:
     summary=page.get_by_role('region',name='Index summary')
     expect(summary).to_be_visible()
     expect(summary).to_contain_text('Not calculated for source photos')
+    expect(page.get_by_role('heading',name='Not organized',exact=True)).to_be_visible()
+    size_help=summary.locator('.tip').filter(has_text='Image size unavailable')
+    size_help.hover()
+    expect(size_help.locator('.help-content')).to_contain_text('does not mean the file is damaged or is not a photo')
+    size_help.locator('.help-trigger').focus()
+    page.keyboard.press('Escape')
     assert get('photos?view=review')['total']==0
     assert get('photos?view=organized')['total']==0
     page.get_by_role('button',name='Copy all photos…',exact=True).click()

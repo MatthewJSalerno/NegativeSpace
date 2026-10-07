@@ -1026,11 +1026,15 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           )}
           {!focus && browseView === "rejects" && data?.rejects && <RejectsLine rejects={data.rejects} />}
           {!focus && suspicious && <p className="dates-filter-line">Recorded years before 1800 or more than one year ahead. Open a photo to inspect its date and source. These are review hints; dates remain unchanged. Date editing is not yet available.</p>}
-          {!focus && <p className="section-note">{VIEW_LABEL[view]}{similar ? " · Has similar photos" : ""}{suspicious ? " · Suspicious dates" : ""}{undated ? " · No capture date" : ""}{q ? ` · Filenames matching “${q}”` : ""}{dates.length ? ` · ${dates.map(dateLabel).join(", ")}` : ""}{types.length ? ` · ${types.map(typeLabel).join(", ")}` : ""}{folders.length ? ` · ${folders.map(folderLabel).join(", ")}` : ""}
-            {(narrowed || similar || suspicious || reason !== "all") && <> · <button className="link" onClick={() => { setSimilar(false); setSuspicious(false); setUndated(false); setReason("all"); if (sort === "matches") setSort("newest"); setQ(""); setSearch(""); setDates([]); setTypes([]); setFolders([]); setPage(1); }}>Clear filters</button></>}
-          </p>}
+          {!focus && <div className="gallery-context">
+            <h2>{VIEW_LABEL[view]}</h2>
+            {(narrowed || similar || suspicious || reason !== "all") && <p className="section-note">
+              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...folders.map(folderLabel)].filter(Boolean).join(" · ")}
+              {" "}<button className="link" onClick={() => { setSimilar(false); setSuspicious(false); setUndated(false); setReason("all"); if (sort === "matches") setSort("newest"); setQ(""); setSearch(""); setDates([]); setTypes([]); setFolders([]); setPage(1); }}>Clear filters</button>
+            </p>}
+          </div>}
           {!focus && view === "unorganized" && data?.index_summary && data.index_summary.photos > 0 && <section className="notice index-summary" aria-label="Index summary">
-            <h2>Index summary</h2>
+            <h3>Index summary</h3>
             <p>Your photos are indexed. Copy or move them to build your library.</p>
             <p className="section-note">Facts about all photos still to organize, before gallery filters. Size and date findings do not prevent Copy or Move.</p>
             <dl>
@@ -1039,9 +1043,10 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               <div><dt>Small images</dt><dd>{data.index_summary.minimum == null ? "Rule disabled" : `${count(data.index_summary.small)} below ${count(data.index_summary.minimum)} pixels on the shorter side`}</dd></div>
               <div><dt>Suspicious dates</dt><dd>{count(data.index_summary.suspicious)}</dd></div>
               <div><dt>No capture date</dt><dd>{count(data.index_summary.undated)}</dd></div>
+              <div><dt><Tip text="No usable width and height were recorded. The format may be unsupported, the file may be unreadable, or processing may be incomplete. This alone does not mean the file is damaged or is not a photo. These files are not counted as small images.">Image size unavailable</Tip></dt><dd>{count(data.index_summary.unknown_dimensions)}</dd></div>
               <div><dt>Potentially similar photos</dt><dd>Not calculated for source photos</dd></div>
             </dl>
-            <p className="section-note">Identical content is organized once. Unknown image dimensions: {count(data.index_summary.unknown_dimensions)}. Files with processing errors: {count(data.index_summary.failed)}. <a href="/logs" onClick={follow}>View job details</a></p>
+            <p className="section-note">Identical content is organized once. Files with processing errors: {count(data.index_summary.failed)}. <a href="/logs" onClick={follow}>View job details</a></p>
             <button className="primary" disabled={jobRunning || !status.eligible.copy} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.copy ? "No photos are eligible for Copy." : undefined} onClick={() => askTransfer("copy")}>Copy all photos…</button>{" "}
             <button disabled={jobRunning || !status.eligible.move} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.move ? "No photos are eligible for Move." : undefined} onClick={() => askTransfer("move")}>Move all photos…</button>
           </section>}
