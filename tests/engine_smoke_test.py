@@ -219,6 +219,26 @@ def make_photo(path: Path, content_seed: str, date="2024:02:14 09:30:00", size=(
 # --------------------------------------------------------------------- tests
 
 @test
+def thumbnail_staging_never_follows_a_planted_symlink():
+    """A cache writer must not truncate an unrelated file through its temporary name."""
+    from PIL import Image
+    from engine import thumbnails, constants
+    case = new_case("thumbnail_staging_symlink")
+    dest = case / "cache" / "fixture.jpg"
+    dest.parent.mkdir(exist_ok=True)
+    victim = case / "outside.txt"
+    victim.write_bytes(b"generated sentinel")
+    planted = dest.with_name(dest.name + constants.THUMBNAIL_PARTIAL_SUFFIX)
+    planted.symlink_to(victim)
+    thumbnails._write_thumbnail(Image.new("RGB", (64, 48)), dest, 320)
+    check(victim.read_bytes() == b"generated sentinel", "thumbnail staging overwrote an outside file")
+    check(not dest.is_symlink(), "published thumbnail retained the planted symlink")
+    check(planted.is_symlink(), "writer removed a temporary file it did not create")
+    with Image.open(dest) as img:
+        check(img.size == (64, 48), "thumbnail was not generated")
+
+
+@test
 def engine_help_flags_match_package_documentation():
     """The package briefing documents every live CLI flag, and no removed flag."""
     proc = subprocess.run([sys.executable, "-m", "engine", "--help"], cwd=ENGINE,

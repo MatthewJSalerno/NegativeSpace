@@ -4,6 +4,7 @@ import collections
 import contextlib
 import io
 import os
+import tempfile
 import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -87,16 +88,24 @@ def _write_thumbnail(img, dest: Path, size: int) -> int:
     # The real decode happens here, not at open(): a truncated or damaged photo
     # raises from this call, which is why it sits OUTSIDE the write guard below.
     img.thumbnail((size, size), deps.Image.LANCZOS)
-    tmp = dest.with_name(dest.name + constants.THUMBNAIL_PARTIAL_SUFFIX)
+    tmp = None
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        img.save(tmp, "JPEG", quality=constants.THUMBNAIL_JPEG_QUALITY, optimize=True)
+        # Exclusive creation gives concurrent generators their own inode and never
+        # follows a planted predictable-name symlink into a photo or other file.
+        fd, name = tempfile.mkstemp(prefix=dest.name + ".", suffix=constants.THUMBNAIL_PARTIAL_SUFFIX,
+                                    dir=dest.parent)
+        tmp = Path(name)
+        with os.fdopen(fd, "wb") as output:
+            img.save(output, "JPEG", quality=constants.THUMBNAIL_JPEG_QUALITY, optimize=True)
         os.replace(tmp, dest)
         return dest.stat().st_size
     except OSError as e:
-        with contextlib.suppress(OSError):
-            tmp.unlink()
         raise ThumbnailWriteError(str(e)) from e
+    finally:
+        if tmp is not None:
+            with contextlib.suppress(OSError):
+                tmp.unlink()
 
 
 def _raw_preview(raw, size: int):
