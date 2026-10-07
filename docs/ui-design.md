@@ -188,7 +188,14 @@ The Inspector has **Photo information** and **Similar photos** tabs. Default to
 Photo information outside Has similar photos; remember the active tab and threshold
 when using previous/next. A gallery-card click in Has similar photos always opens
 Similar photos, even after the user switched to Photo information.
-The preview and its resize divider are shared by both tabs. Tab arrow keys and
+The preview and its resize divider are shared by both tabs. In Similar photos, the
+large preview has a plain **Reference photo** heading and an accent border. Do not
+repeat its thumbnail in the matches pane: put **Keep reference, reject n matches…**
+above the candidates. Reference identifies the comparison anchor; **Keeping** appears
+only after the user explicitly chooses Keep and enters the rejection review. Users
+resize the panes themselves; narrow layouts do not add another reference thumbnail.
+The reference heading is informational, with no button-like fill or badge.
+Tab arrow keys and
 Home/End switch tabs without triggering previous/next photo navigation.
 
 The Similar photos tab shows cumulative counts at **75%, 80%, 85%, 90%, 95% and 100%**

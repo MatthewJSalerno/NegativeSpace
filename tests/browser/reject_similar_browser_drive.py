@@ -52,12 +52,38 @@ with sync_playwright() as p:
         page.get_by_role("button", name=re.compile(r"^90% or higher:")).click()
         expect(page.locator(".inspector-match-list li").first).to_be_visible()
 
-    # Similar photos: the kept photo stands out, and each look-alike has its own Reject….
+    # One reference preview, not an implied Keep decision or a repeated thumbnail.
     open_similar()
-    keeping = page.get_by_role("group", name="The photo you keep")
-    expect(keeping).to_contain_text("Keeping")
-    expect(keeping).to_contain_text(name)
-    expect(keeping.get_by_role("button", name=f"Keep {name}, reject the other {total}…")).to_be_visible()
+    inspector = page.locator(".inspector")
+    preview = inspector.locator(".inspector-preview")
+    keeping = inspector.get_by_role("button", name=re.compile(r"^Keep reference, reject "))
+    expect(keeping).to_have_text(f"Keep reference, reject {total} matches…")
+    expect(inspector.get_by_text("Keeping", exact=True)).to_have_count(0)
+    expect(inspector.locator(f'.photo-matches img[src*="/photos/{reference}/"]')).to_have_count(0)
+    for width, panel_width in ((2200, 1300), (1440, 700), (720, 360)):
+        page.set_viewport_size({"width": width, "height": 1000})
+        page.evaluate("w => localStorage.setItem('ns.inspectorWidth', String(w))", panel_width)
+        open_similar()
+        expect(preview.get_by_role("heading", name="Reference photo", exact=True)).to_be_visible()
+        expect(preview.locator(".inspector-image img:not([style*='none'])")).to_be_visible(timeout=15_000)
+        assert preview.evaluate("e => getComputedStyle(e).borderTopWidth") == "2px"
+        expect(inspector.locator(f'.photo-matches img[src*="/photos/{reference}/"]')).to_have_count(0)
+        if width == 2200:
+            expect(inspector.locator(".inspector-main")).to_have_attribute("data-wide", "true")
+        shot(f"reference-preview-{width}")
+    page.set_viewport_size({"width": 1440, "height": 1000})
+    open_similar()
+    for theme in ("light", "dark"):
+        page.emulate_media(color_scheme=theme)
+        shot(f"reference-preview-{theme}")
+    page.emulate_media(forced_colors="active")
+    expect(preview.get_by_role("heading", name="Reference photo", exact=True)).to_be_visible()
+    assert preview.evaluate("e => getComputedStyle(e).borderTopStyle") == "solid"
+    page.emulate_media(forced_colors="none", color_scheme="light")
+    inspector.get_by_role("tab", name="Photo information", exact=True).click()
+    expect(preview.get_by_role("heading", name="Reference photo", exact=True)).to_have_count(0)
+    expect(preview).to_have_attribute("data-reference", "false")
+    inspector.get_by_role("tab", name="Similar photos", exact=True).click()
     rows = page.locator(".inspector-match-list li")
     expect(rows.first.get_by_role("button", name=re.compile(r"^Reject .+…$"))).to_be_visible()
     shot("s1-similar-tab")
@@ -69,7 +95,7 @@ with sync_playwright() as p:
     expect(banner).to_contain_text("1 of 1 photo moved to Rejects", timeout=60_000)
     assert status_of(first["id"]) == "Rejected_Copied"
     total -= 1
-    expect(keeping).to_contain_text(f"reject the other {total}…")
+    expect(keeping).to_have_text(f"Keep reference, reject {total} matches…")
 
     # Side by side: a Reject… under each photo.
     page.locator(".inspector-match").first.click()
@@ -117,7 +143,7 @@ with sync_playwright() as p:
 
     # Keep this one, reject the rest: reviewed first, the kept photo first and full size.
     open_similar()
-    page.get_by_role("group", name="The photo you keep").get_by_role("button", name=f"Keep {name}, reject the other {total}…").click()
+    page.get_by_role("button", name=f"Keep reference, reject {total} matches…", exact=True).click()
     review = page.get_by_role("region", name="Review before rejecting")
     expect(review).to_contain_text(f"Keeping {name}")
     expect(review).to_contain_text(f"{total:,} of {total:,} look-alikes will be moved to Rejects. Untick any you want to keep.")

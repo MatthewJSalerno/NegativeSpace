@@ -181,10 +181,13 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
       <div className="inspector-main" data-wide={splitSize.wide}
            style={{ "--preview-share": `${previewShare}%`,
              "--preview-size": `${Math.round(splitSize.height * (splitSize.wide ? 1 : previewShare / 100))}px` } as CSSProperties}>
-        <button className="inspector-image" onClick={() => setEnlarged(true)} aria-label="Enlarge the photo"
-                title="Click to enlarge">
-          {photo}
-        </button>
+        <div className="inspector-preview" data-reference={tab === "similar"}>
+          {tab === "similar" && <h3>Reference photo</h3>}
+          <button className="inspector-image" onClick={() => setEnlarged(true)} aria-label="Enlarge the photo"
+                  title="Click to enlarge">
+            {photo}
+          </button>
+        </div>
         <div className="preview-divider" role="separator" tabIndex={0}
              aria-label="Resize photo preview" aria-orientation={splitSize.wide ? "vertical" : "horizontal"}
              aria-valuemin={20} aria-valuemax={75} aria-valuenow={previewShare}

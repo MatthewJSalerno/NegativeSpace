@@ -78,21 +78,11 @@ export function PhotoMatches({ id, name, delivered, view, onView, refreshKey, on
         {results?.availability === "available" && <>
           <p className="section-note">{plural(results.total, "potential match", "potential matches")}. Review photos for clues about dates, events and other details.</p>
           {results.total === 0 && <p>No recorded matches at this threshold{results.state.pending ? "; comparisons are incomplete" : ""}.</p>}
-          {onKeep && results.total > 0 && <div className="keeping" aria-label="The photo you keep" role="group">
-            <Thumb id={id} alt="" refreshKey={refreshKey} />
-            <span className="keeping-text">
-              <span className="keeping-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>Keeping</span>
-              <strong>{name ?? "This photo"}</strong>
-              <span className="muted">The photo open in this panel</span>
-            </span>
-            <button className="photo-action" disabled={jobRunning}
-                    title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : `Keep ${name ?? "this photo"}. The look-alikes are reviewed before any is rejected.`}
-                    aria-label={`Keep ${name ?? "this photo"}, reject the other ${count(results.total)}…`}
-                    onClick={() => onKeep(threshold!)}>
-              Keep <span className="keep-name">{name ?? "this photo"}</span>, reject the other {count(results.total)}…
-            </button>
-          </div>}
+          {onKeep && results.total > 0 && <button className="photo-action" disabled={jobRunning}
+            title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : `Keep ${name ?? "the reference photo"}. The matches are reviewed before any is rejected.`}
+            onClick={() => onKeep(threshold!)}>
+            Keep reference, reject {plural(results.total, "match", "matches")}…
+          </button>}
           <ul className="inspector-match-list">
             {results.items.map((photo) => <li key={photo.id}>
               <button className="inspector-match" onClick={() => onReview(photo.id)} aria-label={`Review side by side: ${photo.filename}`}>

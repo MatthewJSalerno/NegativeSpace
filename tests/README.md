@@ -210,6 +210,13 @@ from Similar photos and side by side: Reject… per look-alike; in the compariso
 under each photo, asked once with Don't ask again, the next look-alike with Return it to
 the library, a new comparison asking again, and the last photo always asked about; Keep
 this one, reject the rest with the kept photo first, full size and never ticked.
+It also checks the single large reference preview, its heading and accent border,
+no repeated reference thumbnail in the matches pane, and no Keeping label before
+an explicit Keep choice, across wide/stacked layouts and forced colors.
+
+Manual check: open Similar photos, confirm the large preview is labelled **Reference
+photo**, then choose **Keep reference, reject n matches…**. Only the resulting review
+should label it **Keeping**; Cancel should return without rejecting anything.
 
 `DRIVER=rejects_browser_drive.py sh tests/browser/webui_browser_test.sh` checks Rejects: one
 photo rejected from the Inspector (asked first by name, starting on Cancel), a selection

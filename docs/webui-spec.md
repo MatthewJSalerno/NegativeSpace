@@ -2277,11 +2277,13 @@ source against the copy in Rejects (or puts it there, when Rejects was emptied).
     Rejects. *Why not by view:* after a Reject the screen shows the job's photos, not the
     Rejects view.
 
-*   **From Similar photos:** each look-alike has its own **Reject…**. Above them the photo
-    open in the panel stands out as **Keeping** (green outline, a check, a large picture)
-    with **Keep IMG_0410.jpg, reject the other 7…**: every look-alike at the chosen
-    percentage, reviewed like the selection bar's Reject, the kept photo first as a full-size card
-    with no tick box, whatever the sort or page.
+*   **From Similar photos:** each look-alike has its own **Reject…**. The shared large
+    preview has a plain **Reference photo** heading and an accent border. The matches
+    pane has no duplicate reference thumbnail, including in narrow layouts; users can
+    resize the panes. **Keep reference, reject 7 matches…** above the candidates opens
+    review of every look-alike at the chosen percentage, like the selection bar's Reject.
+    Only after that explicit choice is the reference marked **Keeping**: first as a
+    full-size card with no tick box, whatever the sort or page.
 *   **Side by side:** a **Reject…** under each photo, so it is clear which one goes. The
     first reject in a comparison asks, with **Don't ask again while comparing** (until the
     comparison closes); a reject that would leave none of the compared photos in the
