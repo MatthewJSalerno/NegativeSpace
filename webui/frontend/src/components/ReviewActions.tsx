@@ -31,6 +31,7 @@ export function ReviewActions({ workspace, busy, setBrowse, onOpenSet, onShowSet
   const copy = async () => {
     const url = new URL(window.location.href);
     url.pathname = "/";
+    url.searchParams.delete("review_photo");
     url.searchParams.set("photo", String(workspace.origin));
     url.searchParams.set("tab", "similar");
     url.searchParams.set("review", JSON.stringify(workspace));
@@ -43,7 +44,7 @@ export function ReviewActions({ workspace, busy, setBrowse, onOpenSet, onShowSet
     finally { setCopying(false); }
   };
   return <div>
-    <div className="row-links">
+    <div className="photo-actions">
       <button disabled={busy || copying} onClick={copy}>Copy review link</button>
       {onShowSet && <button disabled={busy} onClick={() => onShowSet(workspace.reference, workspace.threshold)}>Show this set in gallery</button>}
       {setBrowse && onOpenSet && <>

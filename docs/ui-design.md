@@ -551,18 +551,29 @@ control to reopen it. Dismissal is remembered in this browser across refreshes a
 navigation for that finished Index; the next finished Index reveals the updated
 summary. Copy/Move and other jobs do not reopen it. Closing changes no photos or
 selection, and Jobs retains Copy/Move. Focus follows the close/show control.
+Opening a source preview temporarily collapses the summary to **Show index summary**;
+closing the preview restores its prior state. Explicit Show can expand it while the
+preview is open. If only failed source files remain, say
+**n files need attention**, link directly to failures and omit misleading Copy/Move actions.
+Switching location closes the Inspector and comparison context, preserving checkboxes.
+Explicit links to a photo still open that photo in their specified context.
 An empty Library explains how to populate it and links to Not organized.
 
 Library contains delivered, active photos only. Cards with unresolved reasons show a
 Needs review link and concise reason labels. Opening it selects the relevant inbox
-reason (All reasons for multiple reasons), focuses that photo in the review workspace,
+reason (no reason filter for multiple reasons), focuses that photo in the review workspace,
 and clears unrelated browsing filters so the photo cannot be hidden. Checkboxes stay
 unchanged. Back to Library restores the entry filters, sort and visible photo position
 for this visit. Mark reviewed clears the reminder, not the Library photo.
 
-Place controls and filter chips have different roles. Similar photos, Suspicious dates
-and No capture date are combinable filter chips beneath navigation. Needs review reason
-chips select one reason or All reasons. Use native buttons with aria-pressed, shared
+Place controls and filter chips have different roles. Each location has exactly one
+filter row beneath navigation. Similar photos, Suspicious dates and No capture date
+combine; Small images toggles the existing size-reminder predicate within Library or
+Needs review, without navigating. Needs review adds Review later in that same row.
+Small images and Review later choose one reminder scope at a time, combining with the
+other filters. Leaving Needs review clears its Review later restriction, so Library
+cannot inherit a filter with no visible control. Clicking an active chip clears it; no active chips means the whole
+current location/inbox. Do not repeat these controls in a second row or add All reasons. Use native buttons with aria-pressed, shared
 text roles, visible focus and wrapping at desktop zoom. Folders and Dates remain in the
 sidebar. Name active restrictions visibly and provide Clear filters without changing
 place or selection. Search offers a route to filename matches in other locations.
@@ -586,10 +597,9 @@ the detailed dimensions and configured rule in the Inspector and review workspac
 The short card reason also exposes that rule through shared `Tip` help on hover,
 keyboard focus or the information button.
 
-Keep a **Small images** shortcut beside **No capture date** in the gallery toolbar.
-It opens Needs review with the Small images reason selected, preserving search,
-other filters and explicit photo selection. Concise card text must not remove this
-entry point; the reason chips remain available inside Needs review.
+Keep **Small images** beside **No capture date** as a filter toggle in Library and
+Needs review. It preserves location, search, other filters and checkbox selection.
+**Review photo…** opens the dedicated review workspace; filtering never opens it.
 
 The current gallery location is a section heading above its content, consistently across
 views. Active restrictions and Clear filters sit beside it in supporting text; an
@@ -603,8 +613,8 @@ Switching Needs review reasons must not move the reason controls or results summ
 Reason explanations share an automatically sized grid area that accommodates the longest
 wrapped text at the current width/text size; do not use fixed heights or clip guidance.
 Only the current explanation is visible, focusable or exposed to assistive technology.
-Choosing a reason alone does not add Clear filters beside the location heading: **All
-reasons** clears that restriction. Other active gallery filters retain Clear filters.
+Choosing a reminder scope alone does not add Clear filters beside the location heading:
+click its active chip again to clear it. Other active gallery filters retain Clear filters.
 
 The selection toolbar reserves the width of its outside-this-view message for the
 current selection size. Filtering must not make this message appear/disappear in a
@@ -618,3 +628,31 @@ the review filters or prevent their activation at desktop zoom.
 
 Filter and reason count labels reserve space based on the catalog's total photo count,
 with tabular digits, so changing from many matches to zero cannot rewrap the filter row.
+
+### Consistent review decisions
+
+Actions are visible native buttons with the shared outlined secondary treatment;
+Reject retains its explicit confirmation. Navigation is a link, explanatory facts
+are plain text. Opening Settings is a dialog action and uses a button. Keep related
+actions in one wrapping row with consistent control height, text and spacing.
+
+The Inspector shows File and capture details first, then a concise Needs review
+section and one Photo actions row: Review photo…, Review later… and Reject… (or
+Return to library… when appropriate). Detailed Mark reviewed/Done decisions belong
+in the workspace beside their reason. Move the small-image Settings action out of
+the Inspector; the inbox's size guidance retains it. History and full metadata
+remain available without crowding the decision controls.
+
+The dedicated review workspace names its task (Small-image review, Review later,
+or the date filter), queue position and Previous/Next in the shared header. A large
+photo and compact rotation/zoom controls occupy the main area. A side panel groups
+why the photo needs review, relevant facts and one action row. Explain that Mark
+reviewed clears only the size reminder; Done clears only Review later. Date warnings
+provide information, not unbuilt date-edit/acknowledgment controls.
+
+Matching clues show up to three thumbnail candidates (a larger match first when
+available) with Review side by side, using the existing comparison workspace and
+returning to review. With no matches, use one short message, not an empty comparison
+column. Incomplete coverage links to Review matching status; absence of evidence is
+not proof of uniqueness. The panels reflow within the shared workspace; the whole
+workspace scrolls, and the photo's controls do not get an inner vertical scroller.

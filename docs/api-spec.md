@@ -913,8 +913,11 @@ reload before retrying. Success is shown only after acknowledgement.
 Gallery listing, IDs, position, types, folders and timeline accept `similar` and
 `suspicious` booleans and `reason` (all/small/later). These combine with existing
 filters. `view=review` selects distinct photos with an unresolved supported reason.
-Listings include `chips`, `reasons` and filename-only `elsewhere` location counts;
-review and organized/similar cards include compact location and current reason details
+Listings include `chips` (similar/suspicious/undated/small), `reasons` and filename-only
+`elsewhere` location counts. `reason=small` filters Library as well as the inbox, using
+unacknowledged destination size reminders; it never restricts imports. Chip counts
+apply the other current filters; the small count evaluates that reminder scope.
+Review and organized/similar cards include compact location and current reason details
 (`review: {location,reasons}`), without decision history. Full history remains in the
 per-photo review endpoint. Unorganized listings include `index_summary` (null elsewhere):
 `photos`, `duplicates` (extra Duplicate records sharing content with a remaining source

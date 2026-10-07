@@ -13,12 +13,13 @@ import { ReviewMetadata } from "./ReviewMetadata";
 
 const PAGE_SIZE = 12;
 
-export function MatchReviewDialog({ reference: initialReference, candidate, initialView, onView, onClose, onChanged, workspace, onWorkspace, setBrowse, onOpenSet, onShowSet, jobRunning = false, onNotice, onKeep }: SetActions & {
+export function MatchReviewDialog({ reference: initialReference, candidate, initialView, onView, onClose, onChanged, workspace, onWorkspace, setBrowse, onOpenSet, onShowSet, jobRunning = false, onNotice, onKeep, returnTo = "gallery" }: SetActions & {
   workspace: ComparisonState; onWorkspace: (state: ComparisonState) => void;
   reference: number; candidate: number | null; initialView: { threshold: number; page: number };
   onView: (view: { threshold: number; page: number }) => void; onClose: () => void; onChanged: () => void;
   // Another job holds the engine, so Reject waits.
   jobRunning?: boolean;
+  returnTo?: "gallery" | "review";
   // A note for the Library after the comparison closes (its reference was rejected).
   onNotice?: (text: string, actions: { label: string; run: () => void }[], photo?: number) => void;
   // Keep the reference and reject the rest: the same review as in Similar photos.
@@ -187,7 +188,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
   const position = matches && index >= 0 ? (page - 1) * PAGE_SIZE + index + 1 : null;
   const progress = matches?.availability === "available"
     ? `${count(matches.total)} look-alikes at ${threshold}% or higher` : "Loading look-alikes…";
-  return <Workspace label="Review photo match" className="match-review-dialog" onBack={close}
+  return <Workspace label="Review photo match" className="match-review-dialog" onBack={close} backLabel={`Back to ${returnTo}`} escapeHint={`Esc returns to ${returnTo === "gallery" ? "the gallery" : "review"}`}
     title="Review similar photos"
     subject={review?.reference.id === reference ? `Reference: ${review.reference.filename}` : "Compare destination photos side by side."}
     step={{

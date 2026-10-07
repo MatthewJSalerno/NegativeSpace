@@ -157,3 +157,14 @@ class ReviewTests(ApiCase):
         with ns_db.connect(self.cfg.db_path) as c:
             c.execute("UPDATE runs SET status='Completed',ended_at='2026-01-03T00:01:00Z' WHERE id=?",(pending,));c.commit()
         self.assertEqual(summary_index(),dict(id=pending,started_at='2026-01-03T00:00:00Z'))
+
+    def test_library_size_filter_matches_its_chip_and_keeps_location(self):
+        self.enable()
+        listing=self.client.get('/api/v1/photos?view=organized').json()
+        self.assertEqual(listing['chips']['small'],1)
+        filtered=self.client.get('/api/v1/photos?view=organized&reason=small').json()
+        self.assertEqual([p['id'] for p in filtered['items']],[1])
+        self.assertEqual(filtered['total'],listing['chips']['small'])
+        self.assertEqual(self.send(self.decision()).status_code,200)
+        self.assertEqual(self.client.get('/api/v1/photos?view=organized&reason=small').json()['total'],0)
+        self.assertEqual(self.client.get('/api/v1/photos?view=organized').json()['total'],2)

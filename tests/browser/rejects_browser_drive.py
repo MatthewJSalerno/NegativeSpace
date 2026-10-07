@@ -62,12 +62,13 @@ with sync_playwright() as p:
 
     run_job(request, "copy")
     page.goto(BASE)
+    view_button(page, "Library").click()
 
     # The view buttons count what the search finds, as the gallery does.
     page.get_by_role("searchbox", name="Search filenames").fill("photo-002")
     expect(page.locator(".card")).to_have_count(1)
     expect(view_button(page, "Library")).to_contain_text("(1)")
-    expect(view_button(page, "Library")).to_contain_text("(1)")
+    expect(view_button(page, "Not organized")).to_contain_text("(0)")
     expect(view_button(page, "Rejects")).to_contain_text("(0)")
 
     # One photo, from the Inspector: asked first in a sentence, starting on Cancel.
@@ -151,7 +152,7 @@ with sync_playwright() as p:
     show = page.get_by_role("link", name="Show these photos in the library")
     expect(show).to_have_attribute("href", f"/?run={run['id']}")
     page.locator("a[href*='photo=']").first.click()
-    back = page.locator(".inspector-actions").get_by_role("button", name="Return to library…", exact=True)
+    back = page.locator(".inspector .photo-actions").get_by_role("button", name="Return to library…", exact=True)
     expect(back).to_be_visible()
     assert back.evaluate("b => getComputedStyle(b).borderTopStyle") == "solid", "the Inspector action has no outline"
     shot("r3b-return-from-log")

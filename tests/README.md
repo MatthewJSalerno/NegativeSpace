@@ -721,3 +721,18 @@ The Index summary can be closed and reopened from Not organized. The review brow
 check covers close/show focus, dismissal after refresh and filtering, and automatic
 reopening after a new Index finishes. Review API coverage verifies that Copy and an
 unfinished Index do not change the completed-Index identity used for dismissal.
+
+### Review UX batch
+
+The review browser flow verifies one toggle row per location, Small images filtering
+Library without navigation, active toggles clearing, and selection retained across
+place changes. It checks closing stale previews, temporary Index-summary collapse,
+Inspector action grouping, the dedicated review layout, and matching-clue comparison
+with return to review. Shared controls and comparison Reject/Keep flows use their
+existing browser drivers. No EXIF or file-deletion capability is added.
+
+Manual batch check: switch Library → Not organized with a photo open; open a source
+preview and close it to restore the summary; toggle each filter twice; open Review
+photo… and check the reason, action row, compact viewing controls and comparison clues.
+A successful Mark reviewed clears only the size reminder. Unreadable-only source
+results should point to failures rather than offering an ineligible transfer.

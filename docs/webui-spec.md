@@ -288,9 +288,10 @@ six to four. Settled 2026-10-07:
 * **The filters are a row of chips** under the four view buttons, each with its count in
   the place shown ("Has similar photos (167) · Suspicious dates (8) · No capture date
   (1,356)"), as Needs review's reasons are (§7.9): one pattern for narrowing a place.
-* **Small images** stays beside **No capture date** as a shortcut to
-  **Needs review → Small images**, preserving search, filters and selection. The
-  shortened reason under a photo does not replace this toolbar entry point.
+* **Small images** stays beside **No capture date** as a toggle in Library and
+  Needs review. Click again to clear it; it never changes location. Needs review adds
+  Review later to this same row, with no second reason row or All reasons control.
+  Review photo… explicitly enters the dedicated workspace.
 * **The first visit opens on Not organized** while the library is empty. Once it holds a photo, an unscoped visit restores the browser’s last location (`ns.place`), defaulting to Library. Explicit URLs and refreshes preserve the requested view. *Why:* a default view with nothing in it tells a newcomer
   nothing; Not organized is where the first job starts.
 
@@ -311,13 +312,18 @@ control to reopen it. Dismissal is remembered in this browser across refreshes a
 navigation for that finished Index; the next finished Index reveals the updated
 summary. Copy/Move and other jobs do not reopen it. Closing changes no photos or
 selection, and Jobs retains Copy/Move. Focus follows the close/show control.
+Opening a source preview temporarily collapses the summary, retaining Show index summary;
+closing the preview restores its previous state. An explicit Show can override this while
+previewing. With only failed source files left, show **n files need
+attention**, link to filtered failures and omit Copy/Move buttons. Changing location closes
+the Inspector/comparison so a Library photo cannot linger beside Not organized results.
 An empty Library says **No photos organized yet** and links to Not organized.
 When nothing remains to organize, Not organized offers **Go to Library** if delivered
 photos exist.
 
 **Library review entry:** unresolved supported reasons appear as a **Needs review** link
 on a Library card. It opens the photo’s review workspace in Needs review with its reason
-selected, or All reasons for several notes. Unrelated Library filters are cleared there;
+selected, or no reason filter for several notes. Unrelated Library filters are cleared there;
 explicit checkbox selection is unchanged. On returning to the inbox, **Back to Library**
 restores this visit’s entry filters, sort and visible photo position. Rejected photos leave
 Library; acknowledging a note leaves the photo in Library.
@@ -347,9 +353,10 @@ in the other view, show its count and a link rather than implying no matches exi
 Filter chips combine with AND: Has similar photos plus No capture date finds photos
 meeting both conditions. Dates, types, folders and filename search also apply. The
 visible filter summary names every active restriction; Clear filters preserves the
-location and explicit photo selection. Reason chips in Needs review select one reason
-at a time, or All reasons. Sidebar filters continue to apply there. Counts count photos,
-not notes; a photo with two reasons appears once in All reasons.
+location and explicit photo selection. Small images and Review later choose one
+reminder scope at a time; clicking it again clears it. Other chips combine with that
+scope. No active chips means all photos in the current location/inbox. Sidebar filters
+continue to apply. Counts count photos, not notes; overlapping reasons do not duplicate a photo.
 
 When a filename search finds nothing in the current location, offer matches in the
 other locations. These escape links retain the filename search and clear narrowing
@@ -2337,17 +2344,17 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   photo's card and in the Inspector. **Review one by one** opens the workspace (§7.7),
   which steps through the photos with ‹ › and shows relevant evidence and
   reason-specific buttons. Cards currently show reasons and Open review; direct
-  answers are in the Inspector and workspace. *Why not a page of its own:* finding notes then works like the rest of the
+  answers are in the dedicated workspace; the Inspector offers Review photo… and
+  one consistent row of photo actions after File/capture information. *Why not a page of its own:* finding notes then works like the rest of the
   Library (filters, selection, bulk answers), and working through them reuses the
   workspace built for such tasks.
 * **Filter by reason; bulk within one reason** (planned for review answers; existing bulk Reject is available with preview and confirmation). A mixed
-  selection offers only shared actions. The reasons are a row of chips above the photos,
-  each with its count ("All reasons (31) · No capture date (12) · Small image (9) · …"),
-  beside **Review one by one** (decided 2026-10-07). *Why not tick boxes in the left
-  panel:* that panel holds Folders and Dates, which still apply inside Needs review.
-  Switching reasons keeps the controls and results summary in place. Explanations occupy
-  a shared area sized to their wrapped content; only the current explanation is accessible.
-  **All reasons** clears the reason filter without adding a new heading control.
+  selection offers only shared actions. One filter row beneath location navigation
+  includes the review-reason toggles and their counts; **Review one by one** stays above
+  the photos. Folders and Dates remain in the sidebar. Active chips toggle off, and no
+  active chips means the whole inbox. Do not duplicate Small images in another row.
+  Switching reminders keeps controls and results stable; explanations share a content-sized
+  area, with only the current explanation accessible.
 * **A note exists only when a person must decide.** Facts the catalog can compute (every
   similar pair) stay live queries, so the list cannot grow into a copy of the library.
 * **A resolved note leaves the list;** the decision goes into the photo's history. **A note
@@ -2388,8 +2395,9 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   Delivered photos whose shorter side is below the configured minimum appear in
   Needs review → Small images. Unknown dimensions are not treated as small. Gallery cards say **Below minimum image size**, with the dimensions and configured minimum
   available through hover/focus help and its information button.
-  The Inspector and workspace explain dimensions and the rule, e.g. "640 × 480 — below your 800-pixel minimum on
-  the shorter side", with **Change in Settings** opening Files directly.
+  The Inspector gives the short reason and Review photo…; the workspace explains
+  dimensions and the rule, e.g. "640 × 480 — below your 800-pixel minimum on the shorter
+  side". Change in Settings belongs in the inbox's size guidance and opens Files directly.
 * **The user chooses at first run.** Files labels the choice **Small-image reminders (required)** and asks whether to enable reminders;
   the choice appears first in the Files step in an accent-bordered notice, with bold
   **(required)** and **Choose On or Off to continue**. Neither option is preselected for a new catalog. Enabling suggests 800 pixels, editable
@@ -2405,10 +2413,16 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   size setting do not re-open an acknowledged concern for unchanged content. A replaced
   content version is assessed independently. Review later remains until Done; clearing
   one reason does not clear another. Reading the inbox performs no catalog writes.
-* **One shared review workspace.** Review one by one shows the reason, location, photo
+* **One shared review workspace.** A task-specific title and queue navigation lead a
+  large photo with compact viewing controls and a decision panel. Mark reviewed,
+  Review later… and Reject… use consistent buttons in one action row, with the effect
+  explained. Matching clues are up to three thumbnails, a larger match first when
+  available; Review side by side opens comparison and returns to review. Empty matches
+  use a short message; incomplete coverage offers Review matching status. Review one by
+  one shows the reason, location, photo
   and relevant evidence, with Previous/Next and Back to gallery. Next leaves the photo
   unresolved. A successfully acknowledged decision advances to the next eligible item
-  (or keeps another unresolved reason on the same photo in All reasons). Reject advances
+  (or keeps another unresolved reason on the same photo with no reason filter). Reject advances
   only after its outcome confirms the move, never merely on job submission. Closing
   restores gallery filters, selection and position. The current photo is in the URL;
   refreshed links retrieve current evidence. Errors keep the decision visible with

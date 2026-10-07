@@ -35,6 +35,8 @@ with sync_playwright() as p:
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.goto(sys.argv[1])
     expect(page.get_by_role('link', name='Similar', exact=True)).to_have_count(0)
+    expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_count(0)
+    page.locator('.views').get_by_role('button',name=re.compile('^Library')).click()
     page.get_by_role('button', name=re.compile('^Has similar photos')).click()
     expect(page.locator('.card')).to_have_count(0)
     expect(page.get_by_text('Copy or Move indexed photos to the destination first.', exact=False)).to_be_visible()

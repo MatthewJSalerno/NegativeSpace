@@ -50,7 +50,7 @@ export function SimilarityRecovery({ photoId, onRecovered, visible = true }: { p
   const phase = run && currentPhase(run);
   const running = run && ["Preparing", "Running", "Cancelling"].includes(run.status);
   return <>
-    {visible && <button className="link" onClick={() => { setScopePhoto(photoId); setPage(1); setOpen(true); }}>Review matching status</button>}
+    {visible && <button className="photo-action" onClick={() => { setScopePhoto(photoId); setPage(1); setOpen(true); }}>Review matching status</button>}
     {open && <Modal label="Matching status" className="dialog" onClose={() => setOpen(false)} busy={starting}>
       <h2>Matching status</h2>
       <p>Generate hashes that have not been created, or resume unfinished comparisons. Files with recorded failures need the correction described below before rechecking. Photo files stay unchanged. Missing EXIF alone does not mean a file is damaged.</p>

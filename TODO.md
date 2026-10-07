@@ -50,11 +50,9 @@ Found 2026-10-05 looking for screens that do the same job twice.
   ‹ › steps through a photo's look-alikes and **Use as reference** walks into a neighbouring
   set. Only the combined view of several overlapping sets goes; if it is ever missed, it
   returns as a section of the Similar photos tab, not a window.
-- [ ] **Needs review mockup** (on hold): boards in the design canvas; its two-photo note
-  reuses the comparison workspace, which gains the "Will be rejected" marking. Settled
-  2026-10-07: reasons as a row of chips (board 1), and a small image's look-alikes as a
-  hint. Superseded 2026-10-07: small images are reviewed after import, with Mark
-  reviewed or the existing Reject selection; no bulk Keep or automatic unticking.
+- [x] Needs review decision layout: large photo, compact controls, one reason/action
+  panel and matching thumbnails that open comparison. Remaining two-photo rejection
+  proposals belong with the unbuilt "looks like a reject" reason below.
 
 ## Views
 
@@ -78,6 +76,11 @@ Found 2026-10-05 looking for screens that do the same job twice.
   filename search and first-visit default (`webui-spec.md` §2).
 
 ## Needs review
+
+- [x] UX consistency batch: one toggle row per place, in-place Small images filter,
+  closed Inspector on place changes, contextual/collapsible source summary, grouped
+  photo actions and the dedicated review layout. Date flags remain informational;
+  persistent date acknowledgments and editing are still unbuilt.
 
 - [x] The in-tray for Small images and Review later (`docs/webui-spec.md` §7.9).
 - [ ] Add the remaining reasons to the shared inbox/workspace: unreadable files and

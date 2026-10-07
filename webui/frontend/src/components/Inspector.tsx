@@ -32,10 +32,11 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice }: SetActions & {
+export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice, onReviewPhoto }: SetActions & {
   // Reject this photo, or return it from Rejects; each asks first.
   onReject?: (filename: string) => void;
   onReturn?: () => void;
+  onReviewPhoto?: () => void;
   // From Similar photos: reject one look-alike, or keep this photo and reject the rest.
   onRejectMatch?: (id: number, filename: string) => void;
   onKeep?: (keep: number, name: string, threshold: number) => void;
@@ -218,13 +219,15 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
           <TabList className="inspector-tabs" label="Photo inspector" idBase={tabId} value={tab} onChange={onTab}
             tabs={[{ value: "information", label: "Photo information" }, { value: "similar", label: "Similar photos" }]} />
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", tab)}>
-            {detail && tab === "information" && <ReviewNote key={id} id={id} refreshKey={refreshKey} disabled={jobRunning}/>}
             {detail && tab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
-              actions={IN_LIBRARY.includes(detail.status) && onReject
-                ? <button onClick={() => onReject(detail.filename)} disabled={jobRunning} title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Move this photo out of the library into Rejects. Nothing is deleted."}>Reject…</button>
-                : IN_REJECTS.includes(detail.status) && onReturn
-                  ? <button onClick={onReturn} disabled={jobRunning} title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Move this photo from Rejects back to its date folder."}>Return to library…</button>
-                  : null} />}
+              review={<ReviewNote key={id} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto}
+                concerns={detail.date_warning ? [{label:"Suspicious date",message:"The recorded date needs checking. Date editing is not available yet."}]
+                  : !detail.exif_dates?.some(d => d.field === "taken") ? [{label:"No capture date",message:"No date taken is recorded in the photo’s EXIF."}] : []}
+                actions={IN_LIBRARY.includes(detail.status) && onReject
+                  ? <button onClick={() => onReject(detail.filename)} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Move this photo to Rejects. Nothing is deleted."}>Reject…</button>
+                  : IN_REJECTS.includes(detail.status) && onReturn
+                    ? <button onClick={onReturn} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Move this photo back to Library."}>Return to library…</button>
+                    : null} />} />}
           </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "similar", tab)}>
             {detail && tab === "similar" && <div className="inspector-body"><PhotoMatches key={id} id={id} name={detail.filename}
@@ -291,7 +294,7 @@ function exifTime(value: string) {
   return `${date.replace(/:/g, "-")} ${time}`.trim();
 }
 
-function Details({ detail: d, onLineage, refreshKey, actions }: { detail: PhotoDetail; onLineage: () => void; refreshKey: number; actions?: ReactNode }) {
+function Details({ detail: d, onLineage, refreshKey, review }: { detail: PhotoDetail; onLineage: () => void; refreshKey: number; review?: ReactNode }) {
   const fallback = isFallbackDate(d.date_source);
   const exposure = [d.iso != null ? `ISO ${d.iso}` : null, d.aperture != null ? `f/${d.aperture}` : null,
                     d.shutter != null ? `${d.shutter}s` : null].filter(Boolean).join(" · ");
@@ -307,8 +310,7 @@ function Details({ detail: d, onLineage, refreshKey, actions }: { detail: PhotoD
   const taken = dates.find((x) => x.field === "taken");
   return (
     <div className="inspector-body">
-      {actions && <div className="inspector-actions">{actions}</div>}
-      {d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. The value is unchanged; date editing is not yet available. <a href="/?view=suspicious">View suspicious dates</a></p>}
+      {!review && d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. The value is unchanged; date editing is not yet available. <a href="/?view=suspicious">View suspicious dates</a></p>}
       {d.visual_issue && <p className="section-note"><strong>Visual matching unavailable:</strong> {d.visual_issue} The catalogued file is retained. Missing EXIF alone is not evidence of damage.</p>}
       <Section title="File">
         <Row label="Status">{STATUS[d.status] ?? d.status}</Row>
@@ -325,7 +327,6 @@ function Details({ detail: d, onLineage, refreshKey, actions }: { detail: PhotoD
           {fallback && <div className="muted">* Files it under Undated: no EXIF date taken.</div>}
         </Row>
       </Section>
-      <PhotoHistory refreshKey={refreshKey} id={d.id} onLineage={onLineage} />
       <Section title="Photo EXIF information" note={zoneNote}>
         {!taken && <Row label="Date taken"><span className="muted">Not in the photo's EXIF</span></Row>}
         {dates.map((x) => (
@@ -338,6 +339,8 @@ function Details({ detail: d, onLineage, refreshKey, actions }: { detail: PhotoD
         <tr className="meta-row"><td colSpan={2}><AllMetadata tags={d.metadata ?? []} /></td></tr>
       </Section>
 
+      {review}
+      <PhotoHistory refreshKey={refreshKey} id={d.id} onLineage={onLineage} />
       {d.thumbnail.availability === "failed" && (
         <p className="muted">Thumbnail unavailable: {d.thumbnail.failure_detail ?? "reason not recorded"}</p>
       )}

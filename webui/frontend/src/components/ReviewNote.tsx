@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type ReviewDetail } from "../api";
 
 // A decision is acknowledged before the reminder disappears. Selection is untouched.
-export function ReviewNote({ id, refreshKey, disabled = false, reason = "all", onResolved, onBusy }: {
+export function ReviewNote({ id, refreshKey, disabled = false, reason = "all", onResolved, onBusy, compact = false, onOpenReview, actions, concerns = [] }: {
   id: number; refreshKey: number; disabled?: boolean; reason?: string;
+  compact?: boolean; onOpenReview?: () => void; actions?: ReactNode; concerns?: { label: string; message: string }[];
   onResolved?: (message: string) => void; onBusy?: (busy: boolean) => void;
 }) {
   const [detail, setDetail] = useState<ReviewDetail | null>(null);
@@ -37,16 +38,25 @@ export function ReviewNote({ id, refreshKey, disabled = false, reason = "all", o
   };
   return <section className="review-note" aria-label="Photo review">
     {detail && <>
-      <p className="muted">Location: {detail.location}</p>
-      {detail.reasons.filter(n => reason === "all" || n.reason === reason).map(n => <div key={n.reason}>
-        <strong>{n.label}</strong><p>{n.message}</p>
-        <button disabled={busy || disabled || !!pending.current} title={disabled ? "Wait for the running job to finish." : undefined}
-          onClick={() => void decide(n.reason, n.reason === "small" ? "reviewed" : "done")}>{n.reason === "small" ? "Mark reviewed" : "Done"}</button>
-        {n.reason === "small" && <> <button className="link" disabled={busy} onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></>}
+      <p className="section-note">Location: {detail.location}</p>
+      {(detail.reasons.length > 0 || concerns.length > 0) && <h3>{compact ? "Needs review" : "Why this photo needs review"}</h3>}
+      {detail.reasons.filter(n => reason === "all" || n.reason === reason).map(n => <div className="review-reason" key={n.reason}>
+        <strong>{n.label}</strong><p>{compact ? (n.reason === "small" ? "Below minimum image size" : n.message) : n.message}</p>
       </div>)}
-      {!detail.reasons.some(n => n.reason === "later") && !adding && <button disabled={busy || disabled || !!pending.current} onClick={() => setAdding(true)}>Review later</button>}
-      {adding && <div><label htmlFor={`review-note-${id}`}>Optional note</label><textarea id={`review-note-${id}`} value={note} maxLength={500} disabled={busy} onChange={e => setNote(e.target.value)} />
-        <button disabled={busy || disabled || !!pending.current} onClick={() => void decide("later", "later")}>Save reminder</button> <button disabled={busy} onClick={() => setAdding(false)}>Cancel</button></div>}
+      {concerns.map(n => <div className="review-reason" key={n.label}><strong>{n.label}</strong><p>{n.message}</p></div>)}
+      <div className="photo-actions" role="group" aria-label="Photo actions">
+        {compact && onOpenReview && (detail.reasons.length > 0 || concerns.length > 0) && <button onClick={onOpenReview}>Review photo…</button>}
+        {!compact && detail.reasons.filter(n => reason === "all" || n.reason === reason).map(n => <button key={n.reason}
+          disabled={busy || disabled || !!pending.current} title={disabled ? "Wait for the running job to finish." : undefined}
+          onClick={() => void decide(n.reason, n.reason === "small" ? "reviewed" : "done")}>{n.reason === "small" ? "Mark reviewed" : "Done"}</button>)}
+        {!detail.reasons.some(n => n.reason === "later") && !adding && <button disabled={busy || disabled || !!pending.current}
+          title={disabled ? "Wait for the running job to finish." : undefined} onClick={() => setAdding(true)}>Review later…</button>}
+        {actions}
+      </div>
+      {!compact && (reason === "all" || reason === "small") && detail.reasons.some(n => n.reason === "small") && <p className="section-note">Mark reviewed clears only the small-image reminder. The photo stays in Library.</p>}
+      {!compact && (reason === "all" || reason === "later") && detail.reasons.some(n => n.reason === "later") && <p className="section-note">Done clears only the Review later reminder.</p>}
+      {adding && <div className="review-note-form"><label htmlFor={`review-note-${id}`}>Optional note</label><textarea id={`review-note-${id}`} value={note} maxLength={500} disabled={busy} onChange={e => setNote(e.target.value)} />
+        <div className="photo-actions"><button disabled={busy || disabled || !!pending.current} onClick={() => void decide("later", "later")}>Save reminder</button> <button disabled={busy} onClick={() => setAdding(false)}>Cancel</button></div></div>}
       {detail.history.length > 0 && <details><summary>Review history ({detail.history.length})</summary><ul>{detail.history.map(e => <li key={e.id}>{e.created_at} · {e.reason === "small" ? "Small image marked reviewed" : e.action === "done" ? "Review later completed" : "Review later added"}{e.note ? ` · ${e.note}` : ""}</li>)}</ul></details>}
     </>}
     {message && <p role="status">{message}</p>}

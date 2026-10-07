@@ -328,10 +328,10 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             for place in ('organized', 'unorganized', 'rejects'):
                 elsewhere[place] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(place, match_min)}"+search_sql, search_params).fetchone()[0]
         chips = {}
-        for chip in ('similar', 'suspicious', 'undated'):
+        for chip in ('similar', 'suspicious', 'undated', 'small'):
             extra, values = _filters(q, True if chip=='undated' else undated, dates, types, folders, root,
                 match_min=match_min, similar=True if chip=='similar' else similar,
-                suspicious=True if chip=='suspicious' else suspicious, reason=reason, run=run)
+                suspicious=True if chip=='suspicious' else suspicious, reason='small' if chip=='small' else reason, run=run)
             chips[chip] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}"+extra, values).fetchone()[0]
         reasons = {}
         # Reason chips exist only in the inbox; other galleries need its total, not
