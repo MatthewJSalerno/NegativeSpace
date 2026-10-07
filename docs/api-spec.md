@@ -589,6 +589,9 @@ and with `409 catalog_missing` (or another catalog state) when there is nothing 
 
 ### `GET /api/v1/backups/{id}/download`
 
+Recorded filenames are resolved within the configured backup directory. A symlink
+escaping that root is unavailable (404), and the list reports it as missing.
+
 The file of a succeeded backup, as an attachment under its own name. A backup whose
 file is gone, pruned or never written is `404 backup_unavailable`.
 

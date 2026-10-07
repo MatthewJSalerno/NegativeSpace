@@ -1491,6 +1491,25 @@ class ArchivesOverTime(ApiCase):
 class CatalogBackups(ApiCase):
     """webui-spec 9: the list, Back up now, and downloads."""
 
+    def test_backup_symlink_cannot_download_outside_backup_storage(self):
+        self.create_catalog()
+        self.assertEqual(self.client.post('/api/v1/backups').json()['outcome'], 'succeeded')
+        backup = self.client.get('/api/v1/backups').json()['items'][0]
+        stored = self.cfg.backups / backup['relative_filename']
+        original = stored.read_bytes()
+        secret = self.root / 'outside-sentinel.txt'
+        secret.write_text('generated private sentinel')
+        stored.unlink()
+        stored.symlink_to(secret)
+        response = self.client.get(f"/api/v1/backups/{backup['attempt_id']}/download")
+        self.assertEqual(response.status_code, 404, 'backup download followed an outside symlink')
+        self.assertNotIn(secret.read_bytes(), response.content)
+        self.assertEqual(self.client.get('/api/v1/backups').json()['items'][0]['availability'], 'missing')
+        stored.unlink()
+        stored.write_bytes(original)
+        self.assertEqual(self.client.get(f"/api/v1/backups/{backup['attempt_id']}/download").content, original)
+
+
     def test_backup_now_is_listed_downloadable_and_restorable(self):
         import zstandard
         make_photo(self.cfg.source / "IMG_0001.jpg", "a")
