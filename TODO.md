@@ -67,8 +67,9 @@ Found 2026-10-05 looking for screens that do the same job twice.
   catalog backup") and offer to start when it is done, or wait briefly before refusing.
 
 - [ ] Views named by where a photo is: Library (default), To organize, Rejects, Needs
-  review; Has similar photos, Suspicious dates and No capture date become filters within a
-  place; All photos goes (`docs/webui-spec.md` §2).
+  review; Has similar photos, Suspicious dates and No capture date become a row of filter
+  chips within a place; All photos goes; the first visit opens on To organize while the
+  library is empty (`docs/webui-spec.md` §2).
 
 ## Needs review
 

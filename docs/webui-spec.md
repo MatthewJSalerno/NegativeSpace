@@ -287,8 +287,14 @@ counted again. **All photos** goes: it only ever meant everything mixed together
 **Has similar photos**, **Suspicious dates** and **No capture date** stop being views and
 become filters within a place ("Library · has similar photos"), as No capture date
 already is. *Why:* the view buttons then answer one question, where is it, and drop from
-six to four. *Still to settle when building:* how the filters are offered, and what the
-first visit shows before anything is in the library (To organize).
+six to four. Settled 2026-10-07:
+
+* **The filters are a row of chips** under the four view buttons, each with its count in
+  the place shown ("Has similar photos (167) · Suspicious dates (8) · No capture date
+  (1,356)"), as Needs review's reasons are (§7.9): one pattern for narrowing a place.
+* **The first visit opens on To organize** while the library is empty, and on Library
+  once it holds a photo. *Why:* a default view with nothing in it tells a newcomer
+  nothing; To organize is where the first job starts.
 
 **Main-page browsing:** default to newest first by recorded photo date, clearly
 distinguishing filesystem fallback dates from capture dates; offer size sorting.

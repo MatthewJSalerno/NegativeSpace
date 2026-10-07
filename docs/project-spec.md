@@ -249,6 +249,8 @@ Specified but not yet on screen:
     engine records per full Index (`webui-spec.md` §5.1).
 *   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built), undated photos as a Needs review reason with suggested dates, and metadata editing (`webui-spec.md` §7.5, with its
     decided details).
+*   The views named by where a photo is: Library, To organize, Rejects and Needs review,
+    with similar photos, suspicious dates and no capture date as filter chips (`webui-spec.md` §2).
 *   Needs review (`webui-spec.md` §7.9), with the similar-to-a-reject check
     (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);
