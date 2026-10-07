@@ -697,10 +697,18 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
     path are removed (`catalog.failure_reason`), so `OSError: [Errno 30] Read-only file
     system: '/data/source/a.jpg'` counts under `Read-only file system`.
 
+Browser mutation requests and the job WebSocket must name the same public host
+and port in `Origin` as in `Host`; explicit cross-site requests without an Origin
+are also refused. HTTP mutations return 403 `cross_origin_request`; the WebSocket
+is refused before acceptance (policy code 1008). Nonbrowser clients without these
+headers remain supported. This is a browser boundary, not sign-in or a Host allowlist.
+Reverse proxies must preserve the public Host, including a nondefault port.
+
 ## 7. Error codes
 
 | Code | Status | Meaning |
 | :--- | :--- | :--- |
+| `cross_origin_request` | 403 | A foreign browser origin attempted a mutation |
 | `invalid_request` | 400 | A malformed or disallowed request |
 | `invalid_settings` | 400 | A setting value the engine would reject |
 | `unknown_photo`, `unknown_run` | 404 | No such photo or run |

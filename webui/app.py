@@ -21,7 +21,7 @@ from engine import ns_db
 from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, oplog, outcomes, stats
-from . import matching
+from . import matching, security
 from . import config, jobs as job_commands
 from .config import Config
 from .jobs import JobRefused, JobRunner
@@ -60,6 +60,13 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     app = FastAPI(title="NegativeSpace", lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json")
     app.state.cfg, app.state.jobs = cfg, jobs
+
+    @app.middleware("http")
+    async def browser_mutation_boundary(request, call_next):
+        if request.method not in ("GET", "HEAD", "OPTIONS") and not security.browser_origin_allowed(request.headers):
+            return JSONResponse({"error": "cross_origin_request",
+                                 "message": "Open NegativeSpace directly to perform this action."}, status_code=403)
+        return await call_next(request)
 
     @app.exception_handler(JobRefused)
     async def job_refused(_request, exc: JobRefused):
@@ -460,6 +467,9 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         on connect and whenever either changes, checked about once a second. A new
         connection gets the current state at once, so a refresh or reconnect never
         restarts anything or loses the elapsed time (webui-spec 4.1)."""
+        if not security.browser_origin_allowed(ws.headers):
+            await ws.close(code=1008)
+            return
         await ws.accept()
         # The page never sends; waiting on receive is how this loop learns the connection
         # closed, whether the browser left or the server is shutting down. Sending only on

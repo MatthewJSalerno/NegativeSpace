@@ -87,6 +87,42 @@ class ApiCase(unittest.TestCase):
             yield
 
 
+class BrowserRequestBoundary(ApiCase):
+    def test_foreign_browser_cannot_create_catalog_or_submit_mutations(self):
+        for origin in ('https://untrusted.example', 'null', 'http://testserver.untrusted.example'):
+            with self.subTest(origin=origin):
+                response = self.client.post('/api/v1/catalog', headers={
+                    'origin': origin, 'content-type': 'application/x-www-form-urlencoded'}, content='')
+                self.assertEqual(response.status_code, 403)
+                self.assertFalse(self.cfg.db_path.exists())
+        response = self.client.post('/api/v1/catalog', headers={'sec-fetch-site': 'cross-site'})
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(self.cfg.db_path.exists())
+        # Same public authority, including a nondefault port behind the web proxy.
+        response = self.client.post('/api/v1/catalog', headers={
+            'origin': 'https://photos.example:8443', 'host': 'photos.example:8443'})
+        self.assertEqual(response.status_code, 201)
+        for method, path in (('post', '/api/v1/jobs/cancel'), ('post', '/api/v1/backups'),
+                             ('put', '/api/v1/settings'), ('put', '/api/v1/ui-state')):
+            with self.subTest(path=path):
+                self.assertEqual(getattr(self.client, method)(path, headers={
+                    'origin': 'https://untrusted.example'}, json={}).status_code, 403)
+
+    def test_foreign_browser_cannot_read_job_websocket(self):
+        from starlette.websockets import WebSocketDisconnect
+        with self.assertRaises(WebSocketDisconnect) as refused:
+            with self.client.websocket_connect('/api/v1/ws/jobs', headers={
+                    'origin': 'https://untrusted.example'}) as ws:
+                ws.receive_json()
+        self.assertEqual(refused.exception.code, 1008)
+        with self.client.websocket_connect('/api/v1/ws/jobs', headers={
+                'origin': 'https://photos.example:8443', 'host': 'photos.example:8443'}) as ws:
+            self.assertEqual(ws.receive_json(), {'active': None, 'last': None})
+        # Nonbrowser API clients have no Origin. This is not authentication.
+        with self.client.websocket_connect('/api/v1/ws/jobs') as ws:
+            self.assertEqual(ws.receive_json(), {'active': None, 'last': None})
+
+
 class FirstRunAndSettings(ApiCase):
     def test_api_observes_replaced_config_and_request_validation(self):
         from webui import config, jobs
