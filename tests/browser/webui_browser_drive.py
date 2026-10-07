@@ -69,7 +69,7 @@ with sync_playwright() as p:
             shot("1-welcome")
             expect(page.get_by_role("button", name="Back", exact=True)).to_have_count(0)
         if n == 2:
-            page.get_by_label("Small-image reminders", exact=True).select_option("off")
+            page.get_by_label("Small-image reminders (required)", exact=True).select_option("off")
             # Next checks only this step: with no file type it stays, and says why.
             boxes = page.locator("#settings-exts input[type=checkbox]")
             ticked = [i for i in range(boxes.count()) if boxes.nth(i).is_checked()]

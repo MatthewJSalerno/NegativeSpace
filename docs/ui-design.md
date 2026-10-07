@@ -80,7 +80,7 @@ cannot clip or cover the text.
 | Buttons | Native buttons, primary/secondary/quiet/destructive CSS variants; verb labels. Disable submission while pending. A photo's own action standing alone on a white panel (the Inspector's **Reject…** and **Return to library…**) is outlined with `--control-border`, as fields are: quiet, it read as plain text and was missed. |
 | Selects | Native select for sort and page size. Menus execute commands and are not substitutes for form selects. |
 | Search fields | `ui/SearchField.tsx` for every search and filter box: a **Clear search** button (×, with the field's own name where it filters something else) appears once there is text, clears it and keeps focus in the box; Esc does the same before reaching the dialog or panel around it. The browser's own clear button is hidden, since only some browsers draw one. *From:* [Carbon search](https://carbondesignsystem.com/components/search/usage/). |
-| Fields | `ui/Field.tsx`: persistent label, hint and field error linked to the input, plus invalid state. Keep server validation. |
+| Fields | `ui/Field.tsx`: persistent label, hint and field error linked to the input, plus invalid state. Required choices say **(required)** in the visible label and use native `required` semantics; do not wait for an error to reveal the requirement. Keep server validation. |
 | Checkboxes | Native input and label, Space activation, actual indeterminate state for partial parents. Selecting photos differs from filtering the view. |
 | Filter trees | Consistent rows, counts and focus. Folder/type labels filter; date-name buttons jump and carry an arrow cue. Parent/child inclusion rules remain those in the web spec. |
 | Menus | `ui/MenuButton.tsx` manages focus, item traversal, nested scopes and dismissal. Domain components provide labels, counts, reasons and callbacks. |
@@ -542,7 +542,7 @@ sidebar. Name active restrictions visibly and provide Clear filters without chan
 place or selection. Search offers a route to filename matches in other locations.
 
 Small-image review is destination cleanup, never a Copy/Move restriction. First-run
-Files requires an explicit on/off choice, offering an editable 800-pixel shorter-side
+Files labels the on/off choice **(required)**, offering an editable 800-pixel shorter-side
 minimum if enabled. Settings can adjust or disable it. Mark reviewed acknowledges one
 photo's size concern; it is not Keep, selection, relocation or approval of other reasons.
 Checkboxes continue to select photos to Reject. Never untick photos because the app
@@ -552,3 +552,6 @@ Use the shared Workspace for one-by-one review, with reason-specific evidence/ac
 Previous/Next, and Back to gallery. Next leaves the decision unresolved. Advance only
 on an acknowledged decision or confirmed Reject outcome. Keep errors and retry paths
 visible. Return to the same gallery context and preserve explicit selections.
+
+Small-image gallery cards use the concise reason **Below minimum image size**. Keep
+the detailed dimensions and configured rule in the Inspector and review workspace.

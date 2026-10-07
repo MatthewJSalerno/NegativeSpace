@@ -223,8 +223,8 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
       <section>
         <h3>Small-image review</h3>
         <p>A cleanup suggestion after Copy or Move, never an import restriction. Mark reviewed clears a photo’s size reminder; select unwanted photos to Reject.</p>
-        <label htmlFor="settings-small-choice">Small-image reminders</label>
-        <select id="settings-small-choice" value={smallChoice} disabled={saving} aria-invalid={smallChoice !== "on" && !!fieldErrors.small} aria-describedby={smallChoice !== "on" && fieldErrors.small ? "small-hint small-error" : "small-hint"} onChange={e => setSmallChoice(e.target.value)}>
+        <label htmlFor="settings-small-choice">Small-image reminders{firstRun && <span className="muted"> (required)</span>}</label>
+        <select id="settings-small-choice" required={firstRun} value={smallChoice} disabled={saving} aria-invalid={smallChoice !== "on" && !!fieldErrors.small} aria-describedby={smallChoice !== "on" && fieldErrors.small ? "small-hint small-error" : "small-hint"} onChange={e => setSmallChoice(e.target.value)}>
           <option value="" disabled>Choose…</option><option value="on">On — suggest small images</option><option value="off">Off</option>
         </select>
         {smallChoice === "on" && <Field id="settings-small" label="Minimum shorter side (pixels)" type="number" min={1} step={1} value={smallMin} disabled={saving} onChange={e => setSmallMin(e.target.value)} error={fieldErrors.small} />}
