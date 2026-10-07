@@ -414,6 +414,7 @@ with sync_playwright() as p:
     expect(page.locator(".card")).to_have_count(3)
     page.locator(".card-check input").first.click()
     shot("5b-review-before-copy")
+    history_photo = int(page.locator(".card").first.get_attribute("data-id"))
     review.get_by_role("button", name="Copy these 3 photos").click()
     # Back where it started (webui-spec 2, after a job), with nothing selected; the
     # banner opens the job's photos, where search and the view buttons still work.
@@ -571,8 +572,9 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"/(\?.*)?$"))
     expect(page.locator(".card").first).to_be_visible()
 
-    # A photo's history, from the Inspector.
-    page.locator(".card-image").first.click()
+    # Check a photo from the first Copy, so Copy all also recorded its skip.
+    # The first card after returning to Library need not belong to that selection.
+    page.goto(f"{BASE}/?view=library&photo={history_photo}")
     # After a Copy, the pane lists the photo's whole history; the log is one link away.
     events = page.locator(".inspector .history-list li")
     expect(events).to_have_count(3)                       # indexed, copied, then skipped by Copy all
