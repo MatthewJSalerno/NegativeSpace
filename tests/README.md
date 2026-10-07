@@ -34,6 +34,16 @@ docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -e NS_TEST_RAW_DIR=/raw \
   negativespace python3 tests/engine_smoke_test.py
 ```
 
+For project validation, enable these two tests with the public RAW samples rather
+than accepting the optional skips. The current decode test samples up to five files;
+the thumbnail test samples three, so this is not exhaustive coverage of every supplied
+RAW file. Keep the sample mount read-only.
+
+The default real-photo source is the **whole demo library**, including its assorted
+formats, EXIF samples, RAW files and generated edge cases. Use its manifest to check
+expected behavior, and mount the source read-only. Use the NASA-only subset when a
+check deliberately needs only ordinary photos; it is not the default validation set.
+
 Flags: `--filter NAME` runs tests whose name contains NAME (a filter matching nothing
 is an error), `--keep` leaves the workspace on disk, `-v` shows engine output, and
 `--engine PATH` runs the suite against another copy of the engine (the folder holding its
