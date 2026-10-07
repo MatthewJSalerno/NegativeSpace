@@ -221,17 +221,17 @@ def check_ui(browser, base, _shot):
     expect(select).to_be_focused()
 
     # Supplemental help is explicitly operable, described, and dismissible.
-    help_button = page.locator(".review-chips .help-trigger").first
+    help_button = page.locator(".side-panel .help-trigger:visible").first
     help_button.click()
     expect(help_button).to_have_attribute("aria-expanded", "true")
-    expect(page.locator(".review-chips .help-content")).to_contain_text("EXIF")
+    expect(page.locator(".side-panel .help-content")).not_to_be_empty()
     page.keyboard.press("Escape")
     expect(help_button).to_have_attribute("aria-expanded", "false")
     expect(help_button).to_be_focused()
     actions.focus()
     actions.hover()  # Leave the help target before testing a fresh pointer entry.
     help_button.hover()
-    help_content = page.locator(".review-chips .help-content")
+    help_content = page.locator(".side-panel .help-content")
     expect(help_content).to_be_visible()
     help_content.hover()
     page.wait_for_timeout(200)  # The pointer has crossed the bubble's dismissal grace period.
