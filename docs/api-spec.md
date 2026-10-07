@@ -173,7 +173,8 @@ whose latest delivery was a Move that could not delete the original, why (a run'
 `counts` are each view's whole library, whatever the search, `date`, `type`, `folder` and
 `undated` narrow the gallery to; `counts.undated` is how many photos in this view have no
 capture date. `total` is what this request shows, every filter applied. `matches` counts
-each view with every filter applied, and `matches.undated` this view's photos with no
+each view’s individual photos with every filter applied, even when `group_sets` makes
+`total` count representative sets. `matches.undated` counts this view’s photos with no
 capture date under the other filters: the view buttons show these (`webui-spec.md` §2),
 and they offer another view when a search finds nothing in this one. The date sorts put undatable rows last.
 

@@ -91,6 +91,9 @@ with sync_playwright() as p:
     group.check()
     expect(page.locator('.card')).to_have_count(5)
     expect(page.locator('.gallery-summary')).to_contain_text('5 sets')
+    photo_count = request.get('/api/v1/photos?view=similar&match_min=90').json()['total']
+    expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_text(
+        f'Has similar photos ({photo_count})')
     expect(page.get_by_text('trip / day 1', exact=True)).to_be_visible()  # Hidden members remain filterable.
     page.wait_for_load_state('networkidle')
     grouping_requests = []

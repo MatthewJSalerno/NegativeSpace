@@ -254,12 +254,14 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
         for name in catalog.VIEWS:
             base = f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(name, match_min)}"
             counts[name] = conn.execute(base).fetchone()[0]
-            scope_filter, scope_params = (filtered, filtered_params) if name == view else (raw_filtered, raw_params)
+            # View buttons count photos even when the gallery collapses identical sets.
+            scope_filter, scope_params = ((run_sql + raw_filtered, run_params + raw_params)
+                                          if name == view else (raw_filtered, raw_params))
             matches[name] = (conn.execute(base + scope_filter, scope_params).fetchone()[0]
                              if scope_filter else counts[name])
         # The view buttons leave a job's photos, so they count without it; its own total
         # is counted here.
-        total = matches[view] if view in catalog.VIEWS else conn.execute(
+        total = matches[view] if view in catalog.VIEWS and not (view == "similar" and group_sets) else conn.execute(
             f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}" + filtered, filtered_params).fetchone()[0]
         if view not in catalog.VIEWS:
             # The job's photos before any filter, for "Showing 37 of 400".

@@ -100,6 +100,10 @@ class ReferenceSetsTests(fixtures.ApiCase):
         query = '/api/v1/photos?view=similar&match_min=90&group_sets=true&sort=name'
         result = self.client.get(query).json()
         self.assertEqual(result['total'], 4)
+        self.assertEqual(result['matches']['similar'], 5, 'view button counts photos, not sets')
+        two_members = self.client.get(query+'&q=A').json()
+        self.assertEqual(two_members['total'], 1)
+        self.assertEqual(two_members['matches']['similar'], 2)
         self.assertEqual({p['id'] for p in result['items']}, {self.a,self.b,self.c,self.d})
         self.assertEqual(self.client.get(query+'&page_size=1&page=2').json()['items'][0]['id'], self.b)
         selected = self.client.get('/api/v1/photos/ids?view=similar&match_min=90&group_sets=true').json()
