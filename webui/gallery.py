@@ -245,11 +245,10 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
     run_sql, run_params = _run_clause(run)
     with catalog.connect(db_path) as conn:
         conn.execute('BEGIN')
-        # The view buttons count the whole library: "All photos" is every photo, whatever
-        # the search, dates, types or No capture date narrow the gallery to (webui-spec 2,
-        # Selective File Processing); `total` is what this request shows. `matches` counts
-        # each view under every filter, for suggesting another view when a search finds
-        # nothing in this one.
+        # `counts` describes each view before the search/date/type/folder filters;
+        # `total` is what this request shows. `matches` applies the active filters
+        # to each view, supplying the view buttons and alternative-view suggestions
+        # when a search finds nothing in this one.
         raw_filtered, raw_params = _filters(q, undated, dates, types, folders, root, match_min=match_min, set_reference=set_reference)
         counts, matches = {}, {}
         for name in catalog.VIEWS:

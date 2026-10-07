@@ -206,9 +206,9 @@ def extract_date_from_metadata(metadata: dict) -> Optional[datetime]:
     guess-indistinguishable-from-a-fact problem Undated/ exists to prevent.
 
     They stay in `metadata` and reach the catalog as review evidence — the
-    Undated screen shows them as clues, clearly labelled, so a user can decide
-    whether a date is meaningful (webui-spec.md 3.1). Retaining and promoting
-    are different things.
+    Inspector can expose them as metadata. The planned Needs review screen
+    will offer date clues (webui-spec.md 7.9). Retaining and promoting are
+    different things.
     """
     if "DateTimeOriginal" in metadata:
         return parse_exif_date(metadata["DateTimeOriginal"])
@@ -219,10 +219,11 @@ def get_metadata_and_date(file_path: Path, original_mtime: Optional[float] = Non
     """
     Metadata Extraction Fallback Chain (see the package docstring for the full
     rationale): ExifTool -> PIL -> file mtime. Returns (datetime, metadata
-    dict) together, both sourced from one underlying capture rather than two
-    separate passes.
+    dict) together from one metadata capture when it supplies a usable capture
+    date. Otherwise keep its tags and resolve the date from the original file
+    mtime; a date fallback does not discard metadata.
 
-    ExifTool is a hard requirement for the engine to start at all (see module
+    ExifTool is a hard requirement for the engine to start at all (see package
     docstring), so the PIL/mtime steps do not cover for it being missing —
     that cannot happen. They are a defensive per-FILE fallback for the
     narrower case where

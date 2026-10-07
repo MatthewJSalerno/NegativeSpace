@@ -89,14 +89,14 @@ def _query_source_subdir(db_path: str, subdir_filter_path: Path) -> List[str]:
     excluded (SOURCE_CONSUMED_STATUSES); everything else is returned even if
     the file is missing from disk, so process_file_task can record it as
     Failed with a real reason instead of it silently vanishing from the run.
-    Used for Index-mode re-scans scoped to a subdirectory; the Move/Copy
-    targeting path additionally filters on `status = 'Pending'` inline
-    rather than calling this helper.
+    Used by the scan phase for scoped Index, Move and Copy runs. The later
+    transfer phase uses the same path scope and filters by the selected mode's
+    ns_db.TRANSFER_ELIGIBLE statuses.
     """
     conn = store.get_db_connection(db_path)
     placeholders = ','.join('?' * len(constants.SOURCE_CONSUMED_STATUSES))
-    # Same escaped prefix the Move/Copy targeting path uses, so an Index-mode
-    # rescan and the action that follows it can never disagree about which
+    # Same case-sensitive path range the Move/Copy targeting path uses, so a
+    # scoped scan and the action that follows it agree about which
     # files "this subdirectory" means.
     prefix_sql, prefix_params = _path_prefix_clause(subdir_filter_path)
     rows = conn.execute(

@@ -167,8 +167,9 @@ Metadata Extraction:
        specific file. Works for standard formats (JPEG, PNG, TIFF, HEIC
        with pillow-heif); cannot open RAW-family formats at all.
     3. File modification time — used only if neither of the above
-       produces a usable date. No richer metadata is available at this
-       fallback level; the stored metadata is just {"date_taken": ...}.
+       produces a usable capture date. Keep any metadata already extracted,
+       and mark date_source as mtime; the scan adds the resolved date_taken.
+       Re-indexing uses the original source snapshot's mtime when available.
 
     IMPORTANT — ExifTool being a hard requirement does NOT mean Pillow,
     rawpy, and imagehash became optional or got removed. They do a
