@@ -30,7 +30,10 @@ with sync_playwright() as p:
     expect(page.locator('.log-table tbody tr').first).to_be_visible()
     page.go_back()
     expect(page.get_by_role('searchbox', name='Search the log')).to_have_value('missing')
-    expect(page.get_by_role('checkbox', name=re.compile(r'^Indexed \(\d'))).not_to_be_checked()
+    # Zero-count statuses disappear when the restored search has no matches.
+    # Assert the chosen filter, not an Indexed box left over from stale counts.
+    expect(page.get_by_role('checkbox', name=re.compile(r'^Failed '))).to_be_checked()
+    expect(page.get_by_role('checkbox', name='All statuses', exact=True)).not_to_be_checked()
     page.go_forward()
     expect(page.get_by_role('searchbox', name='Search the log')).to_have_value('')
     page.get_by_role('link', name='Library', exact=True).click()
