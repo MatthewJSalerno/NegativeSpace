@@ -585,3 +585,23 @@ The Index summary labels absent positive width/height as **Image size unavailabl
 Shared help explains that unsupported formats, unreadable files or incomplete processing
 can cause this; it does not diagnose corruption or a non-photo. These files are not counted
 as small. Processing failures remain a separate count with a route to job details.
+
+Switching Needs review reasons must not move the reason controls or results summary.
+Reason explanations share an automatically sized grid area that accommodates the longest
+wrapped text at the current width/text size; do not use fixed heights or clip guidance.
+Only the current explanation is visible, focusable or exposed to assistive technology.
+Choosing a reason alone does not add Clear filters beside the location heading: **All
+reasons** clears that restriction. Other active gallery filters retain Clear filters.
+
+The selection toolbar reserves the width of its outside-this-view message for the
+current selection size. Filtering must not make this message appear/disappear in a
+way that wraps the toolbar and shifts the gallery. The sizing copy is hidden from
+view and assistive technology; a zero outside count is not announced as a warning.
+
+Keep the outside-selection count beneath the selected-photo count in supporting text,
+within the normal control height. At viewport heights of 600px or less the main toolbar
+scrolls with the page, as it does in narrow windows, so a wrapped header cannot cover
+the review filters or prevent their activation at desktop zoom.
+
+Filter and reason count labels reserve space based on the catalog's total photo count,
+with tabular digits, so changing from many matches to zero cannot rewrap the filter row.

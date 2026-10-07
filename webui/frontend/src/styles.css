@@ -896,6 +896,12 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 /* Review reasons are filters; photo checkboxes continue to select action targets. */
 .review-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; padding: var(--space-2) var(--space-4); }
 .review-chips button[aria-pressed="true"] { background: var(--surface-2); outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Shared grid area sizes to the longest wrapped explanation without clipping text.
+   Inactive guidance stays out of keyboard navigation and the accessibility tree. */
+.review-reason-guidance { display: grid; }
+.review-reason-guidance > p { grid-area: 1 / 1; }
+.review-reason-guidance > [aria-hidden="true"] { visibility: hidden; }
+
 .review-note { margin-block: var(--space-4); }
 .review-note p { margin-block: var(--space-2); }
 .review-photos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: var(--space-6); padding: var(--space-4); }
@@ -909,3 +915,17 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 
 .gallery-context { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-3); }
 .gallery-context h2 { margin: 0; font-size: var(--type-md); }
+
+/* Filtering a fixed selection must not resize its toolbar as hidden counts change. */
+.selection-summary { display: grid; line-height: 1.25; }
+.selection-outside { display: grid; font-size: var(--type-xs); }
+.selection-outside > span { grid-area: 1 / 1; }
+.selection-outside-size { visibility: hidden; }
+
+/* Short desktop windows (including zoom) must leave room to reach gallery controls. */
+@media (max-height: 600px) {
+  :root { --header-offset: 0px; }
+  .toolbar { position: static; }
+}
+
+.review-chips .filter-count { display: inline-block; font-variant-numeric: tabular-nums; text-align: center; }

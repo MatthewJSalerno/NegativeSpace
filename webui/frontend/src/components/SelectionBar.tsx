@@ -37,8 +37,13 @@ export function SelectionBar({ selected, outside, focused, reviewing, counts, pl
   const busy = jobRunning ? "A job is running. Wait for it to finish or cancel it." : undefined;
   return (
     <div className="selection-line" role="region" aria-label="Selection">
-      <strong>{plural(selected, "photo")} selected</strong>
-      {!focused && outside > 0 && <span className="muted"> · {count(outside)} outside this view</span>}
+      <span className="selection-summary">
+        <strong>{plural(selected, "photo")} selected</strong>
+        {!focused && <span className="muted selection-outside">
+          <span className="selection-outside-size" aria-hidden="true">{count(selected)} outside this view</span>
+          <span>{outside > 0 ? `${count(outside)} outside this view` : ""}</span>
+        </span>}
+      </span>
       {offered.length > 0 && (
         <span className="selection-actions">
           {offered.map((a) => (

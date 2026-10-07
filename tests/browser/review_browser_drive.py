@@ -108,7 +108,22 @@ with sync_playwright() as p:
     expect(page.get_by_role('group',name='Review reason')).to_be_visible()
     expect(page.get_by_role('group',name='Review reason').get_by_role('button',name='Small images',exact=False)).to_have_attribute('aria-pressed','true')
     expect(page.locator(f'.card[data-id="{first}"] input')).to_be_checked()
-    page.get_by_role('button',name='Small images',exact=False).first.click()
+    # Switching reasons must not move the filter row or the results below it.
+    reasons=page.get_by_role('group',name='Review reason',exact=True)
+    for width,height in ((1440,1000),(720,500)):
+        page.set_viewport_size({'width':width,'height':height})
+        baseline=None
+        for key,label in (('all','All reasons'),('small','Small images'),('later','Review later'),('all','All reasons'),('small','Small images')):
+            with page.expect_response(lambda r: '/api/v1/photos?' in r.url and f'reason={key}' in r.url) as response:
+                reasons.get_by_role('button',name=label,exact=False).click()
+            total=response.value.json()['total']
+            expect(page.locator('.gallery-summary').first).to_contain_text(f'{total} photo')
+            positions=page.evaluate("[document.querySelector('[aria-label=\"Review reason\"]'),document.querySelector('.gallery-summary')].map(e=>e.getBoundingClientRect().top+scrollY)")
+            if baseline is None: baseline=positions
+            assert all(abs(a-b)<2 for a,b in zip(baseline,positions)),f'Reason {key} at {width}px moved layout: {baseline} -> {positions}'
+            if os.environ.get('SHOTS') and key in ('all','small'):
+                page.screenshot(path=os.environ['SHOTS']+f'/review-layout-{width}-{key}.png')
+    page.set_viewport_size({'width':1440,'height':1000})
     card=page.locator(f'.card[data-id="{first}"]')
     expect(card.locator('.review-card-notes')).to_contain_text('Below minimum image size')
     expect(card.locator('.review-card-notes')).not_to_contain_text('320 × 240')

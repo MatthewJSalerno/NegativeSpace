@@ -2337,6 +2337,9 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   each with its count ("All reasons (31) · No capture date (12) · Small image (9) · …"),
   beside **Review one by one** (decided 2026-10-07). *Why not tick boxes in the left
   panel:* that panel holds Folders and Dates, which still apply inside Needs review.
+  Switching reasons keeps the controls and results summary in place. Explanations occupy
+  a shared area sized to their wrapped content; only the current explanation is accessible.
+  **All reasons** clears the reason filter without adding a new heading control.
 * **A note exists only when a person must decide.** Facts the catalog can compute (every
   similar pair) stay live queries, so the list cannot grow into a copy of the library.
 * **A resolved note leaves the list;** the decision goes into the photo's history. **A note

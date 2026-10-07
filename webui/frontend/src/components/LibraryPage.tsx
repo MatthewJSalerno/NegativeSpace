@@ -876,6 +876,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const currentSide = () => sideWidth ?? side.current?.getBoundingClientRect().width ?? 240;
 
   const noPhotos = status.photos === 0;
+  const filterCount = (n: number) => <span className="filter-count" style={{ minWidth: `${count(status.photos).length + 2}ch` }}>({count(n)})</span>;
 
   const screenSelected = screenItems.filter((i) => selected.has(i.id)).length;
   const onPager = focus ? setFocusPage : setPage;
@@ -932,9 +933,9 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           </div>
         </div>
         <div className="review-chips" role="group" aria-label="Filter photos">
-          {view !== "unorganized" && <button aria-pressed={similar} disabled={!!focus} className={similar ? "active" : ""} onClick={() => { setSimilar(!similar); setPage(1); const scope: View = !similar ? "similar" : view; setSort(sortChoices.current[scope] ?? savedSort(scope)); }}>Has similar photos ({count(data?.chips?.similar ?? 0)})</button>}
-          <button aria-pressed={suspicious} disabled={!!focus} className={suspicious ? "active" : ""} onClick={() => { setSuspicious(!suspicious); setPage(1); }}>Suspicious dates ({count(data?.chips?.suspicious ?? 0)})</button>
-          <Tip text="Photos whose EXIF has no date taken. They are filed under Undated, by their file’s modification date. Enabled filters combine: a photo must match every chosen filter."><button aria-pressed={undated} disabled={!!focus} className={undated ? "active" : ""} onClick={() => { setUndated(!undated); setPage(1); }}>No capture date ({count(data?.chips?.undated ?? 0)})</button></Tip>
+          {view !== "unorganized" && <button aria-pressed={similar} disabled={!!focus} className={similar ? "active" : ""} onClick={() => { setSimilar(!similar); setPage(1); const scope: View = !similar ? "similar" : view; setSort(sortChoices.current[scope] ?? savedSort(scope)); }}>Has similar photos {filterCount(data?.chips?.similar ?? 0)}</button>}
+          <button aria-pressed={suspicious} disabled={!!focus} className={suspicious ? "active" : ""} onClick={() => { setSuspicious(!suspicious); setPage(1); }}>Suspicious dates {filterCount(data?.chips?.suspicious ?? 0)}</button>
+          <Tip text="Photos whose EXIF has no date taken. They are filed under Undated, by their file’s modification date. Enabled filters combine: a photo must match every chosen filter."><button aria-pressed={undated} disabled={!!focus} className={undated ? "active" : ""} onClick={() => { setUndated(!undated); setPage(1); }}>No capture date {filterCount(data?.chips?.undated ?? 0)}</button></Tip>
           {view !== "unorganized" && <button disabled={!!focus} title="Open Needs review filtered to small images"
                   onClick={() => { chooseView("review"); setReason("small"); }}>Small images</button>}
         </div>
@@ -1028,7 +1029,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           {!focus && suspicious && <p className="dates-filter-line">Recorded years before 1800 or more than one year ahead. Open a photo to inspect its date and source. These are review hints; dates remain unchanged. Date editing is not yet available.</p>}
           {!focus && <div className="gallery-context">
             <h2>{VIEW_LABEL[view]}</h2>
-            {(narrowed || similar || suspicious || reason !== "all") && <p className="section-note">
+            {(narrowed || similar || suspicious) && <p className="section-note">
               {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...folders.map(folderLabel)].filter(Boolean).join(" · ")}
               {" "}<button className="link" onClick={() => { setSimilar(false); setSuspicious(false); setUndated(false); setReason("all"); if (sort === "matches") setSort("newest"); setQ(""); setSearch(""); setDates([]); setTypes([]); setFolders([]); setPage(1); }}>Clear filters</button>
             </p>}
@@ -1054,10 +1055,14 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             {reviewReturn && <button onClick={backToLibrary}>← Back to Library</button>}
             <p className="notice">Photos awaiting a decision, wherever they live. These photos also appear in their location; the counts do not add together.</p>
             <div className="review-chips" role="group" aria-label="Review reason">
-              {[["all", "All reasons"], ["small", "Small images"], ["later", "Review later"]].map(([key,label]) => <button key={key} aria-pressed={reason===key} className={reason===key ? "active" : ""} onClick={() => { setReason(key); setPage(1); }}>{label} ({count(data?.reasons?.[key] ?? 0)})</button>)}
+              {[["all", "All reasons"], ["small", "Small images"], ["later", "Review later"]].map(([key,label]) => <button key={key} aria-pressed={reason===key} className={reason===key ? "active" : ""} onClick={() => { setReason(key); setPage(1); }}>{label} {filterCount(data?.reasons?.[key] ?? 0)}</button>)}
               <button disabled={!data?.total} onClick={() => setReviewPhoto(data!.items[0].id)}>Review one by one</button>
             </div>
-            {reason === "small" && <p className="section-note">Small size is a reason to look, not a reason to reject. Mark reviewed clears a photo’s size reminder. <button className="link" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>}
+            <div className="review-reason-guidance">
+              <p className="section-note" aria-hidden={reason !== "all"} inert={reason !== "all"}>Choose a reason to focus your review. Reviewing a reminder leaves the photo in place.</p>
+              <p className="section-note" aria-hidden={reason !== "small"} inert={reason !== "small"}>Small size is a reason to look, not a reason to reject. Mark reviewed clears a photo’s size reminder. <button className="link" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>
+              <p className="section-note" aria-hidden={reason !== "later"} inert={reason !== "later"}>Photos you marked to revisit. Done clears the reminder and leaves the photo in place.</p>
+            </div>
           </>}
           <div className="gallery-summary">
             <span>{gallerySummary ? plural(gallerySummary.total, grouped ? "set" : "photo") : "Loading photos…"}</span>
