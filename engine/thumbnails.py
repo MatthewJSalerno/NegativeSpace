@@ -41,6 +41,7 @@ def sweep_orphan_thumbnails(db_path: str, cache_root: Path) -> int:
             if name:
                 path = Path(cache_root) / name
                 try:
+                    fileinfo.require_plain_path(path.parent)
                     freed += path.stat().st_size
                     path.unlink()
                 except FileNotFoundError:
@@ -90,6 +91,7 @@ def _write_thumbnail(img, dest: Path, size: int) -> int:
     img.thumbnail((size, size), deps.Image.LANCZOS)
     tmp = None
     try:
+        fileinfo.require_plain_path(dest.parent)
         dest.parent.mkdir(parents=True, exist_ok=True)
         # Exclusive creation gives concurrent generators their own inode and never
         # follows a planted predictable-name symlink into a photo or other file.
@@ -169,6 +171,7 @@ def generate_thumbnail(file_path: Path, sha1_hash: str, cache_root: str,
     try:
         if replace:
             raise FileNotFoundError
+        fileinfo.require_plain_path(dest)
         existing = dest.stat()
         if existing.st_size > 0:
             return runtime.ThumbnailResult(availability="present", cache_filename=relative,
@@ -182,6 +185,7 @@ def generate_thumbnail(file_path: Path, sha1_hash: str, cache_root: str,
 
     width = height = None
     try:
+        fileinfo.require_plain_path(file_path)
         with fileinfo.warnings_attributed_to(str(file_path)):
             if file_path.suffix.lower() in RAW_EXTENSIONS:
                 if not deps.RAWPY_SUPPORTED:
@@ -369,6 +373,7 @@ def clear_previews(db_path: Path, cache_root: Path) -> dict:
         for content_id, name in ns_db.present_thumbnails(conn, constants.PREVIEW_SIZE):
             path = Path(cache_root) / name
             try:
+                fileinfo.require_plain_path(path.parent)
                 freed += path.stat().st_size
                 path.unlink()
             except FileNotFoundError:

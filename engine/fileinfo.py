@@ -1,6 +1,7 @@
 """Reading a file: dates and metadata (ExifTool, then Pillow), SHA-1 and pHash."""
 
 import contextlib
+import errno
 import hashlib
 import os
 import warnings
@@ -10,6 +11,26 @@ from typing import Optional
 
 from engine.ns_db import RAW_EXTENSIONS
 from engine import constants, deps, durable, runtime
+
+
+class SymlinkPathError(OSError):
+    """A stored file path was redirected through a symbolic link."""
+
+
+def require_plain_path(path):
+    """Refuse symlinks in a file path or its ancestors before reading or mutating it.
+
+    CLI storage roots are resolved before use. Descendant aliases are unsupported:
+    a share may replace a directory after Index. This check does not make concurrent
+    directory renames safe; storage must remain stable while an operation runs.
+    """
+    plain = Path(os.path.abspath(path))
+    try:
+        redirected = plain.resolve() != plain
+    except RuntimeError:
+        redirected = True  # a symbolic-link loop
+    if redirected:
+        raise SymlinkPathError(errno.EPERM, "Symbolic links in a photo or cache path are not followed", str(path))
 
 
 # --- Dates ---
@@ -272,6 +293,7 @@ def get_metadata_and_date(file_path: Path, original_mtime: Optional[float] = Non
 
 def compute_sha1(file_path: str) -> str:
     def _hash():
+        require_plain_path(file_path)
         h = hashlib.sha1()
         with open(file_path, 'rb') as f:
             for chunk in iter(lambda: f.read(constants.SHA1_CHUNK_SIZE), b''):

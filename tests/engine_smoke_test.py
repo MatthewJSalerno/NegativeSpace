@@ -219,6 +219,79 @@ def make_photo(path: Path, content_seed: str, date="2024:02:14 09:30:00", size=(
 # --------------------------------------------------------------------- tests
 
 @test
+def symlinked_directories_never_redirect_photo_or_cache_writes():
+    """Storage descendants may not redirect engine writes outside the configured tree."""
+    from PIL import Image
+    from engine import thumbnails, reconcile
+    for mode in ("--copy", "--move"):
+        case = new_case("directory_escape_" + mode[2:])
+        source = case / "src" / "fixture.jpg"
+        make_photo(source, "directory-escape")
+        outside = case / "outside"
+        outside.mkdir()
+        (case / "dest").mkdir()
+        (case / "dest" / "library").symlink_to(outside, target_is_directory=True)
+        run_engine(case, mode)
+        check(source.exists(), "Move removed a source through a redirected destination")
+        check(not list(outside.iterdir()), "photo write escaped through a directory symlink")
+        check(rows(case, "SELECT status FROM photos")[0]["status"] == "Failed",
+              "redirected destination was not recorded as a failure")
+    case = new_case("cache_directory_escape")
+    outside = case / "outside"
+    outside.mkdir()
+    (case / "cache").symlink_to(outside, target_is_directory=True)
+    try:
+        thumbnails._write_thumbnail(Image.new("RGB", (32, 24)), case / "cache" / "fixture.jpg", 320)
+    except thumbnails.ThumbnailWriteError:
+        pass
+    else:
+        raise Fail("thumbnail generation followed a redirected cache directory")
+    check(not list(outside.iterdir()), "thumbnail write escaped its cache directory")
+    make_photo(outside / "fixture.jpg", "recovery-outside")
+    check(reconcile._recovery_observe(case / "cache" / "fixture.jpg") == "not_file",
+          "recovery trusted a file through a symlinked parent")
+
+
+@test
+def relocation_refuses_symlinked_parents_on_either_side():
+    """Rename, Reject and Return share this no-overwrite primitive."""
+    from engine import relocate, fileinfo
+    case = new_case("relocation_parent_escape")
+    outside = case / "outside"
+    outside.mkdir()
+    alias = case / "alias"
+    alias.symlink_to(outside, target_is_directory=True)
+    source = case / "fixture.jpg"
+    make_photo(source, "relocation-parent")
+    for old, new in ((source, alias / "new.jpg"), (alias / "old.jpg", case / "new.jpg")):
+        if not old.exists():
+            make_photo(outside / "old.jpg", "relocation-outside")
+        before = old.read_bytes()
+        try:
+            relocate._rename_noreplace(str(old), str(new))
+        except fileinfo.SymlinkPathError:
+            pass
+        else:
+            raise Fail("relocation followed a symbolic-link parent")
+        check(old.read_bytes() == before and not new.exists(), "refused relocation changed a file")
+
+
+@test
+def a_symlinked_source_parent_never_authorizes_a_move():
+    case = new_case("source_parent_escape")
+    source = case / "src" / "folder" / "fixture.jpg"
+    make_photo(source, "source-escape")
+    run_engine(case)
+    photo = rows(case, "SELECT id FROM photos")[0]["id"]
+    outside = case / "outside"
+    source.parent.rename(outside)
+    source.parent.symlink_to(outside, target_is_directory=True)
+    run_engine(case, "--move", "--file-ids", photo)
+    check((outside / "fixture.jpg").exists(), "Move deleted a file outside source through an ancestor symlink")
+    check(not list((case / "dest").rglob("*.jpg")), "Move copied an outside file through a source alias")
+
+
+@test
 def thumbnail_staging_never_follows_a_planted_symlink():
     """A cache writer must not truncate an unrelated file through its temporary name."""
     from PIL import Image
