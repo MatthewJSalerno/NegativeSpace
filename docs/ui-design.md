@@ -555,3 +555,8 @@ visible. Return to the same gallery context and preserve explicit selections.
 
 Small-image gallery cards use the concise reason **Below minimum image size**. Keep
 the detailed dimensions and configured rule in the Inspector and review workspace.
+
+Keep a **Small images** shortcut beside **No capture date** in the gallery toolbar.
+It opens Needs review with the Small images reason selected, preserving search,
+other filters and explicit photo selection. Concise card text must not remove this
+entry point; the reason chips remain available inside Needs review.

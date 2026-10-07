@@ -287,6 +287,9 @@ six to four. Settled 2026-10-07:
 * **The filters are a row of chips** under the four view buttons, each with its count in
   the place shown ("Has similar photos (167) · Suspicious dates (8) · No capture date
   (1,356)"), as Needs review's reasons are (§7.9): one pattern for narrowing a place.
+* **Small images** stays beside **No capture date** as a shortcut to
+  **Needs review → Small images**, preserving search, filters and selection. The
+  shortened reason under a photo does not replace this toolbar entry point.
 * **The first visit opens on To organize** while the library is empty, and on Library
   once it holds a photo. Explicit URLs and refreshes preserve the requested view. *Why:* a default view with nothing in it tells a newcomer
   nothing; To organize is where the first job starts.

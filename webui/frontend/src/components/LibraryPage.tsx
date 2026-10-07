@@ -895,6 +895,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           <button aria-pressed={similar} disabled={!!focus} className={similar ? "active" : ""} onClick={() => { setSimilar(!similar); setPage(1); const scope: View = !similar ? "similar" : view; setSort(sortChoices.current[scope] ?? savedSort(scope)); }}>Has similar photos ({count(data?.chips?.similar ?? 0)})</button>
           <button aria-pressed={suspicious} disabled={!!focus} className={suspicious ? "active" : ""} onClick={() => { setSuspicious(!suspicious); setPage(1); }}>Suspicious dates ({count(data?.chips?.suspicious ?? 0)})</button>
           <Tip text="Photos whose EXIF has no date taken. They are filed under Undated, by their file’s modification date. Enabled filters combine: a photo must match every chosen filter."><button aria-pressed={undated} disabled={!!focus} className={undated ? "active" : ""} onClick={() => { setUndated(!undated); setPage(1); }}>No capture date ({count(data?.chips?.undated ?? 0)})</button></Tip>
+          <button disabled={!!focus} title="Open Needs review filtered to small images"
+                  onClick={() => { chooseView("review"); setReason("small"); }}>Small images</button>
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
         <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun}
