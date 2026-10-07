@@ -332,13 +332,14 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     if (rejectsShown != null && rejectsShown !== status.rejects?.photos) refreshStatus();
   }, [rejectsShown]);
 
+  // Sidebar counts describe individual photos and do not change with grouping.
   // The tree's counts ignore its own filter, so an unticked month keeps its number;
   // jumping needs the filtered months, to land on the right page.
   useEffect(() => {
     let live = true;
     api.timeline({ view: browseView, run: jobRun ?? undefined, match_min: galleryMinimum, q, undated, types, folders }).then((t) => live && setTimeline(t), () => live && setTimeline(null));
     return () => { live = false; };
-  }, [browseView, jobRun, galleryMinimum, grouped, q, undated, types, folders, refreshKey]);
+  }, [browseView, jobRun, galleryMinimum, q, undated, types, folders, refreshKey]);
   useEffect(() => {
     let live = true;
     if (dates.length === 0) { setJumpTimeline(null); return; }
@@ -358,14 +359,14 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     let live = true;
     api.types({ view: browseView, run: jobRun ?? undefined, match_min: galleryMinimum, q, undated, dates, folders }).then((t) => live && setTypeCounts(t.types), () => live && setTypeCounts(null));
     return () => { live = false; };
-  }, [browseView, jobRun, galleryMinimum, grouped, q, undated, dates, folders, refreshKey]);
+  }, [browseView, jobRun, galleryMinimum, q, undated, dates, folders, refreshKey]);
   // The Folders tree's counts follow the view, search, dates and types, never its own
   // filter; the ticked folders are sent so they stay listed at 0.
   useEffect(() => {
     let live = true;
     api.folders({ view: browseView, run: jobRun ?? undefined, match_min: galleryMinimum, q, undated, dates, types, folders }).then((t) => live && setFolderTree(t), () => live && setFolderTree(null));
     return () => { live = false; };
-  }, [browseView, jobRun, galleryMinimum, grouped, q, undated, dates, types, folders, refreshKey]);
+  }, [browseView, jobRun, galleryMinimum, q, undated, dates, types, folders, refreshKey]);
 
   const memberBrowse = focus?.kind === "set" ? { view: "all" as const, q: "", undated: false,
     set_reference: focus.reference!, match_min: focus.threshold!, dates: [], types: [], folders: [] } : null;

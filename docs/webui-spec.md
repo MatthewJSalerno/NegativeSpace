@@ -114,6 +114,7 @@ Users can select individual files or multiple files across grid views to run tar
   become the only ones. *Why disabled, not cleared:* a selection built across pages is
   never lost to one stray tick. *Why keep Move for Rejects:* a source that ends empty
   should not need deleting in two places; the warning makes the consequence plain.
+* **Grouping and facet requests:** Turning similar-photo grouping on or off reloads gallery results and grouped date-jump positions, but reuses the unchanged per-photo Dates, Types and Folders sidebar counts.
 * **Selection across views:** retain explicit photo selections when changing pages
   or filters. The top row, after **Logs**, shows the total and the number outside the
   displayed view, for example **“25 selected · 10 outside this view”**, with **Show
