@@ -61,8 +61,8 @@ def main():
     )
     parser.add_argument(
         "--cache", default="/cache",
-        help="Directory holding generated thumbnails (default: /cache). Written by the scan "
-             "phase, which every mode begins with; the transfer phase itself — copy, verify, "
+        help="Directory holding generated thumbnails and previews (default: /cache). Written "
+             "during scans and cache-generation commands; the transfer phase — copy, verify, "
              "delete — never touches it. Everything under it is reproducible from the photo "
              "it came from, so it is safe to delete and should be excluded from backups."
     )
@@ -179,13 +179,13 @@ def main():
     )
     mode_group.add_argument(
         "--reject", action="store_true",
-        help="Move the selected organized photos (--file-ids or --source-subdir) from dest/library "
+        help="Move the selected organized photos (--file-ids, --file-ids-from or --source-subdir) from dest/library "
              "to the same folders under dest/rejects, and mark them Rejected. Nothing is deleted: "
              "the user empties dest/rejects. Backs up the catalog first. Takes the engine lock."
     )
     mode_group.add_argument(
         "--return-to-library", action="store_true",
-        help="Move the selected rejected photos (--file-ids or --source-subdir) from dest/rejects "
+        help="Move the selected rejected photos (--file-ids, --file-ids-from or --source-subdir) from dest/rejects "
              "back to their date folder in dest/library. Backs up the catalog first. Takes the "
              "engine lock."
     )

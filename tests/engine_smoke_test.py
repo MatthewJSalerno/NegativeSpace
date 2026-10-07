@@ -38,6 +38,7 @@ import collections
 import contextlib
 import json
 import os
+import re
 import shutil
 import signal
 import sqlite3
@@ -216,6 +217,21 @@ def make_photo(path: Path, content_seed: str, date="2024:02:14 09:30:00", size=(
 
 
 # --------------------------------------------------------------------- tests
+
+@test
+def engine_help_flags_match_package_documentation():
+    """The package briefing documents every live CLI flag, and no removed flag."""
+    proc = subprocess.run([sys.executable, "-m", "engine", "--help"], cwd=ENGINE,
+                          env={**os.environ, "COLUMNS": "2000"},
+                          capture_output=True, text=True, timeout=30)
+    check(proc.returncode == 0, engine_output(proc))
+    flags = lambda text: set(re.findall(r"--[a-z]+(?:-[a-z]+)*\b", text))
+    live = flags(proc.stdout)
+    documented = flags((Path(ENGINE) / "engine" / "__init__.py").read_text())
+    check(live == documented,
+          f"CLI documentation drift: undocumented={sorted(live - documented)}, "
+          f"removed={sorted(documented - live)}")
+
 
 @test
 def index_excludes_hidden_and_appledouble():
