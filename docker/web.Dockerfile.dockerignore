@@ -2,5 +2,6 @@
 *
 !webui/frontend
 !docker/nginx.conf
+!docker/frame-policy.conf
 webui/frontend/node_modules
 webui/frontend/dist

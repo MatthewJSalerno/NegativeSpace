@@ -2639,3 +2639,7 @@ a single-person tool, so one password, not user accounts.
   since whoever can run it already controls the files); and whether a reverse proxy's
   sign-in can stand in for it.
 
+
+The shipped web container sends `Content-Security-Policy: frame-ancestors 'self'`
+and `X-Frame-Options: SAMEORIGIN` on its responses, including API and asset errors.
+Other origins cannot embed the app’s controls; same-origin framing remains allowed.

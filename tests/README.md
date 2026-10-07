@@ -114,7 +114,8 @@ after the test releases the pause. It is not an alternative production engine.
 Both containers as `docker/compose.yml` arranges them (`app`, and `web` proxying `/api`
 to it), driven by headless Chromium (Playwright) against generated photos. It covers first run, settings, Scan, the gallery,
 the Inspector, selection, Copy, search and the phone-width layout, and fails on any
-browser console error. It starts a server container and a Playwright container, so it
+browser console error. The main driver also checks response framing headers and refusal
+to embed the app from a separate HTTP origin in an isolated fixture container. It starts a server container and a Playwright container, so it
 runs on the host:
 
 ```bash

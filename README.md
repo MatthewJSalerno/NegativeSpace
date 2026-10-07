@@ -149,7 +149,9 @@ including **Move**, which deletes source photos once their copies are verified. 
 Browser mutations and the live job feed reject foreign Origin hosts/ports. Reverse
 proxies must preserve the public Host header, including its port. This does not
 authenticate clients or protect against DNS rebinding; the network-access rules
-above still apply.
+above still apply. The web container also prevents other origins from embedding
+the app in a frame, so another page cannot overlay its controls; same-origin
+framing remains allowed.
 
 A built-in password is planned before the first release.
 

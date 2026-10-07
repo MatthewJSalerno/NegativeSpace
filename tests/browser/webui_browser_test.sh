@@ -25,9 +25,11 @@ WORK=$(mktemp -d /tmp/ns-browser-XXXXXX)
 NET=ns-browser-$$
 APP=ns-browser-app-$$
 WEB=ns-browser-web-$$
+ATTACKER=ns-browser-framing-$$
 ME="$(id -u):$(id -g)"
 
 cleanup() {
+    docker rm -f "$ATTACKER" >/dev/null 2>&1 || true
     docker rm -f "$WEB" >/dev/null 2>&1 || true
     docker stop -t 30 "$APP" >/dev/null 2>&1 || true
     docker rm "$APP" >/dev/null 2>&1 || true
@@ -84,6 +86,16 @@ until docker run --rm --network "$NET" --entrypoint python3 "$IMAGE" -c \
     sleep 1
 done
 
+# A separate real HTTP origin proves the built app cannot be clickjacked in a frame.
+SECURITY_ARGS=""
+if [ "$DRIVER" = webui_browser_drive.py ]; then
+    mkdir -p "$WORK/framing"
+    printf '<iframe src="http://%s:8080" style="width:1300px;height:850px"></iframe>\n' "$WEB" > "$WORK/framing/index.html"
+    docker run -d --name "$ATTACKER" --network "$NET" --entrypoint python3 \
+        -v "$WORK/framing:/framing:ro" "$IMAGE" -m http.server 8000 --directory /framing >/dev/null
+    SECURITY_ARGS="-e ATTACKER_URL=http://$ATTACKER:8000"
+fi
+
 CATALOG_ARGS=""
 # Explicit opt-in: only this harness's temporary generated catalog is writable.
 if [ "${SIMILARITY_RECOVERY_FIXTURE:-0}" = 1 ]; then CATALOG_ARGS="-v $WORK/appdata:/catalog"; fi
@@ -92,6 +104,6 @@ if [ -n "${SHOTS:-}" ]; then SHOT_ARGS="-v $SHOTS:/shots -e SHOTS=/shots"; fi
 # shellcheck disable=SC2086
 # The source is mounted into the browser container too, so the test can make one photo
 # unreadable to the app (which runs as this user) and follow the failure through the UI.
-docker run --rm --network "$NET" $SHOT_ARGS $CATALOG_ARGS -v "$WORK/src":/src -v "$HERE/$DRIVER":/drive.py:ro -v "$HERE/ui_browser_checks.py":/ui_browser_checks.py:ro "$PLAYWRIGHT" \
+docker run --rm --network "$NET" $SHOT_ARGS $CATALOG_ARGS $SECURITY_ARGS -v "$WORK/src":/src -v "$HERE/$DRIVER":/drive.py:ro -v "$HERE/ui_browser_checks.py":/ui_browser_checks.py:ro "$PLAYWRIGHT" \
     sh -c "pip install -q --root-user-action=ignore playwright==1.63.0 >/dev/null 2>&1 && python3 /drive.py http://$WEB:8080 $NEWER $OLDER $DUPLICATES" \
   || { echo "--- app log ---"; docker logs "$APP" 2>&1 | tail -40; echo "--- web log ---"; docker logs "$WEB" 2>&1 | tail -20; exit 1; }
