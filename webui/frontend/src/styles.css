@@ -900,3 +900,9 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .review-note p { margin-block: var(--space-2); }
 .review-photos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: var(--space-6); padding: var(--space-4); }
 .review-card-notes { padding: var(--space-2); }
+
+.index-summary { margin-block: var(--space-3); }
+.index-summary h2 { margin-top: 0; }
+.index-summary dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); }
+.index-summary dt { font-weight: 600; }
+.index-summary dd { margin: var(--space-1) 0 0; }

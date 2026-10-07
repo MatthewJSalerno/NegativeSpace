@@ -914,8 +914,14 @@ Gallery listing, IDs, position, types, folders and timeline accept `similar` and
 `suspicious` booleans and `reason` (all/small/later). These combine with existing
 filters. `view=review` selects distinct photos with an unresolved supported reason.
 Listings include `chips`, `reasons` and filename-only `elsewhere` location counts;
-review cards include location and reason details. Existing view names remain accepted
-for old links. The UI offers organized (Library), unorganized (To organize), rejects
+review and organized/similar cards include compact location and current reason details
+(`review: {location,reasons}`), without decision history. Full history remains in the
+per-photo review endpoint. Unorganized listings include `index_summary` (null elsewhere):
+`photos`, `duplicates` (extra Duplicate records sharing content with a remaining source
+photo), `small`, `minimum` (null when disabled), `unknown_dimensions`, `suspicious`,
+`undated`, `failed` and `similar` (null: source comparisons are uncalculated). The summary
+is unfiltered and catalog-only, with no filesystem reads. Existing view names remain accepted
+for old links. The UI offers organized (Library), unorganized (Not organized), rejects
 and review, with similarity/date conditions as chips. Settings adds
 `small_image_min`, a positive integer shorter-side minimum or null (disabled).
 

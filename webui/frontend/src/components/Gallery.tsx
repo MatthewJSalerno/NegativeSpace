@@ -9,11 +9,12 @@ const STATUS_BADGE: Record<string, string> = {
   Processing: "In progress", Rejected: "Rejected", Rejected_Copied: "Rejected",
 };
 
-export function Gallery({ page: shown, pageOf, refreshKey, selected, place, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold, onReviewSet, onExploreSet, keepItem, onReview }: {
+export function Gallery({ page: shown, pageOf, refreshKey, selected, place, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold, onReviewSet, onExploreSet, keepItem, onReview, onNeedsReview }: {
   // Keep this one, reject the rest: the kept photo comes first, full size, marked
   // Keeping, with no tick box, so it cannot be rejected with the rest.
   keepItem?: PhotoItem | null;
   onReview?: (id: number) => void;
+  onNeedsReview?: (item: PhotoItem) => void;
   page: { items: PhotoItem[] };
   // The page each photo came from, so scrolling can tell which page is on top.
   pageOf?: number[];
@@ -102,6 +103,12 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
                 {item.duplicates > 0 && <span className="badge">{plural(item.duplicates, "duplicate")}</span>}
               </span>
             </div>
+            {onNeedsReview && !!item.review?.reasons.length && <div className="review-card-notes">
+              <a href={`/?view=review&reason=${item.review.reasons.length === 1 ? item.review.reasons[0].reason : "all"}&photo=${item.id}&review_photo=${item.id}`}
+                onClick={e => { if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); onNeedsReview(item); } }}>
+                Needs review · {item.review.reasons.map(n => n.label).join(", ")}
+              </a>
+            </div>}
             {onReview && item.review && <div className="review-card-notes"><span className="section-note">Location: {item.review.location}</span>{item.review.reasons.map(n=><p key={n.reason}>{n.reason === "small" ? <Tip text={n.message}><span>Below minimum image size</span></Tip> : `${n.label}: ${n.message}`}</p>)}<button onClick={()=>onReview(item.id)}>Review photo</button></div>}
             {onExploreSet && <div className="set-card-actions">
               <strong>Reference set · {plural((item.similar_count ?? 0) + 1, "photo")}</strong>

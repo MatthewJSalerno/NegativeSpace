@@ -115,3 +115,32 @@ class ReviewTests(ApiCase):
     def test_missing_and_out_of_range_photos_are_not_server_errors(self):
         for pid in (0,-1,99,2**64):
             self.assertEqual(self.client.get(f'/api/v1/photos/{pid}/review').status_code,404)
+
+    def test_library_shows_only_current_review_reasons_and_excludes_rejects(self):
+        self.enable()
+        self.assertEqual(self.send(self.decision(reason='later',action='later',note='Check this')).status_code,200)
+        listing=self.client.get('/api/v1/photos?view=organized').json()
+        card=next(p for p in listing['items'] if p['id']==1)
+        self.assertEqual([r['reason'] for r in card['review']['reasons']],['small','later'])
+        self.assertNotIn('history',card['review'])
+        self.assertEqual(self.send(self.decision()).status_code,200)
+        listing=self.client.get('/api/v1/photos?view=organized').json()
+        card=next(p for p in listing['items'] if p['id']==1)
+        self.assertEqual([r['reason'] for r in card['review']['reasons']],['later'])
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("UPDATE photos SET status='Rejected_Copied' WHERE id=1");c.commit()
+        self.assertEqual([p['id'] for p in self.client.get('/api/v1/photos?view=organized').json()['items']],[2])
+
+    def test_index_summary_is_information_not_a_review_reminder(self):
+        self.enable()
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("INSERT INTO photos(source_path,status,sha1_hash) VALUES(?,?,?)",(str(self.cfg.source/'copy.jpg'),'Duplicate',f'{3:040x}'))
+            c.execute("INSERT INTO photos(source_path,status) VALUES(?,'Failed')",(str(self.cfg.source/'broken.jpg'),))
+            c.commit()
+        summary=self.client.get('/api/v1/photos?view=unorganized&q=absent').json()['index_summary']
+        self.assertEqual(summary,dict(photos=2,duplicates=1,small=1,minimum=800,unknown_dimensions=1,suspicious=0,undated=2,failed=1,similar=None))
+        self.assertEqual(self.client.get('/api/v1/photos?view=review').json()['total'],1)
+        self.assertIsNone(self.client.get('/api/v1/photos?view=organized').json()['index_summary'])
+        self.enable(None)
+        summary=self.client.get('/api/v1/photos?view=unorganized').json()['index_summary']
+        self.assertIsNone(summary['minimum'])

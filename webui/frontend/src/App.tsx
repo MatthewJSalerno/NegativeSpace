@@ -39,7 +39,7 @@ export function App() {
   if (status.state !== "ok") return <CatalogProblem status={status} />;
   // First run: nothing indexed yet, so settings are the destination (webui-spec 3).
   if (!status.indexed && !firstRunDone) {
-    // Saved, the user lands in the Library, where Index your library waits: never on the
+    // Saved, the user lands in Not organized, where Index source waits: never on the
     // page an earlier session left in the address bar.
     return <div className="center-page"><SettingsDialog firstRun onClose={() => undefined}
                                                         onSaved={() => { navigate("/"); setFirstRunDone(true); }} /></div>;

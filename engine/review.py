@@ -40,7 +40,7 @@ def details(conn, photo_id):
                 reasons.append({'reason': reason, 'label': 'Review later', 'message': note or 'You asked to come back to this photo.'})
     return {'reasons': reasons, 'history': history, 'revision': history[0]['id'] if history else 0,
             'sha1': row[2], 'location': 'Library' if row[1] in ('Completed','Copied','Found_At_Destination') else
-            'Rejects' if row[1] in ns_db.REJECTED_STATUSES else 'To organize'}
+            'Rejects' if row[1] in ns_db.REJECTED_STATUSES else 'Not organized'}
 
 
 def decide(db_path, body):

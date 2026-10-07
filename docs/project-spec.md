@@ -238,7 +238,7 @@ service. Built and tested:
     could only copy shown as Copied only, never as failed; Retry; **Show these photos in
     the library** for each job that acted on photos; and CSV/JSON export.
 
-Built review workflow: Library, To organize and Rejects are location views; Needs review
+Built review workflow: Library, Not organized and Rejects are location views; Needs review
 is an overlapping inbox. Filter chips combine, reason chips choose one reason, and
 filename searches offer matches in other locations. Small-image cleanup is opt-in at
 first run and never blocks transfers. Mark reviewed acknowledges only the size concern;

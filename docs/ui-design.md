@@ -528,11 +528,24 @@ processing or persisted group is implied.
 
 ## Places, filters and the review inbox
 
-The navigation shows Library, To organize, Rejects and Needs review. The first three
-name locations; Needs review is an overlapping inbox, not a fourth physical place.
+The navigation follows the workflow: Not organized, Library, Needs review, Rejects.
+Not organized, Library and Rejects name locations; Needs review is an overlapping inbox, not a fourth physical place.
 Label locations on review cards and in the Inspector/workspace. Counts count distinct
 photos and must not imply the inbox adds files to the library. A new unscoped visit
-starts at To organize while Library is empty; explicit links retain their view.
+starts at Not organized while Library is empty; explicit links retain their view.
+Once Library exists, an unscoped visit remembers the last place in this browser.
+Not organized starts with Index source. After Index, its neutral Index summary describes
+remaining indexed photos, identical extra copies, size and date facts, plus a clear
+Copy/Move next step using the existing confirmation. Counts cover the whole location,
+not gallery filters; disabled size rules and uncalculated similarity are explicit.
+An empty Library explains how to populate it and links to Not organized.
+
+Library contains delivered, active photos only. Cards with unresolved reasons show a
+Needs review link and concise reason labels. Opening it selects the relevant inbox
+reason (All reasons for multiple reasons), focuses that photo in the review workspace,
+and clears unrelated browsing filters so the photo cannot be hidden. Checkboxes stay
+unchanged. Back to Library restores the entry filters, sort and visible photo position
+for this visit. Mark reviewed clears the reminder, not the Library photo.
 
 Place controls and filter chips have different roles. Similar photos, Suspicious dates
 and No capture date are combinable filter chips beneath navigation. Needs review reason

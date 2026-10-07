@@ -58,6 +58,13 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Views
 
+- [x] Workflow order, Not organized guidance and Index summary; Library review markers
+  open the photo’s reason in Needs review without changing selection, with a return
+  to the entry Library context.
+- [ ] Additional source-summary filters for small dimensions, identical copies and
+  processing errors; date filters already work. Source similarity comparisons are
+  not calculated and must not be presented as zero.
+
 - [ ] **Same-named photos look identical on a card:** a card shows only the filename, so two
   different photos named alike (in different source folders) read as one photo in two
   places. Show the source folder on hover, or beside the name when the view holds both.

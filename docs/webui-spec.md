@@ -272,10 +272,10 @@ Its four entry points:
 
 | View | Holds | Replaces |
 | --- | --- | --- |
-| **Library** (the default) | Photos in the destination's `library/` | Organized |
-| **To organize** | Photos in the source not yet in the library | Not yet organized |
-| **Rejects** | Photos in `rejects/` | Rejects (unchanged) |
+| **Not organized** (first step) | Indexed source photos not yet in the library | Not yet organized |
+| **Library** | Successfully delivered photos in `library/`, excluding Rejects | Organized |
 | **Needs review** | An inbox pointing to photos in their locations, with unresolved review reasons (§7.9) | (new) |
+| **Rejects** | Photos in `rejects/` | Rejects (unchanged) |
 
 A copied photo belongs to the Library; its untouched original in the source is not
 counted again. **All photos** is removed from navigation. Old links remain readable. Needs review overlaps the location views: its count is distinct photos awaiting decisions, not additional files, and the four counts must never be added together. Each reviewed photo names its location.
@@ -290,9 +290,29 @@ six to four. Settled 2026-10-07:
 * **Small images** stays beside **No capture date** as a shortcut to
   **Needs review → Small images**, preserving search, filters and selection. The
   shortened reason under a photo does not replace this toolbar entry point.
-* **The first visit opens on To organize** while the library is empty, and on Library
-  once it holds a photo. Explicit URLs and refreshes preserve the requested view. *Why:* a default view with nothing in it tells a newcomer
-  nothing; To organize is where the first job starts.
+* **The first visit opens on Not organized** while the library is empty. Once it holds a photo, an unscoped visit restores the browser’s last location (`ns.place`), defaulting to Library. Explicit URLs and refreshes preserve the requested view. *Why:* a default view with nothing in it tells a newcomer
+  nothing; Not organized is where the first job starts.
+
+**First-time workflow and source information:** Not organized starts with **Index source**.
+After Index, Library and Rejects remain empty until files are delivered or rejected;
+automatic small-image cleanup remains destination-only. The neutral **Index summary**
+shows the remaining indexed photo count, additional identical copies of those photos,
+known small dimensions under the configured rule, missing/suspicious dates, unknown
+dimensions and processing failures. These counts cover the whole location, not active
+filters. Similarity says **Not calculated for source photos**; a disabled size rule says
+**Rule disabled**. Date chips already filter the source gallery; the other summary values
+are informational (additional source filters remain planned). Copy all/Move all lead to
+the same confirmations as Jobs. Index failures link to Logs for specific evidence.
+An empty Library says **No photos organized yet** and links to Not organized.
+When nothing remains to organize, Not organized offers **Go to Library** if delivered
+photos exist.
+
+**Library review entry:** unresolved supported reasons appear as a **Needs review** link
+on a Library card. It opens the photo’s review workspace in Needs review with its reason
+selected, or All reasons for several notes. Unrelated Library filters are cleared there;
+explicit checkbox selection is unchanged. On returning to the inbox, **Back to Library**
+restores this visit’s entry filters, sort and visible photo position. Rejected photos leave
+Library; acknowledging a note leaves the photo in Library.
 
 **Main-page browsing:** default to newest first by recorded photo date, clearly
 distinguishing filesystem fallback dates from capture dates; offer size sorting.

@@ -58,7 +58,7 @@ export interface PhotoItem {
   kept?: string | null;
   // When a photo in Rejects was rejected.
   rejected_at?: string | null;
-  review?: ReviewDetail;
+  review?: Pick<ReviewDetail, "reasons" | "location">;
 }
 
 export interface ReviewDetail {
@@ -67,6 +67,7 @@ export interface ReviewDetail {
   revision: number; sha1: string | null; location: string;
 }
 export interface PhotoPage {
+  index_summary?: { photos: number; duplicates: number; small: number; minimum: number | null; unknown_dimensions: number; suspicious: number; undated: number; failed: number; similar: null } | null;
   elsewhere?: Record<string, number>;
   chips?: Record<string, number>;
   reasons?: Record<string, number>;

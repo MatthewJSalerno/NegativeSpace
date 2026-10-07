@@ -64,7 +64,7 @@ def check_ui(browser, base, _shot):
     # Tile changes keep both a pending search draft and its applied URL query.
     initial_location = page.locator(".views button[aria-pressed=true]").inner_text().split(" (")[0]
     search_box = page.get_by_role("searchbox", name="Search filenames")
-    for label in ("To organize", "Needs review", "Rejects", "Library"):
+    for label in ("Not organized", "Needs review", "Rejects", "Library"):
         search_box.fill("photo-010")
         page.locator(".views").get_by_role("button", name=re.compile(r"^" + label)).click()
         expect(search_box).to_have_value("photo-010")

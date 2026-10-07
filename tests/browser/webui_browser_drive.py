@@ -95,7 +95,7 @@ with sync_playwright() as p:
         action.click()
     # Saved, the first run lands in the Library, where the Index waits, whatever the address was.
     expect(page).to_have_url(re.compile(r"^[^?]*://[^/]+/(\?.*)?$"))
-    expect(page.get_by_text("No photos yet")).to_be_visible()
+    expect(page.get_by_text("Index your source to find photos")).to_be_visible()
     # Which build is running, at the top right beside Settings.
     expect(page.locator(".version-tag")).to_have_text(re.compile(r"^v\d+\.\d+\.\d+"))
     # The logo at the top left, in its own proportions.
@@ -112,7 +112,7 @@ with sync_playwright() as p:
     expect(page.locator(".menu")).to_have_count(0)
 
     # Index; the result shows at the top of the page, and the gallery refreshes itself.
-    page.get_by_role("button", name="Index your library").click()
+    page.get_by_role("button", name="Index source").click()
     banner = page.locator(".finished-banner")
     expect(banner).to_contain_text(re.compile(r"Index #\d+ finished"), timeout=180_000)
     expect(banner).to_contain_text(f"{PHOTOS + DUPLICATES:,} new or changed, including {DUPLICATES:,} duplicate")
@@ -121,7 +121,7 @@ with sync_playwright() as p:
     assert 0 <= top - (browse["y"] + browse["height"]) <= 24, \
         f"the finished-job banner is not immediately below the browsing toolbar (y={top})"
     expect(page.locator(".card")).to_have_count(60)
-    expect(page.locator(".views")).to_contain_text(f"To organize ({PHOTOS:,})")
+    expect(page.locator(".views")).to_contain_text(f"Not organized ({PHOTOS:,})")
     time.sleep(1)
     broken = page.evaluate("[...document.querySelectorAll('.card img')]"
                            ".filter(i => i.complete && i.naturalWidth === 0).length")
@@ -221,7 +221,7 @@ with sync_playwright() as p:
     expect(page.locator(".selection-line")).to_contain_text(f"{OLDER} photos selected")
     page.locator(".selection-line").get_by_role("button", name="Clear").click()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
-    expect(page.locator(".views")).to_contain_text(f"To organize ({OLDER})")   # what the filters find, as shown
+    expect(page.locator(".views")).to_contain_text(f"Not organized ({OLDER})")   # what the filters find, as shown
     expect(dates.get_by_role("button", name="2023", exact=True)).to_be_visible()   # counts ignore the filter
     page.reload()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")

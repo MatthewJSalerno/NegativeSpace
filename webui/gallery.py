@@ -196,8 +196,56 @@ def _check_view(view, sort=None, page=None, page_size=None):
         raise ValueError("page must be at least 1 and page_size between 1 and 240")
 
 
+def _review_cards(conn, rows):
+    """Current reasons for one bounded gallery page, without loading event history."""
+    if not rows:
+        return {}
+    found = conn.execute(f"""SELECT p.id, p.status, c.width, c.height,
+        {review.LIMIT_SQL} AS minimum,
+        ({review.predicate('small')}) AS small,
+        ({review.predicate('later')}) AS later,
+        (SELECT e.note FROM review_events e WHERE e.photo_id=p.id AND e.reason='later'
+         ORDER BY e.id DESC LIMIT 1) AS note
+        FROM photos p LEFT JOIN contents c ON c.hash_algorithm='sha1' AND c.digest=p.sha1_hash
+        WHERE p.id IN (SELECT value FROM json_each(?))""",
+        (json.dumps([r['id'] for r in rows]),)).fetchall()
+    cards = {}
+    for row in found:
+        reasons = []
+        if row['small']:
+            reasons.append({'reason': 'small', 'label': 'Small image',
+                'message': f"{row['width']} × {row['height']} — below your {row['minimum']}-pixel minimum on the shorter side."})
+        if row['later']:
+            reasons.append({'reason': 'later', 'label': 'Review later',
+                'message': row['note'] or 'You asked to come back to this photo.'})
+        cards[row['id']] = {'reasons': reasons, 'location':
+            'Library' if row['status'] in catalog.DELIVERED else
+            'Rejects' if row['status'] in IN_REJECTS_STATUSES else 'Not organized'}
+    return cards
+
+
+def _index_summary(conn):
+    """Facts about remaining indexed source photos; no destination review eligibility."""
+    where = _view_clause('unorganized')
+    row = conn.execute(f"""SELECT COUNT(*) AS photos,
+        COALESCE(SUM(({_date_warning_sql()}) IS NOT NULL),0) AS suspicious,
+        COALESCE(SUM({_UNDATED}),0) AS undated,
+        COALESCE(SUM(c.width>0 AND c.height>0 AND min(c.width,c.height)<{review.LIMIT_SQL}),0) AS small,
+        COALESCE(SUM(c.width IS NULL OR c.height IS NULL OR c.width<=0 OR c.height<=0),0) AS unknown_dimensions,
+        COALESCE(SUM(p.status='Failed'),0) AS failed
+        FROM photos p LEFT JOIN contents c ON c.hash_algorithm='sha1' AND c.digest=p.sha1_hash
+        WHERE {where}""").fetchone()
+    result = dict(row)
+    result['minimum'] = conn.execute(f'SELECT {review.LIMIT_SQL}').fetchone()[0]
+    result['duplicates'] = conn.execute(f"""SELECT COUNT(*) FROM photos d WHERE d.status='Duplicate'
+        AND EXISTS (SELECT 1 FROM photos p WHERE {where} AND p.sha1_hash=d.sha1_hash)""").fetchone()[0]
+    result['similar'] = None  # Source-only visual comparisons are not calculated.
+    return result
+
+
 def _items(conn, rows, *, include_review=False) -> list:
     items = []
+    review_cards = _review_cards(conn, rows) if include_review else {}
     for r in rows:
         item = dict(r)
         sha1 = item.pop("sha1_hash")
@@ -222,7 +270,7 @@ def _items(conn, rows, *, include_review=False) -> list:
                                 (r["id"], PhotoStatus.COPIED, PhotoStatus.COMPLETED)).fetchone()
             item["kept"] = catalog.kept_reason(last[0]) if last else None
         if include_review:
-            item["review"] = review.details(conn, r["id"])
+            item["review"] = review_cards.get(r["id"])
         items.append(item)
     return items
 
@@ -305,12 +353,13 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             prefix + f"SELECT {columns} {source} WHERE {where}"
             + filtered + f" ORDER BY {catalog.SORTS[sort]} LIMIT ? OFFSET ?",
             filtered_params + (page_size, (page - 1) * page_size)).fetchall()
-        items = _items(conn, rows, include_review=view == "review")
+        items = _items(conn, rows, include_review=view in ("review", "organized", "similar"))
         state = comparison_state(conn) if view == "similar" or similar else None
         rejects = catalog.rejects_summary(conn) if view == "rejects" else None
+        index_summary = _index_summary(conn) if view == "unorganized" else None
     return {"items": items, "page": page, "page_size": page_size, "total": total, "counts": counts,
             "matches": matches, "similarity": {"threshold": match_min, **state} if state is not None else None,
-            "rejects": rejects, "chips": chips, "reasons": reasons, "elsewhere": elsewhere}
+            "rejects": rejects, "chips": chips, "reasons": reasons, "elsewhere": elsewhere, "index_summary": index_summary}
 
 
 def photo_position(db_path: Path, photo_id: int, *, view="all", sort="newest", page_size=60,

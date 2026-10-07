@@ -694,3 +694,8 @@ mixed-size delivered photos, verify a useful small photo disappears only from Sm
 images after Mark reviewed, and verify unwanted photos follow the existing Reject
 confirmation. Inspect the workspace and first-run Files at desktop zoom. This branch
 uses schema 21 and requires a fresh development catalog; it does not migrate schema 20.
+
+The review browser driver also covers first-step navigation, source Index summary,
+Copy confirmation, Library review markers, focused inbox entry and return with search,
+sort and checkbox selection intact. Review API tests distinguish source size facts
+from destination reminders and check current Library reasons without event histories.
