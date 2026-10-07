@@ -3,7 +3,8 @@
 
 Every route the app registers under /api/v1 must have a heading in api-spec.md of the
 form ### `METHOD /path`, and every such heading must be a route that exists. The
-"Designed, not built" section is prose, not headings, so it is not checked. Run from
+"Designed, not built" section is prose, not route headings: implemented endpoints
+there are rejected as stale planning text. Run from
 the repository root inside the image, which has FastAPI:
 
     docker run --rm -v "$PWD":/app -w /app negativespace python3 tools/check-api-spec.py
@@ -34,6 +35,17 @@ for route in create_app().routes:
 text = Path("docs/api-spec.md").read_text()
 documented = {(m, shape(p)) for m, p in HEADING.findall(text)}
 
+planned_routes = []
+section = ""
+for line in text.splitlines():
+    if line.startswith("## "):
+        section = line.lower()
+    match = HEADING.fullmatch(line)
+    if match and "designed, not built" in section:
+        planned_routes.append(match.groups())
+for method, path in planned_routes:
+    print(f"docs/api-spec.md: {method} {path} is under Designed, not built")
+
 missing = sorted(routes - documented)
 stale = sorted(documented - routes)
 for method, path in missing:
@@ -41,4 +53,4 @@ for method, path in missing:
 for method, path in stale:
     print(f"docs/api-spec.md: {method} {path} is documented but no such route exists")
 print(f"Checked {len(routes)} routes against {len(documented)} documented endpoints.")
-sys.exit(1 if missing or stale else 0)
+sys.exit(1 if missing or stale or planned_routes else 0)

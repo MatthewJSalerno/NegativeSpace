@@ -813,16 +813,7 @@ usable hashes) and `score` (hash percentage or null). Unknown, identical-ID or
 unavailable photos return 409 `pair_changed`. It reads only; deciding between the two is
 Reject and Keep this one, reject the rest (§5).
 
-## 8. Designed, not built
-
-These are designed in `webui-spec.md` and will be described here when they exist:
-
-*   A live per-operation stream, for replaying a running job's individual events on
-    reconnect (`webui-spec.md` §4.1, §5.2). `GET /operations?run=` covers the history;
-    the drawer needs only the aggregate feed.
-*   The curation actions: rename, the destination check (offered from a lineage
-    tree's copy), thumbnail cache controls, and later metadata editing, all of which
-    the engine already supports or is specified to (`engine-spec.md` §9).
+## 7a. Additional gallery browsing
 
 ### Suspicious-date browsing
 
@@ -869,8 +860,8 @@ references satisfying filters represents each identical set. Filtering never nar
 set membership. Different neighborhoods with equal counts stay separate.
 
 List `total` and returned IDs/positions describe representatives; per-photo
-`similar_count` still counts direct matches. View-button `counts` remain uncollapsed
-library photo counts. Sidebar queries count representatives in their normal filter
+`similar_count` still counts direct matches. `counts` remain uncollapsed library photo counts; filter-aware `matches`
+supply the view buttons. Sidebar queries count representatives in their normal filter
 scope. `matches` for other views retains normal photo-filter semantics. No photo,
 EXIF, persisted group, or catalog schema is changed. Without `group_sets`, existing
 API behavior is unchanged.
@@ -889,3 +880,14 @@ produce an empty scope. This is a read-only catalog filter, not an engine comman
 For `set_reference`, `view=all` also permits `sort=matches`, retaining a usable
 reference with zero qualifying candidates. The member-gallery UI uses this scope;
 it does not accidentally drop the reference through the Has similar photos filter.
+
+## 8. Designed, not built
+
+These are designed in `webui-spec.md` and will be described here when they exist:
+
+*   A live per-operation stream, for replaying a running job's individual events on
+    reconnect (`webui-spec.md` §4.1, §5.2). `GET /operations?run=` covers the history;
+    the drawer needs only the aggregate feed.
+*   The curation actions: rename, the destination check (offered from a lineage
+    tree's copy), thumbnail cache controls, and later metadata editing, all of which
+    the engine already supports or is specified to (`engine-spec.md` §9).
