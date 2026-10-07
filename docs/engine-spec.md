@@ -320,7 +320,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 20 and refuses incompatible catalogs before processing.
+initializes schema version 21 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -760,7 +760,7 @@ Explicit initialization is available before Index. Settings saves use narrowly s
 
 ```sql
 CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days')),
+    key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days','small_image_min')),
     value_json TEXT NOT NULL,
     revision INTEGER NOT NULL CHECK(revision > 0),
     updated_at TEXT NOT NULL
@@ -780,6 +780,16 @@ Index. The browser has no direct database access. The API uses the shared layer'
 atomic revision checks and bounded writer waits.
 
 **Design note — why separate state from history:** `photos` answers "what's the current state of this file?" — a single `error_message` column there could only ever hold the *most recent* attempt's outcome, and couldn't show that a file failed twice with different errors before eventually succeeding, or answer "show me everything that happened in run #47." Splitting current-state (`photos`) from historical audit log (`operations`, joined to `runs` for run-level context) answers both without overloading one table with two different jobs.
+
+```sql
+CREATE TABLE review_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    photo_id INTEGER NOT NULL REFERENCES photos(id),
+    sha1 TEXT, reason TEXT NOT NULL, action TEXT NOT NULL, note TEXT NOT NULL,
+    created_at TEXT NOT NULL, request_id TEXT NOT NULL UNIQUE, payload TEXT NOT NULL
+);
+CREATE INDEX idx_review_photo ON review_events(photo_id, reason, id);
+```
 
 ## 7. Non-Functional Requirements
 *   **Concurrency (within a run):** `ProcessPoolExecutor` parallelizes hashing/metadata-resolution across CPU cores; sized to `ns_db.available_cpus()` or overridden via `--workers`.
@@ -1562,3 +1572,16 @@ receive its missing hash. `--repair-photo` explicitly rechecks a single affected
 photo after the user has corrected the underlying issue; unsupported formats remain
 excluded. Comparison-only recovery remains available independently. These actions
 preserve delivery status, file bytes, and the existing SHA-1 verification guards.
+
+### Catalog-only review decisions
+
+`--review-decision` accepts a bounded JSON object on stdin and returns JSON. It owns the
+engine lock and commits at FULL synchronous, but never reads or changes photo files,
+starts a transfer, or changes transfer eligibility. `review_events` is an append-only
+history keyed by photo, content, reason and action, with unique request IDs and a saved
+payload. Identical retries do not append another event; conflicting reuse or stale
+photo/review revisions are refused. Small-image eligibility is a query over delivered
+content dimensions and `small_image_min` (positive integer pixels, null for off).
+Acknowledgements survive re-indexing unchanged content and rule changes. Review later
+is independently resolved by Done. Review events are included in catalog backups and
+unbacked-change accounting. Development catalogs require schema 21; no migration.

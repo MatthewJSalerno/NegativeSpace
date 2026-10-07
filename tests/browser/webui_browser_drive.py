@@ -69,6 +69,7 @@ with sync_playwright() as p:
             shot("1-welcome")
             expect(page.get_by_role("button", name="Back", exact=True)).to_have_count(0)
         if n == 2:
+            page.get_by_label("Small-image reminders", exact=True).select_option("off")
             # Next checks only this step: with no file type it stays, and says why.
             boxes = page.locator("#settings-exts input[type=checkbox]")
             ticked = [i for i in range(boxes.count()) if boxes.nth(i).is_checked()]
@@ -116,11 +117,11 @@ with sync_playwright() as p:
     expect(banner).to_contain_text(re.compile(r"Index #\d+ finished"), timeout=180_000)
     expect(banner).to_contain_text(f"{PHOTOS + DUPLICATES:,} new or changed, including {DUPLICATES:,} duplicate")
     top = banner.bounding_box()["y"]
-    browse = page.locator(".toolbar-browse").bounding_box()
+    browse = page.get_by_role("group", name="Filter photos", exact=True).bounding_box()
     assert 0 <= top - (browse["y"] + browse["height"]) <= 24, \
         f"the finished-job banner is not immediately below the browsing toolbar (y={top})"
     expect(page.locator(".card")).to_have_count(60)
-    expect(page.locator(".views")).to_contain_text(f"Not yet organized ({PHOTOS:,})")
+    expect(page.locator(".views")).to_contain_text(f"To organize ({PHOTOS:,})")
     time.sleep(1)
     broken = page.evaluate("[...document.querySelectorAll('.card img')]"
                            ".filter(i => i.complete && i.naturalWidth === 0).length")
@@ -141,7 +142,7 @@ with sync_playwright() as p:
     page.reload()
     expect(page).to_have_url(re.compile(r"page=2\b"))
     expect(page.locator(".pager").first.locator("button.current")).to_have_text("2")
-    page.goto(BASE)
+    page.goto(BASE + "/?view=all")
     # Folders, the left panel's default: the source's folders as catalogued, a chain of
     # single folders as one row, and the files directly in the source folder.
     folders_nav = page.get_by_role("navigation", name="Folders")
@@ -196,7 +197,7 @@ with sync_playwright() as p:
     january.evaluate("""e => window.scrollTo(0, e.getBoundingClientRect().top + window.scrollY
         - document.querySelector('.toolbar').getBoundingClientRect().height - 2)""")
     expect(page.locator(".dates-row.current.month", has_text="January")).to_have_count(1, timeout=5_000)
-    page.goto(BASE)
+    page.goto(BASE + "/?view=all")
     # The date tree: clicking the older year jumps to its page; its first photo is photo
     # number NEWER + 1. Checking it shows only that year, and the address keeps it.
     dates = page.get_by_role("navigation", name="Dates")
@@ -220,7 +221,7 @@ with sync_playwright() as p:
     expect(page.locator(".selection-line")).to_contain_text(f"{OLDER} photos selected")
     page.locator(".selection-line").get_by_role("button", name="Clear").click()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
-    expect(page.locator(".views")).to_contain_text(f"All photos ({OLDER})")   # what the filters find, as shown
+    expect(page.locator(".views")).to_contain_text(f"To organize ({OLDER})")   # what the filters find, as shown
     expect(dates.get_by_role("button", name="2023", exact=True)).to_be_visible()   # counts ignore the filter
     page.reload()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
@@ -259,7 +260,7 @@ with sync_playwright() as p:
     shot("2b-dates")
     page.locator(".pager").first.get_by_label("Photos loaded at a time").select_option("120")
     expect(page).to_have_url(re.compile(r"size=120"))
-    page.goto(BASE)
+    page.goto(BASE + "/?view=all")
     no_errors_yet()
 
     # The Inspector: bordered tables of equal width, EXIF kept apart from file dates.
@@ -441,7 +442,7 @@ with sync_playwright() as p:
     expect(job).to_have_count(0)
     expect(page).to_have_url(re.compile(r"date=2019"))
     only_2019.uncheck()
-    expect(page.locator(".views")).to_contain_text("Organized (3)", timeout=5_000)
+    expect(page.locator(".views")).to_contain_text("Library (3)", timeout=5_000)
     # A review holds only what its action takes: of everything selected, Reject takes the
     # three organized photos and says how many it left out.
     select(f"Select all in this view ({PHOTOS})")
@@ -663,7 +664,7 @@ with sync_playwright() as p:
     page.locator(".gallery-filters").get_by_role("button", name="Show all dates").click()
 
     page.get_by_role("button", name="Settings").click()
-    expect(page.get_by_role("dialog")).to_contain_text("Changes apply to future jobs")
+    expect(page.get_by_role("dialog")).to_contain_text("Processing settings apply to future jobs")
     page.get_by_role("tab", name="Backups").click()
     # Catalog backups: each job above took one; Back up now adds a manual one.
     backups = page.locator(".backups")
@@ -692,17 +693,18 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"undated=1"))
     expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS - 2:,} photos")
     # The views count what the filter finds, and the buttons keep their widths.
-    expect(views).to_contain_text(f"All photos ({PHOTOS - 2:,})")
+    expect(views).to_contain_text(f"Library ({PHOTOS - 2:,})")
     after = views.locator("button").evaluate_all("bs => bs.map(b => Math.round(b.getBoundingClientRect().width))")
     assert after == widths, f"the view buttons changed width: {widths} -> {after}"
     undated_filter.click()
     expect(page).not_to_have_url(re.compile(r"undated=1"))
-    # All photos resets the other filters, while preserving the search.
+    # Clear filters resets restrictions without changing location or selection.
     undated_filter.click()
     page.get_by_role("navigation", name="Dates").get_by_label("Show only 2019").check()
     page.get_by_role("searchbox", name="Search filenames").fill("photo")
     expect(page).to_have_url(re.compile(r"q=photo"))
-    page.get_by_role("button", name=re.compile(r"^All photos")).click()
+    page.get_by_role("button", name="Clear filters", exact=True).click()
+    page.get_by_role("searchbox", name="Search filenames").fill("photo")
     expect(page).not_to_have_url(re.compile(r"undated=1|date="))
     expect(page).to_have_url(re.compile(r"q=photo"))
     expect(page.get_by_role("searchbox", name="Search filenames")).to_have_value("photo")

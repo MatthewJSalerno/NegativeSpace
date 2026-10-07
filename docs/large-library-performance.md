@@ -260,3 +260,26 @@ separate concern that this prepared-relationship query benchmark does not measur
 No production library, deployed instance, or original file is modified by these
 benchmarks. Keep personal paths, machine details and raw private run logs out of
 tracked documentation; publish generated-fixture aggregates only.
+
+### Needs review query spot check (2026-10-07)
+
+Generated mixed catalog: 200,000 photos, 181,819 delivered, 45,455 below an enabled
+800-pixel shorter-side minimum; no saved review events. One warm-up and three timed
+calls to `gallery.list_photos`, default sort, first 60 photos, on the same generated
+fixture. These are local medians, not p95 or capacity guarantees.
+
+| Query | Initial inbox implementation | After removing repeated counts |
+| --- | ---: | ---: |
+| Library | 1,361 ms | 692 ms |
+| Needs review | 1,594 ms | 1,302 ms |
+
+The change reuses global counts when no filters apply, and computes per-reason counts
+only for the inbox. No index or threshold was tuned to the sample. EXPLAIN for inbox
+membership still shows a photo scan with indexed content lookup (`hash_algorithm`,
+`digest`) and indexed decision lookup (`photo_id`, `reason`). A tested set-subquery
+rewrite made inbox reads slower and was not adopted. Ordinary galleries do not load
+per-photo review history. Large histories and heavily filtered inboxes still need
+broader profiling; these timings do not measure photo decoding, transfers or storage
+latency. Generate catalogs with the existing synthetic tool, copy the generated fixture
+for writable review settings, enable `small_image_min=800`, and time both views on that
+copy to repeat this check.

@@ -195,6 +195,8 @@ def main():
     mode_group.add_argument('--repair-similarity', choices=('missing','comparisons'),
                             help='Recover missing visual hashes from destination files or resume stored-hash comparisons; never edits photos.')
     parser.add_argument('--repair-photo', type=int, default=None, help='Limit missing-hash recovery to one destination photo identity.')
+    mode_group.add_argument('--review-decision', action='store_true',
+                            help='Record a catalog-only review decision supplied as JSON on standard input; changes no photo files.')
     args = parser.parse_args()
     if args.repair_photo is not None and (args.repair_photo < 1 or args.repair_photo > 2**63-1 or args.repair_similarity != 'missing'):
         parser.error('--repair-photo requires --repair-similarity missing and a positive photo ID.')
@@ -230,7 +232,7 @@ def main():
 
     # 2. Configure Logging
     # --preview answers on stdout in JSON for the API, so its log goes to the file only.
-    answers_in_json = (args.preview is not None or args.clear_previews or args.rename_candidates is not None
+    answers_in_json = (args.review_decision or args.preview is not None or args.clear_previews or args.rename_candidates is not None
                        or (args.rename is not None and args.dry_run))
     runtime.configure_logging(log_dir, console=not answers_in_json)
     if args.preview is not None:
@@ -266,6 +268,22 @@ def main():
             f"Wait for it to finish, or cancel it, then retry."
         )
         sys.exit(1)
+
+    if args.review_decision:
+        from engine import review
+        try:
+            body = json.loads(sys.stdin.read(8193))
+            print(json.dumps(review.decide(db_path, body)))
+            code = 0
+        except ns_db.RevisionConflict as exc:
+            print(json.dumps({'error': 'review_changed', 'message': str(exc)}))
+            code = 3
+        except (ValueError, ns_db.SchemaError) as exc:
+            print(json.dumps({'error': 'invalid_request', 'message': str(exc)}))
+            code = 2
+        finally:
+            runtime.release_single_instance_lock(lock_fd)
+        sys.exit(code)
 
     if args.backup_now:
         sys.exit(backups.run_manual_backup(db_path, Path(args.backups), base_dir, lock_fd))

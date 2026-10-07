@@ -1,3 +1,4 @@
+import { ReviewNote } from "./ReviewNote";
 import { TabList, tabPanel } from "./ui/Tabs";
 import type { SetActions } from "./ReviewActions";
 import type { ComparisonState } from "../comparisonState";
@@ -214,6 +215,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
           <TabList className="inspector-tabs" label="Photo inspector" idBase={tabId} value={tab} onChange={onTab}
             tabs={[{ value: "information", label: "Photo information" }, { value: "similar", label: "Similar photos" }]} />
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", tab)}>
+            {detail && tab === "information" && <ReviewNote key={id} id={id} refreshKey={refreshKey} disabled={jobRunning}/>}
             {detail && tab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
               actions={IN_LIBRARY.includes(detail.status) && onReject
                 ? <button onClick={() => onReject(detail.filename)} disabled={jobRunning} title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Move this photo out of the library into Rejects. Nothing is deleted."}>Reject…</button>

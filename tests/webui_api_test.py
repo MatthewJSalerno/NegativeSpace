@@ -50,15 +50,20 @@ def make_photo(path: Path, seed: str, size=(64, 48), mtime=None, exif=None):
 class ApiCase(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix="ns-webui-"))
-        for name in ("src", "dest", "appdata", "cache", "backups"):
+        destination = Path(os.environ['NS_TEST_DESTINATION_ROOT']) / self.root.name if os.environ.get('NS_TEST_DESTINATION_ROOT') else self.root / 'dest'
+        destination.mkdir(parents=True)
+        for name in ("src", "appdata", "cache", "backups"):
             (self.root / name).mkdir()
-        self.cfg = Config(base=self.root / "appdata", source=self.root / "src", dest=self.root / "dest",
+        self.cfg = Config(base=self.root / "appdata", source=self.root / "src", dest=destination,
                           cache=self.root / "cache", backups=self.root / "backups")
         self.client = TestClient(create_app(self.cfg))
 
     def tearDown(self):
         self.client.close()
-        shutil.rmtree(self.root, ignore_errors=True)
+        if os.environ.get('NS_TEST_KEEP') != '1':
+            shutil.rmtree(self.root, ignore_errors=True)
+            if self.cfg.dest.parent != self.root:
+                shutil.rmtree(self.cfg.dest, ignore_errors=True)
 
     def create_catalog(self):
         self.assertEqual(self.client.post("/api/v1/catalog").status_code, 201)
@@ -1611,6 +1616,17 @@ class MatchingTests(ApiCase):
     def refresh(self):
         from engine import ns_similarity
         self.assertTrue(ns_similarity.refresh(self.conn))
+
+    def test_largest_lookalike_is_not_limited_to_the_first_page(self):
+        reference=self.photo('reference','a'*40,'0000000000000000')
+        for i in range(61):
+            last=self.photo(f'match-{i}',f'{i+1:040x}','0000000000000000',width=640 if i<60 else 4000)
+        self.refresh()
+        result=self.client.get(f'/api/v1/similar/{reference}?page_size=30').json()
+        self.assertEqual(result['total'],61)
+        self.assertNotIn(last,[p['id'] for p in result['items']])
+        self.assertEqual(result['largest_match']['id'],last)
+        self.assertEqual(result['largest_match']['width'],4000)
 
     def test_cached_counts_equal_live_reads_and_invalidate_transactionally(self):
         from engine import ns_similarity_cache as cache

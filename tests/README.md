@@ -668,3 +668,29 @@ expensive work, and use `benchmark-synthetic-queries.py` for A/B measurements.
 For a short 500k trial use `--photos 500000 --scenarios inspector related --repeats 3`;
 this deliberately produces no p95. Keep repeat settings identical for its candidate
 run, and use a new output directory for every profile/revision.
+
+## Needs review
+
+`python3 -m unittest discover -s tests -p review_test.py -v` in the app image checks
+opt-in size reminders, unchanged transfer eligibility, independent review reasons,
+acknowledged decisions, idempotent retries, stale-tab refusal, content replacement,
+filter/count/position agreement and backup accounting with generated catalogs.
+API test fixtures accept `NS_TEST_DESTINATION_ROOT` for separate destination storage
+and `NS_TEST_KEEP=1` to retain artifacts; `TMPDIR` sets the app-data fixture root.
+The first-run Files step now requires an explicit small-image reminder choice.
+
+`DRIVER=review_browser_drive.py sh tests/browser/webui_browser_test.sh` covers first-run
+choice, Copy, independent Small images/Review later decisions, refused-save retry,
+Previous/Next, confirmed Reject, persistence after reload and Index, Settings links,
+selection preservation, combined chips and narrow workspace reflow. The default browser
+driver exercises choosing Off during first run. Both are in CI.
+
+The browser harness accepts `NS_TEST_OUTPUT_ROOT`, `NS_TEST_DESTINATION_ROOT` and
+`NS_TEST_KEEP=1` for an isolated retained fixture; create the parent folders first.
+Use your own image tags through `IMAGE` and `WEB_IMAGE`.
+
+Manual review before merging: choose On and Off on separate fresh catalogs, review
+mixed-size delivered photos, verify a useful small photo disappears only from Small
+images after Mark reviewed, and verify unwanted photos follow the existing Reject
+confirmation. Inspect the workspace and first-run Files at desktop zoom. This branch
+uses schema 21 and requires a fresh development catalog; it does not migrate schema 20.

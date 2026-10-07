@@ -15,6 +15,7 @@ export interface Status {
   detail: string | null;
   photos: number;
   indexed: boolean;
+  library_photos?: number;
   // What a Copy all and a Move all would take, across the whole catalog.
   eligible: { copy: number; move: number };
   copied: number;
@@ -31,7 +32,7 @@ export interface Status {
   active_job: Run | null;
 }
 
-export type View = "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects";
+export type View = "review" | "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects";
 // A job acting on photos; Reject and Return to library need a selection or a folder.
 export type ActionMode = "copy" | "move" | "reject" | "return";
 // Where a photo is, for selecting: a selection holds library photos or photos in Rejects,
@@ -57,9 +58,18 @@ export interface PhotoItem {
   kept?: string | null;
   // When a photo in Rejects was rejected.
   rejected_at?: string | null;
+  review?: ReviewDetail;
 }
 
+export interface ReviewDetail {
+  reasons: { reason: string; label: string; message: string }[];
+  history: { id: number; reason: string; action: string; note: string; created_at: string }[];
+  revision: number; sha1: string | null; location: string;
+}
 export interface PhotoPage {
+  elsewhere?: Record<string, number>;
+  chips?: Record<string, number>;
+  reasons?: Record<string, number>;
   items: PhotoItem[];
   page: number;
   page_size: number;
@@ -84,6 +94,7 @@ export interface PhotoPosition {
 // What narrows the gallery: the view, the search, No capture date, and the date tree's
 // "Show only" years and months ("2023", "2023-06", "none").
 export interface BrowseFilters {
+  similar?: boolean; suspicious?: boolean; reason?: string;
   set_reference?: number;
   group_sets?: boolean;
   match_min?: number;
@@ -119,6 +130,9 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
   if (f.group_sets) query.set("group_sets", "true");
   if (f.match_min != null) query.set("match_min", String(f.match_min));
   if (f.run != null) query.set("run", String(f.run));
+  if (f.similar) query.set("similar", "true");
+  if (f.suspicious) query.set("suspicious", "true");
+  if (f.reason) query.set("reason", f.reason);
   if (f.q) query.set("q", f.q);
   if (f.undated) query.set("undated", "true");
   (f.dates ?? []).forEach((d) => query.append("date", d));
@@ -250,6 +264,7 @@ export interface ExtensionSupport {
 }
 
 export interface Settings {
+  small_image_min: Setting<number | null>;
   workers: Setting<number> & { detected: number; host: number; limited_by: "cpu_quota" | "cpu_set" | null };
   exts: Setting<string[]> & { support: ExtensionSupport[] };
   backup_retention: Setting<number>;
@@ -536,6 +551,7 @@ export interface MatchPage {
   reference?: MatchPhoto | null;
   availability?: "available" | "not_available" | "hash_unavailable";
   largest_pixels?: number | null;
+  largest_match?: MatchPhoto | null;
   query_ms?: number;
 }
 
@@ -572,6 +588,11 @@ export type SimilarityRecoveryPage = {
 };
 
 export const api = {
+  review: (id: number) => request<ReviewDetail>("GET", `/api/v1/photos/${id}/review`),
+  reviewDecision: (id: number, detail: ReviewDetail, reason: string, action: string, note: string, request_id: string) =>
+    request<ReviewDetail>("POST", `/api/v1/photos/${id}/review`, {
+      photo_id: id, sha1: detail.sha1, revision: detail.revision, reason, action, note, request_id,
+    }),
   referenceSets: (reference: number, threshold: number, included: number[], page: number, relatedPage: number) => {
     const query = new URLSearchParams({ threshold: String(threshold), page: String(page), related_page: String(relatedPage) });
     included.forEach(id => query.append("include", String(id)));

@@ -33,7 +33,7 @@ with sync_playwright() as p:
     page.goto(sys.argv[1])
     page.get_by_role('button',name=re.compile('^Suspicious dates')).click()
     expect(page.locator('.card')).to_have_count(2)
-    expect(page).to_have_url(re.compile('view=suspicious'))
+    expect(page).to_have_url(re.compile('suspicious=1'))
     page.reload()
     expect(page.locator('.card')).to_have_count(2)
     page.locator(f'.card[data-id="{ids[0]}"] .card-image').click()

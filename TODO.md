@@ -53,7 +53,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [ ] **Needs review mockup** (on hold): boards in the design canvas; its two-photo note
   reuses the comparison workspace, which gains the "Will be rejected" marking. Settled
   2026-10-07: reasons as a row of chips (board 1), and a small image's look-alikes as a
-  hint, unticked in a bulk Keep (board 5).
+  hint. Superseded 2026-10-07: small images are reviewed after import, with Mark
+  reviewed or the existing Reject selection; no bulk Keep or automatic unticking.
 
 ## Views
 
@@ -66,14 +67,24 @@ Found 2026-10-05 looking for screens that do the same job twice.
   is refused with no running job shown. Say what is happening ("finishing the last job's
   catalog backup") and offer to start when it is done, or wait briefly before refusing.
 
-- [ ] Views named by where a photo is: Library (default), To organize, Rejects, Needs
-  review; Has similar photos, Suspicious dates and No capture date become a row of filter
-  chips within a place; All photos goes; the first visit opens on To organize while the
-  library is empty (`docs/webui-spec.md` §2).
+- [x] Location views, overlapping Needs review inbox, combined filter chips, cross-location
+  filename search and first-visit default (`webui-spec.md` §2).
 
 ## Needs review
 
-- [ ] The in-tray itself (`docs/webui-spec.md` §7.9).
+- [x] The in-tray for Small images and Review later (`docs/webui-spec.md` §7.9).
+- [ ] Add the remaining reasons to the shared inbox/workspace: unreadable files and
+  uncertain recovery with evidence-based actions; suspicious dates with acknowledgment;
+  No capture date and sidecar/edit reasons with their respective workstreams.
+- [ ] Bulk review answers within one reason. Individual Mark reviewed/Done and the
+  existing bulk Reject workflow are built; general bulk acknowledgments are not.
+- [ ] Record automatic reason clearing in review history. Current small-image
+  eligibility is computed on read; explicit user decisions are recorded, but a
+  setting/dimension change that removes eligibility does not append an event.
+- [ ] Broader performance coverage with many accumulated review events. A 200k-photo
+  generated catalog has been checked with an empty history; this does not model
+  years of bookmarks and acknowledgments.
+
 - [ ] "Looks like a reject": a photo only similar to a reject (small pHash distance) is
   never rejected automatically; it waits in Needs review. With the reject still in
   Rejects: full side by side, Reject it too · Keep it · Keep the old one instead. With
@@ -81,11 +92,11 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [ ] "No capture date": suggested dates from the name, the folder or a dated look-alike,
   answered in bulk through the editor; the photo stays under `Undated/` meanwhile
   (`docs/webui-spec.md` §3.1).
-- [ ] "Review later": a button beside Reject… in the photo panel, with an optional short
+- [x] "Review later": a button beside Reject… in the photo panel, with an optional short
   note; Done clears it (`docs/webui-spec.md` §7.9).
-- [ ] "Small image": photos under a size set in Settings wait outside the library for Keep
-  or Reject; the note names its look-alikes ("3 at 90%, the largest in your library"), and
-  those with a larger one start unticked in a bulk Keep (`docs/webui-spec.md` §7.9).
+- [x] Small-image destination cleanup: user chooses on/off and minimum at first run;
+  never blocks Copy/Move. Mark reviewed persists per photo/content and does not clear
+  other reasons. Existing selection/Reject workflow; no bulk Keep or automatic unticking.
 - [ ] "Which photo is this sidecar for?": a short-named XMP sidecar that could belong to
   several photos, held with them until the user answers (`docs/engine-spec.md` §9.6).
 

@@ -66,8 +66,8 @@ with sync_playwright() as p:
     # The view buttons count what the search finds, as the gallery does.
     page.get_by_role("searchbox", name="Search filenames").fill("photo-002")
     expect(page.locator(".card")).to_have_count(1)
-    expect(view_button(page, "All photos")).to_contain_text("(1)")
-    expect(view_button(page, "Organized")).to_contain_text("(1)")
+    expect(view_button(page, "Library")).to_contain_text("(1)")
+    expect(view_button(page, "Library")).to_contain_text("(1)")
     expect(view_button(page, "Rejects")).to_contain_text("(0)")
 
     # One photo, from the Inspector: asked first in a sentence, starting on Cancel.
@@ -83,13 +83,13 @@ with sync_playwright() as p:
     expect(banner).to_contain_text(re.compile(r"Reject #\d+ finished"), timeout=60_000)
     expect(banner).to_contain_text("1 of 1 photo moved to Rejects")
     expect(page.locator(".card")).to_have_count(0)
-    expect(view_button(page, "All photos")).to_contain_text("(0)")
+    expect(view_button(page, "Library")).to_contain_text("(0)")
     expect(view_button(page, "Rejects")).to_contain_text("(1)")
     dismiss_banner()
 
     # The Rejects view: the photo, what Rejects holds, and how to empty it, in the page.
     page.get_by_role("searchbox", name="Search filenames").fill("")
-    expect(view_button(page, "All photos")).to_contain_text(f"({PHOTOS - 1:,})")
+    expect(view_button(page, "Library")).to_contain_text(f"({PHOTOS - 1:,})")
     view_button(page, "Rejects").click()
     expect(page).to_have_url(re.compile(r"view=rejects"))
     expect(page.locator(".card")).to_have_count(1)
@@ -116,7 +116,7 @@ with sync_playwright() as p:
     dismiss_banner()
 
     # A selection is reviewed first, as for Copy and Move.
-    view_button(page, "All photos").click()
+    view_button(page, "Library").click()
     page.locator(".card-check input").nth(0).click()
     page.locator(".card-check input").nth(1).click()
     selection_bar(page).get_by_role("button", name="Reject (2)…").click()
@@ -127,7 +127,7 @@ with sync_playwright() as p:
     shot("r3-review-before-reject")
     review.get_by_role("button", name="Reject these 2 photos").click()
     expect(banner).to_contain_text("2 of 2 photos moved to Rejects", timeout=60_000)
-    # Back on All photos, which the rejected photos have left; the banner opens the job's.
+    # Back in Library, which the rejected photos have left; the banner opens the job's.
     expect(page.get_by_role("region", name="Review before rejecting")).to_have_count(0)
     banner.get_by_role("button", name="Show these photos").click()
     expect(page.get_by_role("region", name="A job's photos")).to_contain_text(re.compile(r"The 2 photos in Reject #\d+"))
@@ -180,9 +180,9 @@ with sync_playwright() as p:
     expect(dialog).to_contain_text("This photo is in Rejects. Move deletes its original from your source")
     expect(dialog).to_contain_text("empty Rejects and it is gone")
     dialog.get_by_role("button", name="Cancel", exact=True).click()
-    # One place per selection (webui-spec 2): library photos cannot join it. All photos
+    # One place per selection (webui-spec 2): library photos cannot join it. Library
     # never shows photos in Rejects, so its Select all takes library photos only.
-    view_button(page, "All photos").click()
+    view_button(page, "Library").click()
     other = page.locator(".card:not(.selected) .card-check").first
     expect(other.locator("input")).to_be_disabled()
     expect(other).to_have_attribute("title", re.compile("Library photos can't be selected with photos in Rejects"))
@@ -205,7 +205,7 @@ with sync_playwright() as p:
     assert settings["rejects_reminder_days"]["value"] == 30
     assert request.put("/api/v1/settings", data={"values": {"rejects_reminder_bytes": 1},
                                                  "revisions": {"rejects_reminder_bytes": 0}}).ok
-    view_button(page, "All photos").click()
+    view_button(page, "Library").click()
     reminder = page.get_by_role("region", name="Rejects reminder")
     expect(reminder).to_have_count(0)
     page.locator(".card-image").first.click()

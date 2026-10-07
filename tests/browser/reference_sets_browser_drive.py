@@ -66,7 +66,7 @@ with sync_playwright() as p:
     expect(group).to_be_checked()
     sort.select_option('oldest')
     group.uncheck()
-    page.get_by_role('button', name=re.compile('^All photos')).click()
+    page.get_by_role('button', name=re.compile('^Has similar photos')).click()
     sort.select_option('largest')
     page.get_by_role('button', name=re.compile('^Has similar photos')).click()
     expect(sort).to_have_value('oldest')
@@ -80,7 +80,7 @@ with sync_playwright() as p:
     expect(sort).to_have_value('newest')
     page.reload()
     expect(sort).to_have_value('newest')
-    page.get_by_role('button', name=re.compile('^All photos')).click()
+    page.get_by_role('button', name=re.compile('^Has similar photos')).click()
     expect(sort).to_have_value('largest')
     page.goto(sys.argv[1]+'/?view=similar&match_min=90&sort=name')
     expect(sort).to_have_value('name')  # Explicit links win over saved defaults.

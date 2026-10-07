@@ -154,7 +154,7 @@ and had to be reworded in both places.
 
 Review destination photos in the ordinary gallery and its Inspector. Do not add a
 separate Similar navigation button or a second gallery of matching groups.
-**Has similar photos** sits alongside All photos, Organized and No capture date;
+**Has similar photos** is a filter chip within the current place;
 it includes photos with at least one recorded destination match at the gallery's
 chosen percentage (90% initially). It combines with existing search, date, type and
 folder filters. **Most matches first** in the existing sort control ranks direct
@@ -525,3 +525,30 @@ expand or clear the existing selection. Filters are disabled while it is open;
 Back to results restores the previous gallery filters/page. Reload leaves this
 session-only scope. Browsing is not limited in members. No EXIF edit, reject, image
 processing or persisted group is implied.
+
+## Places, filters and the review inbox
+
+The navigation shows Library, To organize, Rejects and Needs review. The first three
+name locations; Needs review is an overlapping inbox, not a fourth physical place.
+Label locations on review cards and in the Inspector/workspace. Counts count distinct
+photos and must not imply the inbox adds files to the library. A new unscoped visit
+starts at To organize while Library is empty; explicit links retain their view.
+
+Place controls and filter chips have different roles. Similar photos, Suspicious dates
+and No capture date are combinable filter chips beneath navigation. Needs review reason
+chips select one reason or All reasons. Use native buttons with aria-pressed, shared
+text roles, visible focus and wrapping at desktop zoom. Folders and Dates remain in the
+sidebar. Name active restrictions visibly and provide Clear filters without changing
+place or selection. Search offers a route to filename matches in other locations.
+
+Small-image review is destination cleanup, never a Copy/Move restriction. First-run
+Files requires an explicit on/off choice, offering an editable 800-pixel shorter-side
+minimum if enabled. Settings can adjust or disable it. Mark reviewed acknowledges one
+photo's size concern; it is not Keep, selection, relocation or approval of other reasons.
+Checkboxes continue to select photos to Reject. Never untick photos because the app
+found a larger look-alike. Review later has an optional note and Done clears it.
+
+Use the shared Workspace for one-by-one review, with reason-specific evidence/actions,
+Previous/Next, and Back to gallery. Next leaves the decision unresolved. Advance only
+on an acknowledged decision or confirmed Reject outcome. Keep errors and retry paths
+visible. Return to the same gallery context and preserve explicit selections.

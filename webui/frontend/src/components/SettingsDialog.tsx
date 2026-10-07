@@ -16,11 +16,11 @@ const GROUPS: { value: Group; label: string }[] = [
 ];
 // Where each field and each saved setting lives.
 const FIELD_GROUP: Record<string, Group> = {
-  workers: "performance", retention: "backups", exts: "files", reminderSize: "files", reminderAge: "files",
+  workers: "performance", retention: "backups", exts: "files", reminderSize: "files", reminderAge: "files", small: "files",
 };
 const SETTING_GROUP: Record<string, Group> = {
   workers: "performance", backup_retention: "backups", exts: "files",
-  rejects_reminder_bytes: "files", rejects_reminder_days: "files",
+  rejects_reminder_bytes: "files", rejects_reminder_days: "files", small_image_min: "files",
 };
 
 // Settings (webui-spec 3). A window over the current view, so closing it returns
@@ -28,7 +28,8 @@ const SETTING_GROUP: Record<string, Group> = {
 // changes shows a dot. On first run it is the page itself, cannot be closed, and steps
 // through the same groups, saving at the end. Saves carry the revision each value was
 // read at, so another browser tab's save is never silently overwritten.
-export function SettingsDialog({ firstRun, onClose, onSaved }: {
+export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "appearance" }: {
+  initialGroup?: Group;
   firstRun: boolean;
   onClose: () => void;
   onSaved: () => void;
@@ -39,6 +40,8 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
   const [retention, setRetention] = useState("");
   const [exts, setExts] = useState<string[]>([]);
   // The Rejects reminder's limits; off is saved as null. Size is shown in GB.
+  const [smallChoice, setSmallChoice] = useState("");
+  const [smallMin, setSmallMin] = useState("800");
   const [sizeOn, setSizeOn] = useState(true);
   const [sizeGb, setSizeGb] = useState("");
   const [ageOn, setAgeOn] = useState(true);
@@ -48,7 +51,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
   const [message, setMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [group, setGroup] = useState<Group>("appearance");
+  const [group, setGroup] = useState<Group>(initialGroup);
   const idBase = useId();
 
   const load = () =>
@@ -66,6 +69,8 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
   }, []);
 
   function showReminder(s: Settings) {
+    setSmallChoice(firstRun && s.small_image_min.revision === 0 ? "" : s.small_image_min.value == null ? "off" : "on");
+    setSmallMin(String(s.small_image_min.value ?? 800));
     const size = s.rejects_reminder_bytes.value, days = s.rejects_reminder_days.value;
     setSizeOn(size != null);
     setSizeGb(String(Number(((size ?? s.rejects_reminder_bytes.default ?? 1e9) / 1e9).toFixed(2))));
@@ -89,8 +94,10 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
     if ([...exts].sort().join() !== [...settings.exts.value].sort().join()) out.exts = [...exts].sort();
     if (reminderBytes !== settings.rejects_reminder_bytes.value) out.rejects_reminder_bytes = reminderBytes;
     if (reminderDays !== settings.rejects_reminder_days.value) out.rejects_reminder_days = reminderDays;
+    const small = smallChoice === "on" ? Number(smallMin) : null;
+    if (small !== settings.small_image_min.value || (firstRun && smallChoice && settings.small_image_min.revision === 0)) out.small_image_min = small;
     return out;
-  }, [settings, workers, retention, exts, reminderBytes, reminderDays]);
+  }, [settings, workers, retention, exts, reminderBytes, reminderDays, smallChoice, smallMin]);
 
   const toggleExt = (ext: string) =>
     setExts((cur) => (cur.includes(ext) ? cur.filter((e) => e !== ext) : [...cur, ext]));
@@ -113,6 +120,8 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
 
   const check = (only?: Group) => {
     const errors: Record<string, string> = {};
+    if (firstRun && !smallChoice) errors.small = "Choose whether to suggest small images for review.";
+    if (smallChoice === "on" && (!Number.isSafeInteger(Number(smallMin)) || Number(smallMin)<1)) errors.small = "Enter a positive whole number of pixels.";
     if (!Number.isSafeInteger(Number(workers)) || Number(workers) < 1) errors.workers = "Enter a whole number of workers, at least 1.";
     if (!Number.isSafeInteger(Number(retention)) || Number(retention) < 1) errors.retention = "Enter a whole number of backups, at least 1.";
     if (!exts.length) errors.exts = "Choose at least one file type.";
@@ -123,7 +132,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
     const first = Object.keys(shown)[0];
     if (first) {
       setGroup(FIELD_GROUP[first]);
-      requestAnimationFrame(() => document.getElementById(`settings-${first}`)?.focus());
+      requestAnimationFrame(() => document.getElementById(first === "small" && smallChoice !== "on" ? "settings-small-choice" : `settings-${first}`)?.focus());
     }
     return !first;
   };
@@ -148,7 +157,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
       return;
     }
     const revisionOf: Record<string, number> = {
-      workers: settings.workers.revision, exts: settings.exts.revision, backup_retention: settings.backup_retention.revision,
+      small_image_min: settings.small_image_min.revision, workers: settings.workers.revision, exts: settings.exts.revision, backup_retention: settings.backup_retention.revision,
       rejects_reminder_bytes: settings.rejects_reminder_bytes.revision, rejects_reminder_days: settings.rejects_reminder_days.revision,
     };
     const revisions = Object.fromEntries(Object.keys(changed).map((k) => [k, revisionOf[k]]));
@@ -210,6 +219,17 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
                  onKeyDown={(e) => e.key === "Enter" && addCustom()} aria-label="Add a file type" />
           <button disabled={saving} onClick={addCustom}>Add file type</button>
         </div>
+      </section>
+      <section>
+        <h3>Small-image review</h3>
+        <p>A cleanup suggestion after Copy or Move, never an import restriction. Mark reviewed clears a photo’s size reminder; select unwanted photos to Reject.</p>
+        <label htmlFor="settings-small-choice">Small-image reminders</label>
+        <select id="settings-small-choice" value={smallChoice} disabled={saving} aria-invalid={smallChoice !== "on" && !!fieldErrors.small} aria-describedby={smallChoice !== "on" && fieldErrors.small ? "small-hint small-error" : "small-hint"} onChange={e => setSmallChoice(e.target.value)}>
+          <option value="" disabled>Choose…</option><option value="on">On — suggest small images</option><option value="off">Off</option>
+        </select>
+        {smallChoice === "on" && <Field id="settings-small" label="Minimum shorter side (pixels)" type="number" min={1} step={1} value={smallMin} disabled={saving} onChange={e => setSmallMin(e.target.value)} error={fieldErrors.small} />}
+        {smallChoice !== "on" && fieldErrors.small && <p id="small-error" className="error" role="alert">{fieldErrors.small}</p>}
+        <p id="small-hint" className="muted">For example, 640 × 480 is below an 800-pixel minimum. Changing or disabling this rule updates Needs review without moving files. Photos already marked reviewed stay reviewed.</p>
       </section>
       <section>
         <h3>Rejects reminder</h3>
@@ -281,7 +301,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
           <h3 className="settings-step" id={`${idBase}-step`}>
             <span className="muted">Step {step + 1} of {GROUPS.length}</span> {GROUPS[step].label}
           </h3>
-          <div className="settings-panel" role="group" aria-labelledby={`${idBase}-step`}>{panels[group]}</div>
+          <div className="settings-panel" role="group" tabIndex={0} aria-labelledby={`${idBase}-step`}>{panels[group]}</div>
           {status}
           <footer className="settings-actions">
             {step > 0 && <button onClick={() => { setMessage(null); setGroup(GROUPS[step - 1].value); }} disabled={saving}>Back</button>}
@@ -297,7 +317,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved }: {
           {GROUPS.map((g) => (
             <div key={g.value} className="settings-panel" role="tabpanel" {...tabPanel(idBase, g.value, group)}>{panels[g.value]}</div>
           ))}
-          <p className="notice">Changes apply to future jobs. Active jobs will continue with their existing settings.</p>
+          <p className="notice">Processing settings apply to future jobs. Review reminders update immediately; no photos are moved.</p>
           {status}
           <footer className="settings-actions">
             <button onClick={reset} disabled={saving}>Reset</button>

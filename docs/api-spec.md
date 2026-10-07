@@ -889,3 +889,36 @@ produce an empty scope. This is a read-only catalog filter, not an engine comman
 For `set_reference`, `view=all` also permits `sort=matches`, retaining a usable
 reference with zero qualifying candidates. The member-gallery UI uses this scope;
 it does not accidentally drop the reference through the Has similar photos filter.
+
+### `GET /api/v1/photos/{photo_id}/review`
+
+Returns current `reasons` (reason, label, message), location, content SHA-1,
+`revision` and descending review `history`. Reasons currently implemented: `small`
+and `later`. A missing photo returns 404 `unknown_photo`. This endpoint only reads.
+
+### `POST /api/v1/photos/{photo_id}/review`
+
+Body: `photo_id`, `sha1` (string or null), `revision` (nonnegative integer), `reason`,
+`action`, `note` (up to 500 characters), `request_id` (1–128 alphanumeric, underscore
+or hyphen characters). Actions: small/reviewed, later/later, later/done. The engine
+records the decision under its lock; no photo files or selection are changed.
+Returns the current review detail on success. Identical request replay is idempotent.
+400 `invalid_request` rejects malformed input; 409 `review_changed` refuses stale
+content/revision or conflicting request reuse; 409 `job_already_running` refuses a
+busy engine; 503 `review_unavailable` means the result could not be confirmed, so
+reload before retrying. Success is shown only after acknowledgement.
+
+### Composable review browsing
+
+Gallery listing, IDs, position, types, folders and timeline accept `similar` and
+`suspicious` booleans and `reason` (all/small/later). These combine with existing
+filters. `view=review` selects distinct photos with an unresolved supported reason.
+Listings include `chips`, `reasons` and filename-only `elsewhere` location counts;
+review cards include location and reason details. Existing view names remain accepted
+for old links. The UI offers organized (Library), unorganized (To organize), rejects
+and review, with similarity/date conditions as chips. Settings adds
+`small_image_min`, a positive integer shorter-side minimum or null (disabled).
+
+The matches response also supplies `largest_match` (photo details or null), selected
+across the complete matching set rather than the current page. This is evidence for
+small-image review, never an automatic selection or quality judgment.

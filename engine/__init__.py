@@ -9,7 +9,7 @@ transfer (Copy and Move), relocate (Rename, Reject, Return to library), reconcil
 the fsync steps), store (catalog writes), fileinfo (dates, metadata, hashes), thumbnails,
 destinations, targeting (which photos a run acts on), jobs, maintenance, backups,
 runtime (shared run state), constants and deps; ns_db (the catalog schema and its rules,
-shared with the web API) and the ns_similarity modules.
+shared with the web API), review (catalog-only review decisions), and the ns_similarity modules.
 
 Modules refer to one another as `module.name`, never `from module import name`: one
 binding per name, so replacing a function (a test injecting a fault) replaces it for
@@ -23,6 +23,8 @@ Never mount the same folder at both paths or nest one inside the other,
 including on network shares. Overlapping mounts can cause unintended file
 deletion and are not reliably detected by the engine.
 
+- --review-decision (Optional) Record one catalog-only review decision from JSON stdin,
+  under the engine lock. Returns JSON; never changes photo bytes or transfer status.
 - --source <path> (Optional) Path to unorganized source directory (default: "/data/source").
 - --dest <path> (Optional) Path for organized output directory (default: "/data/dest").
 - --base <path> (Optional) Base directory for app artifacts (default: "/appdata").

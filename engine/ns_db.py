@@ -17,7 +17,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 20
+SCHEMA_VERSION = 21
 
 # --- Status vocabularies -----------------------------------------------------
 #
@@ -535,6 +535,11 @@ def _json(value):
 
 
 FOUNDATION_DDL = (
+    """CREATE TABLE review_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, photo_id INTEGER NOT NULL REFERENCES photos(id),
+        sha1 TEXT, reason TEXT NOT NULL, action TEXT NOT NULL, note TEXT NOT NULL,
+        created_at TEXT NOT NULL, request_id TEXT NOT NULL UNIQUE, payload TEXT NOT NULL)""",
+    "CREATE INDEX idx_review_photo ON review_events(photo_id, reason, id)",
     f"CREATE TABLE catalog_schema (version INTEGER NOT NULL CHECK(version={SCHEMA_VERSION}))",
     f"INSERT INTO catalog_schema VALUES ({SCHEMA_VERSION})",
     """CREATE TABLE files (
@@ -574,7 +579,7 @@ FOUNDATION_DDL = (
         file_id INTEGER NOT NULL REFERENCES files(file_id),
         role TEXT NOT NULL CHECK(role IN ('source','destination','retained_copy')), PRIMARY KEY(operation_id,file_id,role))""",
     """CREATE TABLE settings (
-        key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days')),
+        key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days','small_image_min')),
         value_json TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0),
         updated_at TEXT NOT NULL)""",
     # The photos a run was asked to act on, recorded with the run itself: what the user
@@ -751,7 +756,7 @@ def initialize(db_path):
                 conn.execute(statement)
             for table in ('files', 'file_origins', 'source_snapshots', 'file_observations', 'operation_files',
                           'run_configs', 'job_requests', 'operation_events', 'operation_evidence',
-                          'file_changes', 'attention_evidence'):
+                          'file_changes', 'attention_evidence', 'review_events'):
                 for action in ('UPDATE', 'DELETE'):
                     conn.execute(f"CREATE TRIGGER immutable_{table}_{action} BEFORE {action} ON {table} "
                                  "BEGIN SELECT RAISE(ABORT, 'immutable lineage/configuration'); END")
@@ -767,7 +772,7 @@ def require_schema(conn):
                     'file_origins','file_states','contents','operation_events','operation_evidence',
                     'attention_issues','attention_evidence','file_changes','content_similarity','similarity_hashes',
                     'similarity_count_cache','similarity_count_state',
-                    'thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state'}
+                    'review_events','thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state'}
         present = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if not required <= present:
             raise SchemaError("Incomplete catalog schema")
@@ -811,7 +816,7 @@ def validate_settings(values):
         elif key == 'backup_retention':
             if type(value) is not int or value < 1:
                 raise ValueError("backup_retention must be a positive integer")
-        elif key in REJECTS_REMINDER_DEFAULTS:
+        elif key in REJECTS_REMINDER_DEFAULTS or key == 'small_image_min':
             if value is not None and (type(value) is not int or value < 1):
                 raise ValueError(f"{key} must be a positive integer, or null for off")
         elif key == 'exts':
@@ -1545,6 +1550,9 @@ def unbacked_changes(conn, *, exclude_run_id=None):
         sql += " AND run_id != ?"
         params.append(exclude_run_id)
     count, runs = conn.execute(sql, params).fetchone()
+    count += conn.execute("SELECT COUNT(*) FROM review_events" +
+                          (" WHERE julianday(created_at) >= julianday(?)" if since else ""),
+                          (since,) if since else ()).fetchone()[0]
     return count, since, sorted(int(r) for r in runs.split(",")) if runs else []
 
 

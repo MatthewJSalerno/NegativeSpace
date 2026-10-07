@@ -14,6 +14,12 @@ export function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsGroup, setSettingsGroup] = useState<"appearance" | "files">("appearance");
+  useEffect(() => {
+    const open = () => { setSettingsGroup("files"); setSettingsOpen(true); };
+    window.addEventListener("ns-review-settings", open);
+    return () => window.removeEventListener("ns-review-settings", open);
+  }, []);
   const [firstRunDone, setFirstRunDone] = useState(false);
   const path = usePath();
 
@@ -42,13 +48,13 @@ export function App() {
     <>
       <a className="skip-link" href="#main-content">Skip to main content</a>
       {path === "/logs"
-        ? <LogsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />
+        ? <LogsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => { setSettingsGroup("appearance"); setSettingsOpen(true); }} />
         : path === "/stats"
-          ? <StatsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />
+          ? <StatsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => { setSettingsGroup("appearance"); setSettingsOpen(true); }} />
           : path === "/similar"
             ? <SimilarRedirect />
-            : <LibraryPage status={status} refreshStatus={loadStatus} onOpenSettings={() => setSettingsOpen(true)} />}
-      {settingsOpen && <SettingsDialog firstRun={false} onClose={() => setSettingsOpen(false)} onSaved={loadStatus} />}
+            : <LibraryPage status={status} refreshStatus={loadStatus} onOpenSettings={() => { setSettingsGroup("appearance"); setSettingsOpen(true); }} />}
+      {settingsOpen && <SettingsDialog initialGroup={settingsGroup} firstRun={false} onClose={() => setSettingsOpen(false)} onSaved={() => { void loadStatus(); window.dispatchEvent(new Event("ns-settings-saved")); }} />}
     </>
   );
 }

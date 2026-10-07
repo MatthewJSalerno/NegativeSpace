@@ -82,3 +82,11 @@ docker run --rm --stop-timeout 300 \
 > **Note:** `--move` against a read-only-mounted source will not corrupt anything: the copy succeeds and only the source deletion fails, so each photo is recorded `Copied`, its operation giving the reason the original was kept, and nothing is ever lost. Re-running is safe and does **not** accumulate duplicate copies: the engine recognizes that an identical copy already exists at the destination and skips rewriting it. Once the source is writable, `--move` finishes the job by deleting the originals. Use `--copy` for read-only sources instead — it is the same verified copy without the futile delete step.
 
 ---
+
+## Catalog review decisions
+
+The web interface submits **Mark reviewed**, **Review later** and **Done** through
+`--review-decision`. This mode takes a JSON decision on stdin under the engine lock;
+its fields and replay/refusal behavior are documented in the review endpoints in
+[api-spec.md](api-spec.md). It changes catalog review history only, never photo files,
+EXIF, selection or transfer status. This is separate from the Index/Copy/Move modes.

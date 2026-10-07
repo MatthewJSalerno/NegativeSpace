@@ -186,7 +186,8 @@ def matches(db: Path, photo_id: int, *, mode='similar', threshold=90., page=1, p
         stats=conn.execute('WITH '+scope+scored+' SELECT COUNT(*),MAX(width*height) FROM scored',params).fetchone()
         total = stats[0]
         rows=conn.execute('WITH '+scope+scored+' SELECT * FROM scored ORDER BY distance,id LIMIT :limit OFFSET :offset',params).fetchall()
+        largest_match = conn.execute('WITH '+scope+scored+' SELECT * FROM scored WHERE width>0 AND height>0 ORDER BY width*height DESC,id LIMIT 1', params).fetchone()
         largest=max(reference['width']*reference['height'] if reference['width'] and reference['height'] else 0,stats[1] or 0) or None
     return {'reference':_item(reference),'items':[{**_item(r),'score':round((64-r['distance'])*100/64,2)} for r in rows],
-            'total':total,
+            'total':total, 'largest_match':_item(largest_match) if largest_match is not None else None,
             'page':page,'page_size':page_size,'state':state,'availability':'available','largest_pixels':largest}

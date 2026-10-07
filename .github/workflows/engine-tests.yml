@@ -132,6 +132,14 @@ jobs:
             -v "$PWD":/app -w /app \
             negativespace python3 -m unittest discover -s tests -p webui_api_test.py -v
 
+      - name: Review decisions
+        run: |
+          docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app \
+            negativespace python3 -m unittest discover -s tests -p review_test.py -v
+
+      - name: Needs review in a browser
+        run: DRIVER=review_browser_drive.py sh tests/browser/webui_browser_test.sh
+
       - name: Selection ownership across processes
         run: |
           docker run --rm \

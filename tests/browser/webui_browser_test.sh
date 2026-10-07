@@ -3,7 +3,7 @@
 # docker/compose.yml: an app container (API and engine) and a web container
 # (screens, proxying /api to the app), driven by a Playwright container
 # (tests/browser/webui_browser_drive.py). Runs on the host because it starts containers.
-# Every folder is made with mktemp under /tmp.
+# Generated fixtures use configurable output/destination roots; NS_TEST_KEEP retains data.
 #
 #   docker build -f docker/app.Dockerfile -t negativespace .
 #   docker build -f docker/web.Dockerfile -t negativespace-web .
@@ -21,7 +21,9 @@ NEWER=70
 OLDER=60
 DUPLICATES=2
 HERE=$(cd "$(dirname "$0")" && pwd)
-WORK=$(mktemp -d /tmp/ns-browser-XXXXXX)
+WORK=$(mktemp -d "${NS_TEST_OUTPUT_ROOT:-/tmp}/ns-browser-XXXXXX")
+DEST="$WORK/dest"
+if [ -n "${NS_TEST_DESTINATION_ROOT:-}" ]; then DEST=$(mktemp -d "$NS_TEST_DESTINATION_ROOT/ns-browser-XXXXXX"); fi
 NET=ns-browser-$$
 APP=ns-browser-app-$$
 WEB=ns-browser-web-$$
@@ -32,12 +34,13 @@ cleanup() {
     docker stop -t 30 "$APP" >/dev/null 2>&1 || true
     docker rm "$APP" >/dev/null 2>&1 || true
     docker network rm "$NET" >/dev/null 2>&1 || true
+    if [ "${NS_TEST_KEEP:-0}" = 1 ]; then echo "Generated browser artifacts retained."; return; fi
     docker run --rm --entrypoint rm -v "$WORK":/w "$IMAGE" -rf /w/src /w/dest /w/appdata /w/cache /w/backups >/dev/null 2>&1 || true
     rm -rf "$WORK"
 }
 trap cleanup EXIT
 
-mkdir -p "$WORK/src" "$WORK/dest" "$WORK/appdata" "$WORK/cache" "$WORK/backups"
+mkdir -p "$WORK/src" "$DEST" "$WORK/appdata" "$WORK/cache" "$WORK/backups"
 
 # Distinct photos plus exact copies of the first few, made with the image's Pillow.
 # The first two carry an EXIF date taken (January 2023); every other photo has none,
@@ -69,7 +72,7 @@ elif [ "${SUBMISSION_FIXTURE:-0}" = 1 ]; then
     set -- -v "$HERE/submission_engine_fixture.py:/submission_engine_fixture.py:ro" -e NS_ENGINE=/submission_engine_fixture.py
 fi
 docker run -d --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" \
-    -v "$WORK/src":/data/source:ro -v "$WORK/dest":/data/dest -v "$WORK/appdata":/appdata \
+    -v "$WORK/src":/data/source:ro -v "$DEST":/data/dest -v "$WORK/appdata":/appdata \
     -v "$WORK/cache":/cache -v "$WORK/backups":/backups "$@" "$IMAGE" >/dev/null
 docker run -d --name "$WEB" --network "$NET" "$WEB_IMAGE" >/dev/null
 

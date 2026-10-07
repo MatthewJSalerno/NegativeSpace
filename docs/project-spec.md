@@ -238,6 +238,15 @@ service. Built and tested:
     could only copy shown as Copied only, never as failed; Retry; **Show these photos in
     the library** for each job that acted on photos; and CSV/JSON export.
 
+Built review workflow: Library, To organize and Rejects are location views; Needs review
+is an overlapping inbox. Filter chips combine, reason chips choose one reason, and
+filename searches offer matches in other locations. Small-image cleanup is opt-in at
+first run and never blocks transfers. Mark reviewed acknowledges only the size concern;
+Review later / Done records a separate reminder. Both persist in the catalog with review
+history. The common review workspace preserves gallery selection and uses the existing
+Reject flow. EXIF/XMP changes and the additional reason-specific recovery flows remain
+separate work.
+
 Specified but not yet on screen:
 *   The unbacked-changes line on every page, and Retry backup in the finished-job banner.
 *   Each folder's last-scanned time in the Folders tree.
@@ -249,9 +258,7 @@ Specified but not yet on screen:
     engine records per full Index (`webui-spec.md` §5.1).
 *   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built), undated photos as a Needs review reason with suggested dates, and metadata editing (`webui-spec.md` §7.5, with its
     decided details).
-*   The views named by where a photo is: Library, To organize, Rejects and Needs review,
-    with similar photos, suspicious dates and no capture date as filter chips (`webui-spec.md` §2).
-*   Needs review (`webui-spec.md` §7.9), with the similar-to-a-reject check
+*   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file and uncertain-outcome resolution, and the similar-to-a-reject check
     (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);
     the export-sidecar notice at Index.
@@ -262,7 +269,7 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 20; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
+at schema version 21; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
 It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its

@@ -287,3 +287,16 @@ version 3 of the License, or (at your option) any later version. It is distribut
 hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
 of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the
 full text.
+
+### Reviewing small photos
+
+At first startup, Files asks whether to enable small-image reminders. If enabled,
+choose the minimum shorter side in pixels (800 is offered as a starting value).
+Copy and Move still organize every eligible photo. Delivered photos below the minimum
+appear in **Needs review → Small images**, with their dimensions and the reason.
+
+Use **Mark reviewed** for a small photo you want to stop being reminded about, or select
+unwanted photos and use **Reject**. A larger look-alike is supporting evidence, not an
+automatic choice. **Review later** adds an optional note; **Done** clears that reminder
+independently. **Review one by one** opens the workspace; Next skips without resolving.
+Change or disable the size rule later in **Settings → Files**.

@@ -41,6 +41,7 @@ with sync_playwright() as p:
     # Only generated fixtures are copied in this isolated test catalog.
     run_job('copy')
     page.reload()
+    page.locator('.views').get_by_role('button',name=re.compile('^Library')).click()
     expect(page.locator('.card').first).to_be_visible()
     gallery_sort = page.get_by_role('combobox', name='Sort', exact=True)
     gallery_threshold = page.get_by_role('combobox', name='Gallery match threshold', exact=True)
@@ -75,7 +76,7 @@ with sync_playwright() as p:
     assert page.locator('.browse-search').evaluate('e => e.scrollWidth <= e.clientWidth + 1')
     shot('gallery-match-sort-narrow')
     page.set_viewport_size({'width':1440,'height':1000})
-    page.get_by_role('button', name=re.compile('^All photos')).click()
+    page.get_by_role('button', name=re.compile('^Has similar photos')).click()
     expect(gallery_sort).to_have_value('newest')
     expect(gallery_threshold).to_have_count(0)
     page.get_by_role('button', name=re.compile('^Has similar photos')).click()
@@ -449,7 +450,7 @@ with sync_playwright() as p:
     expect(page).not_to_have_url(re.compile('match_page='))
     # Old standalone/exact-mode bookmarks redirect into the same gallery workflow.
     page.goto(f'{sys.argv[1]}/similar?mode=exact&photo={reference}&threshold=85')
-    expect(page).to_have_url(re.compile(r'/\?view=similar&sort=matches&match_min=75&photo=\d+&tab=similar&match=85'))
+    expect(page).to_have_url(re.compile(r'/\?view=organized&similar=1&sort=matches&match_min=75&photo=\d+&tab=similar&match=85'))
     expect(summary.get_by_role('button', name=re.compile('^85% or higher:'))).to_have_attribute('aria-pressed', 'true')
     expect(matches.locator('.inspector-match')).to_have_count(12)
     # A saved page beyond the remaining candidates returns to the last valid page.

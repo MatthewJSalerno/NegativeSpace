@@ -262,28 +262,23 @@ address does not itself count as navigation or reset the current selection.
 **No capture date** is a quick filter beside the views, with its count. It shows the
 photos whose EXIF has no date taken, which are filed under Undated by their file's
 modification date, counted in the current view. It combines with the view and the
-search; the views' counts ignore it, as they ignore every filter, and the filter line says
-how many are shown. Each view button keeps its width whatever its count, with room for
-**(999,999)** in even-width digits, so switching views never moves them. Every tile
-preserves the search text, including **No capture date** and **All photos**.
-**All photos** clears No capture date and the date, type and folder filters, but
-retains the search; it is not shown as chosen while a filter or search narrows the
-gallery. The other views keep the filters, to narrow within a view.
+search; the view counts show photos matching the active filters, and the filter line says
+how many are shown. A review reason narrows only the inbox, not other locations. Each view button keeps its width whatever its count, with room for
+**(999,999)** in even-width digits, so switching views never moves them. Every location preserves the search and filter chips. **Clear filters** removes
+restrictions without changing the location or explicit selection.
 
-**Planned: views named by where a photo is** (decided 2026-10-05). Today's views
-(All photos, Not yet organized, Organized, Has similar photos, Suspicious dates, Rejects)
-mix places with ways of looking, and **All photos** mixes the source and the library, so
-a user cannot tell what is where. They become four places:
+**Views and the review inbox** (implemented; decisions updated 2026-10-07). The gallery has three locations and a review inbox.
+Its four entry points:
 
 | View | Holds | Replaces |
 | --- | --- | --- |
 | **Library** (the default) | Photos in the destination's `library/` | Organized |
 | **To organize** | Photos in the source not yet in the library | Not yet organized |
 | **Rejects** | Photos in `rejects/` | Rejects (unchanged) |
-| **Needs review** | Photos waiting on a decision (§7.9), including source photos that failed and held small images | (new) |
+| **Needs review** | An inbox pointing to photos in their locations, with unresolved review reasons (§7.9) | (new) |
 
 A copied photo belongs to the Library; its untouched original in the source is not
-counted again. **All photos** goes: it only ever meant everything mixed together.
+counted again. **All photos** is removed from navigation. Old links remain readable. Needs review overlaps the location views: its count is distinct photos awaiting decisions, not additional files, and the four counts must never be added together. Each reviewed photo names its location.
 **Has similar photos**, **Suspicious dates** and **No capture date** stop being views and
 become filters within a place ("Library · has similar photos"), as No capture date
 already is. *Why:* the view buttons then answer one question, where is it, and drop from
@@ -293,7 +288,7 @@ six to four. Settled 2026-10-07:
   the place shown ("Has similar photos (167) · Suspicious dates (8) · No capture date
   (1,356)"), as Needs review's reasons are (§7.9): one pattern for narrowing a place.
 * **The first visit opens on To organize** while the library is empty, and on Library
-  once it holds a photo. *Why:* a default view with nothing in it tells a newcomer
+  once it holds a photo. Explicit URLs and refreshes preserve the requested view. *Why:* a default view with nothing in it tells a newcomer
   nothing; To organize is where the first job starts.
 
 **Main-page browsing:** default to newest first by recorded photo date, clearly
@@ -315,6 +310,20 @@ in the other view, show its count and a link rather than implying no matches exi
 * **Targeted Execution:** Individual selections reach the engine as a selection file (`--file-ids-from`, its ids recorded with the job); folder selections use `--source-subdir <path>`. These are mutually exclusive targeting mechanisms in a single job — pick one per submission. IDs (not raw file paths) were chosen for the individual case specifically because a database primary key is unambiguous and doesn't depend on path strings staying identical between when the frontend fetched the catalog and when the operation actually runs — and it keeps one targeting implementation rather than a parallel web-only code path, which is what makes the engine directly runnable for debugging and development (see §1).
 
 ---
+
+### Filter and search behavior
+
+Filter chips combine with AND: Has similar photos plus No capture date finds photos
+meeting both conditions. Dates, types, folders and filename search also apply. The
+visible filter summary names every active restriction; Clear filters preserves the
+location and explicit photo selection. Reason chips in Needs review select one reason
+at a time, or All reasons. Sidebar filters continue to apply there. Counts count photos,
+not notes; a photo with two reasons appears once in All reasons.
+
+When a filename search finds nothing in the current location, offer matches in the
+other locations. These escape links retain the filename search and clear narrowing
+filters, and identify where the results live. Changing views or reasons never silently
+changes the selected photos or arms new action targets.
 
 ## 3. Dedicated Settings Management (`/settings`)
 
@@ -1420,7 +1429,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 20 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 21 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -2282,8 +2291,7 @@ reject emptied, its stored thumbnail and details stand in for it.
 
 ### 7.9 Needs review
 
-**Planned** (decided 2026-10-01). **Needs review** lists photos waiting for a
-decision. Each carries a **note**: a reason, the job that raised it, when, and optionally a
+**Built for Small images and Review later**; the remaining reasons below are planned. **Needs review** lists photos waiting for a decision. Each carries a **note**: a reason, the job that raised it, when, and optionally a
 related photo, opened side by side in comparison. **Notes are for decisions only**, not a
 general tagging system: personal labels (people, albums) belong to gallery applications.
 
@@ -2294,11 +2302,12 @@ general tagging system: personal labels (people, albums) belong to gallery appli
 * **Where it lives** (decided 2026-10-05): a Library view, **Needs review (n)**, beside the
   others, so its count is always in sight; each note's reason and buttons show on the
   photo's card and in the Inspector. **Review one by one** opens the workspace (§7.7),
-  which steps through the notes with ‹ ›, each note's photos side by side with its
-  buttons. *Why not a page of its own:* finding notes then works like the rest of the
+  which steps through the photos with ‹ › and shows relevant evidence and
+  reason-specific buttons. Cards currently show reasons and Open review; direct
+  answers are in the Inspector and workspace. *Why not a page of its own:* finding notes then works like the rest of the
   Library (filters, selection, bulk answers), and working through them reuses the
   workspace built for such tasks.
-* **Filter by reason; bulk within one reason** (preview and one confirmation). A mixed
+* **Filter by reason; bulk within one reason** (planned for review answers; existing bulk Reject is available with preview and confirmation). A mixed
   selection offers only shared actions. The reasons are a row of chips above the photos,
   each with its count ("All reasons (31) · No capture date (12) · Small image (9) · …"),
   beside **Review one by one** (decided 2026-10-07). *Why not tick boxes in the left
@@ -2306,7 +2315,8 @@ general tagging system: personal labels (people, albums) belong to gallery appli
 * **A note exists only when a person must decide.** Facts the catalog can compute (every
   similar pair) stay live queries, so the list cannot grow into a copy of the library.
 * **A resolved note leaves the list;** the decision goes into the photo's history. **A note
-  that stops being true clears itself** (decided 2026-10-05): a corrected date, a file
+  that stops being true clears itself** (decided 2026-10-05; automatic history events
+  remain planned, while small-image eligibility already updates on read): a corrected date, a file
   that now reads, a reject returned to the library. The next job or the screen notices,
   and the photo's history records the note and why it went ("cleared: the date was
   corrected in job #52"), as the engine's needs-attention issues clear only on evidence.
@@ -2319,7 +2329,7 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   would make it the general tagging that belongs to gallery applications.
 * **Whether a photo waits depends on its note** (decided 2026-10-05). A note that holds
   its photo keeps it from Copy, Move and edits until answered; the others let it carry
-  on as normal and ask afterwards:
+  on as normal and ask afterwards. Small images are explicitly nonblocking:
 
   | Note | While it waits |
   | --- | --- |
@@ -2328,7 +2338,7 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   | Looks like a reject (§7.8) | Carries on: filed as normal; rejecting it later moves it to Rejects |
   | Suspicious date | Carries on: filed by the date it has; fixing the date refiles it |
   | Couldn't be read | Nothing to hold: the file failed and stays where it is |
-  | Small image | Held: not organized into the library |
+  | Small image | Carries on: Copy/Move complete normally; review is destination cleanup only |
   | Couldn't confirm what happened (an attention issue from recovery) | Held: its copy authorizes no removal of a duplicate's original until checked; **Check it now** runs a destination check of the file, whose verified result clears it |
   | No capture date (§3.1) | Carries on: stays filed under `Undated/` until dated |
   | Review later (set by the user) | Carries on |
@@ -2337,23 +2347,38 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   leave a gap in the library until answered. *Why not carry everything on:* filing an
   unfixed old version beside its fix, or giving a photo another's sidecar, is the wrong
   thing to do and harder to undo than to wait.
-* **Small images** (decided 2026-10-05): a photo whose shorter side is under a size set in
-  Settings › Files gets a note, "Small image: 640 × 480", with **Keep in library** and
-  **Reject**, and waits outside the library until answered, so thumbnails, web downloads
-  and screenshots never reach the library or a gallery app pointed at it. A larger
-  look-alike already in the library is the strongest sign of a junk copy, so the note
-  says what it matches (decided 2026-10-07): *"3 look-alikes at 90% · the largest,
-  4000 × 3000, is in your library"*, at the percentage chosen for similar photos, opening
-  the side by side. One by one, it is shown beside that look-alike with **Reject it (keep
-  the larger one)** and **Keep both**. In a bulk **Keep in library**, photos with a larger
-  look-alike in the library start unticked, and the review says why ("2 have a larger
-  look-alike in your library and are left unticked"), so a bulk answer never files a
-  shrunken copy unless it is ticked on purpose. The size is a setting and can be switched off, since a library of small images
-  would otherwise hold everything; Index reports how many it held ("312 small images are
-  waiting for your decision"). *Why a note, not a view of its own:* filtering, bulk
-  answers and side-by-side review come with Needs review, and the view buttons are
-  already many. *Still to settle when building:* the default size (a shorter side of
-  800 pixels was suggested) and whether the setting starts on.
+* **Small images are a cleanup suggestion, never an import restriction** (decided
+  2026-10-07). Copy and Move process eligible photos normally, regardless of resolution.
+  Delivered photos whose shorter side is below the configured minimum appear in
+  Needs review → Small images. Unknown dimensions are not treated as small. Each note
+  names its dimensions and the rule, e.g. "640 × 480 — below your 800-pixel minimum on
+  the shorter side", with **Change in Settings** opening Files directly.
+* **The user chooses at first run.** Files asks explicitly whether to enable reminders;
+  neither option is preselected for a new catalog. Enabling suggests 800 pixels, editable
+  by the user. Later Settings can lower, raise or disable the rule. Changes update the
+  inbox without moving files or launching jobs. A catalog with no choice saved has no
+  automatic size rule until one is configured.
+* **Select the photos to reject.** Checkboxes retain the existing meaning. Reject uses
+  the existing preview, confirmation and job workflow. There is no bulk Keep workflow,
+  and a larger look-alike never unticks or selects anything automatically.
+* **Mark reviewed** means "I considered this photo's size; stop asking about it". It
+  clears only that size concern for this photo's current content, leaves the file in
+  place and records the decision in review history. Another Index and changes to the
+  size setting do not re-open an acknowledged concern for unchanged content. A replaced
+  content version is assessed independently. Review later remains until Done; clearing
+  one reason does not clear another. Reading the inbox performs no catalog writes.
+* **One shared review workspace.** Review one by one shows the reason, location, photo
+  and relevant evidence, with Previous/Next and Back to gallery. Next leaves the photo
+  unresolved. A successfully acknowledged decision advances to the next eligible item
+  (or keeps another unresolved reason on the same photo in All reasons). Reject advances
+  only after its outcome confirms the move, never merely on job submission. Closing
+  restores gallery filters, selection and position. The current photo is in the URL;
+  refreshed links retrieve current evidence. Errors keep the decision visible with
+  retry/reload controls. No saved rotation or metadata edits are implied.
+* A larger look-alike is evidence, not a keeper chosen by the application. The review
+  shows match counts at the chosen similarity percentage and a larger candidate when
+  available. Coverage failures must be distinguished from having no recorded matches.
+
 * **A held photo always says so:** the job's result counts them ("3 photos waiting for
   your answer"), and the gallery and Inspector show **Waiting for your answer** on each.
 
