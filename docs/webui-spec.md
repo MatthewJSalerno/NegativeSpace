@@ -2444,9 +2444,10 @@ general tagging system: personal labels (people, albums) belong to gallery appli
 * **One shared review workspace.** A task-specific title and queue navigation lead a
   large photo with compact viewing controls and a decision panel. Mark reviewed,
   Review later… and Reject… use consistent buttons in one action row, with the effect
-  explained. Matching clues are up to three thumbnails, a larger match first when
-  available; Review side by side opens comparison and returns to review. Empty matches
-  use a short message; incomplete coverage offers Review matching status. Review one by
+  explained. Similar photos shows a count and percentage with **View all n matches →**,
+  opening the existing Inspector Similar photos tab. Do not repeat candidate thumbnails
+  or comparison controls here. Browser Back restores the same photo and review position.
+  Empty matches use a short message; incomplete coverage offers Review matching status. Review one by
   one shows the reason, location, photo
   and relevant evidence, with Previous/Next and Back to gallery. Next leaves the photo
   unresolved. A successfully acknowledged decision advances to the next eligible item
@@ -2860,8 +2861,9 @@ Similarity still covers organized Library photos. Failed sources contribute neit
 candidates nor incomplete-matching counts; genuine matching gaps among organized
 photos retain their warning. Already-delivered photos remain untouched.
 
-The review workspace shows up to three similar-photo clues and a **View all n matching
-photos** link to the existing Inspector Similar photos tab at the same percentage.
-Keep the current photo, gallery filters and explicit selection; do not create another
-match gallery. The Inspector of a failed source file shows its latest recorded failure
+The review workspace shows a Similar photos count and percentage with a **View all n
+matches →** link to the existing Inspector Similar photos tab at the same percentage.
+It has no candidate thumbnail list or separate comparison entry points. Keep the
+current photo, gallery filters and explicit selection; browser Back restores the same
+photo and review queue position. Do not create another match gallery. The Inspector of a failed source file shows its latest recorded failure
 reason directly, a fallback when none was recorded, and the existing failure-log link.

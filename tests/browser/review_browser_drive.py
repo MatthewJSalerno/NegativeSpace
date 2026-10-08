@@ -1,5 +1,6 @@
 """Generated-fixture review flow, first-run choice, persistence, selection and reflow."""
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -188,12 +189,24 @@ with sync_playwright() as p:
     page.emulate_media(color_scheme='dark')
     if os.environ.get('SHOTS'): workspace.screenshot(path=os.environ['SHOTS']+'/review-workspace-dark.png')
     page.emulate_media(color_scheme='light')
-    workspace.locator('.review-evidence-list button').first.click()
+    expect(workspace.locator('.review-evidence img')).to_have_count(0)
+    review_url=page.url
+    review_position=workspace.locator('.workspace-step > span').inner_text()
+    workspace.get_by_role('link',name=re.compile(r'^View all \d+ matches')).click()
+    expect(workspace).to_have_count(0)
+    matches=page.get_by_role('region',name='Matches for this photo',exact=True)
+    expect(matches).to_be_visible()
+    expect(page.locator(f'.card[data-id="{first}"] input')).to_be_checked()
+    matches.get_by_role('button',name=re.compile('^Review side by side:')).first.click()
     comparison=page.get_by_role('dialog',name='Review photo match',exact=True)
     expect(comparison).to_be_visible()
-    comparison.get_by_role('button',name='Back to review',exact=False).click()
+    comparison.get_by_role('button',name='Back to gallery',exact=True).click()
     expect(comparison).to_have_count(0)
+    page.go_back()
     expect(workspace).to_be_visible()
+    expect(workspace.locator('.workspace-step > span')).to_have_text(review_position)
+    assert page.url == review_url
+    expect(page.locator(f'.card[data-id="{first}"] input')).to_be_checked()
     # Next is a skip, not a saved answer; Previous returns to the same photo.
     workspace.get_by_role('button',name='Next photo',exact=True).click()
     expect(workspace.locator('.workspace-step')).to_contain_text('Photo 2 of')
@@ -296,14 +309,17 @@ with sync_playwright() as p:
     page.goto(base+f'/?view=organized&photo={chosen}&review_photo={chosen}&match_min=90')
     expect(page.locator('.review-evidence')).to_be_visible()
     before=get(f'similar/{chosen}?threshold=90')['total']
-    assert before > 3, 'Fixture must demonstrate matches beyond the three clues'
-    expect(page.locator('.review-evidence-list li')).to_have_count(3)
-    page.get_by_role('link',name=f'View all {before} matching photos',exact=True).click()
+    assert before > 3, 'Fixture must demonstrate the full match count'
+    expect(page.locator('.review-evidence img')).to_have_count(0)
+    page.get_by_role('link',name=f'View all {before} matches →',exact=True).click()
     expect(page.get_by_role('dialog',name='Review photos',exact=True)).to_have_count(0)
     expect(page.get_by_role('tab',name='Similar photos',exact=True)).to_have_attribute('aria-selected','true')
     expect(page.get_by_role('region',name='Matches for this photo',exact=True)).to_be_visible()
     assert f'photo={chosen}' in page.url and 'match=90' in page.url
-    print('All-match navigation preserves the reference and threshold beyond three clues')
+    page.go_back()
+    expect(workspace).to_be_visible()
+    assert f'review_photo={chosen}' in page.url
+    print('Match-count link reuses similarity and browser Back restores review, filters and selection')
     assert not errors,errors
     print('PASS: first-run choice, place default, review persistence, independent reasons, selection, re-index, chips and Settings route')
     browser.close()

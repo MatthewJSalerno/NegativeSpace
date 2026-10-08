@@ -19,7 +19,7 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 ### Changed
 - Consistent Library/review filters, stable navigation and filter guidance, compact
   completed-job/source summaries, and clear source-versus-Library matching scope.
-- Identical related sets appear once. Review clues link to the complete match browser,
+- Identical related sets appear once. Photo Review links to the complete match browser without a partial thumbnail list,
   failed-file details appear in the Inspector, and grouping uses shared checkbox alignment.
 - Page queries load once after the initial job state and refresh when jobs finish.
 

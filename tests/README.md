@@ -737,7 +737,9 @@ existing browser drivers. No EXIF or file-deletion capability is added.
 
 Manual batch check: switch Library → Not organized with a photo open; open a source
 preview and close it to restore the summary; toggle each filter twice; open Review
-photo… and check the reason, action row, compact viewing controls and comparison clues.
+photo… and check the reason, action row, compact viewing controls and the Similar photos count/link. Open all matches in the
+existing Similar photos tab; browser Back must restore the same review photo and queue
+position without changing gallery filters or checked photos.
 A successful Mark reviewed clears only the size reminder. Unreadable-only source
 results should point to failures rather than offering an ineligible transfer.
 

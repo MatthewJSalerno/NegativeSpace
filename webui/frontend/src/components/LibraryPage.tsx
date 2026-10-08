@@ -1214,8 +1214,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
         reference={exploreReference} threshold={matchMin} refreshKey={refreshKey} suspended={comparison != null}
         onShowSet={showSet} onThreshold={chooseMatchMinimum} onClose={() => setExploreReference(null)} onReview={reviewSet} />}
       {reviewPhoto != null && <ReviewWorkspace initialPhoto={reviewPhoto} filters={{ view: browseView, q, undated, dates, types, folders, similar, suspicious, reason: reviewFilter, match_min: matchMin }} sort={browseSort} status={status}
-        onBack={() => { setReviewPhoto(null); setRefreshKey(n => n + 1); }} onPhoto={setReviewPhoto}
-        onMatches={id => { setReviewPhoto(null); openAndLocate(id); setInspectorTab("similar"); setMatchState({photo:id,view:{threshold:matchMin,page:1}}); }} />}
+        onBack={() => { setReviewPhoto(null); setRefreshKey(n => n + 1); }} onPhoto={setReviewPhoto} />}
       {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
     </div>
   );

@@ -1,7 +1,5 @@
-import { Thumb } from "./Thumb";
+import { follow } from "../nav";
 import { SimilarityRecovery } from "./SimilarityRecovery";
-import { MatchReviewDialog } from "./MatchReviewDialog";
-import type { ComparisonState } from "../comparisonState";
 import { ReviewPreview, DEFAULT_VIEW, type PreviewView } from "./ReviewPreview";
 import { useEffect, useState } from "react";
 import { api, type BrowseFilters, type PhotoDetail, type PhotoPage, type Sort, type Status, type MatchPage } from "../api";
@@ -10,15 +8,14 @@ import { ReviewNote } from "./ReviewNote";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./Confirm";
 import { useJobFeed } from "../jobs";
 
-export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, onPhoto, onMatches }: {
+export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, onPhoto }: {
   initialPhoto: number; filters: BrowseFilters; sort: Sort; status: Status;
-  onBack: () => void; onPhoto: (id: number) => void; onMatches: (id: number) => void;
+  onBack: () => void; onPhoto: (id: number) => void;
 }) {
   const [page, setPage] = useState<number | null>(null);
   const [data, setData] = useState<PhotoPage | null>(null);
   const [photo, setPhoto] = useState<PhotoDetail | null>(null);
   const [views, setViews] = useState<Record<number, PreviewView>>({});
-  const [comparison, setComparison] = useState<ComparisonState | null>(null);
   const [matches, setMatches] = useState<MatchPage | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -55,7 +52,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
       if (!["Completed", "Copied", "Found_At_Destination"].includes(detail.status)) throw new Error("This photo is no longer in Library. Return to the gallery to refresh the review queue.");
       setPhoto(detail); onPhoto(item.id);
       if (["Completed", "Copied", "Found_At_Destination"].includes(detail.status)) {
-        const related = await api.matches(new URLSearchParams({threshold:String(filters.match_min ?? 90),page_size:"60"}), item.id);
+        const related = await api.matches(new URLSearchParams({threshold:String(filters.match_min ?? 90),page_size:"1"}), item.id);
         if(live) setMatches(related);
       }
     }).catch(e=>{if(live)setError(e.message);});
@@ -72,17 +69,16 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
     }).catch(e=>{if(live){setError(e.message);setRejectRun(null);setBusy(false);}});
     return ()=>{live=false;};
   }, [rejectRun, jobs.last?.id, jobs.active]);
-  const candidate = matches?.largest_match;
-  const larger = candidate && (candidate.width ?? 0)*(candidate.height ?? 0) > (photo?.width ?? 0)*(photo?.height ?? 0) ? candidate : null;
   const changed = (message: string) => {setNotice(message); setRevision(n=>n+1);};
   const title = filters.reason === "small" ? "Small-image review" : filters.reason === "later" ? "Review later"
     : filters.suspicious ? "Suspicious-date review" : filters.undated ? "Missing-date review" : "Photo review";
-  const evidence = matches ? [...(larger ? [larger] : []), ...matches.items.filter(p => p.id !== larger?.id)].slice(0, 3) : [];
   const matchLink = new URLSearchParams(window.location.search);
   matchLink.delete("review_photo");
+  matchLink.delete("review");
+  matchLink.delete("match_page");
   if (photo) matchLink.set("photo", String(photo.id));
   matchLink.set("tab", "similar"); matchLink.set("match", String(filters.match_min ?? 90));
-  return <Workspace label="Review photos" title={title} subject={photo?.filename} onBack={onBack} busy={busy || comparison != null} className="photo-review-workspace"
+  return <Workspace label="Review photos" title={title} subject={photo?.filename} onBack={onBack} busy={busy} className="photo-review-workspace"
     step={{position: data?.total ? `Photo ${page} of ${data.total}` : "Review", previousLabel:"Previous photo",nextLabel:"Next photo",
       onPrevious:()=>setPage(n=>Math.max(1,(n??1)-1)),onNext:()=>setPage(n=>(n??1)+1),previousDisabled:page==null||page<=1,nextDisabled:!data||page==null||page>=data.total}}
     status={<span role="status">{notice || "Next leaves this photo unresolved. Your gallery selection is unchanged."}{busy && " Saving or waiting for the job…"}</span>}>
@@ -96,21 +92,12 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
           actions={["Completed","Copied","Found_At_Destination"].includes(photo.status) && <button disabled={busy||!!jobs.active} title={jobs.active ? "Wait for the running job to finish." : "Moves this photo to Rejects after confirmation."} onClick={()=>setConfirm(transferConfirm("reject",status,[photo.id],async()=>{
             const run=await api.startJob({mode:"reject",file_ids:[photo.id]});if (run.id == null) throw new Error("The Reject job was not accepted. Reload before trying again."); setRejectRun({run:run.id,photo:photo.id});setBusy(true);
           },undefined,photo.filename))}>Reject…</button>} />
-        {matches && <section className="review-evidence" aria-label="Similar-photo clues"><h3>Similar-photo clues</h3>
+        {matches && <section className="review-evidence" aria-label="Similar photos"><h3>Similar photos</h3>
           <p className="section-note">{matches.availability !== "available" ? "Visual matching is unavailable for this photo."
             : matches.total === 0 ? `No recorded matches at ${filters.match_min ?? 90}% or higher.`
-            : `${matches.total} potential matches at ${filters.match_min ?? 90}% or higher. Compare before deciding.`}</p>
-          {matches.total > 0 && <p className="section-note">Showing {evidence.length} clues. <a href={`/?${matchLink}`} onClick={event => {
-            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-            event.preventDefault(); onMatches(photo.id);
-          }}>View all {matches.total} matching photos</a></p>}
-          {evidence.length > 0 && <ul className="review-evidence-list">{evidence.map(item => <li key={item.id}>
-            <button className="inspector-match" disabled={busy} aria-label={`Review side by side: ${item.filename}`}
-              onClick={() => setComparison({origin:photo.id,reference:photo.id,candidate:item.id,threshold:filters.match_min??90,page:1,views:{},linked:false,share:72})}>
-              <Thumb id={item.id} alt="" refreshKey={revision}/><span><strong>{item.filename}</strong>
-                <span>{item.width && item.height ? `${item.width} × ${item.height}` : "Dimensions unknown"}{larger?.id===item.id ? " · Larger image" : ""}</span>
-                <span className="match-card-action">Review side by side</span></span>
-            </button></li>)}</ul>}
+            : `${matches.total} potential matches at ${filters.match_min ?? 90}% or higher.`}</p>
+          {matches.total > 0 && <p><a href={`/?${matchLink}`} aria-disabled={busy || undefined}
+            onClick={event => { if (busy) event.preventDefault(); else follow(event); }}>View all {matches.total} matches →</a></p>}
           {(matches.availability !== "available" || matches.state.pending > 0 || matches.state.unavailable > 0) && <>
             <p className="section-note">Matching is incomplete; other copies may exist.</p>
             <SimilarityRecovery photoId={matches.availability === "hash_unavailable" ? photo.id : undefined} onRecovered={() => setRevision(n=>n+1)}/>
@@ -119,9 +106,6 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
       </aside>
     </div>}
     {!photo && !error && (data ? <p>No more photos at this position. Earlier skipped photos may still need review. Use Previous or return to the gallery.</p> : <p role="status">Loading review…</p>)}
-    {comparison && <MatchReviewDialog returnTo="review" reference={comparison.origin} candidate={comparison.candidate} workspace={comparison} onWorkspace={setComparison}
-      initialView={{threshold:comparison.threshold,page:comparison.page}} onView={() => undefined} jobRunning={!!jobs.active}
-      onClose={() => {setComparison(null);setRevision(n=>n+1);}} onChanged={() => setRevision(n=>n+1)} />}
     {confirm && <ConfirmDialog confirm={confirm} onClose={()=>setConfirm(null)}/>}
   </Workspace>;
 }

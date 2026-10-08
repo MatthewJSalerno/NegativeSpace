@@ -740,10 +740,11 @@ why the photo needs review, relevant facts and one action row. Explain that Mark
 reviewed clears only the size reminder; Done clears only Review later. Date warnings
 provide information, not unbuilt date-edit/acknowledgment controls.
 
-Matching clues show up to three thumbnail candidates (a larger match first when
-available) with Review side by side, using the existing comparison workspace and
-returning to review. With no matches, use one short message, not an empty comparison
-column. Incomplete coverage links to Review matching status; absence of evidence is
+Similarity shows a count and percentage with one **View all n matches →** link to the
+existing Similar photos tab. Do not repeat candidate thumbnails or comparison controls
+in Photo Review. Browser Back restores the same photo and review queue position;
+gallery filters and checkbox selection remain intact. With no matches, show one short
+message and no match link. Incomplete coverage links to Review matching status; absence of evidence is
 not proof of uniqueness. The panels reflow within the shared workspace; the whole
 workspace scrolls, and the photo's controls do not get an inner vertical scroller.
 
@@ -800,7 +801,7 @@ job-photo scopes. The ID numbers jobs across all actions, not copies of an actio
 
 Match cards align **Review side by side** at the bottom of the card across each row,
 regardless of filename length. Let names wrap; use the shared flexible card content
-layout in the Inspector, rejected matches and review evidence. Do not truncate names
+layout in the Inspector and rejected matches. Do not truncate names
 or fix card height merely to line up the action.
 
 ## Instance access settings
@@ -815,6 +816,7 @@ Revision conflicts and partial saves must say what happened and offer Reload set
 
 Gallery grouping uses the shared `checkbox-row` geometry for vertical alignment and
 label spacing. Failed-source Inspector notices display the recorded reason without
-requiring hover. Review shows at most three matching clues and a count-labelled link
-to the existing full match browser; following it retains reference, percentage,
-filters and checkbox selection. This is navigation, not a photo action.
+requiring hover. Review shows a match count and a count-labelled link
+to the existing full match browser, without candidate thumbnails; following it retains
+reference, percentage, filters and checkbox selection. Browser Back restores the same
+photo and position in the review queue. This is navigation, not a photo action.

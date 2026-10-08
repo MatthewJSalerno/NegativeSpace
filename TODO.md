@@ -60,7 +60,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
   replacement; protected local/deployment recovery, revision checks and explicit
   confirmation before removing the current address.
 - [x] Shared grouping-checkbox alignment, visible Inspector failure reasons, and
-  review-clue navigation to the complete existing match browser.
+  a compact match-count link to the existing match browser, with browser Back
+  returning to the same photo in review.
 
 - [x] Fresh catalog setup replaces stale photo/log URLs with the base URL. Ordinary
   Index submission stays on its button without a transient global banner; uncertain
