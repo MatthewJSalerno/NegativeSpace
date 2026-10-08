@@ -568,7 +568,8 @@ with sync_playwright() as p:
     expect(page.locator(".dates-filter-line")).to_contain_text("Showing: Copied · “photo-00”")
     page.get_by_role("button", name="Clear all filters").click()
     expect(page.get_by_label("Search the log")).to_have_value("")
-    expect(page.locator(".dates-filter-line")).to_have_count(0)
+    expect(page.locator(".dates-filter-line > span")).to_have_text("Showing all log entries")
+    expect(page.get_by_role("button", name="Clear all filters", exact=True)).to_have_count(0)
     # A banner dismissed in the library stays dismissed on the log.
     page.get_by_role("link", name="Library").first.click()
     expect(page.locator(".finished-banner")).to_be_visible()
