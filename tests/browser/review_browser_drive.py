@@ -289,6 +289,20 @@ with sync_playwright() as p:
     expect(summary.get_by_role('button',name='Copy all photos…',exact=True)).to_have_count(0)
     expect(summary).not_to_contain_text('Copy or move them to build your library.')
     page.unroute('**/api/v1/photos?*',failures_only)
+    candidates=get('photos?view=organized&similar=1&page_size=1')['items']
+    assert candidates, 'Generated catalog must contain matching Library photos'
+    chosen=candidates[0]['id']
+    page.goto(base+f'/?view=organized&photo={chosen}&review_photo={chosen}&match_min=90')
+    expect(page.locator('.review-evidence')).to_be_visible()
+    before=get(f'similar/{chosen}?threshold=90')['total']
+    assert before > 3, 'Fixture must demonstrate matches beyond the three clues'
+    expect(page.locator('.review-evidence-list li')).to_have_count(3)
+    page.get_by_role('link',name=f'View all {before} matching photos',exact=True).click()
+    expect(page.get_by_role('dialog',name='Review photos',exact=True)).to_have_count(0)
+    expect(page.get_by_role('tab',name='Similar photos',exact=True)).to_have_attribute('aria-selected','true')
+    expect(page.get_by_role('region',name='Matches for this photo',exact=True)).to_be_visible()
+    assert f'photo={chosen}' in page.url and 'match=90' in page.url
+    print('All-match navigation preserves the reference and threshold beyond three clues')
     assert not errors,errors
     print('PASS: first-run choice, place default, review persistence, independent reasons, selection, re-index, chips and Settings route')
     browser.close()

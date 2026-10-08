@@ -10,9 +10,9 @@ import { ReviewNote } from "./ReviewNote";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./Confirm";
 import { useJobFeed } from "../jobs";
 
-export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, onPhoto }: {
+export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, onPhoto, onMatches }: {
   initialPhoto: number; filters: BrowseFilters; sort: Sort; status: Status;
-  onBack: () => void; onPhoto: (id: number) => void;
+  onBack: () => void; onPhoto: (id: number) => void; onMatches: (id: number) => void;
 }) {
   const [page, setPage] = useState<number | null>(null);
   const [data, setData] = useState<PhotoPage | null>(null);
@@ -78,6 +78,10 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
   const title = filters.reason === "small" ? "Small-image review" : filters.reason === "later" ? "Review later"
     : filters.suspicious ? "Suspicious-date review" : filters.undated ? "Missing-date review" : "Photo review";
   const evidence = matches ? [...(larger ? [larger] : []), ...matches.items.filter(p => p.id !== larger?.id)].slice(0, 3) : [];
+  const matchLink = new URLSearchParams(window.location.search);
+  matchLink.delete("review_photo");
+  if (photo) matchLink.set("photo", String(photo.id));
+  matchLink.set("tab", "similar"); matchLink.set("match", String(filters.match_min ?? 90));
   return <Workspace label="Review photos" title={title} subject={photo?.filename} onBack={onBack} busy={busy || comparison != null} className="photo-review-workspace"
     step={{position: data?.total ? `Photo ${page} of ${data.total}` : "Review", previousLabel:"Previous photo",nextLabel:"Next photo",
       onPrevious:()=>setPage(n=>Math.max(1,(n??1)-1)),onNext:()=>setPage(n=>(n??1)+1),previousDisabled:page==null||page<=1,nextDisabled:!data||page==null||page>=data.total}}
@@ -96,6 +100,10 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
           <p className="section-note">{matches.availability !== "available" ? "Visual matching is unavailable for this photo."
             : matches.total === 0 ? `No recorded matches at ${filters.match_min ?? 90}% or higher.`
             : `${matches.total} potential matches at ${filters.match_min ?? 90}% or higher. Compare before deciding.`}</p>
+          {matches.total > 0 && <p className="section-note">Showing {evidence.length} clues. <a href={`/?${matchLink}`} onClick={event => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault(); onMatches(photo.id);
+          }}>View all {matches.total} matching photos</a></p>}
           {evidence.length > 0 && <ul className="review-evidence-list">{evidence.map(item => <li key={item.id}>
             <button className="inspector-match" disabled={busy} aria-label={`Review side by side: ${item.filename}`}
               onClick={() => setComparison({origin:photo.id,reference:photo.id,candidate:item.id,threshold:filters.match_min??90,page:1,views:{},linked:false,share:72})}>

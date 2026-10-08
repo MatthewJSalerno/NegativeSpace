@@ -33,9 +33,18 @@ with sync_playwright() as p:
     failures=[i for i in listing['items'] if i['status']=='Failed']
     assert len(failures)==3
     ids={i['id'] for i in failures}
+    for item in failures:
+        assert get(f"photos/{item['id']}/inspect")['failure'] == item['failure']
     assert not ids.intersection(i['id'] for i in get('photos?view=unorganized&undated=1&page_size=240')['items'])
     browser=p.chromium.launch()
     page=browser.new_page(viewport={'width':1440,'height':1000},color_scheme='dark')
+    page.goto(base+f"/?view=unorganized&photo={failures[0]['id']}")
+    expect(page.get_by_role('region',name='Photo details',exact=True)).to_contain_text(failures[0]['failure'])
+    expect(page.locator('.inspector .notice').filter(has_text=failures[0]['failure'])).to_be_visible()
+    if os.environ.get('SHOTS'):
+        page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+        page.screenshot(path=os.environ['SHOTS']+'/source-failure-inspector.png', animations='disabled')
+
     errors=[]
     page.on('pageerror',lambda e:errors.append(str(e)))
     for item in failures:

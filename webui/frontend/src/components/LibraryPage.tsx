@@ -1108,7 +1108,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             )}
             </div>}
             {similar && focus?.kind !== "set" && focus?.kind !== "review" && <span className="similar-summary-controls">
-              {similarityPlace && <label title={groupingUnavailable ?? undefined}><input type="checkbox" checked={grouped} disabled={!!groupingUnavailable}
+              {similarityPlace && <label className="checkbox-row" title={groupingUnavailable ?? undefined}><input type="checkbox" checked={grouped} disabled={!!groupingUnavailable}
                 aria-describedby={hasAdditionalFilters && !focus ? "gallery-guidance" : undefined}
                 onChange={e => { setGroupSets(e.target.checked); setPage(1); savePreference("ns.groupSets", String(e.target.checked)); setExploreReference(null); }} />Group similar photos</label>}
               <label className="gallery-match-threshold">Matches at or above
@@ -1214,7 +1214,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
         reference={exploreReference} threshold={matchMin} refreshKey={refreshKey} suspended={comparison != null}
         onShowSet={showSet} onThreshold={chooseMatchMinimum} onClose={() => setExploreReference(null)} onReview={reviewSet} />}
       {reviewPhoto != null && <ReviewWorkspace initialPhoto={reviewPhoto} filters={{ view: browseView, q, undated, dates, types, folders, similar, suspicious, reason: reviewFilter, match_min: matchMin }} sort={browseSort} status={status}
-        onBack={() => { setReviewPhoto(null); setRefreshKey(n => n + 1); }} onPhoto={setReviewPhoto} />}
+        onBack={() => { setReviewPhoto(null); setRefreshKey(n => n + 1); }} onPhoto={setReviewPhoto}
+        onMatches={id => { setReviewPhoto(null); openAndLocate(id); setInspectorTab("similar"); setMatchState({photo:id,view:{threshold:matchMin,page:1}}); }} />}
       {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
     </div>
   );

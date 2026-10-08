@@ -171,6 +171,7 @@ export interface Copy {
 }
 
 export interface PhotoDetail {
+  failure: string | null;
   visual_issue: string | null;
   id: number;
   status: string;

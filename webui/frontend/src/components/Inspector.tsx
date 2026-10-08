@@ -320,7 +320,7 @@ function Details({ detail: d, onLineage, refreshKey, review }: { detail: PhotoDe
       {review}
       {!review && IN_LIBRARY.includes(d.status) && d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. The value is unchanged; date editing is not yet available. <a href="/?view=suspicious">View suspicious dates</a></p>}
       {IN_LIBRARY.includes(d.status) && d.visual_issue && <p className="section-note"><strong>Visual matching unavailable:</strong> {d.visual_issue} The catalogued file is retained. Missing EXIF alone is not evidence of damage.</p>}
-      {d.status === "Failed" && <p className="notice"><strong>File needs attention.</strong> Processing failed; this file is not in Library. Check the recorded reason and fix the source file or its access outside the app. <a href={logUrl({photo:d.id,status:"Failed"})} onClick={follow}>View failure details</a></p>}
+      {d.status === "Failed" && <p className="notice"><strong>File needs attention.</strong> {d.failure ?? "No failure reason was recorded."} This file is not in Library. Fix the source file or its access outside the app, then run Index again. <a href={logUrl({photo:d.id,status:"Failed"})} onClick={follow}>View failure details</a></p>}
       <Section title="File">
         <Row label="Status">{STATUS[d.status] ?? d.status}</Row>
         <Row label={d.dest_path_is_projection ? "Proposed destination path" : "Destination path"}>

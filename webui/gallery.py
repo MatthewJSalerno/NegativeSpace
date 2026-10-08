@@ -614,6 +614,11 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         snapshot = conn.execute(
             "SELECT s.file_mtime FROM photo_files pf JOIN source_snapshots s USING(file_id) "
             "WHERE pf.photo_id = ?", (photo_id,)).fetchone()
+        failure = None
+        if p["status"] == PhotoStatus.FAILED:
+            last = conn.execute("SELECT error_message FROM operations WHERE photo_id = ? AND status = ? ORDER BY id DESC LIMIT 1",
+                                (photo_id, PhotoStatus.FAILED)).fetchone()
+            failure = catalog.failure_reason(last[0]) if last else None
     visual_issue = None
     if content is not None and (content['phash_state'] != 'ok' or not content['phash']):
         from engine import ns_similarity_recovery
@@ -631,7 +636,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         "file_modified": snapshot["file_mtime"] if snapshot else p["file_mtime"],
         "date_taken": meta.get("date_taken"), "date_source": meta.get("date_source"),
         "date_warning": p["date_warning"],
-        "camera": camera, "visual_issue": visual_issue,
+        "camera": camera, "visual_issue": visual_issue, "failure": failure,
         # A capture time's offset, when the camera recorded one; without it the
         # time zone is unknown and must not be shown as UTC (webui-spec 10).
         "date_offset": meta.get("OffsetTimeOriginal"),
