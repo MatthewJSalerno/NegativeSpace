@@ -1617,6 +1617,49 @@ class MatchingTests(ApiCase):
         from engine import ns_similarity
         self.assertTrue(ns_similarity.refresh(self.conn))
 
+    def test_cross_location_matches_are_separate_and_ignore_emptied_rejects(self):
+        from webui import catalog
+        a = self.photo('library', 'a', '0000000000000000')
+        b = self.photo('library-match', 'b', '0000000000000001')
+        rejected = self.photo('rejected', 'r', '0000000000000003')
+        source = self.photo('source', 's', '0000000000000000', status='Pending')
+        self.refresh()
+        destination = self.cfg.dest / 'rejects' / 'rejected.jpg'
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        (self.cfg.dest / 'library').mkdir(exist_ok=True)
+        destination.write_bytes(b'generated fixture')
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE photos SET status='Rejected_Copied',dest_path=? WHERE id=?", (str(destination), rejected))
+            self.conn.execute("UPDATE file_states SET current_path=? WHERE current_path='/destination/rejected.jpg'", (str(destination),))
+        def results(photo, scope='library'):
+            response = self.client.get(f'/api/v1/similar/{photo}?scope={scope}')
+            self.assertEqual(response.status_code, 200, response.text)
+            return response.json()
+        self.assertEqual([p['id'] for p in results(a)['items']], [b])
+        self.assertEqual([p['id'] for p in results(a, 'rejects')['items']], [rejected])
+        self.assertEqual({p['id'] for p in results(rejected)['items']}, {a, b})
+        for scope in ('library', 'rejects'):
+            counts = self.client.get(f'/api/v1/similar/{a}/counts?scope={scope}').json()
+            self.assertEqual(next(c['count'] for c in counts['counts'] if c['threshold']==90), 1)
+            self.assertEqual(results(source, scope)['availability'], 'not_available')
+        pair = self.client.get(f'/api/v1/similar/{a}/pair/{rejected}').json()
+        self.assertEqual((pair['reference']['status'], pair['candidate']['status']), ('Copied', 'Rejected_Copied'))
+        self.assertEqual(pair['score'], 96.88)
+        self.assertEqual({p['id'] for p in self.client.get('/api/v1/photos?view=similar&match_min=90').json()['items']}, {a,b})
+        # Invalid request scopes cannot become SQL. Both endpoints reject them.
+        for suffix in ('', '/counts'):
+            response = self.client.get(f'/api/v1/similar/{a}{suffix}', params={'scope': "rejects' OR 1=1--"})
+            self.assertEqual(response.status_code, 400)
+        # Emptying Rejects must exclude both candidates and references, even before
+        # the engine records Rejected_Emptied. Its directory cache has the same TTL
+        # as the Rejects gallery; clear it to represent the next listing.
+        destination.unlink()
+        catalog._rejects_listings.clear()
+        self.assertEqual(results(a, 'rejects')['total'], 0)
+        self.assertEqual(results(rejected)['availability'], 'not_available')
+        self.assertEqual(self.client.get(f'/api/v1/similar/{a}/pair/{rejected}').status_code, 409)
+        self.assertEqual(self.client.get(f'/api/v1/similar/{source}/pair/{a}').status_code, 409)
+
     def test_largest_lookalike_is_not_limited_to_the_first_page(self):
         reference=self.photo('reference','a'*40,'0000000000000000')
         for i in range(61):

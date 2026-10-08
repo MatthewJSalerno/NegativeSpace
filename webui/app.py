@@ -191,8 +191,11 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(400, {'error':'invalid_request', 'message':str(exc)})
 
     @app.get("/api/v1/similar/{photo_id}/counts")
-    def similarity_counts(photo_id: int):
-        return matching.counts(cfg.db_path, photo_id)
+    def similarity_counts(photo_id: int, scope: str = "library"):
+        try:
+            return matching.counts(cfg.db_path, photo_id, scope=scope)
+        except ValueError as exc:
+            raise HTTPException(400, {"error": "invalid_request", "message": str(exc)})
 
     @app.get("/api/v1/similar/{photo_id}/pair/{other_id}")
     def similarity_pair(photo_id: int, other_id: int):
@@ -203,9 +206,9 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/api/v1/similar/{photo_id}")
     def similar_matches(photo_id: int, mode: str = "similar", threshold: float = Query(90, ge=ns_similarity.MIN_SCORE, le=100),
-                        page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=60)):
+                        page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=60), scope: str = "library"):
         try:
-            return matching.matches(cfg.db_path, photo_id, mode=mode, threshold=threshold, page=page, page_size=page_size)
+            return matching.matches(cfg.db_path, photo_id, mode=mode, threshold=threshold, page=page, page_size=page_size, scope=scope)
         except ValueError as exc:
             raise HTTPException(400, {"error":"invalid_request", "message":str(exc)})
 

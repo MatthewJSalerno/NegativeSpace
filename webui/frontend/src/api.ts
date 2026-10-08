@@ -542,6 +542,8 @@ function submitJob(path: string, body: Record<string, unknown>): Promise<Run> {
   return promise;
 }
 
+export type MatchScope = "library" | "rejects";
+
 export interface MatchPhoto {
   id: number; filename: string; file_size: number | null; date_taken: string | null;
   status: string; width: number | null; height: number | null; matches?: number; score?: number;
@@ -602,7 +604,7 @@ export const api = {
   similarityRecovery: (page = 1, photoId?: number) => request<SimilarityRecoveryPage>("GET", `/api/v1/similar/recovery?page=${page}${photoId == null ? "" : `&photo_id=${photoId}`}`),
   repairSimilarity: (scope: "missing" | "comparisons", photo_id?: number) => submitJob("/api/v1/similar/recovery", { scope, ...(photo_id == null ? {} : { photo_id }) }),
   run: (id: number) => request<Run>("GET", `/api/v1/runs/${id}`),
-  matchCounts: (photo: number) => request<MatchCounts>("GET", `/api/v1/similar/${photo}/counts`),
+  matchCounts: (photo: number, scope: MatchScope = "library") => request<MatchCounts>("GET", `/api/v1/similar/${photo}/counts?scope=${scope}`),
   matchDiagnostics: () => request<MatchDiagnostics>("GET", "/api/v1/similar/diagnostics"),
   matchPair: (reference: number, candidate: number) =>
     request<MatchPair>("GET", `/api/v1/similar/${reference}/pair/${candidate}`),

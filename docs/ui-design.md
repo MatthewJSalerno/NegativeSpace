@@ -185,7 +185,7 @@ matches and opens the **Similar photos** tab. Users can subsequently
 choose another Inspector percentage without changing gallery order; previous/next
 photo navigation retains that Inspector choice.
 
-The Library Inspector has **Photo information** and **Similar photos** tabs. Outside Library show only File information. Default to
+The Library Inspector has **Photo information** and **Similar photos** tabs. Rejects has **File information** and **Similar photos in Library**; Not organized has only File information. Default to
 Photo information outside Has similar photos; remember the active tab and threshold
 when using previous/next. A gallery-card click in Has similar photos always opens
 Similar photos, even after the user switched to Photo information.
@@ -659,17 +659,29 @@ workspace scrolls, and the photo's controls do not get an inner vertical scrolle
 
 ### Review eligibility, failures and job labels
 
-Only organized, active Library photos may receive review decisions or enter similarity
-review. Enforce this using the photo's current state in the API/catalog as well as the
+Only organized, active Library photos may receive review decisions. Similarity
+comparison also accepts still-present rejected photos. Enforce this using the photo's current state in the API/catalog as well as the
 UI; saved links must not bypass it. Existing review history remains readable. A reminder
 on a photo outside Library does not contribute to the inbox. Not organized shows file
 information, import status and failure details, with no Review photo, Review later,
 Mark reviewed, Reject or Similar photos tab. Rejects shows file information/history and
-Return to library; it has no review or similarity controls.
+Return to library and **Similar photos in Library**; it has no Review later or Mark
+reviewed controls.
 
-Beside matching controls say: **Matches are other organized photos in Library. Photos
-in Not organized or Rejects aren't included.** Gallery filters narrow the reference
-photos; candidate matches still come from all active Library photos.
+Library matches stay primary. At the chosen percentage, show rejected candidates in a
+separate **Also matches n photos in Rejects** disclosure with its own pagination. They
+never contribute to Library match counts, grouping, or Keep-reference targets. Source
+files and emptied rejects cannot be references or candidates. Explain this scope beside
+the controls. Gallery filters narrow references, not their Library candidates.
+
+Cross-location comparison labels each preview **Location: Library / Rejects**. Each
+Library photo offers Reject; each rejected photo offers Return to Library, confirmed
+before running the existing verified relocation job. Similarity never automatically
+rejects anything. Do not offer Keep-reference or Library set navigation for a rejected
+reference or a Rejects candidate scope. Use as reference changes candidate scope to the
+previous reference's location; retain that scope in review links and pagination.
+Refreshing or completing a relocation reloads locations and actions. This does not add
+rejected photos to Needs review or create an automatic similar-to-reject reminder.
 
 The Index summary separates **Photos ready to organize**, **Files needing attention**
 and **Unfinished processing**. Size/date facts cover successfully indexed source photos;

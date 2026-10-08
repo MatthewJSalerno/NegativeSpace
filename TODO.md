@@ -83,7 +83,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
   persistent date acknowledgments and editing are still unbuilt.
 
 - [x] The in-tray for Small images and Review later (`docs/webui-spec.md` §7.9).
-- [x] Library-only review and similarity controls, backend eligibility, separate source
+- [x] Library-only review decisions, source exclusion from similarity, backend eligibility, separate source
   failure facts, explicit Stats scopes and consistent Job #ID · Action status labels.
 - [ ] Design source-side sidecar/version import decisions separately from the Library
   review inbox; preserve existing recovery durability gates.
@@ -98,6 +98,10 @@ Found 2026-10-05 looking for screens that do the same job twice.
   generated catalog has been checked with an empty history; this does not model
   years of bookmarks and acknowledgments.
 
+- [x] Manual cross-location matching: separate, paged Rejects matches in Library;
+  Library matches for rejected references; location labels and confirmed Return or
+  Reject actions. Keep-reference and gallery grouping remain Library-only. Review
+  links retain candidate scope. Not organized and emptied rejects stay excluded.
 - [ ] "Looks like a reject": a photo only similar to a reject (small pHash distance) is
   never rejected automatically; it waits in Needs review. With the reject still in
   Rejects: full side by side, Reject it too · Keep it · Keep the old one instead. With

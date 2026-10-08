@@ -303,7 +303,7 @@ known small dimensions under the configured rule, missing/suspicious dates, **Im
 unavailable** and processing failures. Image size unavailable means no usable width and
 height were recorded; help explains possible unsupported formats, unreadable files or
 incomplete processing without labelling these files corrupt or non-photos. These counts cover the whole location, not active
-filters. A scope note says similarity compares organized Library photos only; a disabled size rule says
+filters. A scope note says similarity compares destination photos, not source files; a disabled size rule says
 **Rule disabled**. Date chips already filter the source gallery; the other summary values
 are informational (additional source filters remain planned). Copy all/Move all lead to
 the same confirmations as Jobs. Index failures link to Logs for specific evidence.
@@ -2297,7 +2297,7 @@ source against the copy in Rejects (or puts it there, when Rejects was emptied).
     review of every look-alike at the chosen percentage, like the selection bar's Reject.
     Only after that explicit choice is the reference marked **Keeping**: first as a
     full-size card with no tick box, whatever the sort or page.
-*   **Side by side:** a **Reject…** under each photo, so it is clear which one goes. The
+*   **Side by side:** a **Reject…** under each Library photo (Return to Library for a rejected photo), so it is clear which one goes. The
     first reject in a comparison asks, with **Don't ask again while comparing** (until the
     comparison closes); a reject that would leave none of the compared photos in the
     library always asks ("None of these photos would be left in the library", **Reject it
@@ -2309,10 +2309,12 @@ source against the copy in Rejects (or puts it there, when Rejects was emptied).
     keeping the photo on the left; to keep the other one, **Use as reference** first. The
     candidate strip stays for moving between look-alikes, with no Reject of its own.
 
-**Not built yet:** a photo only similar to a reject goes to Needs review (§7.9) and is
-never rejected automatically. With the reject still in Rejects, the two open side by side
-in full, with **Keep the old one instead** beside Reject it too and Keep it; with the
-reject emptied, its stored thumbnail and details stand in for it.
+**Built:** manual cross-location comparison, with separate rejected matches in the
+Library Inspector and Library matches from a rejected photo. Location-specific Reject
+and Return actions stay explicit; comparison never relocates either photo automatically.
+**Not built yet:** the automatic similar-to-reject reason in Needs review (§7.9), a combined
+Keep the old one instead decision, and historical thumbnail evidence for emptied rejects.
+The current comparison requires both destination files to be recorded present.
 
 **Rejects' size stays in view without noise:**
 
@@ -2722,10 +2724,18 @@ a single-person tool, so one password, not user accounts.
 
 The Inspector uses the photo's current state, including when reached through Logs or
 saved links. Not organized shows only File information and import/failure details.
-Rejects adds Return to library; neither place offers review actions or Similar photos.
-The Library similarity panel explicitly says that candidates are organized Library
-photos, excluding Not organized and Rejects. Switching to either excluded place clears
-an active similarity filter; source/rejected comparison links cannot reopen review.
+Rejects adds Return to library and Similar photos in Library, with no Review later or
+Mark reviewed. Not organized has no review actions or similarity tab; saved links cannot
+bypass source exclusion. Library match counts, filters and groups remain Library-only.
+Library's Inspector separately discloses **Also matches n photos in Rejects** at the
+chosen percentage, independently paged. Rejected references show Library candidates.
+Comparison identifies each photo's location and offers Reject for Library photos and
+confirmed Return to Library for rejected photos. It uses the existing verified jobs and
+refreshes after the recorded outcome; nothing is rejected automatically. Keep-reference
+and Library set actions are absent for rejected references or a Rejects candidate scope.
+Use as reference chooses candidates from the former reference's location; review links
+retain this scope. Emptied rejects are excluded using the same presence check as their
+gallery. Switching to Not organized or Rejects clears the Library similarity filter.
 Review history is retained when a photo leaves Library, but it stops contributing to
 Needs review and new decisions are refused until it is back in Library.
 

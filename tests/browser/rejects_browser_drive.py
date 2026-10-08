@@ -107,7 +107,7 @@ with sync_playwright() as p:
     # Return to library from the Inspector of a photo in Rejects.
     page.locator(".card-image").first.click()
     expect(page.locator(".inspector")).to_contain_text("In Rejects (source still in place; a Move removes it)")
-    expect(page.locator(".inspector").get_by_role("tab", name="Similar photos", exact=True)).to_have_count(0)
+    expect(page.locator(".inspector").get_by_role("tab", name="Similar photos in Library", exact=True)).to_be_visible()
     expect(page.locator(".inspector").get_by_role("button", name="Review later…", exact=True)).to_have_count(0)
     page.get_by_role("button", name="Return to library…", exact=True).click()
     dialog = page.get_by_role("alertdialog")

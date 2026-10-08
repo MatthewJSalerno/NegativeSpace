@@ -745,6 +745,12 @@ use the existing 409 errors.
 ### `GET /api/v1/similar/{id}`
 
 Reference-based results with the same mode, threshold, and pagination parameters.
+`scope=library|rejects` (default `library`) chooses candidate location; unknown scopes
+return 400. References may be active Library photos or still-present rejected photos.
+Rejected eligibility requires a present matching-digest destination file state and the
+Rejects gallery's cached presence check. Emptied rejects and source-only photos are
+excluded. Both scopes collapse byte-identical candidates independently. Library gallery
+counts/groups and the queue remain Library-only; changing this scope does not affect them.
 Returns `reference`, `items`, `total`, `page`, `page_size`, `state`, and
 `availability` (`available`, `hash_unavailable`, or `not_available`). Unknown or
 source-only or historical-only references return 200 with `reference: null`, empty items and
@@ -758,8 +764,8 @@ pending work do not establish uniqueness.
 
 ### `GET /api/v1/similar/{id}/counts`
 
-Cumulative direct-match counts for a delivered reference at thresholds
-75, 80, 85, 90, 95 and 100. Returns `availability` (`available`, `not_available`,
+Cumulative direct-match counts for a Library or still-present rejected reference at thresholds
+75, 80, 85, 90, 95 and 100. `scope=library|rejects` chooses candidates (default Library; invalid scope returns 400). Returns `availability` (`available`, `not_available`,
 `hash_unavailable`), `counts: [{threshold, count}]`, and `pending` (number of
 eligible destination content identities awaiting comparison). Unavailable references
 return an empty counts array, not six misleading zero counts. Counts exclude the
@@ -810,12 +816,11 @@ photo files, and interrupted filesystem mutations are not resumed by this job.
 
 ### `GET /api/v1/similar/{id}/pair/{other_id}`
 
-Two photos for side by side: any two different eligible destination photo IDs,
-including below-threshold pairs. Returns `reference` and `candidate` (matching item
+Two photos for side by side: any two different eligible destination photos, in Library or still-present in Rejects. Each status identifies its location; source-only and emptied-reject pairs return 409. Below-threshold pairs are allowed. Returns `reference` and `candidate` (matching item
 fields plus `sha1`), `exact` (same content identity), `distance` (0–64, null without
 usable hashes) and `score` (hash percentage or null). Unknown, identical-ID or
 unavailable photos return 409 `pair_changed`. It reads only; deciding between the two is
-Reject and Keep this one, reject the rest (§5).
+Reject or Keep this one, reject the rest for Library photos, or Return for a rejected photo (§5).
 
 ## 8. Designed, not built
 

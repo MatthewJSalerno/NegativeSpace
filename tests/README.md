@@ -754,3 +754,13 @@ Manual check after first-run setup: Index, open a source file (information only)
 open a Library photo (review and similarity available), Reject it and check Return is
 offered without review actions. Check Index-summary ready/failure counts and failure
 links, Stats scope explanations, and the shared job labels in banners and Logs.
+
+### Cross-location similarity
+
+`DRIVER=cross_location_browser_drive.py` uses the isolated browser harness and generated
+photos. It checks separate Library/Rejects counts, paging backward across a boundary,
+reference promotion, copied review links with both scopes, location labels, Return for
+both reference and candidate (with confirmation), Library-only review decisions, and
+light/dark/narrow rendering. `webui_api_test.py` covers both candidate scopes, source
+exclusion, invalid scope rejection and emptied Rejects. Gallery grouping and Keep-reference
+continue to count only active Library photos.

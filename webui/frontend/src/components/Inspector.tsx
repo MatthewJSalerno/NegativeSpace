@@ -107,12 +107,13 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   const [enlarged, setEnlarged] = useState(false);
   const [lineage, setLineage] = useState(false);
   const inLibrary = !!detail && detail.id === id && IN_LIBRARY.includes(detail.status);
-  const activeTab = inLibrary ? tab : "information";
+  const canCompare = inLibrary || (!!detail && detail.id === id && IN_REJECTS.includes(detail.status));
+  const activeTab = canCompare ? tab : "information";
   useEffect(() => {
-    if (detail?.id !== id || inLibrary) return;
+    if (detail?.id !== id || canCompare) return;
     if (tab !== "information") onTab("information");
     if (comparison != null) onComparison(null);
-  }, [detail, id, inLibrary, tab, comparison, onTab, onComparison]);
+  }, [detail, id, canCompare, tab, comparison, onTab, onComparison]);
   const candidate = comparison?.candidate ?? null;
   const comparisonOpener = useRef<HTMLElement | null>(null);
   const closeComparison = () => {
@@ -122,10 +123,10 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
       (target?.isConnected ? target : panel.current?.querySelector<HTMLElement>('.inspector-match') ?? panel.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]'))?.focus({ preventScroll:true });
     });
   };
-  const openComparison = (candidate: number) => {
+  const openComparison = (candidate: number, scope: "library" | "rejects" = "library", matchPage = matchView?.page ?? 1) => {
     comparisonOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    onComparison({ origin:id, reference:id, candidate,
-    threshold:matchView?.threshold ?? 90, page:matchView?.page ?? 1,
+    onComparison({ origin:id, reference:id, candidate, scope,
+    threshold:matchView?.threshold ?? 90, page:matchPage,
     views:{}, linked:false, share:72 });
   };
   // Rejects and returns from the comparison, so Similar photos' diagnostics refresh.
@@ -225,7 +226,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
         <div className="inspector-side">
           {error && <p className="error">{error}</p>}
           <TabList className="inspector-tabs" label="Photo inspector" idBase={tabId} value={activeTab} onChange={onTab}
-            tabs={inLibrary ? [{ value: "information", label: "Photo information" }, { value: "similar", label: "Similar photos" }] : [{ value: "information", label: "File information" }]} />
+            tabs={canCompare ? [{ value: "information", label: inLibrary ? "Photo information" : "File information" }, { value: "similar", label: inLibrary ? "Similar photos" : "Similar photos in Library" }] : [{ value: "information", label: "File information" }]} />
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", activeTab)}>
             {detail && activeTab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
               review={inLibrary ? <ReviewNote key={id} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto}
@@ -238,8 +239,8 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "similar", activeTab)}>
             {detail && activeTab === "similar" && <div className="inspector-body"><PhotoMatches key={id} id={id} name={detail.filename}
               jobRunning={jobRunning} onReject={onRejectMatch ? (photo) => onRejectMatch(photo.id, photo.filename) : undefined}
-              onKeep={onKeep ? (threshold) => onKeep(id, detail.filename, threshold) : undefined}
-              delivered={["Completed", "Copied", "Found_At_Destination"].includes(detail.status)}
+              onKeep={inLibrary && onKeep ? (threshold) => onKeep(id, detail.filename, threshold) : undefined}
+              delivered={canCompare} rejected={!inLibrary}
               view={matchView} onView={onMatchView} refreshKey={refreshKey}
               onReview={openComparison} changes={comparisonChanges} /></div>}
           </div>
@@ -265,7 +266,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   );
   return <>
     {narrow && comparison == null && !coveredByDialog ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
-    {inLibrary && comparison != null && <MatchReviewDialog reference={id} candidate={candidate} jobRunning={jobRunning} onNotice={onNotice} onKeep={onKeep}
+    {canCompare && comparison != null && <MatchReviewDialog reference={id} candidate={candidate} jobRunning={jobRunning} onNotice={onNotice} onKeep={onKeep}
       workspace={comparison} onWorkspace={onComparison} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet}
       initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}
       onClose={closeComparison} onChanged={() => setComparisonChanges((n) => n + 1)} />}

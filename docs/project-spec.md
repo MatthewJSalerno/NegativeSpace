@@ -288,4 +288,10 @@ enforced by test (`TODO.md` claim 11). Content-version history is not yet built.
 Library-only review is enforced by the decision API as well as the Inspector. Source
 failures remain import/log concerns with external correction; Rejects offers Return.
 Index summary and Stats distinguish failed files from photo facts. Similarity explicitly
-compares active organized Library photos. Job headings share Job #ID · Action status.
+compares active organized Library photos by default, with rejected matches separate. Job headings share Job #ID · Action status.
+
+Cross-location similarity is built: Library matches remain primary, with separately paged
+matches in Rejects; a rejected photo can compare against Library photos. Location labels
+and explicit Reject/Return actions follow current photo state. Source files and emptied
+rejects remain excluded. Review later and Mark reviewed remain Library-only. Automatic
+similar-to-reject inbox reminders and historical evidence for emptied rejects are pending.

@@ -26,7 +26,7 @@ export function ReviewPreview({ photo, label, view, onChange, refreshKey, isRefe
       <strong className="review-photo-role">{isReference ? "Reference photo" : label}</strong>
       {onUseAsReference && <button className="photo-action" disabled={referenceDisabled} onClick={onUseAsReference}
         title="Find matches for this photo. This does not choose a keeper or metadata donor.">Use as reference</button>}
-    </div><div className="review-photo-name"><span title={photo.filename}>{photo.filename}</span>{action}</div></figcaption>
+    </div><p className="section-note">Location: {["Rejected", "Rejected_Copied"].includes(photo.status) ? "Rejects" : "Library"}</p><div className="review-photo-name"><span title={photo.filename}>{photo.filename}</span>{action}</div></figcaption>
     <div ref={viewport} className="review-viewport">
       <div className="review-zoom" style={{ transform: `scale(${view.zoom})`, transformOrigin: `${view.x}% ${view.y}%` }}>
         <div className="review-rotation" style={{ width: sideways ? size.height : size.width,
