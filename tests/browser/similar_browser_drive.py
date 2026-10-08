@@ -422,11 +422,11 @@ with sync_playwright() as p:
     expect(summary.get_by_role('button', name=re.compile('^100% or higher:'))).to_have_attribute('aria-pressed', 'true')
     expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_attribute('aria-pressed', 'true')
     # A failed count load must not fabricate zeros or lose the selected threshold.
-    page.route('**/api/v1/similar/*/counts', lambda route: route.fulfill(status=503, content_type='application/json', body='{}'))
+    page.route('**/api/v1/similar/*/counts?*', lambda route: route.fulfill(status=503, content_type='application/json', body='{}'))
     page.reload()
     expect(summary.get_by_role('button', name='Retry match counts')).to_be_visible()
     expect(summary.locator('.match-thresholds')).to_have_count(0)
-    page.unroute('**/api/v1/similar/*/counts')
+    page.unroute('**/api/v1/similar/*/counts?*')
     summary.get_by_role('button', name='Retry match counts').click()
     expect(summary.locator('.match-thresholds button')).to_have_count(6)
     # Narrow Inspector and nested comparison use shared modal/focus behavior.
@@ -453,7 +453,7 @@ with sync_playwright() as p:
     expect(page).not_to_have_url(re.compile('match_page='))
     # Old standalone/exact-mode bookmarks redirect into the same gallery workflow.
     page.goto(f'{sys.argv[1]}/similar?mode=exact&photo={reference}&threshold=85')
-    expect(page).to_have_url(re.compile(r'/\?view=organized&similar=1&sort=matches&match_min=75&photo=\d+&tab=similar&match=85'))
+    expect(page).to_have_url(re.compile(r'/\?view=organized&similar=1&group_sets=0&sort=matches&match_min=75&photo=\d+&tab=similar&match=85'))
     expect(summary.get_by_role('button', name=re.compile('^85% or higher:'))).to_have_attribute('aria-pressed', 'true')
     expect(matches.locator('.inspector-match')).to_have_count(12)
     # A saved page beyond the remaining candidates returns to the last valid page.
