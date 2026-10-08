@@ -77,6 +77,11 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Needs review
 
+- [x] Similarity grouping/control parity between Library and Needs review. Extra
+  filters/search show every matching photo individually; clearing them restores the
+  explicit grouping preference. Group representatives must belong to the inbox before
+  collapsing; a reviewed representative cannot hide unreviewed members.
+
 - [x] Inspector actions at the top, rejected-match disclosure above Library candidates,
   and bottom-aligned Review side by side labels across matching cards.
 - [ ] Discuss cross-location filter discoverability: an active Suspicious dates filter

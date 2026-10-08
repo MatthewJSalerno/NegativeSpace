@@ -1660,6 +1660,39 @@ class MatchingTests(ApiCase):
         self.assertEqual(self.client.get(f'/api/v1/similar/{a}/pair/{rejected}').status_code, 409)
         self.assertEqual(self.client.get(f'/api/v1/similar/{source}/pair/{a}').status_code, 409)
 
+    def test_review_group_representative_stays_inside_inbox_before_collapse(self):
+        a = self.photo('reviewed', 'a'*40, '0000000000000000')
+        b = self.photo('needs-review', 'b'*40, '0000000000000000')
+        c = self.photo('also-needs-review', 'c'*40, '0000000000000000')
+        self.refresh()
+        setting = self.client.get('/api/v1/settings').json()['small_image_min']
+        self.assertEqual(self.client.put('/api/v1/settings', json={'values': {'small_image_min': 800},
+            'revisions': {'small_image_min': setting['revision']}}).status_code, 200)
+        def mark_reviewed(photo):
+            detail = self.client.get(f'/api/v1/photos/{photo}/review').json()
+            response = self.client.post(f'/api/v1/photos/{photo}/review', json={
+                'photo_id': photo, 'sha1': detail['sha1'], 'revision': detail['revision'],
+                'reason': 'small', 'action': 'reviewed', 'note': '', 'request_id': f'{photo:032x}'})
+            self.assertEqual(response.status_code, 200, response.text)
+        mark_reviewed(a)
+        query = 'view=review&similar=true&group_sets=true&match_min=90'
+        result = self.client.get('/api/v1/photos?'+query).json()
+        self.assertEqual((result['total'], [p['id'] for p in result['items']]), (1, [b]))
+        self.assertEqual(self.client.get('/api/v1/photos/ids?'+query).json()['ids'], [b])
+        self.assertEqual(self.client.get('/api/v1/photos/timeline?'+query).json()['undated'], 1)
+        self.assertEqual(self.client.get('/api/v1/photos/types?'+query).json()['types'], [{'type':'jpg','photos':1}])
+        position = self.client.post('/api/v1/photos/position', json={'photo_id':b, 'view':'review',
+            'similar':True, 'group_sets':True, 'match_min':90, 'sort':'matches','page_size':1}).json()
+        self.assertEqual((position['position'], position['page'], position['next_id']), (0, 1, None))
+        members = self.client.get(f'/api/v1/similar/{b}/sets?threshold=90').json()
+        self.assertEqual({p['id'] for p in members['items']}, {a,b,c})
+        library = self.client.get('/api/v1/photos?view=organized&similar=true&group_sets=true').json()
+        self.assertEqual([p['id'] for p in library['items']], [a])
+        mark_reviewed(b)
+        self.assertEqual(self.client.get('/api/v1/photos/ids?'+query).json()['ids'], [c])
+        mark_reviewed(c)
+        self.assertEqual(self.client.get('/api/v1/photos?'+query).json()['total'], 0)
+
     def test_largest_lookalike_is_not_limited_to_the_first_page(self):
         reference=self.photo('reference','a'*40,'0000000000000000')
         for i in range(61):

@@ -871,7 +871,11 @@ status remains unchanged. Older jobs without these entries are not backfilled.
 
 The photo list, IDs, timeline, types and folders GET endpoints accept optional
 `group_sets` (boolean, default false). The photo-position POST body accepts the same
-boolean. It applies only to `view=similar`; explicit selection lists remain ungrouped.
+boolean. It applies to `view=similar` or an explicit `similar=true`, including
+`view=review`; explicit selection lists remain ungrouped. Representatives are selected
+inside the requested view/inbox before collapsing, so reviewed photos outside the inbox
+cannot hide remaining review members. The UI sends `group_sets=false` while additional
+filters/search are active; the API retains filtered representative browsing.
 Exact closed neighborhoods (reference plus all direct destination matches at
 `match_min`) collapse before pagination and ordering. Lowest canonical ID among
 references satisfying filters represents each identical set. Filtering never narrows

@@ -62,6 +62,9 @@ function savedSort(view: View): Sort {
   } catch { /* Storage is optional. */ }
   return view === "similar" ? "matches" : "newest";
 }
+function savedGrouping(): boolean {
+  try { return localStorage.getItem("ns.groupSets") !== "false"; } catch { return true; }
+}
 function savedMatchMinimum(): number {
   try {
     const value = Number(localStorage.getItem("ns.matchMin"));
@@ -90,6 +93,7 @@ function readUrl(hasLibrary = true) {
   return {
     view: (["all", "unorganized", "organized", "similar", "suspicious", "rejects", "review"] as View[]).includes(view) ? view : "all",
     similar,
+    groupSets: p.has("group_sets") ? p.get("group_sets") !== "0" : savedGrouping(),
     suspicious: legacy === "suspicious" || p.get("suspicious") === "1",
     reason: ["small", "later"].includes(p.get("reason") || "") ? p.get("reason")! : "all",
     reviewPhoto: Number(p.get("review_photo")) || null,
@@ -169,9 +173,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [matchState, setMatchState] = useState<{ photo: number | null; view: MatchView }>({ photo: initial.photo, view: initial.match });
   const [inspectorTab, setInspectorTab] = useState(initial.inspectorTab);
   const [comparison, setComparison] = useState<ComparisonState | null>(initial.comparison);
-  const [groupSets, setGroupSets] = useState(() => {
-    try { return localStorage.getItem("ns.groupSets") !== "false"; } catch { return true; }
-  });
+  const [groupSets, setGroupSets] = useState(initial.groupSets);
   const [exploreReference, setExploreReference] = useState<number | null>(null);
   const reviewSet = (reference: number, candidate: number | null) => {
     setOpenId(reference); setLocate(null); setRevealId(null); setInspectorTab("similar");
@@ -201,10 +203,14 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [timeline, setTimeline] = useState<Timeline | null>(null);
   const [jumpTimeline, setJumpTimeline] = useState<Timeline | null>(null);
   const [focus, setFocus] = useState<Focus | null>(null);
-  const grouped = similar && view === "organized" && groupSets && !focus && jobRun == null;
+  const similarityPlace = view === "organized" || view === "review";
+  const hasAdditionalFilters = suspicious || undated || reason !== "all" || !!q || dates.length > 0 || types.length > 0 || folders.length > 0;
+  const groupingUnavailable = hasAdditionalFilters ? "Clear the other filters to group similar photos. Filtered results show every matching photo."
+    : focus || jobRun != null ? "Grouping is available in the regular Similar photos results." : null;
+  const grouped = similar && similarityPlace && groupSets && !groupingUnavailable;
   // Most matches first is the similar view's; a job's photos fall back to newest.
   const browseSort: Sort = jobRun != null && sort === "matches" ? "newest" : sort;
-  useEffect(() => { if (!similar || focus || jobRun != null) setExploreReference(null); }, [similar, suspicious, reason, view, focus, jobRun]);
+  useEffect(() => { if (!grouped) setExploreReference(null); }, [grouped]);
   const [focusJump, setFocusJump] = useState({ page: 1, n: 0 });
   const [focusPage, setFocusVisible] = useState(1);
   const setFocusPage = (p: number) => { setFocusJump((j) => ({ page: p, n: j.n + 1 })); setFocusVisible(p); };
@@ -233,7 +239,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   useNavigation(() => {
     if (window.location.pathname !== "/") return;
     const next = readUrl((status.library_photos ?? 0) > 0);
-    setSimilar(next.similar); setSuspicious(next.suspicious); setReason(next.reason); setReviewPhoto(next.reviewPhoto);
+    setSimilar(next.similar); setGroupSets(next.groupSets); setSuspicious(next.suspicious); setReason(next.reason); setReviewPhoto(next.reviewPhoto);
     setView(next.view); setSort(next.sort); setMatchMin(next.matchMin);
     setQ(next.q); setSearch(next.q);
     setPage(next.page); setPageSize(next.size);
@@ -343,7 +349,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   useEffect(() => {
     const p = new URLSearchParams();
     p.set("view", view);
-    if (similar) p.set("similar", "1");
+    if (similar) { p.set("similar", "1"); p.set("group_sets", groupSets ? "1" : "0"); }
     if (suspicious) p.set("suspicious", "1");
     if (reason !== "all") p.set("reason", reason);
     if (reviewPhoto != null) p.set("review_photo", String(reviewPhoto));
@@ -369,7 +375,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     const url = `${window.location.pathname}${p.size ? `?${p}` : ""}`;
     window.history.replaceState(null, "", url);
     rememberLibraryQuery(p.toString());
-  }, [similar, suspicious, reason, view, sort, matchMin, q, page, pageSize, undated, dates, types, folders, jobRun, openId, matchView, inspectorTab, comparison, reviewPhoto]);
+  }, [similar, groupSets, suspicious, reason, view, sort, matchMin, q, page, pageSize, undated, dates, types, folders, jobRun, openId, matchView, inspectorTab, comparison, reviewPhoto]);
 
   const results = usePaged((p) => api.photos({ view: browseView, similar, suspicious, reason: reviewFilter, run: jobRun ?? undefined, sort: browseSort, match_min: galleryMinimum, group_sets: grouped, q, page: p, page_size: pageSize, undated, dates, types, folders }),
                            JSON.stringify([similar, suspicious, reason, browseView, jobRun, browseSort, galleryMinimum, grouped, q, undated, dates, types, folders]), jump, pageSize, refreshKey, setLoadError);
@@ -1095,7 +1101,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           <div className="gallery-summary">
             <span>{gallerySummary ? plural(gallerySummary.total, galleryNoun) : "Loading photos…"}</span>
             {similar && focus?.kind !== "set" && focus?.kind !== "review" && <>
-              {view === "organized" && <label><input type="checkbox" checked={groupSets} disabled={!!focus}
+              {similarityPlace && <label title={groupingUnavailable ?? undefined}><input type="checkbox" checked={grouped} disabled={!!groupingUnavailable}
+                aria-describedby={hasAdditionalFilters && !focus ? "grouping-unavailable" : undefined}
                 onChange={e => { setGroupSets(e.target.checked); setPage(1); savePreference("ns.groupSets", String(e.target.checked)); setExploreReference(null); }} />Group similar photos</label>}
               <label className="gallery-match-threshold">Matches at or above
                 <select aria-label="Gallery match threshold" value={matchMin} disabled={!!focus}
@@ -1130,6 +1137,9 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           {!focus && similar && data?.similarity && (data.similarity.pending > 0 || data.similarity.unavailable > 0) && <p className="dates-filter-line">
             Counts may be incomplete: {plural(data.similarity.pending, "photo awaiting comparison", "photos awaiting comparison")};
             {" "}{plural(data.similarity.unavailable, "photo without a usable visual hash", "photos without a usable visual hash")}.
+          </p>}
+          {similar && similarityPlace && hasAdditionalFilters && !focus && <p id="grouping-unavailable" className="section-note">
+            Showing every photo that matches all active filters. Clear the other filters to group similar photos.
           </p>}
           {grouped && <p className="section-note">Identical sets appear once; partially overlapping sets remain separate. A reference matching your filters represents each set. Set members come from the full destination library. Checkboxes select only the reference photo. Turn grouping off to see every photo.</p>}
           <SimilarityRecovery visible={!focus && similar && !!data?.similarity && (data.similarity.pending > 0 || data.similarity.unavailable > 0)} />

@@ -764,3 +764,8 @@ both reference and candidate (with confirmation), Library-only review decisions,
 light/dark/narrow rendering. `webui_api_test.py` covers both candidate scopes, source
 exclusion, invalid scope rejection and emptied Rejects. Gallery grouping and Keep-reference
 continue to count only active Library photos.
+
+The reference-set browser driver also checks grouping/control parity in Needs review,
+automatic individual-photo results under extra review/search/sidebar filters, URL and
+preference restoration, and narrow reflow. The API suite checks that a reviewed group's
+lowest ID cannot hide remaining inbox photos, including selection IDs and positioning.

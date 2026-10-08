@@ -2643,8 +2643,13 @@ the server's UTC year when the catalog is read.
 ### Reference-based grouping
 
 **Built:** Group similar photos defaults on and adds reference-set counts and actions in
-Has similar photos. Identical closed neighborhoods appear once, represented by the
-lowest canonical photo ID satisfying active filters. Membership uses the entire
+Has similar photos in both Library and Needs review, with the same percentage, sorting,
+set exploration and comparison controls. Additional filters/search automatically show
+individual photos satisfying every filter; Group similar photos remains visible but
+disabled with an explanation. Clearing extra filters restores the explicit grouping
+preference, retained in the URL as `group_sets=1|0`. Sort and percentage are not extra
+filters. Identical closed neighborhoods appear once, represented by the lowest canonical
+photo ID inside the current location/inbox. Membership uses the entire
 destination library at the chosen threshold; equal counts alone do not merge sets.
 Collapse precedes sorting and pagination. Totals count sets; selection takes only
 representative photos. Explicit selections remain unchanged. Members include direct

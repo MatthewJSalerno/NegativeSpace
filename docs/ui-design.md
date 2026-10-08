@@ -437,6 +437,19 @@ the server's UTC year when the catalog is read.
 
 ### Reference-based sets
 
+Library and Needs review expose the same Similar photos controls: Group similar photos,
+percentage, Most matches first and set exploration/comparison. A group's representative
+must belong to the current location/inbox before identical sets collapse.
+
+Grouping is available when Has similar photos is the only explicit filter. Adding
+Suspicious dates, No capture date, Small images, Review later, search, dates, folders or
+file types shows every photo satisfying all active filters individually. Leave the
+checkbox visible, unchecked and disabled, with a visible explanation and description
+relationship: clear the other filters to group. Clearing them restores the user's
+explicit grouping preference; automatic ungrouping does not overwrite it. Percentage
+and sort changes do not disable grouping. Preserve checkbox selections. URL
+`group_sets=1|0` records the chosen preference and wins over browser storage on links.
+
 Offer optional grouping within Has similar photos, retaining the ordinary per-photo
 view. A set consists of its reference and every direct match at the chosen percentage.
 If A matches B and B matches C but A does not match C, A's set contains A/B and B's
@@ -455,9 +468,9 @@ These are session-only display choices, not saved groups or tags. **Group simila
 photos** adds set counts and actions to the existing reference cards. Sets with exactly the same full destination membership appear once in the gallery.
 Compare each closed neighborhood (reference plus direct matches) at the selected
 percentage, never just match counts or a transitive component. Choose the lowest
-canonical photo ID satisfying active filters as the stable representative; it is
-not a keeper or the highest-quality photo. Sort the resulting representatives and
-collapse before pagination. Search can choose another member as representative.
+canonical photo ID inside the current location/inbox as the stable representative;
+it is not a keeper or the highest-quality photo. Sort the resulting representatives
+and collapse before pagination. Search displays matching photos individually.
 Gallery totals and paging count sets when grouping is on. Select all and card
 checkboxes select only displayed representatives, not every member. Existing
 explicit selection remains intact, including hidden members; Show only selected

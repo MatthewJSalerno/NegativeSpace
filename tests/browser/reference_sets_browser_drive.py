@@ -16,7 +16,7 @@ with sync_playwright() as p:
     def wait(run):
         for _ in range(600):
             result = request.get(f'/api/v1/runs/{run}').json()
-            if result['status'] not in ('Preparing','Running','Cancelling'):
+            if result['status'] not in ('Preparing','Running','Cancelling') and request.get('/api/v1/status').json()['active_job'] is None:
                 assert result['status'] == 'Completed', result
                 return
             time.sleep(.2)
@@ -188,8 +188,7 @@ with sync_playwright() as p:
     expect(dialog.locator('[data-member-id]')).to_have_count(2)
     dialog.get_by_role('button',name='Back to gallery',exact=True).click()
     # A dense same-hash bucket remains paged and explicit expansion is capped.
-    large_name=request.get(f'/api/v1/photos/{large}/inspect').json()['filename']
-    page.get_by_role('searchbox',name='Search filenames').fill(large_name)
+    # Explore from the unfiltered set tile: searching intentionally ungroups.
     page.locator(f'.card[data-id="{large}"]').get_by_role('button',name='Explore related sets',exact=True).click()
     expect(dialog.locator('[data-member-id]')).to_have_count(12)
     for checkbox in dialog.locator('[data-related-id] input').all()[:6]: checkbox.check()
@@ -212,6 +211,59 @@ with sync_playwright() as p:
     page.reload()
     expect(group).to_be_checked()
     expect(dialog).to_have_count(0)
+    # Needs review exposes the same grouping, threshold, sort and set controls.
+    setting=request.get('/api/v1/settings').json()['small_image_min']
+    assert request.put('/api/v1/settings',data={'values':{'small_image_min':800},
+        'revisions':{'small_image_min':setting['revision']}}).ok
+    page.goto(sys.argv[1]+'/?view=review&similar=1&match_min=90&group_sets=1&sort=matches')
+    expect(group).to_be_checked()
+    expect(threshold).to_have_value('90')
+    expect(sort).to_have_value('matches')
+    expect(page.get_by_role('button',name='Review this set',exact=True).first).to_be_visible()
+    expect(page.get_by_role('button',name='Explore related sets',exact=True).first).to_be_visible()
+    shot('needs-review-grouping')
+    # Filters ungroup without changing the explicit saved preference or selection.
+    page.locator('.card input[type=checkbox]').first.check()
+    for label in ('Suspicious dates','No capture date','Small images','Review later'):
+        chip=page.get_by_role('group',name='Review reason').get_by_role('button',name=re.compile('^'+label))
+        chip.click()
+        expect(group).not_to_be_checked()
+        expect(group).to_be_disabled()
+        page.reload()
+        expect(group).not_to_be_checked()
+        expect(group).to_be_disabled()
+        assert page.evaluate("localStorage.getItem('ns.groupSets')") != 'false'
+        chip.click()
+        expect(group).to_be_checked()
+        expect(group).to_be_enabled()
+    for query in ('q=photo', 'type=jpg', 'date=2023', 'folder=.'):
+        page.goto(sys.argv[1]+'/?view=review&similar=1&group_sets=1&'+query)
+        expect(group).not_to_be_checked()
+        expect(group).to_be_disabled()
+        expect(page.get_by_text('Showing every photo that matches all active filters. Clear the other filters to group similar photos.',exact=True)).to_be_visible()
+    # Combined restrictions show only the matching individual, not its full set.
+    large_name=request.get(f'/api/v1/photos/{large}/inspect').json()['filename']
+    page.goto(sys.argv[1]+'/?view=review&similar=1&group_sets=1&type=jpg&q='+large_name)
+    expect(page.locator('.card')).to_have_count(1)
+    expect(page.locator(f'.card[data-id="{large}"]')).to_be_visible()
+    shot('needs-review-filtered-photos')
+    page.goto(sys.argv[1]+'/?view=review&similar=1&group_sets=1')
+    expect(group).to_be_checked()
+    page.get_by_role('button',name=re.compile(r'^Library \(')).first.click()
+    expect(group).to_be_checked()
+    expect(page.get_by_role('button',name='Review this set',exact=True).first).to_be_visible()
+    page.get_by_role('button',name=re.compile(r'^Needs review \(')).first.click()
+    expect(group).to_be_checked()
+    group.uncheck()
+    page.reload()
+    expect(group).not_to_be_checked()
+    group.check()
+    expect(page.locator('.card')).to_have_count(5)
+    expect(page.locator('.gallery-summary')).to_contain_text('5 sets')
+    page.set_viewport_size({'width':1000,'height':700})
+    expect(group).to_be_visible()
+    shot('needs-review-grouping-reflow')
+    page.set_viewport_size({'width':1440,'height':1000})
     # Failed hash recovery has a per-file log, not just a job count.
     with sqlite3.connect('/catalog/db/ns_sqlite.db') as conn:
         digest=conn.execute('SELECT sha1_hash FROM photos WHERE id=?',(a,)).fetchone()[0]
