@@ -13,6 +13,7 @@ import json
 import os
 import shutil
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import time
@@ -1310,6 +1311,51 @@ class JobsAndCatalog(ApiCase):
         for attempt in range(3):
             run = self.wait_for(self.start(mode="copy", file_ids=chosen))
             self.assertEqual(run["status"], "Completed", attempt)
+
+    def test_mixed_place_selection_refuses_without_mutation_or_abandoned_input(self):
+        self.index_library()
+        self.wait_for(self.start(mode='copy'))
+        chosen = self.client.get('/api/v1/photos/ids?view=organized').json()['ids']
+        self.assertEqual(len(chosen), 2)
+        self.wait_for(self.start(mode='reject', file_ids=[chosen[0]]))
+        with ns_db.connect(self.cfg.db_path) as conn:
+            before = list(conn.iterdump())
+        files = {p:p.read_bytes() for root in (self.cfg.source,self.cfg.dest) for p in root.rglob('*') if p.is_file()}
+        for mode in ('copy','move','reject','return'):
+            response=self.client.post('/api/v1/jobs/start',json={
+                'mode':mode,'file_ids':chosen,'request_id':'mixed-'+mode})
+            self.assertEqual((response.status_code,response.json()['error']),(409,'engine_refused'),response.text)
+            self.assertIn('Library and Rejects',response.json()['message'])
+            with ns_db.connect(self.cfg.db_path) as conn:
+                self.assertEqual(list(conn.iterdump()),before)
+            self.assertEqual(list((self.cfg.base/'selections').glob('*.ids')),[])
+            self.assertEqual({p:p.read_bytes() for root in (self.cfg.source,self.cfg.dest) for p in root.rglob('*') if p.is_file()},files)
+        # Literal CLI ids use the same acceptance gate, not just API files.
+        result=subprocess.run(self.cfg.engine_argv('--move','--file-ids',','.join(map(str,chosen))),
+                              cwd=ENGINE_CWD,capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,1)
+        self.assertIn('Library and Rejects',result.stdout+result.stderr)
+        self.assertEqual({p:p.read_bytes() for root in (self.cfg.source,self.cfg.dest) for p in root.rglob('*') if p.is_file()},files)
+
+    def test_place_change_after_api_validation_is_checked_by_locked_engine(self):
+        self.index_library()
+        self.wait_for(self.start(mode='copy'))
+        chosen=self.client.get('/api/v1/photos/ids?view=organized').json()['ids']
+        runner=self.app_jobs()
+        spawn=runner._spawn
+        def another_engine_then_spawn(*args,**kwargs):
+            result=subprocess.run(self.cfg.engine_argv('--reject','--file-ids',str(chosen[0])),
+                                  cwd=ENGINE_CWD,capture_output=True,text=True,timeout=30)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            return spawn(*args,**kwargs)
+        with patch.object(runner,'_spawn',side_effect=another_engine_then_spawn):
+            response=self.client.post('/api/v1/jobs/start',json={'mode':'move','file_ids':chosen})
+        self.assertEqual((response.status_code,response.json()['error']),(409,'engine_refused'),response.text)
+        self.assertIn('Library and Rejects',response.json()['message'])
+        self.assertEqual(len(list(self.cfg.source.rglob('*.jpg'))),3)
+        self.assertEqual(list((self.cfg.base/'selections').glob('*.ids')),[])
+        self.assertEqual(self.client.get('/api/v1/photos?view=organized').json()['total'],1)
+        self.assertEqual(self.client.get('/api/v1/photos?view=rejects').json()['total'],1)
 
     def test_a_selection_naming_a_photo_not_catalogued_is_refused_whole(self):
         self.index_library()

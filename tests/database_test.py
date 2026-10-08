@@ -27,6 +27,32 @@ class DatabaseTests(unittest.TestCase):
         self.conn.close()
         self.tmp.cleanup()
 
+    def test_mixed_place_selection_refuses_atomically_but_replay_keeps_acceptance(self):
+        self.conn.executemany("INSERT INTO photos(source_path,status) VALUES(?,?)",
+                             [('/source/one.jpg','Copied'),('/source/two.jpg','Rejected_Copied')])
+        self.conn.commit()
+        ids=[r[0] for r in self.conn.execute('SELECT id FROM photos')]
+        before=list(self.conn.iterdump())
+        for mode in ('COPY','MOVE','REJECT','RETURN'):
+            for strict in (True,False):
+                with self.subTest(mode=mode,strict=strict):
+                    with self.assertRaisesRegex(db.SelectionRefused,'Library and Rejects'):
+                        db.create_run(self.conn, mode=mode, source='/source', destination='/destination',
+                                      selection=ids, strict_selection=strict, request_id='mixed')
+                    self.assertEqual(list(self.conn.iterdump()),before)
+        self.conn.execute("UPDATE photos SET status='Copied'")
+        self.conn.commit()
+        accepted=db.create_run(self.conn,mode='MOVE',source='/source',destination='/destination',
+                               selection=ids,strict_selection=True,request_id='accepted')
+        self.assertTrue(accepted[1])
+        self.conn.execute("UPDATE photos SET status='Rejected_Copied' WHERE id=?",(ids[0],))
+        self.conn.commit()
+        self.assertEqual(db.create_run(self.conn,mode='MOVE',source='/source',destination='/destination',
+                         selection=ids,strict_selection=True,request_id='accepted'),(accepted[0],False))
+        with self.assertRaises(db.SelectionRefused):
+            db.create_run(self.conn,mode='MOVE',source='/source',destination='/destination',
+                          selection=ids,strict_selection=True,request_id='new-attempt')
+
     def run_record(self, conn=None, **kw):
         return db.create_run(conn or self.conn, mode='INDEX', source='/source',
                              destination='/destination', **kw)[0]

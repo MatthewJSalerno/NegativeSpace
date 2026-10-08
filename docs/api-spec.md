@@ -388,6 +388,11 @@ spawning, even during a different active job; different input returns
     or stopped (`engine-spec.md` §4.1). If any photo is no longer catalogued in this source
     the engine refuses the whole job, recording nothing: `409 engine_refused` with the
     reason.
+    Copy, Move, Reject and Return also return `409 engine_refused` if the selected
+    photos now mix Library and Rejects. The engine checks under its lock during
+    acceptance, including changes made after API validation. Refusal records no
+    run/request/selection and changes no photos; the API cleans up its selection file.
+    An already accepted request still returns its original run.
     Failure to prepare the selection is `503 selection_unavailable`; this attempt
     starts no engine. Publication failure removes the temporary or final file only
     when it still identifies the file this attempt created, preserving pre-existing

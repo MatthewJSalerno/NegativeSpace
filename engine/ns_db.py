@@ -871,6 +871,8 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
     run_selections with the run, in one transaction; the run's targeting is its count
     and checksum. With `strict_selection` (a selection passed in a file) every id must
     be catalogued under `source`, or SelectionRefused and nothing is recorded.
+    Explicit Copy/Move/Reject/Return selections cannot mix Library and Rejects.
+    Accepted request replay precedes this check and keeps its original outcome.
     """
     require_schema(conn)
     if request_id is not None and (not isinstance(request_id, str) or not request_id or len(request_id) > 256):
@@ -907,6 +909,18 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
                     raise SelectionRefused(
                         f"{len(selection) - held:,} of the {len(selection):,} selected photos are no longer "
                         f"catalogued in this source. Nothing was changed; choose the photos again.")
+            if mode in ('COPY', 'MOVE', 'REJECT', 'RETURN'):
+                # Runs are accepted only with the engine lock held. Check here,
+                # not at API preflight, so another tab/engine cannot change a
+                # selected photo's place between validation and acceptance.
+                places = conn.execute(
+                    f"SELECT COUNT(DISTINCT p.status IN ({sql_values(IN_REJECTS_STATUSES)})) "
+                    "FROM run_selections s JOIN photos p ON p.id=s.photo_id WHERE s.run_id=?",
+                    (run_id,)).fetchone()[0]
+                if places > 1:
+                    raise SelectionRefused(
+                        "The selection now includes photos from both Library and Rejects. "
+                        "Nothing was changed; choose photos from one location and submit again.")
         if request_id is not None:
             conn.execute("INSERT INTO job_requests VALUES(?,?,?)", (request_id, run_id, payload))
         return run_id, True

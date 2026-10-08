@@ -579,6 +579,10 @@ and Gmail, so that no menu has to adapt to what is selected:
   **Reject (n)…** for photos in the library, **Return to library (n)…** for photos in
   Rejects (§7.8). A selection is one place (§2): library photos get Copy, Move and Reject;
   photos in Rejects get Return to library first, then a Move that warns what it deletes.
+  The engine enforces that boundary again when accepting an explicit selection.
+  If another job has moved only some selected photos into or out of Rejects, the
+  whole new request is refused with a reason and nothing is changed; choose photos
+  from one location and submit again. Replaying an accepted request keeps its original run.
   Then Show only selected (or Back to results) and Clear. An action that
   takes none of them is absent, not disabled; each asks first, through the same review.
   While a job runs the actions wait, saying why.
