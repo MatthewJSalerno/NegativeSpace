@@ -16,7 +16,7 @@ def predicate(reason='all'):
              f"AND c.digest=p.sha1_hash AND c.width>0 AND c.height>0 AND min(c.width,c.height)<{LIMIT_SQL}) "
              "AND NOT EXISTS (SELECT 1 FROM review_events e WHERE e.photo_id=p.id AND e.reason='small' "
              "AND e.sha1=p.sha1_hash AND e.action='reviewed')")
-    later = ("p.status NOT IN ('Duplicate','Removed_Duplicate','Rejected_Emptied') AND "
+    later = (f"p.status IN ({DELIVERED}) AND "
              "(SELECT e.action FROM review_events e WHERE e.photo_id=p.id AND e.reason='later' ORDER BY e.id DESC LIMIT 1)='later'")
     return {'small': small, 'later': later, 'all': f'(({small}) OR ({later}))'}[reason]
 
@@ -69,8 +69,8 @@ def decide(db_path, body):
             current = details(conn, pid)
             if current is None or current['sha1'] != body['sha1'] or current['revision'] != body['revision']:
                 raise ns_db.RevisionConflict('The photo or review changed. Reload before deciding.')
-            if action == 'later' and conn.execute("SELECT status FROM photos WHERE id=?", (pid,)).fetchone()[0] in ('Duplicate','Removed_Duplicate','Rejected_Emptied'):
-                raise ns_db.RevisionConflict('This photo is no longer available for review.')
+            if current['location'] != 'Library':
+                raise ns_db.RevisionConflict('Only organized photos in Library can be reviewed.')
             if action != 'later' and reason not in [n['reason'] for n in current['reasons']]:
                 raise ns_db.RevisionConflict('This reminder is no longer current. Reload the photo.')
             conn.execute('INSERT INTO review_events(photo_id,sha1,reason,action,note,created_at,request_id,payload) VALUES(?,?,?,?,?,?,?,?)',

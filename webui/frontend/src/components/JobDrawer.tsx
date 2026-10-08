@@ -50,7 +50,7 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
       <aside className="drawer" role="status" aria-live="polite">
         <div className="drawer-row">
           <strong>
-            {interrupted ? "A job was interrupted" : activeTitle(active)}
+            {activeTitle(active)}
             {phase && !interrupted ? ` — ${phaseLabel(phase)}` : ""}
             {phase && phase.total != null && !interrupted ? `: ${phase.done.toLocaleString()} of ${phase.total.toLocaleString()}` : ""}
             {phase && phase.total == null && !interrupted ? `: ${phase.done.toLocaleString()} so far` : ""}

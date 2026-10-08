@@ -18,7 +18,7 @@ def _date_warning_sql():
     value = "json_extract(p.metadata_json, '$.date_taken')"
     year = f"CAST(substr({value},1,4) AS INTEGER)"
     latest = "(CAST(strftime('%Y','now') AS INTEGER) + 1)"
-    return (f"CASE WHEN {value} GLOB '[0-9][0-9][0-9][0-9]-*' THEN CASE "
+    return (f"CASE WHEN p.status!='Failed' AND {value} GLOB '[0-9][0-9][0-9][0-9]-*' THEN CASE "
             f"WHEN {year}<1800 THEN 'Recorded year is before 1800.' "
             f"WHEN {year}>{latest} THEN 'Recorded year is more than one year ahead of the current year.' END END")
 
@@ -47,8 +47,8 @@ def _search_clause(q: Optional[str]):
 # No capture date in the photo's EXIF: dated by its file's modification time instead
 # (date_source 'file_mtime'), or not dated at all. These are the photos filed under
 # Undated (webui-spec 3.1).
-_UNDATED = ("(json_extract(p.metadata_json, '$.date_source') = 'file_mtime' "
-            "OR json_extract(p.metadata_json, '$.date_taken') IS NULL)")
+_UNDATED = ("(p.status!='Failed' AND (json_extract(p.metadata_json, '$.date_source') = 'file_mtime' "
+            "OR json_extract(p.metadata_json, '$.date_taken') IS NULL))")
 
 
 _DATE_TAKEN = "json_extract(p.metadata_json, '$.date_taken')"
@@ -228,10 +228,12 @@ def _index_summary(conn):
     """Facts about remaining indexed source photos; no destination review eligibility."""
     where = _view_clause('unorganized')
     row = conn.execute(f"""SELECT COUNT(*) AS photos,
-        COALESCE(SUM(({_date_warning_sql()}) IS NOT NULL),0) AS suspicious,
-        COALESCE(SUM({_UNDATED}),0) AS undated,
-        COALESCE(SUM(c.width>0 AND c.height>0 AND min(c.width,c.height)<{review.LIMIT_SQL}),0) AS small,
-        COALESCE(SUM(c.width IS NULL OR c.height IS NULL OR c.width<=0 OR c.height<=0),0) AS unknown_dimensions,
+        COALESCE(SUM(p.status='Pending'),0) AS ready,
+        COALESCE(SUM(p.status='Processing'),0) AS unfinished,
+        COALESCE(SUM(p.status='Pending' AND ({_date_warning_sql()}) IS NOT NULL),0) AS suspicious,
+        COALESCE(SUM(p.status='Pending' AND {_UNDATED}),0) AS undated,
+        COALESCE(SUM(p.status='Pending' AND c.width>0 AND c.height>0 AND min(c.width,c.height)<{review.LIMIT_SQL}),0) AS small,
+        COALESCE(SUM(p.status='Pending' AND (c.width IS NULL OR c.height IS NULL OR c.width<=0 OR c.height<=0)),0) AS unknown_dimensions,
         COALESCE(SUM(p.status='Failed'),0) AS failed
         FROM photos p LEFT JOIN contents c ON c.hash_algorithm='sha1' AND c.digest=p.sha1_hash
         WHERE {where}""").fetchone()

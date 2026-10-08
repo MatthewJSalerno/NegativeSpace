@@ -35,7 +35,10 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
   }, []);
   useEffect(() => {
     let live=true;
-    api.photoPosition({ ...filters, sort, page_size:1, photo_id:initialPhoto }).then(p => { if(live) { if(p.page == null) setError("This photo is outside the current filters. Return to the gallery to choose a photo in this view."); else setPage(p.page); } }, e => { if(live) setError(e.message); });
+    api.inspect(initialPhoto).then(detail => {
+      if (!["Completed", "Copied", "Found_At_Destination"].includes(detail.status)) throw new Error("Only organized photos in Library can be reviewed. Return to the gallery for file information.");
+      return api.photoPosition({ ...filters, sort, page_size:1, photo_id:initialPhoto });
+    }).then(p => { if(live) { if(p.page == null) setError("This photo is outside the current filters. Return to the gallery to choose a photo in this view."); else setPage(p.page); } }, e => { if(live) setError(e.message); });
     return () => {live=false;};
   }, []);
   useEffect(() => {
@@ -49,6 +52,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
       if(!item) return;
       const detail = await api.inspect(item.id);
       if(!live) return;
+      if (!["Completed", "Copied", "Found_At_Destination"].includes(detail.status)) throw new Error("This photo is no longer in Library. Return to the gallery to refresh the review queue.");
       setPhoto(detail); onPhoto(item.id);
       if (["Completed", "Copied", "Found_At_Destination"].includes(detail.status)) {
         const related = await api.matches(new URLSearchParams({threshold:String(filters.match_min ?? 90),page_size:"60"}), item.id);
@@ -78,7 +82,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
     step={{position: data?.total ? `Photo ${page} of ${data.total}` : "Review", previousLabel:"Previous photo",nextLabel:"Next photo",
       onPrevious:()=>setPage(n=>Math.max(1,(n??1)-1)),onNext:()=>setPage(n=>(n??1)+1),previousDisabled:page==null||page<=1,nextDisabled:!data||page==null||page>=data.total}}
     status={<span role="status">{notice || "Next leaves this photo unresolved. Your gallery selection is unchanged."}{busy && " Saving or waiting for the job…"}</span>}>
-    {error && <p className="error" role="alert">{error} <button onClick={()=>setRevision(n=>n+1)}>Retry loading</button></p>}
+    {error && <p className="error" role="alert">{error} {!error.startsWith("Only organized") && !error.startsWith("This photo is no longer") && !error.startsWith("This photo is outside") && <button onClick={()=>setRevision(n=>n+1)}>Retry loading</button>}</p>}
     {photo && <div className="review-photos">
       <ReviewPreview prominent label="Photo to review" photo={photo} view={views[photo.id] ?? DEFAULT_VIEW} onChange={v=>setViews(old=>({...old,[photo.id]:v}))} refreshKey={revision}/>
       <aside className="review-decision-panel" aria-label="Review decision">

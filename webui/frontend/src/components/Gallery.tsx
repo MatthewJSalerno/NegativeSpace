@@ -85,10 +85,10 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
             <div className="card-meta">
               <span className="card-name" title={item.filename}>{item.filename}</span>
               <span className="card-sub">
-                <span title={isFallbackDate(item.date_source) ? "No capture date: this is the file's modification date" : undefined}>
+                {item.status !== "Failed" && <span title={isFallbackDate(item.date_source) ? "No capture date: this is the file's modification date" : undefined}>
                   {photoDate(item.date_taken, false)}
                   {isFallbackDate(item.date_source) ? " (file date)" : ""}
-                </span>
+                </span>}
                 {item.kept ? (
                   <span className="badge badge-copied_only"
                         title={`A Move copied this photo but could not remove the original: ${item.kept}. Moving it again once the source can be written finishes the Move.`}>
@@ -100,6 +100,7 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
                           : item.rejected_at ? `Rejected ${epoch(Date.parse(item.rejected_at) / 1000)}${item.status === "Rejected_Copied" ? "; its source is still in place, and a Move removes it" : ""}`
                           : undefined}>{STATUS_BADGE[item.status]}</span>
                 )}
+                {item.status === "Failed" && <a href={`/logs?photo=${item.id}&status=Failed`}>File needs attention</a>}
                 {item.duplicates > 0 && <span className="badge">{plural(item.duplicates, "duplicate")}</span>}
               </span>
             </div>

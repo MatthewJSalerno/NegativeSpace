@@ -67,7 +67,7 @@ export interface ReviewDetail {
   revision: number; sha1: string | null; location: string;
 }
 export interface PhotoPage {
-  index_summary?: { last_index: { id: number; started_at: string } | null; photos: number; duplicates: number; small: number; minimum: number | null; unknown_dimensions: number; suspicious: number; undated: number; failed: number; similar: null } | null;
+  index_summary?: { last_index: { id: number; started_at: string } | null; photos: number; ready: number; unfinished: number; duplicates: number; small: number; minimum: number | null; unknown_dimensions: number; suspicious: number; undated: number; failed: number; similar: null } | null;
   elsewhere?: Record<string, number>;
   chips?: Record<string, number>;
   reasons?: Record<string, number>;
@@ -387,7 +387,7 @@ export interface Lineage {
 }
 
 export interface Stats {
-  library: {
+  library: { failed_source: number;
     photos: number; bytes: number; organized: number; organized_bytes: number; not_organized: number;
     formats: { format: string; photos: number; bytes: number }[];
     cameras: { name: string; photos: number }[];

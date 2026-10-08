@@ -81,7 +81,7 @@ with sync_playwright() as p:
     expect(dialog.get_by_role("button", name="Cancel")).to_be_focused()
     shot("r1-confirm-reject")
     dialog.get_by_role("button", name="Reject", exact=True).click()
-    expect(banner).to_contain_text(re.compile(r"Reject #\d+ finished"), timeout=60_000)
+    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Reject finished"), timeout=60_000)
     expect(banner).to_contain_text("1 of 1 photo moved to Rejects")
     expect(page.locator(".card")).to_have_count(0)
     expect(view_button(page, "Library")).to_contain_text("(0)")
@@ -107,6 +107,8 @@ with sync_playwright() as p:
     # Return to library from the Inspector of a photo in Rejects.
     page.locator(".card-image").first.click()
     expect(page.locator(".inspector")).to_contain_text("In Rejects (source still in place; a Move removes it)")
+    expect(page.locator(".inspector").get_by_role("tab", name="Similar photos", exact=True)).to_have_count(0)
+    expect(page.locator(".inspector").get_by_role("button", name="Review later…", exact=True)).to_have_count(0)
     page.get_by_role("button", name="Return to library…", exact=True).click()
     dialog = page.get_by_role("alertdialog")
     expect(dialog).to_contain_text("Return this photo to the library?")
@@ -131,7 +133,7 @@ with sync_playwright() as p:
     # Back in Library, which the rejected photos have left; the banner opens the job's.
     expect(page.get_by_role("region", name="Review before rejecting")).to_have_count(0)
     banner.get_by_role("button", name="Show these photos").click()
-    expect(page.get_by_role("region", name="A job's photos")).to_contain_text(re.compile(r"The 2 photos in Reject #\d+"))
+    expect(page.get_by_role("region", name="A job's photos")).to_contain_text(re.compile(r"The 2 photos in Job #\d+ · Reject"))
     dismiss_banner()
 
     # In the job's photos, the selection bar follows what is selected: these photos are in
@@ -245,15 +247,15 @@ with sync_playwright() as p:
     reject = next(r for r in request.get("/api/v1/runs").json()["runs"] if r["mode"] == "REJECT")
     page.goto(f"{BASE}/?run={reject['id']}")
     line_above = page.get_by_role("region", name="A job's photos")
-    expect(line_above).to_contain_text(f"The 1 photo in Reject #{reject['id']}")
+    expect(line_above).to_contain_text(f"The 1 photo in Job #{reject['id']} · Reject")
     page.locator(".card-check input").first.click()
     selection_bar(page).get_by_role("button", name="Return to library (1)…").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Return to library", exact=True).click()
-    expect(banner).to_contain_text(re.compile(r"Return to library #\d+ finished"), timeout=60_000)
+    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Return to library finished"), timeout=60_000)
     returned = request.get("/api/v1/runs").json()["runs"][0]
     assert returned["mode"] == "RETURN", returned
-    expect(line_above).to_contain_text(f"The 1 photo in Return to library #{returned['id']}")
-    expect(banner).to_contain_text(f"Return to library #{returned['id']} finished")
+    expect(line_above).to_contain_text(f"The 1 photo in Job #{returned['id']} · Return to library")
+    expect(banner).to_contain_text(f"Job #{returned['id']} · Return to library finished")
 
     assert not errors, f"browser errors: {errors}"
     print("Rejects browser checks passed")

@@ -114,7 +114,7 @@ with sync_playwright() as p:
     # Index; the result shows at the top of the page, and the gallery refreshes itself.
     page.get_by_role("button", name="Index source").click()
     banner = page.locator(".finished-banner")
-    expect(banner).to_contain_text(re.compile(r"Index #\d+ finished"), timeout=180_000)
+    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Index finished"), timeout=180_000)
     expect(banner).to_contain_text(f"{PHOTOS + DUPLICATES:,} new or changed, including {DUPLICATES:,} duplicate")
     top = banner.bounding_box()["y"]
     browse = page.get_by_role("group", name="Filter photos", exact=True).bounding_box()
@@ -421,7 +421,7 @@ with sync_playwright() as p:
     expect(review).to_have_count(0)
     expect(line).to_have_count(0)
     expect(page).to_have_url(re.compile(r"date=2019"))
-    expect(banner).to_contain_text(re.compile(r"Copy #\d+ finished"), timeout=60_000)
+    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Copy finished"), timeout=60_000)
     expect(banner).to_contain_text("3 of 3 files copied")
     # A dismissal this browser kept from an earlier catalog, whose job numbers ran higher,
     # must not hide this catalog's banners: the catalog's record wins.
@@ -430,7 +430,7 @@ with sync_playwright() as p:
     expect(banner).to_contain_text("3 of 3 files copied")
     banner.get_by_role("button", name="Show these photos").click()
     job = page.get_by_role("region", name="A job's photos")
-    expect(job).to_contain_text(re.compile(r"The 3 photos in Copy #\d+"))
+    expect(job).to_contain_text(re.compile(r"The 3 photos in Job #\d+ · Copy"))
     expect(job).to_contain_text("3 of 3 files copied")
     expect(page).to_have_url(re.compile(r"run=\d+"))
     expect(page.locator(".badge-copied")).to_have_count(3, timeout=5_000)
@@ -467,7 +467,7 @@ with sync_playwright() as p:
     expect(dialog).to_contain_text(f"every photo not yet copied ({PHOTOS - 3:,})")
     dialog.get_by_role("button", name="Copy").click()
     page.get_by_role("searchbox", name="Search filenames").fill("")
-    expect(banner).to_contain_text(re.compile(r"Copy #\d+ finished with failures"), timeout=120_000)
+    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Copy finished with failures"), timeout=120_000)
     expect(banner).to_contain_text(
         f"{PHOTOS - 4} of {PHOTOS + DUPLICATES} files copied · 1 failed · {3 + DUPLICATES} skipped "
         f"(3 copied by an earlier job, {DUPLICATES} duplicates: the same content is copied once)")
@@ -503,7 +503,7 @@ with sync_playwright() as p:
     expect(rows.first).to_contain_text("photo-129.jpg")
     expect(rows.first).to_contain_text("Check its permissions")
     shot("7-failures")
-    retry = page.get_by_role("button", name=re.compile(r"^Retry the 1 failed photo"))
+    retry = page.get_by_role("button", name=re.compile(r"^Recheck 1 failed file after fixing"))
     # Correct the generated file before Retry; otherwise completion depends on whether
     # the worker or chmod wins. Wait for this new job, never an older Copy banner.
     os.chmod(locked, 0o644)
@@ -513,7 +513,7 @@ with sync_playwright() as p:
     retry_id = retried.value.json()["id"]
     # What Retry did is said beside it, not at the top of the page.
     expect(page.locator(".retry .notice")).to_contain_text("Retrying 1 photo as a new Copy")
-    expect(page.locator(".finished-banner")).to_contain_text(f"Copy #{retry_id} finished", timeout=60_000)
+    expect(page.locator(".finished-banner")).to_contain_text(f"Job #{retry_id} · Copy finished", timeout=60_000)
     expect(page.locator(".finished-banner")).to_contain_text("1 of 1 file copied")
     # Status boxes: arriving from a message ticks only what it named; All statuses ticks
     # every one again, which is no filter at all.
@@ -611,7 +611,7 @@ with sync_playwright() as p:
     expect(lightbox).to_have_count(0)
     # A step's job opens the log on that job.
     events.nth(0).click()
-    tree.get_by_role("link", name=re.compile(r"^job #\d+ index")).click()
+    tree.get_by_role("link", name=re.compile(r"^Job #\d+ · Index")).click()
     expect(page).to_have_url(re.compile(r"/logs\?run=\d+&photo=\d+"))
     expect(page.locator(".job-head[aria-expanded=true]")).to_have_count(1)
     page.go_back()
@@ -634,15 +634,15 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"/stats$"))
     tiles = page.locator(".stat-tile")
     tile = lambda label: tiles.filter(has=page.locator(".tile-label", has_text=re.compile(f"^{label}$")))
-    expect(tile("Photos")).to_contain_text(f"{PHOTOS:,}")
+    expect(tile("Catalog photos")).to_contain_text(f"{PHOTOS:,}")
     # A share never rounds to all or nothing: 100% only when the counts beside it agree.
-    organized = tile("Organized")
+    organized = tile("In Library")
     done, of = (int(n.replace(",", "")) for n in
                 re.search(r"([\d,]+) of ([\d,]+)", organized.locator(".tile-sub").inner_text()).groups())
     shown = organized.locator(".tile-value").inner_text()
     assert (shown == "100%") == (done == of) and (shown == "0%") == (done == 0), f"Organized {shown} for {done} of {of}"
     undated_tile = tile("No capture date")
-    expect(undated_tile).to_have_attribute("href", "/?undated=1")
+    expect(undated_tile).to_have_attribute("href", "/?view=all&undated=1")
     expect(page.locator(".stat-panel h3")).to_have_count(6)
     expect(page.locator(".stat-panel", has_text="Duplicates")).to_contain_text("Extra copies")
     # Aligned: fixed columns, and every panel in a row as tall as the row.

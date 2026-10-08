@@ -83,8 +83,11 @@ Found 2026-10-05 looking for screens that do the same job twice.
   persistent date acknowledgments and editing are still unbuilt.
 
 - [x] The in-tray for Small images and Review later (`docs/webui-spec.md` §7.9).
-- [ ] Add the remaining reasons to the shared inbox/workspace: unreadable files and
-  uncertain recovery with evidence-based actions; suspicious dates with acknowledgment;
+- [x] Library-only review and similarity controls, backend eligibility, separate source
+  failure facts, explicit Stats scopes and consistent Job #ID · Action status labels.
+- [ ] Design source-side sidecar/version import decisions separately from the Library
+  review inbox; preserve existing recovery durability gates.
+- [ ] Add the remaining Library reasons to the shared inbox/workspace: suspicious dates with acknowledgment;
   No capture date and sidecar/edit reasons with their respective workstreams.
 - [ ] Bulk review answers within one reason. Individual Mark reviewed/Done and the
   existing bulk Reject workflow are built; general bulk acknowledgments are not.

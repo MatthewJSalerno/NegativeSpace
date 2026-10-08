@@ -10,7 +10,7 @@ import { Logo } from "./Logo";
 import { VersionTag } from "./VersionTag";
 import { api, ApiError, MATCH_THRESHOLDS, type ActionMode, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
 import { count, plural } from "../format";
-import { modeName, summary, useDismissedRun, useJobFeed } from "../jobs";
+import { jobLabel, summary, useDismissedRun, useJobFeed } from "../jobs";
 import { Gallery } from "./Gallery";
 import { Inspector } from "./Inspector";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
@@ -86,13 +86,14 @@ function readUrl(hasLibrary = true) {
   const legacy = p.get("view") as View;
   const view = legacy === "similar" ? "organized" : legacy === "suspicious" ? "organized" : legacy || savedPlace(hasLibrary);
   const matchPage = Number(p.get("match_page"));
+  const similar = (view === "organized" || view === "review" || view === "all") && (legacy === "similar" || p.get("similar") === "1");
   return {
     view: (["all", "unorganized", "organized", "similar", "suspicious", "rejects", "review"] as View[]).includes(view) ? view : "all",
-    similar: legacy === "similar" || p.get("similar") === "1",
+    similar,
     suspicious: legacy === "suspicious" || p.get("suspicious") === "1",
     reason: ["small", "later"].includes(p.get("reason") || "") ? p.get("reason")! : "all",
     reviewPhoto: Number(p.get("review_photo")) || null,
-    sort: p.get("sort") === "matches" && !(legacy === "similar" || p.get("similar") === "1") ? "newest" as Sort : (p.get("sort") as Sort) || savedSort(legacy === "similar" || p.get("similar") === "1" ? "similar" : view),
+    sort: p.get("sort") === "matches" && !similar ? "newest" as Sort : (p.get("sort") as Sort) || savedSort(similar ? "similar" : view),
     matchMin: MATCH_THRESHOLDS.includes(Number(p.get("match_min"))) ? Number(p.get("match_min")) : savedMatchMinimum(),
     q: p.get("q") || "",
     page: Math.max(1, Number(p.get("page")) || 1),
@@ -671,9 +672,10 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     sortChoices.current[similar ? "similar" : view] = sort;
     setView(v);
     setOpenId(null); setLocate(null); setRevealId(null); setComparison(null); setReviewPhoto(null);
-    const scope: View = similar ? "similar" : v;
+    const scope: View = similar && (v === "organized" || v === "review") ? "similar" : v;
     setSort(sortChoices.current[scope] ?? savedSort(scope));
     setPage(1);
+    if (v === "unorganized" || v === "rejects") setSimilar(false);
     if (v !== "review" && (v !== "organized" || reason !== "small")) setReason("all");
     if (v === "all") { setUndated(false); setDates([]); setTypes([]); setFolders([]); }
   };
@@ -895,6 +897,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
 
   const screenSelected = screenItems.filter((i) => selected.has(i.id)).length;
   const onPager = focus ? setFocusPage : setPage;
+  const galleryNoun = grouped ? "set" : view === "unorganized" && (data?.index_summary?.failed ?? 0) > 0 ? "file" : "photo";
   const indexSummaryKey = JSON.stringify(data?.index_summary?.last_index ?? null);
   const indexSummaryClosed = closedIndexSummary === indexSummaryKey || (openId != null && !previewSummaryExpanded);
   const indexNeedsAttention = !!data?.index_summary && data.index_summary.failed === data.index_summary.photos
@@ -952,7 +955,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           </div>
         </div>
         <div className="review-chips" role="group" aria-label={view === "review" ? "Review reason" : "Filter photos"}>
-          {view !== "unorganized" && <button aria-pressed={similar} disabled={!!focus} className={similar ? "active" : ""} onClick={() => { setSimilar(!similar); setPage(1); const scope: View = !similar ? "similar" : view; setSort(sortChoices.current[scope] ?? savedSort(scope)); }}>Has similar photos {filterCount(data?.chips?.similar ?? 0)}</button>}
+          {(view === "organized" || view === "review") && <button aria-pressed={similar} disabled={!!focus} className={similar ? "active" : ""} onClick={() => { setSimilar(!similar); setPage(1); const scope: View = !similar ? "similar" : view; setSort(sortChoices.current[scope] ?? savedSort(scope)); }}>Has similar photos {filterCount(data?.chips?.similar ?? 0)}</button>}
           <button aria-pressed={suspicious} disabled={!!focus} className={suspicious ? "active" : ""} onClick={() => { setSuspicious(!suspicious); setPage(1); }}>Suspicious dates {filterCount(data?.chips?.suspicious ?? 0)}</button>
           <button aria-pressed={undated} disabled={!!focus} className={undated ? "active" : ""} onClick={() => { setUndated(!undated); setPage(1); }}>No capture date {filterCount(data?.chips?.undated ?? 0)}</button>
           {(view === "organized" || view === "review") && <button disabled={!!focus} aria-pressed={reason === "small"}
@@ -1038,7 +1041,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           )}
           {!focus && jobRun != null && (
             <div className="focus-head" role="region" aria-label="A job's photos">
-              <strong>{jobInfo ? `The ${data ? plural((data.counts as Record<string, number>).job ?? 0, "photo") : "photos"} in ${modeName(jobInfo.mode)} #${jobInfo.id}` : "A job's photos"}</strong>
+              <strong>{jobInfo ? `The ${data ? plural((data.counts as Record<string, number>).job ?? 0, "photo") : "photos"} in ${jobLabel(jobInfo.id, jobInfo.mode)}` : "A job's photos"}</strong>
               <span className="muted">
                 {jobInfo && (["Preparing", "Running", "Cancelling"].includes(jobInfo.status) ? " · their status updates when the job ends."
                   : jobInfo.outcome ? ` · ${summary(jobInfo).detail}` : "")}
@@ -1063,23 +1066,24 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                 onClick={() => toggleIndexSummary(indexSummaryKey)}>✕</button>
             </div>
             <p>{indexNeedsAttention ? "The remaining files have processing errors. Review the failures to see what needs fixing." : "Your photos are indexed. Copy or move them to build your library."}</p>
-            <p className="section-note">Facts about all photos still to organize, before gallery filters. Size and date findings do not prevent Copy or Move.</p>
+            <p className="section-note">Photo facts below cover successfully indexed photos, before gallery filters. Failed files are counted separately. Size and date findings do not prevent Copy or Move.</p>
             <dl>
-              <div><dt>Photos to organize</dt><dd>{count(data.index_summary.photos)}</dd></div>
+              <div><dt>Photos ready to organize</dt><dd>{count(data.index_summary.ready)}</dd></div>
               <div><dt>Additional identical copies</dt><dd>{count(data.index_summary.duplicates)}</dd></div>
               <div><dt>Small images</dt><dd>{data.index_summary.minimum == null ? "Rule disabled" : `${count(data.index_summary.small)} below ${count(data.index_summary.minimum)} pixels on the shorter side`}</dd></div>
               <div><dt>Suspicious dates</dt><dd>{count(data.index_summary.suspicious)}</dd></div>
               <div><dt>No capture date</dt><dd>{count(data.index_summary.undated)}</dd></div>
               <div><dt><Tip text="No usable width and height were recorded. The format may be unsupported, the file may be unreadable, or processing may be incomplete. This alone does not mean the file is damaged or is not a photo. These files are not counted as small images.">Image size unavailable</Tip></dt><dd>{count(data.index_summary.unknown_dimensions)}</dd></div>
-              <div><dt>Potentially similar photos</dt><dd>Not calculated for source photos</dd></div>
+              <div><dt>Files needing attention</dt><dd>{count(data.index_summary.failed)}</dd></div>
+              {data.index_summary.unfinished > 0 && <div><dt>Unfinished processing</dt><dd>{count(data.index_summary.unfinished)}</dd></div>}
             </dl>
-            <p className="section-note">Identical content is organized once. Files with processing errors: {count(data.index_summary.failed)}. <a href={indexNeedsAttention ? "/logs?status=Failed" : "/logs"} onClick={follow}>{indexNeedsAttention ? "View failures" : "View job details"}</a></p>
+            <p className="section-note">Similar photos compares organized photos in Library only. Identical content is organized once. Files with processing errors: {count(data.index_summary.failed)}. <a href={data.index_summary.failed > 0 ? "/logs?status=Failed" : "/logs"} onClick={follow}>{data.index_summary.failed > 0 ? "View failures" : "View job details"}</a></p>
             {!indexNeedsAttention && <><button className="primary" disabled={jobRunning || !status.eligible.copy} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.copy ? "No photos are eligible for Copy." : undefined} onClick={() => askTransfer("copy")}>Copy all photos…</button>{" "}
             <button disabled={jobRunning || !status.eligible.move} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.move ? "No photos are eligible for Move." : undefined} onClick={() => askTransfer("move")}>Move all photos…</button></>}
           </section>)}
           {!focus && view === "review" && <>
             {reviewReturn && <button onClick={backToLibrary}>← Back to Library</button>}
-            <p className="notice">Photos awaiting a decision, wherever they live. These photos also appear in their location; the counts do not add together.</p>
+            <p className="notice">Organized photos in Library awaiting a decision. These photos also appear in Library; the counts do not add together.</p>
             <div className="photo-actions"><button disabled={!data?.total} title={!data?.total ? "No photos match these review filters." : undefined}
               onClick={() => setReviewPhoto(data!.items[0].id)}>Review one by one</button></div>
             <div className="review-reason-guidance">
@@ -1089,7 +1093,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             </div>
           </>}
           <div className="gallery-summary">
-            <span>{gallerySummary ? plural(gallerySummary.total, grouped ? "set" : "photo") : "Loading photos…"}</span>
+            <span>{gallerySummary ? plural(gallerySummary.total, galleryNoun) : "Loading photos…"}</span>
             {similar && focus?.kind !== "set" && focus?.kind !== "review" && <>
               {view === "organized" && <label><input type="checkbox" checked={groupSets} disabled={!!focus}
                 onChange={e => { setGroupSets(e.target.checked); setPage(1); savePreference("ns.groupSets", String(e.target.checked)); setExploreReference(null); }} />Group similar photos</label>}
@@ -1109,7 +1113,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               <span className="gallery-filters">
                 {/* What is shown, against the library the view buttons count. */}
                 <Tip text={`Only ${[...folders.map(folderLabel), ...dates.map(dateLabel), ...types.map(typeLabel), ...(q ? [`filenames matching “${q}”`] : []), ...(undated ? ["photos without a capture date"] : [])].join(", ")}`}>
-                  <span>{grouped ? `${count(data.total)} sets matching filters` : `Showing ${count(data.total)} of ${plural((data.counts as Record<string, number>)[browseView] ?? 0, "photo")}`}</span>
+                  <span>{grouped ? `${count(data.total)} sets matching filters` : `Showing ${count(data.total)} of ${plural((data.counts as Record<string, number>)[browseView] ?? 0, galleryNoun)}`}</span>
                 </Tip>
                 {data && data.total > 0 && (
                   <> · <button className="link" onClick={selectAll} disabled={jobRunning}
@@ -1160,7 +1164,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                             onUnselectScreen={() => toggleMany(screenItems, false)} onUnselectAll={clearSelection} />
                 {jobRunning && <span className="muted">Selection is unavailable while a job is running.</span>}
               </div>
-              <Pager noun={grouped ? "set" : "photo"} page={visible} pages={pages} total={list.meta.total} pageSize={pageSize} onPage={onPager} onPageSize={changePageSize} continuous />
+              <Pager noun={galleryNoun} page={visible} pages={pages} total={list.meta.total} pageSize={pageSize} onPage={onPager} onPageSize={changePageSize} continuous />
               {list.refreshError && <div className="notice" role="status">Updates could not be loaded. {list.refreshError}
                 <button onClick={list.retryRefresh}>Retry updates</button></div>}
               {list.first > 1 && <PageBoundary ref={topSentinel} previous pending={list.pending.has(list.first - 1)} error={list.failures.get(list.first - 1)}
@@ -1174,7 +1178,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               {list.last < pages
                 ? <PageBoundary ref={bottomSentinel} pending={list.pending.has(list.last + 1)} error={list.failures.get(list.last + 1)} onLoad={() => list.load(list.last + 1, true)} />
                 : <div className="gallery-foot">
-                    <span className="muted">End of {plural(list.meta.total, grouped ? "set" : "photo")}.</span>
+                    <span className="muted">End of {plural(list.meta.total, galleryNoun)}.</span>
                   </div>}
             </>
           )}

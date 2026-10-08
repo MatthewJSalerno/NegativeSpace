@@ -41,11 +41,6 @@ export function useJobFeed(): { jobs: JobState; connection: Connection } {
   return { jobs, connection };
 }
 
-const MODE_ACTIVE: Record<string, string> = {
-  INDEX: "Indexing", COPY: "Copying", MOVE: "Moving", REBUILD: "Rebuilding thumbnails",
-  SIMILARITY: "Recovering similarity matching", CHECK: "Checking the destination", RENAME: "Renaming",
-  REJECT: "Rejecting", RETURN: "Returning to the library",
-};
 const MODE_NAME: Record<string, string> = {
   INDEX: "Index", COPY: "Copy", MOVE: "Move", REBUILD: "Thumbnail rebuild", CHECK: "Destination check",
   SIMILARITY: "Similarity recovery", RENAME: "Rename", REJECT: "Reject", RETURN: "Return to library",
@@ -67,12 +62,16 @@ const OUTCOME: Record<string, string> = {
 };
 
 export function activeTitle(run: Run): string {
-  return run.mode ? MODE_ACTIVE[run.mode] ?? run.mode : "Starting a job";
+  return run.mode ? `${jobLabel(run.id, run.mode)} ${run.status === "Cancelling" ? "cancelling" : run.status === "Preparing" ? "preparing" : run.status === "Interrupted" ? "interrupted" : "running"}` : "Starting a job";
 }
 
 // Jobs that act on photos, whose photos the Library can show (webui-spec 2, after a job).
 export function showsPhotos(run: Run): boolean {
   return ["COPY", "MOVE", "REJECT", "RETURN", "RENAME"].includes(run.mode ?? "") && (run.outcome?.total ?? 0) > 0;
+}
+
+export function jobLabel(id: number | null | undefined, mode: string | null): string {
+  return id == null ? modeName(mode) : `Job #${id} · ${modeName(mode)}`;
 }
 
 export function modeName(mode: string | null): string {
@@ -141,11 +140,11 @@ const VERDICT: Record<string, string> = {
 
 // "Copy finished - 0 of 23 copied · 23 failed": counts lead, never a bare status
 // (webui-spec 5.5).
-// `numbered` names the job ("Copy #8 finished"), for the finished banner: beside a job's
+// `numbered` names the job ("Job #8 · Copy finished"), for the finished banner: beside a job's
 // photos it may describe a different job than the one shown (webui-spec 2, after a job).
-export function summary(run: Run, numbered = false): { headline: string; detail: string; tone: "good" | "warn" | "bad" | "neutral" } {
+export function summary(run: Run, numbered = true): { headline: string; detail: string; tone: "good" | "warn" | "bad" | "neutral" } {
   const outcome = run.outcome as Outcome;
-  const name = numbered && run.id != null ? `${modeName(run.mode)} #${run.id}` : modeName(run.mode);
+  const name = numbered && run.id != null ? jobLabel(run.id, run.mode) : modeName(run.mode);
   const headline = `${name} ${VERDICT[outcome.verdict] ?? outcome.verdict}`;
   const lead =
     run.mode === "COPY" && outcome.total != null

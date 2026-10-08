@@ -4,7 +4,7 @@ import { StatsLink } from "./StatsPage";
 import { VersionTag } from "./VersionTag";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
-import { reasonsText, modeName, showsPhotos, summary, useDismissedRun, useJobFeed } from "../jobs";
+import { reasonsText, jobLabel, modeName, showsPhotos, summary, useDismissedRun, useJobFeed } from "../jobs";
 import { follow, photoUrl, useHeaderHeight, useNavigation } from "../nav";
 import { usePaged } from "../paged";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
@@ -32,6 +32,7 @@ function failureHint(op: Operation): string | null {
     return "The copy is at the destination; the original is still in the source. Once the source can be written, move it again to finish the Move.";
   if (op.status !== "Failed") return null;
   const m = op.error_message ?? "";
+  if (/cannot identify image|UnidentifiedImageError|not an image|empty file|zero.byte/i.test(m)) return "The file could not be read as a supported image. Check it outside this app and repair, replace or remove it from the source before re-indexing. It is not a similarity candidate.";
   if (op.mode === "SIMILARITY") return "The photo file was not changed. This failure concerns visual matching; see the recorded reason before retrying. Missing EXIF alone does not mean a file is damaged.";
   if (op.run_level) return "A folder or the whole job, not one photo: nothing inside it was examined. Fix the folder's access, then run an Index.";
   if (m.startsWith("Duplicate verification failed") && m.includes("ChecksumMismatch"))
@@ -261,7 +262,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
         {failuresOnly && (
           <p className="muted">
             Every attempt that failed, whatever the photo's status is now. A failure with no photo is about a folder
-            or the whole job. Retrying runs the same job again for the photos behind these failures.
+            or the whole job. Read the cause before retrying. Unreadable or unrecognized files need external repair; access problems need corrected permissions or a reconnected source. Retry only after addressing the cause.
           </p>
         )}
         {filters.photo != null && (
@@ -342,7 +343,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
                 <button className="job-head" aria-expanded={open} onClick={() => toggleRun(run.id)}>
                   <span className="job-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>
                   <span className="job-title">
-                    <strong>#{run.id} {s?.headline ?? modeName(run.mode)}</strong>
+                    <strong>{s?.headline ?? jobLabel(run.id, run.mode)}</strong>
                     <span className="muted">{instant(run.started_at)}</span>
                   </span>
                   <span className="job-detail" title={reasonsText(run.outcome) ?? undefined}>{s?.detail}</span>
@@ -396,9 +397,9 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
   const failed = data.status_counts.Failed ?? 0;
   const kept = run.mode === "MOVE" ? data.status_counts.Copied_Only ?? 0 : 0;
   const canRetry = failed + kept > 0 && retryModeOf(run) != null;
-  const retryLabel = !kept ? `Retry the ${plural(failed, "failed photo")} (${modeName(run.mode)})`
+  const retryLabel = !kept ? `Recheck ${plural(failed, "failed file")} after fixing (${modeName(run.mode)})`
     : !failed ? `Move the ${plural(kept, "copied-only photo")} again`
-      : `Retry the ${count(failed + kept)} failed and copied-only photos (Move)`;
+      : `Recheck ${count(failed + kept)} failed and copied-only files after fixing (Move)`;
 
   return (
     <div className="job-body">
@@ -410,6 +411,7 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
               {retryLabel}
             </button>
           )}
+          {canRetry && <p className="section-note">Rechecking repeats the job; it cannot repair a damaged file or add format support. Fix the recorded cause first. Interrupted work can be retried once its files and storage are available.</p>}
           {note && <p className="notice" role="status">{note}</p>}
         </div>
       )}

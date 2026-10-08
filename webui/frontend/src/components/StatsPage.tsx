@@ -107,11 +107,11 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
   return (
     <>
       <div className="stat-tiles">
-        <Tile label="Photos" value={count(lib.photos)} sub={bytes(lib.bytes)} href="/" />
-        <Tile label="Organized" value={share(lib.organized, lib.photos)}
+        <Tile label="Catalog photos" value={count(lib.photos)} sub={bytes(lib.bytes)} href={lib.failed_source ? undefined : "/?view=all"} />
+        <Tile label="In Library" value={share(lib.organized, lib.photos)}
               sub={`${count(lib.organized)} of ${count(lib.photos)}`} href="/?view=organized" />
         <Tile label="No capture date" value={count(s.dates.undated)}
-              sub={`${share(s.dates.undated, lib.photos)} of photos`} href="/?undated=1" />
+              sub={`${share(s.dates.undated, lib.photos)} of photos`} href="/?view=all&undated=1" />
         <Tile label="Duplicate copies" value={count(s.duplicates.extra_copies)}
               sub={`${bytes(s.duplicates.bytes)} in extra copies`} />
         <Tile label="Failed attempts" value={count(failed)} sub={failed ? "Open the Error Center" : "None"}
@@ -123,17 +123,19 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
       </div>
 
       <div className="stat-panels">
-        <Panel title="Your library">
+        <Panel title="Catalog overview">
+          <p className="section-note">Includes Library and Not organized. Failed source files are counted separately below; they are excluded from photo size, camera and date statistics. Rejects has its own totals.</p>
           <Facts rows={[
-            ["Photos", `${plural(lib.photos, "photo")} · ${bytes(lib.bytes)}`],
-            ["Organized", <a key="o" href="/?view=organized" onClick={follow}>{plural(lib.organized, "photo")} · {bytes(lib.organized_bytes)}</a>],
-            ["Not yet organized", <a key="n" href="/?view=unorganized" onClick={follow}>{plural(lib.not_organized, "photo")}</a>],
+            ["Catalog photos", `${plural(lib.photos, "photo")} · ${bytes(lib.bytes)}`],
+            ["In Library", <a key="o" href="/?view=organized" onClick={follow}>{plural(lib.organized, "photo")} · {bytes(lib.organized_bytes)}</a>],
+            ["Not organized", <a key="n" href="/?view=unorganized" onClick={follow}>{plural(lib.not_organized, "photo")}{lib.failed_source > 0 && ` · ${plural(lib.failed_source, "file")} needing attention`}</a>],
+            ["Source files needing attention", <a key="failed" href="/logs?status=Failed" onClick={follow}>{count(lib.failed_source)} files · View failure details</a>],
             ["With a location (GPS)", `${plural(lib.with_location, "photo")} · ${share(lib.with_location, lib.photos)} of them`],
             ["Orientation", `${count(lib.orientation.landscape)} landscape · ${count(lib.orientation.portrait)} portrait · ${count(lib.orientation.square)} square`],
           ]} />
           <h4>Formats, by space</h4>
           <Bars rows={lib.formats.map((f) => ({ label: f.format.toUpperCase(), value: f.bytes, text: `${bytes(f.bytes)} · ${plural(f.photos, "photo")}`,
-                                                href: `/?type=${encodeURIComponent(f.format)}` }))} />
+                                                href: lib.failed_source ? undefined : `/?view=all&type=${encodeURIComponent(f.format)}` }))} />
           <h4>Resolution</h4>
           <Bars rows={lib.megapixels.map((m) => ({ label: m.band, value: m.photos, text: count(m.photos) }))} />
           {lib.under_1mp > 0 && <p className="muted">{plural(lib.under_1mp, "photo is", "photos are")} under 1 megapixel: often thumbnails or screenshots.</p>}
@@ -156,7 +158,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
             ["Oldest photo", s.dates.oldest ? photoDate(s.dates.oldest, false) : "–"],
             ["Newest photo", s.dates.newest ? photoDate(s.dates.newest, false) : "–"],
             ["Busiest day", s.dates.busiest_day ? `${photoDate(s.dates.busiest_day.day, false)} · ${plural(s.dates.busiest_day.photos, "photo")}` : "–"],
-            ["No capture date", <a key="u" href="/?undated=1" onClick={follow}>{count(s.dates.undated)}</a>],
+            ["No capture date", <a key="u" href="/?view=all&undated=1" onClick={follow}>{count(s.dates.undated)}</a>],
             ["  no date in the EXIF", count(s.dates.undated_no_date)],
             ["  an unusable date (e.g. 0000:00:00)", count(s.dates.undated_unusable)],
             ["Recorded a time zone", count(s.dates.with_time_zone)],

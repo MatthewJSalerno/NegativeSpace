@@ -736,3 +736,21 @@ preview and close it to restore the summary; toggle each filter twice; open Revi
 photo… and check the reason, action row, compact viewing controls and comparison clues.
 A successful Mark reviewed clears only the size reminder. Unreadable-only source
 results should point to failures rather than offering an ineligible transfer.
+
+
+### Library-only review and job wording
+
+The review API suite covers refusal of review writes outside active Library states,
+reminders leaving the inbox when photos leave Library, retained history, and failed
+sources excluded from photo/date statistics. Browser review and Rejects flows check
+that source/rejected inspectors have no review/similarity actions. Shared browser checks
+cover Job #ID · Action status, failure rechecks and the existing transfer workflows.
+
+Run `DRIVER=source_scope_browser_drive.py` through the browser harness for generated
+empty/text files with image extensions: separate ready/failure counts, saved review
+links refused, failures excluded from Library/date filters, and Stats scope checks.
+
+Manual check after first-run setup: Index, open a source file (information only), Copy,
+open a Library photo (review and similarity available), Reject it and check Return is
+offered without review actions. Check Index-summary ready/failure counts and failure
+links, Stats scope explanations, and the shared job labels in banners and Logs.

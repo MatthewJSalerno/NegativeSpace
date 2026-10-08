@@ -37,7 +37,8 @@ export function ReviewNote({ id, refreshKey, disabled = false, reason = "all", o
     finally { setBusy(false); onBusy?.(false); }
   };
   return <section className="review-note" aria-label="Photo review">
-    {detail && <>
+    {detail && detail.location !== "Library" && <p className="section-note">Review actions are available only for organized photos in Library.</p>}
+    {detail && detail.location === "Library" && <>
       <p className="section-note">Location: {detail.location}</p>
       {(detail.reasons.length > 0 || concerns.length > 0) && <h3>{compact ? "Needs review" : "Why this photo needs review"}</h3>}
       {detail.reasons.filter(n => reason === "all" || n.reason === reason).map(n => <div className="review-reason" key={n.reason}>

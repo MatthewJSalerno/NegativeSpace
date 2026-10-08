@@ -185,7 +185,7 @@ matches and opens the **Similar photos** tab. Users can subsequently
 choose another Inspector percentage without changing gallery order; previous/next
 photo navigation retains that Inspector choice.
 
-The Inspector has **Photo information** and **Similar photos** tabs. Default to
+The Library Inspector has **Photo information** and **Similar photos** tabs. Outside Library show only File information. Default to
 Photo information outside Has similar photos; remember the active tab and threshold
 when using previous/next. A gallery-card click in Has similar photos always opens
 Similar photos, even after the user switched to Photo information.
@@ -485,7 +485,7 @@ this set; stale expansions are rejected rather than silently dropped. Incomplete
 coverage links to matching information and recovery. No persisted group membership,
 keeper inference, EXIF editing or rejecting is introduced by exploring sets.
 
-Review later belongs to the planned Needs review in-tray (`webui-spec.md` §7.9).
+Review later belongs to the built Needs review in-tray (`webui-spec.md` §7.9).
 Its notes record decisions awaiting a person, with reason-specific actions and
 resolved decisions retained in history. This is not a general tagging system;
 computed similar-photo sets remain live queries rather than stored review notes.
@@ -537,7 +537,7 @@ processing or persisted group is implied.
 ## Places, filters and the review inbox
 
 The navigation follows the workflow: Not organized, Library, Needs review, Rejects.
-Not organized, Library and Rejects name locations; Needs review is an overlapping inbox, not a fourth physical place.
+Not organized, Library and Rejects name locations; Needs review is an inbox of organized Library photos, not a fourth physical place.
 Label locations on review cards and in the Inspector/workspace. Counts count distinct
 photos and must not imply the inbox adds files to the library. A new unscoped visit
 starts at Not organized while Library is empty; explicit links retain their view.
@@ -656,3 +656,37 @@ returning to review. With no matches, use one short message, not an empty compar
 column. Incomplete coverage links to Review matching status; absence of evidence is
 not proof of uniqueness. The panels reflow within the shared workspace; the whole
 workspace scrolls, and the photo's controls do not get an inner vertical scroller.
+
+### Review eligibility, failures and job labels
+
+Only organized, active Library photos may receive review decisions or enter similarity
+review. Enforce this using the photo's current state in the API/catalog as well as the
+UI; saved links must not bypass it. Existing review history remains readable. A reminder
+on a photo outside Library does not contribute to the inbox. Not organized shows file
+information, import status and failure details, with no Review photo, Review later,
+Mark reviewed, Reject or Similar photos tab. Rejects shows file information/history and
+Return to library; it has no review or similarity controls.
+
+Beside matching controls say: **Matches are other organized photos in Library. Photos
+in Not organized or Rejects aren't included.** Gallery filters narrow the reference
+photos; candidate matches still come from all active Library photos.
+
+The Index summary separates **Photos ready to organize**, **Files needing attention**
+and **Unfinished processing**. Size/date facts cover successfully indexed source photos;
+failed files are not ordinary missing-date photos. Failure details retain the actual
+cause and a route to the recorded log. Never infer a non-image merely from missing EXIF
+or a failed visual hash. Confirmed non-images/empty files and unreadable or unsupported
+images need distinct explanations and external correction. Source bytes stay untouched.
+Recheck after fixing is explicit: it repeats work and cannot repair content or add a
+missing decoder. Interrupted work may resume once storage and files are available.
+
+Stats labels its broad scope **Catalog photos / Catalog overview**, with **In Library**
+as a separate subtotal. Failed source files are a separate count and are excluded from
+photo trait/date statistics; Rejects has its own totals. Links specify their scope.
+If a mixed source list includes failures, its total says files, not photos. Stats
+Not organized identifies both photo and failure counts. Omit photo-total/format
+drilldown links when the broader target would also include failed files.
+
+Job headings use **Job #ID · Action status**: **Job #2 · Copy finished**. Apply the same
+identity prefix to active/completed jobs, Logs, photo history, lineage, recovery and
+job-photo scopes. The ID numbers jobs across all actions, not copies of an action.

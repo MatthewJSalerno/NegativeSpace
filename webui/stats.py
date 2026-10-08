@@ -83,8 +83,9 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
     """Everything the Stats page shows, read from the catalog in one pass: the library,
     its dates, duplicates, the work done, and the catalog's health. Only what is
     recorded: figures that need unbuilt features (near-duplicates, EXIF edits) are None."""
-    shown = ns_db.sql_values(catalog.VIEWS["all"])
+    shown = ns_db.sql_values(tuple(s for s in catalog.VIEWS["all"] if s != PhotoStatus.FAILED))
     with catalog.connect(db_path) as conn:
+        failed_source = conn.execute("SELECT COUNT(*) FROM photos WHERE status=?", (PhotoStatus.FAILED,)).fetchone()[0]
         photos = conn.execute(
             f"SELECT p.status, p.file_size, COALESCE(CASE WHEN p.status IN ({ns_db.sql_values(catalog.DELIVERED)}) "
             "THEN p.dest_path END, p.source_path) AS path, "
@@ -194,7 +195,7 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
                         for suffix in ("", "-wal") if Path(f"{status_path}{suffix}").exists())
     backup = catalog_backups.backups(db_path, backups_dir, appdata_dir)
     return {
-        "library": {"photos": len(photos), "bytes": total_bytes,
+        "library": {"failed_source": failed_source, "photos": len(photos), "bytes": total_bytes,
                     "organized": len(organized), "organized_bytes": sum(p["file_size"] or 0 for p in organized),
                     "not_organized": len(photos) - len(organized),
                     "formats": sorted(formats.values(), key=lambda f: (-f["bytes"], f["format"])),

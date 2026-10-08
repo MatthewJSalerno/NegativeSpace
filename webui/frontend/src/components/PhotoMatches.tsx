@@ -51,7 +51,7 @@ export function PhotoMatches({ id, name, delivered, view, onView, refreshKey, on
 
   return <section className="info-section photo-matches" aria-label="Similar photos">
     {!delivered ? <p className="muted">Copy or Move this photo to the destination to review visual matches.</p> : <>
-      <p className="section-note">Potential matches at the destination, measured against this photo. Choose a percentage to view them.</p>
+      <p className="section-note">Matches are other organized photos in Library. Photos in Not organized or Rejects aren’t included. Choose a percentage to view matches.</p>
       {summaryError && <p className="error" role="alert">{summaryError} <button onClick={() => setRetry((n) => n + 1)}>Retry match counts</button></p>}
       {!summary && !summaryError && <p role="status">Loading match counts…</p>}
       {summary?.availability === "not_available" && <p>No available destination copy is recorded for this photo.</p>}

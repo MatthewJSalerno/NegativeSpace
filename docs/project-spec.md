@@ -239,7 +239,7 @@ service. Built and tested:
     the library** for each job that acted on photos; and CSV/JSON export.
 
 Built review workflow: Library, Not organized and Rejects are location views; Needs review
-is an overlapping inbox. Each location has one row of filter toggles; Small images
+is an overlapping inbox of organized Library photos. Each location has one row of filter toggles; Small images
 filters Library in place, and the inbox adds Review later to the same row. Active chips
 clear on a second click. The Inspector groups information and actions, while the dedicated
 review workspace puts a large photo beside its reasons, decision buttons and matching clues.
@@ -284,3 +284,8 @@ from observed evidence, opening an attention issue when an outcome cannot be
 established. Complete lineage for every catalogued file in every settled status is
 enforced by test (`TODO.md` claim 11). Content-version history is not yet built. See
 `engine-spec.md` §6.5 and §10.
+
+Library-only review is enforced by the decision API as well as the Inspector. Source
+failures remain import/log concerns with external correction; Rejects offers Return.
+Index summary and Stats distinguish failed files from photo facts. Similarity explicitly
+compares active organized Library photos. Job headings share Job #ID · Action status.

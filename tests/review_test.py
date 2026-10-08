@@ -138,7 +138,7 @@ class ReviewTests(ApiCase):
             c.execute("INSERT INTO photos(source_path,status) VALUES(?,'Failed')",(str(self.cfg.source/'broken.jpg'),))
             c.commit()
         summary=self.client.get('/api/v1/photos?view=unorganized&q=absent').json()['index_summary']
-        self.assertEqual(summary,dict(photos=2,duplicates=1,small=1,minimum=800,unknown_dimensions=1,suspicious=0,undated=2,failed=1,similar=None,last_index=None))
+        self.assertEqual(summary,dict(photos=2,ready=1,unfinished=0,duplicates=1,small=1,minimum=800,unknown_dimensions=0,suspicious=0,undated=1,failed=1,similar=None,last_index=None))
         self.assertEqual(self.client.get('/api/v1/photos?view=review').json()['total'],1)
         self.assertIsNone(self.client.get('/api/v1/photos?view=organized').json()['index_summary'])
         self.enable(None)
@@ -168,3 +168,36 @@ class ReviewTests(ApiCase):
         self.assertEqual(self.send(self.decision()).status_code,200)
         self.assertEqual(self.client.get('/api/v1/photos?view=organized&reason=small').json()['total'],0)
         self.assertEqual(self.client.get('/api/v1/photos?view=organized').json()['total'],2)
+
+    def test_review_decisions_refuse_every_non_library_state(self):
+        for status in ('Pending', 'Processing', 'Failed', 'Rejected', 'Rejected_Copied', 'Rejected_Emptied', 'Duplicate', 'Removed_Duplicate'):
+            with self.subTest(status=status):
+                with ns_db.connect(self.cfg.db_path) as c:
+                    c.execute("UPDATE photos SET status=? WHERE id=3", (status,)); c.commit()
+                body=self.decision(3,reason='later',action='later')
+                response=self.send(body)
+                self.assertEqual(response.status_code,409,response.text)
+                self.assertEqual(self.client.get('/api/v1/photos/3/review').json()['reasons'],[])
+        with ns_db.connect(self.cfg.db_path) as c:
+            self.assertEqual(c.execute('SELECT COUNT(*) FROM review_events').fetchone()[0],0)
+
+    def test_bookmark_leaves_inbox_when_photo_leaves_library(self):
+        self.enable()
+        self.assertEqual(self.send(self.decision(reason='later',action='later')).status_code,200)
+        for status in ('Rejected_Copied','Failed','Pending'):
+            with self.subTest(status=status):
+                with ns_db.connect(self.cfg.db_path) as c:
+                    c.execute("UPDATE photos SET status=? WHERE id=1",(status,));c.commit()
+                self.assertEqual(self.client.get('/api/v1/photos?view=review').json()['total'],0)
+                detail=self.client.get('/api/v1/photos/1/review').json()
+                self.assertEqual(detail['reasons'],[])
+                self.assertEqual(len(detail['history']),1)
+
+    def test_failed_sources_are_not_photo_date_facts(self):
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("UPDATE photos SET status='Failed' WHERE id=3");c.commit()
+        self.assertEqual(self.client.get('/api/v1/photos?view=unorganized&undated=true').json()['total'],0)
+        stats=self.client.get('/api/v1/stats').json()
+        self.assertEqual(stats['library']['failed_source'],1)
+        self.assertEqual(stats['library']['photos'],2)
+        self.assertEqual(stats['library']['organized'],2)

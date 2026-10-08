@@ -596,9 +596,12 @@ file is gone, pruned or never written is `404 backup_unavailable`.
 
 ### `GET /api/v1/stats`
 
-Everything the Stats page shows, read from the catalog in one pass (`webui-spec.md` §5.9):
+Everything the Stats page shows, read from the catalog in one pass (`webui-spec.md` §5.9).
+The `library` photo totals/traits and `dates` cover Library and Not organized, excluding
+Failed source records; `library.failed_source` counts these separately. Rejects totals
+and activity failure-attempt counts have their own scopes:
 
-    {"library": {"photos", "bytes", "organized", "organized_bytes", "not_organized",
+    {"library": {"failed_source", "photos", "bytes", "organized", "organized_bytes", "not_organized",
                  "formats": [{"format": "jpg", "photos", "bytes"}, ...],     // most space first
                  "cameras": [{"name", "photos"}, ...], "lenses": [...],       // top eight each
                  "megapixels": [{"band": "under 1 MP", "photos"}, ...], "under_1mp",
@@ -619,8 +622,9 @@ Everything the Stats page shows, read from the catalog in one pass (`webui-spec.
                 "destination_check": {"at", "findings": {"missing": 1, ...}} | null},
      "rejects": {"photos", "bytes", "oldest_rejected_at", "emptied": {"photos", "bytes"}}}
 
-Counts cover the photos the gallery lists (duplicates are counted apart, in
-`duplicates`). Dates count a date taken only; a photo filed by its file time is
+Photo counts cover indexed/organized catalog entries except Failed sources and Rejects;
+failed sources are counted in `library.failed_source`, and duplicates separately in
+`duplicates`. Dates count a date taken only; a photo filed by its file time is
 `undated`, split into no date in its EXIF and an unusable one. `failures` counts failed
 **attempts** by the start of the recorded reason, so one file failing in two jobs counts
 twice, as the log lists it. Figures that need unbuilt features (`near_duplicates`,
@@ -904,7 +908,7 @@ or hyphen characters). Actions: small/reviewed, later/later, later/done. The eng
 records the decision under its lock; no photo files or selection are changed.
 Returns the current review detail on success. Identical request replay is idempotent.
 400 `invalid_request` rejects malformed input; 409 `review_changed` refuses stale
-content/revision or conflicting request reuse; 409 `job_already_running` refuses a
+content/revision, photos outside Library, or conflicting request reuse; 409 `job_already_running` refuses a
 busy engine; 503 `review_unavailable` means the result could not be confirmed, so
 reload before retrying. Success is shown only after acknowledgement.
 
@@ -912,7 +916,7 @@ reload before retrying. Success is shown only after acknowledgement.
 
 Gallery listing, IDs, position, types, folders and timeline accept `similar` and
 `suspicious` booleans and `reason` (all/small/later). These combine with existing
-filters. `view=review` selects distinct photos with an unresolved supported reason.
+filters. `view=review` selects distinct active Library photos with an unresolved supported reason. Reminders on source/rejected files do not contribute. History remains readable; new decisions require a delivered active photo.
 Listings include `chips` (similar/suspicious/undated/small), `reasons` and filename-only
 `elsewhere` location counts. `reason=small` filters Library as well as the inbox, using
 unacknowledged destination size reminders; it never restricts imports. Chip counts
@@ -920,12 +924,13 @@ apply the other current filters; the small count evaluates that reminder scope.
 Review and organized/similar cards include compact location and current reason details
 (`review: {location,reasons}`), without decision history. Full history remains in the
 per-photo review endpoint. Unorganized listings include `index_summary` (null elsewhere):
-`photos`, `duplicates` (extra Duplicate records sharing content with a remaining source
+`photos` (all remaining source records), `ready` (Pending), `unfinished` (Processing),
+`duplicates` (extra Duplicate records sharing content with a remaining source
 photo), `small`, `minimum` (null when disabled), `unknown_dimensions`, `suspicious`,
 `undated`, `failed` and `similar` (null: source comparisons are uncalculated), plus
 `last_index` (`{id, started_at}` for the latest Index with an end time, or null). This
 identity scopes browser dismissal to that Index; other jobs do not reset it. The summary
-is unfiltered and catalog-only, with no filesystem reads. Existing view names remain accepted
+is unfiltered and catalog-only, with no filesystem reads. Size/date facts exclude Failed/Processing rows and describe only Pending photos. Existing view names remain accepted
 for old links. The UI offers organized (Library), unorganized (Not organized), rejects
 and review, with similarity/date conditions as chips. Settings adds
 `small_image_min`, a positive integer shorter-side minimum or null (disabled).

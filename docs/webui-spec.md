@@ -145,15 +145,15 @@ Users can select individual files or multiple files across grid views to run tar
   on every page, and so does each such job in Logs (**Show these photos in the library**,
   beside Retry): the gallery then shows the photos that job recorded, wherever they are
   now, library or Rejects (`view=job&run=<id>`, in the address). Its line reads "The 400
-  photos in Copy #3 · 398 of 400 files copied · 2 skipped · Back to results" ("their status
+  photos in Job #3 · Copy · 398 of 400 files copied · 2 skipped · Back to results" ("their status
   updates when the job ends" while it runs), and each photo's badge shows where it stands.
   It opens with no search, dates, types or folders, so none of the job's photos is hidden
   by a filter left on; then every filter narrows it ("Showing 37 of 400 photos"), and
   Select all, ticking and the selection bar work as anywhere. **Back to results** restores
   the filters it opened over; a view button leaves it with the filters as they are. A
   job started from a job's photos takes the view with it when it ends ("The 2 photos in
-  Return to library #8"), so the line above them and the finished banner, which names
-  its job too ("Return to library #8 finished"), describe the same job. With nothing
+  Job #8 · Return to library"), so the line above them and the finished banner, which names
+  its job too ("Job #8 · Return to library finished"), describe the same job. With nothing
   ticked, the selection bar is hidden. *Why not land on the job's photos:* it
   took you from where you were after every job, with the page's controls greyed out,
   while most jobs need no follow-up. *Why not a tab or chip for the job:* the banner and
@@ -303,7 +303,7 @@ known small dimensions under the configured rule, missing/suspicious dates, **Im
 unavailable** and processing failures. Image size unavailable means no usable width and
 height were recorded; help explains possible unsupported formats, unreadable files or
 incomplete processing without labelling these files corrupt or non-photos. These counts cover the whole location, not active
-filters. Similarity says **Not calculated for source photos**; a disabled size rule says
+filters. A scope note says similarity compares organized Library photos only; a disabled size rule says
 **Rule disabled**. Date chips already filter the source gallery; the other summary values
 are informational (additional source filters remain planned). Copy all/Move all lead to
 the same confirmations as Jobs. Index failures link to Logs for specific evidence.
@@ -2331,13 +2331,13 @@ reject emptied, its stored thumbnail and details stand in for it.
 
 ### 7.9 Needs review
 
-**Built for Small images and Review later**; the remaining reasons below are planned. **Needs review** lists photos waiting for a decision. Each carries a **note**: a reason, the job that raised it, when, and optionally a
+**Built for Small images and Review later**; the remaining reasons below are planned. **Needs review** lists organized Library photos waiting for a decision. Each carries a **note**: a reason, the job that raised it, when, and optionally a
 related photo, opened side by side in comparison. **Notes are for decisions only**, not a
 general tagging system: personal labels (people, albums) belong to gallery applications.
 
 * **Each reason brings its own actions,** e.g. old version of a photo you fixed: Don't keep
   it · Keep it as its own photo; looks like a reject: Reject it too · Keep it · Keep the old one instead; suspicious
-  date: Edit date · It's correct; couldn't be read: Recheck after fixing · Leave it;
+  date: Edit date · It's correct;
   review later: Done. A new kind of review is a new reason, not a new screen.
 * **Where it lives** (decided 2026-10-05): a Library view, **Needs review (n)**, beside the
   others, so its count is always in sight; each note's reason and buttons show on the
@@ -2370,26 +2370,13 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   **Done** clears it. Not in the selection bar: it is a photo-by-photo bookmark, and it holds
   nothing. It stays a plain "come back to this": no names, colours or lists, which
   would make it the general tagging that belongs to gallery applications.
-* **Whether a photo waits depends on its note** (decided 2026-10-05). A note that holds
-  its photo keeps it from Copy, Move and edits until answered; the others let it carry
-  on as normal and ask afterwards. Small images are explicitly nonblocking:
-
-  | Note | While it waits |
-  | --- | --- |
-  | Which photo is this sidecar for? (§7.5) | Held: the sidecar and every photo it could belong to |
-  | Old version of a photo you fixed | Held: not organized into the library |
-  | Looks like a reject (§7.8) | Carries on: filed as normal; rejecting it later moves it to Rejects |
-  | Suspicious date | Carries on: filed by the date it has; fixing the date refiles it |
-  | Couldn't be read | Nothing to hold: the file failed and stays where it is |
-  | Small image | Carries on: Copy/Move complete normally; review is destination cleanup only |
-  | Couldn't confirm what happened (an attention issue from recovery) | Held: its copy authorizes no removal of a duplicate's original until checked; **Check it now** runs a destination check of the file, whose verified result clears it |
-  | No capture date (§3.1) | Carries on: stays filed under `Undated/` until dated |
-  | Review later (set by the user) | Carries on |
-
-  *Why not hold everything:* a look-alike of a reject may not be one, and holding it would
-  leave a gap in the library until answered. *Why not carry everything on:* filing an
-  unfixed old version beside its fix, or giving a photo another's sidecar, is the wrong
-  thing to do and harder to undo than to wait.
+* **Review belongs after organization** (revised 2026-10-07). The inbox and its
+  decision APIs accept only active Library photos. Source failures belong in import
+  status and Logs, with external correction, not in this inbox. Review later, small
+  images and future date acknowledgments do not block Copy/Move. Existing transfer
+  durability/uncertain-recovery gates remain enforced separately. Planned sidecar
+  association and old-version import decisions need a separate source workflow before
+  implementation; they must not reintroduce source photos into Needs review.
 * **Small images are a cleanup suggestion, never an import restriction** (decided
   2026-10-07). Copy and Move process eligible photos normally, regardless of resolution.
   Delivered photos whose shorter side is below the configured minimum appear in
@@ -2730,3 +2717,27 @@ a single-person tool, so one password, not user accounts.
   since whoever can run it already controls the files); and whether a reverse proxy's
   sign-in can stand in for it.
 
+
+### Library-only review and import failures
+
+The Inspector uses the photo's current state, including when reached through Logs or
+saved links. Not organized shows only File information and import/failure details.
+Rejects adds Return to library; neither place offers review actions or Similar photos.
+The Library similarity panel explicitly says that candidates are organized Library
+photos, excluding Not organized and Rejects. Switching to either excluded place clears
+an active similarity filter; source/rejected comparison links cannot reopen review.
+Review history is retained when a photo leaves Library, but it stops contributing to
+Needs review and new decisions are refused until it is back in Library.
+
+Index summary photo facts cover Pending (successfully indexed) photos only. Failed
+source files and unfinished Processing entries have separate counts. Failed files do
+not appear as ordinary No capture date/Suspicious dates results. Logs keep specific
+causes; Recheck after fixing repeats the job after external repair/access correction,
+without promising to repair a file. Existing decoder-specific recovery remains separate.
+
+Stats calls the combined indexed/organized scope Catalog photos and Catalog overview;
+In Library is explicit. Failed source files have their own count outside photo size,
+camera and date statistics. Activity counts failed attempts rather than distinct files.
+
+Use Job #ID · Action status consistently in job headings and Job #ID · Action in job
+references. For example, Job #2 · Copy finished identifies the second job overall.

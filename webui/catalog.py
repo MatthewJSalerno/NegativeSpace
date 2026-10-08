@@ -31,7 +31,7 @@ COPIES = (PhotoStatus.DUPLICATE, PhotoStatus.REMOVED_DUPLICATE)
 # Rejected photos leave every other view; the Rejects view shows those whose file is
 # still in dest/rejects (engine-spec 9.5).
 VIEWS = {"all": DELIVERED + NOT_ORGANIZED, "organized": DELIVERED, "unorganized": NOT_ORGANIZED, "similar": DELIVERED,
-         "suspicious": DELIVERED + NOT_ORGANIZED, "rejects": IN_REJECTS_STATUSES, "review": DELIVERED + NOT_ORGANIZED + IN_REJECTS_STATUSES}
+         "suspicious": DELIVERED + NOT_ORGANIZED, "rejects": IN_REJECTS_STATUSES, "review": DELIVERED}
 # Photos whose catalogued file is at the destination, in the library or in Rejects.
 AT_DESTINATION = DELIVERED + IN_REJECTS_STATUSES
 # How long one listing of dest/rejects answers "is this file still there", so a gallery
