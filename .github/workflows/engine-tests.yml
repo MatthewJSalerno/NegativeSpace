@@ -57,6 +57,9 @@ jobs:
         # host because it starts the containers and a Playwright container.
         run: sh tests/browser/webui_browser_test.sh
 
+      - name: Request counts and job-finish freshness
+        run: DRIVER=request_freshness_browser_drive.py sh tests/browser/webui_browser_test.sh
+
       - name: Appearance palettes in a browser
         run: DRIVER=appearance_browser_drive.py sh tests/browser/webui_browser_test.sh
 

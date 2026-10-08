@@ -142,6 +142,7 @@ of the checkout, build that copy under another tag, and run with `IMAGE` set to 
 | :--- | :--- | :--- |
 | `webui_browser_drive.py` (default) | | First run, Index, the gallery, Inspector, selection, Copy, Stats, Settings, backups, search, phone width; runs the shared UI checks |
 | `ui_browser_drive.py` | | The shared UI checks alone |
+| `request_freshness_browser_drive.py` | | One initial Stats/log/facet request, refresh after a real job, retained Stats border/spacing in both themes and desktop reflow |
 | `appearance_browser_drive.py` | | Palettes, explicit/system modes, contrast, cross-tab storage, shared page tools and narrow controls |
 | `date_settings_browser_drive.py` | | Setup year choice, settings validation/persistence, immediate filter and Inspector updates |
 | `navigation_browser_drive.py` | | Links, Back/Forward, restoration |

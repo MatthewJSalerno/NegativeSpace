@@ -283,3 +283,20 @@ broader profiling; these timings do not measure photo decoding, transfers or sto
 latency. Generate catalogs with the existing synthetic tool, copy the generated fixture
 for writable review settings, enable `small_image_min=800`, and time both views on that
 copy to repeat this check.
+
+## Avoid repeated initial requests
+
+The shared job feed establishes its baseline before page queries start. The initial
+last-job snapshot no longer triggers a second load of Stats, Logs or gallery facets.
+A new terminal run still refreshes the screen; no query-result cache or SQL change
+is involved. The browser regression measures one initial request for Stats, the log
+run list and each gallery facet, and exactly one Stats refresh after a real Copy.
+Before the fix, Stats and status each made two initial requests.
+
+On a generated sparse catalog of 200,000 photos, the unchanged Stats helper took
+1,239.85 ms for the first call and 1,250.12–1,254.24 ms for three subsequent calls.
+Its 23 SELECT statements and query plans are unchanged. Removing the duplicate avoids
+one complete Stats calculation (about 1.25 seconds of isolated backend work on this
+fixture); this is not a claim of a 1.25-second browser wall-clock improvement. Metadata
+is compact synthetic data; broad aggregate caching and representative-library tuning
+remain separate work, to be justified by further measurements.

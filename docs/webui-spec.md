@@ -651,6 +651,13 @@ browser independently of the overall Inspector width.
   the recorded final duration. A crash with no reliable end time must show duration
   as unavailable or approximate, not treat later reconciliation as the actual end.
   Timestamp storage and display follow §10.
+* **Refresh ownership:** one job feed is shared across pages and review workspaces.
+  Establish its initial snapshot before page queries begin; that snapshot is a baseline,
+  not a newly completed job. A changed terminal run refreshes page data and status once,
+  including after reconnect and jobs too short to observe running. Initial WebSocket
+  failure falls back to the job-state HTTP endpoint so browsing remains available;
+  loss of the live connection stays visible. Settings saves and return-to-window status
+  refreshes still update Library. No gallery, facet, log or Stats response cache is added.
 * **Data contract:** the API reads `ns_db.read_progress(run_id)`, which the engine writes
   about once a second (`engine-spec.md` §4.3, table `run_progress`). It holds one entry
   per phase the run entered, in order, and the last is the current one. Each entry

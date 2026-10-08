@@ -1,44 +1,83 @@
 // The job feed (WS /api/v1/ws/jobs) and the words the drawer uses for it.
-import { useEffect, useRef, useState } from "react";
-import type { JobState, Outcome, Phase, Run } from "./api";
+import { createContext, createElement, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { api, type JobState, type Outcome, type Phase, type Run } from "./api";
 import { count, plural } from "./format";
 
 export type Connection = "connecting" | "open" | "lost";
 
 // One socket for the page. On connect the server sends the current state, so a
 // refresh or reconnect never restarts a job or loses its elapsed time (webui-spec 4.1).
-export function useJobFeed(): { jobs: JobState; connection: Connection } {
-  const [jobs, setJobs] = useState<JobState>({ active: null, last: null });
-  const [connection, setConnection] = useState<Connection>("connecting");
-  const retry = useRef(0);
+interface JobFeed { jobs: JobState; connection: Connection }
+const JobFeedContext = createContext<JobFeed | null>(null);
 
+// Establish a baseline before page queries start. Otherwise the initial last-job
+// snapshot looks like a newly finished job and repeats every expensive request.
+// The provider survives navigation; it caches job state, never gallery/query data.
+export function JobFeedProvider({ children }: { children: ReactNode }) {
+  const [jobs, setJobs] = useState<JobState | null>(null);
+  const [connection, setConnection] = useState<Connection>("connecting");
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let socket: WebSocket | null = null;
-    let timer: number | undefined;
-    let stopped = false;
+    let retryTimer: number | undefined;
+    let fallbackTimer: number | undefined;
+    let stopped = false, received = false, retry = 0;
+    const fallback = () => {
+      if (stopped || received) return;
+      api.jobState().then((state) => {
+        if (!stopped && !received) { setJobs(state); setError(false); }
+      }, () => { if (!stopped && !received) setError(true); });
+    };
     const connect = () => {
       const scheme = window.location.protocol === "https:" ? "wss" : "ws";
       socket = new WebSocket(`${scheme}://${window.location.host}/api/v1/ws/jobs`);
-      socket.onopen = () => {
-        retry.current = 0;
-        setConnection("open");
+      socket.onopen = () => { retry = 0; setConnection("open"); };
+      socket.onmessage = (event) => {
+        if (stopped) return;
+        received = true;
+        setJobs(JSON.parse(event.data) as JobState); setError(false);
       };
-      socket.onmessage = (event) => setJobs(JSON.parse(event.data) as JobState);
       socket.onclose = () => {
         if (stopped) return;
         setConnection("lost");
-        retry.current = Math.min(retry.current + 1, 5);
-        timer = window.setTimeout(connect, 500 * 2 ** retry.current);
+        retry = Math.min(retry + 1, 5);
+        retryTimer = window.setTimeout(connect, 500 * 2 ** retry);
       };
     };
     connect();
+    // A proxy without WebSocket support must not prevent browsing. The drawer
+    // still reports the lost live connection; a later snapshot catches up.
+    fallbackTimer = window.setTimeout(fallback, 2000);
     return () => {
       stopped = true;
-      window.clearTimeout(timer);
+      window.clearTimeout(retryTimer); window.clearTimeout(fallbackTimer);
       socket?.close();
     };
-  }, []);
-  return { jobs, connection };
+  }, [attempt]);
+  if (!jobs) return createElement("div", { className: "center-page", role: "status" },
+    error ? "Job state could not be loaded. " : "Loading…",
+    error && createElement("button", { onClick: () => { setError(false); setAttempt(n => n + 1); } }, "Retry"));
+  return createElement(JobFeedContext.Provider, { value: { jobs, connection } }, children);
+}
+
+export function useJobFeed(): JobFeed {
+  const feed = useContext(JobFeedContext);
+  if (!feed) throw new Error("JobFeedProvider is required");
+  return feed;
+}
+
+export function useJobCompletion(onFinished: () => void) {
+  const { jobs } = useJobFeed();
+  const key = jobs.last && !["Preparing", "Running", "Cancelling"].includes(jobs.last.status)
+    ? `${jobs.last.id}:${jobs.last.status}` : null;
+  const previous = useRef(key);
+  const callback = useRef(onFinished); callback.current = onFinished;
+  useEffect(() => {
+    if (key == null) return;
+    if (previous.current !== key) callback.current();
+    previous.current = key;
+  }, [key]);
 }
 
 const MODE_NAME: Record<string, string> = {

@@ -3,7 +3,7 @@ import { PageNavigation } from "./PageNavigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, type Stats, type Status } from "../api";
 import { ago, bytes, count, instant, photoDate, plural } from "../format";
-import { useJobFeed } from "../jobs";
+import { useJobCompletion, useJobFeed } from "../jobs";
 import { follow, useHeaderHeight } from "../nav";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
 import { Logo } from "./Logo";
@@ -35,19 +35,18 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
   const [error, setError] = useState<string | null>(null);
   const [dismissedId, dismissRun, dismissal] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
-  const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
+  const [refreshKey, setRefreshKey] = useState(0);
+  useJobCompletion(() => { setRefreshKey(k => k + 1); refreshStatus(); });
   const header = useRef<HTMLElement>(null);
   useHeaderHeight(header);
 
   // A job finishing changes the figures.
-  const lastKey = jobs.last && !jobRunning ? `${jobs.last.id}:${jobs.last.status}` : null;
   useEffect(() => {
     let live = true;
     api.stats().then((s) => live && setStats(s),
       (e) => live && setError(e instanceof ApiError ? e.message : "The stats could not be loaded."));
-    if (lastKey) refreshStatus();
     return () => { live = false; };
-  }, [lastKey]);
+  }, [refreshKey]);
 
 
   return (

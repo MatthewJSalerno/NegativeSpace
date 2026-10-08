@@ -13,7 +13,7 @@ import { Logo } from "./Logo";
 import { PageTools } from "./PageTools";
 import { api, ApiError, submissionSnapshot, subscribeSubmission, MATCH_THRESHOLDS, type ActionMode, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
 import { count, plural } from "../format";
-import { jobLabel, summary, useJobFeed } from "../jobs";
+import { jobLabel, summary, useJobCompletion, useJobFeed } from "../jobs";
 import { Gallery } from "./Gallery";
 import { Inspector } from "./Inspector";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
@@ -271,7 +271,10 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     } catch { /* Dismissal still works for this visit without storage. */ }
     requestAnimationFrame(() => summaryToggle.current?.focus({ preventScroll: true }));
   };
-  useEffect(() => { setRefreshKey(n => n + 1); }, [status]);
+  const seenStatus = useRef(status);
+  useEffect(() => {
+    if (seenStatus.current !== status) { seenStatus.current = status; setRefreshKey(n => n + 1); }
+  }, [status]);
   useEffect(() => {
     const update = () => setRefreshKey(n => n + 1);
     window.addEventListener("ns-review-changed", update);
@@ -326,20 +329,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
 
   useHeaderHeight(header);
 
-  // A finished job changes the catalog: refresh the view and the counts. Keyed on
-  // the last finished run rather than on seeing a job stop, because a job shorter
-  // than one feed update is never seen running at all. The first value seen is the
-  // baseline even when there is no finished run yet, so the very first job on a new
-  // catalog still refreshes the view.
-  const lastFinished = jobs.last && !jobRunning ? `${jobs.last.id}:${jobs.last.status}` : null;
-  const seenFinished = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    if (seenFinished.current !== undefined && lastFinished != null && seenFinished.current !== lastFinished) {
-      setRefreshKey((k) => k + 1);
-      refreshStatus();
-    }
-    seenFinished.current = lastFinished;
-  }, [lastFinished, refreshStatus]);
+  // The status response triggers one refresh, including settings/focus updates.
+  useJobCompletion(refreshStatus);
 
   // Only a changed search goes back to page 1; loading the page keeps the URL's page.
   useEffect(() => {

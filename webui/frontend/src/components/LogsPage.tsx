@@ -6,7 +6,7 @@ import { Logo } from "./Logo";
 import { PageTools } from "./PageTools";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
-import { reasonsText, jobLabel, modeName, showsPhotos, summary, useJobFeed } from "../jobs";
+import { reasonsText, jobLabel, modeName, showsPhotos, summary, useJobCompletion, useJobFeed } from "../jobs";
 import { follow, photoUrl, useHeaderHeight, useNavigation } from "../nav";
 import { usePaged } from "../paged";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
@@ -154,9 +154,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
     api.runs(RUNS_LISTED).then((r) => setRuns(r.runs.filter((run): run is RecordedRun => run.id != null)), () => setRuns([]));
   }, [refreshKey]);
 
-  // A job finishing changes the log.
-  const lastKey = jobs.last && !jobRunning ? `${jobs.last.id}:${jobs.last.status}` : null;
-  useEffect(() => { if (lastKey) { setRefreshKey((k) => k + 1); refreshStatus(); } }, [lastKey]);
+  useJobCompletion(() => { setRefreshKey(k => k + 1); refreshStatus(); });
 
   const set = (patch: Partial<LogFilters>) => setFilters((f) => ({ ...f, ...patch }));
   const toggleRun = (id: number) => setExpanded((cur) => {
