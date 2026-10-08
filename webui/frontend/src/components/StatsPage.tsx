@@ -1,3 +1,4 @@
+import { PageNavigation } from "./PageNavigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, type Stats, type Status } from "../api";
 import { ago, bytes, count, instant, photoDate, plural } from "../format";
@@ -53,10 +54,7 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
       <header className="toolbar" ref={header}>
         <div className="toolbar-row">
           <h1 className="brand"><Logo />NegativeSpace</h1>
-          <nav className="pages" aria-label="Pages">
-            <a className="button-link" href="/" onClick={follow}>Library</a>
-            <a className="button-link" href="/logs" onClick={follow}>Logs</a>
-          </nav>
+          <PageNavigation />
           <PageTools version={status.version} stats onOpenSettings={onOpenSettings} />
         </div>
         <JobDrawer jobs={jobs} connection={connection} />

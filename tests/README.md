@@ -781,3 +781,11 @@ on Library, Logs and Stats. Backups links must open the Backups settings tab dir
 
 The date-settings driver also resizes an open Inspector behind Settings: Settings
 remains on top, and the narrow Inspector becomes modal only after Settings closes.
+
+Layout stability: run `DRIVER=layout_stability_browser_drive.py` through the browser
+harness with the built `IMAGE`/`WEB_IMAGE`. Generated photos plus one invalid image
+exercise real job failures. It measures filter, summary and pager positions before and
+after settled status/reason changes (1px tolerance) at 1440, 1000 and 720px; checks the
+Logs navigation position across Library, Logs and Stats; and verifies filtered counts.
+Set `SHOTS` to inspect the reserved spacing. This covers routine filter transitions,
+not intentional expansion of jobs, errors, Inspectors or similarity tools.

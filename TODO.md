@@ -56,6 +56,13 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Views
 
+- [x] Stable filter guidance and navigation: shared guidance sizing for Logs/gallery/
+  review reasons; fixed Logs position when Jobs is absent; stable status shortcuts,
+  filter summaries and action heights. Browser positions checked at desktop/reflow widths.
+- [ ] Discuss whether Needs review remains a separate location or becomes a Library
+  summary with reason filters. Keep navigation unchanged until decided; define the
+  distinct-photo count and provide a visible Review later filter in any replacement.
+
 - [x] Workflow order, Not organized guidance and Index summary; Library review markers
   open the photo’s reason in Needs review without changing selection, with a return
   to the entry Library context.

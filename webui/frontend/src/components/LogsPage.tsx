@@ -1,3 +1,5 @@
+import { StableContent } from "./ui/StableContent";
+import { PageNavigation } from "./PageNavigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
 import { PageTools } from "./PageTools";
@@ -241,10 +243,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
       <header className="toolbar" ref={header}>
         <div className="toolbar-row">
           <h1 className="brand"><Logo />NegativeSpace</h1>
-          <nav className="pages" aria-label="Pages">
-            <a className="button-link" href="/" onClick={follow}>Library</a>
-            <a className="button-link active" href="/logs" onClick={follow} aria-current="page">Logs</a>
-          </nav>
+          <PageNavigation active="logs" />
           <PageTools version={status.version} onOpenSettings={onOpenSettings} />
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
@@ -254,12 +253,13 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
 
       <main id="main-content" tabIndex={-1} className="logs">
         <h2>{failuresOnly ? "Failures" : "Log"}{filters.photo != null ? ` for photo #${filters.photo}` : ""}</h2>
-        {failuresOnly && (
-          <p className="muted">
+        <StableContent active={failuresOnly ? "failed" : "all"} variants={{
+          all: <p className="muted">Browse recorded work across jobs. Filter by status, date, photo or message; expand a job for its file details.</p>,
+          failed: <p className="muted">
             Every attempt that failed, whatever the photo's status is now. A failure with no photo is about a folder
             or the whole job. Read the cause before retrying. Unreadable or unrecognized files need external repair; access problems need corrected permissions or a reconnected source. Retry only after addressing the cause.
           </p>
-        )}
+        }} />
         {filters.photo != null && (
           <p className="muted">
             Everything recorded for this photo across jobs, including its copies and moves.{" "}
@@ -296,10 +296,10 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
                   <input type="checkbox" checked={ticked(s)} disabled={last} onChange={() => toggleStatus(s)} />
                   {STATUS_LABEL[s]} <span className="view-count">({count(totals?.status_counts[s] ?? 0)})</span>
                 </label>
-                {statuses.length > 1 && !(filters.status.length === 1 && filters.status[0] === s) && (
-                  <button className="link status-only" onClick={() => set({ status: [s] })}
-                          aria-label={`Show only ${STATUS_LABEL[s]}`}>only</button>
-                )}
+                <button className="link status-only" onClick={() => set({ status: [s] })}
+                  aria-hidden={statuses.length < 2 || (filters.status.length === 1 && filters.status[0] === s)}
+                  inert={statuses.length < 2 || (filters.status.length === 1 && filters.status[0] === s)}
+                  aria-label={`Show only ${STATUS_LABEL[s]}`}>only</button>
               </span>
             );
           })}
@@ -308,11 +308,10 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
         {notice && <p className="notice" role="status">{notice}{CALLS_FOR_INDEX.test(notice) && <> {indexButton}</>}</p>}
         {error && <p className="error">{error}</p>}
 
-        {active.length > 0 && (
-          <p className="dates-filter-line">
-            Showing: {active.join(" · ")} · <button className="link" onClick={clearAll}>Clear all filters</button>
-          </p>
-        )}
+        <p className="dates-filter-line log-filter-summary">
+          <span>{active.length ? `Showing: ${active.join(" · ")}` : "Showing all log entries"}</span>
+          <button className="link" aria-hidden={!active.length} inert={!active.length} onClick={clearAll}>Clear all filters</button>
+        </p>
         {runs && totals && (
           <div className="job-list-head">
             <span className="muted">

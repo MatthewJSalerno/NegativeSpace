@@ -99,6 +99,34 @@ preview and confirmation controls. Navigation goes to its named destination/tab.
 | Supplemental help | `Tip.tsx`: hover/focus plus an explicit information button for touch; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. |
 | Paged loading | `ui/PageBoundary.tsx` and `paged.ts`: idle/load, pending, failed/retry and end states. Keep already-loaded photos and selection on failure. |
 
+## Stable navigation and filtering
+
+Page navigation uses `PageNavigation.tsx`: Library, a reserved Jobs slot, then Logs.
+Logs and Stats leave the Jobs slot empty; do not show a disabled command or move Logs.
+The active label's weight must not change the position of adjacent links.
+
+Routine filter guidance swaps in place, rather than inserting a paragraph above
+controls/results. Use `ui/StableContent.tsx` for known alternative explanations: all
+variants share a naturally sized grid cell, with only the active variant visible,
+focusable and exposed to assistive technology. The tallest wrapped variant reserves
+space at the current width/font size. Do not clip text or impose fixed pixel heights.
+Needs review reason explanations, gallery date/group guidance and Logs failure guidance
+use this shared pattern.
+
+Logs always has a filter-summary row; unavailable status **only** shortcuts retain
+their space without remaining interactive. Job-list summaries reserve control height
+when Expand all disappears. Gallery counts and filter actions share a stable summary
+row; grouping controls have their own wrapping row when similarity is active. Reserve
+control height for the location heading's Clear filters action. Longer user-entered
+filters may wrap naturally; do not hide meaningful restrictions to force a height.
+
+Adding substantive controls (such as similarity tools), opening a job or Inspector,
+and revealing an error can legitimately change content. Routine helper text alone
+must not move the controls the user is operating. Verify before/after positions after
+the server response at desktop and narrow desktop widths, and inspect screenshots to
+avoid reserving excessive blank space. `layout_stability_browser_drive.py` guards the
+shared navigation, Logs status filtering, and Library/Needs review reason toggles.
+
 ## Workspaces
 
 The Library is for finding photos; a **workspace** is for working on them. Deep tasks

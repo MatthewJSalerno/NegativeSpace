@@ -586,7 +586,8 @@ and Gmail, so that no menu has to adapt to what is selected:
   shows) and **all (n)**. *Why "Jobs":* it holds exactly the jobs, and pairs with Logs,
   which lists them; "Organize" sat over the Organized view and would clash with To
   organize, and "Actions" would overlap the selection bar. Logs and Stats have no menu; Logs offers
-  **Run an Index** where a failure needs it.
+  **Run an Index** where a failure needs it. The shared page navigation reserves the
+  Jobs slot on these pages so Logs stays in the same position; there is no disabled Jobs button.
 * *Why the top bar, not a floating bottom bar:* the selection count is already read there,
   the bar stays in view, and a bottom bar would cover the last row of photos.
 The toolbar's second row holds the views,
@@ -1170,6 +1171,13 @@ Users can view exact system error strings (e.g., `PermissionError`, `ChecksumMis
 **No dedicated retry subsystem.** There is no "Retry Item" / "Retry All Failed" backend endpoint and no `retry_count` tracking. A failed file's `photos.status` is reset to `Pending` automatically the next time it's re-indexed (a plain re-scan, full or `--file-ids`-scoped), so retrying means explicitly submitting a new operation. Successfully copied files remain in source; successfully moved files normally do not. Do not promise that rerunning requires no scanning or verification. The web UI's equivalent of "retry" is selecting the photos associated with failed attempts and re-issuing the same Move/Copy operation via `POST /api/v1/jobs/start` with their IDs in `file_ids` — no new endpoint required. Take those IDs from the failed `operations` rows rather than from `photos.status`, deduplicating when several attempts reference one photo, and do not require the photo's current status to be `Failed`: a duplicate-verification failure stays `Duplicate` and is retried by Move's duplicate cleanup on the next run. Retrying does not by itself fix a content mismatch or an unreadable file, so the UI should not promise that it will.
 
 ### 5.4 Operations Audit Log (`/logs`)
+
+Failure guidance replaces the general introduction in a shared, naturally sized area;
+selecting Failed does not insert a new row above the filters. The active-filter summary
+always occupies its row, showing **Showing all log entries** when unrestricted.
+Status **only** shortcuts retain their space when unavailable, and the job summary
+retains control height without Expand all. See the shared layout contract in
+`ui-design.md`, "Stable navigation and filtering".
 **Built** (`api-spec.md` §5a). The Library and Logs pages are switched from the toolbar. The
 log is grouped by job, newest first: each job is one line (its summary and how many
 entries match) until opened, and its entries page on their own. Filters apply inside

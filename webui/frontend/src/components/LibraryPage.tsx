@@ -1,3 +1,5 @@
+import { StableContent } from "./ui/StableContent";
+import { PageNavigation } from "./PageNavigation";
 import { ReviewWorkspace } from "./ReviewWorkspace";
 // The Library: the gallery with its views, filters and selection, the Inspector, and
 // the jobs started from it (webui-spec 2 and 4).
@@ -913,16 +915,12 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       <header className="toolbar" ref={header}>
         <div className="toolbar-row">
           <h1 className="brand"><Logo />NegativeSpace</h1>
-          <nav className="pages" aria-label="Pages">
-            <a className="button-link active" href="/" onClick={follow} aria-current="page">Library</a>
-            <JobsMenu
+          <PageNavigation active="library" jobs={<JobsMenu
               state={{ jobRunning, noPhotos, eligible: status.eligible, copied: status.copied,
                        folder: folderShown ? { name: folderLabel(folderShown.path), eligible: folderShown.eligible } : null,
                        folders: folders.length }}
               onIndex={start("index")}
-              onTransfer={(mode, scope) => (scope === "folder" ? askFolder(mode) : askTransfer(mode))} />
-            <a className="button-link" href="/logs" onClick={follow}>Logs</a>
-          </nav>
+              onTransfer={(mode, scope) => (scope === "folder" ? askFolder(mode) : askTransfer(mode))} />} />
           {selected.size > 0 && (
             <SelectionBar selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
                           counts={selectionActions} place={place} jobRunning={jobRunning} onAction={transferSelected}
@@ -1051,7 +1049,6 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             </div>
           )}
           {!focus && browseView === "rejects" && data?.rejects && <RejectsLine rejects={data.rejects} />}
-          {!focus && suspicious && <p className="dates-filter-line">Recorded years before {data?.date_min_year ?? "the earliest expected year"} or more than one year ahead. Open a photo to inspect its date and source. These are review hints; dates remain unchanged. Date editing is not yet available. <button className="link" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>}
           {!focus && <div className="gallery-context">
             <h2>{VIEW_LABEL[view]}</h2>
             {(undated || dates.length > 0 || types.length > 0 || folders.length > 0 || !!q || similar || suspicious) && <p className="section-note">
@@ -1087,17 +1084,36 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             <p className="notice">Organized photos in Library awaiting a decision. These photos also appear in Library; the counts do not add together.</p>
             <div className="photo-actions"><button disabled={!data?.total} title={!data?.total ? "No photos match these review filters." : undefined}
               onClick={() => setReviewPhoto(data!.items[0].id)}>Review one by one</button></div>
-            <div className="review-reason-guidance">
-              <p className="section-note" aria-hidden={reason !== "all"} inert={reason !== "all"}>Use the filters above to focus your review. Click an active filter again to clear it.</p>
-              <p className="section-note" aria-hidden={reason !== "small"} inert={reason !== "small"}>Small size is a reason to look, not a reason to reject. Mark reviewed clears a photo’s size reminder. <button className="photo-action" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>
-              <p className="section-note" aria-hidden={reason !== "later"} inert={reason !== "later"}>Photos you marked to revisit. Done clears the reminder and leaves the photo in place.</p>
-            </div>
+            <StableContent active={reason} variants={{
+              all: <p className="section-note">Use the filters above to focus your review. Click an active filter again to clear it.</p>,
+              small: <p className="section-note">Small size is a reason to look, not a reason to reject. Mark reviewed clears a photo’s size reminder. <button className="photo-action" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>,
+              later: <p className="section-note">Photos you marked to revisit. Done clears the reminder and leaves the photo in place.</p>,
+            }} />
           </>}
           <div className="gallery-summary">
             <span>{gallerySummary ? plural(gallerySummary.total, galleryNoun) : "Loading photos…"}</span>
-            {similar && focus?.kind !== "set" && focus?.kind !== "review" && <>
+            {!focus && <div className="gallery-filter-summary">
+              {data && (dates.length > 0 || types.length > 0 || folders.length > 0 || !!q || undated) && (
+                <span className="gallery-filters">
+                  {/* What is shown, against the library the view buttons count. */}
+                  <Tip text={`Only ${[...folders.map(folderLabel), ...dates.map(dateLabel), ...types.map(typeLabel), ...(q ? [`filenames matching “${q}”`] : []), ...(undated ? ["photos without a capture date"] : [])].join(", ")}`}>
+                    <span>{grouped ? `${count(data.total)} sets matching filters` : `Showing ${count(data.total)} of ${plural((data.counts as Record<string, number>)[browseView] ?? 0, galleryNoun)}`}</span>
+                  </Tip>
+                  {data && data.total > 0 && (
+                    <> · <button className="link" onClick={selectAll} disabled={jobRunning}
+                                 title={jobRunning ? "Selection is unavailable while a job is running." : undefined}>
+                      Select these {count(data.total)}
+                    </button></>
+                  )}
+                {dates.length > 0 && <>{" · "}<button className="link" onClick={() => changeDates([])}>Show all dates</button></>}
+                {types.length > 0 && <>{" · "}<button className="link" onClick={() => changeTypes([])}>Show all types</button></>}
+                {folders.length > 0 && <>{" · "}<button className="link" onClick={() => changeFolders([])}>Show all folders</button></>}
+              </span>
+            )}
+            </div>}
+            {similar && focus?.kind !== "set" && focus?.kind !== "review" && <span className="similar-summary-controls">
               {similarityPlace && <label title={groupingUnavailable ?? undefined}><input type="checkbox" checked={grouped} disabled={!!groupingUnavailable}
-                aria-describedby={hasAdditionalFilters && !focus ? "grouping-unavailable" : undefined}
+                aria-describedby={hasAdditionalFilters && !focus ? "gallery-guidance" : undefined}
                 onChange={e => { setGroupSets(e.target.checked); setPage(1); savePreference("ns.groupSets", String(e.target.checked)); setExploreReference(null); }} />Group similar photos</label>}
               <label className="gallery-match-threshold">Matches at or above
                 <select aria-label="Gallery match threshold" value={matchMin} disabled={!!focus}
@@ -1110,33 +1126,20 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               <Tip text="Gallery totals count sets when grouping is on; sidebar and view counts count photos. Match counts include direct matches across the destination library, including outside these filters. Open a photo to review its matches. Percentages measure visual similarity, not confidence; 100% does not mean identical files.">
                 <span className="muted">{matchMin < 90 ? "Below 90%, matches are more likely to be unrelated." : "Counts cover the destination library."}</span>
               </Tip>
-            </>}
-            {!focus && data && (dates.length > 0 || types.length > 0 || folders.length > 0 || !!q || undated) && (
-              <span className="gallery-filters">
-                {/* What is shown, against the library the view buttons count. */}
-                <Tip text={`Only ${[...folders.map(folderLabel), ...dates.map(dateLabel), ...types.map(typeLabel), ...(q ? [`filenames matching “${q}”`] : []), ...(undated ? ["photos without a capture date"] : [])].join(", ")}`}>
-                  <span>{grouped ? `${count(data.total)} sets matching filters` : `Showing ${count(data.total)} of ${plural((data.counts as Record<string, number>)[browseView] ?? 0, galleryNoun)}`}</span>
-                </Tip>
-                {data && data.total > 0 && (
-                  <> · <button className="link" onClick={selectAll} disabled={jobRunning}
-                               title={jobRunning ? "Selection is unavailable while a job is running." : undefined}>
-                    Select these {count(data.total)}
-                  </button></>
-                )}
-              {dates.length > 0 && <>{" · "}<button className="link" onClick={() => changeDates([])}>Show all dates</button></>}
-              {types.length > 0 && <>{" · "}<button className="link" onClick={() => changeTypes([])}>Show all types</button></>}
-              {folders.length > 0 && <>{" · "}<button className="link" onClick={() => changeFolders([])}>Show all folders</button></>}
-            </span>
-          )}
+            </span>}
           </div>
           {!focus && similar && data?.similarity && (data.similarity.pending > 0 || data.similarity.unavailable > 0) && <p className="dates-filter-line">
             Counts may be incomplete: {plural(data.similarity.pending, "photo awaiting comparison", "photos awaiting comparison")};
             {" "}{plural(data.similarity.unavailable, "photo without a usable visual hash", "photos without a usable visual hash")}.
           </p>}
-          {similar && similarityPlace && hasAdditionalFilters && !focus && <p id="grouping-unavailable" className="section-note">
-            Showing every photo that matches all active filters. Clear the other filters to group similar photos.
-          </p>}
-          {grouped && <p className="section-note">Identical sets appear once; partially overlapping sets remain separate. A reference matching your filters represents each set. Set members come from the full destination library. Checkboxes select only the reference photo. Turn grouping off to see every photo.</p>}
+          {!focus && <StableContent id="gallery-guidance" className="gallery-guidance" active={suspicious ? (similar && hasAdditionalFilters ? "filtered-dates" : "dates")
+           : grouped ? "groups" : similar && hasAdditionalFilters ? "filtered" : "browse"} variants={{
+           browse: <p className="section-note">Filters narrow the gallery. Checkboxes select photos for actions.</p>,
+           dates: <p className="section-note">Date review: before {data?.date_min_year ?? "your earliest expected year"} or more than one year ahead. Dates are unchanged. <button className="link" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>,
+           groups: <p className="section-note">Identical sets appear once; partially overlapping sets remain separate. Set members come from the full destination library. Checkboxes select only the reference photo. Turn grouping off to see every photo.</p>,
+           filtered: <p className="section-note">Showing every photo that matches all active filters. Clear the other filters to group similar photos.</p>,
+           "filtered-dates": <p className="section-note">Showing every photo that matches all active filters. Clear the other filters to group similar photos. Date review: before {data?.date_min_year ?? "your earliest expected year"} or more than one year ahead. Dates are unchanged. <button className="link" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>,
+         }} />}
           <SimilarityRecovery visible={!focus && similar && !!data?.similarity && (data.similarity.pending > 0 || data.similarity.unavailable > 0)} />
           {!focus && similar && data?.counts.organized === 0 && <p className="dates-filter-line">
             Copy or Move indexed photos to the destination first.

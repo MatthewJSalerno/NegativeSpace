@@ -94,7 +94,8 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 .mounts-note ul { padding-left: var(--space-4); }
 .logo { flex: none; display: block; }
 .views { display: flex; gap: var(--space-1); flex-wrap: wrap; }
-.pages { display: flex; gap: var(--space-1); }
+.pages { display: grid; grid-template-columns: 5rem 5rem max-content; gap: var(--space-1); align-items: center; }
+.page-jobs-slot { min-width: 0; }
 .views button { border-color: transparent; }
 .views button.active { border-color: var(--accent); color: var(--accent); }
 .views .filter { border: 1px dashed var(--border); margin-left: var(--space-1); }
@@ -398,7 +399,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 .backups button, .backup-table a { white-space: nowrap; overflow-wrap: normal; }
 
 /* The log, grouped by job: one line per job until opened. */
-.job-list-head { display: flex; justify-content: space-between; align-items: center; gap: var(--gap); }
+.job-list-head { display: flex; justify-content: space-between; align-items: center; gap: var(--gap); min-height: var(--control-height); }
 .job-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .job-group { background: var(--surface); border: 0; border-radius: var(--radius); }
 .job-group.job-bad { border-left: 4px solid var(--bad); }
@@ -617,7 +618,6 @@ h3 {font-size: var(--type-md);text-transform: none;letter-spacing: normal;color:
 .toolbar-row {padding: var(--space-3) var(--space-6);gap: var(--space-4);}
 .toolbar-browse {padding-top: var(--space-1);padding-bottom: var(--space-4);gap: var(--space-3);}
 .brand {font-size: var(--type-lg);gap: var(--space-2);}
-.pages {gap: var(--space-1);}
 a.button-link {border-color: transparent;background: transparent;border-radius: var(--control-radius);padding: var(--space-2) var(--space-3);font-weight: var(--weight-normal);}
 a.button-link:hover {background: var(--surface-2);border-color: transparent;}
 a.button-link.active {background: var(--surface-2);border-color: transparent;color: var(--accent);font-weight: var(--weight-strong);}
@@ -861,7 +861,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 
 /* Keep ordinary and similarity browsing in the same gallery geometry. */
 .gallery-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-height: 36px; margin-bottom: var(--space-2); }
-.gallery-summary > span:first-child { font-variant-numeric: tabular-nums; }
+.gallery-summary > span:first-child { font-variant-numeric: tabular-nums; min-width: 12ch; }
 .gallery-summary button[aria-pressed="true"] { background: var(--surface-2); color: var(--accent); border-color: var(--accent); }
 .gallery-summary .muted { font-size: var(--type-xs); }
 .gallery-filters { font-size: var(--type-sm); }
@@ -890,11 +890,6 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 /* Review reasons are filters; photo checkboxes continue to select action targets. */
 .review-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; padding: var(--space-2) var(--space-4); }
 .review-chips button[aria-pressed="true"] { background: var(--surface-2); outline: 2px solid var(--accent); outline-offset: -2px; }
-/* Shared grid area sizes to the longest wrapped explanation without clipping text.
-   Inactive guidance stays out of keyboard navigation and the accessibility tree. */
-.review-reason-guidance { display: grid; }
-.review-reason-guidance > p { grid-area: 1 / 1; }
-.review-reason-guidance > [aria-hidden="true"] { visibility: hidden; }
 
 .review-note { margin-block: var(--space-4); }
 .review-note p { margin-block: var(--space-2); }
@@ -923,7 +918,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .index-summary dt { font-weight: 600; }
 .index-summary dd { margin: var(--space-1) 0 0; }
 
-.gallery-context { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-3); }
+.gallery-context { display: flex; flex-wrap: wrap; align-items: center; min-height: var(--control-height); gap: var(--space-2); margin-bottom: var(--space-3); }
 .gallery-context h2 { margin: 0; font-size: var(--type-md); }
 
 /* Filtering a fixed selection must not resize its toolbar as hidden counts change. */
@@ -939,3 +934,14 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 }
 
 .review-chips .filter-count { display: inline-block; font-variant-numeric: tabular-nums; text-align: center; }
+
+/* Routine filter guidance swaps in place; do not insert new rows above results. */
+.stable-content { display: grid; }
+.stable-content > div { grid-area: 1 / 1; min-width: 0; }
+.stable-content > [aria-hidden="true"], .status-only[aria-hidden="true"], .log-filter-summary > [aria-hidden="true"] { visibility: hidden; }
+.log-filter-summary { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; min-height: var(--control-height); }
+.gallery-guidance { margin-bottom: var(--space-2); }
+
+.gallery-context .section-note { margin: 0; }
+.similar-summary-controls { display: flex; flex-basis: 100%; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.gallery-filter-summary { min-height: var(--control-height); display: flex; align-items: center; }
