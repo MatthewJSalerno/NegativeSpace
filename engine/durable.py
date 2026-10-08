@@ -153,6 +153,7 @@ def _mkdir_durable(directory: Path):
     deletion gate — creating a directory is not the only moment the chain has
     to hold.
     """
+    fileinfo.require_plain_path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     _fsync_chain_to_root(directory)
 
@@ -183,6 +184,7 @@ def _fsync_chain_to_root(directory: Path):
     once per new date folder in a run, not once per file. A caller that has
     already established the chain pays nothing.
     """
+    fileinfo.require_plain_path(directory)
     root = _destination_root
     if root is None:
         # No run context (a direct call): persist the immediate entry only.
@@ -252,6 +254,8 @@ def _remove_verified_source(source: Path, verified_copy: Path, source_identity: 
        deleting the source would destroy the new content.
     """
     try:
+        fileinfo.require_plain_path(source)
+        fileinfo.require_plain_path(verified_copy)
         same = os.path.samefile(source, verified_copy)
     except OSError as e:
         raise SourceRemovalRefused(
@@ -275,6 +279,7 @@ def _remove_verified_source(source: Path, verified_copy: Path, source_identity: 
     if not unchanged:
         raise SourceRemovalRefused(
             "the source changed after it was verified, so its current content has no copy")
+    fileinfo.require_plain_path(source)
     retry_io_operation(description, source.unlink)
 
 
@@ -293,6 +298,8 @@ def _stage_copy(source: Path, dest: Path) -> Path:
     the source's mtime; the fsync comes after, so data and metadata land
     together.
     """
+    fileinfo.require_plain_path(source)
+    fileinfo.require_plain_path(dest.parent)
     fd, tmp = tempfile.mkstemp(dir=str(dest.parent), prefix=f"{dest.name}{constants.PARTIAL_SUFFIX}.")
     os.close(fd)
     partial = Path(tmp)
@@ -343,6 +350,8 @@ def _finalize_partial(partial_dest: Path, dest: Path):
     used for nothing else: any other link failure (an I/O error, a full
     disk) fails the publish rather than quietly weakening the guarantee.
     """
+    fileinfo.require_plain_path(partial_dest)
+    fileinfo.require_plain_path(dest.parent)
     try:
         os.link(str(partial_dest), str(dest))
     except FileExistsError:

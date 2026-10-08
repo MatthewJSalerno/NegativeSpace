@@ -50,12 +50,41 @@ Found 2026-10-05 looking for screens that do the same job twice.
   ‹ › steps through a photo's look-alikes and **Use as reference** walks into a neighbouring
   set. Only the combined view of several overlapping sets goes; if it is ever missed, it
   returns as a section of the Similar photos tab, not a window.
-- [ ] **Needs review mockup** (on hold): boards in the design canvas; its two-photo note
-  reuses the comparison workspace, which gains the "Will be rejected" marking. Settled
-  2026-10-07: reasons as a row of chips (board 1), and a small image's look-alikes as a
-  hint, unticked in a bulk Keep (board 5).
+- [x] Needs review decision layout: large photo, compact controls, one reason/action
+  panel and matching thumbnails that open comparison. Remaining two-photo rejection
+  proposals belong with the unbuilt "looks like a reject" reason below.
 
 ## Views
+
+- [x] Additional allowed addresses in setup and Settings, independent of catalog
+  replacement; protected local/deployment recovery, revision checks and explicit
+  confirmation before removing the current address.
+- [x] Shared grouping-checkbox alignment, visible Inspector failure reasons, and
+  a compact match-count link to the existing match browser, with browser Back
+  returning to the same photo in review.
+
+- [x] Fresh catalog setup replaces stale photo/log URLs with the base URL. Ordinary
+  Index submission stays on its button without a transient global banner; uncertain
+  requests retain recovery controls.
+- [x] Undecodable source photos remain flagged in Not organized and are excluded from
+  Copy/Move and Library matching. Missing EXIF/hash-only/cache-write failures do not
+  block readable images. External repair plus Index reassesses failed sources.
+- [ ] Discuss a SHA-1 content-history link, first comparing it with existing photo
+  history/lineage to avoid redundant navigation. No pHash history link planned.
+
+- [x] Stable filter guidance and navigation: shared guidance sizing for Logs/gallery/
+  review reasons; fixed Logs position when Jobs is absent; stable status shortcuts,
+  filter summaries and action heights. Browser positions checked at desktop/reflow widths.
+- [ ] Discuss whether Needs review remains a separate location or becomes a Library
+  summary with reason filters. Keep navigation unchanged until decided; define the
+  distinct-photo count and provide a visible Review later filter in any replacement.
+
+- [x] Workflow order, Not organized guidance and Index summary; Library review markers
+  open the photo’s reason in Needs review without changing selection, with a return
+  to the entry Library context.
+- [ ] Additional source-summary filters for small dimensions, identical copies and
+  processing errors; date filters already work. Source similarity comparisons are
+  not calculated and must not be presented as zero.
 
 - [ ] **Same-named photos look identical on a card:** a card shows only the filename, so two
   different photos named alike (in different source folders) read as one photo in two
@@ -66,14 +95,55 @@ Found 2026-10-05 looking for screens that do the same job twice.
   is refused with no running job shown. Say what is happening ("finishing the last job's
   catalog backup") and offer to start when it is done, or wait briefly before refusing.
 
-- [ ] Views named by where a photo is: Library (default), To organize, Rejects, Needs
-  review; Has similar photos, Suspicious dates and No capture date become a row of filter
-  chips within a place; All photos goes; the first visit opens on To organize while the
-  library is empty (`docs/webui-spec.md` §2).
+- [x] Location views, overlapping Needs review inbox, combined filter chips, cross-location
+  filename search and first-visit default (`webui-spec.md` §2).
 
 ## Needs review
 
-- [ ] The in-tray itself (`docs/webui-spec.md` §7.9).
+- [x] Earliest expected year in setup and Settings; shared suspicious-date query policy
+  updates counts, filtering and inspection without editing metadata. Schema 22 requires
+  a fresh development catalog, following the existing no-migration policy.
+- [x] Responsive Inspector waits behind already-open dialogs during resizing; Settings
+  remains usable and retains focus until closed.
+- [x] Explicit System/Light/Dark appearance preference and a shared Dark mode toggle
+  across Library, Logs and Stats; shared page tools prevent header control drift.
+
+- [x] Similarity grouping/control parity between Library and Needs review. Extra
+  filters/search show every matching photo individually; clearing them restores the
+  explicit grouping preference. Group representatives must belong to the inbox before
+  collapsing; a reviewed representative cannot hide unreviewed members.
+
+- [x] Inspector actions at the top, rejected-match disclosure above Library candidates,
+  and bottom-aligned Review side by side labels across matching cards.
+- [ ] Discuss cross-location filter discoverability: an active Suspicious dates filter
+  can make Rejects appear empty after navigation. Filters currently persist; decide
+  whether clearer feedback or per-place preferences would help before changing this.
+
+- [x] UX consistency batch: one toggle row per place, in-place Small images filter,
+  closed Inspector on place changes, contextual/collapsible source summary, grouped
+  photo actions and the dedicated review layout. Date flags remain informational;
+  persistent date acknowledgments and editing are still unbuilt.
+
+- [x] The in-tray for Small images and Review later (`docs/webui-spec.md` §7.9).
+- [x] Library-only review decisions, source exclusion from similarity, backend eligibility, separate source
+  failure facts, explicit Stats scopes and consistent Job #ID · Action status labels.
+- [ ] Design source-side sidecar/version import decisions separately from the Library
+  review inbox; preserve existing recovery durability gates.
+- [ ] Add the remaining Library reasons to the shared inbox/workspace: suspicious dates with acknowledgment;
+  No capture date and sidecar/edit reasons with their respective workstreams.
+- [ ] Bulk review answers within one reason. Individual Mark reviewed/Done and the
+  existing bulk Reject workflow are built; general bulk acknowledgments are not.
+- [ ] Record automatic reason clearing in review history. Current small-image
+  eligibility is computed on read; explicit user decisions are recorded, but a
+  setting/dimension change that removes eligibility does not append an event.
+- [ ] Broader performance coverage with many accumulated review events. A 200k-photo
+  generated catalog has been checked with an empty history; this does not model
+  years of bookmarks and acknowledgments.
+
+- [x] Manual cross-location matching: separate, paged Rejects matches in Library;
+  Library matches for rejected references; location labels and confirmed Return or
+  Reject actions. Keep-reference and gallery grouping remain Library-only. Review
+  links retain candidate scope. Not organized and emptied rejects stay excluded.
 - [ ] "Looks like a reject": a photo only similar to a reject (small pHash distance) is
   never rejected automatically; it waits in Needs review. With the reject still in
   Rejects: full side by side, Reject it too · Keep it · Keep the old one instead. With
@@ -81,11 +151,11 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [ ] "No capture date": suggested dates from the name, the folder or a dated look-alike,
   answered in bulk through the editor; the photo stays under `Undated/` meanwhile
   (`docs/webui-spec.md` §3.1).
-- [ ] "Review later": a button beside Reject… in the photo panel, with an optional short
+- [x] "Review later": a button beside Reject… in the photo panel, with an optional short
   note; Done clears it (`docs/webui-spec.md` §7.9).
-- [ ] "Small image": photos under a size set in Settings wait outside the library for Keep
-  or Reject; the note names its look-alikes ("3 at 90%, the largest in your library"), and
-  those with a larger one start unticked in a bulk Keep (`docs/webui-spec.md` §7.9).
+- [x] Small-image destination cleanup: user chooses on/off and minimum at first run;
+  never blocks Copy/Move. Mark reviewed persists per photo/content and does not clear
+  other reasons. Existing selection/Reject workflow; no bulk Keep or automatic unticking.
 - [ ] "Which photo is this sidecar for?": a short-named XMP sidecar that could belong to
   several photos, held with them until the user answers (`docs/engine-spec.md` §9.6).
 
@@ -194,4 +264,8 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 
 ## Other
 
-Deferred performance and robustness work — a stalled worker having no deadline, the unchanged-file check loading every settled row, batch barriers at submission tails — lives in `engine-spec.md` §8 with the condition that should bring each one back. This file tracks claims that need enforcing; that section tracks work deliberately postponed.
+Deferred performance work — the unchanged-file check loading every settled row and batch barriers at submission tails — lives in `engine-spec.md` §8 with the condition that should bring each one back. This file tracks claims that need enforcing; that section tracks work deliberately postponed.
+
+Stalled read-only workers now support user-requested cancellation of decoder process
+groups, with a no-progress reminder and Keep waiting. Kernel-blocked storage remains
+an explicit limitation in engine-spec §8; automatic file skipping is not planned.

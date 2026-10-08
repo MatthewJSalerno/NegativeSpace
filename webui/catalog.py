@@ -31,7 +31,7 @@ COPIES = (PhotoStatus.DUPLICATE, PhotoStatus.REMOVED_DUPLICATE)
 # Rejected photos leave every other view; the Rejects view shows those whose file is
 # still in dest/rejects (engine-spec 9.5).
 VIEWS = {"all": DELIVERED + NOT_ORGANIZED, "organized": DELIVERED, "unorganized": NOT_ORGANIZED, "similar": DELIVERED,
-         "suspicious": DELIVERED + NOT_ORGANIZED, "rejects": IN_REJECTS_STATUSES}
+         "suspicious": DELIVERED + NOT_ORGANIZED, "rejects": IN_REJECTS_STATUSES, "review": DELIVERED}
 # Photos whose catalogued file is at the destination, in the library or in Rejects.
 AT_DESTINATION = DELIVERED + IN_REJECTS_STATUSES
 # How long one listing of dest/rejects answers "is this file still there", so a gallery
@@ -136,7 +136,7 @@ def status(db_path: Path) -> dict:
         eligible = {mode: sum(by_status.get(s, 0) for s in statuses)
                     for mode, statuses in ns_db.TRANSFER_ELIGIBLE.items()}
         return {"state": "ok", "detail": None, "photos": photos, "indexed": indexed > 0,
-                "eligible": eligible, "copied": by_status.get(PhotoStatus.COPIED, 0),
+                "library_photos": sum(by_status.get(s, 0) for s in DELIVERED), "eligible": eligible, "copied": by_status.get(PhotoStatus.COPIED, 0),
                 "rejected_with_source": by_status.get(PhotoStatus.REJECTED_COPIED, 0), "rejects": rejects}
     except CatalogUnavailable as exc:
         return {"state": exc.state, "detail": exc.detail, "photos": 0, "indexed": False,
@@ -234,7 +234,7 @@ def settings(db_path: Path, *, cpus: dict, supported_extensions) -> dict:
         saved = ns_db.read_settings(conn)
         retention_default = ns_db.backup_retention(conn)
     defaults = {"workers": cpus["available"], "exts": sorted(supported_extensions),
-                "backup_retention": retention_default, **ns_db.REJECTS_REMINDER_DEFAULTS}
+                "backup_retention": retention_default, "small_image_min": None, "suspicious_min_year": ns_db.SUSPICIOUS_MIN_YEAR_DEFAULT, **ns_db.REJECTS_REMINDER_DEFAULTS}
     out = {}
     for key, default in defaults.items():
         entry = saved.get(key, {"value": default, "revision": 0})

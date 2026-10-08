@@ -20,7 +20,8 @@ with sync_playwright() as p:
         run = request.post('/api/v1/jobs/start', data={'mode': mode}).json()['id']
         for _ in range(600):
             outcome = request.get(f'/api/v1/runs/{run}').json()
-            if outcome['status'] not in ('Preparing', 'Running', 'Cancelling'):
+            if (outcome['status'] not in ('Preparing', 'Running', 'Cancelling')
+                    and request.get('/api/v1/jobs/active').json()['active'] is None):
                 break
             time.sleep(.2)
         assert outcome['status'] == 'Completed', outcome
@@ -35,12 +36,15 @@ with sync_playwright() as p:
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.goto(sys.argv[1])
     expect(page.get_by_role('link', name='Similar', exact=True)).to_have_count(0)
+    expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_count(0)
+    page.locator('.views').get_by_role('button',name=re.compile('^Library')).click()
     page.get_by_role('button', name=re.compile('^Has similar photos')).click()
     expect(page.locator('.card')).to_have_count(0)
     expect(page.get_by_text('Copy or Move indexed photos to the destination first.', exact=False)).to_be_visible()
     # Only generated fixtures are copied in this isolated test catalog.
     run_job('copy')
     page.reload()
+    page.locator('.views').get_by_role('button',name=re.compile('^Library')).click()
     expect(page.locator('.card').first).to_be_visible()
     gallery_sort = page.get_by_role('combobox', name='Sort', exact=True)
     gallery_threshold = page.get_by_role('combobox', name='Gallery match threshold', exact=True)
@@ -75,7 +79,7 @@ with sync_playwright() as p:
     assert page.locator('.browse-search').evaluate('e => e.scrollWidth <= e.clientWidth + 1')
     shot('gallery-match-sort-narrow')
     page.set_viewport_size({'width':1440,'height':1000})
-    page.get_by_role('button', name=re.compile('^All photos')).click()
+    page.get_by_role('button', name=re.compile('^Has similar photos')).click()
     expect(gallery_sort).to_have_value('newest')
     expect(gallery_threshold).to_have_count(0)
     page.get_by_role('button', name=re.compile('^Has similar photos')).click()
@@ -418,11 +422,11 @@ with sync_playwright() as p:
     expect(summary.get_by_role('button', name=re.compile('^100% or higher:'))).to_have_attribute('aria-pressed', 'true')
     expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_attribute('aria-pressed', 'true')
     # A failed count load must not fabricate zeros or lose the selected threshold.
-    page.route('**/api/v1/similar/*/counts', lambda route: route.fulfill(status=503, content_type='application/json', body='{}'))
+    page.route('**/api/v1/similar/*/counts?*', lambda route: route.fulfill(status=503, content_type='application/json', body='{}'))
     page.reload()
     expect(summary.get_by_role('button', name='Retry match counts')).to_be_visible()
     expect(summary.locator('.match-thresholds')).to_have_count(0)
-    page.unroute('**/api/v1/similar/*/counts')
+    page.unroute('**/api/v1/similar/*/counts?*')
     summary.get_by_role('button', name='Retry match counts').click()
     expect(summary.locator('.match-thresholds button')).to_have_count(6)
     # Narrow Inspector and nested comparison use shared modal/focus behavior.
@@ -449,7 +453,7 @@ with sync_playwright() as p:
     expect(page).not_to_have_url(re.compile('match_page='))
     # Old standalone/exact-mode bookmarks redirect into the same gallery workflow.
     page.goto(f'{sys.argv[1]}/similar?mode=exact&photo={reference}&threshold=85')
-    expect(page).to_have_url(re.compile(r'/\?view=similar&sort=matches&match_min=75&photo=\d+&tab=similar&match=85'))
+    expect(page).to_have_url(re.compile(r'/\?view=organized&similar=1&group_sets=0&sort=matches&match_min=75&photo=\d+&tab=similar&match=85'))
     expect(summary.get_by_role('button', name=re.compile('^85% or higher:'))).to_have_attribute('aria-pressed', 'true')
     expect(matches.locator('.inspector-match')).to_have_count(12)
     # A saved page beyond the remaining candidates returns to the last valid page.

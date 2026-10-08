@@ -34,6 +34,16 @@ docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -e NS_TEST_RAW_DIR=/raw \
   negativespace python3 tests/engine_smoke_test.py
 ```
 
+For project validation, enable these two tests with the public RAW samples rather
+than accepting the optional skips. The current decode test samples up to five files;
+the thumbnail test samples three, so this is not exhaustive coverage of every supplied
+RAW file. Keep the sample mount read-only.
+
+The default real-photo source is the **whole demo library**, including its assorted
+formats, EXIF samples, RAW files and generated edge cases. Use its manifest to check
+expected behavior, and mount the source read-only. Use the NASA-only subset when a
+check deliberately needs only ordinary photos; it is not the default validation set.
+
 Flags: `--filter NAME` runs tests whose name contains NAME (a filter matching nothing
 is an error), `--keep` leaves the workspace on disk, `-v` shows engine output, and
 `--engine PATH` runs the suite against another copy of the engine (the folder holding its
@@ -114,7 +124,8 @@ after the test releases the pause. It is not an alternative production engine.
 Both containers as `docker/compose.yml` arranges them (`app`, and `web` proxying `/api`
 to it), driven by headless Chromium (Playwright) against generated photos. It covers first run, settings, Scan, the gallery,
 the Inspector, selection, Copy, search and the phone-width layout, and fails on any
-browser console error. It starts a server container and a Playwright container, so it
+browser console error. The main driver also checks response framing headers and refusal
+to embed the app from a separate HTTP origin in an isolated fixture container. It starts a server container and a Playwright container, so it
 runs on the host:
 
 ```bash
@@ -131,7 +142,10 @@ of the checkout, build that copy under another tag, and run with `IMAGE` set to 
 | :--- | :--- | :--- |
 | `webui_browser_drive.py` (default) | | First run, Index, the gallery, Inspector, selection, Copy, Stats, Settings, backups, search, phone width; runs the shared UI checks |
 | `ui_browser_drive.py` | | The shared UI checks alone |
-| `appearance_browser_drive.py` | | Palettes, contrast, storage, narrow controls |
+| `stalled_job_browser_drive.py` | `STALLED_FIXTURE=1` | Real stalled generated decoder, no-progress reminder, Keep waiting, explicit cancellation and lock release |
+| `request_freshness_browser_drive.py` | | One initial Stats/log/facet request, refresh after a real job, retained Stats border/spacing in both themes and desktop reflow |
+| `appearance_browser_drive.py` | | Palettes, explicit/system modes, contrast, cross-tab storage, shared page tools and narrow controls |
+| `date_settings_browser_drive.py` | | Setup year choice, settings validation/persistence, immediate filter and Inspector updates |
 | `navigation_browser_drive.py` | | Links, Back/Forward, restoration |
 | `gallery_position_browser_drive.py` | | Positioning a photo from Logs, hidden photos |
 | `large_selection_browser_drive.py` | `SIMILARITY_RECOVERY_FIXTURE=1` | Show only selected and Inspector navigation across page boundaries with more than 1,000 selected photos |
@@ -188,7 +202,7 @@ missing/unsupported hashes. It exercises warning-to-recovery navigation, disable
 busy actions, real repair and comparison-only jobs, refreshed results, failed-load
 retry, unsupported-format limitations and narrow reflow. It never accesses a real
 library. `similar_browser_drive.py` additionally checks comparison refresh with
-rotation/zoom/position, filtered review/tab restoration, and malformed bookmarks.
+rotation/zoom/position, Inspector tab/threshold/page restoration, and malformed bookmarks.
 
 `DRIVER=gallery_position_browser_drive.py sh tests/browser/webui_browser_test.sh` checks
 Logs photo positioning, offscreen Inspector navigation, retained filters, explicit
@@ -200,6 +214,13 @@ from Similar photos and side by side: Reject… per look-alike; in the compariso
 under each photo, asked once with Don't ask again, the next look-alike with Return it to
 the library, a new comparison asking again, and the last photo always asked about; Keep
 this one, reject the rest with the kept photo first, full size and never ticked.
+It also checks the single large reference preview, its heading and accent border,
+no repeated reference thumbnail in the matches pane, and no Keeping label before
+an explicit Keep choice, across wide/stacked layouts and forced colors.
+
+Manual check: open Similar photos, confirm the large preview is labelled **Reference
+photo**, then choose **Keep reference, reject n matches…**. Only the resulting review
+should label it **Keeping**; Cancel should return without rejecting anything.
 
 `DRIVER=rejects_browser_drive.py sh tests/browser/webui_browser_test.sh` checks Rejects: one
 photo rejected from the Inspector (asked first by name, starting on Cancel), a selection
@@ -668,3 +689,162 @@ expensive work, and use `benchmark-synthetic-queries.py` for A/B measurements.
 For a short 500k trial use `--photos 500000 --scenarios inspector related --repeats 3`;
 this deliberately produces no p95. Keep repeat settings identical for its candidate
 run, and use a new output directory for every profile/revision.
+
+## Needs review
+
+`python3 -m unittest discover -s tests -p review_test.py -v` in the app image checks
+opt-in size reminders, unchanged transfer eligibility, independent review reasons,
+acknowledged decisions, idempotent retries, stale-tab refusal, content replacement,
+filter/count/position agreement and backup accounting with generated catalogs.
+API test fixtures accept `NS_TEST_DESTINATION_ROOT` for separate destination storage
+and `NS_TEST_KEEP=1` to retain artifacts; `TMPDIR` sets the app-data fixture root.
+The first-run Files step now requires an explicit small-image reminder choice.
+
+`DRIVER=review_browser_drive.py sh tests/browser/webui_browser_test.sh` covers first-run
+choice, Copy, independent Small images/Review later decisions, refused-save retry,
+Previous/Next, confirmed Reject, persistence after reload and Index, Settings links,
+selection preservation, combined chips and narrow workspace reflow. The default browser
+driver exercises choosing Off during first run. Both are in CI.
+
+The browser harness accepts `NS_TEST_OUTPUT_ROOT`, `NS_TEST_DESTINATION_ROOT` and
+`NS_TEST_KEEP=1` for an isolated retained fixture; create the parent folders first.
+Use your own image tags through `IMAGE` and `WEB_IMAGE`.
+
+Manual review before merging: choose On and Off on separate fresh catalogs, review
+mixed-size delivered photos, verify a useful small photo disappears only from Small
+images after Mark reviewed, and verify unwanted photos follow the existing Reject
+confirmation. Inspect the workspace and first-run Files at desktop zoom. This branch
+uses schema 22 and requires a fresh development catalog; it does not migrate schema 20.
+
+The review browser driver also covers first-step navigation, source Index summary,
+Copy confirmation, Library review markers, focused inbox entry and return with search,
+sort and checkbox selection intact. Review API tests distinguish source size facts
+from destination reminders and check current Library reasons without event histories.
+
+The Index summary can be closed and reopened from Not organized. The review browser
+check covers close/show focus, dismissal after refresh and filtering, and automatic
+reopening after a new Index finishes. Review API coverage verifies that Copy and an
+unfinished Index do not change the completed-Index identity used for dismissal.
+
+### Review UX batch
+
+The review browser flow verifies one toggle row per location, Small images filtering
+Library without navigation, active toggles clearing, and selection retained across
+place changes. It checks closing stale previews, temporary Index-summary collapse,
+Inspector action grouping, the dedicated review layout, and matching-clue comparison
+with return to review. Shared controls and comparison Reject/Keep flows use their
+existing browser drivers. No EXIF or file-deletion capability is added.
+
+Manual batch check: switch Library → Not organized with a photo open; open a source
+preview and close it to restore the summary; toggle each filter twice; open Review
+photo… and check the reason, action row, compact viewing controls and the Similar photos count/link. Open all matches in the
+existing Similar photos tab; browser Back must restore the same review photo and queue
+position without changing gallery filters or checked photos.
+A successful Mark reviewed clears only the size reminder. Unreadable-only source
+results should point to failures rather than offering an ineligible transfer.
+
+
+### Library-only review and job wording
+
+The review API suite covers refusal of review writes outside active Library states,
+reminders leaving the inbox when photos leave Library, retained history, and failed
+sources excluded from photo/date statistics. Browser review and Rejects flows check
+that source/rejected inspectors have no review/similarity actions. Shared browser checks
+cover Job #ID · Action status, failure rechecks and the existing transfer workflows.
+
+Run `DRIVER=source_scope_browser_drive.py` through the browser harness for generated
+empty/text files with image extensions: separate ready/failure counts, saved review
+links refused, failures excluded from Library/date filters, and Stats scope checks.
+
+Manual check after first-run setup: Index, open a source file (information only), Copy,
+open a Library photo (review and similarity available), Reject it and check Return is
+offered without review actions. Check Index-summary ready/failure counts and failure
+links, Stats scope explanations, and the shared job labels in banners and Logs.
+
+### Cross-location similarity
+
+`DRIVER=cross_location_browser_drive.py` uses the isolated browser harness and generated
+photos. It checks separate Library/Rejects counts, paging backward across a boundary,
+reference promotion, copied review links with both scopes, location labels, Return for
+both reference and candidate (with confirmation), Library-only review decisions, and
+light/dark/narrow rendering. `webui_api_test.py` covers both candidate scopes, source
+exclusion, invalid scope rejection and emptied Rejects. Gallery grouping and Keep-reference
+continue to count only active Library photos.
+
+The reference-set browser driver also checks grouping/control parity in Needs review,
+automatic individual-photo results under extra review/search/sidebar filters, URL and
+preference restoration, and narrow reflow. The API suite checks that a reviewed group's
+lowest ID cannot hide remaining inbox photos, including selection IDs and positioning.
+
+Appearance/date settings validation: `suspicious_dates_test.py` checks the configurable
+lower boundary (1999 versus 2000), rejected invalid values, revision conflicts, shared
+browse/inspection membership and unchanged metadata. The date-settings browser driver
+covers choosing the year during setup, changing it later without indexing, and dark-mode
+settings at desktop/reflow widths. The appearance driver covers explicit overrides,
+System changes, reload, cross-tab updates, blocked storage, and identical header tools
+on Library, Logs and Stats. Backups links must open the Backups settings tab directly.
+
+The date-settings driver also resizes an open Inspector behind Settings: Settings
+remains on top, and the narrow Inspector becomes modal only after Settings closes.
+
+Layout stability: run `DRIVER=layout_stability_browser_drive.py` through the browser
+harness with the built `IMAGE`/`WEB_IMAGE`. Generated photos plus one invalid image
+exercise real job failures. It measures filter, summary and pager positions before and
+after settled status/reason changes (1px tolerance) at 1440, 1000 and 720px; checks the
+Logs navigation position across Library, Logs and Stats; and verifies filtered counts.
+Set `SHOTS` to inspect the reserved spacing. This covers routine filter transitions,
+not intentional expansion of jobs, errors, Inspectors or similarity tools.
+
+Fresh-start/source eligibility checks:
+
+- `python3 -m unittest discover -s tests -p import_decode_test.py -v` in the app image
+  checks readable pixels despite missing EXIF, hash failure or cache-write failure,
+  actionable missing-decoder refusal, and no redundant decode after a good pHash.
+- `engine_smoke_test.py --filter an_undecodable_photo --keep` verifies Index, Copy,
+  Move, byte preservation and successful external repair/reindex, with/without cache.
+  The RAW-routing and public RAW decode/thumbnail smoke checks cover the sensor path.
+- Browser drivers `fresh_start_browser_drive.py` and `source_scope_browser_drive.py`
+  cover stale-address replacement only for missing catalogs, stable pending Index
+  submission, empty/text/truncated source failures, and no incomplete-matching warning
+  caused by those failed sources. `submission_browser_drive.py` retains lost-response,
+  reload and same-request recovery coverage; pending Library actions cannot resubmit.
+
+### Waiting for a job in browser drivers
+
+A terminal run record does not mean the engine has released its lock: the catalog
+backup runs after settlement. Before starting another job or asserting a finished
+banner, wait for both a terminal run status and `GET /api/v1/jobs/active` returning
+`active: null`. Do not retry a refused start to hide an unexpected refusal.
+
+`DRIVER=dismissal_browser_drive.py` checks delayed and failed catalog dismissal writes,
+Library/Logs navigation while saving, visible retry at narrow desktop width, interrupted
+reload before acknowledgment, storage clearing after acknowledgment, and stale browser
+IDs versus catalog authority. It deliberately holds the PUT instead of relying on timing.
+
+The source-scope browser check starts Copy from the Index summary and verifies that
+completion replaces the photo facts with a compact failure notice, without reloading.
+The failed-only notice retains the failure link and omits zero-valued photo statistics,
+similarity guidance and Copy/Move controls.
+
+Reference-set checks also verify exact membership deduplication in related sets before
+pagination: identical sets disappear, equivalent alternatives collapse to one, and
+proper subsets/overlaps remain distinct. The browser exercises a dense identical set
+and the A–B–C chain independently.
+
+The scenario-generator identity checks cover device/inode collisions, retaining old
+output identities until seed comparison, and a real write through a generated seed
+hard link that must still fail. Guard links retain replaced output versions until the
+check completes; they contain no photo extension and are removed on normal/error exit.
+Scenario tests accept the same separate destination root and artifact-retention settings
+as API fixtures.
+
+`stalled_engine_fixture.py` deliberately blocks one generated file and spawns a decoder
+child. The API test checks completed results and source bytes survive cancellation, no
+decoder keeps running, and re-Index completes. Browser time advances only the reminder
+clock; the actual engine waits for the user's cancellation. No network mount is stalled.
+
+Instance-access checks: `access_test.py` tests pre-catalog persistence, catalog
+replacement/restart, concurrent revisions, input rejection, protected recovery,
+current-address confirmation, live WebSocket revocation, origin checks and symlink/
+corrupt/write-failure handling. `access_browser_drive.py` checks setup, saving,
+conflicts, lockout confirmation, and desktop/narrow appearance with generated hosts.

@@ -1,3 +1,4 @@
+import type { DismissalState } from "../dismissal";
 import { useEffect, useState } from "react";
 import { api, ApiError, type JobState, type Run } from "../api";
 import { duration, instant } from "../format";
@@ -15,6 +16,7 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
   const [now, setNow] = useState(Date.now());
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [cancelSent, setCancelSent] = useState<number | null>(null);
+  const [waiting, setWaiting] = useState<{ id: number | null; since: number } | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -35,6 +37,10 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
     const interrupted = active.presented_status === "Interrupted";
     const cancelling = active.status === "Cancelling" || cancelSent === active.id;
     const started = active.started_at ? Date.parse(active.started_at) : null;
+    const recorded = phase?.updated_at ? Date.parse(phase.updated_at) : started;
+    const lastActivity = Math.max(recorded ?? now, waiting?.id === active.id ? waiting.since : 0);
+    // This is a reminder to choose, not a deadline or proof a file is broken.
+    const quiet = !interrupted && now - lastActivity >= 120_000;
     const percent = phase && phase.total ? Math.min(100, (phase.done / phase.total) * 100) : null;
     const cancel = async () => {
       if (active.id == null) return;
@@ -50,7 +56,7 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
       <aside className="drawer" role="status" aria-live="polite">
         <div className="drawer-row">
           <strong>
-            {interrupted ? "A job was interrupted" : activeTitle(active)}
+            {activeTitle(active)}
             {phase && !interrupted ? ` — ${phaseLabel(phase)}` : ""}
             {phase && phase.total != null && !interrupted ? `: ${phase.done.toLocaleString()} of ${phase.total.toLocaleString()}` : ""}
             {phase && phase.total == null && !interrupted ? `: ${phase.done.toLocaleString()} so far` : ""}
@@ -70,8 +76,14 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
               <div style={{ width: percent == null ? undefined : `${percent}%` }} />
             </div>
             {phase && <p className="muted">{countsLine(phase.counts, active.mode) || "Starting…"}</p>}
+            {quiet && !cancelling && <div className="notice" role="status">
+              <strong>No progress recorded for two minutes.</strong>
+              <p>A large photo or slow storage may still be working. Keep waiting, or cancel this job. No files are skipped automatically.</p>
+              <button onClick={() => setWaiting({ id: active.id, since: now })}>Keep waiting</button>
+            </div>}
             {cancelling && (
-              <p>Cancellation requested—waiting for the current work to stop safely.</p>
+              <p>Cancellation requested—waiting for the current work to stop safely.
+                Recorded results are kept. A blocked storage operation may need the connection restored before it can stop.</p>
             )}
             {cancelError && <p className="error">{cancelError}</p>}
             <div className="drawer-actions">
@@ -88,10 +100,11 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
 }
 
 // A finished job's result, at the top of the page under the toolbar, until dismissed.
-export function FinishedBanner({ jobs, dismissedId, onDismiss, onShowPhotos }: {
+export function FinishedBanner({ jobs, dismissedId, onDismiss, dismissal, onShowPhotos }: {
   jobs: JobState;
   dismissedId: number | null;
   onDismiss: (id: number) => void;
+  dismissal: DismissalState;
   // The Library shows them in place; elsewhere the button is a link to the Library.
   onShowPhotos?: (id: number) => void;
 }) {
@@ -112,6 +125,7 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss, onShowPhotos }: {
         <span className="muted">
           {started && ended ? `Took ${duration(ended - started)}` : run.status === "Interrupted" ? "Duration unavailable" : ""}
         </span>
+        {dismissal.failedId === run.id && <span className="error" role="alert">Could not save the dismissal. Try again.</span>}
       </div>
       <span className="banner-links">
         {run.id != null && showsPhotos(run as Run) && (onShowPhotos
@@ -121,7 +135,9 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss, onShowPhotos }: {
           <a href={logUrl({ run: run.id, status: "Failed" })} onClick={follow}>View failures</a>
         )}
         {run.id != null && <a href={logUrl({ run: run.id })} onClick={follow}>View log</a>}
-        <button onClick={() => run.id != null && onDismiss(run.id)}>Dismiss</button>
+        <button disabled={dismissal.pendingId != null} onClick={() => run.id != null && onDismiss(run.id)}>
+          {dismissal.pendingId != null ? "Saving…" : dismissal.failedId === run.id ? "Retry dismissal" : "Dismiss"}
+        </button>
       </span>
     </div>
   );

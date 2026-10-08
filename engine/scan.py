@@ -77,14 +77,13 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int,
         sha1 = fileinfo.compute_sha1(str(file_path))
         phash = fileinfo.compute_phash(str(file_path))
 
-        # Generated here, in the worker, because this process has already paid
-        # to open and decode the file. It only ever READS the photo, and it
-        # never raises — a thumbnail is disposable cache and must not decide
-        # whether a file is catalogued (webui-spec.md 4.2.1).
-        thumbnail = thumbnails.generate_thumbnail(file_path, sha1, cache_root) if cache_root and sha1 else None
-
         dt, metadata = fileinfo.get_metadata_and_date(file_path, original_mtime)
         refusal = not_an_image(file_path, file_size, metadata)
+        if not refusal and file_path.suffix.lower() in SUPPORTED_EXTENSIONS and phash in ("", "error", "not_supported"):
+            decode_error = fileinfo.image_decode_error(str(file_path))
+            if decode_error:
+                refusal = (f"Cannot decode image: {decode_error}. Left in the source; "
+                           "repair or replace the file, or check decoder support, then run Index again.")
         if refusal:
             result = _failed_result(file_path_str, run_id, refusal)
             result.file_size, result.file_mtime = file_size, file_mtime
@@ -95,6 +94,10 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int,
         # computation here, and the inspector UI later) shouldn't need to know
         # ExifTool's exact tag-naming conventions just to find "the date."
         metadata["date_taken"] = dt.isoformat()
+
+        # Pixel validation is separate from disposable cache output. A cache write
+        # failure must not prevent a readable image from being organized.
+        thumbnail = thumbnails.generate_thumbnail(file_path, sha1, cache_root) if cache_root and sha1 else None
 
         # A photo the engine could not date does not enter the date tree: its
         # only date is the file's mtime, which for an export is the download

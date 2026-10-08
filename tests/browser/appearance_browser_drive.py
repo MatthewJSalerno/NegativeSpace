@@ -10,7 +10,8 @@ with sync_playwright() as p:
     assert request.post('/api/v1/catalog').ok
     run = request.post('/api/v1/jobs/start', data={'mode':'index'}).json()['id']
     for _ in range(600):
-        if request.get(f'/api/v1/runs/{run}').json()['status'] not in ('Preparing', 'Running', 'Cancelling'):
+        if (request.get(f'/api/v1/runs/{run}').json()['status'] not in ('Preparing', 'Running', 'Cancelling')
+                and request.get('/api/v1/jobs/active').json()['active'] is None):
             break
         time.sleep(.2)
     else:
@@ -114,6 +115,32 @@ with sync_playwright() as p:
         box = page.get_by_label('Color palette',exact=True).bounding_box()
         assert box and box['height'] >= 44
         page.get_by_role('button',name='Close settings').click()
+    # Explicit mode overrides the device and stays identical across screens/tabs.
+    page.set_viewport_size({'width':1600,'height':1100})
+    page.emulate_media(color_scheme='light')
+    page.get_by_role('button',name='Dark mode',exact=True).click()
+    expect(page.locator('html')).to_have_attribute('data-theme','dark')
+    expect(other.locator('html')).to_have_attribute('data-theme','dark')
+    page.reload()
+    expect(page.locator('html')).to_have_attribute('data-theme','dark')
+    for path in ('/logs','/stats','/'):
+        page.goto(sys.argv[1]+path)
+        expect(page.get_by_role('button',name='Dark mode',exact=True)).to_have_attribute('aria-pressed','true')
+        expect(page.get_by_role('button',name='Settings',exact=True)).to_be_visible()
+    page.goto(sys.argv[1]+'/stats')
+    page.get_by_role('button',name='Open Settings for backups',exact=True).click()
+    expect(page.get_by_role('tab',name='Backups',exact=True)).to_have_attribute('aria-selected','true')
+    page.get_by_role('button',name='Close settings').click()
+    page.get_by_role('button',name='Settings',exact=True).click()
+    mode=page.get_by_label('Color mode',exact=True)
+    mode.select_option('light')
+    page.emulate_media(color_scheme='dark')
+    expect(page.locator('html')).to_have_attribute('data-theme','light')
+    mode.select_option('system')
+    expect(page.locator('html')).to_have_attribute('data-theme','dark')
+    page.emulate_media(color_scheme='light')
+    expect(page.locator('html')).to_have_attribute('data-theme','light')
+    page.get_by_role('button',name='Close settings').click()
     isolated = browser.new_context()
     denied = isolated.new_page()
     denied.add_init_script("Storage.prototype.getItem = () => {throw new Error('blocked')}; Storage.prototype.setItem = () => {throw new Error('blocked')}")
@@ -122,6 +149,8 @@ with sync_playwright() as p:
     denied.get_by_role('button',name='Settings',exact=True).click()
     denied.get_by_label('Color palette',exact=True).select_option('warm')
     expect(denied.locator('html')).to_have_attribute('data-palette','warm')
+    denied.get_by_label('Color mode',exact=True).select_option('dark')
+    expect(denied.locator('html')).to_have_attribute('data-theme','dark')
     assert not errors, errors
     browser.close()
 print('Both palettes in both modes: contrast, local persistence, cross-tab updates, self-hosted font and narrow controls passed')

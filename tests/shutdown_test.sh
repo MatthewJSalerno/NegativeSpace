@@ -26,7 +26,7 @@ trap cleanup EXIT
 
 mkdir -p "$WORK/src" "$WORK/dest" "$WORK/appdata" "$WORK/backups" "$WORK/cache"
 docker network create "$NET" >/dev/null
-docker run -d --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" \
+docker run -d --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" -e NS_ALLOWED_HOSTS="localhost,127.0.0.1,app" \
     -v "$WORK/src":/data/source -v "$WORK/dest":/data/dest -v "$WORK/appdata":/appdata \
     -v "$WORK/backups":/backups -v "$WORK/cache":/cache "$IMAGE" >/dev/null
 for _ in $(seq 60); do

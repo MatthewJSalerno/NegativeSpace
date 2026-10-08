@@ -260,3 +260,43 @@ separate concern that this prepared-relationship query benchmark does not measur
 No production library, deployed instance, or original file is modified by these
 benchmarks. Keep personal paths, machine details and raw private run logs out of
 tracked documentation; publish generated-fixture aggregates only.
+
+### Needs review query spot check (2026-10-07)
+
+Generated mixed catalog: 200,000 photos, 181,819 delivered, 45,455 below an enabled
+800-pixel shorter-side minimum; no saved review events. One warm-up and three timed
+calls to `gallery.list_photos`, default sort, first 60 photos, on the same generated
+fixture. These are local medians, not p95 or capacity guarantees.
+
+| Query | Initial inbox implementation | After removing repeated counts |
+| --- | ---: | ---: |
+| Library | 1,361 ms | 692 ms |
+| Needs review | 1,594 ms | 1,302 ms |
+
+The change reuses global counts when no filters apply, and computes per-reason counts
+only for the inbox. No index or threshold was tuned to the sample. EXPLAIN for inbox
+membership still shows a photo scan with indexed content lookup (`hash_algorithm`,
+`digest`) and indexed decision lookup (`photo_id`, `reason`). A tested set-subquery
+rewrite made inbox reads slower and was not adopted. Ordinary galleries do not load
+per-photo review history. Large histories and heavily filtered inboxes still need
+broader profiling; these timings do not measure photo decoding, transfers or storage
+latency. Generate catalogs with the existing synthetic tool, copy the generated fixture
+for writable review settings, enable `small_image_min=800`, and time both views on that
+copy to repeat this check.
+
+## Avoid repeated initial requests
+
+The shared job feed establishes its baseline before page queries start. The initial
+last-job snapshot no longer triggers a second load of Stats, Logs or gallery facets.
+A new terminal run still refreshes the screen; no query-result cache or SQL change
+is involved. The browser regression measures one initial request for Stats, the log
+run list and each gallery facet, and exactly one Stats refresh after a real Copy.
+Before the fix, Stats and status each made two initial requests.
+
+On a generated sparse catalog of 200,000 photos, the unchanged Stats helper took
+1,239.85 ms for the first call and 1,250.12–1,254.24 ms for three subsequent calls.
+Its 23 SELECT statements and query plans are unchanged. Removing the duplicate avoids
+one complete Stats calculation (about 1.25 seconds of isolated backend work on this
+fixture); this is not a claim of a 1.25-second browser wall-clock improvement. Metadata
+is compact synthetic data; broad aggregate caching and representative-library tuning
+remain separate work, to be justified by further measurements.

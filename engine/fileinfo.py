@@ -1,6 +1,7 @@
 """Reading a file: dates and metadata (ExifTool, then Pillow), SHA-1 and pHash."""
 
 import contextlib
+import errno
 import hashlib
 import os
 import warnings
@@ -10,6 +11,26 @@ from typing import Optional
 
 from engine.ns_db import RAW_EXTENSIONS
 from engine import constants, deps, durable, runtime
+
+
+class SymlinkPathError(OSError):
+    """A stored file path was redirected through a symbolic link."""
+
+
+def require_plain_path(path):
+    """Refuse symlinks in a file path or its ancestors before reading or mutating it.
+
+    CLI storage roots are resolved before use. Descendant aliases are unsupported:
+    a share may replace a directory after Index. This check does not make concurrent
+    directory renames safe; storage must remain stable while an operation runs.
+    """
+    plain = Path(os.path.abspath(path))
+    try:
+        redirected = plain.resolve() != plain
+    except RuntimeError:
+        redirected = True  # a symbolic-link loop
+    if redirected:
+        raise SymlinkPathError(errno.EPERM, "Symbolic links in a photo or cache path are not followed", str(path))
 
 
 # --- Dates ---
@@ -206,9 +227,9 @@ def extract_date_from_metadata(metadata: dict) -> Optional[datetime]:
     guess-indistinguishable-from-a-fact problem Undated/ exists to prevent.
 
     They stay in `metadata` and reach the catalog as review evidence — the
-    Undated screen shows them as clues, clearly labelled, so a user can decide
-    whether a date is meaningful (webui-spec.md 3.1). Retaining and promoting
-    are different things.
+    Inspector can expose them as metadata. The planned Needs review screen
+    will offer date clues (webui-spec.md 7.9). Retaining and promoting are
+    different things.
     """
     if "DateTimeOriginal" in metadata:
         return parse_exif_date(metadata["DateTimeOriginal"])
@@ -219,10 +240,11 @@ def get_metadata_and_date(file_path: Path, original_mtime: Optional[float] = Non
     """
     Metadata Extraction Fallback Chain (see the package docstring for the full
     rationale): ExifTool -> PIL -> file mtime. Returns (datetime, metadata
-    dict) together, both sourced from one underlying capture rather than two
-    separate passes.
+    dict) together from one metadata capture when it supplies a usable capture
+    date. Otherwise keep its tags and resolve the date from the original file
+    mtime; a date fallback does not discard metadata.
 
-    ExifTool is a hard requirement for the engine to start at all (see module
+    ExifTool is a hard requirement for the engine to start at all (see package
     docstring), so the PIL/mtime steps do not cover for it being missing —
     that cannot happen. They are a defensive per-FILE fallback for the
     narrower case where
@@ -271,6 +293,7 @@ def get_metadata_and_date(file_path: Path, original_mtime: Optional[float] = Non
 
 def compute_sha1(file_path: str) -> str:
     def _hash():
+        require_plain_path(file_path)
         h = hashlib.sha1()
         with open(file_path, 'rb') as f:
             for chunk in iter(lambda: f.read(constants.SHA1_CHUNK_SIZE), b''):
@@ -340,3 +363,26 @@ def compute_phash(file_path: str) -> str:
     except Exception as e:
         runtime.logger.debug(f"PIL pHash failed for {file_path}: {e}")
         return "error"
+
+
+def image_decode_error(file_path: str) -> Optional[str]:
+    """Check pixels after a missing pHash, independently of hashing or cache writes.
+
+    A successful pHash already establishes decodability; this fallback is only for
+    its error/not-supported path. RAW must use the sensor decoder, not its preview.
+    """
+    try:
+        if not deps.PIL_SUPPORTED:
+            return "Pillow is not installed"
+        with warnings_attributed_to(file_path):
+            if Path(file_path).suffix.lower() in RAW_EXTENSIONS:
+                if not deps.RAWPY_SUPPORTED:
+                    return "rawpy is not installed; RAW decoding is unavailable"
+                with deps.rawpy.imread(file_path) as raw:
+                    raw.postprocess(use_camera_wb=True, half_size=True, no_auto_bright=True, output_bps=8)
+            else:
+                with deps.Image.open(file_path) as img:
+                    img.load()
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"
+    return None

@@ -39,6 +39,8 @@ def _rename_noreplace(old: str, new: str) -> str:
     file created at the new name in the meantime, and the no-overwrite promise is
     not weakened to accommodate it. Raises FileExistsError when `new` is taken.
     """
+    fileinfo.require_plain_path(old)
+    fileinfo.require_plain_path(Path(new).parent)
     renameat2 = getattr(ctypes.CDLL(None, use_errno=True), "renameat2", None)
     if renameat2 is not None:
         if renameat2(_AT_FDCWD, os.fsencode(old), _AT_FDCWD, os.fsencode(new), _RENAME_NOREPLACE) == 0:

@@ -211,6 +211,21 @@ class JobRunner:
         with self._start_lock:
             return self._launch(flags, request_id, selection)
 
+    def review_decision(self, body):
+        with self._start_lock:
+            if self._probe_lock():
+                raise self._busy()
+            try:
+                result = subprocess.run(self.cfg.engine_argv('--review-decision'), input=json.dumps(body),
+                                        text=True, capture_output=True, cwd=ENGINE_CWD, timeout=30)
+                answer = json.loads(result.stdout)
+            except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+                raise JobRefused(503, {'error': 'review_unavailable',
+                    'message': 'The review decision could not be confirmed. Reload the photo before retrying.'}) from exc
+            if result.returncode:
+                raise JobRefused(409 if result.returncode == 3 else 400, answer)
+            return answer
+
     def repair_similarity(self, scope, photo_id=None, request_id=None):
         validate_request_id(request_id)
         if scope not in ('missing','comparisons') or (photo_id is not None and

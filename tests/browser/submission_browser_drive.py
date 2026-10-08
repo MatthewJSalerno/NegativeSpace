@@ -12,7 +12,8 @@ with sync_playwright() as p:
     def wait(run_id):
         for _ in range(600):
             run = request.get(f'/api/v1/runs/{run_id}').json()
-            if run['status'] not in ('Preparing', 'Running', 'Cancelling'):
+            if (run['status'] not in ('Preparing', 'Running', 'Cancelling')
+                    and request.get('/api/v1/jobs/active').json()['active'] is None):
                 return run
             time.sleep(.1)
         raise AssertionError('Job did not settle')
@@ -47,7 +48,9 @@ with sync_playwright() as p:
     index_ui(page)
     notice = page.get_by_role('status', name='Job submission status')
     expect(notice).to_contain_text('Checking job status')
-    index_ui(page)  # repeated click waits on the original submission, no second POST
+    page.get_by_role('button', name='Jobs', exact=True).click()
+    expect(page.get_by_role('menu', name='Jobs', exact=True).get_by_role('menuitem', name=re.compile('^Index'))).to_have_attribute('aria-disabled', 'true')
+    page.keyboard.press('Escape')  # pending submission cannot start a second job
     assert len(captured) == 1
     expect(page.get_by_text('The job could not be started.', exact=True)).to_have_count(0)
     blocked[0] = False

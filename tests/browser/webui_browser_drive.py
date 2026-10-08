@@ -47,6 +47,20 @@ with sync_playwright() as p:
         if os.environ.get("SHOTS"):
             page.screenshot(path=f"{os.environ['SHOTS']}/{name}.png")
 
+    # Same-origin frames remain usable; foreign pages may not overlay these controls.
+    headers = page.request.get(BASE).headers
+    assert headers.get("content-security-policy") == "frame-ancestors 'self'", headers
+    assert headers.get("x-frame-options") == "SAMEORIGIN", headers
+    # Check the API and assets too: nginx location-level Cache-Control must not drop the policy.
+    assert page.request.get(BASE + "/api/v1/status").headers.get("x-frame-options") == "SAMEORIGIN"
+    assert page.request.get(BASE + "/assets/not-present.js").headers.get("x-frame-options") == "SAMEORIGIN"
+    attacker = browser.new_page()
+    attacker.goto(os.environ["ATTACKER_URL"])
+    attacker.wait_for_timeout(1000)
+    assert not any(frame.get_by_role("button", name="Create new catalog").is_visible()
+                   for frame in attacker.frames), "a foreign page can frame app controls"
+    attacker.close()
+
     # First run: create the catalog, then settings as the page, saying they can change later.
     page.goto(BASE + "/logs")   # an address left by an earlier session
     expect(page.get_by_text("No catalog found")).to_be_visible()
@@ -56,26 +70,27 @@ with sync_playwright() as p:
     expect(page.locator(".mounts-note")).to_contain_text("APPDATA_DIR")
     shot("0-no-catalog")
     page.get_by_role("button", name="Create new catalog").click()
-    expect(page.get_by_text("Welcome to NegativeSpace")).to_be_visible()
+    expect(page.get_by_role("heading", name="NegativeSpace", exact=True)).to_be_visible()
     expect(page.locator(".notice-first-run")).to_contain_text("change any of them at any time in the app's Settings")
     # One group per step, as Settings' tabs; the step's buttons in view without scrolling.
     step = page.locator(".settings-step")
-    for n, name in enumerate(("Appearance", "Files", "Backups", "Performance"), 1):
-        expect(step).to_have_text(f"Step {n} of 4 {name}")
-        action = page.get_by_role("button", name="Next" if n < 4 else "Save and continue", exact=True)
+    for n, name in enumerate(("Appearance", "Files", "Backups", "Performance", "Access"), 1):
+        expect(step).to_have_text(f"Step {n} of 5 {name}")
+        action = page.get_by_role("button", name="Next" if n < 5 else "Save and continue", exact=True)
         box = action.bounding_box()
         assert box and box["y"] + box["height"] <= page.viewport_size["height"], (name, box)
         if n == 1:
             shot("1-welcome")
             expect(page.get_by_role("button", name="Back", exact=True)).to_have_count(0)
         if n == 2:
+            page.get_by_label("Small-image reminders (required)", exact=True).select_option("off")
             # Next checks only this step: with no file type it stays, and says why.
             boxes = page.locator("#settings-exts input[type=checkbox]")
             ticked = [i for i in range(boxes.count()) if boxes.nth(i).is_checked()]
             for i in ticked:
                 boxes.nth(i).uncheck()
             action.click()
-            expect(step).to_have_text("Step 2 of 4 Files")
+            expect(step).to_have_text("Step 2 of 5 Files")
             expect(page.locator("#settings-exts-error")).to_contain_text("at least one file type")
             for i in ticked:
                 boxes.nth(i).check()
@@ -89,12 +104,12 @@ with sync_playwright() as p:
         if n == 4:
             expect(page.locator(".settings")).to_contain_text(re.compile(r"This container may use (all )?\d+"))
             page.get_by_role("button", name="Back", exact=True).click()
-            expect(step).to_have_text("Step 3 of 4 Backups")
+            expect(step).to_have_text("Step 3 of 5 Backups")
             page.get_by_role("button", name="Next", exact=True).click()
         action.click()
     # Saved, the first run lands in the Library, where the Index waits, whatever the address was.
     expect(page).to_have_url(re.compile(r"^[^?]*://[^/]+/(\?.*)?$"))
-    expect(page.get_by_text("No photos yet")).to_be_visible()
+    expect(page.get_by_text("Index your source to find photos")).to_be_visible()
     # Which build is running, at the top right beside Settings.
     expect(page.locator(".version-tag")).to_have_text(re.compile(r"^v\d+\.\d+\.\d+"))
     # The logo at the top left, in its own proportions.
@@ -111,16 +126,16 @@ with sync_playwright() as p:
     expect(page.locator(".menu")).to_have_count(0)
 
     # Index; the result shows at the top of the page, and the gallery refreshes itself.
-    page.get_by_role("button", name="Index your library").click()
+    page.get_by_role("button", name="Index source").click()
     banner = page.locator(".finished-banner")
-    expect(banner).to_contain_text(re.compile(r"Index #\d+ finished"), timeout=180_000)
+    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Index finished"), timeout=180_000)
     expect(banner).to_contain_text(f"{PHOTOS + DUPLICATES:,} new or changed, including {DUPLICATES:,} duplicate")
     top = banner.bounding_box()["y"]
-    browse = page.locator(".toolbar-browse").bounding_box()
+    browse = page.get_by_role("group", name="Filter photos", exact=True).bounding_box()
     assert 0 <= top - (browse["y"] + browse["height"]) <= 24, \
         f"the finished-job banner is not immediately below the browsing toolbar (y={top})"
     expect(page.locator(".card")).to_have_count(60)
-    expect(page.locator(".views")).to_contain_text(f"Not yet organized ({PHOTOS:,})")
+    expect(page.locator(".views")).to_contain_text(f"Not organized ({PHOTOS:,})")
     time.sleep(1)
     broken = page.evaluate("[...document.querySelectorAll('.card img')]"
                            ".filter(i => i.complete && i.naturalWidth === 0).length")
@@ -141,7 +156,7 @@ with sync_playwright() as p:
     page.reload()
     expect(page).to_have_url(re.compile(r"page=2\b"))
     expect(page.locator(".pager").first.locator("button.current")).to_have_text("2")
-    page.goto(BASE)
+    page.goto(BASE + "/?view=all")
     # Folders, the left panel's default: the source's folders as catalogued, a chain of
     # single folders as one row, and the files directly in the source folder.
     folders_nav = page.get_by_role("navigation", name="Folders")
@@ -196,7 +211,7 @@ with sync_playwright() as p:
     january.evaluate("""e => window.scrollTo(0, e.getBoundingClientRect().top + window.scrollY
         - document.querySelector('.toolbar').getBoundingClientRect().height - 2)""")
     expect(page.locator(".dates-row.current.month", has_text="January")).to_have_count(1, timeout=5_000)
-    page.goto(BASE)
+    page.goto(BASE + "/?view=all")
     # The date tree: clicking the older year jumps to its page; its first photo is photo
     # number NEWER + 1. Checking it shows only that year, and the address keeps it.
     dates = page.get_by_role("navigation", name="Dates")
@@ -220,7 +235,7 @@ with sync_playwright() as p:
     expect(page.locator(".selection-line")).to_contain_text(f"{OLDER} photos selected")
     page.locator(".selection-line").get_by_role("button", name="Clear").click()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
-    expect(page.locator(".views")).to_contain_text(f"All photos ({OLDER})")   # what the filters find, as shown
+    expect(page.locator(".views")).to_contain_text(f"Not organized ({OLDER})")   # what the filters find, as shown
     expect(dates.get_by_role("button", name="2023", exact=True)).to_be_visible()   # counts ignore the filter
     page.reload()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
@@ -259,7 +274,7 @@ with sync_playwright() as p:
     shot("2b-dates")
     page.locator(".pager").first.get_by_label("Photos loaded at a time").select_option("120")
     expect(page).to_have_url(re.compile(r"size=120"))
-    page.goto(BASE)
+    page.goto(BASE + "/?view=all")
     no_errors_yet()
 
     # The Inspector: bordered tables of equal width, EXIF kept apart from file dates.
@@ -413,13 +428,14 @@ with sync_playwright() as p:
     expect(page.locator(".card")).to_have_count(3)
     page.locator(".card-check input").first.click()
     shot("5b-review-before-copy")
+    history_photo = int(page.locator(".card").first.get_attribute("data-id"))
     review.get_by_role("button", name="Copy these 3 photos").click()
     # Back where it started (webui-spec 2, after a job), with nothing selected; the
     # banner opens the job's photos, where search and the view buttons still work.
     expect(review).to_have_count(0)
     expect(line).to_have_count(0)
     expect(page).to_have_url(re.compile(r"date=2019"))
-    expect(banner).to_contain_text(re.compile(r"Copy #\d+ finished"), timeout=60_000)
+    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Copy finished"), timeout=60_000)
     expect(banner).to_contain_text("3 of 3 files copied")
     # A dismissal this browser kept from an earlier catalog, whose job numbers ran higher,
     # must not hide this catalog's banners: the catalog's record wins.
@@ -428,7 +444,7 @@ with sync_playwright() as p:
     expect(banner).to_contain_text("3 of 3 files copied")
     banner.get_by_role("button", name="Show these photos").click()
     job = page.get_by_role("region", name="A job's photos")
-    expect(job).to_contain_text(re.compile(r"The 3 photos in Copy #\d+"))
+    expect(job).to_contain_text(re.compile(r"The 3 photos in Job #\d+ · Copy"))
     expect(job).to_contain_text("3 of 3 files copied")
     expect(page).to_have_url(re.compile(r"run=\d+"))
     expect(page.locator(".badge-copied")).to_have_count(3, timeout=5_000)
@@ -441,7 +457,7 @@ with sync_playwright() as p:
     expect(job).to_have_count(0)
     expect(page).to_have_url(re.compile(r"date=2019"))
     only_2019.uncheck()
-    expect(page.locator(".views")).to_contain_text("Organized (3)", timeout=5_000)
+    expect(page.locator(".views")).to_contain_text("Library (3)", timeout=5_000)
     # A review holds only what its action takes: of everything selected, Reject takes the
     # three organized photos and says how many it left out.
     select(f"Select all in this view ({PHOTOS})")
@@ -465,7 +481,7 @@ with sync_playwright() as p:
     expect(dialog).to_contain_text(f"every photo not yet copied ({PHOTOS - 3:,})")
     dialog.get_by_role("button", name="Copy").click()
     page.get_by_role("searchbox", name="Search filenames").fill("")
-    expect(banner).to_contain_text(re.compile(r"Copy #\d+ finished with failures"), timeout=120_000)
+    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Copy finished with failures"), timeout=120_000)
     expect(banner).to_contain_text(
         f"{PHOTOS - 4} of {PHOTOS + DUPLICATES} files copied · 1 failed · {3 + DUPLICATES} skipped "
         f"(3 copied by an earlier job, {DUPLICATES} duplicates: the same content is copied once)")
@@ -501,12 +517,18 @@ with sync_playwright() as p:
     expect(rows.first).to_contain_text("photo-129.jpg")
     expect(rows.first).to_contain_text("Check its permissions")
     shot("7-failures")
-    retry = page.get_by_role("button", name=re.compile(r"^Retry the 1 failed photo"))
-    retry.click()
+    retry = page.get_by_role("button", name=re.compile(r"^Recheck 1 failed file after fixing"))
+    # Correct the generated file before Retry; otherwise completion depends on whether
+    # the worker or chmod wins. Wait for this new job, never an older Copy banner.
+    os.chmod(locked, 0o644)
+    with page.expect_response(lambda r: r.url.endswith("/api/v1/jobs/start") and r.request.method == "POST") as retried:
+        retry.click()
+    assert retried.value.ok, retried.value.text()
+    retry_id = retried.value.json()["id"]
     # What Retry did is said beside it, not at the top of the page.
     expect(page.locator(".retry .notice")).to_contain_text("Retrying 1 photo as a new Copy")
-    expect(page.locator(".finished-banner")).to_contain_text("Copy", timeout=60_000)
-    os.chmod(locked, 0o644)
+    expect(page.locator(".finished-banner")).to_contain_text(f"Job #{retry_id} · Copy finished", timeout=60_000)
+    expect(page.locator(".finished-banner")).to_contain_text("1 of 1 file copied")
     # Status boxes: arriving from a message ticks only what it named; All statuses ticks
     # every one again, which is no filter at all.
     statuses = page.locator(".status-checks")
@@ -546,7 +568,8 @@ with sync_playwright() as p:
     expect(page.locator(".dates-filter-line")).to_contain_text("Showing: Copied · “photo-00”")
     page.get_by_role("button", name="Clear all filters").click()
     expect(page.get_by_label("Search the log")).to_have_value("")
-    expect(page.locator(".dates-filter-line")).to_have_count(0)
+    expect(page.locator(".dates-filter-line > span")).to_have_text("Showing all log entries")
+    expect(page.get_by_role("button", name="Clear all filters", exact=True)).to_have_count(0)
     # A banner dismissed in the library stays dismissed on the log.
     page.get_by_role("link", name="Library").first.click()
     expect(page.locator(".finished-banner")).to_be_visible()
@@ -564,8 +587,9 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"/(\?.*)?$"))
     expect(page.locator(".card").first).to_be_visible()
 
-    # A photo's history, from the Inspector.
-    page.locator(".card-image").first.click()
+    # Check a photo from the first Copy, so Copy all also recorded its skip.
+    # The first card after returning to Library need not belong to that selection.
+    page.goto(f"{BASE}/?view=library&photo={history_photo}")
     # After a Copy, the pane lists the photo's whole history; the log is one link away.
     events = page.locator(".inspector .history-list li")
     expect(events).to_have_count(3)                       # indexed, copied, then skipped by Copy all
@@ -602,7 +626,7 @@ with sync_playwright() as p:
     expect(lightbox).to_have_count(0)
     # A step's job opens the log on that job.
     events.nth(0).click()
-    tree.get_by_role("link", name=re.compile(r"^job #\d+ index")).click()
+    tree.get_by_role("link", name=re.compile(r"^Job #\d+ · Index")).click()
     expect(page).to_have_url(re.compile(r"/logs\?run=\d+&photo=\d+"))
     expect(page.locator(".job-head[aria-expanded=true]")).to_have_count(1)
     page.go_back()
@@ -625,15 +649,15 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"/stats$"))
     tiles = page.locator(".stat-tile")
     tile = lambda label: tiles.filter(has=page.locator(".tile-label", has_text=re.compile(f"^{label}$")))
-    expect(tile("Photos")).to_contain_text(f"{PHOTOS:,}")
+    expect(tile("Catalog photos")).to_contain_text(f"{PHOTOS:,}")
     # A share never rounds to all or nothing: 100% only when the counts beside it agree.
-    organized = tile("Organized")
+    organized = tile("In Library")
     done, of = (int(n.replace(",", "")) for n in
                 re.search(r"([\d,]+) of ([\d,]+)", organized.locator(".tile-sub").inner_text()).groups())
     shown = organized.locator(".tile-value").inner_text()
     assert (shown == "100%") == (done == of) and (shown == "0%") == (done == 0), f"Organized {shown} for {done} of {of}"
     undated_tile = tile("No capture date")
-    expect(undated_tile).to_have_attribute("href", "/?undated=1")
+    expect(undated_tile).to_have_attribute("href", "/?view=all&undated=1")
     expect(page.locator(".stat-panel h3")).to_have_count(6)
     expect(page.locator(".stat-panel", has_text="Duplicates")).to_contain_text("Extra copies")
     # Aligned: fixed columns, and every panel in a row as tall as the row.
@@ -663,7 +687,7 @@ with sync_playwright() as p:
     page.locator(".gallery-filters").get_by_role("button", name="Show all dates").click()
 
     page.get_by_role("button", name="Settings").click()
-    expect(page.get_by_role("dialog")).to_contain_text("Changes apply to future jobs")
+    expect(page.get_by_role("dialog")).to_contain_text("Processing settings apply to future jobs")
     page.get_by_role("tab", name="Backups").click()
     # Catalog backups: each job above took one; Back up now adds a manual one.
     backups = page.locator(".backups")
@@ -692,17 +716,18 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"undated=1"))
     expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS - 2:,} photos")
     # The views count what the filter finds, and the buttons keep their widths.
-    expect(views).to_contain_text(f"All photos ({PHOTOS - 2:,})")
+    expect(views).to_contain_text(f"Library ({PHOTOS - 2:,})")
     after = views.locator("button").evaluate_all("bs => bs.map(b => Math.round(b.getBoundingClientRect().width))")
     assert after == widths, f"the view buttons changed width: {widths} -> {after}"
     undated_filter.click()
     expect(page).not_to_have_url(re.compile(r"undated=1"))
-    # All photos resets the other filters, while preserving the search.
+    # Clear filters resets restrictions without changing location or selection.
     undated_filter.click()
     page.get_by_role("navigation", name="Dates").get_by_label("Show only 2019").check()
     page.get_by_role("searchbox", name="Search filenames").fill("photo")
     expect(page).to_have_url(re.compile(r"q=photo"))
-    page.get_by_role("button", name=re.compile(r"^All photos")).click()
+    page.get_by_role("button", name="Clear filters", exact=True).click()
+    page.get_by_role("searchbox", name="Search filenames").fill("photo")
     expect(page).not_to_have_url(re.compile(r"undated=1|date="))
     expect(page).to_have_url(re.compile(r"q=photo"))
     expect(page.get_by_role("searchbox", name="Search filenames")).to_have_value("photo")

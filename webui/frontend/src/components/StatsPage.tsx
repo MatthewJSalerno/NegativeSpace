@@ -1,11 +1,13 @@
+import { useDismissedRun } from "../dismissal";
+import { PageNavigation } from "./PageNavigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, type Stats, type Status } from "../api";
 import { ago, bytes, count, instant, photoDate, plural } from "../format";
-import { useDismissedRun, useJobFeed } from "../jobs";
+import { useJobCompletion, useJobFeed } from "../jobs";
 import { follow, useHeaderHeight } from "../nav";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
 import { Logo } from "./Logo";
-import { VersionTag } from "./VersionTag";
+import { PageTools } from "./PageTools";
 import { RejectsReminder } from "./RejectsLine";
 
 const FAILURE_LABEL: Record<string, [string, string]> = {
@@ -27,25 +29,24 @@ const JOB_LABEL: Record<string, string> = {
 export function StatsPage({ status, refreshStatus, onOpenSettings }: {
   status: Status;
   refreshStatus: () => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (group?: "appearance" | "files" | "backups") => void;
 }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dismissedId, dismissRun] = useDismissedRun();
+  const [dismissedId, dismissRun, dismissal] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
-  const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
+  const [refreshKey, setRefreshKey] = useState(0);
+  useJobCompletion(() => { setRefreshKey(k => k + 1); refreshStatus(); });
   const header = useRef<HTMLElement>(null);
   useHeaderHeight(header);
 
   // A job finishing changes the figures.
-  const lastKey = jobs.last && !jobRunning ? `${jobs.last.id}:${jobs.last.status}` : null;
   useEffect(() => {
     let live = true;
     api.stats().then((s) => live && setStats(s),
       (e) => live && setError(e instanceof ApiError ? e.message : "The stats could not be loaded."));
-    if (lastKey) refreshStatus();
     return () => { live = false; };
-  }, [lastKey]);
+  }, [refreshKey]);
 
 
   return (
@@ -53,18 +54,11 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
       <header className="toolbar" ref={header}>
         <div className="toolbar-row">
           <h1 className="brand"><Logo />NegativeSpace</h1>
-          <nav className="pages" aria-label="Pages">
-            <a className="button-link" href="/" onClick={follow}>Library</a>
-            <a className="button-link" href="/logs" onClick={follow}>Logs</a>
-          </nav>
-          <div className="toolbar-actions">
-            <VersionTag version={status.version} />
-            <StatsLink active />
-            <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
-          </div>
+          <PageNavigation />
+          <PageTools version={status.version} stats onOpenSettings={onOpenSettings} />
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
-        <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
+        <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} dismissal={dismissal} />
         <RejectsReminder status={status} />
       </header>
 
@@ -79,18 +73,6 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
 }
 
 // The Stats icon, beside Settings on every page.
-export function StatsLink({ active = false }: { active?: boolean }) {
-  return (
-    <a className={`icon stats-link ${active ? "active" : ""}`} href="/stats" onClick={follow}
-       aria-label="Stats" title="Stats" aria-current={active ? "page" : undefined}>
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"
-           fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-        <path d="M5 20V11M12 20V5M19 20v-7" />
-      </svg>
-    </a>
-  );
-}
-
 // A share as a percentage that never rounds to all or nothing: 4,681 of 4,684 reads
 // 99.9%, not 100%, and 100% means every one.
 function share(n: number, of: number): string {
@@ -101,39 +83,41 @@ function share(n: number, of: number): string {
   return tenths >= 100 ? ">99.9%" : tenths <= 0 ? "<0.1%" : `${tenths}%`;
 }
 
-function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void }) {
+function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: (group?: "appearance" | "files" | "backups") => void }) {
   const lib = s.library;
   const failed = Object.values(s.activity.failures).reduce((a, b) => a + b, 0);
   return (
     <>
       <div className="stat-tiles">
-        <Tile label="Photos" value={count(lib.photos)} sub={bytes(lib.bytes)} href="/" />
-        <Tile label="Organized" value={share(lib.organized, lib.photos)}
+        <Tile label="Catalog photos" value={count(lib.photos)} sub={bytes(lib.bytes)} href={lib.failed_source ? undefined : "/?view=all"} />
+        <Tile label="In Library" value={share(lib.organized, lib.photos)}
               sub={`${count(lib.organized)} of ${count(lib.photos)}`} href="/?view=organized" />
         <Tile label="No capture date" value={count(s.dates.undated)}
-              sub={`${share(s.dates.undated, lib.photos)} of photos`} href="/?undated=1" />
+              sub={`${share(s.dates.undated, lib.photos)} of photos`} href="/?view=all&undated=1" />
         <Tile label="Duplicate copies" value={count(s.duplicates.extra_copies)}
               sub={`${bytes(s.duplicates.bytes)} in extra copies`} />
         <Tile label="Failed attempts" value={count(failed)} sub={failed ? "Open the Error Center" : "None"}
               href={failed ? "/logs?status=Failed" : undefined} tone={failed ? "bad" : undefined} />
         <Tile label="Last backup" value={s.health.last_backup ? photoDate(s.health.last_backup, false) : "None"}
               sub={s.health.unbacked_changes ? `${plural(s.health.unbacked_changes, "change")} since` : "Up to date"}
-              onClick={onOpenSettings} tone={s.health.unbacked_changes ? "warn" : undefined} />
+              onClick={() => onOpenSettings("backups")} tone={s.health.unbacked_changes ? "warn" : undefined} />
         <RejectsTile r={s.rejects} />
       </div>
 
       <div className="stat-panels">
-        <Panel title="Your library">
+        <Panel title="Catalog overview">
+          <p className="section-note">Includes Library and Not organized. Failed source files are counted separately below; they are excluded from photo size, camera and date statistics. Rejects has its own totals.</p>
           <Facts rows={[
-            ["Photos", `${plural(lib.photos, "photo")} · ${bytes(lib.bytes)}`],
-            ["Organized", <a key="o" href="/?view=organized" onClick={follow}>{plural(lib.organized, "photo")} · {bytes(lib.organized_bytes)}</a>],
-            ["Not yet organized", <a key="n" href="/?view=unorganized" onClick={follow}>{plural(lib.not_organized, "photo")}</a>],
+            ["Catalog photos", `${plural(lib.photos, "photo")} · ${bytes(lib.bytes)}`],
+            ["In Library", <a key="o" href="/?view=organized" onClick={follow}>{plural(lib.organized, "photo")} · {bytes(lib.organized_bytes)}</a>],
+            ["Not organized", <a key="n" href="/?view=unorganized" onClick={follow}>{plural(lib.not_organized, "photo")}{lib.failed_source > 0 && ` · ${plural(lib.failed_source, "file")} needing attention`}</a>],
+            ["Source files needing attention", <a key="failed" href="/logs?status=Failed" onClick={follow}>{count(lib.failed_source)} files · View failure details</a>],
             ["With a location (GPS)", `${plural(lib.with_location, "photo")} · ${share(lib.with_location, lib.photos)} of them`],
             ["Orientation", `${count(lib.orientation.landscape)} landscape · ${count(lib.orientation.portrait)} portrait · ${count(lib.orientation.square)} square`],
           ]} />
           <h4>Formats, by space</h4>
           <Bars rows={lib.formats.map((f) => ({ label: f.format.toUpperCase(), value: f.bytes, text: `${bytes(f.bytes)} · ${plural(f.photos, "photo")}`,
-                                                href: `/?type=${encodeURIComponent(f.format)}` }))} />
+                                                href: lib.failed_source ? undefined : `/?view=all&type=${encodeURIComponent(f.format)}` }))} />
           <h4>Resolution</h4>
           <Bars rows={lib.megapixels.map((m) => ({ label: m.band, value: m.photos, text: count(m.photos) }))} />
           {lib.under_1mp > 0 && <p className="muted">{plural(lib.under_1mp, "photo is", "photos are")} under 1 megapixel: often thumbnails or screenshots.</p>}
@@ -156,7 +140,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
             ["Oldest photo", s.dates.oldest ? photoDate(s.dates.oldest, false) : "–"],
             ["Newest photo", s.dates.newest ? photoDate(s.dates.newest, false) : "–"],
             ["Busiest day", s.dates.busiest_day ? `${photoDate(s.dates.busiest_day.day, false)} · ${plural(s.dates.busiest_day.photos, "photo")}` : "–"],
-            ["No capture date", <a key="u" href="/?undated=1" onClick={follow}>{count(s.dates.undated)}</a>],
+            ["No capture date", <a key="u" href="/?view=all&undated=1" onClick={follow}>{count(s.dates.undated)}</a>],
             ["  no date in the EXIF", count(s.dates.undated_no_date)],
             ["  an unusable date (e.g. 0000:00:00)", count(s.dates.undated_unusable)],
             ["Recorded a time zone", count(s.dates.with_time_zone)],
@@ -226,7 +210,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
                   .map(([k, n]) => `${count(n)} ${k}`).join(", ") || "all as recorded"}`
               : "Never run"],
           ]} />
-          <button className="link" onClick={onOpenSettings}>Open Settings for backups</button>
+          <button className="link" onClick={() => onOpenSettings("backups")}>Open Settings for backups</button>
         </Panel>
       </div>
     </>

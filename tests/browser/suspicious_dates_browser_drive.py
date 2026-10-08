@@ -14,7 +14,8 @@ with sync_playwright() as p:
     def wait(run):
         for _ in range(600):
             result = request.get(f'/api/v1/runs/{run}').json()
-            if result['status'] not in ('Preparing','Running','Cancelling'):
+            if (result['status'] not in ('Preparing','Running','Cancelling')
+                    and request.get('/api/v1/jobs/active').json()['active'] is None):
                 assert result['status'] == 'Completed', result
                 return
             time.sleep(.2)
@@ -33,7 +34,7 @@ with sync_playwright() as p:
     page.goto(sys.argv[1])
     page.get_by_role('button',name=re.compile('^Suspicious dates')).click()
     expect(page.locator('.card')).to_have_count(2)
-    expect(page).to_have_url(re.compile('view=suspicious'))
+    expect(page).to_have_url(re.compile('suspicious=1'))
     page.reload()
     expect(page.locator('.card')).to_have_count(2)
     page.locator(f'.card[data-id="{ids[0]}"] .card-image').click()
@@ -44,7 +45,7 @@ with sync_playwright() as p:
     page.get_by_role('tab',name='Similar photos',exact=True).click()
     page.get_by_role('button',name=re.compile('^Review side by side:')).first.click()
     expect(page.get_by_role('table',name='Capture information',exact=True).get_by_role('rowheader',name=re.compile('^Date review'))).to_be_visible()
-    expect(page.get_by_text('Recorded year is before 1800.',exact=True)).to_be_visible()
+    expect(page.get_by_text('Recorded year is before your earliest expected year (1800).',exact=True)).to_be_visible()
     page.get_by_role('table',name='Capture information',exact=True).get_by_role('rowheader',name=re.compile('^Date review')).scroll_into_view_if_needed()
     if os.environ.get('SHOTS'):
         page.screenshot(path=os.path.join(os.environ['SHOTS'],'suspicious-date-comparison.png'))

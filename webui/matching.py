@@ -11,8 +11,9 @@ from engine.ns_similarity_cache import AVAILABLE, VALID
 THRESHOLDS = (75, 80, 85, 90, 95, 100)
 
 
-def counts(db: Path, photo_id: int):
+def counts(db: Path, photo_id: int, *, scope="library"):
     """Cumulative direct-match counts in one snapshot, without six queue queries."""
+    available = _candidate_available(scope)
     with catalog.connect(db) as conn:
         conn.execute('BEGIN')
         reference = conn.execute('WITH '+_REFERENCE+' SELECT * FROM raw WHERE id=?', (photo_id,)).fetchone()
@@ -20,10 +21,10 @@ def counts(db: Path, photo_id: int):
             return {'availability': 'not_available', 'counts': [], 'pending': 0}
         if reference['phash_state'] != 'ok' or not ns_similarity.usable(reference['phash']):
             return {'availability': 'hash_unavailable', 'counts': [], 'pending': 0}
-        pending = conn.execute(f"""WITH {AVAILABLE} SELECT COUNT(*) FROM available
+        pending = conn.execute(f"""WITH {available} SELECT COUNT(*) FROM available
           WHERE {VALID} AND NOT EXISTS
           (SELECT 1 FROM similarity_hashes h WHERE h.phash=available.phash)""").fetchone()[0]
-        histogram = conn.execute(f"""WITH {AVAILABLE}, near AS (
+        histogram = conn.execute(f"""WITH {available}, near AS (
           SELECT :hash AS phash,0 AS distance UNION ALL
           SELECT high_hash,distance FROM content_similarity WHERE low_hash=:hash AND distance<=:distance UNION ALL
           SELECT low_hash,distance FROM content_similarity WHERE high_hash=:hash AND distance<=:distance)
@@ -35,8 +36,8 @@ def counts(db: Path, photo_id: int):
             'counts': [{'threshold': t, 'count': sum(n for d, n in histogram if d <= (100-t)*64//100)}
                        for t in THRESHOLDS]}
 
-# Availability is recorded evidence, not a fresh filesystem verification. Destructive
-# curation is deliberately absent; its future preview must verify files independently.
+# Library availability is recorded evidence. Rejects also uses the gallery
+# presence check so emptied files disappear. Reject/Return independently verify bytes.
 _BASE = f"""raw AS (
  SELECT {gallery._LIST_COLUMNS}, c.content_id, lower(c.phash) AS phash,
         c.phash_state, c.width, c.height,
@@ -50,11 +51,23 @@ _VALID = "phash_state='ok' AND length(phash)=16 AND phash NOT GLOB '*[^0-9a-f]*'
 
 # A single reference (including a noncanonical copy) does not need a window over
 # the catalog. Removing that window lets SQLite seek by the requested photo IDs.
-_REFERENCE = _BASE.replace(',\n        ROW_NUMBER() OVER (PARTITION BY c.content_id ORDER BY p.id) AS representative', '')
+_LIBRARY = f"p.status IN ({ns_db.sql_values(catalog.DELIVERED)})"
+_REJECTS = f"(p.status IN ({ns_db.sql_values(catalog.IN_REJECTS_STATUSES)}) AND in_rejects(p.dest_path))"
+_REFERENCE = _BASE.replace(',\n        ROW_NUMBER() OVER (PARTITION BY c.content_id ORDER BY p.id) AS representative', '').replace(_LIBRARY, f'({_LIBRARY} OR {_REJECTS})')
 
 
-def _scope(mode, *, candidates=False):
-    base = _BASE
+def _candidate_clause(scope):
+    if scope not in ('library', 'rejects'):
+        raise ValueError('Matching scope must be library or rejects')
+    return _LIBRARY if scope == 'library' else _REJECTS
+
+
+def _candidate_available(scope):
+    return AVAILABLE.replace(_LIBRARY, _candidate_clause(scope))
+
+
+def _scope(mode, *, candidates=False, scope="library"):
+    base = _BASE.replace(_LIBRARY, _candidate_clause(scope))
     if candidates:
         # Hash/content eligibility precedes ranking and metadata projection.
         # Every copy of one content has the same hash, so canonical selection is
@@ -62,7 +75,7 @@ def _scope(mode, *, candidates=False):
         restricted = ("c.content_id=:content" if mode == 'exact' else """lower(c.phash) IN (
             SELECT :hash UNION SELECT high_hash FROM content_similarity WHERE low_hash=:hash AND distance<=:distance
             UNION SELECT low_hash FROM content_similarity WHERE high_hash=:hash AND distance<=:distance)""")
-        base = base.replace('WHERE p.status', f'WHERE {restricted} AND p.status')
+        base = base.replace('WHERE ', f'WHERE {restricted} AND ', 1)
     return base + (", available AS (SELECT * FROM raw WHERE representative=1)" if mode == 'similar'
                     else ", available AS (SELECT * FROM raw)")
 
@@ -76,8 +89,8 @@ def _check(mode, threshold, sort, page, page_size):
         raise ValueError('page must be positive and page_size between 1 and 60')
 
 
-def _state(conn):
-    row = conn.execute(f"""WITH {AVAILABLE}
+def _state(conn, available=AVAILABLE):
+    row = conn.execute(f"""WITH {available}
       SELECT COUNT(*) AS photos,
         COALESCE(SUM(NOT ({_VALID}) OR phash IS NULL OR phash_state IS NULL),0) AS unavailable,
         COALESCE(SUM(CASE WHEN {_VALID} AND NOT EXISTS
@@ -159,20 +172,21 @@ def diagnostics(db: Path):
             'query_ms':round((time.perf_counter()-started)*1000,2)}
 
 
-def matches(db: Path, photo_id: int, *, mode='similar', threshold=90., page=1, page_size=30):
+def matches(db: Path, photo_id: int, *, mode='similar', threshold=90., page=1, page_size=30, scope='library'):
     _check(mode, threshold, 'matches', page, page_size)
+    _candidate_clause(scope)
     distance = int(math.floor((100-threshold)*64/100 + 1e-9))
     with catalog.connect(db) as conn:
         conn.execute('BEGIN')
-        state = _state(conn)
-        # Resolve only delivered references, including a second delivered record
+        state = _state(conn, _candidate_available(scope))
+        # Resolve Library or still-present rejected references, including another record
         # of the same content when the queue uses a different representative.
         reference = conn.execute('WITH '+_REFERENCE+' SELECT * FROM raw WHERE id=?',(photo_id,)).fetchone()
         if reference is None:
             return {'reference':None,'items':[],'total':0,'page':page,'page_size':page_size,'state':state,'availability':'not_available'}
         if mode=='similar' and not conn.execute(f'WITH {_REFERENCE} SELECT 1 FROM raw WHERE id=? AND {_VALID}',(photo_id,)).fetchone():
             return {'reference':_item(reference),'items':[],'total':0,'page':page,'page_size':page_size,'state':state,'availability':'hash_unavailable'}
-        scope = _scope(mode, candidates=True)
+        scope = _scope(mode, candidates=True, scope=scope)
         if mode=='exact':
             scored = ", scored AS (SELECT *,0 AS distance FROM available WHERE content_id=:content AND id!=:id)"
         else:
@@ -186,7 +200,8 @@ def matches(db: Path, photo_id: int, *, mode='similar', threshold=90., page=1, p
         stats=conn.execute('WITH '+scope+scored+' SELECT COUNT(*),MAX(width*height) FROM scored',params).fetchone()
         total = stats[0]
         rows=conn.execute('WITH '+scope+scored+' SELECT * FROM scored ORDER BY distance,id LIMIT :limit OFFSET :offset',params).fetchall()
+        largest_match = conn.execute('WITH '+scope+scored+' SELECT * FROM scored WHERE width>0 AND height>0 ORDER BY width*height DESC,id LIMIT 1', params).fetchone()
         largest=max(reference['width']*reference['height'] if reference['width'] and reference['height'] else 0,stats[1] or 0) or None
     return {'reference':_item(reference),'items':[{**_item(r),'score':round((64-r['distance'])*100/64,2)} for r in rows],
-            'total':total,
+            'total':total, 'largest_match':_item(largest_match) if largest_match is not None else None,
             'page':page,'page_size':page_size,'state':state,'availability':'available','largest_pixels':largest}

@@ -4,12 +4,12 @@ import collections
 import contextlib
 import io
 import os
+import tempfile
 import time
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from engine.ns_db import RunStatus, RAW_EXTENSIONS
-from engine import constants, deps, fileinfo, ns_db, runtime, store
+from engine import constants, deps, fileinfo, ns_db, runtime, store, workers
 
 
 class ThumbnailWriteError(Exception):
@@ -40,6 +40,7 @@ def sweep_orphan_thumbnails(db_path: str, cache_root: Path) -> int:
             if name:
                 path = Path(cache_root) / name
                 try:
+                    fileinfo.require_plain_path(path.parent)
                     freed += path.stat().st_size
                     path.unlink()
                 except FileNotFoundError:
@@ -87,16 +88,25 @@ def _write_thumbnail(img, dest: Path, size: int) -> int:
     # The real decode happens here, not at open(): a truncated or damaged photo
     # raises from this call, which is why it sits OUTSIDE the write guard below.
     img.thumbnail((size, size), deps.Image.LANCZOS)
-    tmp = dest.with_name(dest.name + constants.THUMBNAIL_PARTIAL_SUFFIX)
+    tmp = None
     try:
+        fileinfo.require_plain_path(dest.parent)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        img.save(tmp, "JPEG", quality=constants.THUMBNAIL_JPEG_QUALITY, optimize=True)
+        # Exclusive creation gives concurrent generators their own inode and never
+        # follows a planted predictable-name symlink into a photo or other file.
+        fd, name = tempfile.mkstemp(prefix=dest.name + ".", suffix=constants.THUMBNAIL_PARTIAL_SUFFIX,
+                                    dir=dest.parent)
+        tmp = Path(name)
+        with os.fdopen(fd, "wb") as output:
+            img.save(output, "JPEG", quality=constants.THUMBNAIL_JPEG_QUALITY, optimize=True)
         os.replace(tmp, dest)
         return dest.stat().st_size
     except OSError as e:
-        with contextlib.suppress(OSError):
-            tmp.unlink()
         raise ThumbnailWriteError(str(e)) from e
+    finally:
+        if tmp is not None:
+            with contextlib.suppress(OSError):
+                tmp.unlink()
 
 
 def _raw_preview(raw, size: int):
@@ -160,6 +170,7 @@ def generate_thumbnail(file_path: Path, sha1_hash: str, cache_root: str,
     try:
         if replace:
             raise FileNotFoundError
+        fileinfo.require_plain_path(dest)
         existing = dest.stat()
         if existing.st_size > 0:
             return runtime.ThumbnailResult(availability="present", cache_filename=relative,
@@ -173,6 +184,7 @@ def generate_thumbnail(file_path: Path, sha1_hash: str, cache_root: str,
 
     width = height = None
     try:
+        fileinfo.require_plain_path(file_path)
         with fileinfo.warnings_attributed_to(str(file_path)):
             if file_path.suffix.lower() in RAW_EXTENSIONS:
                 if not deps.RAWPY_SUPPORTED:
@@ -360,6 +372,7 @@ def clear_previews(db_path: Path, cache_root: Path) -> dict:
         for content_id, name in ns_db.present_thumbnails(conn, constants.PREVIEW_SIZE):
             path = Path(cache_root) / name
             try:
+                fileinfo.require_plain_path(path.parent)
                 freed += path.stat().st_size
                 path.unlink()
             except FileNotFoundError:
@@ -447,8 +460,7 @@ def rebuild_thumbnails(db_path: Path, cache_root: Path, scope: str,
     batch_size = max(worker_count * 4, 16)
     items = list(work.items())
     outcome = RunStatus.COMPLETED
-    with ProcessPoolExecutor(max_workers=worker_count, initializer=fileinfo._init_worker_process,
-                             initargs=(False, str(log_dir))) as executor, \
+    with workers.pool(worker_count, False, str(log_dir)) as executor, \
             contextlib.closing(store.get_db_connection(str(db_path))) as conn:
         for start in range(0, total, batch_size):
             if runtime.cancel_requested.is_set():
@@ -459,7 +471,9 @@ def rebuild_thumbnails(db_path: Path, cache_root: Path, scope: str,
             futures = [executor.submit(_rebuild_thumbnail_task, sha1, _order_copies(copies),
                                        str(cache_root), replace)
                        for sha1, copies in items[start:start + batch_size]]
-            results = [f.result() for f in futures]
+            results = list(workers.results(futures))
+            if runtime.cancel_requested.is_set():
+                outcome = RunStatus.CANCELLED
             with ns_db.transaction(conn):
                 for sha1, kind, result, observed, fid in results:
                     counts[kind] += 1

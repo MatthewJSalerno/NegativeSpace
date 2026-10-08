@@ -2,8 +2,9 @@ import { ReviewActions, type SetActions } from "./ReviewActions";
 import type { ComparisonState } from "../comparisonState";
 import { SimilarityRecovery } from "./SimilarityRecovery";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { api, MATCH_THRESHOLDS, type MatchPage, type MatchPair, type MatchPhoto } from "../api";
+import { api, MATCH_THRESHOLDS, type MatchPage, type MatchPair, type MatchPhoto, type MatchScope } from "../api";
 import { moved, runAndWait } from "../rejecting";
+import { ConfirmDialog } from "./Confirm";
 import { RejectConfirm } from "./RejectConfirm";
 import { count } from "../format";
 import { Thumb } from "./Thumb";
@@ -12,6 +13,7 @@ import { ReviewPreview, DEFAULT_VIEW, type PreviewView } from "./ReviewPreview";
 import { ReviewMetadata } from "./ReviewMetadata";
 
 const PAGE_SIZE = 12;
+const isRejected = (photo: MatchPhoto) => ["Rejected", "Rejected_Copied"].includes(photo.status);
 
 export function MatchReviewDialog({ reference: initialReference, candidate, initialView, onView, onClose, onChanged, workspace, onWorkspace, setBrowse, onOpenSet, onShowSet, jobRunning = false, onNotice, onKeep }: SetActions & {
   workspace: ComparisonState; onWorkspace: (state: ComparisonState) => void;
@@ -27,6 +29,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
   const [reference, setReference] = useState(workspace.reference);
   const [active, setActive] = useState<number | null>(candidate);
   const [threshold, setThreshold] = useState(workspace.threshold);
+  const [scope, setScope] = useState<MatchScope>(workspace.scope ?? "library");
   const [page, setPage] = useState(workspace.page);
   const [matches, setMatches] = useState<MatchPage | null>(null);
   const [listError, setListError] = useState<string | null>(null);
@@ -44,6 +47,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
   // while comparing", which lasts while this comparison is open; one reject at a time.
   const [dontAsk, setDontAsk] = useState(false);
   const [asking, setAsking] = useState<{ photo: MatchPhoto; isReference: boolean; last: boolean } | null>(null);
+  const [returning, setReturning] = useState<{ photo: MatchPhoto; isReference: boolean } | null>(null);
   const [rejecting, setRejecting] = useState<number | null>(null);
   const [rejectedHere, setRejectedHere] = useState(0);
   const [note, setNote] = useState<{ id: number; filename: string; returned: boolean } | null>(null);
@@ -58,14 +62,14 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
     // candidates retain their local views until this workspace closes/reloads.
     const current: Record<number, PreviewView> = { [reference]: views[reference] ?? DEFAULT_VIEW };
     if (active != null) current[active] = views[active] ?? DEFAULT_VIEW;
-    onWorkspace({ origin:initialReference, reference, candidate:active, threshold, page,
+    onWorkspace({ origin:initialReference, reference, candidate:active, threshold, page, scope,
       views:current, linked, share });
-  }, [initialReference, reference, active, threshold, page, views, linked, share, onWorkspace]);
+  }, [initialReference, reference, active, threshold, page, scope, views, linked, share, onWorkspace]);
 
   useEffect(() => {
     let live = true;
     setMatches(null); setListError(null);
-    api.matches(new URLSearchParams({ threshold: String(threshold), page: String(page), page_size: String(PAGE_SIZE) }), reference)
+    api.matches(new URLSearchParams({ scope, threshold: String(threshold), page: String(page), page_size: String(PAGE_SIZE) }), reference)
       .then(data => {
         if (!live) return;
         const last = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
@@ -73,12 +77,13 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
         setMatches(data);
         const picked = pickIndex.current;
         pickIndex.current = null;
+        const preferLast = selectLast.current;
         setActive(old => old ?? (picked != null ? data.items[Math.min(picked, data.items.length - 1)]?.id
-          : selectLast.current ? data.items.at(-1)?.id : data.items[0]?.id) ?? null);
+          : preferLast ? data.items.at(-1)?.id : data.items[0]?.id) ?? null);
         selectLast.current = false;
       }, e => { if (live) setListError(e instanceof Error ? e.message : "Candidates could not be loaded."); });
     return () => { live = false; };
-  }, [reference, threshold, page, reload, revision]);
+  }, [reference, threshold, page, scope, reload, revision]);
 
   useEffect(() => {
     let live = true;
@@ -86,7 +91,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
     if (active != null) api.matchPair(reference, active).then(r => { if (live) { setReview(r); setLastReference(r.reference); } },
       e => { if (live) setError(e instanceof Error ? e.message : "The comparison could not be loaded."); });
     return () => { live = false; };
-  }, [reference, active, reload]);
+  }, [reference, active, reload, revision]);
 
   useEffect(() => {
     if (focusReference.current && review?.reference.id === reference && review.candidate.id === active) {
@@ -98,7 +103,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
   const close = () => {
     // The gallery still shows its original reference. Pages from another photo's
     // match set cannot be applied to that original Inspector.
-    onView({ threshold, page: reference === initialReference ? page : initialView.page });
+    onView({ threshold, page: reference === initialReference && scope === "library" ? page : initialView.page });
     onClose();
   };
   const changeView = (id: number, next: PreviewView) => setViews(old => {
@@ -124,6 +129,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
   const useAsReference = () => {
     if (error || active == null || review?.reference.id !== reference || review.candidate.id !== active) return;
     setViews(old => ({ ...old, [active]: displayedCandidateView }));
+    setScope(isRejected(review.reference) ? "rejects" : "library");
     setReference(active);
     setActive(reference);
     setPage(1); selectLast.current = false;
@@ -134,7 +140,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
   // not to ask; leaving none of the compared photos in the library always asks.
   const remaining = matches?.total ?? 0;
   const askReject = (photo: MatchPhoto, isReference: boolean) => {
-    const last = isReference && remaining === 0;
+    const last = isReference ? remaining === 0 || scope === "rejects" : !!review && isRejected(review.reference) && remaining <= 1;
     setRejectError(null);
     if (dontAsk && !last) void reject(photo, isReference);
     else setAsking({ photo, isReference, last });
@@ -172,7 +178,32 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       setRejectError(e instanceof Error ? e.message : `${note.filename} could not be returned.`);
     } finally { setRejecting(null); }
   };
-  const rejectButton = (photo: MatchPhoto, isReference: boolean) => (
+  const returnPhoto = async (photo: MatchPhoto, isReference: boolean) => {
+    setRejecting(photo.id); setRejectError(null);
+    try {
+      const run = await runAndWait("return", [photo.id]);
+      if (moved(run, "return") === 0) {
+        setRejectError(`${photo.filename} was not returned. The job's log says why.`);
+        return;
+      }
+      setNote({ id: photo.id, filename: photo.filename, returned: true });
+      // A returned candidate leaves the Rejects scope; a returned reference can
+      // continue against Library candidates with freshly loaded locations/actions.
+      if (!isReference && scope === "rejects") {
+        pickIndex.current = Math.max(0, index); setActive(null); setReview(null);
+      }
+      setRevision(n => n + 1); onChanged();
+    } catch (e) {
+      setRejectError(e instanceof Error ? e.message : `${photo.filename} could not be returned.`);
+    } finally { setRejecting(null); }
+  };
+  const rejectButton = (photo: MatchPhoto, isReference: boolean) => isRejected(photo) ? (
+    <button className="photo-action" disabled={rejecting != null || jobRunning}
+      title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Return this photo from Rejects to Library."}
+      onClick={() => setReturning({ photo, isReference })}>
+      {rejecting === photo.id ? "Returning…" : "Return to Library"}
+    </button>
+  ) : (
     <button className="photo-action" disabled={rejecting != null || jobRunning}
             title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : `Move ${photo.filename} out of the library into Rejects. Nothing is deleted.`}
             onClick={() => askReject(photo, isReference)}>
@@ -198,14 +229,15 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       nextDisabled: !matches?.items.length || (index === matches.items.length - 1 && page === pages),
     }}
     status={noteLine ?? progress}>
-    <ReviewActions workspace={{ origin: initialReference, reference, candidate: active, threshold, page,
+    <ReviewActions workspace={{ origin: initialReference, reference, candidate: active, threshold, page, scope,
       views: { [reference]: referenceView, ...(active == null ? {} : { [active]: displayedCandidateView }) }, linked, share }}
-      busy={!review} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet} />
+      busy={!review} setBrowse={scope === "library" && lastReference && !isRejected(lastReference) ? setBrowse : undefined} onOpenSet={onOpenSet}
+      onShowSet={scope === "library" && lastReference && !isRejected(lastReference) ? onShowSet : undefined} />
     <div className="review-toolbar">
       <label>Minimum similarity<select aria-label="Minimum similarity" value={threshold} onChange={e => {
         setThreshold(Number(e.target.value)); setPage(1); setActive(null);
       }}>{MATCH_THRESHOLDS.map(t => <option key={t} value={t}>{t}% or higher</option>)}</select></label>
-      {onKeep && lastReference?.id === reference && remaining > 0 && <button className="photo-action review-keep"
+      {onKeep && scope === "library" && lastReference?.id === reference && !isRejected(lastReference) && remaining > 0 && <button className="photo-action review-keep"
         disabled={rejecting != null || jobRunning}
         title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : `Keep ${lastReference.filename}. The look-alikes are reviewed before any is rejected. To keep the other photo, use it as the reference first.`}
         aria-label={`Keep ${lastReference.filename}, reject the other ${count(remaining)}…`}
@@ -223,6 +255,11 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       <div className="review-pair"><ReviewPreview label="Reference" isReference photo={lastReference} view={referenceView}
         onChange={next => changeView(reference, next)} refreshKey={reload} action={rejectButton(lastReference, true)} /></div>
     </div>}
+    {returning && <ConfirmDialog onClose={() => setReturning(null)} confirm={{
+      title: `Return ${returning.photo.filename} to the library?`, action: "Return to library",
+      body: ["It moves back to its date folder in the library."],
+      run: () => returnPhoto(returning.photo, returning.isReference),
+    }} />}
     {asking && <RejectConfirm filename={asking.photo.filename} last={asking.last} rejectedHere={rejectedHere} offerDontAsk
       onCancel={() => setAsking(null)}
       onConfirm={(again) => { const { photo, isReference } = asking; setAsking(null); if (again) setDontAsk(true); void reject(photo, isReference); }} />}
@@ -269,7 +306,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       </div>
     </>}
     <section className="review-candidates" aria-label="Candidate photos">
-      <div className="review-candidate-heading"><h3>Candidates</h3></div>
+      <div className="review-candidate-heading"><h3>Candidates in {scope === "rejects" ? "Rejects" : "Library"}</h3></div>
       {listError && <p className="error" role="alert">{listError} <button onClick={() => setReload(n => n + 1)}>Retry candidates</button></p>}
       {!matches && !listError && <p role="status">Loading candidates…</p>}
       {matches?.availability && matches.availability !== "available" && <p>Matching is unavailable. A recorded destination copy and usable visual hash are required.</p>}

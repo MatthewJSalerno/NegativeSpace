@@ -22,7 +22,8 @@ with sync_playwright() as p:
     assert started.ok, started.text()
     for _ in range(600):
         run = request.get(f'/api/v1/runs/{started.json()["id"]}').json()
-        if run['status'] not in ('Preparing', 'Running', 'Cancelling'):
+        if (run['status'] not in ('Preparing', 'Running', 'Cancelling')
+                and request.get('/api/v1/jobs/active').json()['active'] is None):
             assert run['status'] == 'Completed', run
             break
         time.sleep(.2)

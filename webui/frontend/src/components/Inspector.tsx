@@ -1,3 +1,4 @@
+import { ReviewNote } from "./ReviewNote";
 import { TabList, tabPanel } from "./ui/Tabs";
 import type { SetActions } from "./ReviewActions";
 import type { ComparisonState } from "../comparisonState";
@@ -8,6 +9,7 @@ import { api, ApiError, type PhotoDetail } from "../api";
 import { bytes, epoch, isFallbackDate } from "../format";
 import { follow, logUrl } from "../nav";
 import { LineageDialog } from "./LineageDialog";
+import { jobLabel } from "../jobs";
 import { Thumb } from "./Thumb";
 import { PhotoMatches, type MatchView } from "./PhotoMatches";
 import { MatchReviewDialog } from "./MatchReviewDialog";
@@ -31,10 +33,11 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice }: SetActions & {
+export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice, onReviewPhoto }: SetActions & {
   // Reject this photo, or return it from Rejects; each asks first.
   onReject?: (filename: string) => void;
   onReturn?: () => void;
+  onReviewPhoto?: () => void;
   // From Similar photos: reject one look-alike, or keep this photo and reject the rest.
   onRejectMatch?: (id: number, filename: string) => void;
   onKeep?: (keep: number, name: string, threshold: number) => void;
@@ -103,6 +106,14 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   const [previewFailed, setPreviewFailed] = useState(false);
   const [enlarged, setEnlarged] = useState(false);
   const [lineage, setLineage] = useState(false);
+  const inLibrary = !!detail && detail.id === id && IN_LIBRARY.includes(detail.status);
+  const canCompare = inLibrary || (!!detail && detail.id === id && IN_REJECTS.includes(detail.status));
+  const activeTab = canCompare ? tab : "information";
+  useEffect(() => {
+    if (detail?.id !== id || canCompare) return;
+    if (tab !== "information") onTab("information");
+    if (comparison != null) onComparison(null);
+  }, [detail, id, canCompare, tab, comparison, onTab, onComparison]);
   const candidate = comparison?.candidate ?? null;
   const comparisonOpener = useRef<HTMLElement | null>(null);
   const closeComparison = () => {
@@ -112,10 +123,10 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
       (target?.isConnected ? target : panel.current?.querySelector<HTMLElement>('.inspector-match') ?? panel.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]'))?.focus({ preventScroll:true });
     });
   };
-  const openComparison = (candidate: number) => {
+  const openComparison = (candidate: number, scope: "library" | "rejects" = "library", matchPage = matchView?.page ?? 1) => {
     comparisonOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    onComparison({ origin:id, reference:id, candidate,
-    threshold:matchView?.threshold ?? 90, page:matchView?.page ?? 1,
+    onComparison({ origin:id, reference:id, candidate, scope,
+    threshold:matchView?.threshold ?? 90, page:matchPage,
     views:{}, linked:false, share:72 });
   };
   // Rejects and returns from the comparison, so Similar photos' diagnostics refresh.
@@ -170,7 +181,7 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   );
 
   const body = (
-    <section ref={panel} className="inspector" data-tab={tab} aria-label="Photo details" style={width ? { flexBasis: `${width}px` } : undefined}>
+    <section ref={panel} className="inspector" data-tab={activeTab} aria-label="Photo details" style={width ? { flexBasis: `${width}px` } : undefined}>
       <header ref={header} className="inspector-head">
         <button onClick={() => onStep(-1)} aria-label="Previous photo">‹</button>
         <h2 title={detail?.filename}>{detail?.filename ?? "…"}</h2>
@@ -180,10 +191,13 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
       <div className="inspector-main" data-wide={splitSize.wide}
            style={{ "--preview-share": `${previewShare}%`,
              "--preview-size": `${Math.round(splitSize.height * (splitSize.wide ? 1 : previewShare / 100))}px` } as CSSProperties}>
-        <button className="inspector-image" onClick={() => setEnlarged(true)} aria-label="Enlarge the photo"
-                title="Click to enlarge">
-          {photo}
-        </button>
+        <div className="inspector-preview" data-reference={activeTab === "similar"}>
+          {activeTab === "similar" && <h3>Reference photo</h3>}
+          <button className="inspector-image" onClick={() => setEnlarged(true)} aria-label="Enlarge the photo"
+                  title="Click to enlarge">
+            {photo}
+          </button>
+        </div>
         <div className="preview-divider" role="separator" tabIndex={0}
              aria-label="Resize photo preview" aria-orientation={splitSize.wide ? "vertical" : "horizontal"}
              aria-valuemin={20} aria-valuemax={75} aria-valuenow={previewShare}
@@ -211,21 +225,22 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
              }}><span aria-hidden="true">⋮⋮</span></div>
         <div className="inspector-side">
           {error && <p className="error">{error}</p>}
-          <TabList className="inspector-tabs" label="Photo inspector" idBase={tabId} value={tab} onChange={onTab}
-            tabs={[{ value: "information", label: "Photo information" }, { value: "similar", label: "Similar photos" }]} />
-          <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", tab)}>
-            {detail && tab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
-              actions={IN_LIBRARY.includes(detail.status) && onReject
-                ? <button onClick={() => onReject(detail.filename)} disabled={jobRunning} title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Move this photo out of the library into Rejects. Nothing is deleted."}>Reject…</button>
-                : IN_REJECTS.includes(detail.status) && onReturn
-                  ? <button onClick={onReturn} disabled={jobRunning} title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : "Move this photo from Rejects back to its date folder."}>Return to library…</button>
-                  : null} />}
+          <TabList className="inspector-tabs" label="Photo inspector" idBase={tabId} value={activeTab} onChange={onTab}
+            tabs={canCompare ? [{ value: "information", label: inLibrary ? "Photo information" : "File information" }, { value: "similar", label: inLibrary ? "Similar photos" : "Similar photos in Library" }] : [{ value: "information", label: "File information" }]} />
+          <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", activeTab)}>
+            {detail && activeTab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
+              review={inLibrary ? <ReviewNote key={id} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto}
+                concerns={detail.date_warning ? [{label:"Suspicious date",message:`${detail.date_warning} Date editing is not available yet.`}]
+                  : !detail.exif_dates?.some(d => d.field === "taken") ? [{label:"No capture date",message:"No date taken is recorded in the photo’s EXIF."}] : []}
+                actions={IN_LIBRARY.includes(detail.status) && onReject
+                  ? <button onClick={() => onReject(detail.filename)} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Move this photo to Rejects. Nothing is deleted."}>Reject…</button>
+                  : null} /> : IN_REJECTS.includes(detail.status) && onReturn ? <div className="photo-actions"><button onClick={onReturn} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined}>Return to library…</button></div> : null} />}
           </div>
-          <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "similar", tab)}>
-            {detail && tab === "similar" && <div className="inspector-body"><PhotoMatches key={id} id={id} name={detail.filename}
+          <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "similar", activeTab)}>
+            {detail && activeTab === "similar" && <div className="inspector-body"><PhotoMatches key={id} id={id} name={detail.filename}
               jobRunning={jobRunning} onReject={onRejectMatch ? (photo) => onRejectMatch(photo.id, photo.filename) : undefined}
-              onKeep={onKeep ? (threshold) => onKeep(id, detail.filename, threshold) : undefined}
-              delivered={["Completed", "Copied", "Found_At_Destination"].includes(detail.status)}
+              onKeep={inLibrary && onKeep ? (threshold) => onKeep(id, detail.filename, threshold) : undefined}
+              delivered={canCompare} rejected={!inLibrary}
               view={matchView} onView={onMatchView} refreshKey={refreshKey}
               onReview={openComparison} changes={comparisonChanges} /></div>}
           </div>
@@ -250,8 +265,8 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
     </section>
   );
   return <>
-    {narrow && comparison == null && !coveredByDialog ? <Modal className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
-    {comparison != null && <MatchReviewDialog reference={id} candidate={candidate} jobRunning={jobRunning} onNotice={onNotice} onKeep={onKeep}
+    {narrow && comparison == null && !coveredByDialog ? <Modal deferWhileCovered className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
+    {canCompare && comparison != null && <MatchReviewDialog reference={id} candidate={candidate} jobRunning={jobRunning} onNotice={onNotice} onKeep={onKeep}
       workspace={comparison} onWorkspace={onComparison} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet}
       initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}
       onClose={closeComparison} onChanged={() => setComparisonChanges((n) => n + 1)} />}
@@ -286,7 +301,7 @@ function exifTime(value: string) {
   return `${date.replace(/:/g, "-")} ${time}`.trim();
 }
 
-function Details({ detail: d, onLineage, refreshKey, actions }: { detail: PhotoDetail; onLineage: () => void; refreshKey: number; actions?: ReactNode }) {
+function Details({ detail: d, onLineage, refreshKey, review }: { detail: PhotoDetail; onLineage: () => void; refreshKey: number; review?: ReactNode }) {
   const fallback = isFallbackDate(d.date_source);
   const exposure = [d.iso != null ? `ISO ${d.iso}` : null, d.aperture != null ? `f/${d.aperture}` : null,
                     d.shutter != null ? `${d.shutter}s` : null].filter(Boolean).join(" · ");
@@ -302,9 +317,10 @@ function Details({ detail: d, onLineage, refreshKey, actions }: { detail: PhotoD
   const taken = dates.find((x) => x.field === "taken");
   return (
     <div className="inspector-body">
-      {actions && <div className="inspector-actions">{actions}</div>}
-      {d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. The value is unchanged; date editing is not yet available. <a href="/?view=suspicious">View suspicious dates</a></p>}
-      {d.visual_issue && <p className="section-note"><strong>Visual matching unavailable:</strong> {d.visual_issue} The catalogued file is retained. Missing EXIF alone is not evidence of damage.</p>}
+      {review}
+      {!review && IN_LIBRARY.includes(d.status) && d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. The value is unchanged; date editing is not yet available. <a href="/?view=suspicious">View suspicious dates</a></p>}
+      {IN_LIBRARY.includes(d.status) && d.visual_issue && <p className="section-note"><strong>Visual matching unavailable:</strong> {d.visual_issue} The catalogued file is retained. Missing EXIF alone is not evidence of damage.</p>}
+      {d.status === "Failed" && <p className="notice"><strong>File needs attention.</strong> {d.failure ?? "No failure reason was recorded."} This file is not in Library. Fix the source file or its access outside the app, then run Index again. <a href={logUrl({photo:d.id,status:"Failed"})} onClick={follow}>View failure details</a></p>}
       <Section title="File">
         <Row label="Status">{STATUS[d.status] ?? d.status}</Row>
         <Row label={d.dest_path_is_projection ? "Proposed destination path" : "Destination path"}>
@@ -320,7 +336,6 @@ function Details({ detail: d, onLineage, refreshKey, actions }: { detail: PhotoD
           {fallback && <div className="muted">* Files it under Undated: no EXIF date taken.</div>}
         </Row>
       </Section>
-      <PhotoHistory refreshKey={refreshKey} id={d.id} onLineage={onLineage} />
       <Section title="Photo EXIF information" note={zoneNote}>
         {!taken && <Row label="Date taken"><span className="muted">Not in the photo's EXIF</span></Row>}
         {dates.map((x) => (
@@ -333,6 +348,7 @@ function Details({ detail: d, onLineage, refreshKey, actions }: { detail: PhotoD
         <tr className="meta-row"><td colSpan={2}><AllMetadata tags={d.metadata ?? []} /></td></tr>
       </Section>
 
+      <PhotoHistory refreshKey={refreshKey} id={d.id} onLineage={onLineage} />
       {d.thumbnail.availability === "failed" && (
         <p className="muted">Thumbnail unavailable: {d.thumbnail.failure_detail ?? "reason not recorded"}</p>
       )}
@@ -432,7 +448,7 @@ function PhotoHistory({ id, onLineage, refreshKey }: { id: number; onLineage: ()
               <li key={op.id} className={op.status === "Failed" ? "history-failed" : undefined}>
                 <button className="history-event" onClick={onLineage} title="Open the lineage tree">
                   <strong>{EVENT_LABEL[op.status] ?? op.status}</strong>
-                  <span className="muted"> · job #{op.run_id}{op.mode ? ` ${op.mode.toLowerCase()}` : ""} · {epoch(Date.parse(op.timestamp) / 1000)}</span>
+                  <span className="muted"> · {jobLabel(op.run_id, op.mode)} · {epoch(Date.parse(op.timestamp) / 1000)}</span>
                 </button>
               </li>
             ))}

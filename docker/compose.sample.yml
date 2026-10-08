@@ -9,11 +9,13 @@ services:
     depends_on: [app]
     restart: unless-stopped
   app:
+    init: true
     image: ${SAMPLE_APP_IMAGE:-negativespace:inspector-tabs}
     environment:
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
       TZ: ${TZ:-UTC}
+      NS_ALLOWED_HOSTS: ${NS_ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0,::1}
     volumes:
       - type: bind
         source: ${SAMPLE_SOURCE:?Set SAMPLE_SOURCE}

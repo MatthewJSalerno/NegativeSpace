@@ -15,6 +15,12 @@ FastAPI also serves a generated schema at `/api/openapi.json` and an explorer at
 *   **Base path** `/api/v1`. In the two-container deployment (`docker/compose.yml`) the
     `web` container passes everything under `/api` to `app`, which listens on port 8000
     and is not published.
+*   **Host boundary.** Every HTTP API request (including reads and generated API docs)
+    requires exactly one valid Host header whose hostname/IP is in the effective
+    allowlist: local defaults, `NS_ALLOWED_HOSTS`, and saved Access settings. Invalid or unlisted hosts return `400 untrusted_host` with
+    deployment guidance. WebSocket handshakes are refused with code 1008. Exact
+    names are case-insensitive; valid ports are permitted, forwarded headers do not
+    override Host. Existing browser-origin restrictions still apply independently.
 *   **JSON** in and out, except thumbnails (`image/jpeg`).
 *   **One error shape**, for every refusal: `{"error": "<code>", "message": "<text for the
     user>"}`, sometimes with extra fields (§7). `400` is a bad request, `404` an unknown
@@ -27,6 +33,8 @@ FastAPI also serves a generated schema at `/api/openapi.json` and an explorer at
     writes settings and UI state through `ns_db.save_settings` and `ns_db.save_ui_state`.
     Photo state and history changes are made by running the engine as a child process,
     from an argument list and never a shell string (`webui-spec.md` §5.6).
+    Instance access configuration uses `webui.access` and an independent revision-checked
+    application-data file; it is not part of photo state or catalog backups.
     The browser never touches SQLite.
 *   **Times.** Application events (`started_at`, `ended_at`, `updated_at`) are UTC
     instants with an offset. Photo dates (`date_taken`, EXIF values) are the wall-clock
@@ -79,6 +87,27 @@ data is writable first (`409 appdata_not_writable`).
 
 ## 3. Settings
 
+### `GET /api/v1/access`
+
+Available without a catalog. Returns `hosts` (editable additional names),
+`protected_hosts` (local and deployment names), `effective_hosts`, integer `revision`
+and normalized `current_host`. `503 access_unavailable` if the saved configuration
+cannot be read; protected addresses still permit recovery.
+
+### `PUT /api/v1/access`
+
+Accepts `{"hosts": ["photos.example"], "revision": 0, "confirm_current_host": false}`.
+At most 128 exact hostnames/IPs; no ports, schemes, paths or wildcards. `200` returns
+GET fields plus `current_removed`. Protected addresses cannot be removed here.
+`400 invalid_access` for invalid values; `409 access_changed` for stale revision;
+`409 current_address_removed` unless removing the current address was explicitly
+confirmed; `503 access_unavailable` for storage errors. Reload after a storage error
+to establish the saved state. Atomically persisted outside the photo catalog, with
+owner-only mode and revision checking across API processes. Updates affect subsequent
+HTTP requests and close revoked WebSockets on their next feed check. Existing browser
+origin checks apply; this endpoint does not add authentication.
+
+
 ### `GET /api/v1/settings`
 
 Each setting under the engine's own key, with the revision it was read at. A setting
@@ -92,6 +121,8 @@ revision 0.
      "backup_retention": {"value": 20, "revision": 0, "default": 20},
      "rejects_reminder_bytes": {"value": 1000000000 | null, "revision": 0, "default": 1000000000},
      "rejects_reminder_days": {"value": 30 | null, "revision": 0, "default": 30},
+     "small_image_min": {"value": null, "revision": 0, "default": null},
+     "suspicious_min_year": {"value": 1800, "revision": 0, "default": 1800},
      "job_active": false}
 
 `workers.detected` is the number of CPUs the container may use (`ns_db.available_cpus`):
@@ -108,7 +139,8 @@ Saves the settings that changed, each with the revision it was read at:
 `200` with the settings as in `GET`. If a revision moved since it was read, another tab
 saved first: `409 settings_changed`, and nothing is written. An invalid value is
 `400 invalid_settings`, and a catalog too busy to take the write is `503 catalog_busy`.
-Saved values apply to jobs started afterwards, never to one already running.
+Processing values apply to jobs started afterwards, never to one already running.
+Review rules update subsequent browse and inspection requests immediately.
 
 ### `POST /api/v1/settings/validate-extension`
 
@@ -173,7 +205,8 @@ whose latest delivery was a Move that could not delete the original, why (a run'
 `counts` are each view's whole library, whatever the search, `date`, `type`, `folder` and
 `undated` narrow the gallery to; `counts.undated` is how many photos in this view have no
 capture date. `total` is what this request shows, every filter applied. `matches` counts
-each view with every filter applied, and `matches.undated` this view's photos with no
+each view’s individual photos with every filter applied, even when `group_sets` makes
+`total` count representative sets. `matches.undated` counts this view’s photos with no
 capture date under the other filters: the view buttons show these (`webui-spec.md` §2),
 and they offer another view when a search finds nothing in this one. The date sorts put undatable rows last.
 
@@ -295,7 +328,10 @@ counts; ties use ascending ID. An invalid selection percentage returns 400.
 
 The Inspector's details. `404 unknown_photo` for an id the catalog does not hold.
 
-    {"id", "status", "filename", "source_path", "dest_path",
+`failure` is the latest recorded source failure reason, or null; only currently
+Failed files expose this field's message.
+
+    {"id", "status", "failure", "filename", "source_path", "dest_path",
      "dest_path_is_projection": true,     // not delivered: where it would go
      "has_collision_rename", "file_size", "width", "height",
      "file_modified": 1686000000.0,       // as the first scan observed it
@@ -384,6 +420,11 @@ spawning, even during a different active job; different input returns
     or stopped (`engine-spec.md` §4.1). If any photo is no longer catalogued in this source
     the engine refuses the whole job, recording nothing: `409 engine_refused` with the
     reason.
+    Copy, Move, Reject and Return also return `409 engine_refused` if the selected
+    photos now mix Library and Rejects. The engine checks under its lock during
+    acceptance, including changes made after API validation. Refusal records no
+    run/request/selection and changes no photos; the API cleans up its selection file.
+    An already accepted request still returns its original run.
     Failure to prepare the selection is `503 selection_unavailable`; this attempt
     starts no engine. Publication failure removes the temporary or final file only
     when it still identifies the file this attempt created, preserving pre-existing
@@ -566,6 +607,8 @@ Every recorded attempt, newest first, including failed and interrupted ones:
      "storage": {"ok": true, "error_category": null, "error_detail": null},
      "retention": 20, "automatic_retained": 7, "present_count": 9, "present_bytes": 181000000,
      "last_success": "...", "unbacked": {"count": 0, "since": "...", "runs": []},
+     "small_image_min": {"value": null, "revision": 0, "default": null},
+     "suspicious_min_year": {"value": 1800, "revision": 0, "default": 1800},
      "job_active": false}
 
 `availability` is observed on each request without writing to the catalog: `unknown`
@@ -589,6 +632,9 @@ and with `409 catalog_missing` (or another catalog state) when there is nothing 
 
 ### `GET /api/v1/backups/{id}/download`
 
+Recorded filenames are resolved within the configured backup directory. A symlink
+escaping that root is unavailable (404), and the list reports it as missing.
+
 The file of a succeeded backup, as an attachment under its own name. A backup whose
 file is gone, pruned or never written is `404 backup_unavailable`.
 
@@ -596,9 +642,12 @@ file is gone, pruned or never written is `404 backup_unavailable`.
 
 ### `GET /api/v1/stats`
 
-Everything the Stats page shows, read from the catalog in one pass (`webui-spec.md` §5.9):
+Everything the Stats page shows, read from the catalog in one pass (`webui-spec.md` §5.9).
+The `library` photo totals/traits and `dates` cover Library and Not organized, excluding
+Failed source records; `library.failed_source` counts these separately. Rejects totals
+and activity failure-attempt counts have their own scopes:
 
-    {"library": {"photos", "bytes", "organized", "organized_bytes", "not_organized",
+    {"library": {"failed_source", "photos", "bytes", "organized", "organized_bytes", "not_organized",
                  "formats": [{"format": "jpg", "photos", "bytes"}, ...],     // most space first
                  "cameras": [{"name", "photos"}, ...], "lenses": [...],       // top eight each
                  "megapixels": [{"band": "under 1 MP", "photos"}, ...], "under_1mp",
@@ -619,8 +668,9 @@ Everything the Stats page shows, read from the catalog in one pass (`webui-spec.
                 "destination_check": {"at", "findings": {"missing": 1, ...}} | null},
      "rejects": {"photos", "bytes", "oldest_rejected_at", "emptied": {"photos", "bytes"}}}
 
-Counts cover the photos the gallery lists (duplicates are counted apart, in
-`duplicates`). Dates count a date taken only; a photo filed by its file time is
+Photo counts cover indexed/organized catalog entries except Failed sources and Rejects;
+failed sources are counted in `library.failed_source`, and duplicates separately in
+`duplicates`. Dates count a date taken only; a photo filed by its file time is
 `undated`, split into no date in its EXIF and an unusable one. `failures` counts failed
 **attempts** by the start of the recorded reason, so one file failing in two jobs counts
 twice, as the log lists it. Figures that need unbuilt features (`near_duplicates`,
@@ -694,10 +744,18 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
     path are removed (`catalog.failure_reason`), so `OSError: [Errno 30] Read-only file
     system: '/data/source/a.jpg'` counts under `Read-only file system`.
 
+Browser mutation requests and the job WebSocket must name the same public host
+and port in `Origin` as in `Host`; explicit cross-site requests without an Origin
+are also refused. HTTP mutations return 403 `cross_origin_request`; the WebSocket
+is refused before acceptance (policy code 1008). Nonbrowser clients without these
+headers remain supported. This is a browser boundary, not sign-in or a Host allowlist.
+Reverse proxies must preserve the public Host, including a nondefault port.
+
 ## 7. Error codes
 
 | Code | Status | Meaning |
 | :--- | :--- | :--- |
+| `cross_origin_request` | 403 | A foreign browser origin attempted a mutation |
 | `invalid_request` | 400 | A malformed or disallowed request |
 | `invalid_settings` | 400 | A setting value the engine would reject |
 | `unknown_photo`, `unknown_run` | 404 | No such photo or run |
@@ -741,6 +799,12 @@ use the existing 409 errors.
 ### `GET /api/v1/similar/{id}`
 
 Reference-based results with the same mode, threshold, and pagination parameters.
+`scope=library|rejects` (default `library`) chooses candidate location; unknown scopes
+return 400. References may be active Library photos or still-present rejected photos.
+Rejected eligibility requires a present matching-digest destination file state and the
+Rejects gallery's cached presence check. Emptied rejects and source-only photos are
+excluded. Both scopes collapse byte-identical candidates independently. Library gallery
+counts/groups and the queue remain Library-only; changing this scope does not affect them.
 Returns `reference`, `items`, `total`, `page`, `page_size`, `state`, and
 `availability` (`available`, `hash_unavailable`, or `not_available`). Unknown or
 source-only or historical-only references return 200 with `reference: null`, empty items and
@@ -754,8 +818,8 @@ pending work do not establish uniqueness.
 
 ### `GET /api/v1/similar/{id}/counts`
 
-Cumulative direct-match counts for a delivered reference at thresholds
-75, 80, 85, 90, 95 and 100. Returns `availability` (`available`, `not_available`,
+Cumulative direct-match counts for a Library or still-present rejected reference at thresholds
+75, 80, 85, 90, 95 and 100. `scope=library|rejects` chooses candidates (default Library; invalid scope returns 400). Returns `availability` (`available`, `not_available`,
 `hash_unavailable`), `counts: [{threshold, count}]`, and `pending` (number of
 eligible destination content identities awaiting comparison). Unavailable references
 return an empty counts array, not six misleading zero counts. Counts exclude the
@@ -806,23 +870,13 @@ photo files, and interrupted filesystem mutations are not resumed by this job.
 
 ### `GET /api/v1/similar/{id}/pair/{other_id}`
 
-Two photos for side by side: any two different eligible destination photo IDs,
-including below-threshold pairs. Returns `reference` and `candidate` (matching item
+Two photos for side by side: any two different eligible destination photos, in Library or still-present in Rejects. Each status identifies its location; source-only and emptied-reject pairs return 409. Below-threshold pairs are allowed. Returns `reference` and `candidate` (matching item
 fields plus `sha1`), `exact` (same content identity), `distance` (0–64, null without
 usable hashes) and `score` (hash percentage or null). Unknown, identical-ID or
 unavailable photos return 409 `pair_changed`. It reads only; deciding between the two is
-Reject and Keep this one, reject the rest (§5).
+Reject or Keep this one, reject the rest for Library photos, or Return for a rejected photo (§5).
 
-## 8. Designed, not built
-
-These are designed in `webui-spec.md` and will be described here when they exist:
-
-*   A live per-operation stream, for replaying a running job's individual events on
-    reconnect (`webui-spec.md` §4.1, §5.2). `GET /operations?run=` covers the history;
-    the drawer needs only the aggregate feed.
-*   The curation actions: rename, the destination check (offered from a lineage
-    tree's copy), thumbnail cache controls, and later metadata editing, all of which
-    the engine already supports or is specified to (`engine-spec.md` §9).
+## 7a. Additional gallery browsing
 
 ### Suspicious-date browsing
 
@@ -853,6 +907,14 @@ once; equal visual hashes of different identities remain separate photos. Querie
 use existing stored relationships in one snapshot, make no photo reads or writes,
 and do not recalculate hashes or persist groups. Expansion is one hop, never recursive.
 
+Identical membership in Explore related sets follows the gallery rule: exclude sets
+identical to the starting set and show each remaining full-membership set once, before
+related-set counting and pagination. Compare exact membership at the selected percentage,
+not photo counts; a proper subset is still a distinct overlapping set. Choose the lowest
+canonical photo ID among the starting reference's direct matches for each distinct set.
+No other distinct sets produces an explicit empty message. Changing reference does not
+choose a keeper or modify photos.
+
 Inspector responses also include nullable `visual_issue` describing recorded missing
 or failed visual hashing. Recovery failure operations use mode SIMILARITY/status
 Failed with a photo ID, path and detailed `error_message`; the photo's delivered
@@ -862,15 +924,19 @@ status remains unchanged. Older jobs without these entries are not backfilled.
 
 The photo list, IDs, timeline, types and folders GET endpoints accept optional
 `group_sets` (boolean, default false). The photo-position POST body accepts the same
-boolean. It applies only to `view=similar`; explicit selection lists remain ungrouped.
+boolean. It applies to `view=similar` or an explicit `similar=true`, including
+`view=review`; explicit selection lists remain ungrouped. Representatives are selected
+inside the requested view/inbox before collapsing, so reviewed photos outside the inbox
+cannot hide remaining review members. The UI sends `group_sets=false` while additional
+filters/search are active; the API retains filtered representative browsing.
 Exact closed neighborhoods (reference plus all direct destination matches at
 `match_min`) collapse before pagination and ordering. Lowest canonical ID among
 references satisfying filters represents each identical set. Filtering never narrows
 set membership. Different neighborhoods with equal counts stay separate.
 
 List `total` and returned IDs/positions describe representatives; per-photo
-`similar_count` still counts direct matches. View-button `counts` remain uncollapsed
-library photo counts. Sidebar queries count representatives in their normal filter
+`similar_count` still counts direct matches. `counts` remain uncollapsed library photo counts; filter-aware `matches`
+supply the view buttons. Sidebar queries count representatives in their normal filter
 scope. `matches` for other views retains normal photo-filter semantics. No photo,
 EXIF, persisted group, or catalog schema is changed. Without `group_sets`, existing
 API behavior is unchanged.
@@ -889,3 +955,65 @@ produce an empty scope. This is a read-only catalog filter, not an engine comman
 For `set_reference`, `view=all` also permits `sort=matches`, retaining a usable
 reference with zero qualifying candidates. The member-gallery UI uses this scope;
 it does not accidentally drop the reference through the Has similar photos filter.
+
+### `GET /api/v1/photos/{photo_id}/review`
+
+Returns current `reasons` (reason, label, message), location, content SHA-1,
+`revision` and descending review `history`. Reasons currently implemented: `small`
+and `later`. A missing photo returns 404 `unknown_photo`. This endpoint only reads.
+
+### `POST /api/v1/photos/{photo_id}/review`
+
+Body: `photo_id`, `sha1` (string or null), `revision` (nonnegative integer), `reason`,
+`action`, `note` (up to 500 characters), `request_id` (1–128 alphanumeric, underscore
+or hyphen characters). Actions: small/reviewed, later/later, later/done. The engine
+records the decision under its lock; no photo files or selection are changed.
+Returns the current review detail on success. Identical request replay is idempotent.
+400 `invalid_request` rejects malformed input; 409 `review_changed` refuses stale
+content/revision, photos outside Library, or conflicting request reuse; 409 `job_already_running` refuses a
+busy engine; 503 `review_unavailable` means the result could not be confirmed, so
+reload before retrying. Success is shown only after acknowledgement.
+
+### Composable review browsing
+
+Gallery listing, IDs, position, types, folders and timeline accept `similar` and
+`suspicious` booleans and `reason` (all/small/later). These combine with existing
+filters. `view=review` selects distinct active Library photos with an unresolved supported reason. Reminders on source/rejected files do not contribute. History remains readable; new decisions require a delivered active photo.
+Listings include `chips` (similar/suspicious/undated/small), `reasons` and filename-only
+`elsewhere` location counts. `reason=small` filters Library as well as the inbox, using
+unacknowledged destination size reminders; it never restricts imports. Chip counts
+apply the other current filters; the small count evaluates that reminder scope.
+Review and organized/similar cards include compact location and current reason details
+(`review: {location,reasons}`), without decision history. Full history remains in the
+per-photo review endpoint. Unorganized listings include `index_summary` (null elsewhere):
+`photos` (all remaining source records), `ready` (Pending), `unfinished` (Processing),
+`duplicates` (extra Duplicate records sharing content with a remaining source
+photo), `small`, `minimum` (null when disabled), `unknown_dimensions`, `suspicious`,
+`undated`, `failed` and `similar` (null: source comparisons are uncalculated), plus
+`last_index` (`{id, started_at}` for the latest Index with an end time, or null). This
+identity scopes browser dismissal to that Index; other jobs do not reset it. The summary
+is unfiltered and catalog-only, with no filesystem reads. Size/date facts exclude Failed/Processing rows and describe only Pending photos. Existing view names remain accepted
+for old links. The UI offers organized (Library), unorganized (Not organized), rejects
+and review, with similarity/date conditions as chips. Settings adds
+`small_image_min`, a positive integer shorter-side minimum or null (disabled).
+
+The matches response also supplies `largest_match` (photo details or null), selected
+across the complete matching set rather than the current page. This is evidence for
+small-image review, never an automatic selection or quality judgment.
+
+The catalog setting `suspicious_min_year` accepts an integer from 1 to 9999 (default
+1800). It uses the same revision-checked Settings API. A recorded year strictly below
+it is suspicious; the future-year rule remains current UTC year + 1. The photo-list
+response includes `date_min_year` so its policy text agrees with its query results.
+Changing the setting changes browse/inspection results, never recorded metadata.
+
+## 8. Designed, not built
+
+These are designed in `webui-spec.md` and will be described here when they exist:
+
+*   A live per-operation stream, for replaying a running job's individual events on
+    reconnect (`webui-spec.md` §4.1, §5.2). `GET /operations?run=` covers the history;
+    the drawer needs only the aggregate feed.
+*   The curation actions: rename, the destination check (offered from a lineage
+    tree's copy), thumbnail cache controls, and later metadata editing, all of which
+    the engine already supports or is specified to (`engine-spec.md` §9).

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 20
+SCHEMA_VERSION = 22
 
 # --- Status vocabularies -----------------------------------------------------
 #
@@ -498,12 +498,42 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _private_file(path, *, create=False, exclusive=False):
+    """Open an app-owned regular file without following links; protect before writing.
+
+    Do not change the process umask: destination photos retain their existing modes.
+    SQLite companions inherit the database's mode. Only call for exclusive new files.
+    """
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+    if create:
+        flags |= os.O_CREAT
+    if exclusive:
+        flags |= os.O_EXCL
+    fd = os.open(path, flags, 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise OSError(errno.EINVAL, "Catalog/backup storage must be a regular file")
+        mode = stat.S_IMODE(os.fstat(fd).st_mode)
+        if mode != mode & 0o600:
+            os.fchmod(fd, mode & 0o600)
+    finally:
+        os.close(fd)
+
+
 def connect(db_path, synchronous="NORMAL", *, timeout=5.0, create=False):
     """Existing catalogs only by default; WAL configured at explicit initialization."""
     if synchronous not in ("NORMAL", "FULL"):
         raise ValueError(f"unsupported synchronous level: {synchronous!r}")
     if not 0 <= timeout <= 60:
         raise ValueError("timeout must be between 0 and 60 seconds")
+    if create:
+        try:
+            _private_file(db_path, create=True, exclusive=True)
+        except FileExistsError:
+            pass
+    # Never open/close an existing SQLite file outside SQLite: POSIX closes can
+    # drop this process's locks held by another connection. New files alone are
+    # created here; their WAL/journal companions inherit mode 0600 from SQLite.
     uri = Path(db_path).absolute().as_uri() + ("?mode=rwc" if create else "?mode=rw")
     conn = sqlite3.connect(uri, uri=True, timeout=timeout)
     try:
@@ -535,6 +565,11 @@ def _json(value):
 
 
 FOUNDATION_DDL = (
+    """CREATE TABLE review_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, photo_id INTEGER NOT NULL REFERENCES photos(id),
+        sha1 TEXT, reason TEXT NOT NULL, action TEXT NOT NULL, note TEXT NOT NULL,
+        created_at TEXT NOT NULL, request_id TEXT NOT NULL UNIQUE, payload TEXT NOT NULL)""",
+    "CREATE INDEX idx_review_photo ON review_events(photo_id, reason, id)",
     f"CREATE TABLE catalog_schema (version INTEGER NOT NULL CHECK(version={SCHEMA_VERSION}))",
     f"INSERT INTO catalog_schema VALUES ({SCHEMA_VERSION})",
     """CREATE TABLE files (
@@ -574,7 +609,7 @@ FOUNDATION_DDL = (
         file_id INTEGER NOT NULL REFERENCES files(file_id),
         role TEXT NOT NULL CHECK(role IN ('source','destination','retained_copy')), PRIMARY KEY(operation_id,file_id,role))""",
     """CREATE TABLE settings (
-        key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days')),
+        key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days','small_image_min','suspicious_min_year')),
         value_json TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0),
         updated_at TEXT NOT NULL)""",
     # The photos a run was asked to act on, recorded with the run itself: what the user
@@ -751,7 +786,7 @@ def initialize(db_path):
                 conn.execute(statement)
             for table in ('files', 'file_origins', 'source_snapshots', 'file_observations', 'operation_files',
                           'run_configs', 'job_requests', 'operation_events', 'operation_evidence',
-                          'file_changes', 'attention_evidence'):
+                          'file_changes', 'attention_evidence', 'review_events'):
                 for action in ('UPDATE', 'DELETE'):
                     conn.execute(f"CREATE TRIGGER immutable_{table}_{action} BEFORE {action} ON {table} "
                                  "BEGIN SELECT RAISE(ABORT, 'immutable lineage/configuration'); END")
@@ -767,7 +802,7 @@ def require_schema(conn):
                     'file_origins','file_states','contents','operation_events','operation_evidence',
                     'attention_issues','attention_evidence','file_changes','content_similarity','similarity_hashes',
                     'similarity_count_cache','similarity_count_state',
-                    'thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state'}
+                    'review_events','thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state'}
         present = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if not required <= present:
             raise SchemaError("Incomplete catalog schema")
@@ -797,6 +832,8 @@ def save_ui_state(conn, values):
 
 # When the web interface reminds the user that Rejects is worth emptying (webui-spec 7.8):
 # past either limit; null switches that limit off.
+SUSPICIOUS_MIN_YEAR_DEFAULT = 1800
+
 REJECTS_REMINDER_DEFAULTS = {'rejects_reminder_bytes': 1_000_000_000, 'rejects_reminder_days': 30}
 
 
@@ -811,9 +848,12 @@ def validate_settings(values):
         elif key == 'backup_retention':
             if type(value) is not int or value < 1:
                 raise ValueError("backup_retention must be a positive integer")
-        elif key in REJECTS_REMINDER_DEFAULTS:
+        elif key in REJECTS_REMINDER_DEFAULTS or key == 'small_image_min':
             if value is not None and (type(value) is not int or value < 1):
                 raise ValueError(f"{key} must be a positive integer, or null for off")
+        elif key == 'suspicious_min_year':
+            if type(value) is not int or not 1 <= value <= 9999:
+                raise ValueError("suspicious_min_year must be a whole year from 1 to 9999")
         elif key == 'exts':
             if not isinstance(value, list) or not value or any(
                 not isinstance(v, str) or not re.fullmatch(r'\.?[A-Za-z0-9]+', v) for v in value
@@ -861,6 +901,8 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
     run_selections with the run, in one transaction; the run's targeting is its count
     and checksum. With `strict_selection` (a selection passed in a file) every id must
     be catalogued under `source`, or SelectionRefused and nothing is recorded.
+    Explicit Copy/Move/Reject/Return selections cannot mix Library and Rejects.
+    Accepted request replay precedes this check and keeps its original outcome.
     """
     require_schema(conn)
     if request_id is not None and (not isinstance(request_id, str) or not request_id or len(request_id) > 256):
@@ -897,6 +939,18 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
                     raise SelectionRefused(
                         f"{len(selection) - held:,} of the {len(selection):,} selected photos are no longer "
                         f"catalogued in this source. Nothing was changed; choose the photos again.")
+            if mode in ('COPY', 'MOVE', 'REJECT', 'RETURN'):
+                # Runs are accepted only with the engine lock held. Check here,
+                # not at API preflight, so another tab/engine cannot change a
+                # selected photo's place between validation and acceptance.
+                places = conn.execute(
+                    f"SELECT COUNT(DISTINCT p.status IN ({sql_values(IN_REJECTS_STATUSES)})) "
+                    "FROM run_selections s JOIN photos p ON p.id=s.photo_id WHERE s.run_id=?",
+                    (run_id,)).fetchone()[0]
+                if places > 1:
+                    raise SelectionRefused(
+                        "The selection now includes photos from both Library and Rejects. "
+                        "Nothing was changed; choose photos from one location and submit again.")
         if request_id is not None:
             conn.execute("INSERT INTO job_requests VALUES(?,?,?)", (request_id, run_id, payload))
         return run_id, True
@@ -1419,7 +1473,7 @@ def _compress_and_verify(raw, packed):
     result and compares it with `raw`. A backup nobody can restore is worse than
     none, so the compressed file is proven before it is published."""
     compressor = zstandard.ZstdCompressor(level=BACKUP_ZSTD_LEVEL, write_checksum=True)
-    with open(raw, "rb") as source, open(packed, "wb") as target:
+    with open(raw, "rb") as source, open(packed, "r+b") as target:
         compressor.copy_stream(source, target, size=raw.stat().st_size)
         target.flush()
         os.fsync(target.fileno())
@@ -1436,7 +1490,11 @@ def _snapshot(conn, attempt_id, final):
     the compressed file, publishes it. Returns the published (compressed) size."""
     raw = final.with_name(final.name[:-len(".zst")] + _PARTIAL)   # <name>.db.partial
     packed = final.with_name(final.name + _PARTIAL)                # <name>.db.zst.partial
+    owned = []
     try:
+        for path in (raw, packed):
+            _private_file(path, create=True, exclusive=True)
+            owned.append(path)
         dst = sqlite3.connect(raw)
         try:
             conn.backup(dst)
@@ -1461,11 +1519,11 @@ def _snapshot(conn, attempt_id, final):
         raw.unlink()
         return final.stat().st_size
     except BackupFailed:
-        for leftover in (raw, packed):
+        for leftover in owned:
             leftover.unlink(missing_ok=True)
         raise
     except (OSError, sqlite3.Error, zstandard.ZstdError) as exc:
-        for leftover in (raw, packed):
+        for leftover in owned:
             try:
                 leftover.unlink(missing_ok=True)
             except OSError:
@@ -1545,6 +1603,9 @@ def unbacked_changes(conn, *, exclude_run_id=None):
         sql += " AND run_id != ?"
         params.append(exclude_run_id)
     count, runs = conn.execute(sql, params).fetchone()
+    count += conn.execute("SELECT COUNT(*) FROM review_events" +
+                          (" WHERE julianday(created_at) >= julianday(?)" if since else ""),
+                          (since,) if since else ()).fetchone()[0]
     return count, since, sorted(int(r) for r in runs.split(",")) if runs else []
 
 

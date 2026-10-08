@@ -13,6 +13,7 @@ import json
 import os
 import shutil
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import time
@@ -50,15 +51,21 @@ def make_photo(path: Path, seed: str, size=(64, 48), mtime=None, exif=None):
 class ApiCase(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix="ns-webui-"))
-        for name in ("src", "dest", "appdata", "cache", "backups"):
+        destination = Path(os.environ['NS_TEST_DESTINATION_ROOT']) / self.root.name if os.environ.get('NS_TEST_DESTINATION_ROOT') else self.root / 'dest'
+        destination.mkdir(parents=True)
+        for name in ("src", "appdata", "cache", "backups"):
             (self.root / name).mkdir()
-        self.cfg = Config(base=self.root / "appdata", source=self.root / "src", dest=self.root / "dest",
-                          cache=self.root / "cache", backups=self.root / "backups")
+        self.cfg = Config(base=self.root / "appdata", source=self.root / "src", dest=destination,
+                          cache=self.root / "cache", backups=self.root / "backups",
+                          allowed_hosts=("testserver", "photos.example", "localhost", "127.0.0.1", "0.0.0.0", "::1"))
         self.client = TestClient(create_app(self.cfg))
 
     def tearDown(self):
         self.client.close()
-        shutil.rmtree(self.root, ignore_errors=True)
+        if os.environ.get('NS_TEST_KEEP') != '1':
+            shutil.rmtree(self.root, ignore_errors=True)
+            if self.cfg.dest.parent != self.root:
+                shutil.rmtree(self.cfg.dest, ignore_errors=True)
 
     def create_catalog(self):
         self.assertEqual(self.client.post("/api/v1/catalog").status_code, 201)
@@ -87,7 +94,83 @@ class ApiCase(unittest.TestCase):
             yield
 
 
+class BrowserRequestBoundary(ApiCase):
+    def test_host_allowlist_guards_reads_mutations_and_websockets(self):
+        from starlette.websockets import WebSocketDisconnect
+        for host in ('untrusted.example', 'photos.example.attacker.test', 'photos.example@attacker.test',
+                     'photos.example:bad', 'photos.example/anything', 'photos.example:99999'):
+            for path in ('/api/v1/status', '/api/docs', '/api/v1/catalog'):
+                response = self.client.request('POST' if path.endswith('/catalog') else 'GET', path,
+                                               headers={'host': host, 'x-forwarded-host': 'photos.example'})
+                self.assertEqual((response.status_code, response.json()['error']), (400, 'untrusted_host'))
+            with self.assertRaises(WebSocketDisconnect) as error:
+                with self.client.websocket_connect('/api/v1/ws/jobs', headers={'host': host}):
+                    pass
+            self.assertEqual(error.exception.code, 1008)
+        self.assertFalse(self.cfg.db_path.exists())
+        duplicate = self.client.get('/api/v1/status', headers=[('host','photos.example'), ('host','untrusted.example')])
+        self.assertEqual(duplicate.status_code, 400)
+        for host in ('localhost:8092', '127.0.0.1:8092', '0.0.0.0:8092', '[::1]:8092', 'PHOTOS.EXAMPLE:443'):
+            self.assertEqual(self.client.get('/api/v1/status', headers={'host':host}).status_code, 200)
+
+    def test_deployment_host_configuration_is_explicit(self):
+        from webui import security
+        from webui.config import Config
+        with patch.dict(os.environ, {'NS_ALLOWED_HOSTS': 'localhost,192.0.2.1,photos.example,inside.example,::1'}):
+            self.assertEqual(Config.from_env().allowed_hosts,
+                             ('localhost','192.0.2.1','photos.example','inside.example','::1'))
+        for invalid in ('', '*', '*.example', 'https://photos.example', 'photos.example:443', 'good.example,'):
+            with self.assertRaises(ValueError):
+                security.allowed_hosts(invalid)
+
+    def test_foreign_browser_cannot_create_catalog_or_submit_mutations(self):
+        for origin in ('https://untrusted.example', 'null', 'http://testserver.untrusted.example'):
+            with self.subTest(origin=origin):
+                response = self.client.post('/api/v1/catalog', headers={
+                    'origin': origin, 'content-type': 'application/x-www-form-urlencoded'}, content='')
+                self.assertEqual(response.status_code, 403)
+                self.assertFalse(self.cfg.db_path.exists())
+        response = self.client.post('/api/v1/catalog', headers={'sec-fetch-site': 'cross-site'})
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(self.cfg.db_path.exists())
+        # Same public authority, including a nondefault port behind the web proxy.
+        response = self.client.post('/api/v1/catalog', headers={
+            'origin': 'https://photos.example:8443', 'host': 'photos.example:8443'})
+        self.assertEqual(response.status_code, 201)
+        for method, path in (('post', '/api/v1/jobs/cancel'), ('post', '/api/v1/backups'),
+                             ('put', '/api/v1/settings'), ('put', '/api/v1/ui-state')):
+            with self.subTest(path=path):
+                self.assertEqual(getattr(self.client, method)(path, headers={
+                    'origin': 'https://untrusted.example'}, json={}).status_code, 403)
+
+    def test_foreign_browser_cannot_read_job_websocket(self):
+        from starlette.websockets import WebSocketDisconnect
+        with self.assertRaises(WebSocketDisconnect) as refused:
+            with self.client.websocket_connect('/api/v1/ws/jobs', headers={
+                    'origin': 'https://untrusted.example'}) as ws:
+                ws.receive_json()
+        self.assertEqual(refused.exception.code, 1008)
+        with self.client.websocket_connect('/api/v1/ws/jobs', headers={
+                'origin': 'https://photos.example:8443', 'host': 'photos.example:8443'}) as ws:
+            self.assertEqual(ws.receive_json(), {'active': None, 'last': None})
+        # Nonbrowser API clients have no Origin. This is not authentication.
+        with self.client.websocket_connect('/api/v1/ws/jobs') as ws:
+            self.assertEqual(ws.receive_json(), {'active': None, 'last': None})
+
+
 class FirstRunAndSettings(ApiCase):
+    def test_api_observes_replaced_config_and_request_validation(self):
+        from webui import config, jobs
+        version = {'release': 'fixture', 'branch': None, 'commit': None}
+        with patch.object(config, 'build_version', return_value=version) as replaced:
+            self.assertEqual(self.client.get('/api/v1/status').json()['version'], version)
+            replaced.assert_called_once()
+        with patch.object(jobs, 'validate_request_id', side_effect=jobs.JobRefused(
+                400, {'error': 'invalid_request', 'message': 'fixture refusal'})) as replaced:
+            response = self.client.get('/api/v1/job-requests/example')
+            self.assertEqual(response.status_code, 400)
+            replaced.assert_called_once_with('example')
+
     def test_a_missing_catalog_is_reported_and_created_only_on_request(self):
         status = self.client.get("/api/v1/status").json()
         self.assertEqual((status["state"], status["application_data"]), ("missing", str(self.cfg.base)))
@@ -739,6 +822,19 @@ class JobsAndCatalog(ApiCase):
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(response.json(), dict.fromkeys(("position", "page", "previous_id", "next_id")))
 
+    def test_photo_reads_use_the_sha1_content_identity(self):
+        self.index_library()
+        expected = self.client.get('/api/v1/stats').json()['library']
+        photo = self.client.get('/api/v1/photos').json()['items'][0]['id']
+        inspector = self.client.get(f'/api/v1/photos/{photo}').json()
+        with sqlite3.connect(self.cfg.db_path) as conn:
+            # The schema keys contents by algorithm AND digest. A different
+            # algorithm's row must not duplicate a photo or supply its dimensions.
+            conn.execute("INSERT INTO contents(hash_algorithm,digest,width,height) "
+                         "SELECT 'fixture-algorithm',digest,1,1 FROM contents WHERE hash_algorithm='sha1'")
+        self.assertEqual(self.client.get('/api/v1/stats').json()['library'], expected)
+        self.assertEqual(self.client.get(f'/api/v1/photos/{photo}').json(), inspector)
+
     def test_stats_accept_numeric_camera_and_lens_metadata(self):
         self.index_library()
         for make, model, lens, camera, lens_name in (
@@ -1245,6 +1341,106 @@ class JobsAndCatalog(ApiCase):
             run = self.wait_for(self.start(mode="copy", file_ids=chosen))
             self.assertEqual(run["status"], "Completed", attempt)
 
+    def test_cancel_stuck_scan_stops_decoder_tree_and_preserves_sources(self):
+        from dataclasses import replace
+        self.client.close()
+        self.cfg = replace(self.cfg, engine=Path(__file__).parent / 'browser' / 'stalled_engine_fixture.py')
+        self.client = TestClient(create_app(self.cfg))
+        self.create_catalog()
+        make_photo(self.cfg.source / 'a-ready.jpg', 'ready')
+        make_photo(self.cfg.source / 'z-blocked.jpg', 'blocked')
+        original = {p.name:p.read_bytes() for p in self.cfg.source.iterdir()}
+        settings = self.client.get('/api/v1/settings').json()
+        self.assertEqual(self.client.put('/api/v1/settings', json={
+            'values': {'workers': 1}, 'revisions': {'workers': settings['workers']['revision']}}).status_code, 200)
+        run = self.start(mode='index')
+        marker = self.cfg.base / 'stalled-worker.json'
+        try:
+            deadline = time.monotonic() + 20
+            while not marker.exists() and time.monotonic() < deadline:
+                time.sleep(.05)
+            self.assertTrue(marker.exists(), 'worker did not reach generated stall')
+            pids = json.loads(marker.read_text())
+            # Let the already completed result reach its normal batch/idle commit.
+            deadline = time.monotonic() + 10
+            while self.client.get('/api/v1/status').json()['photos'] != 1 and time.monotonic() < deadline:
+                time.sleep(.05)
+            self.assertEqual(self.client.get('/api/v1/status').json()['photos'], 1)
+            # The job remains active until a user explicitly cancels it.
+            self.assertEqual(self.client.get('/api/v1/jobs/active').json()['active']['id'], run)
+            self.assertEqual(self.client.post('/api/v1/jobs/start', json={'mode':'copy'}).status_code, 409)
+            self.assertEqual(self.client.post(f'/api/v1/jobs/{run}/cancel').status_code, 202)
+            settled = self.wait_for(run, timeout=20)
+            self.assertEqual(settled['status'], 'Cancelled')
+            for pid in pids.values():
+                proc = Path(f'/proc/{pid}/stat')
+                self.assertTrue(not proc.exists() or proc.read_text().split(') ')[1].startswith('Z '),
+                                'a decoder process is still running after cancellation')
+            self.assertEqual({p.name:p.read_bytes() for p in self.cfg.source.iterdir()}, original)
+            self.assertEqual(list(self.cfg.dest.rglob('*.jpg')), [])
+            with ns_db.connect(self.cfg.db_path) as conn:
+                self.assertEqual(conn.execute('SELECT COUNT(*) FROM photos').fetchone()[0], 1)
+            # Resume with the real decoder; the completed result is retained and
+            # the unfinished source is indexed, not silently marked failed/skipped.
+            self.client.close()
+            self.cfg = replace(self.cfg, engine=None)
+            self.client = TestClient(create_app(self.cfg))
+            finished = self.wait_for(self.start(mode='index'), timeout=30)
+            self.assertEqual(finished['status'], 'Completed')
+            self.assertEqual(self.client.get('/api/v1/status').json()['photos'], 2)
+        finally:
+            # Test cleanup only: a regression must not leave generated stalled children.
+            if marker.exists():
+                import signal
+                for pid in json.loads(marker.read_text()).values():
+                    try: os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError: pass
+
+    def test_mixed_place_selection_refuses_without_mutation_or_abandoned_input(self):
+        self.index_library()
+        self.wait_for(self.start(mode='copy'))
+        chosen = self.client.get('/api/v1/photos/ids?view=organized').json()['ids']
+        self.assertEqual(len(chosen), 2)
+        self.wait_for(self.start(mode='reject', file_ids=[chosen[0]]))
+        with ns_db.connect(self.cfg.db_path) as conn:
+            before = list(conn.iterdump())
+        files = {p:p.read_bytes() for root in (self.cfg.source,self.cfg.dest) for p in root.rglob('*') if p.is_file()}
+        for mode in ('copy','move','reject','return'):
+            response=self.client.post('/api/v1/jobs/start',json={
+                'mode':mode,'file_ids':chosen,'request_id':'mixed-'+mode})
+            self.assertEqual((response.status_code,response.json()['error']),(409,'engine_refused'),response.text)
+            self.assertIn('Library and Rejects',response.json()['message'])
+            with ns_db.connect(self.cfg.db_path) as conn:
+                self.assertEqual(list(conn.iterdump()),before)
+            self.assertEqual(list((self.cfg.base/'selections').glob('*.ids')),[])
+            self.assertEqual({p:p.read_bytes() for root in (self.cfg.source,self.cfg.dest) for p in root.rglob('*') if p.is_file()},files)
+        # Literal CLI ids use the same acceptance gate, not just API files.
+        result=subprocess.run(self.cfg.engine_argv('--move','--file-ids',','.join(map(str,chosen))),
+                              cwd=ENGINE_CWD,capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,1)
+        self.assertIn('Library and Rejects',result.stdout+result.stderr)
+        self.assertEqual({p:p.read_bytes() for root in (self.cfg.source,self.cfg.dest) for p in root.rglob('*') if p.is_file()},files)
+
+    def test_place_change_after_api_validation_is_checked_by_locked_engine(self):
+        self.index_library()
+        self.wait_for(self.start(mode='copy'))
+        chosen=self.client.get('/api/v1/photos/ids?view=organized').json()['ids']
+        runner=self.app_jobs()
+        spawn=runner._spawn
+        def another_engine_then_spawn(*args,**kwargs):
+            result=subprocess.run(self.cfg.engine_argv('--reject','--file-ids',str(chosen[0])),
+                                  cwd=ENGINE_CWD,capture_output=True,text=True,timeout=30)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            return spawn(*args,**kwargs)
+        with patch.object(runner,'_spawn',side_effect=another_engine_then_spawn):
+            response=self.client.post('/api/v1/jobs/start',json={'mode':'move','file_ids':chosen})
+        self.assertEqual((response.status_code,response.json()['error']),(409,'engine_refused'),response.text)
+        self.assertIn('Library and Rejects',response.json()['message'])
+        self.assertEqual(len(list(self.cfg.source.rglob('*.jpg'))),3)
+        self.assertEqual(list((self.cfg.base/'selections').glob('*.ids')),[])
+        self.assertEqual(self.client.get('/api/v1/photos?view=organized').json()['total'],1)
+        self.assertEqual(self.client.get('/api/v1/photos?view=rejects').json()['total'],1)
+
     def test_a_selection_naming_a_photo_not_catalogued_is_refused_whole(self):
         self.index_library()
         known = self.client.get("/api/v1/photos/ids").json()["ids"][0]
@@ -1479,6 +1675,25 @@ class ArchivesOverTime(ApiCase):
 class CatalogBackups(ApiCase):
     """webui-spec 9: the list, Back up now, and downloads."""
 
+    def test_backup_symlink_cannot_download_outside_backup_storage(self):
+        self.create_catalog()
+        self.assertEqual(self.client.post('/api/v1/backups').json()['outcome'], 'succeeded')
+        backup = self.client.get('/api/v1/backups').json()['items'][0]
+        stored = self.cfg.backups / backup['relative_filename']
+        original = stored.read_bytes()
+        secret = self.root / 'outside-sentinel.txt'
+        secret.write_text('generated private sentinel')
+        stored.unlink()
+        stored.symlink_to(secret)
+        response = self.client.get(f"/api/v1/backups/{backup['attempt_id']}/download")
+        self.assertEqual(response.status_code, 404, 'backup download followed an outside symlink')
+        self.assertNotIn(secret.read_bytes(), response.content)
+        self.assertEqual(self.client.get('/api/v1/backups').json()['items'][0]['availability'], 'missing')
+        stored.unlink()
+        stored.write_bytes(original)
+        self.assertEqual(self.client.get(f"/api/v1/backups/{backup['attempt_id']}/download").content, original)
+
+
     def test_backup_now_is_listed_downloadable_and_restorable(self):
         import zstandard
         make_photo(self.cfg.source / "IMG_0001.jpg", "a")
@@ -1611,6 +1826,93 @@ class MatchingTests(ApiCase):
     def refresh(self):
         from engine import ns_similarity
         self.assertTrue(ns_similarity.refresh(self.conn))
+
+    def test_cross_location_matches_are_separate_and_ignore_emptied_rejects(self):
+        from webui import catalog
+        a = self.photo('library', 'a', '0000000000000000')
+        b = self.photo('library-match', 'b', '0000000000000001')
+        rejected = self.photo('rejected', 'r', '0000000000000003')
+        source = self.photo('source', 's', '0000000000000000', status='Pending')
+        self.refresh()
+        destination = self.cfg.dest / 'rejects' / 'rejected.jpg'
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        (self.cfg.dest / 'library').mkdir(exist_ok=True)
+        destination.write_bytes(b'generated fixture')
+        with ns_db.transaction(self.conn):
+            self.conn.execute("UPDATE photos SET status='Rejected_Copied',dest_path=? WHERE id=?", (str(destination), rejected))
+            self.conn.execute("UPDATE file_states SET current_path=? WHERE current_path='/destination/rejected.jpg'", (str(destination),))
+        def results(photo, scope='library'):
+            response = self.client.get(f'/api/v1/similar/{photo}?scope={scope}')
+            self.assertEqual(response.status_code, 200, response.text)
+            return response.json()
+        self.assertEqual([p['id'] for p in results(a)['items']], [b])
+        self.assertEqual([p['id'] for p in results(a, 'rejects')['items']], [rejected])
+        self.assertEqual({p['id'] for p in results(rejected)['items']}, {a, b})
+        for scope in ('library', 'rejects'):
+            counts = self.client.get(f'/api/v1/similar/{a}/counts?scope={scope}').json()
+            self.assertEqual(next(c['count'] for c in counts['counts'] if c['threshold']==90), 1)
+            self.assertEqual(results(source, scope)['availability'], 'not_available')
+        pair = self.client.get(f'/api/v1/similar/{a}/pair/{rejected}').json()
+        self.assertEqual((pair['reference']['status'], pair['candidate']['status']), ('Copied', 'Rejected_Copied'))
+        self.assertEqual(pair['score'], 96.88)
+        self.assertEqual({p['id'] for p in self.client.get('/api/v1/photos?view=similar&match_min=90').json()['items']}, {a,b})
+        # Invalid request scopes cannot become SQL. Both endpoints reject them.
+        for suffix in ('', '/counts'):
+            response = self.client.get(f'/api/v1/similar/{a}{suffix}', params={'scope': "rejects' OR 1=1--"})
+            self.assertEqual(response.status_code, 400)
+        # Emptying Rejects must exclude both candidates and references, even before
+        # the engine records Rejected_Emptied. Its directory cache has the same TTL
+        # as the Rejects gallery; clear it to represent the next listing.
+        destination.unlink()
+        catalog._rejects_listings.clear()
+        self.assertEqual(results(a, 'rejects')['total'], 0)
+        self.assertEqual(results(rejected)['availability'], 'not_available')
+        self.assertEqual(self.client.get(f'/api/v1/similar/{a}/pair/{rejected}').status_code, 409)
+        self.assertEqual(self.client.get(f'/api/v1/similar/{source}/pair/{a}').status_code, 409)
+
+    def test_review_group_representative_stays_inside_inbox_before_collapse(self):
+        a = self.photo('reviewed', 'a'*40, '0000000000000000')
+        b = self.photo('needs-review', 'b'*40, '0000000000000000')
+        c = self.photo('also-needs-review', 'c'*40, '0000000000000000')
+        self.refresh()
+        setting = self.client.get('/api/v1/settings').json()['small_image_min']
+        self.assertEqual(self.client.put('/api/v1/settings', json={'values': {'small_image_min': 800},
+            'revisions': {'small_image_min': setting['revision']}}).status_code, 200)
+        def mark_reviewed(photo):
+            detail = self.client.get(f'/api/v1/photos/{photo}/review').json()
+            response = self.client.post(f'/api/v1/photos/{photo}/review', json={
+                'photo_id': photo, 'sha1': detail['sha1'], 'revision': detail['revision'],
+                'reason': 'small', 'action': 'reviewed', 'note': '', 'request_id': f'{photo:032x}'})
+            self.assertEqual(response.status_code, 200, response.text)
+        mark_reviewed(a)
+        query = 'view=review&similar=true&group_sets=true&match_min=90'
+        result = self.client.get('/api/v1/photos?'+query).json()
+        self.assertEqual((result['total'], [p['id'] for p in result['items']]), (1, [b]))
+        self.assertEqual(self.client.get('/api/v1/photos/ids?'+query).json()['ids'], [b])
+        self.assertEqual(self.client.get('/api/v1/photos/timeline?'+query).json()['undated'], 1)
+        self.assertEqual(self.client.get('/api/v1/photos/types?'+query).json()['types'], [{'type':'jpg','photos':1}])
+        position = self.client.post('/api/v1/photos/position', json={'photo_id':b, 'view':'review',
+            'similar':True, 'group_sets':True, 'match_min':90, 'sort':'matches','page_size':1}).json()
+        self.assertEqual((position['position'], position['page'], position['next_id']), (0, 1, None))
+        members = self.client.get(f'/api/v1/similar/{b}/sets?threshold=90').json()
+        self.assertEqual({p['id'] for p in members['items']}, {a,b,c})
+        library = self.client.get('/api/v1/photos?view=organized&similar=true&group_sets=true').json()
+        self.assertEqual([p['id'] for p in library['items']], [a])
+        mark_reviewed(b)
+        self.assertEqual(self.client.get('/api/v1/photos/ids?'+query).json()['ids'], [c])
+        mark_reviewed(c)
+        self.assertEqual(self.client.get('/api/v1/photos?'+query).json()['total'], 0)
+
+    def test_largest_lookalike_is_not_limited_to_the_first_page(self):
+        reference=self.photo('reference','a'*40,'0000000000000000')
+        for i in range(61):
+            last=self.photo(f'match-{i}',f'{i+1:040x}','0000000000000000',width=640 if i<60 else 4000)
+        self.refresh()
+        result=self.client.get(f'/api/v1/similar/{reference}?page_size=30').json()
+        self.assertEqual(result['total'],61)
+        self.assertNotIn(last,[p['id'] for p in result['items']])
+        self.assertEqual(result['largest_match']['id'],last)
+        self.assertEqual(result['largest_match']['width'],4000)
 
     def test_cached_counts_equal_live_reads_and_invalidate_transactionally(self):
         from engine import ns_similarity_cache as cache

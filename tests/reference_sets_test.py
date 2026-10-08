@@ -48,6 +48,30 @@ class ReferenceSetsTests(fixtures.ApiCase):
         self.assertNotIn(self.d,[p['id'] for p in combined['items']])
         self.assertEqual(list(self.conn.iterdump()),before)
 
+    def test_related_sets_exclude_identical_members_and_collapse_before_paging(self):
+        twin_a = self.photo('A-twin', 'twin-a', '0000000000000000')
+        twin_b = self.photo('B-twin', 'twin-b', '000000000000003f')
+        self.refresh()
+        before = list(self.conn.iterdump())
+        a = self.get(query='&page_size=1&related_page=99')
+        self.assertEqual(a['related_total'], 1)
+        self.assertEqual(a['related_page'], 1)
+        self.assertEqual([r['id'] for r in a['related']], [self.b])
+        b = self.get(self.b, '&page_size=1&related_page=99')
+        self.assertEqual(b['related_total'], 2)
+        self.assertEqual(b['related_page'], 2)
+        self.assertEqual([r['id'] for r in b['related']], [self.c])
+        self.assertEqual(list(self.conn.iterdump()), before)
+        # Different hashes can also have the same membership: at 75% the
+        # first three buckets form a clique once D is unavailable.
+        self.conn.execute("UPDATE photos SET status='Pending' WHERE id=?", (self.d,))
+        self.conn.commit()
+        for reference in (self.a, twin_a, self.b, twin_b, self.c):
+            result = self.client.get(f'/api/v1/similar/{reference}/sets?threshold=75').json()
+            self.assertEqual(result['total'], 5)
+            self.assertEqual(result['related'], [])
+            self.assertEqual(result['related_total'], 0)
+
     def test_paging_thresholds_and_stale_requests(self):
         response=self.get(query=f'&include={self.b}&page_size=1&page=99&related_page=99')
         self.assertEqual((response['total'],response['page'],len(response['items'])),(3,3,1))
@@ -100,6 +124,10 @@ class ReferenceSetsTests(fixtures.ApiCase):
         query = '/api/v1/photos?view=similar&match_min=90&group_sets=true&sort=name'
         result = self.client.get(query).json()
         self.assertEqual(result['total'], 4)
+        self.assertEqual(result['matches']['similar'], 5, 'view button counts photos, not sets')
+        two_members = self.client.get(query+'&q=A').json()
+        self.assertEqual(two_members['total'], 1)
+        self.assertEqual(two_members['matches']['similar'], 2)
         self.assertEqual({p['id'] for p in result['items']}, {self.a,self.b,self.c,self.d})
         self.assertEqual(self.client.get(query+'&page_size=1&page=2').json()['items'][0]['id'], self.b)
         selected = self.client.get('/api/v1/photos/ids?view=similar&match_min=90&group_sets=true').json()

@@ -24,12 +24,13 @@ export interface WorkspaceStep {
 // ask first; that guard arrives with the first workspace that edits, the EXIF editor.)
 // `label` is the window's accessible name; the visible title may be longer.
 export function Workspace({ label, title, subject, onBack, backLabel = "Back to gallery", step, actions,
-                            status, busy = false, className = "", children }: {
+                            status, busy = false, className = "", escapeHint = "Esc returns to the gallery", children }: {
   label: string;
   title: ReactNode;
   subject?: ReactNode;
   onBack: () => void;
   backLabel?: string;
+  escapeHint?: string;
   step?: WorkspaceStep;
   actions?: ReactNode;
   status?: ReactNode;
@@ -71,7 +72,7 @@ export function Workspace({ label, title, subject, onBack, backLabel = "Back to 
         <div className="workspace-content">{children}</div>
         <footer className="workspace-status">
           <div className="workspace-status-text">{status}</div>
-          <span className="workspace-keys">{step ? "← → step · " : ""}Esc returns to the gallery</span>
+          <span className="workspace-keys">{step ? "← → step · " : ""}{escapeHint}</span>
         </footer>
       </div>
     </Modal>

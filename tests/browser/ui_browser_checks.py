@@ -62,12 +62,14 @@ def check_ui(browser, base, _shot):
     expect(page.locator(".card").first).to_be_visible()
 
     # Tile changes keep both a pending search draft and its applied URL query.
+    initial_location = page.locator(".views button[aria-pressed=true]").inner_text().split(" (")[0]
     search_box = page.get_by_role("searchbox", name="Search filenames")
-    for label in ("Not yet organized", "No capture date", "Organized", "All photos"):
+    for label in ("Not organized", "Needs review", "Rejects", "Library"):
         search_box.fill("photo-010")
         page.locator(".views").get_by_role("button", name=re.compile(r"^" + label)).click()
         expect(search_box).to_have_value("photo-010")
         expect(page).to_have_url(re.compile(r"q=photo-010"))
+    page.locator(".views").get_by_role("button", name=re.compile(r"^" + initial_location)).click()
     search_box.fill("")
     expect(page).not_to_have_url(re.compile(r"q="))
     expect(page.locator(".card").first).to_be_visible()
@@ -159,6 +161,8 @@ def check_ui(browser, base, _shot):
     expect(tabs.get_by_role("tab", name="Files")).to_be_focused()
     expect(tabs.get_by_role("tab", name="Files")).to_have_attribute("aria-selected", "true")
     page.keyboard.press("End")
+    expect(tabs.get_by_role("tab", name="Access")).to_be_focused()
+    page.keyboard.press("ArrowLeft")
     expect(tabs.get_by_role("tab", name="Performance")).to_be_focused()
     workers = modal.get_by_label("Maximum worker processes")
     original = workers.input_value()
@@ -219,17 +223,17 @@ def check_ui(browser, base, _shot):
     expect(select).to_be_focused()
 
     # Supplemental help is explicitly operable, described, and dismissible.
-    help_button = page.locator(".views .help-trigger").first
+    help_button = page.locator(".side-panel .help-trigger:visible").first
     help_button.click()
     expect(help_button).to_have_attribute("aria-expanded", "true")
-    expect(page.locator(".views .help-content")).to_contain_text("EXIF")
+    expect(page.locator(".side-panel .help-content")).not_to_be_empty()
     page.keyboard.press("Escape")
     expect(help_button).to_have_attribute("aria-expanded", "false")
     expect(help_button).to_be_focused()
     actions.focus()
     actions.hover()  # Leave the help target before testing a fresh pointer entry.
     help_button.hover()
-    help_content = page.locator(".views .help-content")
+    help_content = page.locator(".side-panel .help-content")
     expect(help_content).to_be_visible()
     help_content.hover()
     page.wait_for_timeout(200)  # The pointer has crossed the bubble's dismissal grace period.

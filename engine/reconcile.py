@@ -8,13 +8,16 @@ from pathlib import Path
 
 from engine.ns_db import (
     PhotoStatus, RunStatus, OPERATION_RENAMED, OPERATION_EMPTIED, IN_REJECTS_STATUSES)
-from engine import constants, durable, ns_db, relocate, runtime, store
+from engine import constants, durable, fileinfo, ns_db, relocate, runtime, store
 
 
 def _recovery_observe(path: Path):
     """A non-file (including a symlink) is not an absent or verified photo."""
     try:
+        fileinfo.require_plain_path(path)
         return "present" if stat.S_ISREG(path.lstat().st_mode) else "not_file"
+    except fileinfo.SymlinkPathError:
+        return "not_file"
     except FileNotFoundError:
         return "absent"
     except OSError:
@@ -29,6 +32,7 @@ def _recovery_verify(path: Path, expected):
         return st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns
     details = {"expected_sha1": expected}
     try:
+        fileinfo.require_plain_path(path)
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         with os.fdopen(fd, "rb") as stream:
             before = os.fstat(stream.fileno())
@@ -102,10 +106,11 @@ def reconcile_interrupted_state(db_path: Path, run_id: int):
             prefix = dst.name + constants.PARTIAL_SUFFIX + "."
             orphans = []
             try:
+                fileinfo.require_plain_path(dst.parent)
                 with os.scandir(dst.parent) as entries:
                     orphans = [e.path for e in entries
                                if e.name.startswith(prefix) and e.is_file(follow_symlinks=False)]
-            except FileNotFoundError:
+            except (FileNotFoundError, fileinfo.SymlinkPathError):
                 pass
             for orphan in orphans:
                 runtime.logger.warning(f"Found orphaned partial file: {Path(orphan).name}. Removing.")
@@ -289,8 +294,11 @@ def _reconcile_interrupted_renames(conn, run_id: int):
     """
     def observe(path):
         try:
+            fileinfo.require_plain_path(path)
             info = os.lstat(path)
             return info if stat.S_ISREG(info.st_mode) else "not_file"
+        except fileinfo.SymlinkPathError:
+            return "not_file"
         except FileNotFoundError:
             return None
         except OSError:
@@ -353,6 +361,7 @@ def _reconcile_interrupted_renames(conn, run_id: int):
                 details={**verified, "verification": verification})
         if candidate == "new" and verification == "match":
             if same_file:
+                fileinfo.require_plain_path(old)
                 os.unlink(old)
             # Retry the old-directory barrier even when a prior attempt already
             # removed the old name and failed on this very sync.

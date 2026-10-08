@@ -58,13 +58,18 @@ add screen-specific font sizes to repair a shared control.
 
 Tabs are one shared control (`ui/Tabs.tsx`, WAI-ARIA "Tabs with automatic activation"):
 one tab stop, ← → move and choose, Home/End go to the ends. The Inspector and Settings
-use it. Settings' tabs and first-run steps are the same four groups (`webui-spec.md` §3);
+use it. The setup wizard places the shared logo and NegativeSpace name at the top left of
+its header on every step, with the step title below; do not repeat a welcome heading.
+Settings' tabs and first-run steps are the same five groups (`webui-spec.md` §3);
 a tab with unsaved changes shows a dot, named "unsaved changes" to assistive technology.
 
 The first Settings tab, Appearance, offers Cool neutral (default) and Warm neutral palettes. The choice applies
 immediately, is stored per browser under `ns.palette`, and follows across tabs;
-it is independent of catalog settings and does not require Save settings. System
-light/dark preference applies to either palette. If browser storage is unavailable,
+it is independent of catalog settings and does not require Save settings. **Color mode** offers System (default), Light and Dark, remembered per browser
+under `ns.theme` and synchronized across tabs. System follows live device changes;
+explicit Light/Dark overrides them. A shared **Dark mode** toggle appears beside
+Stats and Settings on Library, Logs and Stats, setting an explicit mode. Both palettes
+work in every mode, including setup, dialogs and workspaces. If browser storage is unavailable,
 the choice still works for the current page. All colors come from the shared root
 tokens; the font is served with the app, with no external font request.
 
@@ -72,7 +77,17 @@ Help popups use the subdued `--surface-2` background and normal text color in bo
 themes. They occupy the browser's top layer so sticky sidebars and adjacent photos
 cannot clip or cover the text.
 
+Stats warning and failure tiles retain their semantic colored left borders so
+problems are easy to notice. Folder-table cells retain the shared spacing, including
+8px left padding. Keep this geometry consistent in both themes and at desktop reflow.
+
 ## Shared controls
+
+Consistency applies across the whole app. Reuse shared controls for the same action,
+including labels, visual style, keyboard behavior and ordering. Different contexts
+may offer different actions, but must not invent a second treatment of the same action.
+Top-level page tools share one component; review and comparison share the workspace,
+preview and confirmation controls. Navigation goes to its named destination/tab.
 
 | Element | Contract and implementation |
 | :--- | :--- |
@@ -80,13 +95,51 @@ cannot clip or cover the text.
 | Buttons | Native buttons, primary/secondary/quiet/destructive CSS variants; verb labels. Disable submission while pending. A photo's own action standing alone on a white panel (the Inspector's **Reject…** and **Return to library…**) is outlined with `--control-border`, as fields are: quiet, it read as plain text and was missed. |
 | Selects | Native select for sort and page size. Menus execute commands and are not substitutes for form selects. |
 | Search fields | `ui/SearchField.tsx` for every search and filter box: a **Clear search** button (×, with the field's own name where it filters something else) appears once there is text, clears it and keeps focus in the box; Esc does the same before reaching the dialog or panel around it. The browser's own clear button is hidden, since only some browsers draw one. *From:* [Carbon search](https://carbondesignsystem.com/components/search/usage/). |
-| Fields | `ui/Field.tsx`: persistent label, hint and field error linked to the input, plus invalid state. Keep server validation. |
+| Fields | `ui/Field.tsx`: persistent label, hint and field error linked to the input, plus invalid state. Required choices say **(required)** in the visible label and use native `required` semantics; do not wait for an error to reveal the requirement. Keep server validation. |
 | Checkboxes | Native input and label, Space activation, actual indeterminate state for partial parents. Selecting photos differs from filtering the view. |
 | Filter trees | Consistent rows, counts and focus. Folder/type labels filter; date-name buttons jump and carry an arrow cue. Parent/child inclusion rules remain those in the web spec. |
 | Menus | `ui/MenuButton.tsx` manages focus, item traversal, nested scopes and dismissal. Domain components provide labels, counts, reasons and callbacks. |
 | Dialogs | `ui/Modal.tsx` uses native modal dialogs and top-layer inertness. Desktop Inspector stays nonmodal; on narrow screens its covering panel becomes modal. |
 | Supplemental help | `Tip.tsx`: hover/focus plus an explicit information button for touch; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. |
 | Paged loading | `ui/PageBoundary.tsx` and `paged.ts`: idle/load, pending, failed/retry and end states. Keep already-loaded photos and selection on failure. |
+
+## Stable navigation and filtering
+
+Page navigation uses `PageNavigation.tsx`: Library, a reserved Jobs slot, then Logs.
+Logs and Stats leave the Jobs slot empty; do not show a disabled command or move Logs.
+The active label's weight must not change the position of adjacent links.
+
+Ordinary job submission stays on the initiating control/dialog; the central Index
+button replaces its label with **Starting…** and disables repeat submission. A brief
+global submission banner must not push down the page. Uncertain/failed submission
+recovery stays immediately visible, and real job progress still appears in the drawer.
+
+Finished-job dismissal is an acknowledged action: keep the banner and replace Dismiss
+with disabled **Saving…** while saving. On failure keep the result visible with a
+plain error and **Retry dismissal**. Share that state across pages; never hide a
+banner optimistically or rely on a browser-only copy of the dismissal.
+
+Routine filter guidance swaps in place, rather than inserting a paragraph above
+controls/results. Use `ui/StableContent.tsx` for known alternative explanations: all
+variants share a naturally sized grid cell, with only the active variant visible,
+focusable and exposed to assistive technology. The tallest wrapped variant reserves
+space at the current width/font size. Do not clip text or impose fixed pixel heights.
+Needs review reason explanations, gallery date/group guidance and Logs failure guidance
+use this shared pattern.
+
+Logs always has a filter-summary row; unavailable status **only** shortcuts retain
+their space without remaining interactive. Job-list summaries reserve control height
+when Expand all disappears. Gallery counts and filter actions share a stable summary
+row; grouping controls have their own wrapping row when similarity is active. Reserve
+control height for the location heading's Clear filters action. Longer user-entered
+filters may wrap naturally; do not hide meaningful restrictions to force a height.
+
+Adding substantive controls (such as similarity tools), opening a job or Inspector,
+and revealing an error can legitimately change content. Routine helper text alone
+must not move the controls the user is operating. Verify before/after positions after
+the server response at desktop and narrow desktop widths, and inspect screenshots to
+avoid reserving excessive blank space. `layout_stability_browser_drive.py` guards the
+shared navigation, Logs status filtering, and Library/Needs review reason toggles.
 
 ## Workspaces
 
@@ -120,6 +173,9 @@ their editing view the whole window (Lightroom's Develop, Immich's viewer).
 - **Leaving with unsaved changes** (with the first editing workspace): "Leave without
   saving?" / "All unsaved changes will be lost." / **Keep editing** (initial focus) ·
   **Discard**. Never save automatically.
+- **Responsive panels:** when resizing turns an underlying Inspector into a modal,
+  defer its activation until covering Settings/dialogs close. It must not steal focus
+  or cover the active task.
 - **Narrow windows:** the header wraps (title and subject, then the step control and
   actions); the frame never scrolls sideways.
 
@@ -154,7 +210,7 @@ and had to be reworded in both places.
 
 Review destination photos in the ordinary gallery and its Inspector. Do not add a
 separate Similar navigation button or a second gallery of matching groups.
-**Has similar photos** sits alongside All photos, Organized and No capture date;
+**Has similar photos** is a filter chip within the current place;
 it includes photos with at least one recorded destination match at the gallery's
 chosen percentage (90% initially). It combines with existing search, date, type and
 folder filters. **Most matches first** in the existing sort control ranks direct
@@ -168,7 +224,8 @@ unavailable hashes are reported separately, not presented as proof of uniqueness
 
 Keep the same card geometry and shared summary row in All photos, Has similar
 photos and No capture date. Match badges must not add a metadata row to cards.
-Use the same active-view surface for No capture date. Put long filter descriptions
+Use the same active-view surface for No capture date. Its filter chip has no adjacent
+information icon. Put long filter descriptions
 and count-scope explanations in shared help, keeping filter-reset/selection actions
 visible. Similarity controls and essential below-90% guidance may wrap at smaller
 widths; never hide them behind a help control or clip them for a fixed row height.
@@ -184,11 +241,18 @@ matches and opens the **Similar photos** tab. Users can subsequently
 choose another Inspector percentage without changing gallery order; previous/next
 photo navigation retains that Inspector choice.
 
-The Inspector has **Photo information** and **Similar photos** tabs. Default to
+The Library Inspector has **Photo information** and **Similar photos** tabs. Rejects has **File information** and **Similar photos in Library**; Not organized has only File information. Default to
 Photo information outside Has similar photos; remember the active tab and threshold
 when using previous/next. A gallery-card click in Has similar photos always opens
 Similar photos, even after the user switched to Photo information.
-The preview and its resize divider are shared by both tabs. Tab arrow keys and
+The preview and its resize divider are shared by both tabs. In Similar photos, the
+large preview has a plain **Reference photo** heading and an accent border. Do not
+repeat its thumbnail in the matches pane: put **Keep reference, reject n matches…**
+above the candidates. Reference identifies the comparison anchor; **Keeping** appears
+only after the user explicitly chooses Keep and enters the rejection review. Users
+resize the panes themselves; narrow layouts do not add another reference thumbnail.
+The reference heading is informational, with no button-like fill or badge.
+Tab arrow keys and
 Home/End switch tabs without triggering previous/next photo navigation.
 
 The Similar photos tab shows cumulative counts at **75%, 80%, 85%, 90%, 95% and 100%**
@@ -227,8 +291,8 @@ Recovery reads verified destination originals and changes only matching data.
 **Built:** opening a candidate from the Inspector expands into a comparison
 workspace (the shared workspace frame, "Workspaces" above) with an explicit reference, a browsable candidate, a paged thumbnail strip,
 and a resizable information panel. It starts at the Inspector's threshold and
-page. Back to gallery restores its threshold/page (page one after filtering by
-review status), leaves gallery selection intact, and restores focus to the opener
+page. Back to gallery restores its threshold/page, leaves gallery selection
+intact, and restores focus to the opener
 when it remains present. The reference is the photo the user opened, not a donor
 or a file chosen to keep.
 Identify the reference with a plain bold **Reference photo** heading and an accent border
@@ -348,6 +412,12 @@ than compressing these areas below their minimums.
 
 ## Validation and feedback
 
+The shared job drawer reports two minutes without recorded progress as an observation,
+not a diagnosis. Use the shared notice treatment and Keep waiting/Cancel actions. Waiting
+only postpones the reminder; cancellation is explicit. Keep the accepted-cancel message
+and disabled Cancel visible until work has stopped, including an explanation when blocked
+storage may delay it. Never add a file-skipping timer.
+
 Settings validates whole positive worker/retention counts and a nonempty extension
 selection before saving. It keeps drafts, marks affected fields, describes their
 errors and focuses the first invalid control. Server errors remain visible. Success
@@ -411,7 +481,10 @@ visual standard. Engine transfer safety and filesystem behavior are unchanged.
 ## Suspicious dates
 
 The **Suspicious dates** gallery view flags the recorded gallery date when its year
-is before 1800 or more than one year ahead of the current UTC year. This is a
+is before the catalog’s **Earliest expected year** (default 1800) or more than one
+year ahead of the current UTC year. Setup and Settings › Files offer this year
+(whole number 1–9999); the chosen year itself is allowed. For example, 2000 flags
+1999 and earlier. Allow for older scans and family photos. This is a
 conservative review heuristic, not proof of an error. It includes EXIF-derived dates
 and file-modification fallbacks, with their source identified in the Inspector and
 comparison pane. Missing dates remain covered by No capture date; raw malformed or
@@ -424,10 +497,26 @@ Explain the policy beside results. The Inspector shows the reason, recorded valu
 source and a link to the affected view. Similar photos offer clues, not automatic
 corrections. The comparison Capture information table includes a Date review row
 when either photo is flagged. State clearly that date editing is not yet available.
-No schema changes, reindex or file writes are needed; the upper bound advances with
+Changing the rule updates counts, filters and inspection immediately without
+reindexing or changing photo bytes/metadata. The gallery names the saved boundary
+and links to Settings. The setting is revision-checked and backed up with the catalog.
+The upper bound advances with
 the server's UTC year when the catalog is read.
 
 ### Reference-based sets
+
+Library and Needs review expose the same Similar photos controls: Group similar photos,
+percentage, Most matches first and set exploration/comparison. A group's representative
+must belong to the current location/inbox before identical sets collapse.
+
+Grouping is available when Has similar photos is the only explicit filter. Adding
+Suspicious dates, No capture date, Small images, Review later, search, dates, folders or
+file types shows every photo satisfying all active filters individually. Leave the
+checkbox visible, unchecked and disabled, with a visible explanation and description
+relationship: clear the other filters to group. Clearing them restores the user's
+explicit grouping preference; automatic ungrouping does not overwrite it. Percentage
+and sort changes do not disable grouping. Preserve checkbox selections. URL
+`group_sets=1|0` records the chosen preference and wins over browser storage on links.
 
 Offer optional grouping within Has similar photos, retaining the ordinary per-photo
 view. A set consists of its reference and every direct match at the chosen percentage.
@@ -447,9 +536,9 @@ These are session-only display choices, not saved groups or tags. **Group simila
 photos** adds set counts and actions to the existing reference cards. Sets with exactly the same full destination membership appear once in the gallery.
 Compare each closed neighborhood (reference plus direct matches) at the selected
 percentage, never just match counts or a transitive component. Choose the lowest
-canonical photo ID satisfying active filters as the stable representative; it is
-not a keeper or the highest-quality photo. Sort the resulting representatives and
-collapse before pagination. Search can choose another member as representative.
+canonical photo ID inside the current location/inbox as the stable representative;
+it is not a keeper or the highest-quality photo. Sort the resulting representatives
+and collapse before pagination. Search displays matching photos individually.
 Gallery totals and paging count sets when grouping is on. Select all and card
 checkboxes select only displayed representatives, not every member. Existing
 explicit selection remains intact, including hidden members; Show only selected
@@ -459,6 +548,14 @@ collapsed sets; date-jump positioning uses grouped representatives. A set's memb
 library. Turning grouping off returns the ordinary cards without clearing selection.
 Grouping defaults on and the toggle is remembered per browser (`ns.groupSets`). Selected expansions reset on closing exploration
 or changing its percentage, and survive a visit to side-by-side review and back.
+
+Identical membership in Explore related sets follows the gallery rule: exclude sets
+identical to the starting set and show each remaining full-membership set once, before
+related-set counting and pagination. Compare exact membership at the selected percentage,
+not photo counts; a proper subset is still a distinct overlapping set. Choose the lowest
+canonical photo ID among the starting reference's direct matches for each distinct set.
+No other distinct sets produces an explicit empty message. Changing reference does not
+choose a keeper or modify photos.
 
 Explore related sets offers only the starting reference's direct-match references.
 Choose up to six explicitly, then Show together. This unions their sets, deduplicates
@@ -477,7 +574,7 @@ this set; stale expansions are rejected rather than silently dropped. Incomplete
 coverage links to matching information and recovery. No persisted group membership,
 keeper inference, EXIF editing or rejecting is introduced by exploring sets.
 
-Review later belongs to the planned Needs review in-tray (`webui-spec.md` §7.9).
+Review later belongs to the built Needs review in-tray (`webui-spec.md` §7.9).
 Its notes record decisions awaiting a person, with reason-specific actions and
 resolved decisions retained in history. This is not a general tagging system;
 computed similar-photo sets remain live queries rather than stored review notes.
@@ -525,3 +622,201 @@ expand or clear the existing selection. Filters are disabled while it is open;
 Back to results restores the previous gallery filters/page. Reload leaves this
 session-only scope. Browsing is not limited in members. No EXIF edit, reject, image
 processing or persisted group is implied.
+
+## Places, filters and the review inbox
+
+The navigation follows the workflow: Not organized, Library, Needs review, Rejects.
+Not organized, Library and Rejects name locations; Needs review is an inbox of organized Library photos, not a fourth physical place.
+Label locations on review cards and in the Inspector/workspace. Counts count distinct
+photos and must not imply the inbox adds files to the library. A new unscoped visit
+starts at Not organized while Library is empty; explicit links retain their view.
+Once Library exists, an unscoped visit remembers the last place in this browser.
+Not organized starts with Index source. After Index, its neutral Index summary describes
+remaining indexed photos, identical extra copies, size and date facts, plus a clear
+Copy/Move next step using the existing confirmation. Counts cover the whole location,
+not gallery filters; disabled size rules and uncalculated similarity are explicit.
+The Index summary has **Close index summary** and a compact **Show index summary**
+control to reopen it. Dismissal is remembered in this browser across refreshes and
+navigation for that finished Index; the next finished Index reveals the updated
+summary. Copy/Move and other jobs do not reopen it. Closing changes no photos or
+selection, and Jobs retains Copy/Move. Focus follows the close/show control.
+Opening a source preview temporarily collapses the summary to **Show index summary**;
+closing the preview restores its prior state. Explicit Show can expand it while the
+preview is open. If only failed source files remain, say
+**n files need attention**, link directly to failures and omit misleading Copy/Move actions. Use a compact failure notice only: omit the photo-statistics grid and source-photo/similarity guidance. Copy/Move completion updates this in place without a reload. If nothing remains, hide both the summary and its Show control.
+Switching location closes the Inspector and comparison context, preserving checkboxes.
+Explicit links to a photo still open that photo in their specified context.
+An empty Library explains how to populate it and links to Not organized.
+
+Library contains delivered, active photos only. Cards with unresolved reasons show a
+Needs review link and concise reason labels. Opening it selects the relevant inbox
+reason (no reason filter for multiple reasons), focuses that photo in the review workspace,
+and clears unrelated browsing filters so the photo cannot be hidden. Checkboxes stay
+unchanged. Back to Library restores the entry filters, sort and visible photo position
+for this visit. Mark reviewed clears the reminder, not the Library photo.
+
+Place controls and filter chips have different roles. Each location has exactly one
+filter row beneath navigation. Similar photos, Suspicious dates and No capture date
+combine; Small images toggles the existing size-reminder predicate within Library or
+Needs review, without navigating. Needs review adds Review later in that same row.
+Small images and Review later choose one reminder scope at a time, combining with the
+other filters. Leaving Needs review clears its Review later restriction, so Library
+cannot inherit a filter with no visible control. Clicking an active chip clears it; no active chips means the whole
+current location/inbox. Do not repeat these controls in a second row or add All reasons. Use native buttons with aria-pressed, shared
+text roles, visible focus and wrapping at desktop zoom. Folders and Dates remain in the
+sidebar. Name active restrictions visibly and provide Clear filters without changing
+place or selection. Search offers a route to filename matches in other locations.
+
+Small-image review is destination cleanup, never a Copy/Move restriction. First-run
+Files places the required on/off choice first in an accent-bordered notice, with a bold
+**(required)** label and **Choose On or Off to continue**. Both choices are valid; nothing
+is preselected. It offers an editable 800-pixel shorter-side
+minimum if enabled. Settings can adjust or disable it. Mark reviewed acknowledges one
+photo's size concern; it is not Keep, selection, relocation or approval of other reasons.
+Checkboxes continue to select photos to Reject. Never untick photos because the app
+found a larger look-alike. Review later has an optional note and Done clears it.
+
+Use the shared Workspace for one-by-one review, with reason-specific evidence/actions,
+Previous/Next, and Back to gallery. Next leaves the decision unresolved. Advance only
+on an acknowledged decision or confirmed Reject outcome. Keep errors and retry paths
+visible. Return to the same gallery context and preserve explicit selections.
+
+Small-image gallery cards use the concise reason **Below minimum image size**. Keep
+the detailed dimensions and configured rule in the Inspector and review workspace.
+The short card reason also exposes that rule through shared `Tip` help on hover,
+keyboard focus or the information button.
+
+Keep **Small images** beside **No capture date** as a filter toggle in Library and
+Needs review. It preserves location, search, other filters and checkbox selection.
+**Review photo…** opens the dedicated review workspace; filtering never opens it.
+
+The current gallery location is a section heading above its content, consistently across
+views. Active restrictions and Clear filters sit beside it in supporting text; an
+unfiltered view does not repeat its name in a small muted breadcrumb.
+The Index summary labels absent positive width/height as **Image size unavailable**.
+Shared help explains that unsupported formats, unreadable files or incomplete processing
+can cause this; it does not diagnose corruption or a non-photo. These files are not counted
+as small. Processing failures remain a separate count with a route to job details.
+
+Switching Needs review reasons must not move the reason controls or results summary.
+Reason explanations share an automatically sized grid area that accommodates the longest
+wrapped text at the current width/text size; do not use fixed heights or clip guidance.
+Only the current explanation is visible, focusable or exposed to assistive technology.
+Choosing a reminder scope alone does not add Clear filters beside the location heading:
+click its active chip again to clear it. Other active gallery filters retain Clear filters.
+
+The selection toolbar reserves the width of its outside-this-view message for the
+current selection size. Filtering must not make this message appear/disappear in a
+way that wraps the toolbar and shifts the gallery. The sizing copy is hidden from
+view and assistive technology; a zero outside count is not announced as a warning.
+
+Keep the outside-selection count beneath the selected-photo count in supporting text,
+within the normal control height. At viewport heights of 600px or less the main toolbar
+scrolls with the page, as it does in narrow windows, so a wrapped header cannot cover
+the review filters or prevent their activation at desktop zoom.
+
+Filter and reason count labels reserve space based on the catalog's total photo count,
+with tabular digits, so changing from many matches to zero cannot rewrap the filter row.
+
+### Consistent review decisions
+
+Actions are visible native buttons with the shared outlined secondary treatment;
+Reject retains its explicit confirmation. Navigation is a link, explanatory facts
+are plain text. Opening Settings is a dialog action and uses a button. Keep related
+actions in one wrapping row with consistent control height, text and spacing.
+
+The Inspector starts with one Photo actions row: Review photo…, Review later… and
+Reject… for eligible Library photos, or Return to library… in Rejects. It precedes
+location/review reasons and File/capture details, so moving through photos does not
+require scrolling to reach a decision. Detailed Mark reviewed/Done decisions belong
+in the workspace beside their reason. Move the small-image Settings action out of
+the Inspector; the inbox's size guidance retains it. History and full metadata
+remain available without crowding the decision controls.
+
+The dedicated review workspace names its task (Small-image review, Review later,
+or the date filter), queue position and Previous/Next in the shared header. A large
+photo and compact rotation/zoom controls occupy the main area. A side panel groups
+why the photo needs review, relevant facts and one action row. Explain that Mark
+reviewed clears only the size reminder; Done clears only Review later. Date warnings
+provide information, not unbuilt date-edit/acknowledgment controls.
+
+Similarity shows a count and percentage with one **View all n matches →** link to the
+existing Similar photos tab. Do not repeat candidate thumbnails or comparison controls
+in Photo Review. Browser Back restores the same photo and review queue position;
+gallery filters and checkbox selection remain intact. With no matches, show one short
+message and no match link. Incomplete coverage links to Review matching status; absence of evidence is
+not proof of uniqueness. The panels reflow within the shared workspace; the whole
+workspace scrolls, and the photo's controls do not get an inner vertical scroller.
+
+### Review eligibility, failures and job labels
+
+Only organized, active Library photos may receive review decisions. Similarity
+comparison also accepts still-present rejected photos. Enforce this using the photo's current state in the API/catalog as well as the
+UI; saved links must not bypass it. Existing review history remains readable. A reminder
+on a photo outside Library does not contribute to the inbox. Not organized shows file
+information, import status and failure details, with no Review photo, Review later,
+Mark reviewed, Reject or Similar photos tab. Rejects shows file information/history and
+Return to library and **Similar photos in Library**; it has no Review later or Mark
+reviewed controls.
+
+Library matches stay primary. At the chosen percentage, show rejected candidates in a
+separate **Also matches n photos in Rejects** disclosure above the Library candidate
+list, immediately after the threshold guidance/recovery notices, with its own pagination. They
+never contribute to Library match counts, grouping, or Keep-reference targets. Source
+files and emptied rejects cannot be references or candidates. Explain this scope beside
+the controls. Gallery filters narrow references, not their Library candidates.
+
+Cross-location comparison labels each preview **Location: Library / Rejects**. Each
+Library photo offers Reject; each rejected photo offers Return to Library, confirmed
+before running the existing verified relocation job. Similarity never automatically
+rejects anything. Do not offer Keep-reference or Library set navigation for a rejected
+reference or a Rejects candidate scope. Use as reference changes candidate scope to the
+previous reference's location; retain that scope in review links and pagination.
+Refreshing or completing a relocation reloads locations and actions. This does not add
+rejected photos to Needs review or create an automatic similar-to-reject reminder.
+
+The Index summary separates **Photos ready to organize**, **Files needing attention**
+and **Unfinished processing**. Size/date facts cover successfully indexed source photos;
+failed files are not ordinary missing-date photos. Failure details retain the actual
+cause and a route to the recorded log. Never infer a non-image merely from missing EXIF
+or a failed visual hash. Confirmed non-images/empty files and unreadable or unsupported
+images need distinct explanations and external correction. Source bytes stay untouched. Undecodable source photos remain Failed in Not organized
+and are excluded from Copy/Move, duplicate cleanup and Library matching. Missing EXIF,
+a hash-only failure or cache-write failure on readable pixels does not block copying.
+Do not call an unsupported/corrupt image a proven non-image. Already-organized files
+are not automatically moved or removed.
+Recheck after fixing is explicit: it repeats work and cannot repair content or add a
+missing decoder. Interrupted work may resume once storage and files are available.
+
+Stats labels its broad scope **Catalog photos / Catalog overview**, with **In Library**
+as a separate subtotal. Failed source files are a separate count and are excluded from
+photo trait/date statistics; Rejects has its own totals. Links specify their scope.
+If a mixed source list includes failures, its total says files, not photos. Stats
+Not organized identifies both photo and failure counts. Omit photo-total/format
+drilldown links when the broader target would also include failed files.
+
+Job headings use **Job #ID · Action status**: **Job #2 · Copy finished**. Apply the same
+identity prefix to active/completed jobs, Logs, photo history, lineage, recovery and
+job-photo scopes. The ID numbers jobs across all actions, not copies of an action.
+
+Match cards align **Review side by side** at the bottom of the card across each row,
+regardless of filename length. Let names wrap; use the shared flexible card content
+layout in the Inspector and rejected matches. Do not truncate names
+or fix card height merely to line up the action.
+
+## Instance access settings
+
+Access is the fifth shared Settings tab and setup step. Use the standard labelled
+full-width field for comma-separated additional addresses, list protected local/deployment names,
+and identify the current address. Save uses the common pending/error/success controls;
+changes apply immediately. Explain that addresses survive rebuilding the catalog and
+do not create DNS records or sign-in. Confirm removal of the current address in the
+shared modal with Cancel initially focused; after saving, explain how to reconnect.
+Revision conflicts and partial saves must say what happened and offer Reload settings.
+
+Gallery grouping uses the shared `checkbox-row` geometry for vertical alignment and
+label spacing. Failed-source Inspector notices display the recorded reason without
+requiring hover. Review shows a match count and a count-labelled link
+to the existing full match browser, without candidate thumbnails; following it retains
+reference, percentage, filters and checkbox selection. Browser Back restores the same
+photo and position in the review queue. This is navigation, not a photo action.

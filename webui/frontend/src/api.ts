@@ -1,4 +1,4 @@
-// The API's shapes (webui/app.py, webui/catalog.py) and a small fetch wrapper.
+// The webui/ API modules' response shapes and a small fetch wrapper.
 
 export type CatalogState = "missing" | "ok" | "incompatible" | "error";
 
@@ -15,6 +15,7 @@ export interface Status {
   detail: string | null;
   photos: number;
   indexed: boolean;
+  library_photos?: number;
   // What a Copy all and a Move all would take, across the whole catalog.
   eligible: { copy: number; move: number };
   copied: number;
@@ -31,7 +32,7 @@ export interface Status {
   active_job: Run | null;
 }
 
-export type View = "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects";
+export type View = "review" | "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects";
 // A job acting on photos; Reject and Return to library need a selection or a folder.
 export type ActionMode = "copy" | "move" | "reject" | "return";
 // Where a photo is, for selecting: a selection holds library photos or photos in Rejects,
@@ -57,14 +58,25 @@ export interface PhotoItem {
   kept?: string | null;
   // When a photo in Rejects was rejected.
   rejected_at?: string | null;
+  review?: Pick<ReviewDetail, "reasons" | "location">;
 }
 
+export interface ReviewDetail {
+  reasons: { reason: string; label: string; message: string }[];
+  history: { id: number; reason: string; action: string; note: string; created_at: string }[];
+  revision: number; sha1: string | null; location: string;
+}
 export interface PhotoPage {
+  date_min_year: number;
+  index_summary?: { last_index: { id: number; started_at: string } | null; photos: number; ready: number; unfinished: number; duplicates: number; small: number; minimum: number | null; unknown_dimensions: number; suspicious: number; undated: number; failed: number; similar: null } | null;
+  elsewhere?: Record<string, number>;
+  chips?: Record<string, number>;
+  reasons?: Record<string, number>;
   items: PhotoItem[];
   page: number;
   page_size: number;
   total: number;
-  // The whole library per view (and No capture date within this view), for the buttons.
+  // Unfiltered totals per view (and No capture date within the current view).
   counts: Record<View | "undated", number>;
   similarity: { threshold: number; pending: number; unavailable: number } | null;
   // Each view under every filter now on, for the view buttons and for suggesting another
@@ -84,6 +96,7 @@ export interface PhotoPosition {
 // What narrows the gallery: the view, the search, No capture date, and the date tree's
 // "Show only" years and months ("2023", "2023-06", "none").
 export interface BrowseFilters {
+  similar?: boolean; suspicious?: boolean; reason?: string;
   set_reference?: number;
   group_sets?: boolean;
   match_min?: number;
@@ -119,6 +132,9 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
   if (f.group_sets) query.set("group_sets", "true");
   if (f.match_min != null) query.set("match_min", String(f.match_min));
   if (f.run != null) query.set("run", String(f.run));
+  if (f.similar) query.set("similar", "true");
+  if (f.suspicious) query.set("suspicious", "true");
+  if (f.reason) query.set("reason", f.reason);
   if (f.q) query.set("q", f.q);
   if (f.undated) query.set("undated", "true");
   (f.dates ?? []).forEach((d) => query.append("date", d));
@@ -154,7 +170,17 @@ export interface Copy {
   file_size: number | null;
 }
 
+export interface AccessSettings {
+  hosts: string[];
+  protected_hosts: string[];
+  effective_hosts: string[];
+  revision: number;
+  current_host: string;
+  current_removed?: boolean;
+}
+
 export interface PhotoDetail {
+  failure: string | null;
   visual_issue: string | null;
   id: number;
   status: string;
@@ -250,6 +276,8 @@ export interface ExtensionSupport {
 }
 
 export interface Settings {
+  suspicious_min_year: Setting<number>;
+  small_image_min: Setting<number | null>;
   workers: Setting<number> & { detected: number; host: number; limited_by: "cpu_quota" | "cpu_set" | null };
   exts: Setting<string[]> & { support: ExtensionSupport[] };
   backup_retention: Setting<number>;
@@ -371,7 +399,7 @@ export interface Lineage {
 }
 
 export interface Stats {
-  library: {
+  library: { failed_source: number;
     photos: number; bytes: number; organized: number; organized_bytes: number; not_organized: number;
     formats: { format: string; photos: number; bytes: number }[];
     cameras: { name: string; photos: number }[];
@@ -526,6 +554,8 @@ function submitJob(path: string, body: Record<string, unknown>): Promise<Run> {
   return promise;
 }
 
+export type MatchScope = "library" | "rejects";
+
 export interface MatchPhoto {
   id: number; filename: string; file_size: number | null; date_taken: string | null;
   status: string; width: number | null; height: number | null; matches?: number; score?: number;
@@ -536,6 +566,7 @@ export interface MatchPage {
   reference?: MatchPhoto | null;
   availability?: "available" | "not_available" | "hash_unavailable";
   largest_pixels?: number | null;
+  largest_match?: MatchPhoto | null;
   query_ms?: number;
 }
 
@@ -572,6 +603,14 @@ export type SimilarityRecoveryPage = {
 };
 
 export const api = {
+  access: () => request<AccessSettings>("GET", "/api/v1/access"),
+  saveAccess: (hosts: string[], revision: number, confirm_current_host = false) =>
+    request<AccessSettings>("PUT", "/api/v1/access", { hosts, revision, confirm_current_host }),
+  review: (id: number) => request<ReviewDetail>("GET", `/api/v1/photos/${id}/review`),
+  reviewDecision: (id: number, detail: ReviewDetail, reason: string, action: string, note: string, request_id: string) =>
+    request<ReviewDetail>("POST", `/api/v1/photos/${id}/review`, {
+      photo_id: id, sha1: detail.sha1, revision: detail.revision, reason, action, note, request_id,
+    }),
   referenceSets: (reference: number, threshold: number, included: number[], page: number, relatedPage: number) => {
     const query = new URLSearchParams({ threshold: String(threshold), page: String(page), related_page: String(relatedPage) });
     included.forEach(id => query.append("include", String(id)));
@@ -580,12 +619,13 @@ export const api = {
   similarityRecovery: (page = 1, photoId?: number) => request<SimilarityRecoveryPage>("GET", `/api/v1/similar/recovery?page=${page}${photoId == null ? "" : `&photo_id=${photoId}`}`),
   repairSimilarity: (scope: "missing" | "comparisons", photo_id?: number) => submitJob("/api/v1/similar/recovery", { scope, ...(photo_id == null ? {} : { photo_id }) }),
   run: (id: number) => request<Run>("GET", `/api/v1/runs/${id}`),
-  matchCounts: (photo: number) => request<MatchCounts>("GET", `/api/v1/similar/${photo}/counts`),
+  matchCounts: (photo: number, scope: MatchScope = "library") => request<MatchCounts>("GET", `/api/v1/similar/${photo}/counts?scope=${scope}`),
   matchDiagnostics: () => request<MatchDiagnostics>("GET", "/api/v1/similar/diagnostics"),
   matchPair: (reference: number, candidate: number) =>
     request<MatchPair>("GET", `/api/v1/similar/${reference}/pair/${candidate}`),
   matches: (query: URLSearchParams, photo: number | null = null) =>
     request<MatchPage>("GET", `/api/v1/similar${photo == null ? "" : `/${photo}`}?${query}`),
+  jobState: () => request<JobState>("GET", "/api/v1/jobs/active"),
   status: () => request<Status>("GET", "/api/v1/status"),
   createCatalog: () => request<Status>("POST", "/api/v1/catalog"),
   settings: () => request<Settings>("GET", "/api/v1/settings"),

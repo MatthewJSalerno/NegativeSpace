@@ -2,16 +2,19 @@ import { useRef } from "react";
 import { placeOf, type Place, type PhotoItem } from "../api";
 import { epoch, isFallbackDate, photoDate, plural } from "../format";
 import { Thumb } from "./Thumb";
+import { Tip } from "./Tip";
 
 const STATUS_BADGE: Record<string, string> = {
   Completed: "Moved", Copied: "Copied", Found_At_Destination: "At destination", Failed: "Failed",
   Processing: "In progress", Rejected: "Rejected", Rejected_Copied: "Rejected",
 };
 
-export function Gallery({ page: shown, pageOf, refreshKey, selected, place, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold, onReviewSet, onExploreSet, keepItem }: {
+export function Gallery({ page: shown, pageOf, refreshKey, selected, place, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold, onReviewSet, onExploreSet, keepItem, onReview, onNeedsReview }: {
   // Keep this one, reject the rest: the kept photo comes first, full size, marked
   // Keeping, with no tick box, so it cannot be rejected with the rest.
   keepItem?: PhotoItem | null;
+  onReview?: (id: number) => void;
+  onNeedsReview?: (item: PhotoItem) => void;
   page: { items: PhotoItem[] };
   // The page each photo came from, so scrolling can tell which page is on top.
   pageOf?: number[];
@@ -82,10 +85,10 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
             <div className="card-meta">
               <span className="card-name" title={item.filename}>{item.filename}</span>
               <span className="card-sub">
-                <span title={isFallbackDate(item.date_source) ? "No capture date: this is the file's modification date" : undefined}>
+                {item.status !== "Failed" && <span title={isFallbackDate(item.date_source) ? "No capture date: this is the file's modification date" : undefined}>
                   {photoDate(item.date_taken, false)}
                   {isFallbackDate(item.date_source) ? " (file date)" : ""}
-                </span>
+                </span>}
                 {item.kept ? (
                   <span className="badge badge-copied_only"
                         title={`A Move copied this photo but could not remove the original: ${item.kept}. Moving it again once the source can be written finishes the Move.`}>
@@ -97,9 +100,17 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
                           : item.rejected_at ? `Rejected ${epoch(Date.parse(item.rejected_at) / 1000)}${item.status === "Rejected_Copied" ? "; its source is still in place, and a Move removes it" : ""}`
                           : undefined}>{STATUS_BADGE[item.status]}</span>
                 )}
+                {item.status === "Failed" && <a href={`/logs?photo=${item.id}&status=Failed`}>File needs attention</a>}
                 {item.duplicates > 0 && <span className="badge">{plural(item.duplicates, "duplicate")}</span>}
               </span>
             </div>
+            {onNeedsReview && !!item.review?.reasons.length && <div className="review-card-notes">
+              <a href={`/?view=review&reason=${item.review.reasons.length === 1 ? item.review.reasons[0].reason : "all"}&photo=${item.id}&review_photo=${item.id}`}
+                onClick={e => { if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); onNeedsReview(item); } }}>
+                Needs review · {item.review.reasons.map(n => n.label).join(", ")}
+              </a>
+            </div>}
+            {onReview && item.review && <div className="review-card-notes"><span className="section-note">Location: {item.review.location}</span>{item.review.reasons.map(n=><p key={n.reason}>{n.reason === "small" ? <Tip text={n.message}><span>Below minimum image size</span></Tip> : `${n.label}: ${n.message}`}</p>)}<button onClick={()=>onReview(item.id)}>Review photo</button></div>}
             {onExploreSet && <div className="set-card-actions">
               <strong>Reference set · {plural((item.similar_count ?? 0) + 1, "photo")}</strong>
               <span className="section-note">Identical sets shown once. Explore members and related sets.</span>

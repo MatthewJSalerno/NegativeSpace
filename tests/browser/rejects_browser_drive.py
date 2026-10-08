@@ -17,7 +17,8 @@ errors = []
 def run_job(request, mode):
     run = request.post("/api/v1/jobs/start", data={"mode": mode}).json()["id"]
     for _ in range(600):
-        if request.get(f"/api/v1/runs/{run}").json()["status"] not in ("Preparing", "Running", "Cancelling"):
+        if (request.get(f"/api/v1/runs/{run}").json()["status"] not in ("Preparing", "Running", "Cancelling")
+                and request.get('/api/v1/jobs/active').json()['active'] is None):
             return
         time.sleep(.2)
     raise AssertionError(f"{mode} timed out")
@@ -62,12 +63,13 @@ with sync_playwright() as p:
 
     run_job(request, "copy")
     page.goto(BASE)
+    view_button(page, "Library").click()
 
     # The view buttons count what the search finds, as the gallery does.
     page.get_by_role("searchbox", name="Search filenames").fill("photo-002")
     expect(page.locator(".card")).to_have_count(1)
-    expect(view_button(page, "All photos")).to_contain_text("(1)")
-    expect(view_button(page, "Organized")).to_contain_text("(1)")
+    expect(view_button(page, "Library")).to_contain_text("(1)")
+    expect(view_button(page, "Not organized")).to_contain_text("(0)")
     expect(view_button(page, "Rejects")).to_contain_text("(0)")
 
     # One photo, from the Inspector: asked first in a sentence, starting on Cancel.
@@ -80,16 +82,16 @@ with sync_playwright() as p:
     expect(dialog.get_by_role("button", name="Cancel")).to_be_focused()
     shot("r1-confirm-reject")
     dialog.get_by_role("button", name="Reject", exact=True).click()
-    expect(banner).to_contain_text(re.compile(r"Reject #\d+ finished"), timeout=60_000)
+    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Reject finished"), timeout=60_000)
     expect(banner).to_contain_text("1 of 1 photo moved to Rejects")
     expect(page.locator(".card")).to_have_count(0)
-    expect(view_button(page, "All photos")).to_contain_text("(0)")
+    expect(view_button(page, "Library")).to_contain_text("(0)")
     expect(view_button(page, "Rejects")).to_contain_text("(1)")
     dismiss_banner()
 
     # The Rejects view: the photo, what Rejects holds, and how to empty it, in the page.
     page.get_by_role("searchbox", name="Search filenames").fill("")
-    expect(view_button(page, "All photos")).to_contain_text(f"({PHOTOS - 1:,})")
+    expect(view_button(page, "Library")).to_contain_text(f"({PHOTOS - 1:,})")
     view_button(page, "Rejects").click()
     expect(page).to_have_url(re.compile(r"view=rejects"))
     expect(page.locator(".card")).to_have_count(1)
@@ -106,6 +108,8 @@ with sync_playwright() as p:
     # Return to library from the Inspector of a photo in Rejects.
     page.locator(".card-image").first.click()
     expect(page.locator(".inspector")).to_contain_text("In Rejects (source still in place; a Move removes it)")
+    expect(page.locator(".inspector").get_by_role("tab", name="Similar photos in Library", exact=True)).to_be_visible()
+    expect(page.locator(".inspector").get_by_role("button", name="Review later…", exact=True)).to_have_count(0)
     page.get_by_role("button", name="Return to library…", exact=True).click()
     dialog = page.get_by_role("alertdialog")
     expect(dialog).to_contain_text("Return this photo to the library?")
@@ -116,7 +120,7 @@ with sync_playwright() as p:
     dismiss_banner()
 
     # A selection is reviewed first, as for Copy and Move.
-    view_button(page, "All photos").click()
+    view_button(page, "Library").click()
     page.locator(".card-check input").nth(0).click()
     page.locator(".card-check input").nth(1).click()
     selection_bar(page).get_by_role("button", name="Reject (2)…").click()
@@ -127,10 +131,10 @@ with sync_playwright() as p:
     shot("r3-review-before-reject")
     review.get_by_role("button", name="Reject these 2 photos").click()
     expect(banner).to_contain_text("2 of 2 photos moved to Rejects", timeout=60_000)
-    # Back on All photos, which the rejected photos have left; the banner opens the job's.
+    # Back in Library, which the rejected photos have left; the banner opens the job's.
     expect(page.get_by_role("region", name="Review before rejecting")).to_have_count(0)
     banner.get_by_role("button", name="Show these photos").click()
-    expect(page.get_by_role("region", name="A job's photos")).to_contain_text(re.compile(r"The 2 photos in Reject #\d+"))
+    expect(page.get_by_role("region", name="A job's photos")).to_contain_text(re.compile(r"The 2 photos in Job #\d+ · Reject"))
     dismiss_banner()
 
     # In the job's photos, the selection bar follows what is selected: these photos are in
@@ -151,7 +155,7 @@ with sync_playwright() as p:
     show = page.get_by_role("link", name="Show these photos in the library")
     expect(show).to_have_attribute("href", f"/?run={run['id']}")
     page.locator("a[href*='photo=']").first.click()
-    back = page.locator(".inspector-actions").get_by_role("button", name="Return to library…", exact=True)
+    back = page.locator(".inspector .photo-actions").get_by_role("button", name="Return to library…", exact=True)
     expect(back).to_be_visible()
     assert back.evaluate("b => getComputedStyle(b).borderTopStyle") == "solid", "the Inspector action has no outline"
     shot("r3b-return-from-log")
@@ -180,9 +184,9 @@ with sync_playwright() as p:
     expect(dialog).to_contain_text("This photo is in Rejects. Move deletes its original from your source")
     expect(dialog).to_contain_text("empty Rejects and it is gone")
     dialog.get_by_role("button", name="Cancel", exact=True).click()
-    # One place per selection (webui-spec 2): library photos cannot join it. All photos
+    # One place per selection (webui-spec 2): library photos cannot join it. Library
     # never shows photos in Rejects, so its Select all takes library photos only.
-    view_button(page, "All photos").click()
+    view_button(page, "Library").click()
     other = page.locator(".card:not(.selected) .card-check").first
     expect(other.locator("input")).to_be_disabled()
     expect(other).to_have_attribute("title", re.compile("Library photos can't be selected with photos in Rejects"))
@@ -205,7 +209,7 @@ with sync_playwright() as p:
     assert settings["rejects_reminder_days"]["value"] == 30
     assert request.put("/api/v1/settings", data={"values": {"rejects_reminder_bytes": 1},
                                                  "revisions": {"rejects_reminder_bytes": 0}}).ok
-    view_button(page, "All photos").click()
+    view_button(page, "Library").click()
     reminder = page.get_by_role("region", name="Rejects reminder")
     expect(reminder).to_have_count(0)
     page.locator(".card-image").first.click()
@@ -244,15 +248,15 @@ with sync_playwright() as p:
     reject = next(r for r in request.get("/api/v1/runs").json()["runs"] if r["mode"] == "REJECT")
     page.goto(f"{BASE}/?run={reject['id']}")
     line_above = page.get_by_role("region", name="A job's photos")
-    expect(line_above).to_contain_text(f"The 1 photo in Reject #{reject['id']}")
+    expect(line_above).to_contain_text(f"The 1 photo in Job #{reject['id']} · Reject")
     page.locator(".card-check input").first.click()
     selection_bar(page).get_by_role("button", name="Return to library (1)…").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Return to library", exact=True).click()
-    expect(banner).to_contain_text(re.compile(r"Return to library #\d+ finished"), timeout=60_000)
+    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Return to library finished"), timeout=60_000)
     returned = request.get("/api/v1/runs").json()["runs"][0]
     assert returned["mode"] == "RETURN", returned
-    expect(line_above).to_contain_text(f"The 1 photo in Return to library #{returned['id']}")
-    expect(banner).to_contain_text(f"Return to library #{returned['id']} finished")
+    expect(line_above).to_contain_text(f"The 1 photo in Job #{returned['id']} · Return to library")
+    expect(banner).to_contain_text(f"Job #{returned['id']} · Return to library finished")
 
     assert not errors, f"browser errors: {errors}"
     print("Rejects browser checks passed")

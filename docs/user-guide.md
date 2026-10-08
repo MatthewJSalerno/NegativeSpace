@@ -124,8 +124,10 @@ The **Stats** icon at the top right gives figures for the whole library.
 
 ## 9. Settings
 
-The gear icon opens Settings, in four tabs: **Appearance**, **Files**, **Backups** (with
-the list of catalog backups and Back up now) and **Performance**.
+The gear icon opens Settings, in five tabs: **Appearance**, **Files**, **Backups** (with
+the list of catalog backups and Back up now) **Performance**, and **Access**. Access saves the additional hostnames/IP addresses
+you use to open the app. These settings survive replacing the photo catalog. Local
+and Docker-configured addresses remain available for recovery.
 
 ![Settings](images/settings.png)
 

@@ -57,6 +57,12 @@ jobs:
         # host because it starts the containers and a Playwright container.
         run: sh tests/browser/webui_browser_test.sh
 
+      - name: Stalled job user decisions
+        run: STALLED_FIXTURE=1 DRIVER=stalled_job_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Request counts and job-finish freshness
+        run: DRIVER=request_freshness_browser_drive.py sh tests/browser/webui_browser_test.sh
+
       - name: Appearance palettes in a browser
         run: DRIVER=appearance_browser_drive.py sh tests/browser/webui_browser_test.sh
 
@@ -117,12 +123,32 @@ jobs:
           docker run --rm -v "$PWD":/app -w /app \
             negativespace python3 tools/check-api-spec.py
 
+      - name: Instance access policy
+        run: docker run --rm --entrypoint python3 -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p access_test.py -v
+
+      - name: Instance access in a browser
+        run: DRIVER=access_browser_drive.py sh tests/browser/webui_browser_test.sh
+
       - name: Database contracts
         run: |
           docker run --rm \
             -e PUID=$(id -u) -e PGID=$(id -g) \
             -v "$PWD":/app -w /app \
             negativespace python3 -m unittest discover -s tests -p database_test.py -v
+
+      - name: Image decode eligibility
+        run: |
+          docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app \
+            negativespace python3 -m unittest discover -s tests -p import_decode_test.py -v
+
+      - name: Fresh setup in a browser
+        run: DRIVER=fresh_start_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Acknowledged banner dismissal in browser
+        run: DRIVER=dismissal_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Source failures stay outside Library
+        run: DRIVER=source_scope_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Web API
         # The API against a real engine and catalog: jobs run the real engine.
@@ -131,6 +157,14 @@ jobs:
             -e PUID=$(id -u) -e PGID=$(id -g) \
             -v "$PWD":/app -w /app \
             negativespace python3 -m unittest discover -s tests -p webui_api_test.py -v
+
+      - name: Review decisions
+        run: |
+          docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app \
+            negativespace python3 -m unittest discover -s tests -p review_test.py -v
+
+      - name: Needs review in a browser
+        run: DRIVER=review_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Selection ownership across processes
         run: |

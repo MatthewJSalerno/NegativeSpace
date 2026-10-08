@@ -116,6 +116,7 @@ services:
     environment:
       PUID: 1000
       PGID: 1000
+      NS_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,::1  # add LAN IP and proxy/internal names
       TZ: America/New_York
     volumes:
       - /path/to/your/photos:/data/source:ro
@@ -137,6 +138,28 @@ build with `NS_BRANCH=$(git branch --show-current) NS_COMMIT=$(git rev-parse --s
 
 ## Security
 
+Use setup or **Settings › Access** to save additional allowed hostnames/IPs without
+restarting. They live in application data separately from the photo catalog and survive
+catalog replacement/restore. Local addresses and `NS_ALLOWED_HOSTS` deployment entries
+remain protected recovery routes. For initial access to a headless server, set
+`NS_ALLOWED_HOSTS` on the app service to the hostname or IP address used to
+reach this instance, separated by commas. The default is
+`localhost,127.0.0.1,0.0.0.0,::1` (local access). Add your Docker host's LAN IP,
+internal name and reverse-proxy name before accessing those addresses. Use exact
+names without schemes, ports or wildcards; matching ignores case and allows valid
+ports. Preserve the public `Host` header at your reverse proxy. Forwarded-host headers
+never grant access. An unlisted address receives `400 untrusted_host`; update the
+list using Settings from an allowed address, or change deployment configuration and
+recreate the app service. WebSocket connections obey
+the same list. These checks protect the API, not just browser mutations.
+
+New catalog files, SQLite companions and backup snapshots (including temporary files)
+are owner-only (`0600`) under the configured `PUID`/`PGID`. Photo permissions and the
+process-wide umask are unchanged. Use that same account for external backup access.
+Existing catalogs/backups are not migrated or recursively chmodded; a fresh catalog
+uses the new policy. Host administrators still control the enclosing storage and
+can access files as root. Permissions and allowed hosts do not authenticate app users.
+
 **NegativeSpace has no login yet.** Anyone who can open its page can use every button,
 including **Move**, which deletes source photos once their copies are verified. So:
 
@@ -145,6 +168,13 @@ including **Move**, which deletes source photos once their copies are verified. 
   proxy that asks for a password first (such as Authelia, Authentik, or nginx with
   basic authentication).
 - Leave the source folder read-only unless you are about to Move.
+
+Browser mutations and the live job feed reject foreign Origin hosts/ports. Reverse
+proxies must preserve the public Host header, including its port. This does not
+authenticate clients or protect against DNS rebinding; the network-access rules
+above still apply. The web container also prevents other origins from embedding
+the app in a frame, so another page cannot overlay its controls; same-origin
+framing remains allowed.
 
 A built-in password is planned before the first release.
 
@@ -287,3 +317,16 @@ version 3 of the License, or (at your option) any later version. It is distribut
 hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
 of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the
 full text.
+
+### Reviewing small photos
+
+At first startup, Files asks whether to enable small-image reminders. If enabled,
+choose the minimum shorter side in pixels (800 is offered as a starting value).
+Copy and Move still organize every eligible photo. Delivered photos below the minimum
+appear in **Needs review → Small images**, with their dimensions and the reason.
+
+Use **Mark reviewed** for a small photo you want to stop being reminded about, or select
+unwanted photos and use **Reject**. A larger look-alike is supporting evidence, not an
+automatic choice. **Review later** adds an optional note; **Done** clears that reminder
+independently. **Review one by one** opens the workspace; Next skips without resolving.
+Change or disable the size rule later in **Settings → Files**.

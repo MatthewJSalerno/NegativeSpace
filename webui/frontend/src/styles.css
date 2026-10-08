@@ -6,7 +6,7 @@
   font-display: swap;
 }
 
-/* Shared appearance tokens; palette and system color scheme are independent. */
+/* Shared appearance tokens; palette and preferred color mode are independent. */
 :root {
  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-6:24px; --space-8:32px; --space-12:48px;
  --type-xs:.75rem; --type-sm:.875rem; --type-md:1rem; --type-lg:1.25rem;
@@ -20,10 +20,9 @@
  font-family:Inter,sans-serif; font-size:100%; line-height:1.5; color:var(--text); background:var(--bg);
 }
 :root[data-palette=warm] {--bg:#F5F4F0;--surface:#FFFEFB;--surface-2:#EBE8E1;--text:#292824;--muted:#605C53;--border:#DAD6CC;--control-border:#827C70}
-@media(prefers-color-scheme:dark){
- :root {--bg:#14171C;--surface:#1C2027;--surface-2:#282E38;--text:#F1F3F5;--muted:#B0BAC7;--border:#383F4B;--control-border:#7B8593;--accent:#7EB0E0;--accent-text:#14171C;--danger-bg:#FFB4AB;--danger-text:#31100D;--good:#80D4A0;--warn:#E8C16A;--bad:#FFB4AB}
- :root[data-palette=warm]{--bg:#191815;--surface:#22211D;--surface-2:#302E28;--text:#F4F1E9;--muted:#BDB6A8;--border:#433F36;--control-border:#8D877A}
-}
+:root[data-theme=light] { color-scheme:light; }
+:root[data-theme=dark] { color-scheme:dark;--bg:#14171C;--surface:#1C2027;--surface-2:#282E38;--text:#F1F3F5;--muted:#B0BAC7;--border:#383F4B;--control-border:#7B8593;--accent:#7EB0E0;--accent-text:#14171C;--danger-bg:#FFB4AB;--danger-text:#31100D;--good:#80D4A0;--warn:#E8C16A;--bad:#FFB4AB}
+:root[data-theme=dark][data-palette=warm]{--bg:#191815;--surface:#22211D;--surface-2:#302E28;--text:#F4F1E9;--muted:#BDB6A8;--border:#433F36;--control-border:#8D877A}
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); font-size: var(--type-sm); }
@@ -95,7 +94,8 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 .mounts-note ul { padding-left: var(--space-4); }
 .logo { flex: none; display: block; }
 .views { display: flex; gap: var(--space-1); flex-wrap: wrap; }
-.pages { display: flex; gap: var(--space-1); }
+.pages { display: grid; grid-template-columns: 5rem 5rem max-content; gap: var(--space-1); align-items: center; }
+.page-jobs-slot { min-width: 0; }
 .views button { border-color: transparent; }
 .views button.active { border-color: var(--accent); color: var(--accent); }
 .views .filter { border: 1px dashed var(--border); margin-left: var(--space-1); }
@@ -210,15 +210,19 @@ body.dragging { cursor: col-resize; user-select: none; }
 }
 /* The inner divider sizes the preview above, or beside, the file details. */
 .inspector-main { display: grid; grid-template-rows: var(--preview-size) 24px auto; }
-.inspector-main > .inspector-image { min-height: 0; height: var(--preview-size); max-height: none; overflow: hidden; }
-.inspector-main > .inspector-image img { width: 100%; height: 100%; max-height: var(--preview-size); object-fit: contain; }
-.inspector-main > .inspector-image .thumb-placeholder { min-height: 0; }
+.inspector-preview { display: grid; grid-template-rows: minmax(0, 1fr); min-width: 0; height: var(--preview-size); }
+.inspector-preview[data-reference=true] { grid-template-rows: auto minmax(0, 1fr); border: 2px solid var(--accent); }
+.inspector-preview > h3 { margin: 0; padding: var(--space-2) var(--space-3); font-size: var(--type-sm); font-weight: var(--weight-strong); }
+.inspector-preview > .inspector-image { min-height: 0; height: 100%; max-height: none; overflow: hidden; }
+.inspector-preview > .inspector-image img { width: 100%; height: 100%; max-height: 100%; object-fit: contain; }
+.inspector-preview > .inspector-image .thumb-placeholder { min-height: 0; }
+@media (forced-colors: active) { .inspector-preview[data-reference=true] { border-color: Highlight; } }
 .preview-divider { display: grid; place-items: center; background: var(--surface-2); color: var(--muted);
   border-block: 1px solid var(--border); cursor: row-resize; touch-action: none; user-select: none; }
 .preview-divider:hover, .preview-divider:focus-visible { color: var(--accent); background: var(--surface); outline: 2px solid var(--accent); outline-offset: -2px; }
 .preview-divider span { line-height: 1; transform: rotate(90deg); }
 .inspector-main[data-wide=true] { grid-template-columns: minmax(0, var(--preview-share)) 24px minmax(0, 1fr); grid-template-rows: auto; align-items: start; }
-.inspector-main[data-wide=true] > .inspector-image,
+.inspector-main[data-wide=true] > .inspector-preview,
 .inspector-main[data-wide=true] > .preview-divider { position: sticky; top: var(--inspector-head-h, 46px); }
 .inspector-main[data-wide=true] > .preview-divider { height: var(--preview-size); cursor: col-resize; border-block: 0; border-inline: 1px solid var(--border); }
 .inspector-main[data-wide=true] > .preview-divider span { transform: none; }
@@ -270,16 +274,10 @@ body.dragging { cursor: col-resize; user-select: none; }
 .dates-filter-line { margin: 0 0 var(--space-2); }
 .rejects-line p { margin: 0; }
 .rejects-line p + p { margin-top: var(--space-1); max-width: 72ch; }
-/* A photo's own actions, above its details in the Inspector: apart from the panel's
-   step and close controls, as the workspace keeps Reject apart from Save. */
-.inspector-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0 var(--space-3); }
-/* Alone on the white panel a quiet button reads as text; outlined, as fields are. */
-.inspector-actions button { border: 1px solid var(--control-border); background: var(--surface); }
-.inspector-actions button:hover:not(:disabled) { background: var(--surface-2); border-color: var(--control-border); }
 /* A photo's own action under that photo (Reject… in Similar photos and side by side):
    outlined like the Inspector's, so it reads as a button and as belonging to the photo. */
-button.photo-action { border: 1px solid var(--control-border); background: var(--surface); }
-button.photo-action:hover:not(:disabled) { background: var(--surface-2); border-color: var(--control-border); }
+.photo-actions > button, .review-preview-controls button, button.photo-action { border: 1px solid var(--control-border); background: var(--surface); }
+.photo-actions > button:hover:not(:disabled), .review-preview-controls button:hover:not(:disabled), button.photo-action:hover:not(:disabled) { background: var(--surface-2); border-color: var(--control-border); }
 .review-toolbar .review-keep { align-self: end; }
 /* A long filename in a Keep button is shortened, so the button keeps its size; its
    accessible name and tooltip carry the whole name. */
@@ -287,13 +285,8 @@ button.photo-action:hover:not(:disabled) { background: var(--surface-2); border-
 .review-photo-name { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
 .review-photo-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .review-alone .review-pair { grid-template-columns: minmax(0, 1fr); max-width: 50%; }
-/* Keep this one, reject the rest: the kept photo stands out (green, a check, "Keeping"),
-   in the Similar photos tab and as the first, full-size card of the review. */
-.keeping { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin: var(--space-2) 0 var(--space-3);
-  padding: var(--space-3); border: 2px solid var(--good); border-radius: 10px; background: color-mix(in srgb, var(--good) 8%, var(--surface)); }
-.keeping > img, .keeping > .thumb-placeholder { width: 240px; max-width: 100%; height: 160px; object-fit: contain; background: var(--preview-bg); border-radius: var(--control-radius); }
-.keeping-text { display: flex; flex-direction: column; gap: var(--space-1); flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
-.keeping-label, .card-keeping { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--type-xs); font-weight: var(--weight-strong);
+/* After an explicit Keep choice, its review card marks the photo that stays. */
+.card-keeping { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--type-xs); font-weight: var(--weight-strong);
   text-transform: uppercase; letter-spacing: 0.04em; color: var(--good); }
 .card.card-keep { box-shadow: 0 0 0 3px var(--good); background: color-mix(in srgb, var(--good) 8%, var(--surface)); }
 .card-keeping { position: absolute; top: var(--space-2); left: var(--space-2); padding: 2px var(--space-2); border-radius: var(--control-radius);
@@ -374,7 +367,9 @@ button.photo-action:hover:not(:disabled) { background: var(--surface-2); border-
 .modal-scroll-cue.below { transform: translate(-50%, -100%); }
 .settings-body { display: grid; gap: var(--space-6); }
 .dialog, .settings { background: var(--surface); border: 0; border-radius: var(--radius); padding: var(--space-6); width: min(640px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: var(--space-4); box-shadow: var(--shadow); }
-.settings-page { max-height: none; }
+.settings-page { display: flex; flex-direction: column; max-height: calc(100dvh - 32px); }
+.settings-page > * { flex-shrink: 0; }
+.settings-page .settings-panel { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
 .settings-head { display: flex; justify-content: space-between; align-items: center; }
 .settings section { display: grid; gap: var(--space-3); }
 .field { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
@@ -404,7 +399,7 @@ button.photo-action:hover:not(:disabled) { background: var(--surface-2); border-
 .backups button, .backup-table a { white-space: nowrap; overflow-wrap: normal; }
 
 /* The log, grouped by job: one line per job until opened. */
-.job-list-head { display: flex; justify-content: space-between; align-items: center; gap: var(--gap); }
+.job-list-head { display: flex; justify-content: space-between; align-items: center; gap: var(--gap); min-height: var(--control-height); }
 .job-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .job-group { background: var(--surface); border: 0; border-radius: var(--radius); }
 .job-group.job-bad { border-left: 4px solid var(--bad); }
@@ -574,6 +569,7 @@ input[aria-invalid=true], [role=group][aria-invalid=true] { border: 2px solid va
 .form-field label { font-weight: var(--weight-strong); }
 .form-field p { margin: 0; }
 .form-field input { width: min(100%, 12rem); }
+.form-field[data-width=full] input { width: 100%; min-width: 0; }
 .ext { min-height: 36px; cursor: pointer; }
 .dates-name, .folder-name { min-height: 28px; display: flex; align-items: center; }
 .date-jump-cue { font-size: var(--type-xs); margin-left: var(--space-1); color: var(--muted); }
@@ -623,7 +619,6 @@ h3 {font-size: var(--type-md);text-transform: none;letter-spacing: normal;color:
 .toolbar-row {padding: var(--space-3) var(--space-6);gap: var(--space-4);}
 .toolbar-browse {padding-top: var(--space-1);padding-bottom: var(--space-4);gap: var(--space-3);}
 .brand {font-size: var(--type-lg);gap: var(--space-2);}
-.pages {gap: var(--space-1);}
 a.button-link {border-color: transparent;background: transparent;border-radius: var(--control-radius);padding: var(--space-2) var(--space-3);font-weight: var(--weight-normal);}
 a.button-link:hover {background: var(--surface-2);border-color: transparent;}
 a.button-link.active {background: var(--surface-2);border-color: transparent;color: var(--accent);font-weight: var(--weight-strong);}
@@ -786,8 +781,9 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .review-zoom { width: 100%; height: 100%; position: relative; }
 .review-rotation { position: absolute; left: 50%; top: 50%; }
 .review-rotation img, .review-rotation > .thumb-placeholder { width: 100%; height: 100%; object-fit: contain; }
-.review-preview-controls { display: grid; gap: var(--space-2); padding-top: var(--space-2); }
-.review-preview-controls label { display: grid; gap: var(--space-1); }
+.review-preview-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding-top: var(--space-2); }
+.review-preview-controls label { display: grid; gap: var(--space-1); width: 12rem; max-width: 100%; }
+.review-preview-controls > .section-note { flex-basis: 100%; }
 .review-rotation-controls, .review-pan-controls { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .review-pan-controls > label { flex: 1; min-width: 80px; }
 .review-preview-controls input[type=range] { width: 100%; min-width: 0; }
@@ -845,7 +841,8 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .inspector-match-list li > .photo-action { align-self: flex-start; }
 .inspector-match { display: flex; flex-direction: column; gap: var(--space-2); width: 100%; height: 100%; text-align: left; padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--control-radius); background: var(--surface); }
 .inspector-match img, .inspector-match > .thumb-placeholder { width: 100%; height: 120px; object-fit: contain; background: var(--preview-bg); }
-.inspector-match > span { display: flex; flex-direction: column; gap: var(--space-1); overflow-wrap: anywhere; }
+.inspector-match > span { display: flex; flex: 1; flex-direction: column; gap: var(--space-1); overflow-wrap: anywhere; }
+.inspector-match .match-card-action { margin-top: auto; padding-top: var(--space-2); }
 .inspector-match .muted, .match-pages, .match-thresholds button > span { font-size: var(--type-xs); }
 .inspector-tabs { display: flex; gap: var(--space-1); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
 .inspector-tabs [role=tab], .settings-tabs [role=tab] { flex: 1; border-radius: var(--control-radius); }
@@ -865,7 +862,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 
 /* Keep ordinary and similarity browsing in the same gallery geometry. */
 .gallery-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); min-height: 36px; margin-bottom: var(--space-2); }
-.gallery-summary > span:first-child { font-variant-numeric: tabular-nums; }
+.gallery-summary > span:first-child { font-variant-numeric: tabular-nums; min-width: 12ch; }
 .gallery-summary button[aria-pressed="true"] { background: var(--surface-2); color: var(--accent); border-color: var(--accent); }
 .gallery-summary .muted { font-size: var(--type-xs); }
 .gallery-filters { font-size: var(--type-sm); }
@@ -890,3 +887,61 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .set-members li { min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-3); }
 .set-members li > img, .set-members li > .thumb-placeholder { width: 100%; height: 160px; object-fit: contain; background: var(--surface-2); }
 .set-members li > button { margin-top: auto; }
+
+/* Review reasons are filters; photo checkboxes continue to select action targets. */
+.review-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; padding: var(--space-2) var(--space-4); }
+.review-chips button[aria-pressed="true"] { background: var(--surface-2); outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.review-note { margin-block: var(--space-4); }
+.review-note p { margin-block: var(--space-2); }
+.photo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-block: var(--space-3); }
+.review-photos { display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); gap: var(--space-6); align-items: start; }
+.review-photo[data-prominent=true] .review-viewport { height: clamp(320px, 62vh, 900px); }
+.review-decision-panel { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4); }
+.review-decision-panel .review-note { margin-top: 0; }
+.review-note h3, .review-evidence h3 { font-size: var(--type-md); margin: var(--space-3) 0; }
+.review-reason { padding-block: var(--space-2); }
+.review-reason p { color: var(--muted); }
+.review-note-form { display: grid; gap: var(--space-2); margin-block: var(--space-3); }
+.review-note-form textarea { width: 100%; min-height: 80px; }
+.review-evidence { border-top: 1px solid var(--border); margin-top: var(--space-4); padding-top: var(--space-2); }
+@media (max-width: 1000px) { .review-photos { grid-template-columns: minmax(0, 1fr); } }
+
+.review-card-notes { padding: var(--space-2); }
+
+.index-summary { margin-block: var(--space-3); }
+.index-summary-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.index-summary h3 { margin: 0; font-size: var(--type-md); }
+.index-summary dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); }
+.index-summary dt { font-weight: 600; }
+.index-summary dd { margin: var(--space-1) 0 0; }
+
+.gallery-context { display: flex; flex-wrap: wrap; align-items: center; min-height: var(--control-height); gap: var(--space-2); margin-bottom: var(--space-3); }
+.gallery-context h2 { margin: 0; font-size: var(--type-md); }
+
+/* Filtering a fixed selection must not resize its toolbar as hidden counts change. */
+.selection-summary { display: grid; line-height: 1.25; }
+.selection-outside { display: grid; font-size: var(--type-xs); }
+.selection-outside > span { grid-area: 1 / 1; }
+.selection-outside-size { visibility: hidden; }
+
+/* Short desktop windows (including zoom) must leave room to reach gallery controls. */
+@media (max-height: 600px) {
+  :root { --header-offset: 0px; }
+  .toolbar { position: static; }
+}
+
+.review-chips .filter-count { display: inline-block; font-variant-numeric: tabular-nums; text-align: center; }
+
+/* Routine filter guidance swaps in place; do not insert new rows above results. */
+.stable-content { display: grid; }
+.stable-content > div { grid-area: 1 / 1; min-width: 0; }
+.stable-content > [aria-hidden="true"], .status-only[aria-hidden="true"], .log-filter-summary > [aria-hidden="true"] { visibility: hidden; }
+.log-filter-summary { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; min-height: var(--control-height); }
+.gallery-guidance { margin-bottom: var(--space-2); }
+
+.gallery-context .section-note { margin: 0; }
+.similar-summary-controls { display: flex; flex-basis: 100%; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.gallery-filter-summary { min-height: var(--control-height); display: flex; align-items: center; }
+
+.access-addresses { overflow-wrap: anywhere; }

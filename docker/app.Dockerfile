@@ -24,7 +24,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application script and entrypoint
+# Copy application packages and entrypoint
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 # Which build this is, shown at the top right of every page (webui-spec 4.1): the

@@ -38,6 +38,7 @@ import collections
 import contextlib
 import json
 import os
+import re
 import shutil
 import signal
 import sqlite3
@@ -216,6 +217,114 @@ def make_photo(path: Path, content_seed: str, date="2024:02:14 09:30:00", size=(
 
 
 # --------------------------------------------------------------------- tests
+
+@test
+def symlinked_directories_never_redirect_photo_or_cache_writes():
+    """Storage descendants may not redirect engine writes outside the configured tree."""
+    from PIL import Image
+    from engine import thumbnails, reconcile
+    for mode in ("--copy", "--move"):
+        case = new_case("directory_escape_" + mode[2:])
+        source = case / "src" / "fixture.jpg"
+        make_photo(source, "directory-escape")
+        outside = case / "outside"
+        outside.mkdir()
+        (case / "dest").mkdir()
+        (case / "dest" / "library").symlink_to(outside, target_is_directory=True)
+        run_engine(case, mode)
+        check(source.exists(), "Move removed a source through a redirected destination")
+        check(not list(outside.iterdir()), "photo write escaped through a directory symlink")
+        check(rows(case, "SELECT status FROM photos")[0]["status"] == "Failed",
+              "redirected destination was not recorded as a failure")
+    case = new_case("cache_directory_escape")
+    outside = case / "outside"
+    outside.mkdir()
+    (case / "cache").symlink_to(outside, target_is_directory=True)
+    try:
+        thumbnails._write_thumbnail(Image.new("RGB", (32, 24)), case / "cache" / "fixture.jpg", 320)
+    except thumbnails.ThumbnailWriteError:
+        pass
+    else:
+        raise Fail("thumbnail generation followed a redirected cache directory")
+    check(not list(outside.iterdir()), "thumbnail write escaped its cache directory")
+    make_photo(outside / "fixture.jpg", "recovery-outside")
+    check(reconcile._recovery_observe(case / "cache" / "fixture.jpg") == "not_file",
+          "recovery trusted a file through a symlinked parent")
+
+
+@test
+def relocation_refuses_symlinked_parents_on_either_side():
+    """Rename, Reject and Return share this no-overwrite primitive."""
+    from engine import relocate, fileinfo
+    case = new_case("relocation_parent_escape")
+    outside = case / "outside"
+    outside.mkdir()
+    alias = case / "alias"
+    alias.symlink_to(outside, target_is_directory=True)
+    source = case / "fixture.jpg"
+    make_photo(source, "relocation-parent")
+    for old, new in ((source, alias / "new.jpg"), (alias / "old.jpg", case / "new.jpg")):
+        if not old.exists():
+            make_photo(outside / "old.jpg", "relocation-outside")
+        before = old.read_bytes()
+        try:
+            relocate._rename_noreplace(str(old), str(new))
+        except fileinfo.SymlinkPathError:
+            pass
+        else:
+            raise Fail("relocation followed a symbolic-link parent")
+        check(old.read_bytes() == before and not new.exists(), "refused relocation changed a file")
+
+
+@test
+def a_symlinked_source_parent_never_authorizes_a_move():
+    case = new_case("source_parent_escape")
+    source = case / "src" / "folder" / "fixture.jpg"
+    make_photo(source, "source-escape")
+    run_engine(case)
+    photo = rows(case, "SELECT id FROM photos")[0]["id"]
+    outside = case / "outside"
+    source.parent.rename(outside)
+    source.parent.symlink_to(outside, target_is_directory=True)
+    run_engine(case, "--move", "--file-ids", photo)
+    check((outside / "fixture.jpg").exists(), "Move deleted a file outside source through an ancestor symlink")
+    check(not list((case / "dest").rglob("*.jpg")), "Move copied an outside file through a source alias")
+
+
+@test
+def thumbnail_staging_never_follows_a_planted_symlink():
+    """A cache writer must not truncate an unrelated file through its temporary name."""
+    from PIL import Image
+    from engine import thumbnails, constants
+    case = new_case("thumbnail_staging_symlink")
+    dest = case / "cache" / "fixture.jpg"
+    dest.parent.mkdir(exist_ok=True)
+    victim = case / "outside.txt"
+    victim.write_bytes(b"generated sentinel")
+    planted = dest.with_name(dest.name + constants.THUMBNAIL_PARTIAL_SUFFIX)
+    planted.symlink_to(victim)
+    thumbnails._write_thumbnail(Image.new("RGB", (64, 48)), dest, 320)
+    check(victim.read_bytes() == b"generated sentinel", "thumbnail staging overwrote an outside file")
+    check(not dest.is_symlink(), "published thumbnail retained the planted symlink")
+    check(planted.is_symlink(), "writer removed a temporary file it did not create")
+    with Image.open(dest) as img:
+        check(img.size == (64, 48), "thumbnail was not generated")
+
+
+@test
+def engine_help_flags_match_package_documentation():
+    """The package briefing documents every live CLI flag, and no removed flag."""
+    proc = subprocess.run([sys.executable, "-m", "engine", "--help"], cwd=ENGINE,
+                          env={**os.environ, "COLUMNS": "2000"},
+                          capture_output=True, text=True, timeout=30)
+    check(proc.returncode == 0, engine_output(proc))
+    flags = lambda text: set(re.findall(r"--[a-z]+(?:-[a-z]+)*\b", text))
+    live = flags(proc.stdout)
+    documented = flags((Path(ENGINE) / "engine" / "__init__.py").read_text())
+    check(live == documented,
+          f"CLI documentation drift: undocumented={sorted(live - documented)}, "
+          f"removed={sorted(documented - live)}")
+
 
 @test
 def index_excludes_hidden_and_appledouble():
@@ -854,14 +963,13 @@ def phash_is_computed_for_real_images():
 @test
 def raw_extension_routes_to_rawpy_and_fails_gracefully():
     """
-    RAW: a .dng the decoder cannot read is recorded as 'error' and the file is
-    still indexed — it must not raise, and must not silently fall through to
-    PIL (which cannot decode RAW sensor data at all).
+    An unreadable RAW is recorded Failed without aborting Index or falling back
+    to Pillow/embedded previews as evidence of readable sensor data.
     """
     case = new_case("raw_route")
     make_photo(case / "src" / "normal.jpg", "normal")
     # A TIFF named .dng. LibRaw rejects it, which is exactly the failure this
-    # checks: the engine should degrade to 'error' for that one file, not die.
+    # checks: this file fails individually without aborting the Index.
     from PIL import Image
     import numpy as np
     arr = (np.random.rand(48, 64, 3) * 255).astype("uint8")
@@ -872,11 +980,10 @@ def raw_extension_routes_to_rawpy_and_fails_gracefully():
     statuses = {Path(r["source_path"]).name: (r["status"], r["phash"])
                 for r in rows(case, "SELECT source_path, status, phash FROM photos")}
     check("broken.dng" in statuses, f"the .dng was not indexed at all: {statuses}")
-    status, phash = statuses["broken.dng"]
-    check(status == "Pending", f"an undecodable RAW should still index, got status {status}")
-    check(phash == "error",
-          f"expected phash 'error' for an undecodable RAW, got {phash!r} — "
-          f"'not_supported' means rawpy is missing; a real hash means it wrongly used PIL")
+    status, _phash = statuses["broken.dng"]
+    check(status == "Failed", f"an undecodable RAW must stay at source, got {status}")
+    failure = rows(case, "SELECT error_message FROM operations WHERE status='Failed'")[0]["error_message"]
+    check(failure.startswith("Cannot decode image:"), failure)
     check(statuses["normal.jpg"][1] not in ("error", "not_supported"),
           "the normal JPEG alongside it should still hash correctly")
 
@@ -3823,33 +3930,34 @@ def byte_identical_duplicates_share_one_thumbnail():
 
 
 @test
-def an_undecodable_photo_records_a_thumbnail_failure_without_failing_the_index():
-    """A thumbnail is disposable cache: losing one must not cost a catalog row."""
-    case = new_case("thumbbroken")
-    make_photo(case / "src" / "good.jpg", "good", size=(640, 480))
-    # A real JPEG cut short: an image by content, so it is catalogued, but its pixels
-    # cannot be decoded. (Bytes that are not an image at all are refused before any
-    # thumbnail: see a_file_that_is_not_an_image_is_logged_and_left_alone.)
-    make_photo(case / "src" / "whole.jpg", "broken", size=(640, 480))
-    body = (case / "src" / "whole.jpg").read_bytes()
-    (case / "src" / "whole.jpg").unlink()
-    (case / "src" / "broken.jpg").write_bytes(body[: len(body) // 3])
-    run_engine(case)  # expect_rc=0: the Index must still succeed
-
-    failed = rows(case, "SELECT failure_category,failure_detail,cache_filename FROM thumbnail_cache "
-                        "WHERE availability='failed'")
-    check(len(failed) == 1, f"expected 1 failed thumbnail entry, got {len(failed)}")
-    check(failed[0]["failure_category"] == "decode_failed",
-          f"expected decode_failed, got {failed[0]['failure_category']}")
-    # The UI shows this text in the placeholder; an unexplained blank tile is
-    # the failure mode this column exists to prevent.
-    check(failed[0]["failure_detail"], "a failed thumbnail must carry a reason the UI can show")
-    check(failed[0]["cache_filename"] is None, "a failed thumbnail must not name a cache file")
-
-    check(len(rows(case, "SELECT 1 FROM thumbnail_cache WHERE availability='present'")) == 1,
-          "the readable photo's thumbnail must still have been generated")
-    check(status_of(case, "broken.jpg") not in (None, "Failed"),
-          "a photo whose thumbnail failed must still be catalogued, not refused")
+def an_undecodable_photo_stays_at_source_until_repaired():
+    """Copy/Move leave corrupt pixels at source, even without thumbnails or EXIF."""
+    for no_thumbnails in (False, True):
+        case = new_case("decode_no_cache" if no_thumbnails else "decode_with_cache")
+        flags = ("--no-thumbnails",) if no_thumbnails else ()
+        make_photo(case / "src" / "good.jpg", "good", size=(640, 480))
+        make_photo(case / "src" / "broken.jpg", "broken", size=(640, 480))
+        whole = (case / "src" / "broken.jpg").read_bytes()
+        broken = whole[:len(whole) // 3]
+        (case / "src" / "broken.jpg").write_bytes(broken)
+        run_engine(case, *flags)
+        check(status_of(case, "broken.jpg") == "Failed", "corrupt pixels were accepted")
+        failures = rows(case, "SELECT error_message FROM operations WHERE status='Failed'")
+        check(any(r["error_message"].startswith("Cannot decode image:") for r in failures),
+              f"missing decoding reason: {failures}")
+        for mode in ("--copy", "--move"):
+            run_engine(case, mode, *flags)
+            check({Path(f).name for f in dest_files(case)} == {"good.jpg"},
+                  f"{mode} delivered an undecodable file")
+            check((case / "src" / "broken.jpg").read_bytes() == broken,
+                  f"{mode} changed/removed a failed source")
+        # External repair becomes eligible on an ordinary Index, without forcing hashes.
+        (case / "src" / "broken.jpg").write_bytes(whole)
+        run_engine(case, *flags)
+        check(status_of(case, "broken.jpg") == "Pending", "repair was not reassessed")
+        run_engine(case, "--copy", *flags)
+        check({Path(f).name for f in dest_files(case)} == {"good.jpg", "broken.jpg"},
+              "repaired photo could not be organized")
 
 
 @test

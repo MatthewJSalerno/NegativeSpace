@@ -27,6 +27,32 @@ class DatabaseTests(unittest.TestCase):
         self.conn.close()
         self.tmp.cleanup()
 
+    def test_mixed_place_selection_refuses_atomically_but_replay_keeps_acceptance(self):
+        self.conn.executemany("INSERT INTO photos(source_path,status) VALUES(?,?)",
+                             [('/source/one.jpg','Copied'),('/source/two.jpg','Rejected_Copied')])
+        self.conn.commit()
+        ids=[r[0] for r in self.conn.execute('SELECT id FROM photos')]
+        before=list(self.conn.iterdump())
+        for mode in ('COPY','MOVE','REJECT','RETURN'):
+            for strict in (True,False):
+                with self.subTest(mode=mode,strict=strict):
+                    with self.assertRaisesRegex(db.SelectionRefused,'Library and Rejects'):
+                        db.create_run(self.conn, mode=mode, source='/source', destination='/destination',
+                                      selection=ids, strict_selection=strict, request_id='mixed')
+                    self.assertEqual(list(self.conn.iterdump()),before)
+        self.conn.execute("UPDATE photos SET status='Copied'")
+        self.conn.commit()
+        accepted=db.create_run(self.conn,mode='MOVE',source='/source',destination='/destination',
+                               selection=ids,strict_selection=True,request_id='accepted')
+        self.assertTrue(accepted[1])
+        self.conn.execute("UPDATE photos SET status='Rejected_Copied' WHERE id=?",(ids[0],))
+        self.conn.commit()
+        self.assertEqual(db.create_run(self.conn,mode='MOVE',source='/source',destination='/destination',
+                         selection=ids,strict_selection=True,request_id='accepted'),(accepted[0],False))
+        with self.assertRaises(db.SelectionRefused):
+            db.create_run(self.conn,mode='MOVE',source='/source',destination='/destination',
+                          selection=ids,strict_selection=True,request_id='new-attempt')
+
     def run_record(self, conn=None, **kw):
         return db.create_run(conn or self.conn, mode='INDEX', source='/source',
                              destination='/destination', **kw)[0]
@@ -414,6 +440,51 @@ class DatabaseTests(unittest.TestCase):
                 self.conn.execute("INSERT INTO runs(mode,started_at,status) VALUES('INDEX','t',?)", (status,))
         with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
             self.conn.execute("INSERT INTO runs(mode,started_at,status) VALUES('INDEX','t','Crashed')")
+
+    def test_opening_an_existing_catalog_does_not_release_another_connections_lock(self):
+        import subprocess
+        self.conn.execute("INSERT INTO photos(source_path,status) VALUES('/source/locked.jpg','Pending')")
+        other = db.connect(self.path)
+        try:
+            check = subprocess.run([sys.executable, '-c',
+                "import sqlite3,sys; c=sqlite3.connect(sys.argv[1],timeout=.05); "
+                "c.execute(\"INSERT INTO photos(source_path,status) VALUES('/source/other.jpg','Pending')\"); c.commit()",
+                str(self.path)], capture_output=True, text=True, timeout=5)
+            self.assertNotEqual(check.returncode, 0, 'opening a catalog dropped the live writer lock')
+            self.assertIn('database is locked', check.stderr)
+        finally:
+            other.close()
+            self.conn.rollback()
+
+    def test_catalog_and_backup_modes_are_private_without_changing_photo_umask(self):
+        import os
+        import stat
+        from unittest.mock import patch
+        old = os.umask(0o022)
+        try:
+            path = Path(self.tmp.name) / 'private.db'
+            db.initialize(path)
+            with db.connect(path) as conn:
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+                for suffix in ('-wal', '-shm'):
+                    companion = Path(str(path) + suffix)
+                    if companion.exists():
+                        self.assertEqual(stat.S_IMODE(companion.stat().st_mode), 0o600)
+            snapshot = db._compress_and_verify
+            def observe(raw, packed):
+                for file in (raw, packed):
+                    self.assertEqual(stat.S_IMODE(file.stat().st_mode), 0o600)
+                    self.assertEqual((file.stat().st_uid, file.stat().st_gid), (os.getuid(), os.getgid()))
+                return snapshot(raw, packed)
+            with patch.object(db, '_compress_and_verify', side_effect=observe):
+                result = db.backup_catalog(path, self.backups(), Path(self.tmp.name) / 'appdata', trigger='manual')
+            self.assertEqual(result['outcome'], 'succeeded')
+            self.assertEqual(stat.S_IMODE((self.backups() / result['filename']).stat().st_mode), 0o600)
+            photo = Path(self.tmp.name) / 'photo.jpg'
+            photo.write_bytes(b'generated')
+            self.assertEqual(stat.S_IMODE(photo.stat().st_mode), 0o644)
+        finally:
+            os.umask(old)
 
     def backups(self):
         store = Path(self.tmp.name) / 'backups'
@@ -825,6 +896,42 @@ class SimilarityTests(unittest.TestCase):
         self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM similarity_hashes').fetchone()[0], 0)
         self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM content_similarity').fetchone()[0], 0)
         self.assertTrue(ns_similarity.refresh(self.conn))
+
+
+class ModuleBindingTests(unittest.TestCase):
+    def test_project_functions_are_read_from_their_defining_modules(self):
+        import ast
+        import importlib
+        import inspect
+        root = Path(__file__).resolve().parents[1]
+        violations = []
+        for package in ('engine', 'webui'):
+            for path in (root / package).glob('*.py'):
+                for node in ast.walk(ast.parse(path.read_text())):
+                    if not isinstance(node, ast.ImportFrom) or not node.module:
+                        continue
+                    module_name = package + '.' + node.module if node.level else node.module
+                    if not module_name.startswith(('engine.', 'webui.')):
+                        continue
+                    module = importlib.import_module(module_name)
+                    for alias in node.names:
+                        value = getattr(module, alias.name, None)
+                        if inspect.isfunction(value):
+                            violations.append(f'{path.relative_to(root)}:{node.lineno}: {alias.name}')
+        self.assertEqual(violations, [], 'Functions must be accessed as module.name')
+
+    def test_similarity_callers_observe_replaced_functions(self):
+        from unittest.mock import patch
+        from engine import ns_similarity_cache
+        from webui import equivalent_sets, gallery, reference_sets
+        class Replaced(Exception):
+            pass
+        with patch.object(ns_similarity_cache, 'match_distance', side_effect=Replaced):
+            for call in (lambda: gallery._view_clause('all', 90),
+                         lambda: equivalent_sets.representatives(90, ''),
+                         lambda: reference_sets.browse(None, 1, threshold=90)):
+                with self.subTest(call=call), self.assertRaises(Replaced):
+                    call()
 
 
 if __name__ == '__main__':unittest.main()

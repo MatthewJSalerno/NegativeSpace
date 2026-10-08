@@ -44,6 +44,7 @@ import shutil
 import subprocess
 import sys
 import time
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -76,11 +77,36 @@ def snapshot(root: Path) -> dict:
     for p in root.rglob("*"):
         if p.is_file() and not p.is_symlink():
             st = p.stat()
-            out[str(p.relative_to(root))] = (st.st_size, st.st_mtime_ns, st.st_ino)
+            out[str(p.relative_to(root))] = (st.st_size, st.st_mtime_ns, st.st_ino, st.st_dev)
     return out
 
 
-ALTERED = set()                   # inodes of every file this run wrote or rewrote
+# Keep written identities alive until the seed comparison. A replaced temporary
+# file's inode can otherwise be reused immediately by an unrelated download.
+# Hard links use no duplicate data blocks and avoid one open descriptor per file.
+# Old versions occupy space only until the check finishes. Names have no photo
+# extension, so an interrupted build cannot turn guard links into sample photos.
+ALTERED = set()                   # (device, inode), never a bare inode number
+_ALTERED_GUARDS = {}
+
+
+def record_altered(path: Path):
+    st = path.stat()
+    identity = (st.st_dev, st.st_ino)
+    if identity not in ALTERED:
+        parent = path.parent
+        if parent not in _ALTERED_GUARDS:
+            _ALTERED_GUARDS[parent] = tempfile.TemporaryDirectory(prefix='.ns-write-guard-', dir=parent)
+        hold = Path(_ALTERED_GUARDS[parent].name) / f'{st.st_dev}-{st.st_ino}'
+        os.link(path, hold)
+        ALTERED.add(identity)
+
+
+def release_altered():
+    for directory in _ALTERED_GUARDS.values():
+        directory.cleanup()
+    _ALTERED_GUARDS.clear()
+    ALTERED.clear()
 
 
 def check_untouched(root: Path, before: dict):
@@ -88,7 +114,7 @@ def check_untouched(root: Path, before: dict):
     no write reached the seed through a link. The seed folder may also be changing under
     another program (a download filling it): that is reported, never mistaken for ours."""
     after = snapshot(root)
-    seed_inodes = {v[2] for v in after.values()} | {v[2] for v in before.values()}
+    seed_inodes = {(v[3], v[2]) for v in after.values()} | {(v[3], v[2]) for v in before.values()}
     through = ALTERED & seed_inodes
     if through:
         sys.exit(f"FATAL: {len(through)} file(s) this run wrote share an inode with the seed folder")
@@ -106,7 +132,7 @@ def fresh_copy(src: Path, dest: Path):
     tmp = dest.with_name(f".{dest.name}.tmp")
     shutil.copy2(src, tmp)
     os.replace(tmp, dest)
-    ALTERED.add(dest.stat().st_ino)
+    record_altered(dest)
 
 
 def replace_with(path: Path, write):
@@ -115,14 +141,14 @@ def replace_with(path: Path, write):
     tmp = path.with_name(f".{path.name}.tmp")
     write(tmp)
     os.replace(tmp, path)
-    ALTERED.add(path.stat().st_ino)
+    record_altered(path)
 
 
 def exiftool(path: Path, *args):
     """ExifTool on a file this script made. -overwrite_original writes a new file and
     renames it into place, so it could not write through a link either."""
     subprocess.run(["exiftool", "-q", "-q", "-overwrite_original", *args, str(path)], check=True)
-    ALTERED.add(path.stat().st_ino)
+    record_altered(path)
 
 
 # --- Seeds ------------------------------------------------------------------------
@@ -198,7 +224,7 @@ def graft_exif(originals: list, donors: list, rng: random.Random, m) -> int:
     # damaged to write keeps the copy's inode, and is recorded as not given any.
     written = set()
     for path in targets:
-        ALTERED.add(path.stat().st_ino)
+        record_altered(path)
         if path.stat().st_ino != copied[path]:
             written.add(str(path.relative_to(m.out / LIBRARY)))
     for entry in m.files:
@@ -413,7 +439,7 @@ def build(args):
           "Failed: Not an image (the file is empty); in the log, never copied")
     body = rng.choice(jpegs).read_bytes()
     (edge / "truncated.jpg").write_bytes(body[: len(body) // 3])
-    m.add(edge / "truncated.jpg", "edge_truncated", "Indexed from its intact EXIF; its picture is cut short")
+    m.add(edge / "truncated.jpg", "edge_truncated", "Failed: its picture cannot be decoded; retained at source despite readable EXIF")
     (edge / "not-a-photo.jpg").write_text("This is text with a photo's extension.\n")
     m.add(edge / "not-a-photo.jpg", "edge_not_an_image",
           "Failed: Not an image (its content is text); in the log, never copied")
@@ -591,7 +617,10 @@ def main():
     c.add_argument("--dest", help="the destination a Copy filled, for destination changes")
     c.add_argument("--seed", type=int, default=1)
     args = parser.parse_args()
-    (build if args.command == "build" else change)(args)
+    try:
+        (build if args.command == "build" else change)(args)
+    finally:
+        release_altered()
 
 
 if __name__ == "__main__":

@@ -1,10 +1,12 @@
+import { useDismissedRun } from "../dismissal";
+import { StableContent } from "./ui/StableContent";
+import { PageNavigation } from "./PageNavigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
-import { StatsLink } from "./StatsPage";
-import { VersionTag } from "./VersionTag";
+import { PageTools } from "./PageTools";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
-import { reasonsText, modeName, showsPhotos, summary, useDismissedRun, useJobFeed } from "../jobs";
+import { reasonsText, jobLabel, modeName, showsPhotos, summary, useJobCompletion, useJobFeed } from "../jobs";
 import { follow, photoUrl, useHeaderHeight, useNavigation } from "../nav";
 import { usePaged } from "../paged";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
@@ -32,6 +34,7 @@ function failureHint(op: Operation): string | null {
     return "The copy is at the destination; the original is still in the source. Once the source can be written, move it again to finish the Move.";
   if (op.status !== "Failed") return null;
   const m = op.error_message ?? "";
+  if (/cannot identify image|UnidentifiedImageError|not an image|empty file|zero.byte/i.test(m)) return "The file could not be read as a supported image. Check it outside this app and repair, replace or remove it from the source before re-indexing. It is not a similarity candidate.";
   if (op.mode === "SIMILARITY") return "The photo file was not changed. This failure concerns visual matching; see the recorded reason before retrying. Missing EXIF alone does not mean a file is damaged.";
   if (op.run_level) return "A folder or the whole job, not one photo: nothing inside it was examined. Fix the folder's access, then run an Index.";
   if (m.startsWith("Duplicate verification failed") && m.includes("ChecksumMismatch"))
@@ -102,7 +105,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
   // What a job's Retry did, shown beside that button rather than at the top of the page.
   const [retryNote, setRetryNote] = useState<RetryNote | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [dismissedId, dismissRun] = useDismissedRun();
+  const [dismissedId, dismissRun, dismissal] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
   const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
   useNavigation(() => {
@@ -151,9 +154,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
     api.runs(RUNS_LISTED).then((r) => setRuns(r.runs.filter((run): run is RecordedRun => run.id != null)), () => setRuns([]));
   }, [refreshKey]);
 
-  // A job finishing changes the log.
-  const lastKey = jobs.last && !jobRunning ? `${jobs.last.id}:${jobs.last.status}` : null;
-  useEffect(() => { if (lastKey) { setRefreshKey((k) => k + 1); refreshStatus(); } }, [lastKey]);
+  useJobCompletion(() => { setRefreshKey(k => k + 1); refreshStatus(); });
 
   const set = (patch: Partial<LogFilters>) => setFilters((f) => ({ ...f, ...patch }));
   const toggleRun = (id: number) => setExpanded((cur) => {
@@ -241,29 +242,23 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
       <header className="toolbar" ref={header}>
         <div className="toolbar-row">
           <h1 className="brand"><Logo />NegativeSpace</h1>
-          <nav className="pages" aria-label="Pages">
-            <a className="button-link" href="/" onClick={follow}>Library</a>
-            <a className="button-link active" href="/logs" onClick={follow} aria-current="page">Logs</a>
-          </nav>
-          <div className="toolbar-actions">
-            <VersionTag version={status.version} />
-            <StatsLink />
-            <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
-          </div>
+          <PageNavigation active="logs" />
+          <PageTools version={status.version} onOpenSettings={onOpenSettings} />
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
-        <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
+        <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} dismissal={dismissal} />
         <RejectsReminder status={status} />
       </header>
 
       <main id="main-content" tabIndex={-1} className="logs">
         <h2>{failuresOnly ? "Failures" : "Log"}{filters.photo != null ? ` for photo #${filters.photo}` : ""}</h2>
-        {failuresOnly && (
-          <p className="muted">
+        <StableContent active={failuresOnly ? "failed" : "all"} variants={{
+          all: <p className="muted">Browse recorded work across jobs. Filter by status, date, photo or message; expand a job for its file details.</p>,
+          failed: <p className="muted">
             Every attempt that failed, whatever the photo's status is now. A failure with no photo is about a folder
-            or the whole job. Retrying runs the same job again for the photos behind these failures.
+            or the whole job. Read the cause before retrying. Unreadable or unrecognized files need external repair; access problems need corrected permissions or a reconnected source. Retry only after addressing the cause.
           </p>
-        )}
+        }} />
         {filters.photo != null && (
           <p className="muted">
             Everything recorded for this photo across jobs, including its copies and moves.{" "}
@@ -300,10 +295,10 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
                   <input type="checkbox" checked={ticked(s)} disabled={last} onChange={() => toggleStatus(s)} />
                   {STATUS_LABEL[s]} <span className="view-count">({count(totals?.status_counts[s] ?? 0)})</span>
                 </label>
-                {statuses.length > 1 && !(filters.status.length === 1 && filters.status[0] === s) && (
-                  <button className="link status-only" onClick={() => set({ status: [s] })}
-                          aria-label={`Show only ${STATUS_LABEL[s]}`}>only</button>
-                )}
+                <button className="link status-only" onClick={() => set({ status: [s] })}
+                  aria-hidden={statuses.length < 2 || (filters.status.length === 1 && filters.status[0] === s)}
+                  inert={statuses.length < 2 || (filters.status.length === 1 && filters.status[0] === s)}
+                  aria-label={`Show only ${STATUS_LABEL[s]}`}>only</button>
               </span>
             );
           })}
@@ -312,11 +307,10 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
         {notice && <p className="notice" role="status">{notice}{CALLS_FOR_INDEX.test(notice) && <> {indexButton}</>}</p>}
         {error && <p className="error">{error}</p>}
 
-        {active.length > 0 && (
-          <p className="dates-filter-line">
-            Showing: {active.join(" · ")} · <button className="link" onClick={clearAll}>Clear all filters</button>
-          </p>
-        )}
+        <p className="dates-filter-line log-filter-summary">
+          <span>{active.length ? `Showing: ${active.join(" · ")}` : "Showing all log entries"}</span>
+          <button className="link" aria-hidden={!active.length} inert={!active.length} onClick={clearAll}>Clear all filters</button>
+        </p>
         {runs && totals && (
           <div className="job-list-head">
             <span className="muted">
@@ -342,7 +336,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
                 <button className="job-head" aria-expanded={open} onClick={() => toggleRun(run.id)}>
                   <span className="job-caret" aria-hidden="true">{open ? "▾" : "▸"}</span>
                   <span className="job-title">
-                    <strong>#{run.id} {s?.headline ?? modeName(run.mode)}</strong>
+                    <strong>{s?.headline ?? jobLabel(run.id, run.mode)}</strong>
                     <span className="muted">{instant(run.started_at)}</span>
                   </span>
                   <span className="job-detail" title={reasonsText(run.outcome) ?? undefined}>{s?.detail}</span>
@@ -396,9 +390,9 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
   const failed = data.status_counts.Failed ?? 0;
   const kept = run.mode === "MOVE" ? data.status_counts.Copied_Only ?? 0 : 0;
   const canRetry = failed + kept > 0 && retryModeOf(run) != null;
-  const retryLabel = !kept ? `Retry the ${plural(failed, "failed photo")} (${modeName(run.mode)})`
+  const retryLabel = !kept ? `Recheck ${plural(failed, "failed file")} after fixing (${modeName(run.mode)})`
     : !failed ? `Move the ${plural(kept, "copied-only photo")} again`
-      : `Retry the ${count(failed + kept)} failed and copied-only photos (Move)`;
+      : `Recheck ${count(failed + kept)} failed and copied-only files after fixing (Move)`;
 
   return (
     <div className="job-body">
@@ -410,6 +404,7 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
               {retryLabel}
             </button>
           )}
+          {canRetry && <p className="section-note">Rechecking repeats the job; it cannot repair a damaged file or add format support. Fix the recorded cause first. Interrupted work can be retried once its files and storage are available.</p>}
           {note && <p className="notice" role="status">{note}</p>}
         </div>
       )}

@@ -123,6 +123,9 @@ Delivered and validated against a real library. In place today:
     outcome.
 *   Crash-safe resume, including run-history reconciliation after a hard kill.
 *   Standard images, HEIC, and RAW formats.
+*   Undecodable source photos stay Failed in Not organized, with recorded decoder
+    reasons; Copy/Move leave them at source and an Index after external repair
+    reassesses them. Missing EXIF or cache/hash-only failures do not block readable images.
 *   One 320px grid thumbnail per content identity, written during the scan and
     shared by byte-identical duplicates; see `webui-spec.md` §4.2.1.
 *   A settings store in the catalog database, initializable without a scan, with
@@ -238,6 +241,20 @@ service. Built and tested:
     could only copy shown as Copied only, never as failed; Retry; **Show these photos in
     the library** for each job that acted on photos; and CSV/JSON export.
 
+Built review workflow: Library, Not organized and Rejects are location views; Needs review
+is an overlapping inbox of organized Library photos. Each location has one row of filter toggles; Small images
+filters Library in place, and the inbox adds Review later to the same row. Active chips
+clear on a second click. The Inspector groups information and actions, while the dedicated
+review workspace puts a large photo beside its reasons, decision buttons and matching clues.
+Place changes close stale previews; source previews temporarily collapse the Index summary.
+Filter chips combine, reminder chips choose one scope, and
+filename searches offer matches in other locations. Small-image cleanup is opt-in at
+first run and never blocks transfers. Mark reviewed acknowledges only the size concern;
+Review later / Done records a separate reminder. Both persist in the catalog with review
+history. The common review workspace preserves gallery selection and uses the existing
+Reject flow. EXIF/XMP changes and the additional reason-specific recovery flows remain
+separate work.
+
 Specified but not yet on screen:
 *   The unbacked-changes line on every page, and Retry backup in the finished-job banner.
 *   Each folder's last-scanned time in the Folders tree.
@@ -249,9 +266,7 @@ Specified but not yet on screen:
     engine records per full Index (`webui-spec.md` §5.1).
 *   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built), undated photos as a Needs review reason with suggested dates, and metadata editing (`webui-spec.md` §7.5, with its
     decided details).
-*   The views named by where a photo is: Library, To organize, Rejects and Needs review,
-    with similar photos, suspicious dates and no capture date as filter chips (`webui-spec.md` §2).
-*   Needs review (`webui-spec.md` §7.9), with the similar-to-a-reject check
+*   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file and uncertain-outcome resolution, and the similar-to-a-reject check
     (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);
     the export-sidecar notice at Index.
@@ -262,7 +277,7 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 20; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
+at schema version 22; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
 It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its
@@ -272,3 +287,20 @@ from observed evidence, opening an attention issue when an outcome cannot be
 established. Complete lineage for every catalogued file in every settled status is
 enforced by test (`TODO.md` claim 11). Content-version history is not yet built. See
 `engine-spec.md` §6.5 and §10.
+
+Library-only review is enforced by the decision API as well as the Inspector. Source
+failures remain import/log concerns with external correction; Rejects offers Return.
+Index summary and Stats distinguish failed files from photo facts. Similarity explicitly
+compares active organized Library photos by default, with rejected matches separate. Job headings share Job #ID · Action status.
+
+Cross-location similarity is built: Library matches remain primary, with separately paged
+matches in Rejects; a rejected photo can compare against Library photos. Location labels
+and explicit Reject/Return actions follow current photo state. Source files and emptied
+rejects remain excluded. Review later and Mark reviewed remain Library-only. Automatic
+similar-to-reject inbox reminders and historical evidence for emptied rejects are pending.
+
+Instance access configuration is separate from photo-processing settings: setup and
+Settings › Access persist additional allowed hostnames/IPs in application data outside
+the catalog. Catalog rebuild/restore never resets this policy. Local and deployment
+addresses provide initial access/recovery; this does not add sign-in or configure DNS.
+See `webui-spec.md` §11 for revision checks, current-address confirmation and live enforcement.

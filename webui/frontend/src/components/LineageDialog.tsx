@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError, type Lineage, type LineageFile, type LineageOperation } from "../api";
 import { bytes, instant } from "../format";
 import { follow, logUrl } from "../nav";
+import { jobLabel } from "../jobs";
 import { Tip } from "./Tip";
 
 const STEP: Record<string, string> = {
@@ -12,7 +13,6 @@ const STEP: Record<string, string> = {
 };
 const PRESENCE: Record<string, string> = { present: "Present", removed: "Removed", missing: "Missing" };
 const MODE: Record<string, "index" | "copy" | "move"> = { INDEX: "index", COPY: "copy", MOVE: "move" };
-const JOB: Record<string, string> = { INDEX: "Index", COPY: "Copy", MOVE: "Move", REJECT: "Reject", RETURN: "Return to library" };
 
 // A photo's lineage as a tree (webui-spec 6.3): one node per file (the source, each copy
 // made from it, each exact duplicate), with the steps that happened to it. A file opens
@@ -107,7 +107,7 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
             {tree.selected_by.map((s, i) => (
               <span key={s.run_id}>{i > 0 && " · "}
                 <a href={logUrl({ run: s.run_id })} onClick={(e) => { onClose(); follow(e); }}>
-                  {JOB[s.mode] ?? s.mode} (job #{s.run_id}, {instant(s.started_at)})
+                  {jobLabel(s.run_id, s.mode)} · {instant(s.started_at)}
                 </a>
               </span>
             ))}
@@ -134,14 +134,15 @@ function Step({ op, photoId, jobRunning, onRetry }: {
             <strong className="lineage-step" tabIndex={0}>{STEP[op.status] ?? op.status}</strong>
           </Tip>}
       <span className="muted"> · <a href={logUrl({ run: op.run_id, photo: photoId })} onClick={follow}
-                                  title={`Open job #${op.run_id} in the log`}>job #{op.run_id}{op.mode ? ` ${op.mode.toLowerCase()}` : ""}</a>
+                                  title={`Open job #${op.run_id} in the log`}>{jobLabel(op.run_id, op.mode)}</a>
         {" · "}{instant(op.timestamp)}</span>
       {failed && open && (
         <div className="lineage-failure">
+          <p className="section-note">Check this file and the recorded cause before rechecking. The app cannot repair unreadable files or add format support.</p>
           <div className="history-detail">{op.error_message ?? "No reason was recorded."}</div>
           {op.photo_id != null && MODE[op.mode ?? ""] && (
             <button onClick={() => onRetry(op)} disabled={jobRunning} title={jobRunning ? "A job is running." : undefined}>
-              Retry this photo
+              Recheck after fixing
             </button>
           )}
         </div>

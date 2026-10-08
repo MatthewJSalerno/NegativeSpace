@@ -3,7 +3,7 @@
 # docker/compose.yml: an app container (API and engine) and a web container
 # (screens, proxying /api to the app), driven by a Playwright container
 # (tests/browser/webui_browser_drive.py). Runs on the host because it starts containers.
-# Every folder is made with mktemp under /tmp.
+# Generated fixtures use configurable output/destination roots; NS_TEST_KEEP retains data.
 #
 #   docker build -f docker/app.Dockerfile -t negativespace .
 #   docker build -f docker/web.Dockerfile -t negativespace-web .
@@ -21,23 +21,28 @@ NEWER=70
 OLDER=60
 DUPLICATES=2
 HERE=$(cd "$(dirname "$0")" && pwd)
-WORK=$(mktemp -d /tmp/ns-browser-XXXXXX)
+WORK=$(mktemp -d "${NS_TEST_OUTPUT_ROOT:-/tmp}/ns-browser-XXXXXX")
+DEST="$WORK/dest"
+if [ -n "${NS_TEST_DESTINATION_ROOT:-}" ]; then DEST=$(mktemp -d "$NS_TEST_DESTINATION_ROOT/ns-browser-XXXXXX"); fi
 NET=ns-browser-$$
 APP=ns-browser-app-$$
 WEB=ns-browser-web-$$
+ATTACKER=ns-browser-framing-$$
 ME="$(id -u):$(id -g)"
 
 cleanup() {
+    docker rm -f "$ATTACKER" >/dev/null 2>&1 || true
     docker rm -f "$WEB" >/dev/null 2>&1 || true
     docker stop -t 30 "$APP" >/dev/null 2>&1 || true
     docker rm "$APP" >/dev/null 2>&1 || true
     docker network rm "$NET" >/dev/null 2>&1 || true
+    if [ "${NS_TEST_KEEP:-0}" = 1 ]; then echo "Generated browser artifacts retained."; return; fi
     docker run --rm --entrypoint rm -v "$WORK":/w "$IMAGE" -rf /w/src /w/dest /w/appdata /w/cache /w/backups >/dev/null 2>&1 || true
     rm -rf "$WORK"
 }
 trap cleanup EXIT
 
-mkdir -p "$WORK/src" "$WORK/dest" "$WORK/appdata" "$WORK/cache" "$WORK/backups"
+mkdir -p "$WORK/src" "$DEST" "$WORK/appdata" "$WORK/cache" "$WORK/backups"
 
 # Distinct photos plus exact copies of the first few, made with the image's Pillow.
 # The first two carry an EXIF date taken (January 2023); every other photo has none,
@@ -63,15 +68,17 @@ for i in range($DUPLICATES):
 docker network create "$NET" >/dev/null
 # Named "app" on the network, as in compose: the web container's nginx proxies to it.
 set --
-if [ "${NETWORK_FIXTURE:-0}" = 1 ]; then
+if [ "${STALLED_FIXTURE:-0}" = 1 ]; then
+    set -- -v "$HERE/stalled_engine_fixture.py:/stalled_engine_fixture.py:ro" -e NS_ENGINE=/stalled_engine_fixture.py
+elif [ "${NETWORK_FIXTURE:-0}" = 1 ]; then
     set -- -v "$HERE/network_engine_fixture.py:/network_engine_fixture.py:ro" -e NS_ENGINE=/network_engine_fixture.py
 elif [ "${SUBMISSION_FIXTURE:-0}" = 1 ]; then
     set -- -v "$HERE/submission_engine_fixture.py:/submission_engine_fixture.py:ro" -e NS_ENGINE=/submission_engine_fixture.py
 fi
-docker run -d --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" \
-    -v "$WORK/src":/data/source:ro -v "$WORK/dest":/data/dest -v "$WORK/appdata":/appdata \
+docker run -d --init --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" -e NS_ALLOWED_HOSTS="localhost,127.0.0.1,$WEB,app" \
+    -v "$WORK/src":/data/source:ro -v "$DEST":/data/dest -v "$WORK/appdata":/appdata \
     -v "$WORK/cache":/cache -v "$WORK/backups":/backups "$@" "$IMAGE" >/dev/null
-docker run -d --name "$WEB" --network "$NET" "$WEB_IMAGE" >/dev/null
+docker run -d --name "$WEB" --network "$NET" --network-alias review.example --network-alias other.example "$WEB_IMAGE" >/dev/null
 
 # Wait until the API answers through the web container, rather than a fixed time.
 tries=0
@@ -84,6 +91,16 @@ until docker run --rm --network "$NET" --entrypoint python3 "$IMAGE" -c \
     sleep 1
 done
 
+# A separate real HTTP origin proves the built app cannot be clickjacked in a frame.
+SECURITY_ARGS=""
+if [ "$DRIVER" = webui_browser_drive.py ]; then
+    mkdir -p "$WORK/framing"
+    printf '<iframe src="http://%s:8080" style="width:1300px;height:850px"></iframe>\n' "$WEB" > "$WORK/framing/index.html"
+    docker run -d --name "$ATTACKER" --network "$NET" --entrypoint python3 \
+        -v "$WORK/framing:/framing:ro" "$IMAGE" -m http.server 8000 --directory /framing >/dev/null
+    SECURITY_ARGS="-e ATTACKER_URL=http://$ATTACKER:8000"
+fi
+
 CATALOG_ARGS=""
 # Explicit opt-in: only this harness's temporary generated catalog is writable.
 if [ "${SIMILARITY_RECOVERY_FIXTURE:-0}" = 1 ]; then CATALOG_ARGS="-v $WORK/appdata:/catalog"; fi
@@ -92,6 +109,6 @@ if [ -n "${SHOTS:-}" ]; then SHOT_ARGS="-v $SHOTS:/shots -e SHOTS=/shots"; fi
 # shellcheck disable=SC2086
 # The source is mounted into the browser container too, so the test can make one photo
 # unreadable to the app (which runs as this user) and follow the failure through the UI.
-docker run --rm --network "$NET" $SHOT_ARGS $CATALOG_ARGS -v "$WORK/src":/src -v "$HERE/$DRIVER":/drive.py:ro -v "$HERE/ui_browser_checks.py":/ui_browser_checks.py:ro "$PLAYWRIGHT" \
+docker run --rm --network "$NET" $SHOT_ARGS $CATALOG_ARGS $SECURITY_ARGS -v "$WORK/src":/src -v "$HERE/$DRIVER":/drive.py:ro -v "$HERE/ui_browser_checks.py":/ui_browser_checks.py:ro "$PLAYWRIGHT" \
     sh -c "pip install -q --root-user-action=ignore playwright==1.63.0 >/dev/null 2>&1 && python3 /drive.py http://$WEB:8080 $NEWER $OLDER $DUPLICATES" \
   || { echo "--- app log ---"; docker logs "$APP" 2>&1 | tail -40; echo "--- web log ---"; docker logs "$WEB" 2>&1 | tail -20; exit 1; }

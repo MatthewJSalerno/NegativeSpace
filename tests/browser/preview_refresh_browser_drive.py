@@ -13,7 +13,8 @@ with sync_playwright() as p:
         assert response.status == 202
         run = response.json()['id']
         for _ in range(600):
-            if req.get(f'/api/v1/runs/{run}').json()['status'] not in ('Preparing', 'Running', 'Cancelling'):
+            if (req.get(f'/api/v1/runs/{run}').json()['status'] not in ('Preparing', 'Running', 'Cancelling')
+                    and req.get('/api/v1/jobs/active').json()['active'] is None):
                 return run
             time.sleep(.2)
         raise AssertionError('Job timeout')
