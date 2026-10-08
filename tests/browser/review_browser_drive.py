@@ -98,6 +98,8 @@ with sync_playwright() as p:
     page.reload()
     # Explicit Not organized survives refresh, even though default is now Library.
     expect(page.get_by_role('button',name='Not organized',exact=False).first).to_have_attribute('aria-pressed','true')
+    expect(summary).to_have_count(0)
+    expect(show_summary).to_have_count(0)
     expect(page.get_by_role('button',name='Go to Library',exact=True)).to_be_visible()
     page.get_by_role('button',name='Go to Library',exact=True).click()
     page.goto(base)

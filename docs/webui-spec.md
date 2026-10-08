@@ -316,7 +316,7 @@ selection, and Jobs retains Copy/Move. Focus follows the close/show control.
 Opening a source preview temporarily collapses the summary, retaining Show index summary;
 closing the preview restores its previous state. An explicit Show can override this while
 previewing. With only failed source files left, show **n files need
-attention**, link to filtered failures and omit Copy/Move buttons. Changing location closes
+attention**, link to filtered failures and omit Copy/Move buttons. Use a compact failure notice only: omit the photo-statistics grid and source-photo/similarity guidance. Copy/Move completion updates this in place without a reload. If nothing remains, hide both the summary and its Show control. Changing location closes
 the Inspector/comparison so a Library photo cannot linger beside Not organized results.
 An empty Library says **No photos organized yet** and links to Not organized.
 When nothing remains to organize, Not organized offers **Go to Library** if delivered

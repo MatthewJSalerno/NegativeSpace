@@ -1067,6 +1067,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                 onClick={() => toggleIndexSummary(indexSummaryKey)}>✕</button>
             </div>
             <p>{indexNeedsAttention ? "The remaining files have processing errors. Review the failures to see what needs fixing." : "Your photos are indexed. Copy or move them to build your library."}</p>
+            {indexNeedsAttention ? <p><a href="/logs?status=Failed" onClick={follow}>View failures</a></p> : <>
             <p className="section-note">Photo facts below cover successfully indexed photos, before gallery filters. Failed files are counted separately. Size and date findings do not prevent Copy or Move.</p>
             <dl>
               <div><dt>Photos ready to organize</dt><dd>{count(data.index_summary.ready)}</dd></div>
@@ -1079,8 +1080,9 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               {data.index_summary.unfinished > 0 && <div><dt>Unfinished processing</dt><dd>{count(data.index_summary.unfinished)}</dd></div>}
             </dl>
             <p className="section-note">Similar photos compares organized photos in Library only. Identical content is organized once. Files with processing errors: {count(data.index_summary.failed)}. <a href={data.index_summary.failed > 0 ? "/logs?status=Failed" : "/logs"} onClick={follow}>{data.index_summary.failed > 0 ? "View failures" : "View job details"}</a></p>
-            {!indexNeedsAttention && <><button className="primary" disabled={jobRunning || !status.eligible.copy} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.copy ? "No photos are eligible for Copy." : undefined} onClick={() => askTransfer("copy")}>Copy all photos…</button>{" "}
-            <button disabled={jobRunning || !status.eligible.move} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.move ? "No photos are eligible for Move." : undefined} onClick={() => askTransfer("move")}>Move all photos…</button></>}
+            <button className="primary" disabled={jobRunning || !status.eligible.copy} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.copy ? "No photos are eligible for Copy." : undefined} onClick={() => askTransfer("copy")}>Copy all photos…</button>{" "}
+            <button disabled={jobRunning || !status.eligible.move} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.move ? "No photos are eligible for Move." : undefined} onClick={() => askTransfer("move")}>Move all photos…</button>
+            </>}
           </section>)}
           {!focus && view === "review" && <>
             {reviewReturn && <button onClick={backToLibrary}>← Back to Library</button>}

@@ -816,3 +816,8 @@ banner, wait for both a terminal run status and `GET /api/v1/jobs/active` return
 Library/Logs navigation while saving, visible retry at narrow desktop width, interrupted
 reload before acknowledgment, storage clearing after acknowledgment, and stale browser
 IDs versus catalog authority. It deliberately holds the PUT instead of relying on timing.
+
+The source-scope browser check starts Copy from the Index summary and verifies that
+completion replaces the photo facts with a compact failure notice, without reloading.
+The failed-only notice retains the failure link and omits zero-valued photo statistics,
+similarity guidance and Copy/Move controls.

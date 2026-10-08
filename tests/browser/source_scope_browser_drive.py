@@ -56,7 +56,25 @@ with sync_playwright() as p:
     page.goto(base+'/?view=unorganized')
     expect(page.locator('.pager').first).to_contain_text(f'{expected+3} files')
     if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+'/source-failure-summary.png')
-    job('copy')
+    summary_panel=page.get_by_role('region',name='Index summary')
+    summary_panel.get_by_role('button',name='Copy all photos…',exact=True).click()
+    with page.expect_response(lambda r:r.request.method=='POST' and r.url.endswith('/jobs/start')) as copied:
+        page.get_by_role('alertdialog').get_by_role('button',name='Copy',exact=True).click()
+    assert copied.value.ok
+    run=copied.value.json()['id']
+    for _ in range(600):
+        if get(f'runs/{run}')['status'] not in ('Preparing','Running','Cancelling') and get('jobs/active')['active'] is None:break
+        time.sleep(.2)
+    else:raise AssertionError('Copy did not settle')
+    # Update in place without a reload: only failed source files remain.
+    expect(summary_panel.get_by_role('heading',name='3 files need attention',exact=True)).to_be_visible(timeout=15000)
+    expect(summary_panel.locator('dl')).to_have_count(0)
+    expect(summary_panel).not_to_contain_text('Photo facts below')
+    expect(summary_panel).not_to_contain_text('Similar photos')
+    expect(summary_panel.get_by_role('button',name='Copy all photos…',exact=True)).to_have_count(0)
+    expect(summary_panel.get_by_role('button',name='Move all photos…',exact=True)).to_have_count(0)
+    expect(summary_panel.get_by_role('link',name='View failures',exact=True)).to_have_attribute('href','/logs?status=Failed')
+    if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+'/remaining-source-failures.png')
     library=get('photos?view=organized')
     assert library['total']==expected
     matches=get(f"similar/{library['items'][0]['id']}")

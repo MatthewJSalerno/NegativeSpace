@@ -625,7 +625,7 @@ selection, and Jobs retains Copy/Move. Focus follows the close/show control.
 Opening a source preview temporarily collapses the summary to **Show index summary**;
 closing the preview restores its prior state. Explicit Show can expand it while the
 preview is open. If only failed source files remain, say
-**n files need attention**, link directly to failures and omit misleading Copy/Move actions.
+**n files need attention**, link directly to failures and omit misleading Copy/Move actions. Use a compact failure notice only: omit the photo-statistics grid and source-photo/similarity guidance. Copy/Move completion updates this in place without a reload. If nothing remains, hide both the summary and its Show control.
 Switching location closes the Inspector and comparison context, preserving checkboxes.
 Explicit links to a photo still open that photo in their specified context.
 An empty Library explains how to populate it and links to Not organized.
