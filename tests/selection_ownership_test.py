@@ -32,7 +32,7 @@ from pathlib import Path
 from webui.config import Config
 from webui.jobs import JobRunner
 root = Path(sys.argv[1])
-cfg = Config(base=root/'appdata', source=root/'src', dest=root/'dest',
+cfg = Config(base=root/'appdata', source=root/'src', dest=Path(sys.argv[4]),
              cache=root/'cache', backups=root/'backups', engine=Path(sys.argv[2]))
 print(JobRunner(cfg).start(**json.loads(sys.argv[3])), flush=True)
 '''
@@ -46,7 +46,7 @@ print(JobRunner(cfg).start(**json.loads(sys.argv[3])), flush=True)
                 child_pid = None
                 with open(self.root / 'api-worker.log', 'w+') as output:
                     worker = subprocess.Popen([sys.executable, '-c', script, str(self.root),
-                                               str(fixture), json.dumps(body)], stdout=output, stderr=output)
+                                               str(fixture), json.dumps(body), str(self.cfg.dest)], stdout=output, stderr=output)
                     try:
                         deadline = time.monotonic() + 10
                         while not ready.exists():
