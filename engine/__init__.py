@@ -8,7 +8,7 @@ transfer (Copy and Move), relocate (Rename, Reject, Return to library), reconcil
 (settling interrupted work at the start of every job), durable (copy-verify-delete and
 the fsync steps), store (catalog writes), fileinfo (dates, metadata, hashes), thumbnails,
 destinations, targeting (which photos a run acts on), jobs, maintenance, backups,
-runtime (shared run state), constants and deps; ns_db (the catalog schema and its rules,
+runtime (shared run state), workers (cancellable read-only pools), constants and deps; ns_db (the catalog schema and its rules,
 shared with the web API), review (catalog-only review decisions), and the ns_similarity modules.
 
 Modules refer to one another as `module.name`, never `from module import name`: one
@@ -107,7 +107,7 @@ default Index):
 Cancellation: sending SIGTERM or SIGINT (e.g. `docker stop`, or Ctrl+C)
 during a --move/--copy run lets the file currently being copy-verified
 finish, then stops before starting the next one. During the Index/scan
-phase it takes effect at the next batch boundary, and a scan cancelled that
+phase it stops read-only workers and their decoder children; a scan cancelled that
 way skips the move/copy phase entirely rather than entering it; everything
 already written to the database is kept, so re-running simply continues. Every file that didn't get
 a chance to run is written to the operations log with status='Cancelled' —
@@ -133,6 +133,10 @@ in an active state (Preparing, Running or Cancelling) — the next invocation's
 startup reconciliation marks it 'Interrupted' and records itself as the run
 that found it, rather than leaving a phantom "still running" entry forever.
 The end time stays unknown: reconciliation is when the death was noticed.
+
+Worker pools (`workers.py`) isolate decoder process groups for user-requested
+cancellation; an uninterruptible filesystem call may still delay shutdown.
+Transfer verification and deletion never run inside those pools.
 
 System & Python Dependencies:
 - System Binary (HARD REQUIREMENT — the engine refuses to start without

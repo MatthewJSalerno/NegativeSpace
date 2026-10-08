@@ -33,6 +33,7 @@ services:
     restart: unless-stopped
 
   app:
+    init: true
     build:
       context: ..
       dockerfile: docker/app.Dockerfile

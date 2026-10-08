@@ -675,7 +675,15 @@ browser independently of the overall Inspector width.
   fine-grained checksum steps are not required by this drawer and must not be
   invented from catalog statuses.
 
-* **Job Control:** Provides a **Cancel Job** button. Sends `SIGTERM` to the engine subprocess (`POST /api/v1/jobs/{id}/cancel`, `api-spec.md` §5). During the **Index/scan** phase the engine stops at the next batch boundary and skips the move/copy phase entirely (everything already indexed is kept, so re-running continues where it left off) — note the UI should not expect per-file `Cancelled` rows for a scan-phase cancellation, since no physical work was scoped out yet. During **Move/Copy**, the file currently being copy-verified finishes normally, then every remaining targeted file is logged to the `operations` audit table with status `Cancelled` (not silently dropped — visible in the run's history afterward) and duplicate-source cleanup for that run is skipped entirely.
+* **Job Control:** Provides a **Cancel Job** button. Sends `SIGTERM` to the engine subprocess (`POST /api/v1/jobs/{id}/cancel`, `api-spec.md` §5). During the **Index/scan** phase the engine stops its read-only workers and their decoder children and skips the move/copy phase entirely (everything already indexed is kept, so re-running continues where it left off) — note the UI should not expect per-file `Cancelled` rows for a scan-phase cancellation, since no physical work was scoped out yet. During **Move/Copy**, the file currently being copy-verified finishes normally, then every remaining targeted file is logged to the `operations` audit table with status `Cancelled` (not silently dropped — visible in the run's history afterward) and duplicate-source cleanup for that run is skipped entirely.
+* **No-progress reminder:** after two minutes without recorded progress, say
+  **No progress recorded for two minutes.** A large photo or slow storage may still
+  be working. Offer **Keep waiting** (wait another two minutes before reminding) and
+  the existing **Cancel job**. Never automatically skip a file or label it broken.
+  A new progress timestamp resets the reminder. Connection loss is shown separately
+  and must not be presented as proof the engine stalled. Once cancellation is requested,
+  keep recorded results and explain that blocked storage may need reconnecting before
+  the work can stop; do not offer an unsafe force-delete or force-success action.
 * **Cancellation feedback:** after the cancellation request is accepted, show
   **“Cancellation requested—waiting for the current work to stop safely.”** Keep
   progress and elapsed time visible and disable repeated Cancel clicks. The engine

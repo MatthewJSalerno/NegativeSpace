@@ -6,11 +6,10 @@ import io
 import os
 import tempfile
 import time
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from engine.ns_db import RunStatus, RAW_EXTENSIONS
-from engine import constants, deps, fileinfo, ns_db, runtime, store
+from engine import constants, deps, fileinfo, ns_db, runtime, store, workers
 
 
 class ThumbnailWriteError(Exception):
@@ -461,8 +460,7 @@ def rebuild_thumbnails(db_path: Path, cache_root: Path, scope: str,
     batch_size = max(worker_count * 4, 16)
     items = list(work.items())
     outcome = RunStatus.COMPLETED
-    with ProcessPoolExecutor(max_workers=worker_count, initializer=fileinfo._init_worker_process,
-                             initargs=(False, str(log_dir))) as executor, \
+    with workers.pool(worker_count, False, str(log_dir)) as executor, \
             contextlib.closing(store.get_db_connection(str(db_path))) as conn:
         for start in range(0, total, batch_size):
             if runtime.cancel_requested.is_set():
@@ -473,7 +471,9 @@ def rebuild_thumbnails(db_path: Path, cache_root: Path, scope: str,
             futures = [executor.submit(_rebuild_thumbnail_task, sha1, _order_copies(copies),
                                        str(cache_root), replace)
                        for sha1, copies in items[start:start + batch_size]]
-            results = [f.result() for f in futures]
+            results = list(workers.results(futures))
+            if runtime.cancel_requested.is_set():
+                outcome = RunStatus.CANCELLED
             with ns_db.transaction(conn):
                 for sha1, kind, result, observed, fid in results:
                     counts[kind] += 1

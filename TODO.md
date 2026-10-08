@@ -257,4 +257,8 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 
 ## Other
 
-Deferred performance and robustness work — a stalled worker having no deadline, the unchanged-file check loading every settled row, batch barriers at submission tails — lives in `engine-spec.md` §8 with the condition that should bring each one back. This file tracks claims that need enforcing; that section tracks work deliberately postponed.
+Deferred performance work — the unchanged-file check loading every settled row and batch barriers at submission tails — lives in `engine-spec.md` §8 with the condition that should bring each one back. This file tracks claims that need enforcing; that section tracks work deliberately postponed.
+
+Stalled read-only workers now support user-requested cancellation of decoder process
+groups, with a no-progress reminder and Keep waiting. Kernel-blocked storage remains
+an explicit limitation in engine-spec §8; automatic file skipping is not planned.

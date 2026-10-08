@@ -1341,6 +1341,61 @@ class JobsAndCatalog(ApiCase):
             run = self.wait_for(self.start(mode="copy", file_ids=chosen))
             self.assertEqual(run["status"], "Completed", attempt)
 
+    def test_cancel_stuck_scan_stops_decoder_tree_and_preserves_sources(self):
+        from dataclasses import replace
+        self.client.close()
+        self.cfg = replace(self.cfg, engine=Path(__file__).parent / 'browser' / 'stalled_engine_fixture.py')
+        self.client = TestClient(create_app(self.cfg))
+        self.create_catalog()
+        make_photo(self.cfg.source / 'a-ready.jpg', 'ready')
+        make_photo(self.cfg.source / 'z-blocked.jpg', 'blocked')
+        original = {p.name:p.read_bytes() for p in self.cfg.source.iterdir()}
+        settings = self.client.get('/api/v1/settings').json()
+        self.assertEqual(self.client.put('/api/v1/settings', json={
+            'values': {'workers': 1}, 'revisions': {'workers': settings['workers']['revision']}}).status_code, 200)
+        run = self.start(mode='index')
+        marker = self.cfg.base / 'stalled-worker.json'
+        try:
+            deadline = time.monotonic() + 20
+            while not marker.exists() and time.monotonic() < deadline:
+                time.sleep(.05)
+            self.assertTrue(marker.exists(), 'worker did not reach generated stall')
+            pids = json.loads(marker.read_text())
+            # Let the already completed result reach its normal batch/idle commit.
+            deadline = time.monotonic() + 10
+            while self.client.get('/api/v1/status').json()['photos'] != 1 and time.monotonic() < deadline:
+                time.sleep(.05)
+            self.assertEqual(self.client.get('/api/v1/status').json()['photos'], 1)
+            # The job remains active until a user explicitly cancels it.
+            self.assertEqual(self.client.get('/api/v1/jobs/active').json()['active']['id'], run)
+            self.assertEqual(self.client.post('/api/v1/jobs/start', json={'mode':'copy'}).status_code, 409)
+            self.assertEqual(self.client.post(f'/api/v1/jobs/{run}/cancel').status_code, 202)
+            settled = self.wait_for(run, timeout=20)
+            self.assertEqual(settled['status'], 'Cancelled')
+            for pid in pids.values():
+                proc = Path(f'/proc/{pid}/stat')
+                self.assertTrue(not proc.exists() or proc.read_text().split(') ')[1].startswith('Z '),
+                                'a decoder process is still running after cancellation')
+            self.assertEqual({p.name:p.read_bytes() for p in self.cfg.source.iterdir()}, original)
+            self.assertEqual(list(self.cfg.dest.rglob('*.jpg')), [])
+            with ns_db.connect(self.cfg.db_path) as conn:
+                self.assertEqual(conn.execute('SELECT COUNT(*) FROM photos').fetchone()[0], 1)
+            # Resume with the real decoder; the completed result is retained and
+            # the unfinished source is indexed, not silently marked failed/skipped.
+            self.client.close()
+            self.cfg = replace(self.cfg, engine=None)
+            self.client = TestClient(create_app(self.cfg))
+            finished = self.wait_for(self.start(mode='index'), timeout=30)
+            self.assertEqual(finished['status'], 'Completed')
+            self.assertEqual(self.client.get('/api/v1/status').json()['photos'], 2)
+        finally:
+            # Test cleanup only: a regression must not leave generated stalled children.
+            if marker.exists():
+                import signal
+                for pid in json.loads(marker.read_text()).values():
+                    try: os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError: pass
+
     def test_mixed_place_selection_refuses_without_mutation_or_abandoned_input(self):
         self.index_library()
         self.wait_for(self.start(mode='copy'))

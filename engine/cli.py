@@ -8,15 +8,14 @@ import sqlite3
 import sys
 import threading
 import time
-from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import List
 
 from engine.ns_db import PhotoStatus, RunStatus, SUPPORTED_EXTENSIONS
 from engine import (
-    backups, constants, deps, destinations, fileinfo, maintenance, ns_db, ns_similarity, reconcile,
-    relocate, runtime, scan, store, targeting, thumbnails, transfer)
+    backups, constants, deps, destinations, maintenance, ns_db, ns_similarity, reconcile,
+    relocate, runtime, scan, store, targeting, thumbnails, transfer, workers)
 
 
 def positive_int(value: str) -> int:
@@ -651,10 +650,8 @@ def main():
         # ExifTool tag set for that file — until it is drained, so submitting
         # an entire library up front would make peak memory scale with the
         # number of photos (hundreds of MB to GBs on a large collection)
-        # however small the queue's maxsize. Batching also gives cancellation a
-        # checkpoint between batches; without one, Cancel Job (and `docker
-        # stop`, which escalates to SIGKILL after ~10s) could not stop a long
-        # Index.
+        # however small the queue's maxsize. Cancellation is checked while
+        # awaiting each result; the read-only pool stops decoder children too.
         # Thumbnails are written by the scan phase only — the Move/Copy phase
         # never touches the cache. A cache root that cannot be created disables
         # generation for this run rather than failing an Index that is otherwise
@@ -680,11 +677,7 @@ def main():
         last_progress_scanned = 0
         bytes_done = 0
         last_progress_bytes = 0
-        with ProcessPoolExecutor(
-            max_workers=worker_count,
-            initializer=fileinfo._init_worker_process,
-            initargs=(deps.EXIFTOOL_SUPPORTED, str(log_dir))
-        ) as executor:
+        with workers.pool(worker_count, deps.EXIFTOOL_SUPPORTED, str(log_dir)) as executor:
             for batch_start in range(0, len(files_to_process), scan_batch_size):
                 if runtime.cancel_requested.is_set():
                     runtime.logger.warning(
@@ -698,11 +691,10 @@ def main():
                                            str(cache_root) if cache_root else None,
                                            original_mtimes.get(f))
                            for f in batch]
-                for future in futures:
-                    result = future.result()
+                for result in workers.results(futures):
                     bytes_done += result.file_size or 0
                     store.put_result(result, db_thread)
-                scanned += len(batch)
+                    scanned += 1
 
                 now = time.monotonic()
                 if now - last_progress_at >= constants.PROGRESS_INTERVAL_SECONDS:

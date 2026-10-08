@@ -68,12 +68,14 @@ for i in range($DUPLICATES):
 docker network create "$NET" >/dev/null
 # Named "app" on the network, as in compose: the web container's nginx proxies to it.
 set --
-if [ "${NETWORK_FIXTURE:-0}" = 1 ]; then
+if [ "${STALLED_FIXTURE:-0}" = 1 ]; then
+    set -- -v "$HERE/stalled_engine_fixture.py:/stalled_engine_fixture.py:ro" -e NS_ENGINE=/stalled_engine_fixture.py
+elif [ "${NETWORK_FIXTURE:-0}" = 1 ]; then
     set -- -v "$HERE/network_engine_fixture.py:/network_engine_fixture.py:ro" -e NS_ENGINE=/network_engine_fixture.py
 elif [ "${SUBMISSION_FIXTURE:-0}" = 1 ]; then
     set -- -v "$HERE/submission_engine_fixture.py:/submission_engine_fixture.py:ro" -e NS_ENGINE=/submission_engine_fixture.py
 fi
-docker run -d --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" -e NS_ALLOWED_HOSTS="localhost,127.0.0.1,$WEB,app" \
+docker run -d --init --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" -e NS_ALLOWED_HOSTS="localhost,127.0.0.1,$WEB,app" \
     -v "$WORK/src":/data/source:ro -v "$DEST":/data/dest -v "$WORK/appdata":/appdata \
     -v "$WORK/cache":/cache -v "$WORK/backups":/backups "$@" "$IMAGE" >/dev/null
 docker run -d --name "$WEB" --network "$NET" "$WEB_IMAGE" >/dev/null

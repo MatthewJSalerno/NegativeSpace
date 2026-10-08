@@ -16,6 +16,7 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
   const [now, setNow] = useState(Date.now());
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [cancelSent, setCancelSent] = useState<number | null>(null);
+  const [waiting, setWaiting] = useState<{ id: number | null; since: number } | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -36,6 +37,10 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
     const interrupted = active.presented_status === "Interrupted";
     const cancelling = active.status === "Cancelling" || cancelSent === active.id;
     const started = active.started_at ? Date.parse(active.started_at) : null;
+    const recorded = phase?.updated_at ? Date.parse(phase.updated_at) : started;
+    const lastActivity = Math.max(recorded ?? now, waiting?.id === active.id ? waiting.since : 0);
+    // This is a reminder to choose, not a deadline or proof a file is broken.
+    const quiet = !interrupted && now - lastActivity >= 120_000;
     const percent = phase && phase.total ? Math.min(100, (phase.done / phase.total) * 100) : null;
     const cancel = async () => {
       if (active.id == null) return;
@@ -71,8 +76,14 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
               <div style={{ width: percent == null ? undefined : `${percent}%` }} />
             </div>
             {phase && <p className="muted">{countsLine(phase.counts, active.mode) || "Starting…"}</p>}
+            {quiet && !cancelling && <div className="notice" role="status">
+              <strong>No progress recorded for two minutes.</strong>
+              <p>A large photo or slow storage may still be working. Keep waiting, or cancel this job. No files are skipped automatically.</p>
+              <button onClick={() => setWaiting({ id: active.id, since: now })}>Keep waiting</button>
+            </div>}
             {cancelling && (
-              <p>Cancellation requested—waiting for the current work to stop safely.</p>
+              <p>Cancellation requested—waiting for the current work to stop safely.
+                Recorded results are kept. A blocked storage operation may need the connection restored before it can stop.</p>
             )}
             {cancelError && <p className="error">{cancelError}</p>}
             <div className="drawer-actions">

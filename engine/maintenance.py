@@ -5,11 +5,11 @@ import contextlib
 import os
 import stat
 import time
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Optional, List
 
 from engine.ns_db import PhotoStatus, RunStatus, SUPPORTED_EXTENSIONS
+from engine import workers as worker_pool
 from engine import constants, destinations, fileinfo, jobs, ns_db, runtime, scan, store, thumbnails
 
 
@@ -181,8 +181,7 @@ def check_destination(db_path: Path, dest_root: Path, run_id: int, depth: str, w
     outcome = RunStatus.COMPLETED
     batch_size = max(workers * 4, 16)
     last_log = time.monotonic()
-    with ProcessPoolExecutor(max_workers=workers, initializer=fileinfo._init_worker_process,
-                             initargs=(False, str(log_dir))) as executor, \
+    with worker_pool.pool(workers, False, str(log_dir)) as executor, \
             contextlib.closing(store.get_db_connection(str(db_path))) as conn:
         for start in range(0, len(work), batch_size):
             if runtime.cancel_requested.is_set():
@@ -190,8 +189,11 @@ def check_destination(db_path: Path, dest_root: Path, run_id: int, depth: str, w
                                f"{sum(counts.values()):,} of {len(work):,}. Findings so far are kept.")
                 outcome = RunStatus.CANCELLED
                 break
-            results = [f.result() for f in [executor.submit(_check_destination_file, path, exp, full)
-                                             for path, exp in work[start:start + batch_size]]]
+            futures = [executor.submit(_check_destination_file, path, exp, full)
+                       for path, exp in work[start:start + batch_size]]
+            results = list(worker_pool.results(futures))
+            if runtime.cancel_requested.is_set():
+                outcome = RunStatus.CANCELLED
             with ns_db.transaction(conn):
                 ns_db.record_destination_findings(
                     conn, run_id, [{k: v for k, v in r.items() if k != "outcome"} for r in results

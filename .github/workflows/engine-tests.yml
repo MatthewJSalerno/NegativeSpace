@@ -57,6 +57,9 @@ jobs:
         # host because it starts the containers and a Playwright container.
         run: sh tests/browser/webui_browser_test.sh
 
+      - name: Stalled job user decisions
+        run: STALLED_FIXTURE=1 DRIVER=stalled_job_browser_drive.py sh tests/browser/webui_browser_test.sh
+
       - name: Request counts and job-finish freshness
         run: DRIVER=request_freshness_browser_drive.py sh tests/browser/webui_browser_test.sh
 

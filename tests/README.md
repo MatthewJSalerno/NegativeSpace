@@ -142,6 +142,7 @@ of the checkout, build that copy under another tag, and run with `IMAGE` set to 
 | :--- | :--- | :--- |
 | `webui_browser_drive.py` (default) | | First run, Index, the gallery, Inspector, selection, Copy, Stats, Settings, backups, search, phone width; runs the shared UI checks |
 | `ui_browser_drive.py` | | The shared UI checks alone |
+| `stalled_job_browser_drive.py` | `STALLED_FIXTURE=1` | Real stalled generated decoder, no-progress reminder, Keep waiting, explicit cancellation and lock release |
 | `request_freshness_browser_drive.py` | | One initial Stats/log/facet request, refresh after a real job, retained Stats border/spacing in both themes and desktop reflow |
 | `appearance_browser_drive.py` | | Palettes, explicit/system modes, contrast, cross-tab storage, shared page tools and narrow controls |
 | `date_settings_browser_drive.py` | | Setup year choice, settings validation/persistence, immediate filter and Inspector updates |
@@ -834,3 +835,8 @@ hard link that must still fail. Guard links retain replaced output versions unti
 check completes; they contain no photo extension and are removed on normal/error exit.
 Scenario tests accept the same separate destination root and artifact-retention settings
 as API fixtures.
+
+`stalled_engine_fixture.py` deliberately blocks one generated file and spawns a decoder
+child. The API test checks completed results and source bytes survive cancellation, no
+decoder keeps running, and re-Index completes. Browser time advances only the reminder
+clock; the actual engine waits for the user's cancellation. No network mount is stalled.

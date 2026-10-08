@@ -412,6 +412,12 @@ than compressing these areas below their minimums.
 
 ## Validation and feedback
 
+The shared job drawer reports two minutes without recorded progress as an observation,
+not a diagnosis. Use the shared notice treatment and Keep waiting/Cancel actions. Waiting
+only postpones the reminder; cancellation is explicit. Keep the accepted-cancel message
+and disabled Cancel visible until work has stopped, including an explanation when blocked
+storage may delay it. Never add a file-skipping timer.
+
 Settings validates whole positive worker/retention counts and a nonempty extension
 selection before saving. It keeps drafts, marks affected fields, describes their
 errors and focuses the first invalid control. Server errors remain visible. Success
