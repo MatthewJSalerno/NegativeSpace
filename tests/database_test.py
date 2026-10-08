@@ -441,6 +441,51 @@ class DatabaseTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
             self.conn.execute("INSERT INTO runs(mode,started_at,status) VALUES('INDEX','t','Crashed')")
 
+    def test_opening_an_existing_catalog_does_not_release_another_connections_lock(self):
+        import subprocess
+        self.conn.execute("INSERT INTO photos(source_path,status) VALUES('/source/locked.jpg','Pending')")
+        other = db.connect(self.path)
+        try:
+            check = subprocess.run([sys.executable, '-c',
+                "import sqlite3,sys; c=sqlite3.connect(sys.argv[1],timeout=.05); "
+                "c.execute(\"INSERT INTO photos(source_path,status) VALUES('/source/other.jpg','Pending')\"); c.commit()",
+                str(self.path)], capture_output=True, text=True, timeout=5)
+            self.assertNotEqual(check.returncode, 0, 'opening a catalog dropped the live writer lock')
+            self.assertIn('database is locked', check.stderr)
+        finally:
+            other.close()
+            self.conn.rollback()
+
+    def test_catalog_and_backup_modes_are_private_without_changing_photo_umask(self):
+        import os
+        import stat
+        from unittest.mock import patch
+        old = os.umask(0o022)
+        try:
+            path = Path(self.tmp.name) / 'private.db'
+            db.initialize(path)
+            with db.connect(path) as conn:
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+                for suffix in ('-wal', '-shm'):
+                    companion = Path(str(path) + suffix)
+                    if companion.exists():
+                        self.assertEqual(stat.S_IMODE(companion.stat().st_mode), 0o600)
+            snapshot = db._compress_and_verify
+            def observe(raw, packed):
+                for file in (raw, packed):
+                    self.assertEqual(stat.S_IMODE(file.stat().st_mode), 0o600)
+                    self.assertEqual((file.stat().st_uid, file.stat().st_gid), (os.getuid(), os.getgid()))
+                return snapshot(raw, packed)
+            with patch.object(db, '_compress_and_verify', side_effect=observe):
+                result = db.backup_catalog(path, self.backups(), Path(self.tmp.name) / 'appdata', trigger='manual')
+            self.assertEqual(result['outcome'], 'succeeded')
+            self.assertEqual(stat.S_IMODE((self.backups() / result['filename']).stat().st_mode), 0o600)
+            photo = Path(self.tmp.name) / 'photo.jpg'
+            photo.write_bytes(b'generated')
+            self.assertEqual(stat.S_IMODE(photo.stat().st_mode), 0o644)
+        finally:
+            os.umask(old)
+
     def backups(self):
         store = Path(self.tmp.name) / 'backups'
         store.mkdir(exist_ok=True)

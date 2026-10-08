@@ -56,7 +56,8 @@ class ApiCase(unittest.TestCase):
         for name in ("src", "appdata", "cache", "backups"):
             (self.root / name).mkdir()
         self.cfg = Config(base=self.root / "appdata", source=self.root / "src", dest=destination,
-                          cache=self.root / "cache", backups=self.root / "backups")
+                          cache=self.root / "cache", backups=self.root / "backups",
+                          allowed_hosts=("testserver", "photos.example", "localhost", "127.0.0.1", "0.0.0.0", "::1"))
         self.client = TestClient(create_app(self.cfg))
 
     def tearDown(self):
@@ -94,6 +95,34 @@ class ApiCase(unittest.TestCase):
 
 
 class BrowserRequestBoundary(ApiCase):
+    def test_host_allowlist_guards_reads_mutations_and_websockets(self):
+        from starlette.websockets import WebSocketDisconnect
+        for host in ('untrusted.example', 'photos.example.attacker.test', 'photos.example@attacker.test',
+                     'photos.example:bad', 'photos.example/anything', 'photos.example:99999'):
+            for path in ('/api/v1/status', '/api/docs', '/api/v1/catalog'):
+                response = self.client.request('POST' if path.endswith('/catalog') else 'GET', path,
+                                               headers={'host': host, 'x-forwarded-host': 'photos.example'})
+                self.assertEqual((response.status_code, response.json()['error']), (400, 'untrusted_host'))
+            with self.assertRaises(WebSocketDisconnect) as error:
+                with self.client.websocket_connect('/api/v1/ws/jobs', headers={'host': host}):
+                    pass
+            self.assertEqual(error.exception.code, 1008)
+        self.assertFalse(self.cfg.db_path.exists())
+        duplicate = self.client.get('/api/v1/status', headers=[('host','photos.example'), ('host','untrusted.example')])
+        self.assertEqual(duplicate.status_code, 400)
+        for host in ('localhost:8092', '127.0.0.1:8092', '0.0.0.0:8092', '[::1]:8092', 'PHOTOS.EXAMPLE:443'):
+            self.assertEqual(self.client.get('/api/v1/status', headers={'host':host}).status_code, 200)
+
+    def test_deployment_host_configuration_is_explicit(self):
+        from webui import security
+        from webui.config import Config
+        with patch.dict(os.environ, {'NS_ALLOWED_HOSTS': 'localhost,192.0.2.1,photos.example,inside.example,::1'}):
+            self.assertEqual(Config.from_env().allowed_hosts,
+                             ('localhost','192.0.2.1','photos.example','inside.example','::1'))
+        for invalid in ('', '*', '*.example', 'https://photos.example', 'photos.example:443', 'good.example,'):
+            with self.assertRaises(ValueError):
+                security.allowed_hosts(invalid)
+
     def test_foreign_browser_cannot_create_catalog_or_submit_mutations(self):
         for origin in ('https://untrusted.example', 'null', 'http://testserver.untrusted.example'):
             with self.subTest(origin=origin):

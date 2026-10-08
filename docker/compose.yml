@@ -46,6 +46,7 @@ services:
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
       TZ: ${TZ:-UTC}
+      NS_ALLOWED_HOSTS: ${NS_ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0,::1}
     volumes:
       - type: bind
         source: ${SOURCE_DIR:?Set SOURCE_DIR to the source directory}

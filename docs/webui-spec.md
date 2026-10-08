@@ -2769,6 +2769,13 @@ a single-person tool, so one password, not user accounts.
   sign-in can stand in for it.
 
 
+The app enforces an exact deployment Host allowlist (`NS_ALLOWED_HOSTS`) for every
+API request and job-feed handshake. Operators list loopback, LAN IP and every internal
+or reverse-proxy name they use. Forwarded headers do not extend trust; the reverse
+proxy preserves the public Host. Refusals explain how to correct the deployment list.
+New catalogs and backup files use owner-only permissions under the configured UID/GID;
+this does not change photo permissions or add sign-in. See README Security.
+
 The shipped web container sends `Content-Security-Policy: frame-ancestors 'self'`
 and `X-Frame-Options: SAMEORIGIN` on its responses, including API and asset errors.
 Other origins cannot embed the app’s controls; same-origin framing remains allowed.

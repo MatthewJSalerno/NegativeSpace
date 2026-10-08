@@ -116,6 +116,7 @@ services:
     environment:
       PUID: 1000
       PGID: 1000
+      NS_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,::1  # add LAN IP and proxy/internal names
       TZ: America/New_York
     volumes:
       - /path/to/your/photos:/data/source:ro
@@ -136,6 +137,23 @@ To show the exact build beside the version number at the top right of every page
 build with `NS_BRANCH=$(git branch --show-current) NS_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build`.
 
 ## Security
+
+Set `NS_ALLOWED_HOSTS` on the app service to every hostname and IP address used to
+reach this instance, separated by commas. The default is
+`localhost,127.0.0.1,0.0.0.0,::1` (local access). Add your Docker host's LAN IP,
+internal name and reverse-proxy name before accessing those addresses. Use exact
+names without schemes, ports or wildcards; matching ignores case and allows valid
+ports. Preserve the public `Host` header at your reverse proxy. Forwarded-host headers
+never grant access. An unlisted address receives `400 untrusted_host`; update the
+deployment configuration and recreate the app service. WebSocket connections obey
+the same list. These checks protect the API, not just browser mutations.
+
+New catalog files, SQLite companions and backup snapshots (including temporary files)
+are owner-only (`0600`) under the configured `PUID`/`PGID`. Photo permissions and the
+process-wide umask are unchanged. Use that same account for external backup access.
+Existing catalogs/backups are not migrated or recursively chmodded; a fresh catalog
+uses the new policy. Host administrators still control the enclosing storage and
+can access files as root. Permissions and allowed hosts do not authenticate app users.
 
 **NegativeSpace has no login yet.** Anyone who can open its page can use every button,
 including **Move**, which deletes source photos once their copies are verified. So:

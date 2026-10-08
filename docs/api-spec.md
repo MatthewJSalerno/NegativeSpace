@@ -15,6 +15,12 @@ FastAPI also serves a generated schema at `/api/openapi.json` and an explorer at
 *   **Base path** `/api/v1`. In the two-container deployment (`docker/compose.yml`) the
     `web` container passes everything under `/api` to `app`, which listens on port 8000
     and is not published.
+*   **Host boundary.** Every HTTP API request (including reads and generated API docs)
+    requires exactly one valid Host header whose hostname/IP is in deployment setting
+    `NS_ALLOWED_HOSTS`. Invalid or unlisted hosts return `400 untrusted_host` with
+    deployment guidance. WebSocket handshakes are refused with code 1008. Exact
+    names are case-insensitive; valid ports are permitted, forwarded headers do not
+    override Host. Existing browser-origin restrictions still apply independently.
 *   **JSON** in and out, except thumbnails (`image/jpeg`).
 *   **One error shape**, for every refusal: `{"error": "<code>", "message": "<text for the
     user>"}`, sometimes with extra fields (§7). `400` is a bad request, `404` an unknown

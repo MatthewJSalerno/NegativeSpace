@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Status } from "./api";
+import { api, ApiError, type Status } from "./api";
 import { CatalogProblem, FirstRun } from "./components/FirstRun";
 import { LibraryPage } from "./components/LibraryPage";
 import { LogsPage } from "./components/LogsPage";
@@ -35,7 +35,8 @@ export function App() {
       }
       setStatus(s); setStatusError(null);
     },
-                      () => setStatusError("The NegativeSpace server is not answering. Check that the container is running.")), []);
+                      (error) => setStatusError(error instanceof ApiError && error.code === "untrusted_host"
+                        ? error.message : "The NegativeSpace server is not answering. Check that the container is running.")), []);
   useEffect(() => { loadStatus(); }, [loadStatus]);
   // Rejects is emptied in a file manager: coming back to the page shows the result.
   useEffect(() => {

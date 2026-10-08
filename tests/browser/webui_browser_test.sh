@@ -73,7 +73,7 @@ if [ "${NETWORK_FIXTURE:-0}" = 1 ]; then
 elif [ "${SUBMISSION_FIXTURE:-0}" = 1 ]; then
     set -- -v "$HERE/submission_engine_fixture.py:/submission_engine_fixture.py:ro" -e NS_ENGINE=/submission_engine_fixture.py
 fi
-docker run -d --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" \
+docker run -d --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" -e NS_ALLOWED_HOSTS="localhost,127.0.0.1,$WEB,app" \
     -v "$WORK/src":/data/source:ro -v "$DEST":/data/dest -v "$WORK/appdata":/appdata \
     -v "$WORK/cache":/cache -v "$WORK/backups":/backups "$@" "$IMAGE" >/dev/null
 docker run -d --name "$WEB" --network "$NET" "$WEB_IMAGE" >/dev/null

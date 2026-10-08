@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from . import security
+
 REPO = Path(__file__).resolve().parent.parent
 # Where engine commands run: the folder holding the engine package.
 ENGINE_CWD = REPO
@@ -24,6 +26,7 @@ class Config:
     # that wrap the real engine; None runs the engine itself.
     engine: Optional[Path] = None
     python: str = sys.executable
+    allowed_hosts: tuple = ("localhost", "127.0.0.1", "0.0.0.0", "::1")
 
     @property
     def db_path(self) -> Path:
@@ -40,7 +43,8 @@ class Config:
         d = cls()
         return cls(base=path("NS_BASE", d.base), source=path("NS_SOURCE", d.source),
                    dest=path("NS_DEST", d.dest), cache=path("NS_CACHE", d.cache),
-                   backups=path("NS_BACKUPS", d.backups), engine=path("NS_ENGINE", d.engine))
+                   backups=path("NS_BACKUPS", d.backups), engine=path("NS_ENGINE", d.engine),
+                   allowed_hosts=security.allowed_hosts(os.environ.get("NS_ALLOWED_HOSTS", "localhost,127.0.0.1,0.0.0.0,::1")))
 
     def engine_argv(self, *args) -> list:
         """An engine command as an argument list, never a shell string: arguments

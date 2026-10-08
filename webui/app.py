@@ -66,6 +66,9 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.middleware("http")
     async def browser_mutation_boundary(request, call_next):
+        if not security.request_host_allowed(request.headers, cfg.allowed_hosts):
+            return JSONResponse({"error": "untrusted_host",
+                                 "message": "This address is not allowed. Add its hostname or IP to NS_ALLOWED_HOSTS in the deployment configuration and restart the app."}, status_code=400)
         if request.method not in ("GET", "HEAD", "OPTIONS") and not security.browser_origin_allowed(request.headers):
             return JSONResponse({"error": "cross_origin_request",
                                  "message": "Open NegativeSpace directly to perform this action."}, status_code=403)
@@ -492,7 +495,8 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         on connect and whenever either changes, checked about once a second. A new
         connection gets the current state at once, so a refresh or reconnect never
         restarts anything or loses the elapsed time (webui-spec 4.1)."""
-        if not security.browser_origin_allowed(ws.headers):
+        if (not security.request_host_allowed(ws.headers, cfg.allowed_hosts) or
+                not security.browser_origin_allowed(ws.headers)):
             await ws.close(code=1008)
             return
         await ws.accept()

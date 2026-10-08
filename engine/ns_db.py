@@ -498,12 +498,42 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _private_file(path, *, create=False, exclusive=False):
+    """Open an app-owned regular file without following links; protect before writing.
+
+    Do not change the process umask: destination photos retain their existing modes.
+    SQLite companions inherit the database's mode. Only call for exclusive new files.
+    """
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+    if create:
+        flags |= os.O_CREAT
+    if exclusive:
+        flags |= os.O_EXCL
+    fd = os.open(path, flags, 0o600)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise OSError(errno.EINVAL, "Catalog/backup storage must be a regular file")
+        mode = stat.S_IMODE(os.fstat(fd).st_mode)
+        if mode != mode & 0o600:
+            os.fchmod(fd, mode & 0o600)
+    finally:
+        os.close(fd)
+
+
 def connect(db_path, synchronous="NORMAL", *, timeout=5.0, create=False):
     """Existing catalogs only by default; WAL configured at explicit initialization."""
     if synchronous not in ("NORMAL", "FULL"):
         raise ValueError(f"unsupported synchronous level: {synchronous!r}")
     if not 0 <= timeout <= 60:
         raise ValueError("timeout must be between 0 and 60 seconds")
+    if create:
+        try:
+            _private_file(db_path, create=True, exclusive=True)
+        except FileExistsError:
+            pass
+    # Never open/close an existing SQLite file outside SQLite: POSIX closes can
+    # drop this process's locks held by another connection. New files alone are
+    # created here; their WAL/journal companions inherit mode 0600 from SQLite.
     uri = Path(db_path).absolute().as_uri() + ("?mode=rwc" if create else "?mode=rw")
     conn = sqlite3.connect(uri, uri=True, timeout=timeout)
     try:
@@ -1443,7 +1473,7 @@ def _compress_and_verify(raw, packed):
     result and compares it with `raw`. A backup nobody can restore is worse than
     none, so the compressed file is proven before it is published."""
     compressor = zstandard.ZstdCompressor(level=BACKUP_ZSTD_LEVEL, write_checksum=True)
-    with open(raw, "rb") as source, open(packed, "wb") as target:
+    with open(raw, "rb") as source, open(packed, "r+b") as target:
         compressor.copy_stream(source, target, size=raw.stat().st_size)
         target.flush()
         os.fsync(target.fileno())
@@ -1460,7 +1490,11 @@ def _snapshot(conn, attempt_id, final):
     the compressed file, publishes it. Returns the published (compressed) size."""
     raw = final.with_name(final.name[:-len(".zst")] + _PARTIAL)   # <name>.db.partial
     packed = final.with_name(final.name + _PARTIAL)                # <name>.db.zst.partial
+    owned = []
     try:
+        for path in (raw, packed):
+            _private_file(path, create=True, exclusive=True)
+            owned.append(path)
         dst = sqlite3.connect(raw)
         try:
             conn.backup(dst)
@@ -1485,11 +1519,11 @@ def _snapshot(conn, attempt_id, final):
         raw.unlink()
         return final.stat().st_size
     except BackupFailed:
-        for leftover in (raw, packed):
+        for leftover in owned:
             leftover.unlink(missing_ok=True)
         raise
     except (OSError, sqlite3.Error, zstandard.ZstdError) as exc:
-        for leftover in (raw, packed):
+        for leftover in owned:
             try:
                 leftover.unlink(missing_ok=True)
             except OSError:

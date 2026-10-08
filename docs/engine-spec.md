@@ -773,6 +773,14 @@ CREATE TABLE IF NOT EXISTS settings (
 **No `retry_count` column.** There is no retry subsystem — re-running the
 operation is how a failed file is retried (§4.1).
 
+**Catalog and backup confidentiality:** new catalog files and temporary/published
+backup snapshots are created owner-only (`0600`); SQLite's WAL/journal companions
+inherit the catalog's mode. Ownership is the running account (container `PUID`/`PGID`).
+Do not change the process-wide umask or photo permissions to achieve this. Existing
+catalogs are never opened and closed outside SQLite merely to inspect modes: doing
+so can release another connection's POSIX locks. There is no existing-catalog or
+backup permission migration; development validation uses fresh catalogs.
+
 **Settings write ownership:** the engine owns the schema
 and photo state/history; the web UI manages settings through scoped API writes using
 shared Python database and validation code. SQLite serializes short transactions;
