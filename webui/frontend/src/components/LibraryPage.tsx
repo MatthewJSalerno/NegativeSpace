@@ -191,7 +191,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     setMatchState((current) => current.photo === openId ? current : { photo: openId,
       view: current.view && { ...current.view, page: 1 } });
   }, [openId]);
-  const [locate, setLocate] = useState<{ id: number; delta: number } | null>(
+  const [locate, setLocate] = useState<{ id: number; delta: number; checkOnly?: boolean } | null>(
     initial.photo == null ? null : { id: initial.photo, delta: 0 });
   const [revealId, setRevealId] = useState<number | null>(null);
   const openFromGallery = (id: number) => {
@@ -466,11 +466,13 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       setLocate(null);
       setNotice(null);
       if (found.position == null) {
+        if (locate.checkOnly) { setOpenId(null); setRevealId(null); return; }
         setNotice("This photo is outside the current gallery results.", [{ label: "Show in gallery", run: () => {
           setNotice(null); setFocus({ kind: "photo", ids: [locate.id] }); setFocusPage(1); setRevealId(locate.id);
         } }]);
         return;
       }
+      if (locate.checkOnly) return;
       const id = locate.delta < 0 ? found.previous_id : locate.delta > 0 ? found.next_id : locate.id;
       if (id == null) return;
       setOpenId(id);
@@ -1214,7 +1216,16 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
         reference={exploreReference} threshold={matchMin} refreshKey={refreshKey} suspended={comparison != null}
         onShowSet={showSet} onThreshold={chooseMatchMinimum} onClose={() => setExploreReference(null)} onReview={reviewSet} />}
       {reviewPhoto != null && <ReviewWorkspace initialPhoto={reviewPhoto} filters={{ view: browseView, q, undated, dates, types, folders, similar, suspicious, reason: reviewFilter, match_min: matchMin }} sort={browseSort} status={status}
-        onBack={() => { setReviewPhoto(null); setRefreshKey(n => n + 1); }} onPhoto={setReviewPhoto} />}
+        onBack={() => {
+          setReviewPhoto(null); setRefreshKey(n => n + 1);
+          // A review decision can remove the previewed photo from these results.
+          // Check membership without moving a preview that still belongs here.
+          if (openId != null) setLocate({ id: openId, delta: 0, checkOnly: true });
+        }} onPhoto={setReviewPhoto}
+        onEmpty={message => {
+          setReviewPhoto(null); setOpenId(null); setLocate(null); setRevealId(null);
+          setPage(1); setRefreshKey(n => n + 1); setNotice(message);
+        }} />}
       {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
     </div>
   );

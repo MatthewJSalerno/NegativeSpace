@@ -848,3 +848,9 @@ replacement/restart, concurrent revisions, input rejection, protected recovery,
 current-address confirmation, live WebSocket revocation, origin checks and symlink/
 corrupt/write-failure handling. `access_browser_drive.py` checks setup, saving,
 conflicts, lockout confirmation, and desktop/narrow appearance with generated hosts.
+
+Review queue completion: clear the final Review later reminder with its Inspector
+open. The workspace and preview close, the filtered gallery shows zero photos and a
+completion message, and the URL no longer points to that photo/review. With other
+queue items remaining, Back closes only a preview that no longer matches the view;
+a still-matching preview and checkbox selection remain intact.

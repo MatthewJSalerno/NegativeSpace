@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import time
+import uuid
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
 
@@ -244,13 +245,54 @@ with sync_playwright() as p:
     expect(page.locator('.card')).to_have_count(60)
     page.get_by_role('button',name='Needs review (',exact=False).first.click()
     page.get_by_role('button',name='Review later (',exact=False).first.click()
-    page.locator(f'.card[data-id="{first}"]').get_by_role('button',name='Review photo',exact=True).click()
+    page.locator(f'.card[data-id="{first}"] .card-image').click()
+    expect(inspector).to_be_visible()
+    inspector.get_by_role('button',name='Review photo…',exact=True).click()
     workspace.get_by_role('button',name='Done',exact=True).click()
-    expect(workspace.get_by_text('Review later reminder cleared.',exact=True)).to_be_visible()
-    workspace.get_by_role('button',name='Back to gallery',exact=False).click()
+    expect(workspace).to_have_count(0)
+    expect(inspector).to_have_count(0)
+    expect(page.get_by_role('status').filter(has_text='Review later reminder cleared. No photos remain in this review.')).to_be_visible()
+    expect(page.locator('.gallery-summary').first).to_contain_text('0 photos')
+    expect(page.get_by_role('button',name='Review later (',exact=False).first).to_have_attribute('aria-pressed','true')
+    assert 'photo=' not in page.url and 'review_photo=' not in page.url
+    for width in (1440,720):
+        page.set_viewport_size({'width':width,'height':1000})
+        expect(page.get_by_role('status').filter(has_text='No photos remain in this review.')).to_be_visible()
+        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
+        if os.environ.get('SHOTS'): page.screenshot(path=os.environ['SHOTS']+f'/review-queue-complete-{width}.png')
+    page.set_viewport_size({'width':1440,'height':1000})
     assert not get(f'photos/{first}/review')['reasons']
     job('index')
     assert not get(f'photos/{first}/review')['reasons'],'Index resurrected review'
+    # With a nonempty queue, Back keeps only previews that still match its filters.
+    another=next(i['id'] for i in get('photos?view=organized&page_size=60')['items'] if i['id'] != first)
+    for ident in (first,another):
+        detail=get(f'photos/{ident}/review')
+        saved=request.post(f'/api/v1/photos/{ident}/review',data={
+            'photo_id':ident,'sha1':detail['sha1'],'revision':detail['revision'],
+            'reason':'later','action':'later','note':'Generated queue regression','request_id':uuid.uuid4().hex})
+        assert saved.ok,saved.text()
+    queued=get('photos?view=review&reason=later')['items']
+    reviewed,remaining=queued[0]['id'],queued[1]['id']
+    page.goto(base+f'/?view=review&reason=later&photo={reviewed}')
+    expect(inspector).to_be_visible()
+    inspector.get_by_role('button',name='Review photo…',exact=True).click()
+    expect(workspace.locator('.workspace-step')).to_contain_text('Photo 1 of 2')
+    workspace.get_by_role('button',name='Back to gallery',exact=True).click()
+    expect(inspector).to_be_visible()
+    assert f'photo={reviewed}' in page.url
+    inspector.get_by_role('button',name='Review photo…',exact=True).click()
+    workspace.get_by_role('button',name='Done',exact=True).click()
+    expect(workspace.locator('.workspace-step')).to_contain_text('Photo 1 of 1')
+    expect(page).to_have_url(re.compile(fr'review_photo={remaining}(?:&|$)'))
+    workspace.get_by_role('button',name='Back to gallery',exact=True).click()
+    expect(inspector).to_have_count(0)
+    expect(page.locator('.gallery-summary').first).to_contain_text('1 photo')
+    page.locator(f'.card[data-id="{remaining}"] .card-image').click()
+    inspector.get_by_role('button',name='Review photo…',exact=True).click()
+    workspace.get_by_role('button',name='Done',exact=True).click()
+    expect(workspace).to_have_count(0)
+    expect(inspector).to_have_count(0)
     # Reject is the existing confirmed engine workflow, not a catalog-only dismissal.
     page.goto(base+'/?view=review&reason=small')
     expect(page.locator('.card').first).to_be_visible()

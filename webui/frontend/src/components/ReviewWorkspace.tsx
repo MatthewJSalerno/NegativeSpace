@@ -8,9 +8,9 @@ import { ReviewNote } from "./ReviewNote";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./Confirm";
 import { useJobFeed } from "../jobs";
 
-export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, onPhoto }: {
+export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, onPhoto, onEmpty }: {
   initialPhoto: number; filters: BrowseFilters; sort: Sort; status: Status;
-  onBack: () => void; onPhoto: (id: number) => void;
+  onBack: () => void; onPhoto: (id: number) => void; onEmpty: (message: string) => void;
 }) {
   const [page, setPage] = useState<number | null>(null);
   const [data, setData] = useState<PhotoPage | null>(null);
@@ -45,6 +45,10 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
     api.photos({ ...filters, sort, page, page_size:1 }).then(async result => {
       if(!live) return;
       setData(result);
+      if (result.total === 0) {
+        onEmpty(`${notice ? `${notice} ` : ""}No photos remain in this review.`);
+        return;
+      }
       const item=result.items[0];
       if(!item) return;
       const detail = await api.inspect(item.id);

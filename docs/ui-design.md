@@ -740,6 +740,14 @@ why the photo needs review, relevant facts and one action row. Explain that Mark
 reviewed clears only the size reminder; Done clears only Review later. Date warnings
 provide information, not unbuilt date-edit/acknowledgment controls.
 
+When the current review queue becomes empty, return directly to the filtered gallery
+with a completion message. Close its preview and remove stale photo/review URL state;
+keep filters and checkbox selection. When leaving a nonempty review, retain the
+preview only if it still belongs in the current gallery results. Check membership
+without scrolling or changing a valid preview. A skipped earlier item is not a finished
+queue: retain Previous and the end-of-position explanation while matching items remain.
+
+
 Similarity shows a count and percentage with one **View all n matches →** link to the
 existing Similar photos tab. Do not repeat candidate thumbnails or comparison controls
 in Photo Review. Browser Back restores the same photo and review queue position;
