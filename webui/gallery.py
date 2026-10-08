@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from engine import ns_db, review
-from engine.ns_similarity_cache import (matched_ids, match_counts_cte, match_distance, comparison_state)
+from engine import ns_similarity_cache
 from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
 from . import catalog
 
@@ -155,7 +155,7 @@ def _filters(q, undated, dates, types=None, folders=None, root=None, *, group_se
     filtered = run_sql + search + (f" AND {_UNDATED}" if undated else "") + date_sql + type_sql + folder_sql
     params = run_params + tuple(search_params) + date_params + type_params + folder_params
     if similar:
-        filtered += f" AND p.id IN ({matched_ids(match_min)})"
+        filtered += f" AND p.id IN ({ns_similarity_cache.matched_ids(match_min)})"
     if suspicious:
         filtered += f" AND ({_date_warning_sql()}) IS NOT NULL"
     if reason != 'all':
@@ -163,23 +163,23 @@ def _filters(q, undated, dates, types=None, folders=None, root=None, *, group_se
     if set_reference is not None:
         if type(set_reference) is not int or not 1 <= set_reference <= 2**63-1:
             raise ValueError("set_reference must be a positive photo ID")
-        from .reference_sets import _membership
-        distance = match_distance(match_min)
-        filtered += " AND p.id IN (" + _membership([set_reference]) + "SELECT id FROM members)"
+        from . import reference_sets
+        distance = ns_similarity_cache.match_distance(match_min)
+        filtered += " AND p.id IN (" + reference_sets._membership([set_reference]) + "SELECT id FROM members)"
         params += (set_reference, distance, distance)
     if group_sets:
-        from .equivalent_sets import representatives
+        from . import equivalent_sets
         # Choose a representative inside the current place/inbox before collapsing.
         # Membership still comes from all active Library photos. Filtering the
         # chosen representative afterward can otherwise hide an entire review set.
         if group_view is not None:
             filtered += f" AND ({_view_clause(group_view, match_min)})"
-        return " AND p.id IN (" + representatives(match_min, filtered) + ")", params
+        return " AND p.id IN (" + equivalent_sets.representatives(match_min, filtered) + ")", params
     return filtered, params
 
 
 def _view_clause(view, match_min=75):
-    match_distance(match_min)
+    ns_similarity_cache.match_distance(match_min)
     if view == "review":
         return review.predicate()
     if view == "job":
@@ -188,7 +188,7 @@ def _view_clause(view, match_min=75):
     if view == "suspicious":
         return f"p.status IN ({ns_db.sql_values(catalog.VIEWS[view])}) AND ({_date_warning_sql()}) IS NOT NULL"
     if view == "similar":
-        return f"p.id IN ({matched_ids(match_min)})"
+        return f"p.id IN ({ns_similarity_cache.matched_ids(match_min)})"
     if view == "rejects":
         return f"p.status IN ({ns_db.sql_values(catalog.VIEWS[view])}) AND in_rejects(p.dest_path)"
     return f"p.status IN ({ns_db.sql_values(catalog.VIEWS[view])})"
@@ -296,12 +296,12 @@ def _rejected_at(conn, photo_id):
 
 
 def _counted_list(sort, match_min, *, include=False, ids=None):
-    match_distance(match_min)
+    ns_similarity_cache.match_distance(match_min)
     if sort == "matches" or include:
         # Drive similarity pages from counts. A LEFT JOIN combined with the
         # membership IN query can make SQLite rescan every count per photo.
         # Explicit selections keep the outer join, bounded to their own IDs.
-        return ("WITH " + match_counts_cte(match_min, ids) + " ",
+        return ("WITH " + ns_similarity_cache.match_counts_cte(match_min, ids) + " ",
                 _LIST_COLUMNS + ", mc.similar_count",
                 "FROM match_counts mc JOIN photos p ON p.id=mc.id" if include else
                 "FROM photos p LEFT JOIN match_counts mc ON mc.id=p.id")
@@ -327,6 +327,9 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             base = f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(name, match_min)}"
             counts[name] = conn.execute(base).fetchone()[0]
             extra, values = (raw_filtered, raw_params) if name == "review" else (place_filtered, place_params)
+            # Keep legacy per-view matches photo-based and preserve explicit run scope.
+            if name == view:
+                extra, values = run_sql + extra, run_params + values
             matches[name] = conn.execute(base + extra, values).fetchone()[0] if extra else counts[name]
         total = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}" + filtered,
                              filtered_params).fetchone()[0]
@@ -367,7 +370,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             + filtered + f" ORDER BY {catalog.SORTS[sort]} LIMIT ? OFFSET ?",
             filtered_params + (page_size, (page - 1) * page_size)).fetchall()
         items = _items(conn, rows, include_review=view in ("review", "organized", "similar"))
-        state = comparison_state(conn) if view == "similar" or similar else None
+        state = ns_similarity_cache.comparison_state(conn) if view == "similar" or similar else None
         rejects = catalog.rejects_summary(conn) if view == "rejects" else None
         date_min_year = conn.execute(f"SELECT {_DATE_MIN_YEAR_SQL}").fetchone()[0]
         index_summary = _index_summary(conn) if view == "unorganized" else None
@@ -600,7 +603,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         if p is None:
             return None
         meta = json.loads(p["metadata_json"]) if p["metadata_json"] else {}
-        content = conn.execute("SELECT width, height, phash, phash_state FROM contents WHERE digest = ?",
+        content = conn.execute("SELECT width, height, phash, phash_state FROM contents WHERE hash_algorithm = 'sha1' AND digest = ?",
                                (p["sha1_hash"],)).fetchone() if p["sha1_hash"] else None
         copies = [dict(r) for r in conn.execute(
             "SELECT id, status, source_path, dest_path, file_size FROM photos "

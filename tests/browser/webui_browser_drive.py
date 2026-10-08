@@ -47,6 +47,20 @@ with sync_playwright() as p:
         if os.environ.get("SHOTS"):
             page.screenshot(path=f"{os.environ['SHOTS']}/{name}.png")
 
+    # Same-origin frames remain usable; foreign pages may not overlay these controls.
+    headers = page.request.get(BASE).headers
+    assert headers.get("content-security-policy") == "frame-ancestors 'self'", headers
+    assert headers.get("x-frame-options") == "SAMEORIGIN", headers
+    # Check the API and assets too: nginx location-level Cache-Control must not drop the policy.
+    assert page.request.get(BASE + "/api/v1/status").headers.get("x-frame-options") == "SAMEORIGIN"
+    assert page.request.get(BASE + "/assets/not-present.js").headers.get("x-frame-options") == "SAMEORIGIN"
+    attacker = browser.new_page()
+    attacker.goto(os.environ["ATTACKER_URL"])
+    attacker.wait_for_timeout(1000)
+    assert not any(frame.get_by_role("button", name="Create new catalog").is_visible()
+                   for frame in attacker.frames), "a foreign page can frame app controls"
+    attacker.close()
+
     # First run: create the catalog, then settings as the page, saying they can change later.
     page.goto(BASE + "/logs")   # an address left by an earlier session
     expect(page.get_by_text("No catalog found")).to_be_visible()

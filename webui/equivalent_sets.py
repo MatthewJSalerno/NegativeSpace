@@ -1,5 +1,6 @@
 """Exact closed-neighborhood equality, without expanding equal-hash photo pairs."""
-from engine.ns_similarity_cache import AVAILABLE, VALID, match_distance
+from engine import ns_similarity_cache
+from engine.ns_similarity_cache import AVAILABLE, VALID
 
 
 def representatives(minimum, filtered):
@@ -7,7 +8,7 @@ def representatives(minimum, filtered):
     # same recorded neighbors. Exact sorted bucket lists therefore identify the
     # full photo set, including the reference. No probabilistic fingerprint or
     # transitive component is used. Filters choose references, never members.
-    distance = match_distance(minimum)
+    distance = ns_similarity_cache.match_distance(minimum)
     return f"""WITH {AVAILABLE},
     buckets AS MATERIALIZED (SELECT phash,COUNT(*) AS n FROM available WHERE {VALID} GROUP BY phash),
     neighbors AS (

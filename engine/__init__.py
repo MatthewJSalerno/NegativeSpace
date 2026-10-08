@@ -25,6 +25,8 @@ deletion and are not reliably detected by the engine.
 
 - --review-decision (Optional) Record one catalog-only review decision from JSON stdin,
   under the engine lock. Returns JSON; never changes photo bytes or transfer status.
+
+- -h / --help: show all arguments and exit without starting a job.
 - --source <path> (Optional) Path to unorganized source directory (default: "/data/source").
 - --dest <path> (Optional) Path for organized output directory (default: "/data/dest").
 - --base <path> (Optional) Base directory for app artifacts (default: "/appdata").
@@ -42,11 +44,15 @@ deletion and are not reliably detected by the engine.
   operations from the CLI — e.g. "Move just these 3 photos". The command
   line has a length limit, so the web UI passes its selections with
   --file-ids-from instead. Either way the ids are recorded with the run
-  (run_selections). Mutually exclusive with --source-subdir.
+  (run_selections). Mutually exclusive with --file-ids-from and --source-subdir.
 - --file-ids-from <path> --request-id <id> (Optional) The same, read from a
   selection file (ns_db.write_selection_file) of any size. The job is
   refused whole, touching nothing, if the file is damaged or names a photo
   no longer catalogued in this source.
+- --request-id <id> (Optional) Caller-chosen submission ID, stored with the run.
+  Repeating the ID with identical arguments starts nothing and reports the existing
+  run; different arguments are refused. A deliberate new attempt needs a new ID.
+  Required with --file-ids-from, whose contents must name this same ID.
 - --source-subdir <path> (Optional) Path, relative to --source, scoping the
   run to already-cataloged files beneath it. Queries the catalog by
   source_path prefix instead of walking the filesystem or enumerating IDs.
@@ -167,8 +173,9 @@ Metadata Extraction:
        specific file. Works for standard formats (JPEG, PNG, TIFF, HEIC
        with pillow-heif); cannot open RAW-family formats at all.
     3. File modification time — used only if neither of the above
-       produces a usable date. No richer metadata is available at this
-       fallback level; the stored metadata is just {"date_taken": ...}.
+       produces a usable capture date. Keep any metadata already extracted,
+       and mark date_source as mtime; the scan adds the resolved date_taken.
+       Re-indexing uses the original source snapshot's mtime when available.
 
     IMPORTANT — ExifTool being a hard requirement does NOT mean Pillow,
     rawpy, and imagehash became optional or got removed. They do a

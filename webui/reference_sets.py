@@ -4,7 +4,8 @@ Only explicitly selected one-hop references are expanded. No transitive traversa
 clustering, cached group membership or photo writes.
 """
 from . import catalog, gallery
-from engine.ns_similarity_cache import AVAILABLE, VALID, match_distance, comparison_state
+from engine import ns_similarity_cache
+from engine.ns_similarity_cache import AVAILABLE, VALID
 
 MAX_RELATED = 6
 
@@ -32,7 +33,7 @@ def _membership(ids):
 
 
 def browse(db, reference_id, *, threshold=90, include=(), page=1, related_page=1, page_size=12):
-    distance = match_distance(threshold)
+    distance = ns_similarity_cache.match_distance(threshold)
     ids = list(dict.fromkeys(include))
     if (type(reference_id) is not int or reference_id < 1 or reference_id > 2**63-1
             or any(type(i) is not int or not 1 <= i <= 2**63-1 for i in ids)
@@ -55,7 +56,7 @@ def browse(db, reference_id, *, threshold=90, include=(), page=1, related_page=1
             (*root_params,*ids))}
         if valid_selected != set(ids):
             raise ValueError('A selected set no longer directly matches this reference at this percentage. Remove it or reopen the set.')
-        state = comparison_state(conn)
+        state = ns_similarity_cache.comparison_state(conn)
         total = conn.execute(sql+'SELECT COUNT(DISTINCT id) FROM members',params).fetchone()[0]
         related_total = conn.execute(root_sql+'SELECT COUNT(*) FROM members WHERE id!=?',(*root_params,reference_id)).fetchone()[0]
         page = min(page,max(1,(total+page_size-1)//page_size))

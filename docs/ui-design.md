@@ -282,8 +282,8 @@ Recovery reads verified destination originals and changes only matching data.
 **Built:** opening a candidate from the Inspector expands into a comparison
 workspace (the shared workspace frame, "Workspaces" above) with an explicit reference, a browsable candidate, a paged thumbnail strip,
 and a resizable information panel. It starts at the Inspector's threshold and
-page. Back to gallery restores its threshold/page (page one after filtering by
-review status), leaves gallery selection intact, and restores focus to the opener
+page. Back to gallery restores its threshold/page, leaves gallery selection
+intact, and restores focus to the opener
 when it remains present. The reference is the photo the user opened, not a donor
 or a file chosen to keep.
 Identify the reference with a plain bold **Reference photo** heading and an accent border

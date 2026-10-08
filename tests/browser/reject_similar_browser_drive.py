@@ -22,7 +22,7 @@ with sync_playwright() as p:
         run = response.json()["id"]
         for _ in range(600):
             if (request.get(f"/api/v1/runs/{run}").json()["status"] not in ("Preparing", "Running", "Cancelling")
-                    and request.get("/api/v1/status").json()["active_job"] is None):
+                    and request.get('/api/v1/jobs/active').json()['active'] is None):
                 return
             time.sleep(.2)
         raise AssertionError(f"{mode} timed out")

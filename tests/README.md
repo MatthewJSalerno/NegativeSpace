@@ -124,7 +124,8 @@ after the test releases the pause. It is not an alternative production engine.
 Both containers as `docker/compose.yml` arranges them (`app`, and `web` proxying `/api`
 to it), driven by headless Chromium (Playwright) against generated photos. It covers first run, settings, Scan, the gallery,
 the Inspector, selection, Copy, search and the phone-width layout, and fails on any
-browser console error. It starts a server container and a Playwright container, so it
+browser console error. The main driver also checks response framing headers and refusal
+to embed the app from a separate HTTP origin in an isolated fixture container. It starts a server container and a Playwright container, so it
 runs on the host:
 
 ```bash
@@ -199,7 +200,7 @@ missing/unsupported hashes. It exercises warning-to-recovery navigation, disable
 busy actions, real repair and comparison-only jobs, refreshed results, failed-load
 retry, unsupported-format limitations and narrow reflow. It never accesses a real
 library. `similar_browser_drive.py` additionally checks comparison refresh with
-rotation/zoom/position, filtered review/tab restoration, and malformed bookmarks.
+rotation/zoom/position, Inspector tab/threshold/page restoration, and malformed bookmarks.
 
 `DRIVER=gallery_position_browser_drive.py sh tests/browser/webui_browser_test.sh` checks
 Logs photo positioning, offscreen Inspector navigation, retained filters, explicit
@@ -803,3 +804,10 @@ Fresh-start/source eligibility checks:
   submission, empty/text/truncated source failures, and no incomplete-matching warning
   caused by those failed sources. `submission_browser_drive.py` retains lost-response,
   reload and same-request recovery coverage; pending Library actions cannot resubmit.
+
+### Waiting for a job in browser drivers
+
+A terminal run record does not mean the engine has released its lock: the catalog
+backup runs after settlement. Before starting another job or asserting a finished
+banner, wait for both a terminal run status and `GET /api/v1/jobs/active` returning
+`active: null`. Do not retry a refused start to hide an unexpected refusal.

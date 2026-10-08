@@ -176,7 +176,8 @@ whose latest delivery was a Move that could not delete the original, why (a run'
 `counts` are each view's whole library, whatever the search, `date`, `type`, `folder` and
 `undated` narrow the gallery to; `counts.undated` is how many photos in this view have no
 capture date. `total` is what this request shows, every filter applied. `matches` counts
-each view with every filter applied, and `matches.undated` this view's photos with no
+each view’s individual photos with every filter applied, even when `group_sets` makes
+`total` count representative sets. `matches.undated` counts this view’s photos with no
 capture date under the other filters: the view buttons show these (`webui-spec.md` §2),
 and they offer another view when a search finds nothing in this one. The date sorts put undatable rows last.
 
@@ -594,6 +595,9 @@ and with `409 catalog_missing` (or another catalog state) when there is nothing 
 
 ### `GET /api/v1/backups/{id}/download`
 
+Recorded filenames are resolved within the configured backup directory. A symlink
+escaping that root is unavailable (404), and the list reports it as missing.
+
 The file of a succeeded backup, as an attachment under its own name. A backup whose
 file is gone, pruned or never written is `404 backup_unavailable`.
 
@@ -703,10 +707,18 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
     path are removed (`catalog.failure_reason`), so `OSError: [Errno 30] Read-only file
     system: '/data/source/a.jpg'` counts under `Read-only file system`.
 
+Browser mutation requests and the job WebSocket must name the same public host
+and port in `Origin` as in `Host`; explicit cross-site requests without an Origin
+are also refused. HTTP mutations return 403 `cross_origin_request`; the WebSocket
+is refused before acceptance (policy code 1008). Nonbrowser clients without these
+headers remain supported. This is a browser boundary, not sign-in or a Host allowlist.
+Reverse proxies must preserve the public Host, including a nondefault port.
+
 ## 7. Error codes
 
 | Code | Status | Meaning |
 | :--- | :--- | :--- |
+| `cross_origin_request` | 403 | A foreign browser origin attempted a mutation |
 | `invalid_request` | 400 | A malformed or disallowed request |
 | `invalid_settings` | 400 | A setting value the engine would reject |
 | `unknown_photo`, `unknown_run` | 404 | No such photo or run |
@@ -827,16 +839,7 @@ usable hashes) and `score` (hash percentage or null). Unknown, identical-ID or
 unavailable photos return 409 `pair_changed`. It reads only; deciding between the two is
 Reject or Keep this one, reject the rest for Library photos, or Return for a rejected photo (§5).
 
-## 8. Designed, not built
-
-These are designed in `webui-spec.md` and will be described here when they exist:
-
-*   A live per-operation stream, for replaying a running job's individual events on
-    reconnect (`webui-spec.md` §4.1, §5.2). `GET /operations?run=` covers the history;
-    the drawer needs only the aggregate feed.
-*   The curation actions: rename, the destination check (offered from a lineage
-    tree's copy), thumbnail cache controls, and later metadata editing, all of which
-    the engine already supports or is specified to (`engine-spec.md` §9).
+## 7a. Additional gallery browsing
 
 ### Suspicious-date browsing
 
@@ -887,8 +890,8 @@ references satisfying filters represents each identical set. Filtering never nar
 set membership. Different neighborhoods with equal counts stay separate.
 
 List `total` and returned IDs/positions describe representatives; per-photo
-`similar_count` still counts direct matches. View-button `counts` remain uncollapsed
-library photo counts. Sidebar queries count representatives in their normal filter
+`similar_count` still counts direct matches. `counts` remain uncollapsed library photo counts; filter-aware `matches`
+supply the view buttons. Sidebar queries count representatives in their normal filter
 scope. `matches` for other views retains normal photo-filter semantics. No photo,
 EXIF, persisted group, or catalog schema is changed. Without `group_sets`, existing
 API behavior is unchanged.
@@ -958,3 +961,14 @@ The catalog setting `suspicious_min_year` accepts an integer from 1 to 9999 (def
 it is suspicious; the future-year rule remains current UTC year + 1. The photo-list
 response includes `date_min_year` so its policy text agrees with its query results.
 Changing the setting changes browse/inspection results, never recorded metadata.
+
+## 8. Designed, not built
+
+These are designed in `webui-spec.md` and will be described here when they exist:
+
+*   A live per-operation stream, for replaying a running job's individual events on
+    reconnect (`webui-spec.md` §4.1, §5.2). `GET /operations?run=` covers the history;
+    the drawer needs only the aggregate feed.
+*   The curation actions: rename, the destination check (offered from a lineage
+    tree's copy), thumbnail cache controls, and later metadata editing, all of which
+    the engine already supports or is specified to (`engine-spec.md` §9).

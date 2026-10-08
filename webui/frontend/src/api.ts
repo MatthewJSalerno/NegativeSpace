@@ -1,4 +1,4 @@
-// The API's shapes (webui/app.py, webui/catalog.py) and a small fetch wrapper.
+// The webui/ API modules' response shapes and a small fetch wrapper.
 
 export type CatalogState = "missing" | "ok" | "incompatible" | "error";
 
@@ -76,7 +76,7 @@ export interface PhotoPage {
   page: number;
   page_size: number;
   total: number;
-  // The whole library per view (and No capture date within this view), for the buttons.
+  // Unfiltered totals per view (and No capture date within the current view).
   counts: Record<View | "undated", number>;
   similarity: { threshold: number; pending: number; unavailable: number } | null;
   // Each view under every filter now on, for the view buttons and for suggesting another

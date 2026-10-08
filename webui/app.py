@@ -21,9 +21,10 @@ from engine import ns_db, review
 from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, oplog, outcomes, stats
-from . import matching
-from .config import Config, build_version
-from .jobs import JobRefused, JobRunner, validate_request_id
+from . import matching, security
+from . import config, jobs as job_commands
+from .config import Config
+from .jobs import JobRefused, JobRunner
 
 # The drawer refreshes about once a second (webui-spec 4.1); the engine writes its
 # progress snapshot at the same cadence.
@@ -63,6 +64,13 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     app = FastAPI(title="NegativeSpace", lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json")
     app.state.cfg, app.state.jobs = cfg, jobs
 
+    @app.middleware("http")
+    async def browser_mutation_boundary(request, call_next):
+        if request.method not in ("GET", "HEAD", "OPTIONS") and not security.browser_origin_allowed(request.headers):
+            return JSONResponse({"error": "cross_origin_request",
+                                 "message": "Open NegativeSpace directly to perform this action."}, status_code=403)
+        return await call_next(request)
+
     @app.exception_handler(JobRefused)
     async def job_refused(_request, exc: JobRefused):
         return JSONResponse(exc.body, status_code=exc.status)
@@ -84,7 +92,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_status():
         """First-screen state, and the container paths to name in guidance (webui-spec 3)."""
         return dict(catalog.status(cfg.db_path), application_data=str(cfg.base), catalog_backups=str(cfg.backups),
-                    version=build_version(),
+                    version=config.build_version(),
                     active_job=jobs.active())
 
     @app.post("/api/v1/catalog", status_code=201)
@@ -458,7 +466,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/api/v1/job-requests/{request_id}")
     def lookup_request(request_id: str):
-        validate_request_id(request_id)
+        job_commands.validate_request_id(request_id)
         record = outcomes.request_record(cfg.db_path, request_id)
         return {"state": "accepted", "run": outcomes.get_run(cfg.db_path, record["run_id"])} if record else {"state": "unknown", "run": None}
 
@@ -484,6 +492,9 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         on connect and whenever either changes, checked about once a second. A new
         connection gets the current state at once, so a refresh or reconnect never
         restarts anything or loses the elapsed time (webui-spec 4.1)."""
+        if not security.browser_origin_allowed(ws.headers):
+            await ws.close(code=1008)
+            return
         await ws.accept()
         # The page never sends; waiting on receive is how this loop learns the connection
         # closed, whether the browser left or the server is shutting down. Sending only on

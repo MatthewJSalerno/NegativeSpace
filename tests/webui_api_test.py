@@ -92,7 +92,55 @@ class ApiCase(unittest.TestCase):
             yield
 
 
+class BrowserRequestBoundary(ApiCase):
+    def test_foreign_browser_cannot_create_catalog_or_submit_mutations(self):
+        for origin in ('https://untrusted.example', 'null', 'http://testserver.untrusted.example'):
+            with self.subTest(origin=origin):
+                response = self.client.post('/api/v1/catalog', headers={
+                    'origin': origin, 'content-type': 'application/x-www-form-urlencoded'}, content='')
+                self.assertEqual(response.status_code, 403)
+                self.assertFalse(self.cfg.db_path.exists())
+        response = self.client.post('/api/v1/catalog', headers={'sec-fetch-site': 'cross-site'})
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(self.cfg.db_path.exists())
+        # Same public authority, including a nondefault port behind the web proxy.
+        response = self.client.post('/api/v1/catalog', headers={
+            'origin': 'https://photos.example:8443', 'host': 'photos.example:8443'})
+        self.assertEqual(response.status_code, 201)
+        for method, path in (('post', '/api/v1/jobs/cancel'), ('post', '/api/v1/backups'),
+                             ('put', '/api/v1/settings'), ('put', '/api/v1/ui-state')):
+            with self.subTest(path=path):
+                self.assertEqual(getattr(self.client, method)(path, headers={
+                    'origin': 'https://untrusted.example'}, json={}).status_code, 403)
+
+    def test_foreign_browser_cannot_read_job_websocket(self):
+        from starlette.websockets import WebSocketDisconnect
+        with self.assertRaises(WebSocketDisconnect) as refused:
+            with self.client.websocket_connect('/api/v1/ws/jobs', headers={
+                    'origin': 'https://untrusted.example'}) as ws:
+                ws.receive_json()
+        self.assertEqual(refused.exception.code, 1008)
+        with self.client.websocket_connect('/api/v1/ws/jobs', headers={
+                'origin': 'https://photos.example:8443', 'host': 'photos.example:8443'}) as ws:
+            self.assertEqual(ws.receive_json(), {'active': None, 'last': None})
+        # Nonbrowser API clients have no Origin. This is not authentication.
+        with self.client.websocket_connect('/api/v1/ws/jobs') as ws:
+            self.assertEqual(ws.receive_json(), {'active': None, 'last': None})
+
+
 class FirstRunAndSettings(ApiCase):
+    def test_api_observes_replaced_config_and_request_validation(self):
+        from webui import config, jobs
+        version = {'release': 'fixture', 'branch': None, 'commit': None}
+        with patch.object(config, 'build_version', return_value=version) as replaced:
+            self.assertEqual(self.client.get('/api/v1/status').json()['version'], version)
+            replaced.assert_called_once()
+        with patch.object(jobs, 'validate_request_id', side_effect=jobs.JobRefused(
+                400, {'error': 'invalid_request', 'message': 'fixture refusal'})) as replaced:
+            response = self.client.get('/api/v1/job-requests/example')
+            self.assertEqual(response.status_code, 400)
+            replaced.assert_called_once_with('example')
+
     def test_a_missing_catalog_is_reported_and_created_only_on_request(self):
         status = self.client.get("/api/v1/status").json()
         self.assertEqual((status["state"], status["application_data"]), ("missing", str(self.cfg.base)))
@@ -743,6 +791,19 @@ class JobsAndCatalog(ApiCase):
             response = self.client.post("/api/v1/photos/position", json={"photo_id": photo_id, "ids": selected})
             self.assertEqual(response.status_code, 200, response.text)
             self.assertEqual(response.json(), dict.fromkeys(("position", "page", "previous_id", "next_id")))
+
+    def test_photo_reads_use_the_sha1_content_identity(self):
+        self.index_library()
+        expected = self.client.get('/api/v1/stats').json()['library']
+        photo = self.client.get('/api/v1/photos').json()['items'][0]['id']
+        inspector = self.client.get(f'/api/v1/photos/{photo}').json()
+        with sqlite3.connect(self.cfg.db_path) as conn:
+            # The schema keys contents by algorithm AND digest. A different
+            # algorithm's row must not duplicate a photo or supply its dimensions.
+            conn.execute("INSERT INTO contents(hash_algorithm,digest,width,height) "
+                         "SELECT 'fixture-algorithm',digest,1,1 FROM contents WHERE hash_algorithm='sha1'")
+        self.assertEqual(self.client.get('/api/v1/stats').json()['library'], expected)
+        self.assertEqual(self.client.get(f'/api/v1/photos/{photo}').json(), inspector)
 
     def test_stats_accept_numeric_camera_and_lens_metadata(self):
         self.index_library()
@@ -1483,6 +1544,25 @@ class ArchivesOverTime(ApiCase):
 
 class CatalogBackups(ApiCase):
     """webui-spec 9: the list, Back up now, and downloads."""
+
+    def test_backup_symlink_cannot_download_outside_backup_storage(self):
+        self.create_catalog()
+        self.assertEqual(self.client.post('/api/v1/backups').json()['outcome'], 'succeeded')
+        backup = self.client.get('/api/v1/backups').json()['items'][0]
+        stored = self.cfg.backups / backup['relative_filename']
+        original = stored.read_bytes()
+        secret = self.root / 'outside-sentinel.txt'
+        secret.write_text('generated private sentinel')
+        stored.unlink()
+        stored.symlink_to(secret)
+        response = self.client.get(f"/api/v1/backups/{backup['attempt_id']}/download")
+        self.assertEqual(response.status_code, 404, 'backup download followed an outside symlink')
+        self.assertNotIn(secret.read_bytes(), response.content)
+        self.assertEqual(self.client.get('/api/v1/backups').json()['items'][0]['availability'], 'missing')
+        stored.unlink()
+        stored.write_bytes(original)
+        self.assertEqual(self.client.get(f"/api/v1/backups/{backup['attempt_id']}/download").content, original)
+
 
     def test_backup_now_is_listed_downloadable_and_restorable(self):
         import zstandard

@@ -13,9 +13,16 @@ from . import catalog
 def _backup_file(backups_dir: Path, name: str) -> Optional[Path]:
     """A recorded backup's file, only if the name is a plain file name: the catalog
     is the engine's, but a path built from it is still checked before it is served."""
-    if not name or "/" in name or name in (".", ".."):
+    if not name or "/" in name or "\0" in name or name in (".", ".."):
         return None
-    return backups_dir / name
+    try:
+        root = backups_dir.resolve()
+        path = (root / name).resolve()
+    except (OSError, RuntimeError):
+        return None
+    # A plain recorded name may now be a symlink. Serve only resolved files
+    # within this storage root, as thumbnail/preview downloads do for cache.
+    return path if root in path.parents else None
 
 
 def backups(db_path: Path, backups_dir: Path, appdata_dir: Path) -> dict:
