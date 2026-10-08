@@ -42,6 +42,7 @@ with sync_playwright() as p:
     page.get_by_label('Minimum shorter side (pixels)',exact=True).fill('800')
     page.get_by_role('button',name='Next',exact=True).click()
     page.get_by_role('button',name='Next',exact=True).click()
+    page.get_by_role('button',name='Next',exact=True).click()
     page.get_by_role('button',name='Save and continue',exact=True).click()
     expect(page.get_by_role('button',name='Not organized',exact=False).first).to_have_attribute('aria-pressed','true')
     assert get('settings')['small_image_min']['value']==800

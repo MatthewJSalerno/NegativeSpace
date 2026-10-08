@@ -2,7 +2,7 @@ import { Logo } from "./Logo";
 import { Modal } from "./ui/Modal";
 import { Field } from "./ui/Field";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
-import { api, ApiError, type ExtensionSupport, type Settings } from "../api";
+import { api, ApiError, type AccessSettings, type ExtensionSupport, type Settings } from "../api";
 import { BackupsPanel } from "./BackupsPanel";
 import { setPalette, usePalette, setTheme, useTheme, type Theme } from "../appearance";
 import { TabList, tabPanel } from "./ui/Tabs";
@@ -10,10 +10,10 @@ import { TabList, tabPanel } from "./ui/Tabs";
 const QUEUE_SIZE = 1000; // DB_QUEUE_SIZE, fixed in the engine (engine-spec 4.1)
 
 // The groups, in order: tabs in Settings, steps on first run (webui-spec 3).
-type Group = "appearance" | "files" | "backups" | "performance";
+type Group = "appearance" | "files" | "backups" | "performance" | "access";
 const GROUPS: { value: Group; label: string }[] = [
   { value: "appearance", label: "Appearance" }, { value: "files", label: "Files" },
-  { value: "backups", label: "Backups" }, { value: "performance", label: "Performance" },
+  { value: "backups", label: "Backups" }, { value: "performance", label: "Performance" }, { value: "access", label: "Access" },
 ];
 // Where each field and each saved setting lives.
 const FIELD_GROUP: Record<string, Group> = {
@@ -38,6 +38,11 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
   const palette = usePalette();
   const theme = useTheme();
   const [minYear, setMinYear] = useState("1800");
+  const [access, setAccess] = useState<AccessSettings | null>(null);
+  const [addresses, setAddresses] = useState("");
+  const [confirmAddress, setConfirmAddress] = useState(false);
+  const addressList = addresses.split(",").map(s => s.trim()).filter(Boolean);
+  const accessChanged = access != null && JSON.stringify(addressList) !== JSON.stringify(access.hosts);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [workers, setWorkers] = useState("");
   const [retention, setRetention] = useState("");
@@ -58,7 +63,8 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
   const idBase = useId();
 
   const load = () =>
-    api.settings().then((s) => {
+    Promise.all([api.settings(), api.access()]).then(([s, a]) => {
+      setAccess(a); setAddresses(a.hosts.join(", "));
       setSettings(s);
       setWorkers(String(s.workers.value));
       setRetention(String(s.backup_retention.value));
@@ -122,6 +128,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
   };
 
   const unsaved = new Set(Object.keys(changed).map((k) => SETTING_GROUP[k]));
+  if (accessChanged) unsaved.add("access");
 
   const check = (only?: Group) => {
     const errors: Record<string, string> = {};
@@ -150,14 +157,17 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     if (check(group)) setGroup(GROUPS[step + 1].value);
   };
 
-  const save = async () => {
-    if (!settings) return;
+  const save = async (confirmCurrent = false) => {
+    if (!settings || !access) return;
     setMessage(null);
     if (!check()) {
       setMessage({ kind: "error", text: "Check the highlighted settings. Nothing was saved." });
       return;
     }
-    if (Object.keys(changed).length === 0) {
+    const removesCurrent = accessChanged && ![...access.protected_hosts, ...addressList.map(s => s.toLowerCase().replace(/\.$/, ""))].includes(access.current_host);
+    if (removesCurrent && !confirmCurrent) { setConfirmAddress(true); return; }
+    setConfirmAddress(false);
+    if (Object.keys(changed).length === 0 && !accessChanged) {
       if (firstRun) onSaved();
       else setMessage({ kind: "ok", text: "Nothing changed." });
       return;
@@ -169,10 +179,20 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     };
     const revisions = Object.fromEntries(Object.keys(changed).map((k) => [k, revisionOf[k]]));
     setSaving(true);
+    let catalogSaved = false;
     try {
-      const saved = await api.saveSettings(changed, revisions);
+      const saved = Object.keys(changed).length ? await api.saveSettings(changed, revisions) : settings;
+      catalogSaved = Object.keys(changed).length > 0;
       setSettings(saved);
       showReminder(saved);
+      if (accessChanged) {
+        const savedAccess = await api.saveAccess(addressList, access.revision, confirmCurrent);
+        setAccess(savedAccess); setAddresses(savedAccess.hosts.join(", "));
+        if (savedAccess.current_removed) {
+          setMessage({kind: "ok", text: "Saved. This address is no longer allowed. Open another allowed address to continue."});
+          return;
+        }
+      }
       setMessage({
         kind: "ok",
         text: saved.job_active ? "Saved. The running job keeps its existing settings; changes apply to future jobs." : "Saved.",
@@ -182,8 +202,11 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
       if (e instanceof ApiError && e.code === "settings_changed") {
         await load();
         setMessage({ kind: "error", text: "These settings were changed elsewhere, so nothing was saved. The current values are shown; make your change again." });
+      } else if (e instanceof ApiError && e.code.startsWith("access_") || e instanceof ApiError && ["invalid_access", "current_address_removed"].includes(e.code)) {
+        setGroup("access");
+        setMessage({ kind: "error", text: `${catalogSaved ? "Photo settings were saved. " : ""}${e instanceof ApiError ? e.message : "Allowed addresses were not saved."}` });
       } else {
-        setMessage({ kind: "error", text: e instanceof ApiError ? e.message : "Settings were not saved." });
+        setMessage({ kind: "error", text: `${catalogSaved ? "Photo settings were saved. Allowed-address changes could not be confirmed; reload settings before retrying. " : ""}${e instanceof ApiError ? e.message : "Settings were not saved."}` });
       }
     } finally {
       setSaving(false);
@@ -191,7 +214,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
   };
 
   const reset = () => settings && (setWorkers(String(settings.workers.value)), setRetention(String(settings.backup_retention.value)),
-                                   setExts(settings.exts.value), showReminder(settings), setMessage(null), setFieldErrors({}));
+                                   setExts(settings.exts.value), showReminder(settings), setAddresses(access?.hosts.join(", ") ?? ""), setMessage(null), setFieldErrors({}));
 
   const smallImageSettings = (
     <section className={firstRun ? "notice notice-first-run" : undefined}>
@@ -301,9 +324,20 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
         <p className="muted">Database queue size: {QUEUE_SIZE.toLocaleString()} items (fixed in the engine, shown for reference).</p>
       </section>
     ),
-  } : { appearance: null, files: null, backups: null, performance: null };
+    access: access && <section aria-label="Allowed addresses">
+      <h3>Allowed addresses</h3>
+      <p>These are the hostnames and IP addresses you use to open NegativeSpace. Changes apply immediately and survive rebuilding or restoring the photo catalog.</p>
+      <Field fullWidth id="settings-addresses" label="Additional allowed addresses" value={addresses} disabled={saving}
+        onChange={e => setAddresses(e.target.value)} hint="Separate names or IP addresses with commas. Do not include http://, ports, paths or wildcards. Leave blank if you need no additional addresses." />
+      <p className="muted">Current address: <strong>{access.current_host}</strong></p>
+      <h3>Always allowed</h3>
+      <p className="access-addresses">{access.protected_hosts.join(", ")}</p>
+      <p className="muted">Local addresses and names configured through Docker cannot be removed here. For initial access or recovery on a server, set NS_ALLOWED_HOSTS in the deployment configuration and recreate the app container.</p>
+      <p className="notice">This does not create DNS records, change Docker port publishing, or add sign-in. Anyone who can reach the app can use it.</p>
+    </section>,
+  } : { appearance: null, files: null, backups: null, performance: null, access: null };
 
-  const status = message && <p className={message.kind === "error" ? "error" : "ok"} role={message.kind === "error" ? "alert" : "status"}>{message.text}</p>;
+  const status = message && <p className={message.kind === "error" ? "error" : "ok"} role={message.kind === "error" ? "alert" : "status"}>{message.text}{message.kind === "error" && <> <button onClick={load} disabled={saving}>Reload settings</button></>}</p>;
 
   const body = (
     <div className={firstRun ? "settings settings-page" : "settings-body"}>
@@ -332,7 +366,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
             {step > 0 && <button onClick={() => { setMessage(null); setGroup(GROUPS[step - 1].value); }} disabled={saving}>Back</button>}
             {step < GROUPS.length - 1
               ? <button className="primary" onClick={next}>Next</button>
-              : <button className="primary" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save and continue"}</button>}
+              : <button className="primary" onClick={() => save()} disabled={saving}>{saving ? "Saving…" : "Save and continue"}</button>}
           </footer>
         </>
       ) : (
@@ -346,16 +380,21 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
           {status}
           <footer className="settings-actions">
             <button onClick={reset} disabled={saving}>Reset</button>
-            <button className="primary" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save settings"}</button>
+            <button className="primary" onClick={() => save()} disabled={saving}>{saving ? "Saving…" : "Save settings"}</button>
           </footer>
         </>
       )}
     </div>
   );
 
-  return firstRun ? body : (
-    <Modal className="settings" labelledBy="settings-title" busy={saving} onClose={onClose}>{body}</Modal>
-  );
+  return <>{firstRun ? body : <Modal className="settings" labelledBy="settings-title" busy={saving} onClose={onClose}>{body}</Modal>}
+    {confirmAddress && <Modal labelledBy="remove-address-title" onClose={() => setConfirmAddress(false)}>
+      <h2 id="remove-address-title">Remove the address you are using?</h2>
+      <p>After saving, this page and its live updates will stop working at {access?.current_host}. Open another allowed address to continue. Local and Docker-configured addresses remain available.</p>
+      <div className="dialog-actions"><button autoFocus onClick={() => setConfirmAddress(false)}>Cancel</button>
+        <button className="danger" onClick={() => save(true)}>Remove this address and save</button></div>
+    </Modal>}
+  </>;
 }
 
 // One reminder limit on one line: its on/off box, then its value, which reads as the

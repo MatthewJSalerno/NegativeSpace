@@ -170,6 +170,15 @@ export interface Copy {
   file_size: number | null;
 }
 
+export interface AccessSettings {
+  hosts: string[];
+  protected_hosts: string[];
+  effective_hosts: string[];
+  revision: number;
+  current_host: string;
+  current_removed?: boolean;
+}
+
 export interface PhotoDetail {
   failure: string | null;
   visual_issue: string | null;
@@ -594,6 +603,9 @@ export type SimilarityRecoveryPage = {
 };
 
 export const api = {
+  access: () => request<AccessSettings>("GET", "/api/v1/access"),
+  saveAccess: (hosts: string[], revision: number, confirm_current_host = false) =>
+    request<AccessSettings>("PUT", "/api/v1/access", { hosts, revision, confirm_current_host }),
   review: (id: number) => request<ReviewDetail>("GET", `/api/v1/photos/${id}/review`),
   reviewDecision: (id: number, detail: ReviewDetail, reason: string, action: string, note: string, request_id: string) =>
     request<ReviewDetail>("POST", `/api/v1/photos/${id}/review`, {

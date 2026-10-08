@@ -840,3 +840,9 @@ as API fixtures.
 child. The API test checks completed results and source bytes survive cancellation, no
 decoder keeps running, and re-Index completes. Browser time advances only the reminder
 clock; the actual engine waits for the user's cancellation. No network mount is stalled.
+
+Instance-access checks: `access_test.py` tests pre-catalog persistence, catalog
+replacement/restart, concurrent revisions, input rejection, protected recovery,
+current-address confirmation, live WebSocket revocation, origin checks and symlink/
+corrupt/write-failure handling. `access_browser_drive.py` checks setup, saving,
+conflicts, lockout confirmation, and desktop/narrow appearance with generated hosts.

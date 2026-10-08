@@ -11,7 +11,7 @@ import json
 import sqlite3
 from typing import List, Optional
 
-from fastapi import Body, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import Body, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
@@ -21,7 +21,7 @@ from engine import ns_db, review
 from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, oplog, outcomes, stats
-from . import matching, security
+from . import access, matching, security
 from . import config, jobs as job_commands
 from .config import Config
 from .jobs import JobRefused, JobRunner
@@ -66,9 +66,9 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.middleware("http")
     async def browser_mutation_boundary(request, call_next):
-        if not security.request_host_allowed(request.headers, cfg.allowed_hosts):
+        if not security.request_host_allowed(request.headers, access.effective(cfg)):
             return JSONResponse({"error": "untrusted_host",
-                                 "message": "This address is not allowed. Add its hostname or IP to NS_ALLOWED_HOSTS in the deployment configuration and restart the app."}, status_code=400)
+                                 "message": "This address is not allowed. Open an allowed address and add this hostname or IP in Settings → Access, or set NS_ALLOWED_HOSTS in the deployment configuration and recreate the app container."}, status_code=400)
         if request.method not in ("GET", "HEAD", "OPTIONS") and not security.browser_origin_allowed(request.headers):
             return JSONResponse({"error": "cross_origin_request",
                                  "message": "Open NegativeSpace directly to perform this action."}, status_code=403)
@@ -88,6 +88,18 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.exception_handler(catalog.CatalogUnavailable)
     async def catalog_unavailable(_request, exc: catalog.CatalogUnavailable):
         return JSONResponse({"error": f"catalog_{exc.state}", "message": exc.detail}, status_code=409)
+
+    @app.exception_handler(access.AccessError)
+    async def access_error(_request, exc):
+        return JSONResponse({"error": exc.code, "message": exc.message}, status_code=exc.status)
+
+    @app.get("/api/v1/access")
+    def get_access(request: Request):
+        return dict(access.read(cfg), current_host=security.host_name(request.headers["host"]))
+
+    @app.put("/api/v1/access")
+    def put_access(request: Request, body: dict = Body(...)):
+        return access.save(cfg, body, security.host_name(request.headers["host"]))
 
     # -- Catalog --------------------------------------------------------------
 
@@ -495,7 +507,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         on connect and whenever either changes, checked about once a second. A new
         connection gets the current state at once, so a refresh or reconnect never
         restarts anything or loses the elapsed time (webui-spec 4.1)."""
-        if (not security.request_host_allowed(ws.headers, cfg.allowed_hosts) or
+        if (not security.request_host_allowed(ws.headers, access.effective(cfg)) or
                 not security.browser_origin_allowed(ws.headers)):
             await ws.close(code=1008)
             return
@@ -509,6 +521,9 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         previous = None
         try:
             while True:
+                if not security.request_host_allowed(ws.headers, access.effective(cfg)):
+                    await ws.close(code=1008)
+                    return
                 state = await run_in_threadpool(lambda: {"active": jobs.active(),
                                                          "last": outcomes.last_run(cfg.db_path)})
                 encoded = json.dumps(state, sort_keys=True, default=str)

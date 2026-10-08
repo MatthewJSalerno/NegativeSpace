@@ -161,6 +161,8 @@ def check_ui(browser, base, _shot):
     expect(tabs.get_by_role("tab", name="Files")).to_be_focused()
     expect(tabs.get_by_role("tab", name="Files")).to_have_attribute("aria-selected", "true")
     page.keyboard.press("End")
+    expect(tabs.get_by_role("tab", name="Access")).to_be_focused()
+    page.keyboard.press("ArrowLeft")
     expect(tabs.get_by_role("tab", name="Performance")).to_be_focused()
     workers = modal.get_by_label("Maximum worker processes")
     original = workers.input_value()

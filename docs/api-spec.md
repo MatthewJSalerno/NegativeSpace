@@ -16,8 +16,8 @@ FastAPI also serves a generated schema at `/api/openapi.json` and an explorer at
     `web` container passes everything under `/api` to `app`, which listens on port 8000
     and is not published.
 *   **Host boundary.** Every HTTP API request (including reads and generated API docs)
-    requires exactly one valid Host header whose hostname/IP is in deployment setting
-    `NS_ALLOWED_HOSTS`. Invalid or unlisted hosts return `400 untrusted_host` with
+    requires exactly one valid Host header whose hostname/IP is in the effective
+    allowlist: local defaults, `NS_ALLOWED_HOSTS`, and saved Access settings. Invalid or unlisted hosts return `400 untrusted_host` with
     deployment guidance. WebSocket handshakes are refused with code 1008. Exact
     names are case-insensitive; valid ports are permitted, forwarded headers do not
     override Host. Existing browser-origin restrictions still apply independently.
@@ -33,6 +33,8 @@ FastAPI also serves a generated schema at `/api/openapi.json` and an explorer at
     writes settings and UI state through `ns_db.save_settings` and `ns_db.save_ui_state`.
     Photo state and history changes are made by running the engine as a child process,
     from an argument list and never a shell string (`webui-spec.md` §5.6).
+    Instance access configuration uses `webui.access` and an independent revision-checked
+    application-data file; it is not part of photo state or catalog backups.
     The browser never touches SQLite.
 *   **Times.** Application events (`started_at`, `ended_at`, `updated_at`) are UTC
     instants with an offset. Photo dates (`date_taken`, EXIF values) are the wall-clock
@@ -84,6 +86,27 @@ the user was shown there was none (`409 catalog_exists`), and checks that applic
 data is writable first (`409 appdata_not_writable`).
 
 ## 3. Settings
+
+### `GET /api/v1/access`
+
+Available without a catalog. Returns `hosts` (editable additional names),
+`protected_hosts` (local and deployment names), `effective_hosts`, integer `revision`
+and normalized `current_host`. `503 access_unavailable` if the saved configuration
+cannot be read; protected addresses still permit recovery.
+
+### `PUT /api/v1/access`
+
+Accepts `{"hosts": ["photos.example"], "revision": 0, "confirm_current_host": false}`.
+At most 128 exact hostnames/IPs; no ports, schemes, paths or wildcards. `200` returns
+GET fields plus `current_removed`. Protected addresses cannot be removed here.
+`400 invalid_access` for invalid values; `409 access_changed` for stale revision;
+`409 current_address_removed` unless removing the current address was explicitly
+confirmed; `503 access_unavailable` for storage errors. Reload after a storage error
+to establish the saved state. Atomically persisted outside the photo catalog, with
+owner-only mode and revision checking across API processes. Updates affect subsequent
+HTTP requests and close revoked WebSockets on their next feed check. Existing browser
+origin checks apply; this endpoint does not add authentication.
+
 
 ### `GET /api/v1/settings`
 
@@ -305,7 +328,10 @@ counts; ties use ascending ID. An invalid selection percentage returns 400.
 
 The Inspector's details. `404 unknown_photo` for an id the catalog does not hold.
 
-    {"id", "status", "filename", "source_path", "dest_path",
+`failure` is the latest recorded source failure reason, or null; only currently
+Failed files expose this field's message.
+
+    {"id", "status", "failure", "filename", "source_path", "dest_path",
      "dest_path_is_projection": true,     // not delivered: where it would go
      "has_collision_rename", "file_size", "width", "height",
      "file_modified": 1686000000.0,       // as the first scan observed it

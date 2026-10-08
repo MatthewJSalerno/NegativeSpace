@@ -138,14 +138,19 @@ build with `NS_BRANCH=$(git branch --show-current) NS_COMMIT=$(git rev-parse --s
 
 ## Security
 
-Set `NS_ALLOWED_HOSTS` on the app service to every hostname and IP address used to
+Use setup or **Settings › Access** to save additional allowed hostnames/IPs without
+restarting. They live in application data separately from the photo catalog and survive
+catalog replacement/restore. Local addresses and `NS_ALLOWED_HOSTS` deployment entries
+remain protected recovery routes. For initial access to a headless server, set
+`NS_ALLOWED_HOSTS` on the app service to the hostname or IP address used to
 reach this instance, separated by commas. The default is
 `localhost,127.0.0.1,0.0.0.0,::1` (local access). Add your Docker host's LAN IP,
 internal name and reverse-proxy name before accessing those addresses. Use exact
 names without schemes, ports or wildcards; matching ignores case and allows valid
 ports. Preserve the public `Host` header at your reverse proxy. Forwarded-host headers
 never grant access. An unlisted address receives `400 untrusted_host`; update the
-deployment configuration and recreate the app service. WebSocket connections obey
+list using Settings from an allowed address, or change deployment configuration and
+recreate the app service. WebSocket connections obey
 the same list. These checks protect the API, not just browser mutations.
 
 New catalog files, SQLite companions and backup snapshots (including temporary files)

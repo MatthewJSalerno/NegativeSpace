@@ -9,6 +9,27 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+### Added
+- Needs review for small images and review-later notes, with destination-only actions,
+  first-run preferences, suspicious-date limits and shared appearance controls.
+- Allowed-address management in setup and Settings, independent of catalog replacement,
+  with protected deployment recovery and confirmation before removing the current address.
+- A no-progress reminder with Keep waiting and explicit cancellation of photo workers.
+
+### Changed
+- Consistent Library/review filters, stable navigation and filter guidance, compact
+  completed-job/source summaries, and clear source-versus-Library matching scope.
+- Identical related sets appear once. Review clues link to the complete match browser,
+  failed-file details appear in the Inspector, and grouping uses shared checkbox alignment.
+- Page queries load once after the initial job state and refresh when jobs finish.
+
+### Fixed
+- Unsafe cross-origin requests/framing, untrusted request hosts, symlink paths and
+  temporary-file writes; new catalog and backup files use owner-only permissions.
+- Mixed Library/Rejects selection refusal at engine acceptance, acknowledged banner
+  dismissal, generated-fixture identity guards and stale documentation/test contracts.
+
+
 ## [0.16.1] - 2026-10-06
 
 ### Changed

@@ -1,6 +1,6 @@
 // The job feed (WS /api/v1/ws/jobs) and the words the drawer uses for it.
 import { createContext, createElement, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { api, type JobState, type Outcome, type Phase, type Run } from "./api";
+import { api, ApiError, type JobState, type Outcome, type Phase, type Run } from "./api";
 import { count, plural } from "./format";
 
 export type Connection = "connecting" | "open" | "lost";
@@ -16,7 +16,7 @@ const JobFeedContext = createContext<JobFeed | null>(null);
 export function JobFeedProvider({ children }: { children: ReactNode }) {
   const [jobs, setJobs] = useState<JobState | null>(null);
   const [connection, setConnection] = useState<Connection>("connecting");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -26,8 +26,8 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
     const fallback = () => {
       if (stopped || received) return;
       api.jobState().then((state) => {
-        if (!stopped && !received) { setJobs(state); setError(false); }
-      }, () => { if (!stopped && !received) setError(true); });
+        if (!stopped && !received) { setJobs(state); setError(null); }
+      }, (e) => { if (!stopped && !received) setError(e instanceof ApiError ? e.message : "Job state could not be loaded."); });
     };
     const connect = () => {
       const scheme = window.location.protocol === "https:" ? "wss" : "ws";
@@ -36,7 +36,7 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
       socket.onmessage = (event) => {
         if (stopped) return;
         received = true;
-        setJobs(JSON.parse(event.data) as JobState); setError(false);
+        setJobs(JSON.parse(event.data) as JobState); setError(null);
       };
       socket.onclose = () => {
         if (stopped) return;
@@ -56,8 +56,8 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
     };
   }, [attempt]);
   if (!jobs) return createElement("div", { className: "center-page", role: "status" },
-    error ? "Job state could not be loaded. " : "Loading…",
-    error && createElement("button", { onClick: () => { setError(false); setAttempt(n => n + 1); } }, "Retry"));
+    error ?? "Loading…",
+    error && createElement("button", { onClick: () => { setError(null); setAttempt(n => n + 1); } }, "Retry"));
   return createElement(JobFeedContext.Provider, { value: { jobs, connection } }, children);
 }
 

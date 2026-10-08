@@ -298,3 +298,9 @@ matches in Rejects; a rejected photo can compare against Library photos. Locatio
 and explicit Reject/Return actions follow current photo state. Source files and emptied
 rejects remain excluded. Review later and Mark reviewed remain Library-only. Automatic
 similar-to-reject inbox reminders and historical evidence for emptied rejects are pending.
+
+Instance access configuration is separate from photo-processing settings: setup and
+Settings › Access persist additional allowed hostnames/IPs in application data outside
+the catalog. Catalog rebuild/restore never resets this policy. Local and deployment
+addresses provide initial access/recovery; this does not add sign-in or configure DNS.
+See `webui-spec.md` §11 for revision checks, current-address confirmation and live enforcement.

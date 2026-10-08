@@ -78,7 +78,7 @@ fi
 docker run -d --init --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" -e NS_ALLOWED_HOSTS="localhost,127.0.0.1,$WEB,app" \
     -v "$WORK/src":/data/source:ro -v "$DEST":/data/dest -v "$WORK/appdata":/appdata \
     -v "$WORK/cache":/cache -v "$WORK/backups":/backups "$@" "$IMAGE" >/dev/null
-docker run -d --name "$WEB" --network "$NET" "$WEB_IMAGE" >/dev/null
+docker run -d --name "$WEB" --network "$NET" --network-alias review.example --network-alias other.example "$WEB_IMAGE" >/dev/null
 
 # Wait until the API answers through the web container, rather than a fixed time.
 tries=0

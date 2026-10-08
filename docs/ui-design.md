@@ -60,7 +60,7 @@ Tabs are one shared control (`ui/Tabs.tsx`, WAI-ARIA "Tabs with automatic activa
 one tab stop, ← → move and choose, Home/End go to the ends. The Inspector and Settings
 use it. The setup wizard places the shared logo and NegativeSpace name at the top left of
 its header on every step, with the step title below; do not repeat a welcome heading.
-Settings' tabs and first-run steps are the same four groups (`webui-spec.md` §3);
+Settings' tabs and first-run steps are the same five groups (`webui-spec.md` §3);
 a tab with unsaved changes shows a dot, named "unsaved changes" to assistive technology.
 
 The first Settings tab, Appearance, offers Cool neutral (default) and Warm neutral palettes. The choice applies
@@ -802,3 +802,19 @@ Match cards align **Review side by side** at the bottom of the card across each 
 regardless of filename length. Let names wrap; use the shared flexible card content
 layout in the Inspector, rejected matches and review evidence. Do not truncate names
 or fix card height merely to line up the action.
+
+## Instance access settings
+
+Access is the fifth shared Settings tab and setup step. Use the standard labelled
+full-width field for comma-separated additional addresses, list protected local/deployment names,
+and identify the current address. Save uses the common pending/error/success controls;
+changes apply immediately. Explain that addresses survive rebuilding the catalog and
+do not create DNS records or sign-in. Confirm removal of the current address in the
+shared modal with Cancel initially focused; after saving, explain how to reconnect.
+Revision conflicts and partial saves must say what happened and offer Reload settings.
+
+Gallery grouping uses the shared `checkbox-row` geometry for vertical alignment and
+label spacing. Failed-source Inspector notices display the recorded reason without
+requiring hover. Review shows at most three matching clues and a count-labelled link
+to the existing full match browser; following it retains reference, percentage,
+filters and checkbox selection. This is navigation, not a photo action.

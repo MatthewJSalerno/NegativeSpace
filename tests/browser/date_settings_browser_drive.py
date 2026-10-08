@@ -20,7 +20,7 @@ with sync_playwright() as p:
     expect(year).to_have_value('1800')
     year.fill('2020')
     page.get_by_label('Small-image reminders',exact=False).select_option('off')
-    for _ in range(2): page.get_by_role('button',name='Next',exact=True).click()
+    for _ in range(3): page.get_by_role('button',name='Next',exact=True).click()
     page.get_by_role('button',name='Save and continue',exact=True).click()
     expect(page.get_by_role('button',name='Settings',exact=True)).to_be_visible()
     assert request.get('/api/v1/settings').json()['suspicious_min_year']['value']==2020

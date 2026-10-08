@@ -123,6 +123,12 @@ jobs:
           docker run --rm -v "$PWD":/app -w /app \
             negativespace python3 tools/check-api-spec.py
 
+      - name: Instance access policy
+        run: docker run --rm --entrypoint python3 -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p access_test.py -v
+
+      - name: Instance access in a browser
+        run: DRIVER=access_browser_drive.py sh tests/browser/webui_browser_test.sh
+
       - name: Database contracts
         run: |
           docker run --rm \

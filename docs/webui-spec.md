@@ -371,13 +371,13 @@ in the same SQLite database as catalog/history and passed to engine instances on
 startup. Settings must work before the first Index: initialize tables and defaults
 without scanning or touching photos. Saving validates and persists values; startup
 must not reset saved preferences. The browser uses the API, never SQLite directly.
-One consistent database backup includes settings and lineage. The settings writer
+One consistent database backup includes photo-processing settings and lineage. Instance access settings (§11) are stored separately so catalog recovery cannot change network access. The settings writer
 boundary is defined in §6.1; no second database is required.
 
-**Settings are in four groups:** **Appearance** (palette and System/Light/Dark mode), **Files** (file types;
+**Settings are in five groups:** **Appearance** (palette and System/Light/Dark mode), **Files** (file types;
 the earliest expected year for suspicious dates; the Rejects reminder, §7.8; with Needs review, the small-image size, §7.9; with the
 editor, where edits are saved, §7.5), **Backups** (how many to keep, the list, Back up now, how to
-restore) and **Performance** (worker processes; the thumbnail cache, §4.2.1, not yet on screen). In Settings they are tabs with one **Save
+restore) and **Performance** (worker processes; the thumbnail cache, §4.2.1, not yet on screen), plus **Access** (allowed hostnames/IP addresses). In Settings they are tabs with one **Save
 settings** for all of them, so switching tabs loses nothing; a tab with unsaved changes
 shows a dot, and a save with an error on another tab opens that tab at the field.
 
@@ -385,7 +385,7 @@ shows a dot, and a save with an error on another tab opens that tab at the field
 NegativeSpace name at the top left of the wizard header on every step. It appears before the library exists, and
 says prominently that these are starting values, changeable at any time from the gear
 icon in Settings. Without that, a user can take the screen for the only chance to set
-them. It steps through the same four groups ("Step 2 of 4 Files", **Back**, **Next**),
+them. It steps through the same five groups ("Step 2 of 5 Files", **Back**, **Next**),
 one per page, with scrolling when its contents exceed the viewport; Next checks only that step, and nothing is
 saved until **Save and continue** on the last. Saving lands in Not organized, where **Index
 source** waits, whatever page an earlier session left in the address bar. After
@@ -1521,7 +1521,8 @@ and writes photo state/history, so a second copy in this document would be a cop
 drifts. What this section carries instead is what the API layer must know in
 order to consume it safely — the rules above, and the two below.
 
-**Settings share the catalog database.** The engine's database definition owns the
+**Photo-processing settings share the catalog database.** Instance access policy is
+separate (§11), and appearance stays browser-local. The engine's database definition owns the
 schema (`engine-spec.md` §6.5); initialization must be callable without Index.
 **Write ownership:** the engine owns the schema and photo state/history. The web UI
 manages settings through the API, which writes settings using shared Python database
@@ -2777,10 +2778,22 @@ a single-person tool, so one password, not user accounts.
   sign-in can stand in for it.
 
 
-The app enforces an exact deployment Host allowlist (`NS_ALLOWED_HOSTS`) for every
-API request and job-feed handshake. Operators list loopback, LAN IP and every internal
-or reverse-proxy name they use. Forwarded headers do not extend trust; the reverse
-proxy preserves the public Host. Refusals explain how to correct the deployment list.
+The app enforces an exact Host allowlist for every API request and job-feed handshake.
+Setup and Settings › Access edit additional hostnames/IPs. Local addresses are always
+allowed; `NS_ALLOWED_HOSTS` adds protected bootstrap/recovery addresses for headless or
+proxy deployments. Forwarded headers do not extend trust; proxies preserve public Host.
+Addresses are saved immediately on Save settings in a separate, owner-only
+`access.json` in application data, with an atomic write and revision-checked lock.
+They survive catalog replacement/restore and are not included in catalog backups.
+No Docker restart is needed for UI changes; revoked WebSockets close on the next feed
+check. Names contain no scheme, port, path or wildcard, and are never inferred from an
+incoming request. Setup and Settings use the same Access fields. Removal of the current
+address requires confirmation; local/deployment entries cannot be removed in the UI.
+A bad/unreadable access file fails closed to the protected addresses and exposes an
+error there. Docker configuration remains the recovery path. This does not configure
+DNS, network binding, port publishing, or sign-in. Catalog settings and access settings
+are separate writes: if the second fails, show which settings were saved and offer
+Reload settings, never claim all-or-nothing persistence across them.
 New catalogs and backup files use owner-only permissions under the configured UID/GID;
 this does not change photo permissions or add sign-in. See README Security.
 
@@ -2846,3 +2859,9 @@ cache failure alone is not evidence that pixels are unreadable.
 Similarity still covers organized Library photos. Failed sources contribute neither
 candidates nor incomplete-matching counts; genuine matching gaps among organized
 photos retain their warning. Already-delivered photos remain untouched.
+
+The review workspace shows up to three similar-photo clues and a **View all n matching
+photos** link to the existing Inspector Similar photos tab at the same percentage.
+Keep the current photo, gallery filters and explicit selection; do not create another
+match gallery. The Inspector of a failed source file shows its latest recorded failure
+reason directly, a fallback when none was recorded, and the existing failure-log link.

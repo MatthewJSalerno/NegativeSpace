@@ -74,9 +74,9 @@ with sync_playwright() as p:
     expect(page.locator(".notice-first-run")).to_contain_text("change any of them at any time in the app's Settings")
     # One group per step, as Settings' tabs; the step's buttons in view without scrolling.
     step = page.locator(".settings-step")
-    for n, name in enumerate(("Appearance", "Files", "Backups", "Performance"), 1):
-        expect(step).to_have_text(f"Step {n} of 4 {name}")
-        action = page.get_by_role("button", name="Next" if n < 4 else "Save and continue", exact=True)
+    for n, name in enumerate(("Appearance", "Files", "Backups", "Performance", "Access"), 1):
+        expect(step).to_have_text(f"Step {n} of 5 {name}")
+        action = page.get_by_role("button", name="Next" if n < 5 else "Save and continue", exact=True)
         box = action.bounding_box()
         assert box and box["y"] + box["height"] <= page.viewport_size["height"], (name, box)
         if n == 1:
@@ -90,7 +90,7 @@ with sync_playwright() as p:
             for i in ticked:
                 boxes.nth(i).uncheck()
             action.click()
-            expect(step).to_have_text("Step 2 of 4 Files")
+            expect(step).to_have_text("Step 2 of 5 Files")
             expect(page.locator("#settings-exts-error")).to_contain_text("at least one file type")
             for i in ticked:
                 boxes.nth(i).check()
@@ -104,7 +104,7 @@ with sync_playwright() as p:
         if n == 4:
             expect(page.locator(".settings")).to_contain_text(re.compile(r"This container may use (all )?\d+"))
             page.get_by_role("button", name="Back", exact=True).click()
-            expect(step).to_have_text("Step 3 of 4 Backups")
+            expect(step).to_have_text("Step 3 of 5 Backups")
             page.get_by_role("button", name="Next", exact=True).click()
         action.click()
     # Saved, the first run lands in the Library, where the Index waits, whatever the address was.
