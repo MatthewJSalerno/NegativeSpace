@@ -56,6 +56,9 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Views
 
+- [x] Empty review queues return to the filtered gallery with a completion message;
+  closing review checks whether the open preview still belongs in the view.
+
 - [x] Additional allowed addresses in setup and Settings, independent of catalog
   replacement; protected local/deployment recovery, revision checks and explicit
   confirmation before removing the current address.

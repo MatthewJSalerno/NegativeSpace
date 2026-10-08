@@ -2453,12 +2453,17 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   unresolved. A successfully acknowledged decision advances to the next eligible item
   (or keeps another unresolved reason on the same photo with no reason filter). Reject advances
   only after its outcome confirms the move, never merely on job submission. Closing
-  restores gallery filters, selection and position. The current photo is in the URL;
+  restores gallery filters, selection and position. If no photos remain in the current
+  review query, return directly to the gallery with a completion message and close the
+  preview; retain filters and selection. Otherwise Back retains an open preview only
+  if it still belongs in those results, without relocating it. An empty page with
+  earlier skipped items is not an empty queue; keep Previous available.
+  The current photo is in the URL;
   refreshed links retrieve current evidence. Errors keep the decision visible with
   retry/reload controls. No saved rotation or metadata edits are implied.
-* A larger look-alike is evidence, not a keeper chosen by the application. The review
-  shows match counts at the chosen similarity percentage and a larger candidate when
-  available. Coverage failures must be distinguished from having no recorded matches.
+* A larger look-alike is evidence, not a keeper chosen by the application. Photo Review
+  shows the match count and a link to the existing Similar photos view at the chosen
+  percentage; inspect candidates there. Coverage failures must be distinguished from having no recorded matches.
 
 * **A held photo always says so:** the job's result counts them ("3 photos waiting for
   your answer"), and the gallery and Inspector show **Waiting for your answer** on each.

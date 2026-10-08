@@ -24,6 +24,8 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 - Page queries load once after the initial job state and refresh when jobs finish.
 
 ### Fixed
+- Finishing a filtered review queue returns to the gallery with a completion message;
+  previews that no longer match the gallery close instead of showing resolved photos.
 - Unsafe cross-origin requests/framing, untrusted request hosts, symlink paths and
   temporary-file writes; new catalog and backup files use owner-only permissions.
 - Mixed Library/Rejects selection refusal at engine acceptance, acknowledged banner
