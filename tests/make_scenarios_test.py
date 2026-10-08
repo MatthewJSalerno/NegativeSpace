@@ -53,6 +53,8 @@ class MakeScenarios(unittest.TestCase):
         self.out = self.root / "demo"
 
     def tearDown(self):
+        if os.environ.get('NS_TEST_KEEP') == '1':
+            return
         for p in self.root.rglob("*"):
             if p.is_file() and not p.is_symlink():
                 p.chmod(0o644)
@@ -162,10 +164,12 @@ class MakeScenarios(unittest.TestCase):
     def test_the_engine_indexes_the_scenarios_as_the_manifest_says(self):
         run("build", "--out", str(self.out))                     # generated seeds: no folder needed
         work = self.root / "engine"
-        for name in ("dest", "appdata", "cache", "backups"):
+        dest = Path(os.environ['NS_TEST_DESTINATION_ROOT']) / self.root.name if os.environ.get('NS_TEST_DESTINATION_ROOT') else work / 'dest'
+        dest.mkdir(parents=True)
+        for name in ("appdata", "cache", "backups"):
             (work / name).mkdir(parents=True)
         subprocess.run([sys.executable, "-m", "engine", "--source", str(self.out / "library"),
-                        "--dest", str(work / "dest"), "--base", str(work / "appdata"), "--cache", str(work / "cache"),
+                        "--dest", str(dest), "--base", str(work / "appdata"), "--cache", str(work / "cache"),
                         "--backups", str(work / "backups")], capture_output=True, text=True, timeout=600, cwd=REPO)
         db = sqlite3.connect(work / "appdata" / "db" / "ns_sqlite.db")
         status = dict(db.execute("SELECT status, COUNT(*) FROM photos GROUP BY status").fetchall())
@@ -198,6 +202,60 @@ class MakeScenarios(unittest.TestCase):
                                     (f"%/{name}",)).fetchone()
             self.assertTrue(pair[year][0].startswith(year), f"{name} was filed {pair[year][0]}")
         self.assertEqual(pair["2024"][1], pair["1969"][1], "the same pixels should give the same pHash")
+
+class ScenarioIdentityTests(unittest.TestCase):
+    """File identity includes its filesystem and must stay live until comparison."""
+    def setUp(self):
+        from tools import make_scenarios
+        self.tool = make_scenarios
+        self.root = Path(tempfile.mkdtemp(prefix='ns-identity-'))
+        self.seed = self.root / 'seed'
+        self.seed.mkdir()
+        self.out = self.root / 'output'
+        self.out.mkdir()
+        self.source = self.seed / 'generated.jpg'
+        self.source.write_bytes(b'generated seed')
+
+    def tearDown(self):
+        if hasattr(self.tool, 'release_altered'):
+            self.tool.release_altered()
+        else:
+            self.tool.ALTERED.clear()
+        if not os.environ.get('NS_TEST_KEEP'):
+            shutil.rmtree(self.root)
+
+    def test_different_devices_with_same_inode_are_not_shared_files(self):
+        from unittest.mock import patch
+        dest = self.out / 'copy.jpg'
+        self.tool.fresh_copy(self.source, dest)
+        st = dest.stat()
+        # Simulate a different filesystem assigning the same inode number.
+        before = {'other.jpg': (st.st_size, st.st_mtime_ns, st.st_ino, st.st_dev + 1)}
+        with patch.object(self.tool, 'snapshot', return_value=before):
+            self.tool.check_untouched(self.seed, before)
+
+    def test_replaced_output_identity_cannot_be_recycled_before_the_check(self):
+        dest = self.out / 'copy.jpg'
+        self.tool.fresh_copy(self.source, dest)
+        old = dest.stat()
+        self.tool.replace_with(dest, lambda p: p.write_bytes(b'new generated output'))
+        self.assertTrue(any((p.stat().st_dev, p.stat().st_ino) == (old.st_dev, old.st_ino)
+                            for p in self.out.rglob('*') if p.is_file()),
+                        'the old written inode was freed before seed comparison')
+        self.tool.check_untouched(self.seed, self.tool.snapshot(self.seed))
+        self.assertEqual(self.source.read_bytes(), b'generated seed')
+
+    def test_real_write_through_seed_link_is_still_detected(self):
+        before = self.tool.snapshot(self.seed)
+        link = self.out / 'alias.jpg'
+        os.link(self.source, link)
+        link.write_bytes(b'deliberately bad write')
+        if hasattr(self.tool, 'record_altered'):
+            self.tool.record_altered(link)
+        else:
+            self.tool.ALTERED.add(link.stat().st_ino)
+        with self.assertRaisesRegex(SystemExit, 'share an inode'):
+            self.tool.check_untouched(self.seed, before)
 
 
 if __name__ == "__main__":

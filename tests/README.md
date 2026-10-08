@@ -826,3 +826,10 @@ Reference-set checks also verify exact membership deduplication in related sets 
 pagination: identical sets disappear, equivalent alternatives collapse to one, and
 proper subsets/overlaps remain distinct. The browser exercises a dense identical set
 and the A–B–C chain independently.
+
+The scenario-generator identity checks cover device/inode collisions, retaining old
+output identities until seed comparison, and a real write through a generated seed
+hard link that must still fail. Guard links retain replaced output versions until the
+check completes; they contain no photo extension and are removed on normal/error exit.
+Scenario tests accept the same separate destination root and artifact-retention settings
+as API fixtures.
