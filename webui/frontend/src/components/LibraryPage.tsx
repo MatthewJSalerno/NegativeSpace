@@ -1,3 +1,4 @@
+import { useDismissedRun } from "../dismissal";
 import { StableContent } from "./ui/StableContent";
 import { PageNavigation } from "./PageNavigation";
 import { ReviewWorkspace } from "./ReviewWorkspace";
@@ -12,7 +13,7 @@ import { Logo } from "./Logo";
 import { PageTools } from "./PageTools";
 import { api, ApiError, submissionSnapshot, subscribeSubmission, MATCH_THRESHOLDS, type ActionMode, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
 import { count, plural } from "../format";
-import { jobLabel, summary, useDismissedRun, useJobFeed } from "../jobs";
+import { jobLabel, summary, useJobFeed } from "../jobs";
 import { Gallery } from "./Gallery";
 import { Inspector } from "./Inspector";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
@@ -287,7 +288,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   }, [refreshKey]);
   // What each action would take of the selection, for the selection bar.
   const [selectionActions, setSelectionActions] = useState<SelectionCounts>(NO_ACTIONS);
-  const [dismissedId, dismissRun] = useDismissedRun();
+  const [dismissedId, dismissRun, dismissal] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
   const submission = useSyncExternalStore(subscribeSubmission, submissionSnapshot);
   const jobRunning = !!submission.pending || (jobs.active != null && jobs.active.presented_status !== "Interrupted");
@@ -965,7 +966,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             className={reason === "later" ? "active" : ""} onClick={() => { setReason(reason === "later" ? "all" : "later"); setPage(1); }}>Review later {filterCount(data?.reasons?.later ?? 0)}</button>}
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
-        <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun}
+        <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} dismissal={dismissal}
                         onShowPhotos={showJob} />
         <RejectsReminder status={status} inRejectsView={browseView === "rejects" && !focus} />
         {actionError && <p className="error banner" role="alert">{actionError} <button onClick={() => setActionError(null)}>Dismiss</button></p>}

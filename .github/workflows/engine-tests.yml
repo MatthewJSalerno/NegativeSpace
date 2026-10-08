@@ -132,6 +132,9 @@ jobs:
       - name: Fresh setup in a browser
         run: DRIVER=fresh_start_browser_drive.py sh tests/browser/webui_browser_test.sh
 
+      - name: Acknowledged banner dismissal in browser
+        run: DRIVER=dismissal_browser_drive.py sh tests/browser/webui_browser_test.sh
+
       - name: Source failures stay outside Library
         run: DRIVER=source_scope_browser_drive.py sh tests/browser/webui_browser_test.sh
 

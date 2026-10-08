@@ -1,8 +1,9 @@
+import { useDismissedRun } from "../dismissal";
 import { PageNavigation } from "./PageNavigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, type Stats, type Status } from "../api";
 import { ago, bytes, count, instant, photoDate, plural } from "../format";
-import { useDismissedRun, useJobFeed } from "../jobs";
+import { useJobFeed } from "../jobs";
 import { follow, useHeaderHeight } from "../nav";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
 import { Logo } from "./Logo";
@@ -32,7 +33,7 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
 }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dismissedId, dismissRun] = useDismissedRun();
+  const [dismissedId, dismissRun, dismissal] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
   const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
   const header = useRef<HTMLElement>(null);
@@ -58,7 +59,7 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
           <PageTools version={status.version} stats onOpenSettings={onOpenSettings} />
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
-        <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
+        <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} dismissal={dismissal} />
         <RejectsReminder status={status} />
       </header>
 

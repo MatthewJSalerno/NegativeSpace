@@ -811,3 +811,8 @@ A terminal run record does not mean the engine has released its lock: the catalo
 backup runs after settlement. Before starting another job or asserting a finished
 banner, wait for both a terminal run status and `GET /api/v1/jobs/active` returning
 `active: null`. Do not retry a refused start to hide an unexpected refusal.
+
+`DRIVER=dismissal_browser_drive.py` checks delayed and failed catalog dismissal writes,
+Library/Logs navigation while saving, visible retry at narrow desktop width, interrupted
+reload before acknowledgment, storage clearing after acknowledgment, and stale browser
+IDs versus catalog authority. It deliberately holds the PUT instead of relying on timing.

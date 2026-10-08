@@ -1,6 +1,6 @@
 // The job feed (WS /api/v1/ws/jobs) and the words the drawer uses for it.
-import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type JobState, type Outcome, type Phase, type Run } from "./api";
+import { useEffect, useRef, useState } from "react";
+import type { JobState, Outcome, Phase, Run } from "./api";
 import { count, plural } from "./format";
 
 export type Connection = "connecting" | "open" | "lost";
@@ -177,32 +177,6 @@ export function summary(run: Run, numbered = true): { headline: string; detail: 
         : outcome.verdict === "partial" || outcome.verdict === "cancelled" || outcome.verdict === "originals_kept"
           ? "warn" : "bad";
   return { headline, detail: parts.join(" · ") || "No files were processed.", tone };
-}
-
-// The finished-job banner the user dismissed, shared by every page. Kept with the
-// catalog (PUT /api/v1/ui-state), so clearing the browser's data or opening another
-// browser does not bring it back; the browser's copy only avoids a flash on load.
-const DISMISSED_KEY = "ns.dismissedRun";
-
-export function useDismissedRun(): [number | null, (id: number) => void] {
-  const [id, setId] = useState<number | null>(() => {
-    try { return Number(localStorage.getItem(DISMISSED_KEY)) || null; } catch { return null; }
-  });
-  const [known, setKnown] = useState(false);
-  // The catalog's record wins once it answers: this browser's copy may belong to an earlier
-  // catalog whose job numbers ran higher, and would hide every banner up to it. The copy
-  // stands in only while the catalog cannot be read.
-  useEffect(() => {
-    api.uiState().then((state) => setId(state.dismissed_run ?? null), () => undefined)
-      .finally(() => setKnown(true));
-  }, []);
-  const dismiss = useCallback((run: number) => {
-    setId(run);
-    try { localStorage.setItem(DISMISSED_KEY, String(run)); } catch { /* the catalog's copy is the record */ }
-    api.saveUiState({ dismissed_run: run }).catch(() => undefined);
-  }, []);
-  // Until the catalog has answered, treat every banner as dismissed rather than flash one.
-  return [known ? id : Number.MAX_SAFE_INTEGER, dismiss];
 }
 
 // The hover text for a run's problems: why originals were kept and why files failed,

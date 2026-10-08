@@ -1,3 +1,4 @@
+import type { DismissalState } from "../dismissal";
 import { useEffect, useState } from "react";
 import { api, ApiError, type JobState, type Run } from "../api";
 import { duration, instant } from "../format";
@@ -88,10 +89,11 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
 }
 
 // A finished job's result, at the top of the page under the toolbar, until dismissed.
-export function FinishedBanner({ jobs, dismissedId, onDismiss, onShowPhotos }: {
+export function FinishedBanner({ jobs, dismissedId, onDismiss, dismissal, onShowPhotos }: {
   jobs: JobState;
   dismissedId: number | null;
   onDismiss: (id: number) => void;
+  dismissal: DismissalState;
   // The Library shows them in place; elsewhere the button is a link to the Library.
   onShowPhotos?: (id: number) => void;
 }) {
@@ -112,6 +114,7 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss, onShowPhotos }: {
         <span className="muted">
           {started && ended ? `Took ${duration(ended - started)}` : run.status === "Interrupted" ? "Duration unavailable" : ""}
         </span>
+        {dismissal.failedId === run.id && <span className="error" role="alert">Could not save the dismissal. Try again.</span>}
       </div>
       <span className="banner-links">
         {run.id != null && showsPhotos(run as Run) && (onShowPhotos
@@ -121,7 +124,9 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss, onShowPhotos }: {
           <a href={logUrl({ run: run.id, status: "Failed" })} onClick={follow}>View failures</a>
         )}
         {run.id != null && <a href={logUrl({ run: run.id })} onClick={follow}>View log</a>}
-        <button onClick={() => run.id != null && onDismiss(run.id)}>Dismiss</button>
+        <button disabled={dismissal.pendingId != null} onClick={() => run.id != null && onDismiss(run.id)}>
+          {dismissal.pendingId != null ? "Saving…" : dismissal.failedId === run.id ? "Retry dismissal" : "Dismiss"}
+        </button>
       </span>
     </div>
   );

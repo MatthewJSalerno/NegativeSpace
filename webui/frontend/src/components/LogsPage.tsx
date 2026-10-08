@@ -1,3 +1,4 @@
+import { useDismissedRun } from "../dismissal";
 import { StableContent } from "./ui/StableContent";
 import { PageNavigation } from "./PageNavigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -5,7 +6,7 @@ import { Logo } from "./Logo";
 import { PageTools } from "./PageTools";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
-import { reasonsText, jobLabel, modeName, showsPhotos, summary, useDismissedRun, useJobFeed } from "../jobs";
+import { reasonsText, jobLabel, modeName, showsPhotos, summary, useJobFeed } from "../jobs";
 import { follow, photoUrl, useHeaderHeight, useNavigation } from "../nav";
 import { usePaged } from "../paged";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
@@ -104,7 +105,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
   // What a job's Retry did, shown beside that button rather than at the top of the page.
   const [retryNote, setRetryNote] = useState<RetryNote | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [dismissedId, dismissRun] = useDismissedRun();
+  const [dismissedId, dismissRun, dismissal] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
   const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
   useNavigation(() => {
@@ -247,7 +248,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
           <PageTools version={status.version} onOpenSettings={onOpenSettings} />
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
-        <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
+        <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} dismissal={dismissal} />
         <RejectsReminder status={status} />
       </header>
 

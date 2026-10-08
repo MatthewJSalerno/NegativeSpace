@@ -110,6 +110,11 @@ button replaces its label with **Starting…** and disables repeat submission. A
 global submission banner must not push down the page. Uncertain/failed submission
 recovery stays immediately visible, and real job progress still appears in the drawer.
 
+Finished-job dismissal is an acknowledged action: keep the banner and replace Dismiss
+with disabled **Saving…** while saving. On failure keep the result visible with a
+plain error and **Retry dismissal**. Share that state across pages; never hide a
+banner optimistically or rely on a browser-only copy of the dismissal.
+
 Routine filter guidance swaps in place, rather than inserting a paragraph above
 controls/results. Use `ui/StableContent.tsx` for known alternative explanations: all
 variants share a naturally sized grid cell, with only the active variant visible,

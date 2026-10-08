@@ -6,6 +6,7 @@ import { LogsPage } from "./components/LogsPage";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SimilarRedirect } from "./components/SimilarRedirect";
 import { StatsPage } from "./components/StatsPage";
+import { DismissedRunProvider } from "./dismissal";
 import { navigate, rememberLibraryQuery, usePath } from "./nav";
 
 // The page shell: the catalog's state decides what shows (first run, a catalog problem,
@@ -53,7 +54,7 @@ export function App() {
                                                         onSaved={() => { navigate("/", true); setFirstRunDone(true); }} /></div>;
   }
   return (
-    <>
+    <DismissedRunProvider>
       <a className="skip-link" href="#main-content">Skip to main content</a>
       {path === "/logs"
         ? <LogsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => { setSettingsGroup("appearance"); setSettingsOpen(true); }} />
@@ -63,6 +64,6 @@ export function App() {
             ? <SimilarRedirect />
             : <LibraryPage status={status} refreshStatus={loadStatus} onOpenSettings={() => { setSettingsGroup("appearance"); setSettingsOpen(true); }} />}
       {settingsOpen && <SettingsDialog initialGroup={settingsGroup} firstRun={false} onClose={() => setSettingsOpen(false)} onSaved={() => { void loadStatus(); window.dispatchEvent(new Event("ns-settings-saved")); }} />}
-    </>
+    </DismissedRunProvider>
   );
 }
