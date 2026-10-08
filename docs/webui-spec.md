@@ -565,6 +565,9 @@ A finished job's banner explains its skips, grouped by the reason each photo rec
 for example **"5 skipped (3 copied by an earlier job, 2 duplicates: the same content is
 copied once)"**. The API groups them from the engine's reason text (`webui/outcomes.py`).
 
+Stats retains warning/failure accent borders and consistent folder-table cell spacing
+as specified in `ui-design.md`.
+
 **Which build is running** shows at the top right, beside Settings, on every page and on
 the first-run and catalog-problem screens: **"v0.1.0 · main · 2c4728f"**, the release in
 `VERSION` and the branch and commit the image was built from, so a report names the

@@ -125,8 +125,10 @@ gone from --source and won't be reprocessed; only what's still there (still
 Index) gets touched again. This is fast because nothing already-successful
 needs to be redone.
 
-No result is ever silently lost across crashes either: a run interrupted by
-something uncatchable (SIGKILL, OOM-kill, power loss) leaves its `runs` row
+Unfinished Index results may need rescanning after a crash: results are saved
+in batches, and an unsettled run does not have the durability guarantee of a
+settled run (TODO.md claim 12). Index never modifies source photos. A run
+interrupted by something uncatchable (SIGKILL, OOM-kill, power loss) leaves its `runs` row
 in an active state (Preparing, Running or Cancelling) — the next invocation's
 startup reconciliation marks it 'Interrupted' and records itself as the run
 that found it, rather than leaving a phantom "still running" entry forever.

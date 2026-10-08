@@ -77,6 +77,10 @@ Help popups use the subdued `--surface-2` background and normal text color in bo
 themes. They occupy the browser's top layer so sticky sidebars and adjacent photos
 cannot clip or cover the text.
 
+Stats warning and failure tiles retain their semantic colored left borders so
+problems are easy to notice. Folder-table cells retain the shared spacing, including
+8px left padding. Keep this geometry consistent in both themes and at desktop reflow.
+
 ## Shared controls
 
 Consistency applies across the whole app. Reuse shared controls for the same action,
