@@ -123,6 +123,9 @@ Delivered and validated against a real library. In place today:
     outcome.
 *   Crash-safe resume, including run-history reconciliation after a hard kill.
 *   Standard images, HEIC, and RAW formats.
+*   Undecodable source photos stay Failed in Not organized, with recorded decoder
+    reasons; Copy/Move leave them at source and an Index after external repair
+    reassesses them. Missing EXIF or cache/hash-only failures do not block readable images.
 *   One 320px grid thumbnail per content identity, written during the scan and
     shared by byte-identical duplicates; see `webui-spec.md` §4.2.1.
 *   A settings store in the catalog database, initializable without a scan, with

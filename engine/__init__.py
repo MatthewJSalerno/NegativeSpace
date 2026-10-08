@@ -67,6 +67,9 @@ deletion and are not reliably detected by the engine.
 Per-file failures never abort a run: an unreadable, vanished, or otherwise
 unprocessable file is recorded as status='Failed' with a human-readable
 reason in operations.error_message, and the scan carries on with the rest.
+Photo formats must have decodable pixels to become eligible for Copy/Move. Missing
+EXIF or a cache-write failure alone does not prevent organization; failed sources
+remain untouched and a later Index reassesses them after external correction.
 
 Mode flags (mutually exclusive — pick at most one; omitting all runs the
 default Index):

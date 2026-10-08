@@ -9,7 +9,7 @@ initializeAppearance();
 
 createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
-    <SubmissionStatus />
+    <SubmissionStatus recoveryOnly />
     <App />
   </StrictMode>,
 );

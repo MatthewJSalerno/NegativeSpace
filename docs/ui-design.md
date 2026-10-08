@@ -105,6 +105,11 @@ Page navigation uses `PageNavigation.tsx`: Library, a reserved Jobs slot, then L
 Logs and Stats leave the Jobs slot empty; do not show a disabled command or move Logs.
 The active label's weight must not change the position of adjacent links.
 
+Ordinary job submission stays on the initiating control/dialog; the central Index
+button replaces its label with **Starting…** and disables repeat submission. A brief
+global submission banner must not push down the page. Uncertain/failed submission
+recovery stays immediately visible, and real job progress still appears in the drawer.
+
 Routine filter guidance swaps in place, rather than inserting a paragraph above
 controls/results. Use `ui/StableContent.tsx` for known alternative explanations: all
 variants share a naturally sized grid cell, with only the active variant visible,
@@ -751,7 +756,11 @@ and **Unfinished processing**. Size/date facts cover successfully indexed source
 failed files are not ordinary missing-date photos. Failure details retain the actual
 cause and a route to the recorded log. Never infer a non-image merely from missing EXIF
 or a failed visual hash. Confirmed non-images/empty files and unreadable or unsupported
-images need distinct explanations and external correction. Source bytes stay untouched.
+images need distinct explanations and external correction. Source bytes stay untouched. Undecodable source photos remain Failed in Not organized
+and are excluded from Copy/Move, duplicate cleanup and Library matching. Missing EXIF,
+a hash-only failure or cache-write failure on readable pixels does not block copying.
+Do not call an unsupported/corrupt image a proven non-image. Already-organized files
+are not automatically moved or removed.
 Recheck after fixing is explicit: it repeats work and cannot repair content or add a
 missing decoder. Interrupted work may resume once storage and files are available.
 

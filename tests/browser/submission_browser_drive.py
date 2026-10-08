@@ -47,7 +47,9 @@ with sync_playwright() as p:
     index_ui(page)
     notice = page.get_by_role('status', name='Job submission status')
     expect(notice).to_contain_text('Checking job status')
-    index_ui(page)  # repeated click waits on the original submission, no second POST
+    page.get_by_role('button', name='Jobs', exact=True).click()
+    expect(page.get_by_role('menu', name='Jobs', exact=True).get_by_role('menuitem', name=re.compile('^Index'))).to_have_attribute('aria-disabled', 'true')
+    page.keyboard.press('Escape')  # pending submission cannot start a second job
     assert len(captured) == 1
     expect(page.get_by_text('The job could not be started.', exact=True)).to_have_count(0)
     blocked[0] = False

@@ -789,3 +789,17 @@ after settled status/reason changes (1px tolerance) at 1440, 1000 and 720px; che
 Logs navigation position across Library, Logs and Stats; and verifies filtered counts.
 Set `SHOTS` to inspect the reserved spacing. This covers routine filter transitions,
 not intentional expansion of jobs, errors, Inspectors or similarity tools.
+
+Fresh-start/source eligibility checks:
+
+- `python3 -m unittest discover -s tests -p import_decode_test.py -v` in the app image
+  checks readable pixels despite missing EXIF, hash failure or cache-write failure,
+  actionable missing-decoder refusal, and no redundant decode after a good pHash.
+- `engine_smoke_test.py --filter an_undecodable_photo --keep` verifies Index, Copy,
+  Move, byte preservation and successful external repair/reindex, with/without cache.
+  The RAW-routing and public RAW decode/thumbnail smoke checks cover the sensor path.
+- Browser drivers `fresh_start_browser_drive.py` and `source_scope_browser_drive.py`
+  cover stale-address replacement only for missing catalogs, stable pending Index
+  submission, empty/text/truncated source failures, and no incomplete-matching warning
+  caused by those failed sources. `submission_browser_drive.py` retains lost-response,
+  reload and same-request recovery coverage; pending Library actions cannot resubmit.

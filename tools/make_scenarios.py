@@ -413,7 +413,7 @@ def build(args):
           "Failed: Not an image (the file is empty); in the log, never copied")
     body = rng.choice(jpegs).read_bytes()
     (edge / "truncated.jpg").write_bytes(body[: len(body) // 3])
-    m.add(edge / "truncated.jpg", "edge_truncated", "Indexed from its intact EXIF; its picture is cut short")
+    m.add(edge / "truncated.jpg", "edge_truncated", "Failed: its picture cannot be decoded; retained at source despite readable EXIF")
     (edge / "not-a-photo.jpg").write_text("This is text with a photo's extension.\n")
     m.add(edge / "not-a-photo.jpg", "edge_not_an_image",
           "Failed: Not an image (its content is text); in the log, never copied")

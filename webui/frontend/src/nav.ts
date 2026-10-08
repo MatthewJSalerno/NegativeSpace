@@ -15,8 +15,9 @@ export function photoUrl(id: number) {
   return `/?${params}`;
 }
 
-export function navigate(url: string) {
-  window.history.pushState(null, "", url);
+export function navigate(url: string, replace = false) {
+  if (replace) window.history.replaceState(null, "", url);
+  else window.history.pushState(null, "", url);
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 

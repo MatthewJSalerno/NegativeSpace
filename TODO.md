@@ -56,6 +56,15 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Views
 
+- [x] Fresh catalog setup replaces stale photo/log URLs with the base URL. Ordinary
+  Index submission stays on its button without a transient global banner; uncertain
+  requests retain recovery controls.
+- [x] Undecodable source photos remain flagged in Not organized and are excluded from
+  Copy/Move and Library matching. Missing EXIF/hash-only/cache-write failures do not
+  block readable images. External repair plus Index reassesses failed sources.
+- [ ] Discuss a SHA-1 content-history link, first comparing it with existing photo
+  history/lineage to avoid redundant navigation. No pHash history link planned.
+
 - [x] Stable filter guidance and navigation: shared guidance sizing for Logs/gallery/
   review reasons; fixed Logs position when Jobs is absent; stable status shortcuts,
   filter summaries and action heights. Browser positions checked at desktop/reflow widths.

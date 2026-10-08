@@ -7,10 +7,10 @@ import { ReferenceSets } from "./ReferenceSets";
 import { readComparison, type ComparisonState } from "../comparisonState";
 import { SimilarityRecovery } from "./SimilarityRecovery";
 import { PageBoundary } from "./ui/PageBoundary";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { Logo } from "./Logo";
 import { PageTools } from "./PageTools";
-import { api, ApiError, MATCH_THRESHOLDS, type ActionMode, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
+import { api, ApiError, submissionSnapshot, subscribeSubmission, MATCH_THRESHOLDS, type ActionMode, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
 import { count, plural } from "../format";
 import { jobLabel, summary, useDismissedRun, useJobFeed } from "../jobs";
 import { Gallery } from "./Gallery";
@@ -289,7 +289,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [selectionActions, setSelectionActions] = useState<SelectionCounts>(NO_ACTIONS);
   const [dismissedId, dismissRun] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
-  const jobRunning = jobs.active != null && jobs.active.presented_status !== "Interrupted";
+  const submission = useSyncExternalStore(subscribeSubmission, submissionSnapshot);
+  const jobRunning = !!submission.pending || (jobs.active != null && jobs.active.presented_status !== "Interrupted");
   // The job whose photos are shown, for the line above them; read again as jobs end.
   const [jobInfo, setJobInfo] = useState<Run | null>(null);
   const lastStatus = jobs.last ? `${jobs.last.id}:${jobs.last.status}` : "";
@@ -1149,7 +1150,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               {noPhotos ? (
                 <>
                   <h2>{view === "unorganized" ? "Index your source to find photos" : view === "organized" ? "No photos organized yet" : view === "review" ? "Nothing needs review yet" : "No rejected photos"}</h2>
-                  {view === "unorganized" ? <><p>Indexing reads your source photos; nothing is moved or copied.</p><button className="primary" onClick={start("index")} disabled={jobRunning}>Index source</button></>
+                  {view === "unorganized" ? <><p>Indexing reads your source photos; nothing is moved or copied.</p><button className="primary" onClick={start("index")} disabled={jobRunning} aria-live="polite">{submission.pending?.body.mode === "index" ? "Starting…" : "Index source"}</button></>
                     : <button onClick={() => chooseView("unorganized")}>Go to Not organized</button>}
                 </>
               ) : q ? (

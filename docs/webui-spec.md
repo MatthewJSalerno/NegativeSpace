@@ -915,8 +915,9 @@ interrupted edit, which waits on metadata editing itself. Removing thumbnails wh
 photo holds any more is implemented (`engine-spec.md` §9.8). One documented behavior is also not
 met — recorded failure history is **not** retained across a successful
 regeneration: `thumbnail_cache` holds current state per `(content_id, size)`, so
-a later success clears the failure rather than preserving it. A permanently
-undecodable file is therefore re-attempted on every scan.
+a later success clears the failure rather than preserving it. Undecodable source
+files are recorded Failed before cache generation and remain in Not organized;
+Index retries their readability so an external repair can restore eligibility.
 
 * **Generation point:** During source Index, alongside SHA1/pHash computation. Reuse an
   existing cached thumbnail for the same content hash, including exact duplicates.
@@ -2772,3 +2773,29 @@ camera and date statistics. Activity counts failed attempts rather than distinct
 
 Use Job #ID · Action status consistently in job headings and Job #ID · Action in job
 references. For example, Job #2 · Copy finished identifies the second job overall.
+
+### Fresh setup and unreadable source files
+
+When status confirms the catalog is missing, replace the current address with `/`,
+including clearing query/fragment and remembered in-tab Library link context. Replace
+history rather than pushing a second entry. Connection errors, incompatible catalogs,
+and empty filtered results do not reset the address. Setup completion also replaces
+its entry; ordinary links in an existing indexed catalog remain intact.
+
+Ordinary job submission is shown on the initiating control/dialog. The central Index
+button says **Starting…** and competing Library job actions wait while acceptance is
+pending. Do not insert a global submission notice above the page for normal acceptance.
+Uncertain or failed requests still show their recovery controls immediately, including
+inside confirmation dialogs; retry preserves request identity. The running-job drawer
+continues to show real progress once the job starts.
+
+A source photo that cannot be decoded remains **Failed** in **Not organized**, with
+**File needs attention** and a link to the specific failure in Logs. Copy/Move do not
+deliver or delete it. Index/transfer results count the failures separately. The user
+repairs/replaces the source or corrects decoder support outside the app, then runs
+Index again. Missing EXIF alone does not prevent copying a readable image. A hash or
+cache failure alone is not evidence that pixels are unreadable.
+
+Similarity still covers organized Library photos. Failed sources contribute neither
+candidates nor incomplete-matching counts; genuine matching gaps among organized
+photos retain their warning. Already-delivered photos remain untouched.

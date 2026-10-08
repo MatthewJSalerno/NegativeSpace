@@ -6,7 +6,7 @@ import { LogsPage } from "./components/LogsPage";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SimilarRedirect } from "./components/SimilarRedirect";
 import { StatsPage } from "./components/StatsPage";
-import { navigate, usePath } from "./nav";
+import { navigate, rememberLibraryQuery, usePath } from "./nav";
 
 // The page shell: the catalog's state decides what shows (first run, a catalog problem,
 // setup), then the address picks the page.
@@ -24,7 +24,15 @@ export function App() {
   const path = usePath();
 
   const loadStatus = useCallback(() =>
-    api.status().then((s) => { setStatus(s); setStatusError(null); },
+    api.status().then((s) => {
+      if (s.state === "missing") {
+        rememberLibraryQuery("");
+        if (window.location.pathname !== "/" || window.location.search || window.location.hash) navigate("/", true);
+        setFirstRunDone(false);
+        setSettingsOpen(false);
+      }
+      setStatus(s); setStatusError(null);
+    },
                       () => setStatusError("The NegativeSpace server is not answering. Check that the container is running.")), []);
   useEffect(() => { loadStatus(); }, [loadStatus]);
   // Rejects is emptied in a file manager: coming back to the page shows the result.
@@ -42,7 +50,7 @@ export function App() {
     // Saved, the user lands in Not organized, where Index source waits: never on the
     // page an earlier session left in the address bar.
     return <div className="center-page"><SettingsDialog firstRun onClose={() => undefined}
-                                                        onSaved={() => { navigate("/"); setFirstRunDone(true); }} /></div>;
+                                                        onSaved={() => { navigate("/", true); setFirstRunDone(true); }} /></div>;
   }
   return (
     <>

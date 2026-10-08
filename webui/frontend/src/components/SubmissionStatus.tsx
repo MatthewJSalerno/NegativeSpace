@@ -2,9 +2,12 @@ import { useEffect, useSyncExternalStore } from "react";
 import { checkSubmission, retrySubmission, submissionSnapshot, subscribeSubmission } from "../api";
 import { follow, logUrl } from "../nav";
 
-export function SubmissionStatus() {
+export function SubmissionStatus({ recoveryOnly = false }: { recoveryOnly?: boolean }) {
   const state = useSyncExternalStore(subscribeSubmission, submissionSnapshot);
   useEffect(() => { if (state.pending && state.checking) void checkSubmission(); }, [state.pending?.id]);
+  // Ordinary submission progress belongs on the initiating control. Global recovery
+  // stays immediate for uncertain requests, errors and recovered acknowledgments.
+  if (recoveryOnly && state.pending && !state.checking) return null;
   if (!state.pending && !state.resolved && !state.error) return null;
   return <aside className="notice submission-status" role="status" aria-label="Job submission status">
     {state.pending ? <>

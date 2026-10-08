@@ -340,3 +340,26 @@ def compute_phash(file_path: str) -> str:
     except Exception as e:
         runtime.logger.debug(f"PIL pHash failed for {file_path}: {e}")
         return "error"
+
+
+def image_decode_error(file_path: str) -> Optional[str]:
+    """Check pixels after a missing pHash, independently of hashing or cache writes.
+
+    A successful pHash already establishes decodability; this fallback is only for
+    its error/not-supported path. RAW must use the sensor decoder, not its preview.
+    """
+    try:
+        if not deps.PIL_SUPPORTED:
+            return "Pillow is not installed"
+        with warnings_attributed_to(file_path):
+            if Path(file_path).suffix.lower() in RAW_EXTENSIONS:
+                if not deps.RAWPY_SUPPORTED:
+                    return "rawpy is not installed; RAW decoding is unavailable"
+                with deps.rawpy.imread(file_path) as raw:
+                    raw.postprocess(use_camera_wb=True, half_size=True, no_auto_bright=True, output_bps=8)
+            else:
+                with deps.Image.open(file_path) as img:
+                    img.load()
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"
+    return None
