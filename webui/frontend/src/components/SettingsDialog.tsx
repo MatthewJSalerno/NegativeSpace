@@ -1,3 +1,4 @@
+import { Logo } from "./Logo";
 import { Modal } from "./ui/Modal";
 import { Field } from "./ui/Field";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
@@ -307,7 +308,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
   const body = (
     <div className={firstRun ? "settings settings-page" : "settings-body"}>
       <header className="settings-head">
-        <h2 id="settings-title">{firstRun ? "Welcome to NegativeSpace" : "Settings"}</h2>
+        <h2 id="settings-title" className={firstRun ? "brand" : undefined}>{firstRun ? <><Logo />NegativeSpace</> : "Settings"}</h2>
         {!firstRun && <button onClick={onClose} disabled={saving} aria-label="Close settings">✕</button>}
       </header>
       {!settings ? <div role="status">{message ? <><p className="error">{message.text}</p><button onClick={load}>Retry loading settings</button></> : "Loading…"}</div>

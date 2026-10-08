@@ -56,7 +56,7 @@ with sync_playwright() as p:
     expect(page.locator(".mounts-note")).to_contain_text("APPDATA_DIR")
     shot("0-no-catalog")
     page.get_by_role("button", name="Create new catalog").click()
-    expect(page.get_by_text("Welcome to NegativeSpace")).to_be_visible()
+    expect(page.get_by_role("heading", name="NegativeSpace", exact=True)).to_be_visible()
     expect(page.locator(".notice-first-run")).to_contain_text("change any of them at any time in the app's Settings")
     # One group per step, as Settings' tabs; the step's buttons in view without scrolling.
     step = page.locator(".settings-step")

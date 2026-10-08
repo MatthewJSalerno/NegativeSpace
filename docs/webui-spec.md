@@ -380,7 +380,8 @@ restore) and **Performance** (worker processes; the thumbnail cache, §4.2.1, no
 settings** for all of them, so switching tabs loses nothing; a tab with unsaved changes
 shows a dot, and a save with an error on another tab opens that tab at the field.
 
-**First run shows the settings as the page itself**, before the library exists, and
+**First run shows the settings as the page itself**, with the shared logo and
+NegativeSpace name at the top left of the wizard header on every step. It appears before the library exists, and
 says prominently that these are starting values, changeable at any time from the gear
 icon in Settings. Without that, a user can take the screen for the only chance to set
 them. It steps through the same four groups ("Step 2 of 4 Files", **Back**, **Next**),

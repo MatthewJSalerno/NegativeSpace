@@ -58,7 +58,9 @@ add screen-specific font sizes to repair a shared control.
 
 Tabs are one shared control (`ui/Tabs.tsx`, WAI-ARIA "Tabs with automatic activation"):
 one tab stop, ← → move and choose, Home/End go to the ends. The Inspector and Settings
-use it. Settings' tabs and first-run steps are the same four groups (`webui-spec.md` §3);
+use it. The setup wizard places the shared logo and NegativeSpace name at the top left of
+its header on every step, with the step title below; do not repeat a welcome heading.
+Settings' tabs and first-run steps are the same four groups (`webui-spec.md` §3);
 a tab with unsaved changes shows a dot, named "unsaved changes" to assistive technology.
 
 The first Settings tab, Appearance, offers Cool neutral (default) and Warm neutral palettes. The choice applies
