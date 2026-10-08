@@ -63,8 +63,11 @@ a tab with unsaved changes shows a dot, named "unsaved changes" to assistive tec
 
 The first Settings tab, Appearance, offers Cool neutral (default) and Warm neutral palettes. The choice applies
 immediately, is stored per browser under `ns.palette`, and follows across tabs;
-it is independent of catalog settings and does not require Save settings. System
-light/dark preference applies to either palette. If browser storage is unavailable,
+it is independent of catalog settings and does not require Save settings. **Color mode** offers System (default), Light and Dark, remembered per browser
+under `ns.theme` and synchronized across tabs. System follows live device changes;
+explicit Light/Dark overrides them. A shared **Dark mode** toggle appears beside
+Stats and Settings on Library, Logs and Stats, setting an explicit mode. Both palettes
+work in every mode, including setup, dialogs and workspaces. If browser storage is unavailable,
 the choice still works for the current page. All colors come from the shared root
 tokens; the font is served with the app, with no external font request.
 
@@ -73,6 +76,12 @@ themes. They occupy the browser's top layer so sticky sidebars and adjacent phot
 cannot clip or cover the text.
 
 ## Shared controls
+
+Consistency applies across the whole app. Reuse shared controls for the same action,
+including labels, visual style, keyboard behavior and ordering. Different contexts
+may offer different actions, but must not invent a second treatment of the same action.
+Top-level page tools share one component; review and comparison share the workspace,
+preview and confirmation controls. Navigation goes to its named destination/tab.
 
 | Element | Contract and implementation |
 | :--- | :--- |
@@ -120,6 +129,9 @@ their editing view the whole window (Lightroom's Develop, Immich's viewer).
 - **Leaving with unsaved changes** (with the first editing workspace): "Leave without
   saving?" / "All unsaved changes will be lost." / **Keep editing** (initial focus) ·
   **Discard**. Never save automatically.
+- **Responsive panels:** when resizing turns an underlying Inspector into a modal,
+  defer its activation until covering Settings/dialogs close. It must not steal focus
+  or cover the active task.
 - **Narrow windows:** the header wraps (title and subject, then the step control and
   actions); the frame never scrolls sideways.
 
@@ -419,7 +431,10 @@ visual standard. Engine transfer safety and filesystem behavior are unchanged.
 ## Suspicious dates
 
 The **Suspicious dates** gallery view flags the recorded gallery date when its year
-is before 1800 or more than one year ahead of the current UTC year. This is a
+is before the catalog’s **Earliest expected year** (default 1800) or more than one
+year ahead of the current UTC year. Setup and Settings › Files offer this year
+(whole number 1–9999); the chosen year itself is allowed. For example, 2000 flags
+1999 and earlier. Allow for older scans and family photos. This is a
 conservative review heuristic, not proof of an error. It includes EXIF-derived dates
 and file-modification fallbacks, with their source identified in the Inspector and
 comparison pane. Missing dates remain covered by No capture date; raw malformed or
@@ -432,7 +447,10 @@ Explain the policy beside results. The Inspector shows the reason, recorded valu
 source and a link to the affected view. Similar photos offer clues, not automatic
 corrections. The comparison Capture information table includes a Date review row
 when either photo is flagged. State clearly that date editing is not yet available.
-No schema changes, reindex or file writes are needed; the upper bound advances with
+Changing the rule updates counts, filters and inspection immediately without
+reindexing or changing photo bytes/metadata. The gallery names the saved boundary
+and links to Settings. The setting is revision-checked and backed up with the catalog.
+The upper bound advances with
 the server's UTC year when the catalog is read.
 
 ### Reference-based sets

@@ -7,7 +7,7 @@ import { SimilarityRecovery } from "./SimilarityRecovery";
 import { PageBoundary } from "./ui/PageBoundary";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Logo } from "./Logo";
-import { VersionTag } from "./VersionTag";
+import { PageTools } from "./PageTools";
 import { api, ApiError, MATCH_THRESHOLDS, type ActionMode, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
 import { count, plural } from "../format";
 import { jobLabel, summary, useDismissedRun, useJobFeed } from "../jobs";
@@ -27,7 +27,6 @@ import { SelectionBar, type SelectionCounts } from "./SelectionBar";
 import { RejectsLine, RejectsReminder } from "./RejectsLine";
 import { SearchField } from "./ui/SearchField";
 import type { MatchView } from "./PhotoMatches";
-import { StatsLink } from "./StatsPage";
 import { follow, navigate, rememberLibraryQuery, useHeaderHeight, useNavigation } from "../nav";
 
 
@@ -929,11 +928,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                           counts={selectionActions} place={place} jobRunning={jobRunning} onAction={transferSelected}
                           onShowSelected={showSelected} onBack={backToResults} onClear={clearSelection} />
           )}
-          <div className="toolbar-actions">
-            <VersionTag version={status.version} />
-            <StatsLink />
-            <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
-          </div>
+          <PageTools version={status.version} onOpenSettings={onOpenSettings} />
         </div>
         <div className={`toolbar-row toolbar-browse ${focus ? "is-muted" : ""}`}>
           <button className="dates-toggle" aria-expanded={datesOpen} onClick={() => setDatesOpen(!datesOpen)}>
@@ -1056,7 +1051,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             </div>
           )}
           {!focus && browseView === "rejects" && data?.rejects && <RejectsLine rejects={data.rejects} />}
-          {!focus && suspicious && <p className="dates-filter-line">Recorded years before 1800 or more than one year ahead. Open a photo to inspect its date and source. These are review hints; dates remain unchanged. Date editing is not yet available.</p>}
+          {!focus && suspicious && <p className="dates-filter-line">Recorded years before {data?.date_min_year ?? "the earliest expected year"} or more than one year ahead. Open a photo to inspect its date and source. These are review hints; dates remain unchanged. Date editing is not yet available. <button className="link" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>}
           {!focus && <div className="gallery-context">
             <h2>{VIEW_LABEL[view]}</h2>
             {(undated || dates.length > 0 || types.length > 0 || folders.length > 0 || !!q || similar || suspicious) && <p className="section-note">

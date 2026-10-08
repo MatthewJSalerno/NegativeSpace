@@ -320,7 +320,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 21 and refuses incompatible catalogs before processing.
+initializes schema version 22 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -760,7 +760,7 @@ Explicit initialization is available before Index. Settings saves use narrowly s
 
 ```sql
 CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days','small_image_min')),
+    key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days','small_image_min','suspicious_min_year')),
     value_json TEXT NOT NULL,
     revision INTEGER NOT NULL CHECK(revision > 0),
     updated_at TEXT NOT NULL
@@ -1584,4 +1584,4 @@ photo/review revisions are refused. Small-image eligibility is a query over deli
 content dimensions and `small_image_min` (positive integer pixels, null for off).
 Acknowledgements survive re-indexing unchanged content and rule changes. Review later
 is independently resolved by Done. Review events are included in catalog backups and
-unbacked-change accounting. Development catalogs require schema 21; no migration.
+unbacked-change accounting. Development catalogs require schema 22; no migration.

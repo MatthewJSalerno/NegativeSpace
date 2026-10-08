@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
-import { StatsLink } from "./StatsPage";
-import { VersionTag } from "./VersionTag";
+import { PageTools } from "./PageTools";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
 import { reasonsText, jobLabel, modeName, showsPhotos, summary, useDismissedRun, useJobFeed } from "../jobs";
@@ -246,11 +245,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
             <a className="button-link" href="/" onClick={follow}>Library</a>
             <a className="button-link active" href="/logs" onClick={follow} aria-current="page">Logs</a>
           </nav>
-          <div className="toolbar-actions">
-            <VersionTag version={status.version} />
-            <StatsLink />
-            <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
-          </div>
+          <PageTools version={status.version} onOpenSettings={onOpenSettings} />
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
         <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />

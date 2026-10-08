@@ -3,13 +3,14 @@ import { createPortal } from "react-dom";
 
 const openDialogs = new Set<HTMLDialogElement>();
 let previousOverflow = "";
+const waitingDialogs = new Set<() => void>();
 const tabbable = 'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"], summary';
 
 // Native top-layer modality makes everything behind the window inert, including
 // other dialogs. Explicit wrapping and restoration keep the keyboard in the task.
-export function Modal({ children, onClose, labelledBy, label, role = "dialog", className = "dialog", busy = false }: {
+export function Modal({ children, onClose, labelledBy, label, role = "dialog", className = "dialog", busy = false, deferWhileCovered = false }: {
   children: ReactNode; onClose: () => void; labelledBy?: string; label?: string;
-  role?: "dialog" | "alertdialog"; className?: string; busy?: boolean;
+  role?: "dialog" | "alertdialog"; className?: string; busy?: boolean; deferWhileCovered?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -42,20 +43,31 @@ export function Modal({ children, onClose, labelledBy, label, role = "dialog", c
   }, []);
   useLayoutEffect(() => {
     const dialog = ref.current!;
-    const opener = document.activeElement as HTMLElement | null;
-    if (!openDialogs.size) { previousOverflow = document.body.style.overflow; document.body.style.overflow = "hidden"; }
-    openDialogs.add(dialog);
-    dialog.showModal();
-    (dialog.querySelector<HTMLElement>("[data-initial-focus]") ?? dialog.querySelector<HTMLElement>(tabbable) ?? dialog.firstElementChild as HTMLElement).focus();
+    let opener: HTMLElement | null = null;
+    const open = () => {
+      if (dialog.open || (deferWhileCovered && openDialogs.size > 0)) return;
+      opener = document.activeElement as HTMLElement | null;
+      if (!openDialogs.size) { previousOverflow = document.body.style.overflow; document.body.style.overflow = "hidden"; }
+      openDialogs.add(dialog);
+      dialog.showModal();
+      (dialog.querySelector<HTMLElement>("[data-initial-focus]") ?? dialog.querySelector<HTMLElement>(tabbable) ?? dialog.firstElementChild as HTMLElement).focus();
+    };
+    // A responsive background panel becoming modal must not cover the user's
+    // current task. Activate it only after the covering dialogs have closed.
+    if (deferWhileCovered) waitingDialogs.add(open);
+    open();
     return () => {
+      waitingDialogs.delete(open);
+      if (!openDialogs.has(dialog)) return;
       dialog.close();
       openDialogs.delete(dialog);
       if (!openDialogs.size) document.body.style.overflow = previousOverflow;
       const fallback = [...openDialogs].at(-1)?.querySelector<HTMLElement>(tabbable)
         ?? document.querySelector<HTMLElement>('[data-focus-home], .actions-menu > button');
       (opener?.isConnected && opener !== document.body ? opener : fallback)?.focus({ preventScroll: true });
+      waitingDialogs.forEach(tryOpen => tryOpen());
     };
-  }, []);
+  }, [deferWhileCovered]);
   return createPortal(
     <dialog ref={ref} className="modal-shell" role={role} aria-modal="true" aria-labelledby={labelledBy}
             aria-label={label} aria-busy={busy || undefined}

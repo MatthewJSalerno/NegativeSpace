@@ -92,6 +92,8 @@ revision 0.
      "backup_retention": {"value": 20, "revision": 0, "default": 20},
      "rejects_reminder_bytes": {"value": 1000000000 | null, "revision": 0, "default": 1000000000},
      "rejects_reminder_days": {"value": 30 | null, "revision": 0, "default": 30},
+     "small_image_min": {"value": null, "revision": 0, "default": null},
+     "suspicious_min_year": {"value": 1800, "revision": 0, "default": 1800},
      "job_active": false}
 
 `workers.detected` is the number of CPUs the container may use (`ns_db.available_cpus`):
@@ -108,7 +110,8 @@ Saves the settings that changed, each with the revision it was read at:
 `200` with the settings as in `GET`. If a revision moved since it was read, another tab
 saved first: `409 settings_changed`, and nothing is written. An invalid value is
 `400 invalid_settings`, and a catalog too busy to take the write is `503 catalog_busy`.
-Saved values apply to jobs started afterwards, never to one already running.
+Processing values apply to jobs started afterwards, never to one already running.
+Review rules update subsequent browse and inspection requests immediately.
 
 ### `POST /api/v1/settings/validate-extension`
 
@@ -566,6 +569,8 @@ Every recorded attempt, newest first, including failed and interrupted ones:
      "storage": {"ok": true, "error_category": null, "error_detail": null},
      "retention": 20, "automatic_retained": 7, "present_count": 9, "present_bytes": 181000000,
      "last_success": "...", "unbacked": {"count": 0, "since": "...", "runs": []},
+     "small_image_min": {"value": null, "revision": 0, "default": null},
+     "suspicious_min_year": {"value": 1800, "revision": 0, "default": 1800},
      "job_active": false}
 
 `availability` is observed on each request without writing to the catalog: `unknown`
@@ -947,3 +952,9 @@ and review, with similarity/date conditions as chips. Settings adds
 The matches response also supplies `largest_match` (photo details or null), selected
 across the complete matching set rather than the current page. This is evidence for
 small-image review, never an automatic selection or quality judgment.
+
+The catalog setting `suspicious_min_year` accepts an integer from 1 to 9999 (default
+1800). It uses the same revision-checked Settings API. A recorded year strictly below
+it is suspicious; the future-year rule remains current UTC year + 1. The photo-list
+response includes `date_min_year` so its policy text agrees with its query results.
+Changing the setting changes browse/inspection results, never recorded metadata.

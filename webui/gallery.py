@@ -12,6 +12,10 @@ from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
 from . import catalog
 
 
+# An uncorrelated settings lookup is evaluated once per statement, not per photo.
+_DATE_MIN_YEAR_SQL = f"COALESCE((SELECT CAST(value_json AS INTEGER) FROM settings WHERE key='suspicious_min_year'),{ns_db.SUSPICIOUS_MIN_YEAR_DEFAULT})"
+
+
 def _date_warning_sql():
     # Inspect only the recorded gallery date. Do not reinterpret timezones or
     # mutate EXIF. SQL keeps membership, counts and pagination in agreement.
@@ -19,7 +23,7 @@ def _date_warning_sql():
     year = f"CAST(substr({value},1,4) AS INTEGER)"
     latest = "(CAST(strftime('%Y','now') AS INTEGER) + 1)"
     return (f"CASE WHEN p.status!='Failed' AND {value} GLOB '[0-9][0-9][0-9][0-9]-*' THEN CASE "
-            f"WHEN {year}<1800 THEN 'Recorded year is before 1800.' "
+            f"WHEN {year}<{_DATE_MIN_YEAR_SQL} THEN 'Recorded year is before your earliest expected year (' || {_DATE_MIN_YEAR_SQL} || ').' "
             f"WHEN {year}>{latest} THEN 'Recorded year is more than one year ahead of the current year.' END END")
 
 
@@ -365,8 +369,9 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
         items = _items(conn, rows, include_review=view in ("review", "organized", "similar"))
         state = comparison_state(conn) if view == "similar" or similar else None
         rejects = catalog.rejects_summary(conn) if view == "rejects" else None
+        date_min_year = conn.execute(f"SELECT {_DATE_MIN_YEAR_SQL}").fetchone()[0]
         index_summary = _index_summary(conn) if view == "unorganized" else None
-    return {"items": items, "page": page, "page_size": page_size, "total": total, "counts": counts,
+    return {"date_min_year": date_min_year, "items": items, "page": page, "page_size": page_size, "total": total, "counts": counts,
             "matches": matches, "similarity": {"threshold": match_min, **state} if state is not None else None,
             "rejects": rejects, "chips": chips, "reasons": reasons, "elsewhere": elsewhere, "index_summary": index_summary}
 

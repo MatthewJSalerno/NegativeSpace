@@ -77,6 +77,14 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Needs review
 
+- [x] Earliest expected year in setup and Settings; shared suspicious-date query policy
+  updates counts, filtering and inspection without editing metadata. Schema 22 requires
+  a fresh development catalog, following the existing no-migration policy.
+- [x] Responsive Inspector waits behind already-open dialogs during resizing; Settings
+  remains usable and retains focus until closed.
+- [x] Explicit System/Light/Dark appearance preference and a shared Dark mode toggle
+  across Library, Logs and Stats; shared page tools prevent header control drift.
+
 - [x] Similarity grouping/control parity between Library and Needs review. Extra
   filters/search show every matching photo individually; clearing them restores the
   explicit grouping preference. Group representatives must belong to the inbox before

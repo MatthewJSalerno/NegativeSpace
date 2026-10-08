@@ -67,6 +67,7 @@ export interface ReviewDetail {
   revision: number; sha1: string | null; location: string;
 }
 export interface PhotoPage {
+  date_min_year: number;
   index_summary?: { last_index: { id: number; started_at: string } | null; photos: number; ready: number; unfinished: number; duplicates: number; small: number; minimum: number | null; unknown_dimensions: number; suspicious: number; undated: number; failed: number; similar: null } | null;
   elsewhere?: Record<string, number>;
   chips?: Record<string, number>;
@@ -265,6 +266,7 @@ export interface ExtensionSupport {
 }
 
 export interface Settings {
+  suspicious_min_year: Setting<number>;
   small_image_min: Setting<number | null>;
   workers: Setting<number> & { detected: number; host: number; limited_by: "cpu_quota" | "cpu_set" | null };
   exts: Setting<string[]> & { support: ExtensionSupport[] };

@@ -234,7 +234,7 @@ def settings(db_path: Path, *, cpus: dict, supported_extensions) -> dict:
         saved = ns_db.read_settings(conn)
         retention_default = ns_db.backup_retention(conn)
     defaults = {"workers": cpus["available"], "exts": sorted(supported_extensions),
-                "backup_retention": retention_default, "small_image_min": None, **ns_db.REJECTS_REMINDER_DEFAULTS}
+                "backup_retention": retention_default, "small_image_min": None, "suspicious_min_year": ns_db.SUSPICIOUS_MIN_YEAR_DEFAULT, **ns_db.REJECTS_REMINDER_DEFAULTS}
     out = {}
     for key, default in defaults.items():
         entry = saved.get(key, {"value": default, "revision": 0})

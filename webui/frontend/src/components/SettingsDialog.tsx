@@ -3,7 +3,7 @@ import { Field } from "./ui/Field";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { api, ApiError, type ExtensionSupport, type Settings } from "../api";
 import { BackupsPanel } from "./BackupsPanel";
-import { setPalette, usePalette } from "../appearance";
+import { setPalette, usePalette, setTheme, useTheme, type Theme } from "../appearance";
 import { TabList, tabPanel } from "./ui/Tabs";
 
 const QUEUE_SIZE = 1000; // DB_QUEUE_SIZE, fixed in the engine (engine-spec 4.1)
@@ -16,11 +16,11 @@ const GROUPS: { value: Group; label: string }[] = [
 ];
 // Where each field and each saved setting lives.
 const FIELD_GROUP: Record<string, Group> = {
-  workers: "performance", retention: "backups", exts: "files", reminderSize: "files", reminderAge: "files", small: "files",
+  workers: "performance", retention: "backups", exts: "files", reminderSize: "files", reminderAge: "files", small: "files", year: "files",
 };
 const SETTING_GROUP: Record<string, Group> = {
   workers: "performance", backup_retention: "backups", exts: "files",
-  rejects_reminder_bytes: "files", rejects_reminder_days: "files", small_image_min: "files",
+  rejects_reminder_bytes: "files", rejects_reminder_days: "files", small_image_min: "files", suspicious_min_year: "files",
 };
 
 // Settings (webui-spec 3). A window over the current view, so closing it returns
@@ -35,6 +35,8 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
   onSaved: () => void;
 }) {
   const palette = usePalette();
+  const theme = useTheme();
+  const [minYear, setMinYear] = useState("1800");
   const [settings, setSettings] = useState<Settings | null>(null);
   const [workers, setWorkers] = useState("");
   const [retention, setRetention] = useState("");
@@ -69,6 +71,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
   }, []);
 
   function showReminder(s: Settings) {
+    setMinYear(String(s.suspicious_min_year.value));
     setSmallChoice(firstRun && s.small_image_min.revision === 0 ? "" : s.small_image_min.value == null ? "off" : "on");
     setSmallMin(String(s.small_image_min.value ?? 800));
     const size = s.rejects_reminder_bytes.value, days = s.rejects_reminder_days.value;
@@ -94,10 +97,11 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     if ([...exts].sort().join() !== [...settings.exts.value].sort().join()) out.exts = [...exts].sort();
     if (reminderBytes !== settings.rejects_reminder_bytes.value) out.rejects_reminder_bytes = reminderBytes;
     if (reminderDays !== settings.rejects_reminder_days.value) out.rejects_reminder_days = reminderDays;
+    if (Number(minYear) !== settings.suspicious_min_year.value) out.suspicious_min_year = Number(minYear);
     const small = smallChoice === "on" ? Number(smallMin) : null;
     if (small !== settings.small_image_min.value || (firstRun && smallChoice && settings.small_image_min.revision === 0)) out.small_image_min = small;
     return out;
-  }, [settings, workers, retention, exts, reminderBytes, reminderDays, smallChoice, smallMin]);
+  }, [settings, workers, retention, exts, reminderBytes, reminderDays, smallChoice, smallMin, minYear]);
 
   const toggleExt = (ext: string) =>
     setExts((cur) => (cur.includes(ext) ? cur.filter((e) => e !== ext) : [...cur, ext]));
@@ -120,6 +124,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
 
   const check = (only?: Group) => {
     const errors: Record<string, string> = {};
+    if (!Number.isInteger(Number(minYear)) || Number(minYear)<1 || Number(minYear)>9999) errors.year = "Enter a whole year from 1 to 9999.";
     if (firstRun && !smallChoice) errors.small = "Choose whether to suggest small images for review.";
     if (smallChoice === "on" && (!Number.isSafeInteger(Number(smallMin)) || Number(smallMin)<1)) errors.small = "Enter a positive whole number of pixels.";
     if (!Number.isSafeInteger(Number(workers)) || Number(workers) < 1) errors.workers = "Enter a whole number of workers, at least 1.";
@@ -157,6 +162,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
       return;
     }
     const revisionOf: Record<string, number> = {
+      suspicious_min_year: settings.suspicious_min_year.revision,
       small_image_min: settings.small_image_min.revision, workers: settings.workers.revision, exts: settings.exts.revision, backup_retention: settings.backup_retention.revision,
       rejects_reminder_bytes: settings.rejects_reminder_bytes.revision, rejects_reminder_days: settings.rejects_reminder_days.revision,
     };
@@ -204,17 +210,29 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
   const panels: Record<Group, ReactNode> = settings ? {
     appearance: (
       <section className="appearance-settings">
+        <label htmlFor="settings-theme">Color mode</label>
+        <select id="settings-theme" value={theme} aria-describedby="theme-hint" onChange={event => setTheme(event.target.value as Theme)}>
+          <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
+        </select>
+        <p id="theme-hint" className="muted">Applies immediately on every screen and is remembered in this browser. System follows your device’s light/dark setting.</p>
         <label htmlFor="settings-palette">Color palette</label>
         <select id="settings-palette" value={palette} aria-describedby="palette-hint"
                 onChange={(event) => setPalette(event.target.value === "warm" ? "warm" : "cool")}>
           <option value="cool">Cool neutral</option>
           <option value="warm">Warm neutral</option>
         </select>
-        <p id="palette-hint" className="muted">Applies immediately and is remembered in this browser. Light and dark mode follow your system setting.</p>
+        <p id="palette-hint" className="muted">Applies immediately and is remembered in this browser. Both palettes work in light and dark mode.</p>
       </section>
     ),
     files: (<>
       {firstRun && smallImageSettings}
+      <section>
+        <h3>Suspicious dates</h3>
+        <Field id="settings-year" label="Earliest expected year" type="number" min={1} max={9999} step={1}
+          value={minYear} disabled={saving} onChange={e => setMinYear(e.target.value)} error={fieldErrors.year}
+          hint="Dates before this year are flagged for review. For example, choose 2000 to flag 1999 and earlier. Allow for older scans or family photos you want to keep." />
+        <p className="muted">Starts at 1800. Dates more than one year ahead are also flagged. Saving updates warnings immediately; photo dates, Copy and Move are unchanged.</p>
+      </section>
       <section>
         <h3>File types</h3>
         <p className="muted">NegativeSpace looks for these kinds of files in your source folder. Files of other types are left where they are.</p>

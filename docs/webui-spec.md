@@ -373,8 +373,8 @@ must not reset saved preferences. The browser uses the API, never SQLite directl
 One consistent database backup includes settings and lineage. The settings writer
 boundary is defined in §6.1; no second database is required.
 
-**Settings are in four groups:** **Appearance** (the palette), **Files** (file types;
-the Rejects reminder, §7.8; with Needs review, the small-image size, §7.9; with the
+**Settings are in four groups:** **Appearance** (palette and System/Light/Dark mode), **Files** (file types;
+the earliest expected year for suspicious dates; the Rejects reminder, §7.8; with Needs review, the small-image size, §7.9; with the
 editor, where edits are saved, §7.5), **Backups** (how many to keep, the list, Back up now, how to
 restore) and **Performance** (worker processes; the thumbnail cache, §4.2.1, not yet on screen). In Settings they are tabs with one **Save
 settings** for all of them, so switching tabs loses nothing; a tab with unsaved changes
@@ -384,7 +384,7 @@ shows a dot, and a save with an error on another tab opens that tab at the field
 says prominently that these are starting values, changeable at any time from the gear
 icon in Settings. Without that, a user can take the screen for the only chance to set
 them. It steps through the same four groups ("Step 2 of 4 Files", **Back**, **Next**),
-one per page so each fits without scrolling; Next checks only that step, and nothing is
+one per page, with scrolling when its contents exceed the viewport; Next checks only that step, and nothing is
 saved until **Save and continue** on the last. Saving lands in Not organized, where **Index
 source** waits, whatever page an earlier session left in the address bar. After
 first run, Settings opens as a window over the current view.
@@ -1467,7 +1467,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 21 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 22 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -2624,7 +2624,10 @@ web presentation remains pending.
 ## Suspicious dates
 
 The **Suspicious dates** gallery view flags the recorded gallery date when its year
-is before 1800 or more than one year ahead of the current UTC year. This is a
+is before the catalog’s **Earliest expected year** (default 1800) or more than one
+year ahead of the current UTC year. Setup and Settings › Files offer this year
+(whole number 1–9999); the chosen year itself is allowed. For example, 2000 flags
+1999 and earlier. Allow for older scans and family photos. This is a
 conservative review heuristic, not proof of an error. It includes EXIF-derived dates
 and file-modification fallbacks, with their source identified in the Inspector and
 comparison pane. Missing dates remain covered by No capture date; raw malformed or
@@ -2637,7 +2640,10 @@ Explain the policy beside results. The Inspector shows the reason, recorded valu
 source and a link to the affected view. Similar photos offer clues, not automatic
 corrections. The comparison Capture information table includes a Date review row
 when either photo is flagged. State clearly that date editing is not yet available.
-No schema changes, reindex or file writes are needed; the upper bound advances with
+Changing the rule updates counts, filters and inspection immediately without
+reindexing or changing photo bytes/metadata. The gallery names the saved boundary
+and links to Settings. The setting is revision-checked and backed up with the catalog.
+The upper bound advances with
 the server's UTC year when the catalog is read.
 
 ### Reference-based grouping

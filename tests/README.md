@@ -141,7 +141,8 @@ of the checkout, build that copy under another tag, and run with `IMAGE` set to 
 | :--- | :--- | :--- |
 | `webui_browser_drive.py` (default) | | First run, Index, the gallery, Inspector, selection, Copy, Stats, Settings, backups, search, phone width; runs the shared UI checks |
 | `ui_browser_drive.py` | | The shared UI checks alone |
-| `appearance_browser_drive.py` | | Palettes, contrast, storage, narrow controls |
+| `appearance_browser_drive.py` | | Palettes, explicit/system modes, contrast, cross-tab storage, shared page tools and narrow controls |
+| `date_settings_browser_drive.py` | | Setup year choice, settings validation/persistence, immediate filter and Inspector updates |
 | `navigation_browser_drive.py` | | Links, Back/Forward, restoration |
 | `gallery_position_browser_drive.py` | | Positioning a photo from Logs, hidden photos |
 | `large_selection_browser_drive.py` | `SIMILARITY_RECOVERY_FIXTURE=1` | Show only selected and Inspector navigation across page boundaries with more than 1,000 selected photos |
@@ -710,7 +711,7 @@ Manual review before merging: choose On and Off on separate fresh catalogs, revi
 mixed-size delivered photos, verify a useful small photo disappears only from Small
 images after Mark reviewed, and verify unwanted photos follow the existing Reject
 confirmation. Inspect the workspace and first-run Files at desktop zoom. This branch
-uses schema 21 and requires a fresh development catalog; it does not migrate schema 20.
+uses schema 22 and requires a fresh development catalog; it does not migrate schema 20.
 
 The review browser driver also covers first-step navigation, source Index summary,
 Copy confirmation, Library review markers, focused inbox entry and return with search,
@@ -769,3 +770,14 @@ The reference-set browser driver also checks grouping/control parity in Needs re
 automatic individual-photo results under extra review/search/sidebar filters, URL and
 preference restoration, and narrow reflow. The API suite checks that a reviewed group's
 lowest ID cannot hide remaining inbox photos, including selection IDs and positioning.
+
+Appearance/date settings validation: `suspicious_dates_test.py` checks the configurable
+lower boundary (1999 versus 2000), rejected invalid values, revision conflicts, shared
+browse/inspection membership and unchanged metadata. The date-settings browser driver
+covers choosing the year during setup, changing it later without indexing, and dark-mode
+settings at desktop/reflow widths. The appearance driver covers explicit overrides,
+System changes, reload, cross-tab updates, blocked storage, and identical header tools
+on Library, Logs and Stats. Backups links must open the Backups settings tab directly.
+
+The date-settings driver also resizes an open Inspector behind Settings: Settings
+remains on top, and the narrow Inspector becomes modal only after Settings closes.

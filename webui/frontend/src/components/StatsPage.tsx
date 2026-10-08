@@ -5,7 +5,7 @@ import { useDismissedRun, useJobFeed } from "../jobs";
 import { follow, useHeaderHeight } from "../nav";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
 import { Logo } from "./Logo";
-import { VersionTag } from "./VersionTag";
+import { PageTools } from "./PageTools";
 import { RejectsReminder } from "./RejectsLine";
 
 const FAILURE_LABEL: Record<string, [string, string]> = {
@@ -27,7 +27,7 @@ const JOB_LABEL: Record<string, string> = {
 export function StatsPage({ status, refreshStatus, onOpenSettings }: {
   status: Status;
   refreshStatus: () => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (group?: "appearance" | "files" | "backups") => void;
 }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,11 +57,7 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
             <a className="button-link" href="/" onClick={follow}>Library</a>
             <a className="button-link" href="/logs" onClick={follow}>Logs</a>
           </nav>
-          <div className="toolbar-actions">
-            <VersionTag version={status.version} />
-            <StatsLink active />
-            <button className="icon" onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
-          </div>
+          <PageTools version={status.version} stats onOpenSettings={onOpenSettings} />
         </div>
         <JobDrawer jobs={jobs} connection={connection} />
         <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} />
@@ -79,18 +75,6 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
 }
 
 // The Stats icon, beside Settings on every page.
-export function StatsLink({ active = false }: { active?: boolean }) {
-  return (
-    <a className={`icon stats-link ${active ? "active" : ""}`} href="/stats" onClick={follow}
-       aria-label="Stats" title="Stats" aria-current={active ? "page" : undefined}>
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"
-           fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-        <path d="M5 20V11M12 20V5M19 20v-7" />
-      </svg>
-    </a>
-  );
-}
-
 // A share as a percentage that never rounds to all or nothing: 4,681 of 4,684 reads
 // 99.9%, not 100%, and 100% means every one.
 function share(n: number, of: number): string {
@@ -101,7 +85,7 @@ function share(n: number, of: number): string {
   return tenths >= 100 ? ">99.9%" : tenths <= 0 ? "<0.1%" : `${tenths}%`;
 }
 
-function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void }) {
+function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: (group?: "appearance" | "files" | "backups") => void }) {
   const lib = s.library;
   const failed = Object.values(s.activity.failures).reduce((a, b) => a + b, 0);
   return (
@@ -118,7 +102,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
               href={failed ? "/logs?status=Failed" : undefined} tone={failed ? "bad" : undefined} />
         <Tile label="Last backup" value={s.health.last_backup ? photoDate(s.health.last_backup, false) : "None"}
               sub={s.health.unbacked_changes ? `${plural(s.health.unbacked_changes, "change")} since` : "Up to date"}
-              onClick={onOpenSettings} tone={s.health.unbacked_changes ? "warn" : undefined} />
+              onClick={() => onOpenSettings("backups")} tone={s.health.unbacked_changes ? "warn" : undefined} />
         <RejectsTile r={s.rejects} />
       </div>
 
@@ -228,7 +212,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: () => void
                   .map(([k, n]) => `${count(n)} ${k}`).join(", ") || "all as recorded"}`
               : "Never run"],
           ]} />
-          <button className="link" onClick={onOpenSettings}>Open Settings for backups</button>
+          <button className="link" onClick={() => onOpenSettings("backups")}>Open Settings for backups</button>
         </Panel>
       </div>
     </>

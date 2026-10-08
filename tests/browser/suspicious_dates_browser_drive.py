@@ -44,7 +44,7 @@ with sync_playwright() as p:
     page.get_by_role('tab',name='Similar photos',exact=True).click()
     page.get_by_role('button',name=re.compile('^Review side by side:')).first.click()
     expect(page.get_by_role('table',name='Capture information',exact=True).get_by_role('rowheader',name=re.compile('^Date review'))).to_be_visible()
-    expect(page.get_by_text('Recorded year is before 1800.',exact=True)).to_be_visible()
+    expect(page.get_by_text('Recorded year is before your earliest expected year (1800).',exact=True)).to_be_visible()
     page.get_by_role('table',name='Capture information',exact=True).get_by_role('rowheader',name=re.compile('^Date review')).scroll_into_view_if_needed()
     if os.environ.get('SHOTS'):
         page.screenshot(path=os.path.join(os.environ['SHOTS'],'suspicious-date-comparison.png'))

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 21
+SCHEMA_VERSION = 22
 
 # --- Status vocabularies -----------------------------------------------------
 #
@@ -579,7 +579,7 @@ FOUNDATION_DDL = (
         file_id INTEGER NOT NULL REFERENCES files(file_id),
         role TEXT NOT NULL CHECK(role IN ('source','destination','retained_copy')), PRIMARY KEY(operation_id,file_id,role))""",
     """CREATE TABLE settings (
-        key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days','small_image_min')),
+        key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days','small_image_min','suspicious_min_year')),
         value_json TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0),
         updated_at TEXT NOT NULL)""",
     # The photos a run was asked to act on, recorded with the run itself: what the user
@@ -802,6 +802,8 @@ def save_ui_state(conn, values):
 
 # When the web interface reminds the user that Rejects is worth emptying (webui-spec 7.8):
 # past either limit; null switches that limit off.
+SUSPICIOUS_MIN_YEAR_DEFAULT = 1800
+
 REJECTS_REMINDER_DEFAULTS = {'rejects_reminder_bytes': 1_000_000_000, 'rejects_reminder_days': 30}
 
 
@@ -819,6 +821,9 @@ def validate_settings(values):
         elif key in REJECTS_REMINDER_DEFAULTS or key == 'small_image_min':
             if value is not None and (type(value) is not int or value < 1):
                 raise ValueError(f"{key} must be a positive integer, or null for off")
+        elif key == 'suspicious_min_year':
+            if type(value) is not int or not 1 <= value <= 9999:
+                raise ValueError("suspicious_min_year must be a whole year from 1 to 9999")
         elif key == 'exts':
             if not isinstance(value, list) or not value or any(
                 not isinstance(v, str) or not re.fullmatch(r'\.?[A-Za-z0-9]+', v) for v in value

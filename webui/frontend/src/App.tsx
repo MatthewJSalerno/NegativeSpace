@@ -14,7 +14,7 @@ export function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsGroup, setSettingsGroup] = useState<"appearance" | "files">("appearance");
+  const [settingsGroup, setSettingsGroup] = useState<"appearance" | "files" | "backups">("appearance");
   useEffect(() => {
     const open = () => { setSettingsGroup("files"); setSettingsOpen(true); };
     window.addEventListener("ns-review-settings", open);
@@ -50,7 +50,7 @@ export function App() {
       {path === "/logs"
         ? <LogsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => { setSettingsGroup("appearance"); setSettingsOpen(true); }} />
         : path === "/stats"
-          ? <StatsPage status={status} refreshStatus={loadStatus} onOpenSettings={() => { setSettingsGroup("appearance"); setSettingsOpen(true); }} />
+          ? <StatsPage status={status} refreshStatus={loadStatus} onOpenSettings={(group = "appearance") => { setSettingsGroup(group); setSettingsOpen(true); }} />
           : path === "/similar"
             ? <SimilarRedirect />
             : <LibraryPage status={status} refreshStatus={loadStatus} onOpenSettings={() => { setSettingsGroup("appearance"); setSettingsOpen(true); }} />}
