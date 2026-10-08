@@ -870,6 +870,14 @@ once; equal visual hashes of different identities remain separate photos. Querie
 use existing stored relationships in one snapshot, make no photo reads or writes,
 and do not recalculate hashes or persist groups. Expansion is one hop, never recursive.
 
+Identical membership in Explore related sets follows the gallery rule: exclude sets
+identical to the starting set and show each remaining full-membership set once, before
+related-set counting and pagination. Compare exact membership at the selected percentage,
+not photo counts; a proper subset is still a distinct overlapping set. Choose the lowest
+canonical photo ID among the starting reference's direct matches for each distinct set.
+No other distinct sets produces an explicit empty message. Changing reference does not
+choose a keeper or modify photos.
+
 Inspector responses also include nullable `visual_issue` describing recorded missing
 or failed visual hashing. Recovery failure operations use mode SIMILARITY/status
 Failed with a photo ID, path and detailed `error_message`; the photo's delivered

@@ -48,6 +48,30 @@ class ReferenceSetsTests(fixtures.ApiCase):
         self.assertNotIn(self.d,[p['id'] for p in combined['items']])
         self.assertEqual(list(self.conn.iterdump()),before)
 
+    def test_related_sets_exclude_identical_members_and_collapse_before_paging(self):
+        twin_a = self.photo('A-twin', 'twin-a', '0000000000000000')
+        twin_b = self.photo('B-twin', 'twin-b', '000000000000003f')
+        self.refresh()
+        before = list(self.conn.iterdump())
+        a = self.get(query='&page_size=1&related_page=99')
+        self.assertEqual(a['related_total'], 1)
+        self.assertEqual(a['related_page'], 1)
+        self.assertEqual([r['id'] for r in a['related']], [self.b])
+        b = self.get(self.b, '&page_size=1&related_page=99')
+        self.assertEqual(b['related_total'], 2)
+        self.assertEqual(b['related_page'], 2)
+        self.assertEqual([r['id'] for r in b['related']], [self.c])
+        self.assertEqual(list(self.conn.iterdump()), before)
+        # Different hashes can also have the same membership: at 75% the
+        # first three buckets form a clique once D is unavailable.
+        self.conn.execute("UPDATE photos SET status='Pending' WHERE id=?", (self.d,))
+        self.conn.commit()
+        for reference in (self.a, twin_a, self.b, twin_b, self.c):
+            result = self.client.get(f'/api/v1/similar/{reference}/sets?threshold=75').json()
+            self.assertEqual(result['total'], 5)
+            self.assertEqual(result['related'], [])
+            self.assertEqual(result['related_total'], 0)
+
     def test_paging_thresholds_and_stale_requests(self):
         response=self.get(query=f'&include={self.b}&page_size=1&page=99&related_page=99')
         self.assertEqual((response['total'],response['page'],len(response['items'])),(3,3,1))

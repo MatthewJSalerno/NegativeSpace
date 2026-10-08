@@ -539,6 +539,14 @@ library. Turning grouping off returns the ordinary cards without clearing select
 Grouping defaults on and the toggle is remembered per browser (`ns.groupSets`). Selected expansions reset on closing exploration
 or changing its percentage, and survive a visit to side-by-side review and back.
 
+Identical membership in Explore related sets follows the gallery rule: exclude sets
+identical to the starting set and show each remaining full-membership set once, before
+related-set counting and pagination. Compare exact membership at the selected percentage,
+not photo counts; a proper subset is still a distinct overlapping set. Choose the lowest
+canonical photo ID among the starting reference's direct matches for each distinct set.
+No other distinct sets produces an explicit empty message. Changing reference does not
+choose a keeper or modify photos.
+
 Explore related sets offers only the starting reference's direct-match references.
 Choose up to six explicitly, then Show together. This unions their sets, deduplicates
 byte identities, and shows every photo's membership in the displayed sets. Members

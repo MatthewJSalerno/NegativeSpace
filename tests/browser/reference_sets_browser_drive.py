@@ -202,19 +202,15 @@ with sync_playwright() as p:
     dialog.get_by_role('button',name='Retry sets',exact=True).click()
     expect(dialog.locator('[data-member-id]')).to_have_count(2)
     dialog.get_by_role('button',name='Back to gallery',exact=True).click()
-    # A dense same-hash bucket remains paged and explicit expansion is capped.
-    # Explore from the unfiltered set tile: searching intentionally ungroups.
+    # Identical dense sets appear once, while the member photos remain paged.
     page.locator(f'.card[data-id="{large}"]').get_by_role('button',name='Explore related sets',exact=True).click()
     expect(dialog.locator('[data-member-id]')).to_have_count(12)
-    for checkbox in dialog.locator('[data-related-id] input').all()[:6]: checkbox.check()
-    expect(dialog.locator('[data-related-id] input').nth(6)).to_be_disabled()
-    dialog.get_by_role('button',name='Show together',exact=True).click()
-    expect(dialog.locator('[data-member-id]')).to_have_count(12)
+    expect(dialog.locator('[data-related-id]')).to_have_count(0)
+    expect(dialog.get_by_text('No other distinct overlapping sets at this percentage.',exact=True)).to_be_visible()
     expect(dialog.get_by_role('region',name='Displayed sets')).to_contain_text('126 distinct photos')
     dialog.get_by_role('button',name='Next photos',exact=True).click()
     expect(dialog.get_by_role('navigation',name='Set photo pages')).to_contain_text('Page 2 of 11')
-    dialog.get_by_role('button',name='Next sets',exact=True).click()
-    expect(dialog.get_by_role('navigation',name='Related set pages')).to_contain_text('Page 2 of 11')
+    expect(dialog.get_by_role('button',name='Next sets',exact=True)).to_be_disabled()
     dialog.get_by_role('button',name='Show this set in gallery',exact=True).first.click()
     expect(dialog).to_have_count(0)
     expect(page.locator('.gallery-summary')).to_contain_text('126 photos')

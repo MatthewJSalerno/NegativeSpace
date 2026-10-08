@@ -32,6 +32,37 @@ def _membership(ids):
         JOIN available a ON a.phash=n.phash WHERE a.phash_state='ok') """
 
 
+
+def _distinct_related(root_sql, distance):
+    """Exact full neighborhoods for direct references, before paging.
+
+    Compare sorted hash buckets, not member counts or a photo-pair cross product.
+    Only the starting set's hashes and their immediate neighbors are examined;
+    each live hash bucket has the same canonical destination members everywhere.
+    """
+    neighbor_available = AVAILABLE.replace('available AS', 'neighbor_available AS').replace(
+        'WHERE p.status', 'WHERE lower(c.phash) IN (SELECT b FROM related_edges) AND p.status')
+    return root_sql + f""", candidate_hashes AS (SELECT DISTINCT phash FROM members),
+      related_edges AS (
+        SELECT phash AS a,phash AS b FROM candidate_hashes
+        UNION SELECT h.phash,s.high_hash FROM candidate_hashes h
+          JOIN content_similarity s ON s.low_hash=h.phash AND s.distance<={distance}
+        UNION SELECT h.phash,s.low_hash FROM candidate_hashes h
+          JOIN content_similarity s ON s.high_hash=h.phash AND s.distance<={distance}),
+      {neighbor_available},
+      live_hashes AS (SELECT DISTINCT phash FROM neighbor_available WHERE {VALID}),
+      signatures AS MATERIALIZED (
+        SELECT a,GROUP_CONCAT(b,',') AS signature FROM (
+          SELECT a,b FROM related_edges WHERE b IN (SELECT phash FROM live_hashes)
+          ORDER BY a,b) GROUP BY a),
+      representatives AS (
+        SELECT MIN(m.id) AS id FROM members m JOIN signatures s ON s.a=m.phash
+        WHERE s.signature != (SELECT s.signature FROM signatures s JOIN roots r ON s.a=r.phash)
+        GROUP BY s.signature),
+      distinct_related AS (SELECT m.id,m.distance FROM members m
+        JOIN representatives r ON r.id=m.id) """
+
+
 def browse(db, reference_id, *, threshold=90, include=(), page=1, related_page=1, page_size=12):
     distance = ns_similarity_cache.match_distance(threshold)
     ids = list(dict.fromkeys(include))
@@ -58,7 +89,8 @@ def browse(db, reference_id, *, threshold=90, include=(), page=1, related_page=1
             raise ValueError('A selected set no longer directly matches this reference at this percentage. Remove it or reopen the set.')
         state = ns_similarity_cache.comparison_state(conn)
         total = conn.execute(sql+'SELECT COUNT(DISTINCT id) FROM members',params).fetchone()[0]
-        related_total = conn.execute(root_sql+'SELECT COUNT(*) FROM members WHERE id!=?',(*root_params,reference_id)).fetchone()[0]
+        related_sql = _distinct_related(root_sql, distance)
+        related_total = conn.execute(related_sql+'SELECT COUNT(*) FROM distinct_related',root_params).fetchone()[0]
         page = min(page,max(1,(total+page_size-1)//page_size))
         related_page = min(related_page,max(1,(related_total+page_size-1)//page_size))
         # Membership and sorting happen before pagination; exact contents have one
@@ -68,8 +100,8 @@ def browse(db, reference_id, *, threshold=90, include=(), page=1, related_page=1
           ORDER BY (id=?) DESC,MIN(distance),id LIMIT ? OFFSET ?''',
           (*params,reference_id,reference_id,page_size,(page-1)*page_size)).fetchall()
         member_ids = [r['id'] for r in member_rows]
-        related_ids = [r[0] for r in conn.execute(root_sql+'''SELECT id FROM members WHERE id!=?
-          ORDER BY distance,id LIMIT ? OFFSET ?''',(*root_params,reference_id,page_size,(related_page-1)*page_size))]
+        related_ids = [r[0] for r in conn.execute(related_sql+'''SELECT id FROM distinct_related
+          ORDER BY distance,id LIMIT ? OFFSET ?''',(*root_params,page_size,(related_page-1)*page_size))]
         lookup_ids = list(dict.fromkeys([*all_ids,*member_ids,*related_ids]))
         lookup = {r['id']:dict(r) for r in conn.execute(f'''SELECT {gallery._LIST_COLUMNS}
           FROM photos p WHERE p.id IN ({','.join('?' for _ in lookup_ids)})''',lookup_ids)}

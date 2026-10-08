@@ -2683,6 +2683,14 @@ compare through a supporting reference. Both member lists are paged and coverage
 limitations remain visible. Expanded sets are session-only and reset on reload/closing;
 threshold changes clear expansions. No transitive traversal. See [the design contract](ui-design.md#reference-based-sets).
 
+Identical membership in Explore related sets follows the gallery rule: exclude sets
+identical to the starting set and show each remaining full-membership set once, before
+related-set counting and pagination. Compare exact membership at the selected percentage,
+not photo counts; a proper subset is still a distinct overlapping set. Choose the lowest
+canonical photo ID among the starting reference's direct matches for each distinct set.
+No other distinct sets produces an explicit empty message. Changing reference does not
+choose a keeper or modify photos.
+
 Hash recovery now records per-file failures in Logs, with photo/path, category and
 external correction guidance. Inspector shows recorded visual-processing problems.
 Failures do not change delivered status or delete files. Missing EXIF alone does not

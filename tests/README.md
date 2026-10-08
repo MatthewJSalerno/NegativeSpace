@@ -821,3 +821,8 @@ The source-scope browser check starts Copy from the Index summary and verifies t
 completion replaces the photo facts with a compact failure notice, without reloading.
 The failed-only notice retains the failure link and omits zero-valued photo statistics,
 similarity guidance and Copy/Move controls.
+
+Reference-set checks also verify exact membership deduplication in related sets before
+pagination: identical sets disappear, equivalent alternatives collapse to one, and
+proper subsets/overlaps remain distinct. The browser exercises a dense identical set
+and the A–B–C chain independently.

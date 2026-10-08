@@ -79,7 +79,7 @@ export function ReferenceSets({ reference, threshold, refreshKey, suspended, onT
         <div className="row-links"><button className="primary" disabled={same} onClick={() => { setIncluded([...draft]); setPage(1); }}>Show together</button>
           <span>{plural(draft.length, "related set")} chosen</span>
           <button disabled={draft.length === 0} onClick={() => setDraft([])}>Clear chosen sets</button></div>
-        {data.related.length === 0 && <p>No overlapping sets are currently recorded at this percentage.</p>}
+        {data.related.length === 0 && <p>No other distinct overlapping sets at this percentage.</p>}
         <ul className="set-reference-list">{data.related.map(r => <li key={r.id} data-related-id={r.id}>
           <label><input type="checkbox" checked={draft.includes(r.id)} disabled={!draft.includes(r.id) && draft.length >= data.max_related}
             onChange={e => setDraft(old => e.target.checked ? [...old,r.id] : old.filter(i => i !== r.id))} aria-label={`Include set: ${r.filename}`} /></label>
