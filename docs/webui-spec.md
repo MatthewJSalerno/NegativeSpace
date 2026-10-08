@@ -2347,7 +2347,7 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   which steps through the photos with ‹ › and shows relevant evidence and
   reason-specific buttons. Cards currently show reasons and Open review; direct
   answers are in the dedicated workspace; the Inspector offers Review photo… and
-  one consistent row of photo actions after File/capture information. *Why not a page of its own:* finding notes then works like the rest of the
+  one consistent row of photo actions at the top of the information pane, before review reasons and File/capture information. *Why not a page of its own:* finding notes then works like the rest of the
   Library (filters, selection, bulk answers), and working through them reuses the
   workspace built for such tasks.
 * **Filter by reason; bulk within one reason** (planned for review answers; existing bulk Reject is available with preview and confirmation). A mixed
@@ -2728,7 +2728,8 @@ Rejects adds Return to library and Similar photos in Library, with no Review lat
 Mark reviewed. Not organized has no review actions or similarity tab; saved links cannot
 bypass source exclusion. Library match counts, filters and groups remain Library-only.
 Library's Inspector separately discloses **Also matches n photos in Rejects** at the
-chosen percentage, independently paged. Rejected references show Library candidates.
+chosen percentage, above the Library candidate list, independently paged. Match cards
+anchor Review side by side at the bottom even when filenames wrap. Rejected references show Library candidates.
 Comparison identifies each photo's location and offers Reject for Library photos and
 confirmed Return to Library for rejected photos. It uses the existing verified jobs and
 refreshes after the recorded outcome; nothing is rejected automatically. Keep-reference

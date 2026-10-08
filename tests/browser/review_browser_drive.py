@@ -177,7 +177,7 @@ with sync_playwright() as p:
     card.get_by_role('button',name='Review photo',exact=True).click()
     workspace=page.get_by_role('dialog',name='Review photos',exact=True)
     expect(workspace).to_be_visible()
-    expect(workspace.get_by_text('Location: Library',exact=True)).to_be_visible()
+    expect(workspace.get_by_role('region',name='Photo review',exact=True).get_by_text('Location: Library',exact=True)).to_be_visible()
     page.wait_for_function("[...document.querySelectorAll('.review-photo img')].some(i => i.complete && i.naturalWidth > 0)")
     if os.environ.get('SHOTS'): workspace.screenshot(path=os.environ['SHOTS']+'/review-workspace.png')
     expect(workspace.get_by_role('heading',name='Small-image review',exact=True)).to_be_visible()

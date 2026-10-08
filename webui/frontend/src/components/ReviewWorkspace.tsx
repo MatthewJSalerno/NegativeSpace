@@ -101,7 +101,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
               onClick={() => setComparison({origin:photo.id,reference:photo.id,candidate:item.id,threshold:filters.match_min??90,page:1,views:{},linked:false,share:72})}>
               <Thumb id={item.id} alt="" refreshKey={revision}/><span><strong>{item.filename}</strong>
                 <span>{item.width && item.height ? `${item.width} × ${item.height}` : "Dimensions unknown"}{larger?.id===item.id ? " · Larger image" : ""}</span>
-                <span>Review side by side</span></span>
+                <span className="match-card-action">Review side by side</span></span>
             </button></li>)}</ul>}
           {(matches.availability !== "available" || matches.state.pending > 0 || matches.state.unavailable > 0) && <>
             <p className="section-note">Matching is incomplete; other copies may exist.</p>

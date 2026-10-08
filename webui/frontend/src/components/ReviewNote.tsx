@@ -36,15 +36,7 @@ export function ReviewNote({ id, refreshKey, disabled = false, reason = "all", o
     } catch (e) { setError(e instanceof Error ? e.message : "The decision could not be saved."); }
     finally { setBusy(false); onBusy?.(false); }
   };
-  return <section className="review-note" aria-label="Photo review">
-    {detail && detail.location !== "Library" && <p className="section-note">Review actions are available only for organized photos in Library.</p>}
-    {detail && detail.location === "Library" && <>
-      <p className="section-note">Location: {detail.location}</p>
-      {(detail.reasons.length > 0 || concerns.length > 0) && <h3>{compact ? "Needs review" : "Why this photo needs review"}</h3>}
-      {detail.reasons.filter(n => reason === "all" || n.reason === reason).map(n => <div className="review-reason" key={n.reason}>
-        <strong>{n.label}</strong><p>{compact ? (n.reason === "small" ? "Below minimum image size" : n.message) : n.message}</p>
-      </div>)}
-      {concerns.map(n => <div className="review-reason" key={n.label}><strong>{n.label}</strong><p>{n.message}</p></div>)}
+  const photoActions = detail && detail.location === "Library" && (
       <div className="photo-actions" role="group" aria-label="Photo actions">
         {compact && onOpenReview && (detail.reasons.length > 0 || concerns.length > 0) && <button onClick={onOpenReview}>Review photo…</button>}
         {!compact && detail.reasons.filter(n => reason === "all" || n.reason === reason).map(n => <button key={n.reason}
@@ -54,6 +46,18 @@ export function ReviewNote({ id, refreshKey, disabled = false, reason = "all", o
           title={disabled ? "Wait for the running job to finish." : undefined} onClick={() => setAdding(true)}>Review later…</button>}
         {actions}
       </div>
+  );
+  return <section className="review-note" aria-label="Photo review">
+    {detail && detail.location !== "Library" && <p className="section-note">Review actions are available only for organized photos in Library.</p>}
+    {detail && detail.location === "Library" && <>
+      {compact && photoActions}
+      <p className="section-note">Location: {detail.location}</p>
+      {(detail.reasons.length > 0 || concerns.length > 0) && <h3>{compact ? "Needs review" : "Why this photo needs review"}</h3>}
+      {detail.reasons.filter(n => reason === "all" || n.reason === reason).map(n => <div className="review-reason" key={n.reason}>
+        <strong>{n.label}</strong><p>{compact ? (n.reason === "small" ? "Below minimum image size" : n.message) : n.message}</p>
+      </div>)}
+      {concerns.map(n => <div className="review-reason" key={n.label}><strong>{n.label}</strong><p>{n.message}</p></div>)}
+      {!compact && photoActions}
       {!compact && (reason === "all" || reason === "small") && detail.reasons.some(n => n.reason === "small") && <p className="section-note">Mark reviewed clears only the small-image reminder. The photo stays in Library.</p>}
       {!compact && (reason === "all" || reason === "later") && detail.reasons.some(n => n.reason === "later") && <p className="section-note">Done clears only the Review later reminder.</p>}
       {adding && <div className="review-note-form"><label htmlFor={`review-note-${id}`}>Optional note</label><textarea id={`review-note-${id}`} value={note} maxLength={500} disabled={busy} onChange={e => setNote(e.target.value)} />

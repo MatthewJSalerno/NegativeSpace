@@ -77,6 +77,12 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Needs review
 
+- [x] Inspector actions at the top, rejected-match disclosure above Library candidates,
+  and bottom-aligned Review side by side labels across matching cards.
+- [ ] Discuss cross-location filter discoverability: an active Suspicious dates filter
+  can make Rejects appear empty after navigation. Filters currently persist; decide
+  whether clearer feedback or per-place preferences would help before changing this.
+
 - [x] UX consistency batch: one toggle row per place, in-place Small images filter,
   closed Inspector on place changes, contextual/collapsible source summary, grouped
   photo actions and the dedicated review layout. Date flags remain informational;

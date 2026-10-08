@@ -841,7 +841,8 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .inspector-match-list li > .photo-action { align-self: flex-start; }
 .inspector-match { display: flex; flex-direction: column; gap: var(--space-2); width: 100%; height: 100%; text-align: left; padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--control-radius); background: var(--surface); }
 .inspector-match img, .inspector-match > .thumb-placeholder { width: 100%; height: 120px; object-fit: contain; background: var(--preview-bg); }
-.inspector-match > span { display: flex; flex-direction: column; gap: var(--space-1); overflow-wrap: anywhere; }
+.inspector-match > span { display: flex; flex: 1; flex-direction: column; gap: var(--space-1); overflow-wrap: anywhere; }
+.inspector-match .match-card-action { margin-top: auto; padding-top: var(--space-2); }
 .inspector-match .muted, .match-pages, .match-thresholds button > span { font-size: var(--type-xs); }
 .inspector-tabs { display: flex; gap: var(--space-1); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
 .inspector-tabs [role=tab], .settings-tabs [role=tab] { flex: 1; border-radius: var(--control-radius); }

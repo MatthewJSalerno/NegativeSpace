@@ -636,9 +636,10 @@ Reject retains its explicit confirmation. Navigation is a link, explanatory fact
 are plain text. Opening Settings is a dialog action and uses a button. Keep related
 actions in one wrapping row with consistent control height, text and spacing.
 
-The Inspector shows File and capture details first, then a concise Needs review
-section and one Photo actions row: Review photo…, Review later… and Reject… (or
-Return to library… when appropriate). Detailed Mark reviewed/Done decisions belong
+The Inspector starts with one Photo actions row: Review photo…, Review later… and
+Reject… for eligible Library photos, or Return to library… in Rejects. It precedes
+location/review reasons and File/capture details, so moving through photos does not
+require scrolling to reach a decision. Detailed Mark reviewed/Done decisions belong
 in the workspace beside their reason. Move the small-image Settings action out of
 the Inspector; the inbox's size guidance retains it. History and full metadata
 remain available without crowding the decision controls.
@@ -669,7 +670,8 @@ Return to library and **Similar photos in Library**; it has no Review later or M
 reviewed controls.
 
 Library matches stay primary. At the chosen percentage, show rejected candidates in a
-separate **Also matches n photos in Rejects** disclosure with its own pagination. They
+separate **Also matches n photos in Rejects** disclosure above the Library candidate
+list, immediately after the threshold guidance/recovery notices, with its own pagination. They
 never contribute to Library match counts, grouping, or Keep-reference targets. Source
 files and emptied rejects cannot be references or candidates. Explain this scope beside
 the controls. Gallery filters narrow references, not their Library candidates.
@@ -702,3 +704,8 @@ drilldown links when the broader target would also include failed files.
 Job headings use **Job #ID · Action status**: **Job #2 · Copy finished**. Apply the same
 identity prefix to active/completed jobs, Logs, photo history, lineage, recovery and
 job-photo scopes. The ID numbers jobs across all actions, not copies of an action.
+
+Match cards align **Review side by side** at the bottom of the card across each row,
+regardless of filename length. Let names wrap; use the shared flexible card content
+layout in the Inspector, rejected matches and review evidence. Do not truncate names
+or fix card height merely to line up the action.

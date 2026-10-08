@@ -70,6 +70,9 @@ export function PhotoMatches({ id, name, delivered, rejected = false, view, onVi
       </>}
       <SimilarityRecovery visible={!rejected && (summary?.availability === "hash_unavailable" || (summary?.pending ?? 0) > 0)}
         photoId={summary?.availability === "hash_unavailable" ? id : undefined} onRecovered={() => setRetry(n => n + 1)} />
+      {!rejected && delivered && threshold != null && summary?.availability === "available" && <RejectedMatches
+        key={`${id}:${threshold}`} id={id} threshold={threshold} refreshKey={`${refreshKey}:${changes}:${retry}`}
+        onReview={onReview} />}
       {view && <div className="inspector-matches" aria-label="Matches for this photo" role="region">
         <div className="match-heading"><h4>Matches at {threshold}% or higher</h4>
           <button className="link" onClick={() => onView(null)}>Hide matches</button></div>
@@ -89,7 +92,7 @@ export function PhotoMatches({ id, name, delivered, rejected = false, view, onVi
                 <Thumb id={photo.id} alt="" refreshKey={refreshKey} />
                 <span><strong>{photo.filename}</strong><span>{photo.score}% visual similarity</span>
                   <span className="muted">{photo.width && photo.height ? `${photo.width} × ${photo.height}` : "Dimensions unknown"}</span>
-                  <span>Review side by side</span></span>
+                  <span className="match-card-action">Review side by side</span></span>
               </button>
               {onReject && <button className="photo-action" disabled={jobRunning} aria-label={`Reject ${photo.filename}…`}
                 title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : `Move ${photo.filename} out of the library into Rejects. Nothing is deleted.`}
@@ -104,9 +107,6 @@ export function PhotoMatches({ id, name, delivered, rejected = false, view, onVi
         </>}
         {results && results.availability !== "available" && <p>Matches are unavailable for this photo. Its recorded destination copy and visual hash are required.</p>}
       </div>}
-      {!rejected && delivered && threshold != null && summary?.availability === "available" && <RejectedMatches
-        key={`${id}:${threshold}`} id={id} threshold={threshold} refreshKey={`${refreshKey}:${changes}:${retry}`}
-        onReview={onReview} />}
       <details onToggle={(e) => setDiagnostics(e.currentTarget.open)}><summary>Validation and performance</summary>
         {diagnostics && <MatchDiagnosticsPanel refreshKey={`${refreshKey}:${retry}:${changes}`} />}
       </details>
@@ -149,7 +149,7 @@ function RejectedMatches({ id, threshold, refreshKey, onReview }: {
         <button className="inspector-match" onClick={() => onReview(photo.id, "rejects", page)} aria-label={`Review side by side: ${photo.filename}`}>
           <Thumb id={photo.id} alt="" refreshKey={retry} />
           <span><strong>{photo.filename}</strong><span>Location: Rejects</span>
-            <span>{photo.score}% visual similarity</span><span>Review side by side</span></span>
+            <span>{photo.score}% visual similarity</span><span className="match-card-action">Review side by side</span></span>
         </button>
       </li>)}</ul>
       {results.total > 12 && <nav className="match-pages" aria-label="Rejected match pages">
