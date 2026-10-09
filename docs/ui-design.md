@@ -423,6 +423,13 @@ selection before saving. It keeps drafts, marks affected fields, describes their
 errors and focuses the first invalid control. Server errors remain visible. Success
 uses a polite status, not an urgent alert. Loading failures offer an explicit retry.
 
+Planned Settings active-job notice: use the shared neutral informational treatment near
+the top, outside tab panels, to explain that saved processing settings affect future
+jobs only. It is not an error, requires no dismissal, and does not disable Save. Keep
+job-active/idle explanations in a shared stable-content area so background completion
+cannot move form controls. Preserve the immediate behavior of appearance and review
+reminders and the clarification near Save (`webui-spec.md` §3).
+
 Warnings that require user action must have a working resolution path. Say what is
 affected, what the user can do, and provide the action or a direct link to the
 relevant filtered view. A count alone is not a completed workflow. While another

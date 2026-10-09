@@ -424,6 +424,13 @@ settings while a job is active; saved values apply only to jobs started after th
 save. Each job retains its starting configuration, available in its job details.
 Display a persistent notice in the job settings section, near Save:
 **“Changes apply to future jobs. Active jobs will continue with their existing settings.”**
+**Planned prominence improvement:** opening Settings while a job runs also shows an
+informational notice near the top, outside the tab panels: **“A job is running.
+Processing changes you save now will apply to future jobs, not this one.”** Keep this
+notice visible across tabs and update it in place when job state changes. Use the shared
+stable-content pattern to avoid moving the controls while the user edits. Appearance
+and review-reminder preferences still apply immediately; this notice concerns engine
+processing. The existing generic near-Save notice and save confirmation remain.
 Repeat that clarification in the save confirmation when a job is active. Do not
 require cancelling a job to save settings. Saves go through `ns_db.save_settings`,
 which checks revisions and waits a bounded time for the writer (§6.1).

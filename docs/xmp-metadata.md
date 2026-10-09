@@ -44,6 +44,11 @@ and the corresponding metadata section of `webui-spec.md`.
 - A cleared capture date must not revive the embedded capture date. Integration must
   apply the existing undated/location-fallback policy without presenting a file date
   as a capture date. Date parsing and validation remain reader responsibilities.
+- A present partial capture date (year only or year/month) is preserved without
+  inventing a month, day, time or time zone. It does not fall back to embedded EXIF.
+  Without a complete usable capture date, organize under Undated using the existing
+  undated layout; retain the partial value for display and review. Do not turn a
+  file-modification fallback into a claimed complete capture date. Integration is pending.
 - Choosing a metadata source is a separate operation from viewing a source tab.
   Explicitly choosing embedded metadata retains the XMP alternatives for inspection.
   Changing primary requires a deliberate action, a preview of changed effective values,
@@ -101,8 +106,8 @@ a strict external schema might expect a number/date. Whitespace-only typed value
 held, not silently trimmed into blanks. Unknown extension fields remain uninterpreted.
 
 These are validated lexical snapshots, not normalized cross-format values. The future
-embedded-metadata adapter and canonical normalization/partial-date filing policy must
-be built before these values can determine organization or semantic comparisons.
+embedded-metadata adapter, canonical normalization and the agreed partial-date filing
+behavior must be built before these values can determine organization or semantic comparisons.
 
 Independent compatibility tests exercise generated packets through the bundled ExifTool
 reader and ExifTool-written packets through our reader, covering UTF-8/UTF-16, Unicode,
@@ -153,6 +158,14 @@ or **all matching photos**. A format restriction that still leaves multiple cand
 requires a decision. Ask me supports a single case or a selected batch, with an optional
 **Remember this choice in Settings**. Store the resolved association. Changing the
 setting applies to new or unresolved associations, never silently rewrites old ones.
+
+Each job captures its processing settings once at start, including XMP association and
+metadata-write preferences, and retains that snapshot in its job details. Saving new
+settings never changes a running job, including its later batches/workers. New jobs use
+the newly saved values; previously resolved associations and established primary sources
+remain unchanged. Apply the existing job-configuration boundary to XMP integration and
+test a settings save between two batches. UI-only appearance and review-reminder changes
+retain their immediate behavior; they do not change engine processing.
 
 Unresolved associations stay in **Not organized → Metadata choice needed**. Index
 reports them separately from failures; Copy/Move skips affected pairs with a reason
@@ -263,6 +276,13 @@ Test interruption and restart at each publication, catalog and source-removal bo
 before claiming the combined photo/XMP durability guarantees are enforced.
 
 ## UI handoff — not implemented
+
+When Settings opens during a running job, show the shared informational notice near
+the top, across tabs: **“A job is running. Processing changes you save now will apply
+to future jobs, not this one.”** Keep its layout stable if the job starts/finishes while
+Settings is open. Retain the near-Save explanation and active-job save confirmation;
+see `webui-spec.md` §3 and `ui-design.md`. This prominent active-job notice is pending;
+the generic future-jobs notice and save confirmation already exist.
 
 Within Photo information, use the shared tabs for **Used metadata**, **Embedded/EXIF**
 and **XMP**. Used metadata is the default. Keep the existing Photo information / Similar

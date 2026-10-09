@@ -190,6 +190,12 @@ Found 2026-10-05 looking for screens that do the same job twice.
   preserve explicit blanks, unknown fields and exact originals. Independent generated
   ExifTool read/write compatibility tests and attention-only storage checks pass.
   This is not full XMP conformance certification or live import integration.
+- [ ] Integrate agreed partial-date filing: preserve a primary year/year-month without
+  EXIF fallback or invented components; organize under Undated until a usable complete
+  date exists. Reader validation is built; filing integration is not.
+- [ ] Extend the job's immutable processing-settings snapshot to XMP preferences and
+  test mid-job settings saves across batches. Add a prominent active-job Settings notice
+  per `webui-spec.md` §3; the generic future-jobs notice/save confirmation already exist.
 - [ ] Complete the XMP pipeline and source tabs described in `docs/xmp-metadata.md`.
   Live reader/association integration, primary-choice state, verified transfers, API and UI
   remain unbuilt.
