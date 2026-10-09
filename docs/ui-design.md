@@ -861,3 +861,10 @@ Distinguish empty fields from absent fields and retain per-field origin for mixe
 metadata. Viewing an alternate XMP version is separate from a confirmed Use this version
 operation. Keep the field table geometry and surrounding navigation stable. The engine
 contract and deferred UI work are in [xmp-metadata.md](xmp-metadata.md).
+
+A primary-source change always previews effective-value differences, any refiling and
+future edit target, then requires confirmation. Keep this separate from copying values
+between metadata sources. Import choices must distinguish preserving an inactive version
+from activating it; use the case-specific workflow in `xmp-metadata.md`. For rejected
+matches, metadata and location choices are independent and share one explicit preview
+and confirmation. All of these metadata screens remain unimplemented.

@@ -18,7 +18,12 @@ and the corresponding metadata section of `webui-spec.md`.
 ## Source precedence and preservation
 
 - Read associated XMP at Index regardless of the setting for where future edits go.
-  RAW writes default to XMP; other formats default to embedded writes, as specified.
+  RAW writes default to XMP; other formats default to embedded writes when no primary
+  write target has been established. An established primary takes precedence over
+  those defaults: a photo imported with primary XMP is edited only in that XMP, even
+  when Settings defaults its format to embedded writes. Editing a field displayed via
+  embedded fallback writes the new value to the primary XMP, leaving EXIF unchanged.
+  Copying values between XMP and embedded metadata is a separate future action.
 - The active XMP supplies each field it contains. **An explicitly empty value stays
   empty**, even when embedded metadata has a value. Only an absent field falls back
   to embedded metadata. Zero and false are values, not missing metadata.
@@ -32,6 +37,9 @@ and the corresponding metadata section of `webui-spec.md`.
   as a capture date. Date parsing and validation remain reader responsibilities.
 - Choosing a metadata source is a separate operation from viewing a source tab.
   Explicitly choosing embedded metadata retains the XMP alternatives for inspection.
+  Changing primary requires a deliberate action, a preview of changed effective values,
+  any resulting refiling and future edit target, and confirmation. It copies no values
+  between sources. Existing format support and RAW-write consent still apply.
 
 The resolver accepts validated reader output: source IDs, qualified extracted `tags`,
 canonical `fields`, and original bytes for every XMP version. It returns JSON-compatible
@@ -39,7 +47,8 @@ snapshots, the active/primary source ID, effective fields, each field's source I
 source kind (`embedded`, `xmp`, `mixed`, or null for no effective fields), and fields
 whose presence or values differ across snapshots. Original bytes are represented as
 base64 with a SHA-1 fingerprint. This is an in-memory contract, not a storage schema or
-public API. The future reader must enforce parsing limits and filesystem safety.
+public API. Persist original content as binary BLOBs as specified below, not base64
+text. The future reader must enforce parsing limits and filesystem safety.
 
 ## Association and import decisions
 
@@ -48,22 +57,36 @@ name (`photo.xmp`). Explicit ownership information may disambiguate a short name
 Otherwise evaluate all matching photos before applying job selections or format filters.
 Excluding RAW from a job does not make the JPEG the owner of a shared sidecar.
 
+Setup requires an explicit association preference, also available in Settings.
 For ambiguous short names, offer **Ask me** (default), **RAW only**, **non-RAW only**,
 or **all matching photos**. A format restriction that still leaves multiple candidates
 requires a decision. Ask me supports a single case or a selected batch, with an optional
 **Remember this choice in Settings**. Store the resolved association. Changing the
 setting applies to new or unresolved associations, never silently rewrites old ones.
 
-Unresolved associations and differing XMP versions for identical photo bytes stay in
-**Not organized → Metadata choice needed**. Index reports them separately from failures;
-Copy/Move skips the affected pairs with a reason while other photos proceed. They are
-not Library Needs review items. Preserve all original versions and origins, show their
-field differences through lineage, and let the user choose the active one explicitly.
+Unresolved associations stay in **Not organized → Metadata choice needed**. Index
+reports them separately from failures; Copy/Move skips affected pairs with a reason
+while other photos proceed. Choosing a primary never silently imports a second photo
+with identical bytes. Apply the following version rules after ownership is resolved:
 
-When a destination sidecar already exists, reuse an identical version. For differing
-versions, retain the current destination version as active pending a decision, preserve
-both, and hold the incoming pair. Choosing an incoming date that changes organization
-requires any refiling to be part of the confirmed operation.
+| Situation | Agreed behavior (planned) |
+| --- | --- |
+| Both full-name and short-name XMP belong to a newly organized photo | Use the explicit full-name sidecar as primary without a prompt; preserve the other as an inactive alternative and report its retention. A short name beside RAW/JPEG still needs association resolution. |
+| Incoming XMP is byte-identical to any retained version | Reuse its stored content without another prompt; record the new arrival, original filename/source and photo association in lineage. Do not reactivate an inactive version. |
+| Existing Library photo has no XMP; incoming identical photo has XMP | Hold the incoming pair at source for a metadata choice. Keep current primary and retain the incoming XMP as an alternative, or explicitly use incoming XMP after preview/confirmation. Decide later leaves the pair untouched. |
+| Library photo already has metadata edits; incoming XMP differs | Keep the current primary, safely retain the alternative, and add Needs review → Metadata differences. Import need not stay blocked once preservation is complete. |
+| Matching photo is in Rejects | Present metadata choice and location choice together: keep current primary / use incoming XMP, independently of leave in Rejects / Return to Library. Preview and confirm the combination. Decide later leaves the incoming pair at source; no automatic Return. |
+| Other differing versions for the same photo | Preserve all versions and origins, retain the existing primary, and hold the incoming pair for an explicit decision. |
+
+Every existing photo keeps its primary unless deliberately changed. A changed capture
+date may require refiling as part of the confirmed operation. Merely viewing a version
+never chooses it. The association setting determines ownership, not permission to replace
+an established primary. Do not infer that incoming metadata is newer or better.
+
+An orphan XMP with no matching photo stays untouched at source. Report that no matching
+photo was found, without listing the sidecar as a photo in Library. Reconsider it on a
+later Index; clear that notice when association resolves, or replace it with an unresolved
+association notice if more than one photo could own it.
 
 ## Unreadable and shared sidecars
 
@@ -82,6 +105,46 @@ that source photo. Leave the shared source sidecar while another associated sour
 still needs it. Remove it only when all required copies are verified and no associated
 source photo needs it; uncertainty means retaining it. Copy leaves all source files alone.
 
+## Exact originals, compression and catalog backups (decided; not built)
+
+Store retained original XMP bytes as BLOBs in the catalog, alongside separately queryable
+parsed metadata and lineage. There is no separate destination archive in this design.
+Only the active sidecar is published beside the photo. Preserve the previous active
+version before publishing another; inactive versions never contribute effective fields.
+
+Use lossless Zstandard compression when the compressed payload is smaller; otherwise
+store the original bytes. Record the encoding (raw or Zstandard), original size and
+original-content hash. Verify decompressed size and hash before restoration/publication,
+with bounded decompression and an explicit error on corruption or unsupported encoding.
+Store identical content once while preserving each arrival's filename, source, job and
+association independently. Ordinary metadata/gallery queries use parsed fields and must
+not read/decompress the original BLOB per photo.
+
+Measure compression level, space and read/write cost on representative generated XMP
+before choosing a level. Include small/large sidecars, repeated and distinct versions,
+unknown fields and formatting variations; prove exact byte round trips. Do not promise
+an unmeasured ratio or expose a compression setting to users. Catalog backups are already
+compressed, so the main expected benefit is a smaller working catalog, not guaranteed
+smaller backup files. Blob storage, measurement and restoration are all still pending.
+
+Once implemented and validated, the preservation claim is: **Every retained XMP version
+can be reproduced byte for byte from the catalog or a backup containing that version.**
+A backup predating an arrival cannot recover that arrival. Restoring the database does
+not automatically rewind destination files, restore deleted photos or recreate source
+folders. Making an older XMP primary is a new verified operation with preview, confirmation
+and lineage; it does not erase intervening history. Catalog backup validation must cover
+restoring and verifying retained BLOBs, not just database integrity.
+
+## Interrupted transfers (planned)
+
+Completion is per photo: verify the destination photo, its required sidecar and retained
+alternatives, durably save the files and catalog records, then allow Move source cleanup.
+Copy never removes source files. A later job failure does not invalidate already verified
+completed photos. Retrying must recognize completed work without duplicating versions.
+Uncertain outcomes use File needs checking; never label an uncertain operation successful.
+Test interruption and restart at each publication, catalog and source-removal boundary
+before claiming the combined photo/XMP durability guarantees are enforced.
+
 ## UI handoff — not implemented
 
 Within Photo information, use the shared tabs for **Used metadata**, **Embedded/EXIF**
@@ -94,7 +157,16 @@ Source views show captured metadata, not only conflicts. Distinguish **Empty** f
 **Not present**. Allow inspection of alternate XMP versions without activating them;
 mark the active version clearly. Do not call every alternative an earlier edit.
 **Use this version** is a separate confirmed action, enabled only after the backend can
-safely persist the choice, lineage and any required refiling.
+safely persist the choice, lineage and any required refiling. The preview also states
+where future edits will go; switching primary is not copying metadata between sources.
+
+Import messages distinguish preservation from activation: **Keep current primary** saves
+the incoming XMP as an inactive alternative without changing current metadata/folder;
+**Use incoming XMP as primary…** previews changes; **Decide later** leaves the source pair
+untouched. For already edited Library photos, explain the nonblocking review reason:
+“Another copy arrived with different XMP metadata. Your current metadata is unchanged.”
+For Rejects, explain that new metadata may change the user's decision and present the
+independent metadata/location choices together with one preview and Apply choices.
 
 Preserve photo/selection context and stable layout while switching tabs. Follow
 `ui-design.md` for typography, spacing, tabs, keyboard behavior and differences. Validate
@@ -110,10 +182,11 @@ multiple-version fixtures before enabling the screens.
   Index, effective metadata and the API. The resolver alone provides no crash durability.
 - Implement verified photo/sidecar transfer, collision handling, partial shared Move,
   decisions, and recovery before enabling XMP-derived Copy/Move organization.
-- Decide the archive location/retention for alternative or damaged originals; test
-  source removal and every interrupted transfer stage before claiming preservation.
+- Implement the decided compressed-BLOB catalog storage and benchmark compression
+  before selecting a level. Validate backup restoration and every interrupted transfer
+  stage before claiming preservation. Retention/purging must not silently discard versions
+  still referenced by lineage.
 - Build the source tabs and import decision UI in the separate UI workstream.
-- Orphan sidecars with no matching photo still need a policy decision.
 - Detecting a sidecar changed between Index and Copy/Move is deferred for future
   discussion. The current expectation is to reindex after an external edit. This does
   not relax existing verification or source-deletion safety requirements.

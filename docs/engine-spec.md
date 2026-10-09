@@ -1219,7 +1219,8 @@ answer to "can `Orientation` be written here safely", which the rest of this
 capability needs anyway; a format without one is refused, not re-encoded.
 
 **Write changes back to the metadata source.** Embedded metadata is updated inside
-the delivered photo, or in its XMP sidecar where the settings say so (below). Manually
+the delivered photo, or in its established primary XMP sidecar. Settings supply the
+default when no write target is established (below). Manually
 entered values go to the same place. Retained source originals are not edited. A format
 that cannot take the chosen method fails explicitly: never a silent fallback to the other
 method, and never a correction stored only in the catalog.
@@ -1231,6 +1232,13 @@ the file** as the opt-in that brings the RAW consent and warnings; **other forma
 (JPEG, HEIC, TIFF…) default to **In the file**, with **XMP sidecar** as the option. A
 sidecar leaves the photo's bytes unchanged, so its SHA-1, duplicates and lineage stay put.
 
+**Established primary overrides those defaults (planned).** Edits target only the
+photo's established primary source, including fields currently displayed via fallback.
+Changing primary is a separate explicit action with a preview of values, refiling and
+future edit target, followed by confirmation. Viewing tabs or changing format defaults
+never changes primary. Copying values between sources remains a separate future action.
+The format's default determines the write target when none has been established.
+
 *   **Naming:** the full filename plus `.xmp` (`IMG_0001.CR2.xmp`). Immich reads this form
     first and darktable writes it, and a RAW and its JPEG never share a note; Lightroom
     reads only `IMG_0001.xmp`, and has no option until someone needs one.
@@ -1239,7 +1247,8 @@ sidecar leaves the photo's bytes unchanged, so its SHA-1, duplicates and lineage
     says why.
 *   **An existing sidecar is kept and added to:** it travels with the photo, renamed to the
     full-name form; an edit changes only the edited fields. With both `IMG_0001.xmp` and
-    `IMG_0001.CR2.xmp`, the full-name one wins.
+    `IMG_0001.CR2.xmp`, the full-name one wins for a new photo; retain other associated
+    versions. Existing photos keep their established primary.
 *   **Sidecars are part of the lineage:** each change records the fields before and after;
     the sidecar as it first arrived is kept byte for byte in the catalog before the first
     change, so fields NegativeSpace does not understand survive; its SHA-1 at each step
@@ -1261,8 +1270,11 @@ sidecar leaves the photo's bytes unchanged, so its SHA-1, duplicates and lineage
     [xmp-metadata.md](xmp-metadata.md) defines version conflicts, shared associations,
     malformed sidecars and the pending UI contract. Only its pure resolution helper is
     built; Index, storage, safe transfers and source tabs remain unimplemented.
-*   **Still to settle when building:** read-back verification of a sidecar write, as for
-    in-file writes.
+*   **Original XMP preservation (planned):** store exact originals as catalog BLOBs,
+    compressed with Zstandard only when smaller, with original size/hash and encoding.
+    Deduplicate content without merging arrival lineage. Benchmark before choosing a
+    compression level. Include byte-restoration tests in catalog backup validation.
+    See [xmp-metadata.md](xmp-metadata.md) for the agreed import cases and guarantee limits.
 
 **Verify all requested fields before replacement (planned).** Apply a photo's
 requested metadata changes to a temporary working copy and read back every requested

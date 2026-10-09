@@ -131,7 +131,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
   failure facts, explicit Stats scopes and consistent Job #ID · Action status labels.
 - [ ] Implement source-side sidecar/version import decisions in Not organized, separately
   from the Library inbox. The agreed contract is in `docs/xmp-metadata.md`; durable
-  storage, archive layout and recovery still need implementation.
+  compressed-BLOB storage and recovery still need implementation.
 - [ ] Add the remaining Library reasons to the shared inbox/workspace: suspicious dates with acknowledgment;
   No capture date and sidecar/edit reasons with their respective workstreams.
 - [ ] Bulk review answers within one reason. Individual Mark reviewed/Done and the
@@ -185,6 +185,11 @@ Found 2026-10-05 looking for screens that do the same job twice.
   Unit tested; not yet connected to Index or the catalog.
 - [ ] Complete the XMP pipeline and source tabs described in `docs/xmp-metadata.md`.
   Reader, durable storage, associations, verified transfers, API and UI remain unbuilt.
+- [ ] Benchmark and implement lossless XMP BLOB storage (Zstandard only when smaller),
+  content reuse with independent arrival lineage, verified restoration and backup coverage.
+  No separate destination archive; compression level awaits measurements.
+- [ ] Metadata differences review for already edited Library photos and combined
+  metadata/location choices for rejected matches (`docs/xmp-metadata.md`).
 
 - [ ] Read XMP sidecars at Index (always on); the sidecar's value wins per field, both
   kept, each shown with its source; sidecars travel with their photos through Copy, Move,
@@ -196,8 +201,9 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [ ] EXIF editing and copying details between photos, with explicit targets, previews
   and per-file history (`docs/webui-spec.md` §7.5, `docs/engine-spec.md` §9.6). The
   reference, donor and targets are distinct roles, never inferred from navigation or
-  checkboxes. Edits go in the file or an XMP sidecar by format (decided 2026-10-02,
-  §9.6): sidecars move with their photos and are part of its lineage.
+  checkboxes. Edits target the established primary; format defaults apply when no write
+  target is established. Changing primary requires preview/confirmation. Sidecars move
+  with their photos and are part of lineage (§9.6).
 - [ ] Saved orientation edits, separate from temporary viewing rotation: one
   end-of-review decision for photos still rotated, in the comparison and the photo
   panel, and the selection bar's Rotate… for a selection; no control on thumbnails

@@ -2231,14 +2231,20 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   implementation boundary are in [xmp-metadata.md](xmp-metadata.md).
 * **Where edits are saved** (decided 2026-10-02, `engine-spec.md` §9.6): Settings › Files
   sets it for RAW formats (default **XMP sidecar**) and other formats (default **In the
-  file**). RAW photos are therefore editable out of the box, through their sidecars.
+  file**). These defaults apply when no primary write target is established; an existing
+  primary overrides them. A primary change requires an explicit preview and confirmation,
+  including its effect on future edits and any refiling. Tabs do not change it.
   Editing inside a RAW file is opt-in: with it off, choosing it offers **Review and turn on
   RAW editing…**, the consent step with its warnings, returning to the editable form.
-* **Ambiguous sidecars and conflicting XMP versions (planned)** wait in
-  Not organized as Metadata choice needed, not the Library review inbox. Apply the
+* **Unresolved sidecar association/version choices (planned)** wait in
+  Not organized as Metadata choice needed. Apply the
   association settings or ask for a recorded choice; show separate source versions
   without discarding alternatives. Copy/Move skips affected pairs until resolved.
-  See [xmp-metadata.md](xmp-metadata.md) for batch choices and shared sidecars.
+  Already edited Library photos instead retain differing incoming XMP as alternatives,
+  keep their primary and enter Needs review → Metadata differences after preservation.
+  Rejected matches present metadata and Return/leave-rejected choices together.
+  Setup requires an association preference. See [xmp-metadata.md](xmp-metadata.md)
+  for the case-specific prompts, identical arrivals, orphan and shared sidecars.
 * **An unedited original arriving later** (its bytes match an edited photo's earlier
   SHA-1) is not organized again: it goes to Needs review (§7.9) as "old version of a photo
   you fixed", with **Don't keep it** and **Keep it as its own photo**.
