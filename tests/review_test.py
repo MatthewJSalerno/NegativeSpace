@@ -34,7 +34,7 @@ class ReviewTests(ApiCase):
         self.enable()
         result=self.client.get('/api/v1/photos?view=review').json()
         self.assertEqual([p['id'] for p in result['items']],[1])
-        self.assertEqual(result['reasons'],{'all':1,'small':1,'later':0})
+        self.assertEqual(result['reasons'],{'all':1,'issues':0,'small':1,'later':0})
         self.assertEqual(self.client.get('/api/v1/status').json()['eligible'],before)
         self.enable(None)
         self.assertEqual(self.client.get('/api/v1/photos?view=review').json()['total'],0)

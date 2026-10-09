@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
-from engine import ns_db, review
+from engine import ns_db, review, attention
 from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, oplog, outcomes, stats
@@ -352,6 +352,20 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         if type(body.get('photo_id')) is not int or body.get('photo_id') != photo_id:
             raise HTTPException(400, {"error": "invalid_request", "message": "The photo must match the URL."})
         return jobs.review_decision(body)
+
+    @app.get("/api/v1/photos/{photo_id}/issues")
+    def photo_issues(photo_id: int):
+        with catalog.connect(cfg.db_path) as conn:
+            if not gallery.photo_exists(conn, photo_id):
+                raise HTTPException(404, {"error":"not_found","message":"Photo not found."})
+            return {"items":attention.for_photo(conn, photo_id)}
+
+    @app.post("/api/v1/issues/check", status_code=202)
+    def check_issue(body: dict = Body(...)):
+        if set(body) - {'issue_id','request_id'}:
+            raise HTTPException(400, {'error':'invalid_request','message':'Send the issue ID and optional request ID only.'})
+        run_id = jobs.check_issue(body.get('issue_id'), body.get('request_id'))
+        return outcomes.get_run(cfg.db_path, run_id)
 
     @app.get("/api/v1/photos/{photo_id}/inspect")
     def inspect(photo_id: int):

@@ -97,7 +97,7 @@ function readUrl(hasLibrary = true) {
     similar,
     groupSets: p.has("group_sets") ? p.get("group_sets") !== "0" : savedGrouping(),
     suspicious: legacy === "suspicious" || p.get("suspicious") === "1",
-    reason: ["small", "later"].includes(p.get("reason") || "") ? p.get("reason")! : "all",
+    reason: ["small", "later", "issues"].includes(p.get("reason") || "") ? p.get("reason")! : "all",
     reviewPhoto: Number(p.get("review_photo")) || null,
     sort: p.get("sort") === "matches" && !similar ? "newest" as Sort : (p.get("sort") as Sort) || savedSort(similar ? "similar" : view),
     matchMin: MATCH_THRESHOLDS.includes(Number(p.get("match_min"))) ? Number(p.get("match_min")) : savedMatchMinimum(),
@@ -955,6 +955,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           <button aria-pressed={undated} disabled={!!focus} className={undated ? "active" : ""} onClick={() => { setUndated(!undated); setPage(1); }}>No capture date {filterCount(data?.chips?.undated ?? 0)}</button>
           {(view === "organized" || view === "review") && <button disabled={!!focus} aria-pressed={reason === "small"}
             className={reason === "small" ? "active" : ""} onClick={() => { setReason(reason === "small" ? "all" : "small"); setPage(1); }}>Small images {filterCount(data?.chips?.small ?? 0)}</button>}
+          {view === "review" && <button disabled={!!focus} aria-pressed={reason === "issues"}
+            className={reason === "issues" ? "active" : ""} onClick={() => { setReason(reason === "issues" ? "all" : "issues"); setPage(1); }}>File issues {filterCount(data?.reasons?.issues ?? 0)}</button>}
           {view === "review" && <button disabled={!!focus} aria-pressed={reason === "later"}
             className={reason === "later" ? "active" : ""} onClick={() => { setReason(reason === "later" ? "all" : "later"); setPage(1); }}>Review later {filterCount(data?.reasons?.later ?? 0)}</button>}
         </div>
@@ -1085,6 +1087,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             <StableContent active={reason} variants={{
               all: <p className="section-note">Use the filters above to focus your review. Click an active filter again to clear it.</p>,
               small: <p className="section-note">Small size is a reason to look, not a reason to reject. Mark reviewed clears a photo’s size reminder. <button className="photo-action" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>,
+              issues: <p className="section-note">Operations needing verification. Check it now reads the recorded files and updates the catalog without moving or deleting photos.</p>,
               later: <p className="section-note">Photos you marked to revisit. Done clears the reminder and leaves the photo in place.</p>,
             }} />
           </>}

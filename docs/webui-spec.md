@@ -2873,3 +2873,19 @@ It has no candidate thumbnail list or separate comparison entry points. Keep the
 current photo, gallery filters and explicit selection; browser Back restores the same
 photo and review queue position. Do not create another match gallery. The Inspector of a failed source file shows its latest recorded failure
 reason directly, a fallback when none was recorded, and the existing failure-log link.
+
+
+## 12. Uncertain-operation checks
+
+Built: open `unestablished_outcome` issues appear in photo information and their original
+Logs operation, including source and rejected records. Library photos also contribute
+to Needs review and its **File issues** filter. The shared panel shows the reason and
+recorded evidence, with **Check it now** launching a scoped, cancellable CHECK job.
+It does not run generic startup file reconciliation or mutate photo files.
+
+A verified check repairs catalog state and clears the issue atomically. Failed checks
+record new evidence and retain the issue with a specific explanation. Original failed
+operation outcomes remain historical; the check has its own linked operation. Busy,
+submission failure, reload and request replay follow existing job controls. A generic
+full destination scan, missing-photo restoration, and automatic conflict cleanup are
+separate features. Checking does not promise to repair the photo or storage.

@@ -9,6 +9,8 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Show uncertain file outcomes in photo information, Logs and the Library review inbox; verify recorded files with Check it now without moving or deleting photos.
+
 ### Added
 - Needs review for small images and review-later notes, with destination-only actions,
   first-run preferences, suspicious-date limits and shared appearance controls.

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from engine import attention
 from . import catalog, outcomes
 
 
@@ -83,7 +84,8 @@ def list_operations(db_path: Path, *, page=1, page_size=100, **filters) -> dict:
                                    count_params).fetchall())
         per_run = {str(run): n for run, n in conn.execute(
             f"SELECT o.run_id, COUNT(*) {_OP_FROM}{where} GROUP BY o.run_id", params)}
-    return {"items": [_op_dict(r) for r in rows], "page": page, "page_size": page_size, "total": total,
+        issues = attention.for_operations(conn, [r['id'] for r in rows])
+    return {"items": [dict(_op_dict(r), issues=issues.get(r['id'], [])) for r in rows], "page": page, "page_size": page_size, "total": total,
             "status_counts": counts, "run_counts": per_run}
 
 

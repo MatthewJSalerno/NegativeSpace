@@ -9,7 +9,8 @@ transfer (Copy and Move), relocate (Rename, Reject, Return to library), reconcil
 the fsync steps), store (catalog writes), fileinfo (dates, metadata, hashes), thumbnails,
 destinations, targeting (which photos a run acts on), jobs, maintenance, backups,
 runtime (shared run state), workers (cancellable read-only pools), constants and deps; ns_db (the catalog schema and its rules,
-shared with the web API), review (catalog-only review decisions), and the ns_similarity modules.
+shared with the web API), review (catalog-only review decisions), attention (explicit
+read-only checks of uncertain file outcomes), and the ns_similarity modules.
 
 Modules refer to one another as `module.name`, never `from module import name`: one
 binding per name, so replacing a function (a test injecting a fault) replaces it for
@@ -100,6 +101,8 @@ default Index):
   delivered file a new name, or list the names its duplicate group carried.
 - --reject / --return-to-library, with --file-ids(-from) or --source-subdir: move organized
   photos from dest/library to dest/rejects, or back (spec §9.5). Nothing is deleted.
+- --check-issue ISSUE_ID: verify one uncertain operation and record fresh evidence;
+  updates the catalog only, never moves, deletes or overwrites photo files.
 - --repair-similarity missing|comparisons: recover missing visual hashes from
   destination originals, or resume stored-hash comparisons; never edits photos.
   --repair-photo PHOTO_ID limits the missing-hash recovery to one photo.

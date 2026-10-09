@@ -87,7 +87,7 @@ def _outcome(conn, run: dict, progress: list) -> dict:
         "SELECT COUNT(*) FROM operations WHERE run_id = ? AND photo_id IS NULL AND status = ? "
         "AND reconciles_operation_id IS NULL", (run["id"], PhotoStatus.FAILED)).fetchone()[0]
     recovered = conn.execute("SELECT COUNT(*) FROM operations WHERE run_id = ? AND "
-                             "reconciles_operation_id IS NOT NULL", (run["id"],)).fetchone()[0]
+                             "reconciles_operation_id IS NOT NULL AND status NOT IN ('Failed','Cancelled')", (run["id"],)).fetchone()[0]
     skip_reasons = {}
     for (message,) in conn.execute("SELECT error_message FROM operations WHERE run_id = ? AND status = ? "
                                    "AND reconciles_operation_id IS NULL", (run["id"], OPERATION_SKIPPED)):

@@ -266,7 +266,7 @@ Specified but not yet on screen:
     engine records per full Index (`webui-spec.md` §5.1).
 *   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built), undated photos as a Needs review reason with suggested dates, and metadata editing (`webui-spec.md` §7.5, with its
     decided details).
-*   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file and uncertain-outcome resolution, and the similar-to-a-reject check
+*   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file resolution, and the similar-to-a-reject check
     (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);
     the export-sidecar notice at Index.
@@ -304,3 +304,9 @@ Settings › Access persist additional allowed hostnames/IPs in application data
 the catalog. Catalog rebuild/restore never resets this policy. Local and deployment
 addresses provide initial access/recovery; this does not add sign-in or configure DNS.
 See `webui-spec.md` §11 for revision checks, current-address confirmation and live enforcement.
+
+
+Uncertain-operation verification is built: the Inspector and Logs expose open issues
+and recorded evidence in every location; active Library issues also enter Needs review.
+Check it now performs a scoped read-only verification and atomic catalog repair without
+moving or deleting photos. Broader destination inventory UI remains planned.

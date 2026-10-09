@@ -1609,3 +1609,25 @@ content dimensions and `small_image_min` (positive integer pixels, null for off)
 Acknowledgements survive re-indexing unchanged content and rule changes. Review later
 is independently resolved by Done. Review events are included in catalog backups and
 unbacked-change accounting. Development catalogs require schema 22; no migration.
+
+
+## 11. Explicit uncertain-outcome verification
+
+`--check-issue ISSUE_ID` runs under the engine lock as CHECK, without normal startup
+filesystem reconciliation. It reads only the recorded source/destination pair for an
+open uncertain operation within the configured mounts. It refuses stale content/path
+bindings and unsupported intents; symlinks and non-regular files are not verified copies.
+SHA-1 verification checks file stability, and cancellation leaves the issue open.
+
+One original location verified and destination absent permits a transfer to return to
+Pending (or Duplicate). A verified destination with an absent original is recorded as
+Found_At_Destination, not proof of who removed the original. Both verified transfer copies
+remain intact and the catalog records Copied. Rejected transfers retain their location.
+For Rename/Reject/Return, exactly one verified location permits a catalog-only repair;
+two remaining names are ambiguous and neither is removed, even if hard-linked.
+
+The check writes a new operation linked to the uncertain operation. Fresh observations,
+lineage/catalog updates and issue resolution share a FULL-synchronous transaction.
+Original operation events are not rewritten. A failure updates the issue explanation
+and retains its deletion gate; there is no dismiss-without-evidence operation. No schema
+change is needed. Generic destination inventory remains a separate CHECK mode.

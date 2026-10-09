@@ -854,3 +854,16 @@ open. The workspace and preview close, the filtered gallery shows zero photos an
 completion message, and the URL no longer points to that photo/review. With other
 queue items remaining, Back closes only a preview that no longer matches the view;
 a still-matching preview and checkbox selection remain intact.
+
+
+## Uncertain-operation recovery
+
+Run `python3 -m unittest discover -s tests -p attention_test.py -v` in the app image.
+Generated fixtures cover verified and missing copies, mismatches, symlinks, paths outside
+mounts, cancellation, stale catalog content, relocation ambiguity, atomic rollback,
+API eligibility and request replay. Existing review and database suites remain relevant.
+
+Run `SIMILARITY_RECOVERY_FIXTURE=1 DRIVER=attention_browser_drive.py sh tests/browser/webui_browser_test.sh`
+with your own app/web image tags. The disposable catalog fixture exercises Inspector,
+Logs, Library-only File issues filtering, unresolved and resolved checks, review queue
+refresh, and desktop/narrow reflow. It does not touch a real catalog.

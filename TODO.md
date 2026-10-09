@@ -4,22 +4,14 @@ Open work, open design questions and the durability claims ledger. Designs live 
 `docs/`; features specified but not yet built are listed in
 [project-spec.md](docs/project-spec.md) §4 ("Specified but not yet on screen").
 
-## "Couldn't confirm what happened" issues are invisible and never clear
+## Uncertain file outcomes
 
-- [ ] **Found 2026-10-05; rare, but a dead end.** When recovery cannot establish what
-  happened to a photo (an interrupted or failed Move, Rename, Reject or Return whose files
-  cannot be verified; `engine-spec.md` §4.2 and §9.4), it records the evidence and opens an
-  `unestablished_outcome` attention issue. Three gaps remain:
-  - **Invisible:** the screens show only the empty-source and network-share issues; a
-    per-photo issue appears in no panel, log view or count.
-  - **Never clears once recovery gives up:** an issue resolves only when a later recovery
-    verifies the outcome; one settled as unestablished is never looked at again.
-  - **Silently blocks:** under claim 15 such a library copy never authorizes removing a
-    duplicate's original.
-
-  Planned fix: a Needs review note, "Couldn't confirm what happened to this photo", held,
-  showing its evidence, with **Check it now**: a destination check of that file whose
-  verified result clears the issue (`docs/webui-spec.md` §7.9).
+- [x] Shared warning/evidence and Check it now in photo information and Logs; active
+  Library issues also appear in Needs review → File issues. A read-only engine check
+  resolves supported outcomes only with fresh verified evidence, preserving original
+  history and the deletion gate while uncertainty remains.
+- [ ] Broader destination inventory UI and external restoration guidance beyond the
+  recorded operation pair remain separate from this scoped verification.
 
 ## Copy, then delete the originals yourself
 

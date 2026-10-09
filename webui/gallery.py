@@ -6,7 +6,7 @@ import posixpath
 from pathlib import Path
 from typing import Optional
 
-from engine import ns_db, review
+from engine import ns_db, review, attention
 from engine import ns_similarity_cache
 from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
 from . import catalog
@@ -213,6 +213,7 @@ def _review_cards(conn, rows):
         {review.LIMIT_SQL} AS minimum,
         ({review.predicate('small')}) AS small,
         ({review.predicate('later')}) AS later,
+        ({review.predicate('issues')}) AS issues,
         (SELECT e.note FROM review_events e WHERE e.photo_id=p.id AND e.reason='later'
          ORDER BY e.id DESC LIMIT 1) AS note
         FROM photos p LEFT JOIN contents c ON c.hash_algorithm='sha1' AND c.digest=p.sha1_hash
@@ -227,6 +228,8 @@ def _review_cards(conn, rows):
         if row['later']:
             reasons.append({'reason': 'later', 'label': 'Review later',
                 'message': row['note'] or 'You asked to come back to this photo.'})
+        if row['issues']:
+            reasons.append({'reason':'issues','label':'File needs checking','message':'An operation could not be verified.'})
         cards[row['id']] = {'reasons': reasons, 'location':
             'Library' if row['status'] in catalog.DELIVERED else
             'Rejects' if row['status'] in IN_REJECTS_STATUSES else 'Not organized'}
@@ -349,8 +352,8 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             chips[chip] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}"+extra, values).fetchone()[0]
         reasons = {}
         # Reason chips exist only in the inbox; other galleries need its total, not
-        # three additional counts over the same photo set.
-        for key in ('all', *review.REASONS) if view == 'review' else ():
+        # additional reason counts over the same photo set.
+        for key in ('all', 'issues', *review.REASONS) if view == 'review' else ():
             extra, values = _filters(q, undated, dates, types, folders, root, match_min=match_min,
                                     similar=similar, suspicious=suspicious, reason=key, run=run)
             reasons[key] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE ({review.predicate()})"+extra, values).fetchone()[0]
@@ -614,6 +617,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         snapshot = conn.execute(
             "SELECT s.file_mtime FROM photo_files pf JOIN source_snapshots s USING(file_id) "
             "WHERE pf.photo_id = ?", (photo_id,)).fetchone()
+        issues = attention.for_photo(conn, photo_id)
         failure = None
         if p["status"] == PhotoStatus.FAILED:
             last = conn.execute("SELECT error_message FROM operations WHERE photo_id = ? AND status = ? ORDER BY id DESC LIMIT 1",
@@ -636,7 +640,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         "file_modified": snapshot["file_mtime"] if snapshot else p["file_mtime"],
         "date_taken": meta.get("date_taken"), "date_source": meta.get("date_source"),
         "date_warning": p["date_warning"],
-        "camera": camera, "visual_issue": visual_issue, "failure": failure,
+        "camera": camera, "visual_issue": visual_issue, "failure": failure, "issues": issues,
         # A capture time's offset, when the camera recorded one; without it the
         # time zone is unknown and must not be shown as UTC (webui-spec 10).
         "date_offset": meta.get("OffsetTimeOriginal"),

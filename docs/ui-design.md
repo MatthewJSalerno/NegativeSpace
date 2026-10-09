@@ -828,3 +828,20 @@ requiring hover. Review shows a match count and a count-labelled link
 to the existing full match browser, without candidate thumbnails; following it retains
 reference, percentage, filters and checkbox selection. Browser Back restores the same
 photo and position in the review queue. This is navigation, not a photo action.
+
+
+## Uncertain file outcomes
+
+Use one shared File issues panel in the Inspector, the affected Logs operation and
+Photo Review. It shows **File needs checking**, the recorded reason, expandable
+**Recorded evidence**, and **Check it now**. Explain that the check updates the catalog
+but never moves, overwrites or deletes photo files. Disable the action while a job runs,
+with its reason; submission failures retain an idempotent retry. Report the actual check
+result, not success merely because a job was accepted. Unresolved checks retain their
+explanation and external correction guidance. There is no mark-resolved bypass.
+
+Issues remain visible in Not organized and Rejects. Active Library photos also enter
+**Needs review → File issues** using the existing reason row and review workspace.
+Other locations never enter the Library inbox. A successful check refreshes counts and
+photo state; an emptied review queue follows the standard return-to-gallery behavior.
+Checks with two remaining relocation names do not remove either name automatically.

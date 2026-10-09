@@ -226,6 +226,21 @@ class JobRunner:
                 raise JobRefused(409 if result.returncode == 3 else 400, answer)
             return answer
 
+    def check_issue(self, issue_id, request_id=None):
+        validate_request_id(request_id)
+        if type(issue_id) is not int or not 1 <= issue_id <= MAX_PHOTO_ID:
+            raise JobRefused(400, {'error':'invalid_request','message':'Choose a valid file issue.'})
+        with self._start_lock:
+            flags = ['--check-issue',str(issue_id)]
+            replay = self._replay(flags,request_id)
+            if replay is not None:
+                return replay
+            with catalog.connect(self.cfg.db_path) as conn:
+                row = conn.execute("SELECT resolved_at FROM attention_issues WHERE issue_id=? AND category='unestablished_outcome'",(issue_id,)).fetchone()
+            if row is None or row[0] is not None:
+                raise JobRefused(409, {'error':'issue_changed','message':'This issue is no longer open. Reload the photo.'})
+            return self._launch(flags,request_id)
+
     def repair_similarity(self, scope, photo_id=None, request_id=None):
         validate_request_id(request_id)
         if scope not in ('missing','comparisons') or (photo_id is not None and
@@ -309,6 +324,10 @@ class JobRunner:
                             'scope':argument('--repair-similarity'),
                             'photo_id':int(argument('--repair-photo')) if '--repair-photo' in flags else None,
                             'dest':str(self.cfg.dest.resolve())}}
+        if '--check-issue' in flags:
+            expected = {'mode':'CHECK','source':None,'destination':None,'targeting':None,'overrides':{},
+                        'submitted':{'issue_id':int(argument('--check-issue')),
+                                     'source':str(self.cfg.source.resolve()),'dest':str(self.cfg.dest.resolve())}}
         if record["request"] != expected:
             raise JobRefused(409, {"error": "request_conflict", "message": "This request ID was already used for different input."})
         return record["run_id"]

@@ -179,7 +179,13 @@ export interface AccessSettings {
   current_removed?: boolean;
 }
 
+export interface FileIssue {
+  issue_id: number; operation_id: number; summary: string; opened_at: string;
+  evidence: {location: string; path: string; kind: string; result: string; observed_at: string; details: string | null}[];
+}
+
 export interface PhotoDetail {
+  issues: FileIssue[];
   failure: string | null;
   visual_issue: string | null;
   id: number;
@@ -288,6 +294,7 @@ export interface Settings {
 }
 
 export interface Operation {
+  issues: FileIssue[];
   id: number;
   run_id: number;
   mode: string | null;
@@ -674,6 +681,8 @@ export const api = {
   saveUiState: (values: { dismissed_run: number }) => request<{ dismissed_run: number | null }>("PUT", "/api/v1/ui-state", values),
   runs: (limit = 100) => request<{ runs: Run[] }>("GET", `/api/v1/runs?limit=${limit}`),
   lineage: (id: number) => request<Lineage>("GET", `/api/v1/photos/${id}/lineage`),
+  fileIssues: (id: number) => request<{items: FileIssue[]}>("GET", `/api/v1/photos/${id}/issues`),
+  checkIssue: (issue_id: number, request_id: string) => request<Run>("POST", "/api/v1/issues/check", {issue_id,request_id}),
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   answerQuestion: (id: number, question: SafetyQuestion, answer: SafetyAnswer) =>
     submitJob(`/api/v1/runs/${id}/answer`, { question, answer }),

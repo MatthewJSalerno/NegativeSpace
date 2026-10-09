@@ -194,9 +194,12 @@ def main():
     mode_group.add_argument('--repair-similarity', choices=('missing','comparisons'),
                             help='Recover missing visual hashes from destination files or resume stored-hash comparisons; never edits photos.')
     parser.add_argument('--repair-photo', type=int, default=None, help='Limit missing-hash recovery to one destination photo identity.')
+    mode_group.add_argument('--check-issue', type=positive_int, help='Verify one uncertain operation without modifying photo files.')
     mode_group.add_argument('--review-decision', action='store_true',
                             help='Record a catalog-only review decision supplied as JSON on standard input; changes no photo files.')
     args = parser.parse_args()
+    if args.check_issue is not None and args.check_issue > 2**63-1:
+        parser.error("--check-issue requires a positive 64-bit issue ID.")
     if args.repair_photo is not None and (args.repair_photo < 1 or args.repair_photo > 2**63-1 or args.repair_similarity != 'missing'):
         parser.error('--repair-photo requires --repair-similarity missing and a positive photo ID.')
     if args.rename is not None and not args.name:
@@ -283,6 +286,10 @@ def main():
         finally:
             runtime.release_single_instance_lock(lock_fd)
         sys.exit(code)
+
+    if args.check_issue is not None:
+        from engine import attention
+        sys.exit(attention.run_check(args, db_path, lock_fd))
 
     if args.backup_now:
         sys.exit(backups.run_manual_backup(db_path, Path(args.backups), base_dir, lock_fd))

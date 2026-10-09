@@ -24,7 +24,7 @@ def _recovery_observe(path: Path):
         return "unreadable"
 
 
-def _recovery_verify(path: Path, expected):
+def _recovery_verify(path: Path, expected, cancelled=None):
     """Hash a stable regular file, without following a replacement symlink or
     blocking on a substituted FIFO. Recovery observes; it never edits this file.
     """
@@ -40,6 +40,8 @@ def _recovery_verify(path: Path, expected):
                 return "not_file", details
             digest = hashlib.sha1()
             for chunk in iter(lambda: stream.read(constants.SHA1_CHUNK_SIZE), b""):
+                if cancelled and cancelled():
+                    return "cancelled", details
                 digest.update(chunk)
             after = os.fstat(stream.fileno())
             details["observed_sha1"] = digest.hexdigest()
