@@ -1415,8 +1415,9 @@ spread of the library is scrolled out of sight.
 * **Its own full-width row** below the tiles, instead of one of the three panels, so many
   years fit side by side.
 * **Suspicious years are set apart, not plotted:** years the Suspicious dates view flags
-  (before 1800, or more than a year ahead) are counted in one labelled bar at each end,
-  "before 1800: 3", "future: 6", linking to that view, so they neither stretch the axis
+  (before the configured earliest year, or more than one year ahead of the current UTC
+  year) are counted in one labelled bar at each end, e.g. "before 1800: 3" for the default
+  minimum and "future: 6", linking to that view, so they neither stretch the axis
   nor hide the real years.
 * **Every year between the earliest and latest real year is shown,** an empty year as an
   empty slot, so gaps read as gaps; the bars scale to the busiest real year.
