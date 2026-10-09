@@ -9,7 +9,7 @@ export const TOP_FILES = ".";
 export type BrowseBy = "folders" | "dates";
 const BROWSE_KEY = "ns.browseBy";
 
-// Folders or Dates in the left panel (webui-spec 2): Folders by default, the choice
+// Folders or Dates in the Filters panel (webui-spec 2): Folders by default, the choice
 // remembered per browser. A filter in the address for the other tree shows that one.
 export function initialBrowseBy(folders: string[], dates: string[]): BrowseBy {
   if (dates.length && !folders.length) return "dates";
@@ -101,6 +101,10 @@ export function FoldersPanel({ tree, folders, onFolders }: {
         <h2>Folders</h2>
         <Tip text="Check folders to show only the photos in them, subfolders included. Uncheck them all to show everything."><span className="dates-show-only">Show only</span></Tip>
       </div>
+      <p className="dates-status muted">
+        {folders.length === 0 ? "Showing all folders"
+          : <>Showing only {folders.map(folderLabel).join(", ")} · <button className="link" onClick={() => onFolders([])}>Show all</button></>}
+      </p>
       <ul className="dates-tree">
         {tree.folders.map((node) => row(node, 0))}
         {top && (
@@ -119,10 +123,6 @@ export function FoldersPanel({ tree, folders, onFolders }: {
       {tree.outside > 0 && (
         <p className="dates-foot muted">{plural(tree.outside, "photo")} from another source folder, not in this tree.</p>
       )}
-      <p className="dates-foot muted">
-        {folders.length === 0 ? "Showing all folders"
-          : <>Showing only {folders.map(folderLabel).join(", ")} · <button className="link" onClick={() => onFolders([])}>Show all</button></>}
-      </p>
     </nav>
   );
 }

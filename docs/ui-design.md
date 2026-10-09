@@ -33,7 +33,8 @@ separate foreground/background pairs in both themes.
 - Focus must remain visible below sticky headers. Forced colors retain outlines and
   borders; reduced motion suppresses nonessential animated progress effects.
 - On narrow screens the toolbar scrolls with the page, so its wrapped controls
-  cannot cover the gallery; command menus stay within the viewport.
+  cannot cover the gallery; command menus stay within the viewport, opening leftwards
+  from controls near the right edge.
 - Normal enabled text needs 4.5:1 contrast; inspect nontext controls and state
   indicators separately. Disabled controls are not a reason to weaken enabled ones.
 
@@ -67,8 +68,12 @@ The first Settings tab, Appearance, offers Cool neutral (default) and Warm neutr
 immediately, is stored per browser under `ns.palette`, and follows across tabs;
 it is independent of catalog settings and does not require Save settings. **Color mode** offers System (default), Light and Dark, remembered per browser
 under `ns.theme` and synchronized across tabs. System follows live device changes;
-explicit Light/Dark overrides them. A shared **Dark mode** toggle appears beside
-Stats and Settings on Library, Logs and Stats, setting an explicit mode. Both palettes
+explicit Light/Dark overrides them. A shared **Dark mode** switch sits beside Settings
+in the top bar of Library, Logs and Stats, setting an explicit mode: a labelled track and
+knob ([WAI-ARIA Switch](https://www.w3.org/WAI/ARIA/apg/patterns/switch/), `role="switch"`
+with `aria-checked`), the knob right on the accent when dark is on. While System applies,
+it shows the mode in effect. *Why a switch, not a pressed button:* on/off reads at a
+glance; the label stays, since a bare sun/moon slider leaves its meaning to guesswork. Both palettes
 work in every mode, including setup, dialogs and workspaces. If browser storage is unavailable,
 the choice still works for the current page. All colors come from the shared root
 tokens; the font is served with the app, with no external font request.
@@ -103,11 +108,56 @@ preview and confirmation controls. Navigation goes to its named destination/tab.
 | Supplemental help | `Tip.tsx`: hover/focus plus an explicit information button for touch; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. |
 | Paged loading | `ui/PageBoundary.tsx` and `paged.ts`: idle/load, pending, failed/retry and end states. Keep already-loaded photos and selection on failure. |
 
-## Stable navigation and filtering
+## Page frame
 
-Page navigation uses `PageNavigation.tsx`: Library, a reserved Jobs slot, then Logs.
-Logs and Stats leave the Jobs slot empty; do not show a disabled command or move Logs.
-The active label's weight must not change the position of adjacent links.
+Decided with the maintainer (2026-10-08), after Immich's web app and drawn in the
+"Navigation like Immich" mockup. Library, Logs and Stats share one frame (`AppFrame.tsx`):
+
+- **Top bar**, sticky: the logo and name (a link to the Library's last place), the
+  filename search on the Library, **Jobs ▾** on the Library, then the **Dark mode** switch and
+  Settings. Logs and Stats have neither search nor Jobs, and no disabled stand-in for
+  them. Job and Rejects banners sit under the top bar.
+- **Sidebar** (`Sidebar.tsx`, 240px), on every page: the four places in workflow order
+  (Not organized, Library, Needs review, Rejects), each with how many photos it holds,
+  whatever the search or filters; **Look into**, the gallery's filters; **Activity**: Logs
+  and Stats; the build at the foot. Places and pages are real links with the current one
+  marked (`aria-current`). It never moves between pages, and a count changing or the
+  current item's weight never shifts a label. *Why whole counts* (maintainer, 2026-10-09):
+  after rejecting 4 photos, a Rejects count that followed the search read 0; a place's
+  number says what it holds, and what the search or filters find is said above the photos
+  ("Showing 2 of 4,738").
+- **Look into is the only place the gallery's filters live** (maintainer, 2026-10-09; no
+  chip row above the photos): Has similar photos, Suspicious dates, No capture date,
+  Small images and Review later. On the Library page each is a toggle (`aria-pressed`;
+  on, it takes the current-item surface and a bar at its start) that narrows the place
+  shown, with its count there under the other filters; they combine, and Small images
+  and Review later are one reminder scope at a time. A filter that does not apply to the
+  place stays in its row, dimmed (`aria-disabled`), saying why on hover: Has similar
+  photos and Small images are for Library and Needs review, Review later for Needs review.
+  On Logs and Stats each is a link that opens Library (Review later: Needs review) with
+  only that filter on, counted as it opens.
+- **The selection takes the top bar.** While photos are selected the selection bar
+  replaces the top bar's contents (`.topbar.selecting`, on `--surface-2`), grouped at its
+  start so the count and what can be done with it are read together: **✕** (Clear
+  selection), the count in the accent at 16px, **Show only selected** or **Back to
+  results**, the actions, then the search. Clearing gives the top bar back. *From:*
+  Immich's "n selected" bar. *Why grouped:* spread across the bar, the count blended into
+  the page and the actions sat at the far edge, easy to miss. *Why the search stays,
+  unlike Immich's:* a selection is built across searches ("n outside this view").
+- **Filters** beside Sort, at the end of the place heading row, opens Types, then
+  Folders or Dates, in a panel under it over the photos (`FiltersButton.tsx`). It is a
+  disclosure (`aria-expanded`), not a dialog: the gallery updates behind it; Esc, Close
+  or a click outside closes it and focus returns to the button. Its label counts active
+  type, folder and date filters: **Filters (2)**. Each tree's "Showing … · Show all" line
+  sits under its heading, and the panel's own heading stays in view as it scrolls, so
+  neither is a scroll away. *Why not a second column:* the sidebar holds the left edge,
+  and two columns of controls before the photos crowded the gallery.
+- **Narrow windows (800px and below):** the sidebar hides behind a **☰ Menu** button at
+  the start of the top bar and opens over the page; Esc, a click outside or choosing a
+  link closes it. At 700px and below the Filters panel spans the window, as menus do.
+  Desktop is the target; this keeps a half-screen window usable.
+
+## Stable navigation and filtering
 
 Ordinary job submission stays on the initiating control/dialog; the central Index
 button replaces its label with **Starting…** and disables repeat submission. A brief
@@ -209,8 +259,8 @@ and had to be reworded in both places.
 ## Similarity belongs in the gallery
 
 Review destination photos in the ordinary gallery and its Inspector. Do not add a
-separate Similar navigation button or a second gallery of matching groups.
-**Has similar photos** is a filter chip within the current place;
+separate Similar view or a second gallery of matching groups.
+**Has similar photos** is a Look into filter within the current place;
 it includes photos with at least one recorded destination match at the gallery's
 chosen percentage (90% initially). It combines with existing search, date, type and
 folder filters. **Most matches first** in the existing sort control ranks direct
@@ -224,15 +274,15 @@ unavailable hashes are reported separately, not presented as proof of uniqueness
 
 Keep the same card geometry and shared summary row in All photos, Has similar
 photos and No capture date. Match badges must not add a metadata row to cards.
-Use the same active-view surface for No capture date. Its filter chip has no adjacent
+Use the same active-view surface for No capture date. Its filter has no adjacent
 information icon. Put long filter descriptions
 and count-scope explanations in shared help, keeping filter-reset/selection actions
 visible. Similarity controls and essential below-90% guidance may wrap at smaller
 widths; never hide them behind a help control or clip them for a fixed row height.
 
 Persist gallery percentage as `match_min` and ordering as `sort=matches` in the URL.
-Changing either starts at page one and preserves explicit selection. Sidebar counts,
-Select all and photo positioning use the same percentage. Show only selected retains
+Changing either starts at page one and preserves explicit selection. Filter-panel and
+sidebar counts, Select all and photo positioning use the same percentage. Show only selected retains
 all chosen files, including those without matches; disable the gallery percentage
 while that scope is open. Has similar photos initially uses Most matches first. Remember explicit sort choices
 per view in browser storage (`ns.sort.<view>`); switching views restores that view’s
@@ -405,8 +455,8 @@ access to the explanation remain available through the shared help control.
 The Inspector's inner preview/details divider has a visible grip, pointer dragging
 and keyboard resizing. Arrow keys follow its orientation; Home/End select its limits.
 It announces and remembers the preview share independently of the outer panel width.
-The outer divider reserves the filters' chosen width and at least 420px for the
-photo grid; the Inspector retains at least 320px. Saved widths and desktop window
+The outer divider reserves at least 420px for the photo grid; the Inspector retains
+at least 320px. Saved widths and desktop window
 resizing obey those limits. Very narrow desktop windows scroll horizontally rather
 than compressing these areas below their minimums.
 
@@ -492,7 +542,7 @@ conflicting EXIF tags are outside this first policy. Never infer an offset or re
 a recorded value. Legitimate historical material may still be flagged.
 
 Use existing gallery controls, card geometry, selection, pagination and URL state
-(`view=suspicious`). Counts, sidebar filters and Select all use the same membership.
+(`view=suspicious`). Counts, the Filters panel and Select all use the same membership.
 Explain the policy beside results. The Inspector shows the reason, recorded value,
 source and a link to the affected view. Similar photos offer clues, not automatic
 corrections. The comparison Capture information table includes a Date review row
@@ -542,8 +592,8 @@ and collapse before pagination. Search displays matching photos individually.
 Gallery totals and paging count sets when grouping is on. Select all and card
 checkboxes select only displayed representatives, not every member. Existing
 explicit selection remains intact, including hidden members; Show only selected
-still displays individual photos. View-button counts remain library photo counts.
-Sidebar counts remain individual photos so filters can find members hidden by
+still displays individual photos. Sidebar place counts remain library photo counts.
+Filter-panel counts remain individual photos so filters can find members hidden by
 collapsed sets; date-jump positioning uses grouped representatives. A set's members come from the full destination
 library. Turning grouping off returns the ordinary cards without clearing selection.
 Grouping defaults on and the toggle is remembered per browser (`ns.groupSets`). Selected expansions reset on closing exploration
@@ -645,6 +695,8 @@ closing the preview restores its prior state. Explicit Show can expand it while 
 preview is open. If only failed source files remain, say
 **n files need attention**, link directly to failures and omit misleading Copy/Move actions. Use a compact failure notice only: omit the photo-statistics grid and source-photo/similarity guidance. Copy/Move completion updates this in place without a reload. If nothing remains, hide both the summary and its Show control.
 Switching location closes the Inspector and comparison context, preserving checkboxes.
+Changing the search or filters closes the Inspector only once its photo no longer matches;
+a photo that still matches stays open where it is, as when leaving a review.
 Explicit links to a photo still open that photo in their specified context.
 An empty Library explains how to populate it and links to Not organized.
 
@@ -655,16 +707,16 @@ and clears unrelated browsing filters so the photo cannot be hidden. Checkboxes 
 unchanged. Back to Library restores the entry filters, sort and visible photo position
 for this visit. Mark reviewed clears the reminder, not the Library photo.
 
-Place controls and filter chips have different roles. Each location has exactly one
-filter row beneath navigation. Similar photos, Suspicious dates and No capture date
+Places and filters have different roles: the places are links, the Look into filters
+toggles (page frame, above). Similar photos, Suspicious dates and No capture date
 combine; Small images toggles the existing size-reminder predicate within Library or
-Needs review, without navigating. Needs review adds Review later in that same row.
+Needs review, without navigating; Review later does the same in Needs review.
 Small images and Review later choose one reminder scope at a time, combining with the
 other filters. Leaving Needs review clears its Review later restriction, so Library
-cannot inherit a filter with no visible control. Clicking an active chip clears it; no active chips means the whole
-current location/inbox. Do not repeat these controls in a second row or add All reasons. Use native buttons with aria-pressed, shared
-text roles, visible focus and wrapping at desktop zoom. Folders and Dates remain in the
-sidebar. Name active restrictions visibly and provide Clear filters without changing
+cannot inherit a filter with no visible control. Clicking an active filter clears it; none active means the whole
+current location/inbox. Do not repeat these controls above the photos or add All reasons. Use native buttons with aria-pressed, shared
+text roles and visible focus. Types, Folders and Dates are in
+the Filters panel. Name active restrictions visibly and provide Clear filters without changing
 place or selection. Search offers a route to filename matches in other locations.
 
 Small-image review is destination cleanup, never a Copy/Move restriction. First-run
@@ -698,25 +750,26 @@ Shared help explains that unsupported formats, unreadable files or incomplete pr
 can cause this; it does not diagnose corruption or a non-photo. These files are not counted
 as small. Processing failures remain a separate count with a route to job details.
 
-Switching Needs review reasons must not move the reason controls or results summary.
+Switching Needs review reasons must not move the place heading or results summary.
 Reason explanations share an automatically sized grid area that accommodates the longest
 wrapped text at the current width/text size; do not use fixed heights or clip guidance.
 Only the current explanation is visible, focusable or exposed to assistive technology.
 Choosing a reminder scope alone does not add Clear filters beside the location heading:
-click its active chip again to clear it. Other active gallery filters retain Clear filters.
+click the active filter again to clear it. Other active gallery filters retain Clear filters.
 
-The selection toolbar reserves the width of its outside-this-view message for the
+The selection bar reserves the width of its outside-this-view message for the
 current selection size. Filtering must not make this message appear/disappear in a
 way that wraps the toolbar and shifts the gallery. The sizing copy is hidden from
 view and assistive technology; a zero outside count is not announced as a warning.
 
-Keep the outside-selection count beneath the selected-photo count in supporting text,
-within the normal control height. At viewport heights of 600px or less the main toolbar
+Keep the outside-selection count on the same line as the selected-photo count, after it,
+in supporting text: on two lines the count sat above the centre line of the links and
+buttons beside it. At viewport heights of 600px or less the main toolbar
 scrolls with the page, as it does in narrow windows, so a wrapped header cannot cover
 the review filters or prevent their activation at desktop zoom.
 
-Filter and reason count labels reserve space based on the catalog's total photo count,
-with tabular digits, so changing from many matches to zero cannot rewrap the filter row.
+Sidebar counts sit in their own right-aligned column with tabular digits, so changing
+from many matches to zero never moves a label.
 
 ### Consistent review decisions
 

@@ -62,14 +62,15 @@ def check_ui(browser, base, _shot):
     expect(page.locator(".card").first).to_be_visible()
 
     # Tile changes keep both a pending search draft and its applied URL query.
-    initial_location = page.locator(".views button[aria-pressed=true]").inner_text().split(" (")[0]
+    places = page.get_by_role("navigation", name="Main")
+    initial_location = places.locator("a[aria-current=page] span").first.inner_text()
     search_box = page.get_by_role("searchbox", name="Search filenames")
     for label in ("Not organized", "Needs review", "Rejects", "Library"):
         search_box.fill("photo-010")
-        page.locator(".views").get_by_role("button", name=re.compile(r"^" + label)).click()
+        places.get_by_role("link", name=re.compile(r"^" + label + r"\b")).click()
         expect(search_box).to_have_value("photo-010")
         expect(page).to_have_url(re.compile(r"q=photo-010"))
-    page.locator(".views").get_by_role("button", name=re.compile(r"^" + initial_location)).click()
+    places.get_by_role("link", name=re.compile(r"^" + initial_location + r"\b")).click()
     search_box.fill("")
     expect(page).not_to_have_url(re.compile(r"q="))
     expect(page.locator(".card").first).to_be_visible()
@@ -98,16 +99,16 @@ def check_ui(browser, base, _shot):
     page.get_by_role("button", name="Close", exact=True).click()
     expect(page.locator(".card").first).to_be_visible()
 
-    # Selecting photos must not make the top toolbar taller or move the gallery.
-    toolbar = page.locator(".toolbar-row").first
+    # The selection takes the top bar without making it taller or moving the gallery.
+    toolbar = page.locator(".toolbar")
     logs = page.get_by_role("link", name="Logs", exact=True)
     before = (toolbar.bounding_box(), logs.bounding_box(),
-              page.locator(".toolbar-browse").bounding_box())
+              page.locator(".gallery-context").bounding_box())
     page.locator(".card-check input").first.check()
     selection = page.get_by_role("region", name="Selection", exact=True)
     expect(selection).to_be_visible()
     after = (toolbar.bounding_box(), logs.bounding_box(),
-             page.locator(".toolbar-browse").bounding_box())
+             page.locator(".gallery-context").bounding_box())
     assert after == before, ("Selection shifts the toolbar", before, after)
     for button in selection.get_by_role("button").all():
         assert button.bounding_box()["height"] >= 36
@@ -126,13 +127,13 @@ def check_ui(browser, base, _shot):
         confirm_one = page.get_by_role("alertdialog")
         expect(confirm_one).to_be_visible()
         expect(confirm_one).to_contain_text(f"{action} 1 selected photo?")
-        expect(page.locator(".side-panel")).to_be_visible()
+        expect(page.locator(".gallery-context > h2")).to_be_visible()
         expect(page.locator(".card")).to_have_count(card_count)
         expect(page.locator(".review-bar")).to_have_count(0)
         confirm_one.get_by_role("button", name="Cancel", exact=True).click()
         expect(selection).to_contain_text("1 photo selected")
     assert offered, "the selection bar offered neither Copy nor Move"
-    selection.get_by_role("button", name="Clear", exact=True).click()
+    selection.get_by_role("button", name="Clear selection", exact=True).click()
     expect(selection).to_have_count(0)
 
     # A modal owns focus, contains both Tab directions and returns to its opener.
@@ -222,35 +223,38 @@ def check_ui(browser, base, _shot):
     page.keyboard.press("Escape")
     expect(select).to_be_focused()
 
-    # Supplemental help is explicitly operable, described, and dismissible.
-    help_button = page.locator(".side-panel .help-trigger:visible").first
+    # Supplemental help is explicitly operable, described, and dismissible, and its Esc
+    # closes only the help, not the Filters panel around it.
+    page.get_by_role("button", name="Filters", exact=True).click()
+    help_button = page.locator(".filters-panel .help-trigger:visible").first
     help_button.click()
     expect(help_button).to_have_attribute("aria-expanded", "true")
-    expect(page.locator(".side-panel .help-content")).not_to_be_empty()
+    expect(page.locator(".filters-panel .help-content")).not_to_be_empty()
     page.keyboard.press("Escape")
     expect(help_button).to_have_attribute("aria-expanded", "false")
     expect(help_button).to_be_focused()
+    expect(page.locator(".filters-panel")).to_be_visible()
     actions.focus()
     actions.hover()  # Leave the help target before testing a fresh pointer entry.
     help_button.hover()
-    help_content = page.locator(".side-panel .help-content")
+    help_content = page.locator(".filters-panel .help-content")
     expect(help_content).to_be_visible()
     help_content.hover()
     page.wait_for_timeout(200)  # The pointer has crossed the bubble's dismissal grace period.
     expect(help_content).to_be_visible()
 
-    # Help from the sticky sidebar must paint above the adjacent photo grid.
-    sidebar_help = page.locator(".side-panel .help-trigger:visible").first
+    # Help in the Filters panel must paint above the photo grid under it.
+    sidebar_help = page.locator(".filters-panel .help-trigger:visible").first
     for theme in ("light", "dark"):
         page.emulate_media(color_scheme=theme)
         actions.hover()
         sidebar_help.hover()
-        bubble = page.locator(".side-panel .help-content")
+        bubble = page.locator(".filters-panel .help-content")
         expect(bubble).to_be_visible()
         assert bubble.evaluate("""e => {
             const r = e.getBoundingClientRect();
             return e.contains(document.elementFromPoint(r.right - 8, r.top + r.height / 2));
-        }"""), "Sidebar help is covered by adjacent content"
+        }"""), "Filters help is covered by adjacent content"
         assert bubble.evaluate("""e => {
             const s = getComputedStyle(e);
             const probe = document.createElement('span');
@@ -261,35 +265,30 @@ def check_ui(browser, base, _shot):
         }"""), "Help must use the subdued theme surface"
     page.emulate_media(color_scheme="light")
     actions.hover()
+    page.get_by_role("button", name="Close filters", exact=True).click()
+    expect(page.locator(".filters-panel")).to_be_hidden()
+    expect(page.get_by_role("button", name="Filters", exact=True)).to_be_focused()
 
     # Nested dialogs close one at a time and restore focus to the underlying task.
     page.locator(".card-image").first.click()
-    # The outer divider reserves the filters plus usable gallery space, including
-    # oversized saved preferences and a subsequently smaller desktop window.
+    # The outer divider reserves usable gallery space, including oversized saved
+    # preferences and a subsequently smaller desktop window.
     outer = page.get_by_role("separator", name="Resize the photo panel", exact=True)
-    filters_width = page.locator(".side-panel").bounding_box()["width"]
     handle = outer.bounding_box()
     page.mouse.move(handle["x"] + 4, handle["y"] + 100)
     page.mouse.down()
     page.mouse.move(10, handle["y"] + 100, steps=8)
     page.mouse.up()
     assert page.locator(".gallery-pane").bounding_box()["width"] >= 419, "Inspector crushed the photo listing"
-    assert page.locator(".side-panel").bounding_box()["width"] >= filters_width - 1
     page.evaluate("localStorage.setItem('ns.inspectorWidth', '9000')")
     page.reload()
     expect(outer).to_be_visible()
     assert page.locator(".inspector").bounding_box()["width"] <= float(outer.get_attribute("aria-valuemax")) + 1
     page.set_viewport_size({"width": 1100, "height": 900})
-    expect(outer).to_have_attribute("aria-valuemax", "424")
+    expect(outer).to_have_attribute("aria-valuemax", "432")
     assert page.locator(".gallery-pane").bounding_box()["width"] >= 419
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.set_viewport_size({"width": 1400, "height": 900})
-    side_split = page.get_by_role("separator", name="Resize the left panel", exact=True)
-    side_split.focus()
-    page.keyboard.press("ArrowRight")
-    expect(outer).to_have_attribute("aria-valuemax", "684")
-    assert page.locator(".gallery-pane").bounding_box()["width"] >= 419
-    page.keyboard.press("ArrowLeft")
     preview_split = page.get_by_role("separator", name="Resize photo preview", exact=True)
     expect(preview_split).to_have_attribute("aria-orientation", "horizontal")
     preview = page.get_by_role("button", name="Enlarge the photo")
@@ -310,6 +309,9 @@ def check_ui(browser, base, _shot):
     # A wide desktop Inspector uses the same separator vertically.
     page.set_viewport_size({"width": 2400, "height": 900})
     outer = page.get_by_role("separator", name="Resize the photo panel", exact=True)
+    # Wait for the page to measure the wider window; keys pressed before then are clamped
+    # to the old width.
+    expect(outer).to_have_attribute("aria-valuemax", "1732")
     outer.focus()
     for _ in range(20):
         page.keyboard.press("ArrowLeft")

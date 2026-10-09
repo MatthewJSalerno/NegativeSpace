@@ -43,9 +43,11 @@ shows at the top of the page; closing the browser does not stop it.
 
 When Index finishes, **Not organized** shows the source photos and an Index summary.
 **Library**, **Needs review**, and **Rejects** remain empty until photos are organized.
-Browse by **Folders** or **Dates** on the left, or search by filename. After Copy or Move,
+The places are in the sidebar on the left. **Filters** beside the sort narrows by type,
+**Folders** or **Dates**, and the box at the top searches by filename. After Copy or Move,
 Library holds organized photos, Needs review filters those needing attention, and
-Rejects holds photos you have rejected. Reason filters sit beneath these locations.
+Rejects holds photos you have rejected. **Look into**, under the places, narrows the place
+you are in: photos with look-alikes, suspicious dates, no capture date, small images.
 
 ![The gallery, showing one year](images/gallery.png)
 
@@ -125,7 +127,7 @@ every job that touched it. **View lineage tree** in the panel shows it.
 
 ![The log](images/logs.png)
 
-The **Stats** icon at the top right gives figures for the whole library.
+**Stats**, under Logs in the sidebar, gives figures for the whole library.
 
 ![Stats](images/stats.png)
 

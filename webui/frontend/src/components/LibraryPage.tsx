@@ -1,6 +1,5 @@
 import { useDismissedRun } from "../dismissal";
 import { StableContent } from "./ui/StableContent";
-import { PageNavigation } from "./PageNavigation";
 import { ReviewWorkspace } from "./ReviewWorkspace";
 // The Library: the gallery with its views, filters and selection, the Inspector, and
 // the jobs started from it (webui-spec 2 and 4).
@@ -9,9 +8,10 @@ import { readComparison, type ComparisonState } from "../comparisonState";
 import { SimilarityRecovery } from "./SimilarityRecovery";
 import { PageBoundary } from "./ui/PageBoundary";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
-import { Logo } from "./Logo";
-import { PageTools } from "./PageTools";
-import { api, ApiError, submissionSnapshot, subscribeSubmission, MATCH_THRESHOLDS, type ActionMode, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
+import { AppFrame } from "./AppFrame";
+import type { SidebarFilters } from "./Sidebar";
+import { FiltersButton } from "./FiltersButton";
+import { api, ApiError, savedMatchMinimum, submissionSnapshot, subscribeSubmission, MATCH_THRESHOLDS, type ActionMode, type PlaceView, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
 import { count, plural } from "../format";
 import { jobLabel, summary, useJobCompletion, useJobFeed } from "../jobs";
 import { Gallery } from "./Gallery";
@@ -30,15 +30,12 @@ import { SelectionBar, type SelectionCounts } from "./SelectionBar";
 import { RejectsLine, RejectsReminder } from "./RejectsLine";
 import { SearchField } from "./ui/SearchField";
 import type { MatchView } from "./PhotoMatches";
-import { follow, navigate, rememberLibraryQuery, useHeaderHeight, useNavigation } from "../nav";
+import { follow, navigate, rememberLibraryQuery, useNavigation } from "../nav";
 
 
-// Reserve the gallery separately from the filters and the resize handles.
+// The Inspector's least width, and the gallery's beside it.
 const MIN_SIDE = 320;
 const MIN_GALLERY = 420;
-// The left panel's width limits when dragged.
-const SIDE_MIN = 180;
-const SIDE_MAX = 560;
 const VIEW_LABEL: Record<View, string> = { all: "Search results", unorganized: "Not organized", organized: "Library", similar: "Has similar photos", suspicious: "Suspicious dates", rejects: "Rejects", review: "Needs review" };
 const PLACE_VIEWS: View[] = ["unorganized", "organized", "review", "rejects"];
 // The review bar's words for each job a selection can be reviewed for.
@@ -66,13 +63,6 @@ function savedSort(view: View): Sort {
 }
 function savedGrouping(): boolean {
   try { return localStorage.getItem("ns.groupSets") !== "false"; } catch { return true; }
-}
-function savedMatchMinimum(): number {
-  try {
-    const value = Number(localStorage.getItem("ns.matchMin"));
-    if (MATCH_THRESHOLDS.includes(value)) return value;
-  } catch { /* Storage is optional. */ }
-  return 90;
 }
 function savePreference(key: string, value: string) {
   try { localStorage.setItem(key, value); } catch { /* Storage is optional. */ }
@@ -229,7 +219,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [pendingJump, setPendingJump] = useState<string | null>(null);
   // Every photo on screen, as the last scroll found them.
   const [onScreen, setOnScreen] = useState<number[]>([]);
-  const [datesOpen, setDatesOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   // Library photos or photos in Rejects, never both (webui-spec 2): set by the first photo
@@ -318,16 +308,6 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [panelWidth, setPanelWidth] = useState<number | null>(() => {
     try { return Number(localStorage.getItem("ns.inspectorWidth")) || null; } catch { return null; }
   });
-  // The left panel's width: folder paths can be wide, so it can be dragged wider.
-  const side = useRef<HTMLElement>(null);
-  const [sideWidth, setSideWidthState] = useState<number | null>(() => {
-    try {
-      const saved = Number(localStorage.getItem("ns.sideWidth"));
-      return Number.isFinite(saved) && saved > 0 ? Math.min(SIDE_MAX, Math.max(SIDE_MIN, saved)) : null;
-    } catch { return null; }
-  });
-
-  useHeaderHeight(header);
 
   // The status response triggers one refresh, including settings/focus updates.
   useJobCompletion(refreshStatus);
@@ -490,6 +470,17 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     return () => { live = false; };
   }, [similar, suspicious, reason, locate, view, sort, galleryMinimum, grouped, q, undated, dates, types, folders, pageSize, focus, refreshKey]);
 
+  // A search or filter change closes the open photo once it no longer matches, as leaving a
+  // review does; one that still matches stays open where it is. A pending locate (a link
+  // to a photo) keeps its own course.
+  const filterKey = JSON.stringify([similar, suspicious, reason, undated, dates, types, folders, q, matchMin]);
+  const lastFilterKey = useRef(filterKey);
+  useEffect(() => {
+    if (lastFilterKey.current === filterKey) return;
+    lastFilterKey.current = filterKey;
+    if (openId != null && !focus) setLocate((cur) => cur ?? { id: openId, delta: 0, checkOnly: true });
+  }, [filterKey]);
+
   useEffect(() => {
     if (revealId == null || !list.ready || !flat.items.some(item => item.id === revealId)) return;
     const frame = requestAnimationFrame(() => {
@@ -606,8 +597,6 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const changeDates = (next: string[]) => { setDates(next); setPage(1); };
   const changeTypes = (next: string[]) => { setTypes(next); setPage(1); };
   const changeFolders = (next: string[]) => { setFolders(next); setPage(1); };
-  // All photos clears the other filters, but every tile preserves the search.
-  const narrowed = reason !== "all" || undated || dates.length > 0 || types.length > 0 || folders.length > 0 || !!q;
   const sortChoices = useRef<Partial<Record<View, Sort>>>({});
   const chooseMatchMinimum = (value: number) => {
     savePreference("ns.matchMin", String(value));
@@ -767,14 +756,17 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   }, [flat, openId]);
 
   // The divider between the gallery and the Inspector: drag it, or focus it and use
-  // the arrow keys. Filters keep their width and the photo grid keeps MIN_GALLERY.
-  // Clamp restored preferences too, and recalculate when the window or filters resize.
-  const inspectorMax = Math.max(MIN_SIDE,
-    contentWidth - (focus ? 0 : (sideWidth ?? 240) + 8) - MIN_GALLERY - 8);
+  // the arrow keys. The photo grid keeps MIN_GALLERY. Clamp restored preferences too,
+  // and recalculate when the window resizes.
+  const inspectorMax = Math.max(MIN_SIDE, contentWidth - MIN_GALLERY - 8);
   const boundedWidth = (px: number) => Math.round(Math.min(inspectorMax, Math.max(MIN_SIDE, px)));
   const effectivePanelWidth = boundedWidth(Number.isFinite(panelWidth) && panelWidth != null ? panelWidth : contentWidth / 2);
+  // The latest width, so arrow keys pressed faster than the page redraws each count.
+  const widthNow = useRef(effectivePanelWidth);
+  widthNow.current = effectivePanelWidth;
   const setWidth = (px: number) => {
     const clamped = boundedWidth(px);
+    widthNow.current = clamped;
     setPanelWidth(clamped);
     try { localStorage.setItem("ns.inspectorWidth", String(clamped)); } catch { /* per-viewer convenience only */ }
   };
@@ -791,7 +783,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
-  const currentWidth = () => effectivePanelWidth;
+  const currentWidth = () => widthNow.current;
 
   const start = (mode: "index" | ActionMode, fileIds?: number[]) => async () => {
     setActionError(null);
@@ -874,29 +866,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     }));
   };
 
-  // The divider right of the left panel: drag it, or focus it and use the arrow keys.
-  const setSideWidth = (px: number) => {
-    const clamped = Math.round(Math.min(Math.max(px, SIDE_MIN), SIDE_MAX));
-    setSideWidthState(clamped);
-    try { localStorage.setItem("ns.sideWidth", String(clamped)); } catch { /* per-viewer convenience only */ }
-  };
-  const dragSide = (e: ReactPointerEvent) => {
-    e.preventDefault();
-    const left = side.current?.getBoundingClientRect().left ?? 0;
-    const move = (ev: PointerEvent) => setSideWidth(ev.clientX - left);
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      document.body.classList.remove("dragging");
-    };
-    document.body.classList.add("dragging");
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  };
-  const currentSide = () => sideWidth ?? side.current?.getBoundingClientRect().width ?? 240;
-
   const noPhotos = status.photos === 0;
-  const filterCount = (n: number) => <span className="filter-count" style={{ minWidth: `${count(status.photos).length + 2}ch` }}>({count(n)})</span>;
 
   const screenSelected = screenItems.filter((i) => selected.has(i.id)).length;
   const onPager = focus ? setFocusPage : setPage;
@@ -906,88 +876,87 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const indexNeedsAttention = !!data?.index_summary && data.index_summary.failed === data.index_summary.photos
     && data.index_summary.failed > 0;
 
+  const placeShown = jobRun == null && (PLACE_VIEWS as View[]).includes(view) ? view as PlaceView : null;
+  // The gallery's filters, in the sidebar's Look into (webui-spec 2): they combine within the
+  // place shown; Small images and Review later are one reminder scope at a time. Choosing
+  // one leaves Show only selected or a review first, as a place does.
+  const libraryOnly = view === "organized" || view === "review" ? null
+    : view === "unorganized" ? "Organized photos only: open Library or Needs review." : "Library photos only: open Library or Needs review.";
+  const lookFilters: SidebarFilters = {
+    on: { similar, suspicious, undated, small: reason === "small", later: reason === "later" },
+    counts: { similar: data?.chips?.similar, suspicious: data?.chips?.suspicious, undated: data?.chips?.undated,
+              small: data?.chips?.small, later: data?.reasons?.later },
+    why: { similar: libraryOnly, suspicious: null, undated: null, small: libraryOnly,
+           later: view === "review" ? null : "Only in Needs review." },
+    onToggle: (key) => {
+      if (focus) backToResults();
+      setPage(1);
+      if (key === "similar") {
+        setSimilar(!similar);
+        const scope: View = !similar ? "similar" : view;
+        setSort(sortChoices.current[scope] ?? savedSort(scope));
+      }
+      if (key === "suspicious") setSuspicious(!suspicious);
+      if (key === "undated") setUndated(!undated);
+      if (key === "small" || key === "later") setReason(reason === key ? "all" : key);
+    },
+  };
+  const filtersActive = dates.length + types.length + folders.length;
+  const searchField = <SearchField className="search" placeholder="Search filenames" value={search}
+                                   onValueChange={(v) => { if (focus) backToResults(); setSearch(v); }} aria-label="Search filenames" />;
+
   return (
-    <div className={`app ${openId != null ? "with-inspector" : ""}`}>
-      <header className="toolbar" ref={header}>
-        <div className="toolbar-row">
-          <h1 className="brand"><Logo />NegativeSpace</h1>
-          <PageNavigation active="library" jobs={<JobsMenu
+    <AppFrame header={header} status={status} onOpenSettings={onOpenSettings} className={openId != null ? "with-inspector" : ""}
+      current={{ place: placeShown }} matchMin={matchMin} refresh={refreshKey} filters={lookFilters}
+      onPlace={(v) => { if (focus) backToResults(); chooseView(v); }}
+      search={searchField}
+      jobs={<JobsMenu
               state={{ jobRunning, noPhotos, eligible: status.eligible, copied: status.copied,
                        folder: folderShown ? { name: folderLabel(folderShown.path), eligible: folderShown.eligible } : null,
                        folders: folders.length }}
               onIndex={start("index")}
-              onTransfer={(mode, scope) => (scope === "folder" ? askFolder(mode) : askTransfer(mode))} />} />
-          {selected.size > 0 && (
-            <SelectionBar selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
-                          counts={selectionActions} place={place} jobRunning={jobRunning} onAction={transferSelected}
-                          onShowSelected={showSelected} onBack={backToResults} onClear={clearSelection} />
-          )}
-          <PageTools version={status.version} onOpenSettings={onOpenSettings} />
-        </div>
-        <div className={`toolbar-row toolbar-browse ${focus ? "is-muted" : ""}`}>
-          <button className="dates-toggle" aria-expanded={datesOpen} onClick={() => setDatesOpen(!datesOpen)}>
-            Browse{dates.length + types.length + folders.length ? ` (${dates.length + types.length + folders.length})` : ""}
-          </button>
-          <nav className="views" aria-label="Views">
-            {PLACE_VIEWS.map((v) => (
-              <button key={v} aria-pressed={jobRun == null && v === view} className={jobRun == null && v === view && !(v === "all" && narrowed) ? "active" : ""} disabled={!!focus}
-                      onClick={() => chooseView(v)}>
-                <span title={v === "similar" ? `Destination photos with at least one visual match at ${galleryMinimum}% or higher` : undefined}>{VIEW_LABEL[v]}</span> <span className="view-count">{data ? `(${count(data.matches[v])})` : ""}</span>
-              </button>
-            ))}
-          </nav>
-          <div className="browse-search">
-            <SearchField className="search" placeholder="Search filenames" value={search} disabled={!!focus}
-                         onValueChange={setSearch} aria-label="Search filenames" />
-            <select value={browseSort} onChange={(e) => { chooseSort(e.target.value as Sort); }} aria-label="Sort">
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-              <option value="largest">Largest first</option>
-              <option value="smallest">Smallest first</option>
-              <option value="name">Name</option>
-              {similar && jobRun == null && <option value="matches">Most matches first</option>}
-            </select>
-          </div>
-        </div>
-        <div className="review-chips" role="group" aria-label={view === "review" ? "Review reason" : "Filter photos"}>
-          {(view === "organized" || view === "review") && <button aria-pressed={similar} disabled={!!focus} className={similar ? "active" : ""} onClick={() => { setSimilar(!similar); setPage(1); const scope: View = !similar ? "similar" : view; setSort(sortChoices.current[scope] ?? savedSort(scope)); }}>Has similar photos {filterCount(data?.chips?.similar ?? 0)}</button>}
-          <button aria-pressed={suspicious} disabled={!!focus} className={suspicious ? "active" : ""} onClick={() => { setSuspicious(!suspicious); setPage(1); }}>Suspicious dates {filterCount(data?.chips?.suspicious ?? 0)}</button>
-          <button aria-pressed={undated} disabled={!!focus} className={undated ? "active" : ""} onClick={() => { setUndated(!undated); setPage(1); }}>No capture date {filterCount(data?.chips?.undated ?? 0)}</button>
-          {(view === "organized" || view === "review") && <button disabled={!!focus} aria-pressed={reason === "small"}
-            className={reason === "small" ? "active" : ""} onClick={() => { setReason(reason === "small" ? "all" : "small"); setPage(1); }}>Small images {filterCount(data?.chips?.small ?? 0)}</button>}
-          {view === "review" && <button disabled={!!focus} aria-pressed={reason === "later"}
-            className={reason === "later" ? "active" : ""} onClick={() => { setReason(reason === "later" ? "all" : "later"); setPage(1); }}>Review later {filterCount(data?.reasons?.later ?? 0)}</button>}
-        </div>
+              onTransfer={(mode, scope) => (scope === "folder" ? askFolder(mode) : askTransfer(mode))} />}
+      selection={selected.size > 0 ? (
+        <SelectionBar selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
+                      counts={selectionActions} place={place} jobRunning={jobRunning} search={searchField} onAction={transferSelected}
+                      onShowSelected={showSelected} onBack={backToResults} onClear={clearSelection} />
+      ) : undefined}
+      banners={<>
         <JobDrawer jobs={jobs} connection={connection} />
         <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} dismissal={dismissal}
                         onShowPhotos={showJob} />
         <RejectsReminder status={status} inRejectsView={browseView === "rejects" && !focus} />
         {actionError && <p className="error banner" role="alert">{actionError} <button onClick={() => setActionError(null)}>Dismiss</button></p>}
-      </header>
-
-      <main id="main-content" tabIndex={-1} className={`content ${datesOpen ? "dates-open" : ""}`} ref={content}>
-        {!focus && (
-          <>
-            <aside className="side-panel" ref={side} style={sideWidth ? { flexBasis: `${sideWidth}px` } : undefined}>
-              <TypesPanel types={typeCounts} selected={types} onTypes={changeTypes} />
-              <BrowseBySwitch value={browseBy} onChange={setBrowseBy} />
-              {browseBy === "folders"
-                ? <FoldersPanel tree={folderTree} folders={folders} onFolders={changeFolders} />
-                : <DatesPanel timeline={timeline} dates={dates} current={currentDates} oldestFirst={browseSort === "oldest"}
-                              sortedByDate={browseSort === "newest" || browseSort === "oldest"}
-                              onOrder={(oldest) => chooseSort(oldest ? "oldest" : "newest")} onDates={changeDates}
-                              onJump={(key) => { jumpTo(key); setDatesOpen(false); }} />}
-            </aside>
-            <div className="divider side-divider" role="separator" aria-orientation="vertical" aria-label="Resize the left panel"
-                 aria-valuemin={SIDE_MIN} aria-valuemax={SIDE_MAX} aria-valuenow={Math.round(currentSide())} aria-valuetext={`${Math.round(currentSide())} pixels wide`}
-                 tabIndex={0} onPointerDown={dragSide}
-                 onKeyDown={(e) => {
-                   if (e.key === "ArrowLeft") { e.preventDefault(); setSideWidth(currentSide() - 40); }
-                   if (e.key === "ArrowRight") { e.preventDefault(); setSideWidth(currentSide() + 40); }
-                 }} />
-          </>
-        )}
+      </>}>
+      <main id="main-content" tabIndex={-1} className="content" ref={content}>
         <div className="gallery-pane">
+          <div className="gallery-context">
+            {!focus && <h2>{VIEW_LABEL[view]}</h2>}
+            {!focus && (undated || dates.length > 0 || types.length > 0 || folders.length > 0 || !!q || similar || suspicious) && <p className="section-note">
+              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...folders.map(folderLabel)].filter(Boolean).join(" · ")}
+              {" "}<button className="link" onClick={() => { setSimilar(false); setSuspicious(false); setUndated(false); setReason("all"); if (sort === "matches") setSort("newest"); setQ(""); setSearch(""); setDates([]); setTypes([]); setFolders([]); setPage(1); }}>Clear filters</button>
+            </p>}
+            <span className="gallery-tools">
+              <FiltersButton active={filtersActive} open={filtersOpen && !focus} onOpen={setFiltersOpen} disabled={!!focus}>
+                <TypesPanel types={typeCounts} selected={types} onTypes={changeTypes} />
+                <BrowseBySwitch value={browseBy} onChange={setBrowseBy} />
+                {browseBy === "folders"
+                  ? <FoldersPanel tree={folderTree} folders={folders} onFolders={changeFolders} />
+                  : <DatesPanel timeline={timeline} dates={dates} current={currentDates} oldestFirst={browseSort === "oldest"}
+                                sortedByDate={browseSort === "newest" || browseSort === "oldest"}
+                                onOrder={(oldest) => chooseSort(oldest ? "oldest" : "newest")} onDates={changeDates}
+                                onJump={(key) => { jumpTo(key); setFiltersOpen(false); }} />}
+              </FiltersButton>
+              <select value={browseSort} onChange={(e) => { chooseSort(e.target.value as Sort); }} aria-label="Sort">
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="largest">Largest first</option>
+                <option value="smallest">Smallest first</option>
+                <option value="name">Name</option>
+                {similar && jobRun == null && <option value="matches">Most matches first</option>}
+              </select>
+            </span>
+          </div>
           {loadError && <p className="error">{loadError}</p>}
           {notice && (
             <p className="notice" role="status">
@@ -1045,13 +1014,6 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             </div>
           )}
           {!focus && browseView === "rejects" && data?.rejects && <RejectsLine rejects={data.rejects} />}
-          {!focus && <div className="gallery-context">
-            <h2>{VIEW_LABEL[view]}</h2>
-            {(undated || dates.length > 0 || types.length > 0 || folders.length > 0 || !!q || similar || suspicious) && <p className="section-note">
-              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...folders.map(folderLabel)].filter(Boolean).join(" · ")}
-              {" "}<button className="link" onClick={() => { setSimilar(false); setSuspicious(false); setUndated(false); setReason("all"); if (sort === "matches") setSort("newest"); setQ(""); setSearch(""); setDates([]); setTypes([]); setFolders([]); setPage(1); }}>Clear filters</button>
-            </p>}
-          </div>}
           {!focus && view === "unorganized" && data?.index_summary && data.index_summary.photos > 0 && (indexSummaryClosed
             ? <button ref={summaryToggle} onClick={() => { setPreviewSummaryExpanded(true); toggleIndexSummary(null); }}>Show index summary</button>
             : <section className="notice index-summary" aria-label="Index summary">
@@ -1083,7 +1045,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             <div className="photo-actions"><button disabled={!data?.total} title={!data?.total ? "No photos match these review filters." : undefined}
               onClick={() => setReviewPhoto(data!.items[0].id)}>Review one by one</button></div>
             <StableContent active={reason} variants={{
-              all: <p className="section-note">Use the filters above to focus your review. Click an active filter again to clear it.</p>,
+              all: <p className="section-note">Use Look into in the sidebar to focus your review. Click an active filter again to clear it.</p>,
               small: <p className="section-note">Small size is a reason to look, not a reason to reject. Mark reviewed clears a photo’s size reminder. <button className="photo-action" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>,
               later: <p className="section-note">Photos you marked to revisit. Done clears the reminder and leaves the photo in place.</p>,
             }} />
@@ -1093,7 +1055,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             {!focus && <div className="gallery-filter-summary">
               {data && (dates.length > 0 || types.length > 0 || folders.length > 0 || !!q || undated) && (
                 <span className="gallery-filters">
-                  {/* What is shown, against the library the view buttons count. */}
+                  {/* What is shown, against the library the sidebar's places count. */}
                   <Tip text={`Only ${[...folders.map(folderLabel), ...dates.map(dateLabel), ...types.map(typeLabel), ...(q ? [`filenames matching “${q}”`] : []), ...(undated ? ["photos without a capture date"] : [])].join(", ")}`}>
                     <span>{grouped ? `${count(data.total)} sets matching filters` : `Showing ${count(data.total)} of ${plural((data.counts as Record<string, number>)[browseView] ?? 0, galleryNoun)}`}</span>
                   </Tip>
@@ -1227,6 +1189,6 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           setPage(1); setRefreshKey(n => n + 1); setNotice(message);
         }} />}
       {confirm && <ConfirmDialog confirm={confirm} onClose={() => setConfirm(null)} />}
-    </div>
+    </AppFrame>
   );
 }

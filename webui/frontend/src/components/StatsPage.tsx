@@ -1,13 +1,11 @@
 import { useDismissedRun } from "../dismissal";
-import { PageNavigation } from "./PageNavigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, type Stats, type Status } from "../api";
 import { ago, bytes, count, instant, photoDate, plural } from "../format";
 import { useJobCompletion, useJobFeed } from "../jobs";
-import { follow, useHeaderHeight } from "../nav";
+import { follow } from "../nav";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
-import { Logo } from "./Logo";
-import { PageTools } from "./PageTools";
+import { AppFrame } from "./AppFrame";
 import { RejectsReminder } from "./RejectsLine";
 
 const FAILURE_LABEL: Record<string, [string, string]> = {
@@ -38,7 +36,6 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
   const [refreshKey, setRefreshKey] = useState(0);
   useJobCompletion(() => { setRefreshKey(k => k + 1); refreshStatus(); });
   const header = useRef<HTMLElement>(null);
-  useHeaderHeight(header);
 
   // A job finishing changes the figures.
   useEffect(() => {
@@ -50,17 +47,12 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
 
 
   return (
-    <div className="app">
-      <header className="toolbar" ref={header}>
-        <div className="toolbar-row">
-          <h1 className="brand"><Logo />NegativeSpace</h1>
-          <PageNavigation />
-          <PageTools version={status.version} stats onOpenSettings={onOpenSettings} />
-        </div>
+    <AppFrame header={header} status={status} onOpenSettings={() => onOpenSettings()} current={{ page: "stats" }}
+      banners={<>
         <JobDrawer jobs={jobs} connection={connection} />
         <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} dismissal={dismissal} />
         <RejectsReminder status={status} />
-      </header>
+      </>}>
 
       <main id="main-content" tabIndex={-1} className="stats">
         <h2>Stats</h2>
@@ -68,7 +60,7 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
         {!stats && !error && <p className="muted">Loading…</p>}
         {stats && <StatsBody s={stats} onOpenSettings={onOpenSettings} />}
       </main>
-    </div>
+    </AppFrame>
   );
 }
 

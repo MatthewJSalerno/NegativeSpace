@@ -32,7 +32,13 @@ export interface Status {
   active_job: Run | null;
 }
 
-export type View = "review" | "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects";
+// The navigation sidebar's counts (GET /photos/places): each place whole, and each Look
+// into shortcut as Library with only that filter on.
+export type PlaceView = "unorganized" | "organized" | "review" | "rejects";
+export type LookInto = "similar" | "suspicious" | "undated" | "small" | "later";
+export interface Places { places: Record<PlaceView, number>; look_into: Record<LookInto, number> }
+
+export type View ="review" | "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects";
 // A job acting on photos; Reject and Return to library need a selection or a folder.
 export type ActionMode = "copy" | "move" | "reject" | "return";
 // Where a photo is, for selecting: a selection holds library photos or photos in Rejects,
@@ -79,7 +85,7 @@ export interface PhotoPage {
   // Unfiltered totals per view (and No capture date within the current view).
   counts: Record<View | "undated", number>;
   similarity: { threshold: number; pending: number; unavailable: number } | null;
-  // Each view under every filter now on, for the view buttons and for suggesting another
+  // Each view under every filter now on, for the sidebar's places and for suggesting another
   // view; `undated` is No capture date within this view under the other filters.
   matches: Record<View | "undated", number>;
   // What Rejects holds now, with the Rejects view.
@@ -571,6 +577,14 @@ export interface MatchPage {
 }
 
 export const MATCH_THRESHOLDS = [75, 80, 85, 90, 95, 100];
+// The gallery percentage this browser last chose (ns.matchMin), 90 until one is chosen.
+export function savedMatchMinimum(): number {
+  try {
+    const value = Number(localStorage.getItem("ns.matchMin"));
+    if (MATCH_THRESHOLDS.includes(value)) return value;
+  } catch { /* Storage is optional. */ }
+  return 90;
+}
 type SetPhoto = Pick<PhotoItem, "id" | "filename" | "file_size" | "date_taken" | "date_source" | "date_warning" | "status">;
 export interface ReferenceSetsPage {
   reference: SetPhoto;
@@ -643,6 +657,7 @@ export const api = {
   photoPosition: (params: BrowseFilters & { photo_id: number; sort: Sort; page_size: number; ids?: number[] }) =>
     request<PhotoPosition>("POST", "/api/v1/photos/position", params),
   // Without `dates` for the date tree's counts; with them for the page a jump lands on.
+  places: (matchMin: number) => request<Places>("GET", `/api/v1/photos/places?match_min=${matchMin}`),
   timeline: (params: BrowseFilters) => request<Timeline>("GET", `/api/v1/photos/timeline?${browseQuery(params)}`),
   types: (params: BrowseFilters) =>
     request<{ types: { type: string; photos: number }[] }>("GET", `/api/v1/photos/types?${browseQuery(params)}`),

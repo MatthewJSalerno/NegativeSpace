@@ -70,7 +70,7 @@ with sync_playwright() as p:
     expect(page.locator('.card')).to_have_count(60)
     page.reload()
     expect(page.locator('.card')).to_have_count(60)
-    expect(page.get_by_role('button',name='Dark mode',exact=True)).to_have_attribute('aria-pressed','true')
+    expect(page.get_by_role('switch',name='Dark mode',exact=True)).to_have_attribute('aria-checked','true')
     assert not errors,errors
     browser.close()
 print('First-run year choice, validation, persistence, filter counts and inspector refresh passed')

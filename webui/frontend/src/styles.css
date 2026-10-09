@@ -61,7 +61,52 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 .app { min-height: 100vh; display: flex; flex-direction: column; }
 :root { --header-h: 53px; --header-offset: var(--header-h); }
 .toolbar { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border); }
-.toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap); padding: var(--space-2) var(--space-4); }
+/* The page frame (AppFrame.tsx; ui-design.md "Page frame"): the top bar, then the
+   navigation sidebar beside the page. The brand spans the sidebar, so the search starts
+   where the page does. */
+:root { --sidebar-w: 240px; }
+.topbar { display: flex; align-items: center; gap: var(--space-4); min-height: 64px; padding: var(--space-2) var(--space-6); }
+.topbar.selecting { background: var(--surface-2); }
+.topbar .brand { flex: 0 0 calc(var(--sidebar-w) - var(--space-6) - var(--space-4)); }
+.brand a { display: inline-flex; align-items: center; gap: inherit; color: inherit; text-decoration: none; }
+.topbar-search { flex: 1; min-width: 0; display: flex; }
+.topbar-search .search { flex: 1 1 auto; max-width: 720px; }
+.menu-toggle { display: none; }
+/* The Jobs menu sits near the right edge: its menus open leftwards, inside the window. */
+.topbar .actions-menu > .menu { left: auto; right: 0; }
+.topbar .submenu { left: auto; right: calc(100% + 6px); }
+.frame-body { flex: 1; display: flex; min-height: 0; }
+.frame-body > main { flex: 1; min-width: 0; }
+.sidebar { flex: 0 0 var(--sidebar-w); position: sticky; top: var(--header-offset); height: calc(100vh - var(--header-offset));
+  overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: var(--space-3) var(--space-2);
+  background: var(--surface); border-right: 1px solid var(--border); }
+.sidebar a, .sidebar .sidebar-item { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 40px;
+  padding: 0 var(--space-3); border: 0; border-radius: var(--control-radius); background: none; color: var(--text);
+  font: inherit; text-align: left; text-decoration: none; }
+.sidebar a:hover, .sidebar .sidebar-item:hover:not([aria-disabled=true]) { background: var(--surface-2); }
+.sidebar a[aria-current], .sidebar .sidebar-item[aria-pressed=true] { background: var(--surface-2); color: var(--accent); font-weight: var(--weight-strong); }
+/* A Look into filter that is on also carries a bar at its start, so on reads without colour
+   (generated text would join its accessible name). */
+.sidebar .sidebar-item[aria-pressed=true] { box-shadow: inset 3px 0 0 var(--accent); }
+.sidebar .sidebar-item[aria-disabled=true] { color: var(--muted); cursor: default; }
+.sidebar-group { display: flex; flex-direction: column; gap: 2px; }
+.sidebar-count { margin-left: auto; color: var(--muted); font-size: var(--type-xs); font-weight: var(--weight-normal); font-variant-numeric: tabular-nums; }
+.sidebar-heading { margin: var(--space-4) var(--space-3) var(--space-1); font-size: var(--type-xs); color: var(--muted); }
+.sidebar-foot { margin-top: auto; padding: var(--space-4) var(--space-3) 0; }
+.sidebar-backdrop { display: none; }
+@media (forced-colors: active) { .sidebar a[aria-current], .sidebar .sidebar-item[aria-pressed=true] { outline: 2px solid Highlight; outline-offset: -2px; } }
+/* Narrow windows: the sidebar hides behind the menu button and opens over the page. */
+@media (max-width: 800px) {
+  .menu-toggle { display: inline-grid; place-items: center; }
+  .topbar { gap: var(--space-2); flex-wrap: wrap; }
+  .topbar-search { flex: 1 1 160px; }
+  .topbar .brand { flex: 0 1 auto; }
+  .sidebar { display: none; }
+  .menu-open .sidebar { display: flex; position: fixed; left: 0; top: var(--header-offset); bottom: 0; height: auto; z-index: 9;
+    width: min(280px, 85vw); box-shadow: 4px 0 16px rgb(0 0 0 / 0.2); }
+  .menu-open .sidebar-backdrop { display: block; position: fixed; inset: 0; z-index: 9; background: rgb(0 0 0 / 0.3); }
+  .menu-open .sidebar { z-index: 10; }
+}
 
 /* A finished job's result, under the toolbar until dismissed. */
 .finished-banner {
@@ -93,12 +138,6 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 .mounts-note p, .mounts-note ul { margin: 0; }
 .mounts-note ul { padding-left: var(--space-4); }
 .logo { flex: none; display: block; }
-.views { display: flex; gap: var(--space-1); flex-wrap: wrap; }
-.pages { display: grid; grid-template-columns: 5rem 5rem max-content; gap: var(--space-1); align-items: center; }
-.page-jobs-slot { min-width: 0; }
-.views button { border-color: transparent; }
-.views button.active { border-color: var(--accent); color: var(--accent); }
-.views .filter { border: 1px dashed var(--border); margin-left: var(--space-1); }
 a.button-link {
   display: inline-block; padding: var(--space-1) var(--space-3); border: 1px solid var(--border); border-radius: var(--control-radius);
   color: inherit; text-decoration: none; background: var(--surface);
@@ -111,7 +150,8 @@ button.link { border: 0; padding: 0; background: none; color: var(--accent); tex
   font-size: inherit; line-height: inherit; text-underline-offset: 3px; }
 
 /* The log and the Error Center. */
-.logs { padding: var(--space-6); display: grid; gap: var(--space-6); }
+/* align-content: start, or the frame's full-height page spreads the rows apart. */
+.logs { padding: var(--space-6); display: grid; gap: var(--space-4); align-content: start; }
 .logs h2 { font-size: var(--type-lg); }
 .logs p { margin: 0; }
 .log-filters { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); align-items: center; }
@@ -144,7 +184,6 @@ button.link.status-only { font-size: var(--type-xs); }
   .log-table td { border-top: 0; padding: var(--space-1) var(--space-2); }
 }
 
-.browse-search { display: flex; flex-wrap: wrap; align-items: center; flex: 1 1 320px; min-width: 0; gap: var(--space-3); }
 .gallery-match-threshold { display: flex; align-items: center; gap: var(--space-2); }
 .search { flex: 1 1 180px; min-width: 140px; }
 /* Shared search box (ui/SearchField.tsx): the input fills the field, with room on the
@@ -259,13 +298,11 @@ body.dragging { cursor: col-resize; user-select: none; }
 .copies li { display: grid; gap: var(--space-1); justify-items: start; padding: var(--space-2) var(--space-2); border-top: 1px solid var(--border); }
 .copies li:first-child { border-top: 0; }
 
-/* The selection, in the top row after the page links (webui-spec 2). */
+/* The selection bar, taking the whole top bar while photos are selected (webui-spec 4). */
 /* Keep full-height button targets without adding height to the toolbar row.
    An inset outline draws the frame without enlarging the control box. */
-.selection-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 0 var(--space-3);
-  min-height: var(--control-height); outline: 0;
-  border-radius: var(--radius); background: var(--surface-2); }
-.toolbar-browse.is-muted .views, .toolbar-browse.is-muted .search { opacity: 0.5; }
+.selection-line { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4);
+  min-height: var(--control-height); outline: 0; }
 .focus-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-bottom: var(--space-2); padding: var(--space-2) var(--space-3);
   border-left: 4px solid var(--accent); background: var(--surface-2); border-radius: var(--radius); }
 .focus-head .warning { flex-basis: 100%; margin: 0; }
@@ -295,12 +332,18 @@ body.dragging { cursor: col-resize; user-select: none; }
 .checkbox-row { display: flex; align-items: center; gap: var(--space-2); }
 .select-menu .menu { min-width: 320px; }
 
-/* The date tree, left of the gallery. */
-.dates-toggle { display: none; }
-/* The left panel: Dates, then Types, scrolling together beside the gallery. */
-.side-panel { flex: 0 0 240px; align-self: flex-start; position: sticky; top: var(--header-offset, 0px);
-  max-height: calc(100vh - var(--header-offset, 0px)); overflow: auto; padding: var(--space-3) var(--space-2) var(--space-6) var(--space-4); border-right: 1px solid var(--border);
-  display: grid; gap: var(--space-4); }
+/* The Filters panel (FiltersButton.tsx): Types, then Folders or Dates, opening under its
+   button over the photos, scrolling on its own. */
+.filters { position: relative; }
+.filters-panel { position: absolute; top: calc(100% + var(--space-1)); right: 0; z-index: var(--layer-menu);
+  width: min(440px, calc(100vw - 32px)); max-height: min(70vh, 720px); overflow: auto;
+  padding: var(--space-4); display: grid; gap: var(--space-6); align-content: start;
+  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); }
+.filters-panel[hidden] { display: none; }
+.filters-panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  position: sticky; top: calc(-1 * var(--space-4)); z-index: 1; margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+  padding: var(--space-2) var(--space-4); background: var(--surface); border-bottom: 1px solid var(--border); }
+.filters-panel-head h2 { font-size: var(--type-md); }
 .type-row { padding-left: var(--space-1); }
 .type-row label { cursor: pointer; }
 .dates-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); }
@@ -320,6 +363,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .dates-name:hover { color: var(--accent); text-decoration: underline; }
 .dates-count { color: var(--muted); font-size: var(--type-sm); }
 .dates-foot { font-size: var(--type-sm); margin: var(--space-2) 0 0; }
+/* What a tree shows, and its Show all, right under its heading: never a scroll away. */
+.dates-status { font-size: var(--type-xs); margin: 0 0 var(--space-2); }
 /* Browse by Folders or Dates, under Types. */
 .browse-by { display: grid; gap: var(--space-1); }
 .browse-by .muted { font-size: var(--type-xs); }
@@ -329,15 +374,6 @@ body.dragging { cursor: col-resize; user-select: none; }
 /* A folder row: the name ends in "…" when the panel is narrower than it; hover shows it whole. */
 .folder-row { grid-template-columns: auto 18px minmax(0, 1fr) auto; }
 .folder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-/* The left panel's divider: the Inspector's, at the panel's edge. */
-.side-panel { border-right: 0; }
-.side-divider { flex-basis: 6px; }
-@media (max-width: 800px) {
-  .dates-toggle { display: inline-block; }
-  .side-panel { display: none; }
-  .dates-open .side-panel { display: grid; position: fixed; left: 0; top: var(--header-offset, 0px); bottom: 0; z-index: 7;
-    width: min(300px, 85vw); max-height: none; background: var(--surface); box-shadow: 4px 0 16px rgb(0 0 0 / 0.2); }
-}
 .drawer {
   margin: 0 var(--space-4) var(--space-2); background: var(--surface-2); border-left: 4px solid var(--accent);
   border-radius: var(--radius); padding: var(--space-2) var(--space-3); display: grid; gap: var(--space-2);
@@ -416,7 +452,7 @@ body.dragging { cursor: col-resize; user-select: none; }
   .job-detail, .job-count { grid-column: 2; }
 }
 
-/* The Jobs menu, after Library in the page links. */
+/* The Jobs menu, in the top bar. */
 .actions-menu { position: relative; }
 .actions-menu > button { font: inherit; cursor: pointer; }
 .button-link.active-soft { border-color: var(--accent); color: var(--accent); }
@@ -431,7 +467,6 @@ body.dragging { cursor: col-resize; user-select: none; }
 .menu-branch { grid-template-columns: 1fr auto; align-items: center; }
 .menu-label { font-weight: var(--weight-strong); }
 .menu-hint { font-size: var(--type-sm); color: var(--muted); }
-.toolbar-browse { border-top: 1px solid var(--border); padding-top: var(--space-2); padding-bottom: var(--space-2); }
 @media (max-width: 700px) {
   .submenu { position: static; box-shadow: none; border: 0; border-left: 2px solid var(--border); border-radius: 0; margin-left: var(--space-3); min-width: 0; }
   .menu { min-width: min(300px, calc(100vw - 32px)); }
@@ -450,8 +485,6 @@ body.dragging { cursor: col-resize; user-select: none; }
   padding: var(--space-2) 0; background: var(--surface); border-bottom: 1px solid var(--border); }
 .meta-head .search-field { flex: 1 1 160px; }
 
-/* The view buttons keep their width as counts change: room for "(999,999)", even digits. */
-.views .view-count { display: inline-block; min-width: 9ch; text-align: left; font-variant-numeric: tabular-nums; }
 
 /* An open job's header line stays at the top while its entries scroll. */
 .job-group.open > .job-head { position: sticky; top: var(--header-offset, 0px); z-index: 2; background: var(--surface);
@@ -507,9 +540,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 @media (max-width: 700px) { .version-tag { display: none; } }
 
 /* The Stats page (webui-spec 5.9). */
-.stats-link { display: inline-grid; place-items: center; color: inherit; text-decoration: none; }
-.stats-link.active { border-color: var(--accent); color: var(--accent); }
-.stats { padding: var(--space-6); display: grid; gap: var(--space-6); max-width: 1400px; }
+.stats { padding: var(--space-6); display: grid; gap: var(--space-6); max-width: 1400px; align-content: start; }
 .stats h2 { margin: 0; }
 /* Fixed columns, each row one height, so every box edge lines up. */
 .stat-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); }
@@ -587,6 +618,7 @@ button.active-soft { border-color: var(--accent); color: var(--accent); }
 @media (max-width: 700px) {
   :root { --header-offset: 0px; }
   .toolbar { position: static; }
+  .filters-panel { position: fixed; top: 16px; left: 16px; right: 16px; width: auto; max-height: calc(100dvh - 32px); }
   .actions-menu > .menu { position: fixed; top: 16px; left: 16px; right: 16px;
     min-width: 0; max-height: calc(100dvh - var(--header-offset, 100px) - 24px); overflow-y: auto; }
   .settings, .dialog { padding: var(--space-4); }
@@ -616,17 +648,11 @@ button.primary {background: var(--accent);color: var(--accent-text);}
 strong, h1,h2,h3 {font-weight: var(--weight-strong);}
 h3 {font-size: var(--type-md);text-transform: none;letter-spacing: normal;color: var(--text);margin: var(--space-6) 0 var(--space-3);}
 .toolbar {border-bottom: 1px solid var(--border);background: var(--surface);}
-.toolbar-row {padding: var(--space-3) var(--space-6);gap: var(--space-4);}
-.toolbar-browse {padding-top: var(--space-1);padding-bottom: var(--space-4);gap: var(--space-3);}
 .brand {font-size: var(--type-lg);gap: var(--space-2);}
 a.button-link {border-color: transparent;background: transparent;border-radius: var(--control-radius);padding: var(--space-2) var(--space-3);font-weight: var(--weight-normal);}
 a.button-link:hover {background: var(--surface-2);border-color: transparent;}
 a.button-link.active {background: var(--surface-2);border-color: transparent;color: var(--accent);font-weight: var(--weight-strong);}
-.pages .actions-menu > button {background: var(--accent);color: var(--accent-text);}
-.views {gap: var(--space-1);}
-.views button, .views .filter {border: 1px solid transparent;background: transparent;border-radius: var(--control-radius);padding: var(--space-2) var(--space-3);font-weight: var(--weight-strong);}
-.views button.active {background: var(--surface-2);color: var(--accent);border-color: transparent;font-weight: var(--weight-strong);}
-.views .filter {margin-left: var(--space-2);}
+.topbar .actions-menu > button {background: var(--accent);color: var(--accent-text);}
 .view-count,.pager,.card-sub {font-variant-numeric: tabular-nums;}
 .version-tag {font-size: var(--type-xs);}
 .gallery-pane {padding: var(--space-4) var(--space-6) var(--space-8);}
@@ -643,12 +669,11 @@ a.button-link.active {background: var(--surface-2);border-color: transparent;col
 .card-meta {padding: var(--space-2) var(--space-3) var(--space-3);gap: var(--space-1);font-size: var(--type-sm);}
 .card-sub,.badge {font-size: var(--type-xs);}
 .card-check {top: 8px;left: 8px;border-radius: var(--control-radius);}
-.side-panel {background: var(--surface);padding: var(--space-4);gap: var(--space-6);}
-.side-panel h3 {font-size: var(--type-sm);margin: 0 0 var(--space-3);font-weight: var(--weight-strong);}
-.side-panel .dates-row {border: 0;border-radius: var(--control-radius);padding: var(--space-1) var(--space-2);font-size: var(--type-sm);}
-.side-panel .dates-row:hover {background: var(--surface-2);}
-.side-panel .dates-row.month { padding-left: var(--space-6); }
-.side-panel .dates-count {font-size: var(--type-xs);font-variant-numeric: tabular-nums;}
+.filters-panel h3 {font-size: var(--type-sm);margin: 0 0 var(--space-3);font-weight: var(--weight-strong);}
+.filters-panel .dates-row {border: 0;border-radius: var(--control-radius);padding: var(--space-1) var(--space-2);font-size: var(--type-sm);}
+.filters-panel .dates-row:hover {background: var(--surface-2);}
+.filters-panel .dates-row.month { padding-left: var(--space-6); }
+.filters-panel .dates-count {font-size: var(--type-xs);font-variant-numeric: tabular-nums;}
 .segmented {background: var(--surface-2);padding: var(--space-1);border: 0;border-radius: var(--control-radius);}
 .segmented button {border: 0;background: transparent;padding: var(--space-1) var(--space-2);}
 .segmented button[aria-pressed=true] {background: var(--surface);color: var(--accent);font-weight: var(--weight-strong);}
@@ -673,7 +698,7 @@ a.button-link.active {background: var(--surface-2);border-color: transparent;col
   min-height: var(--control-height); padding: 0; border: 0; font: inherit; line-height: inherit; }
 .help-trigger {color: var(--muted);background: transparent;}
 .finished-banner {padding: var(--space-3) var(--space-4);margin: 0 var(--space-6) var(--space-4);}
-@media(max-width:800px){button,input,select,a.button-link,.help-trigger {min-height: 44px;}.help-trigger{min-width: 44px;}.toolbar-row{padding: var(--space-3) var(--space-4);}.gallery-pane{padding: var(--space-4);}}
+@media(max-width:800px){button,input,select,a.button-link,.help-trigger {min-height: 44px;}.help-trigger{min-width: 44px;}.topbar{padding: var(--space-2) var(--space-4);}.gallery-pane{padding: var(--space-4);}}
 
 /* Refinements of the broader rules above (they must follow them), then the settings
    window's and the selection bar's own rules. */
@@ -706,14 +731,33 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .info-section h3 { font-size: var(--type-md); }
 .section-note, .dates-show-only, .dates-foot, .browse-by .muted, .view-count { font-size: var(--type-xs); }
 .selection-line button { padding-top: 0; padding-bottom: 0; }
-/* The selection bar's actions: outlined, as a photo's own actions are, between the count
-   and its links. */
+/* The Dark mode switch (PageTools.tsx): a track whose knob slides right, on the accent,
+   when dark is on. */
+.theme-switch { display: inline-flex; align-items: center; gap: var(--space-2); }
+.theme-switch-track { position: relative; flex: none; width: 36px; height: 20px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--control-border); transition: background-color .15s; }
+.theme-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--muted); transition: transform .15s; }
+.theme-switch[aria-checked=true] .theme-switch-track { background: var(--accent); border-color: var(--accent); }
+.theme-switch[aria-checked=true] .theme-switch-knob { transform: translateX(16px); background: var(--accent-text); }
+@media (prefers-reduced-motion: reduce) { .theme-switch-track, .theme-switch-knob { transition: none; } }
+@media (forced-colors: active) {
+  .theme-switch-track { border-color: ButtonText; }
+  .theme-switch-knob { background: ButtonText; }
+  .theme-switch[aria-checked=true] .theme-switch-track { background: Highlight; border-color: Highlight; }
+  .theme-switch[aria-checked=true] .theme-switch-knob { background: HighlightText; }
+}
+/* The selection bar, grouped at the start: ✕ and the count in the accent, Show only
+   selected, the actions (outlined, as a photo's own actions are), then the search. */
+.selection-head { display: flex; align-items: center; gap: var(--space-2); flex: 0 0 auto; }
+.selection-summary > strong { color: var(--accent); font-size: var(--type-md); }
 .selection-actions { display: inline-flex; flex-wrap: wrap; gap: var(--space-2); }
+.selection-line .topbar-search { margin-left: auto; flex: 1 1 240px; max-width: 560px; }
 .selection-line .selection-actions button { padding: 0 var(--space-3); }
 @media (max-width: 800px) {
   :root { --control-height: 44px; }
-  button, input, select, a.button-link, .help-trigger, .dates-caret, .dates-name, .dates-order, .folder-name, .stats-link { min-height: 44px; }
-  .help-trigger, .dates-caret, button.icon, .stats-link, .pager button { min-width: 44px; }
+  button, input, select, a.button-link, .help-trigger, .dates-caret, .dates-name, .dates-order, .folder-name, .sidebar a { min-height: 44px; }
+  .help-trigger, .dates-caret, button.icon, .pager button { min-width: 44px; }
   .dates-row { grid-template-columns: 44px 44px 1fr auto; }
   .dates-row.month { grid-template-columns: auto 1fr auto; }
   .folder-row { grid-template-columns: 44px 44px minmax(0, 1fr) auto; }
@@ -888,9 +932,6 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .set-members li > img, .set-members li > .thumb-placeholder { width: 100%; height: 160px; object-fit: contain; background: var(--surface-2); }
 .set-members li > button { margin-top: auto; }
 
-/* Review reasons are filters; photo checkboxes continue to select action targets. */
-.review-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; padding: var(--space-2) var(--space-4); }
-.review-chips button[aria-pressed="true"] { background: var(--surface-2); outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .review-note { margin-block: var(--space-4); }
 .review-note p { margin-block: var(--space-2); }
@@ -918,9 +959,10 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 
 .gallery-context { display: flex; flex-wrap: wrap; align-items: center; min-height: var(--control-height); gap: var(--space-2); margin-bottom: var(--space-3); }
 .gallery-context h2 { margin: 0; font-size: var(--type-md); }
+.gallery-tools { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 
 /* Filtering a fixed selection must not resize its toolbar as hidden counts change. */
-.selection-summary { display: grid; line-height: 1.25; }
+.selection-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); }
 .selection-outside { display: grid; font-size: var(--type-xs); }
 .selection-outside > span { grid-area: 1 / 1; }
 .selection-outside-size { visibility: hidden; }
@@ -931,7 +973,6 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
   .toolbar { position: static; }
 }
 
-.review-chips .filter-count { display: inline-block; font-variant-numeric: tabular-nums; text-align: center; }
 
 /* Routine filter guidance swaps in place; do not insert new rows above results. */
 .stable-content { display: grid; }

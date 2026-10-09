@@ -56,22 +56,31 @@ with sync_playwright() as p:
         positions=[]
         for path in ('/','/logs','/stats'):
             page.goto(sys.argv[1]+path)
-            nav=page.get_by_role('navigation',name='Pages',exact=True)
-            expect(nav).to_be_visible()
-            positions.append(nav.get_by_role('link',name='Logs',exact=True).bounding_box()['x'])
-        assert max(positions)-min(positions)<=1,positions
+            # The sidebar never moves sideways between pages (banners above it may differ);
+            # narrow, its Menu button stays put.
+            if width > 800:
+                nav=page.get_by_role('navigation', name='Main',exact=True)
+                expect(nav).to_be_visible()
+                box=nav.get_by_role('link',name='Logs',exact=True).bounding_box()
+                positions.append((box['x'],0))
+            else:
+                box=page.get_by_role('button',name='Menu',exact=True).bounding_box()
+                positions.append((box['x'],box['y']))
+        assert all(abs(x-positions[0][0])<=1 and abs(y-positions[0][1])<=1 for x,y in positions),positions
         for place in ('organized','review'):
             page.goto(sys.argv[1]+f'/?view={place}')
             expect(page.locator('.card')).to_have_count(60)
             expect(page.locator('.gallery-summary > span').first).to_have_text('130 photos')
             before=anchors(('.gallery-summary','.gallery-filter-summary','.gallery-head','.pager'))
-            chips=page.get_by_role('group',name='Review reason' if place == 'review' else 'Filter photos')
+            chips=page.get_by_role('group',name='Look into',include_hidden=True)  # narrow, the menu closes after a choice
             for name in ('Suspicious dates','No capture date','Small images'):
-                button=chips.get_by_role('button',name=re.compile('^'+name))
+                button=chips.get_by_role('button',name=re.compile('^'+name),include_hidden=True)
+                if width<=800: page.get_by_role('button',name='Menu',exact=True).click()
                 button.click()
                 expect(button).to_have_attribute('aria-pressed','true')
                 expect(page.locator('.gallery-summary > span').first).to_have_text({'Suspicious dates':'60 photos','No capture date':'128 photos','Small images':'130 photos'}[name])
                 unchanged(before)
+                if width<=800: page.get_by_role('button',name='Menu',exact=True).click()
                 button.click()
                 expect(button).to_have_attribute('aria-pressed','false')
                 expect(page.locator('.gallery-summary > span').first).to_have_text('130 photos')

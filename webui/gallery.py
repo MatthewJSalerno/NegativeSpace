@@ -379,6 +379,31 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             "rejects": rejects, "chips": chips, "reasons": reasons, "elsewhere": elsewhere, "index_summary": index_summary}
 
 
+# The sidebar's places, and its Look into filters as Logs and Stats link to them: Library
+# with only that filter on, or Needs review for Review later (webui-spec 2, the page frame).
+PLACES = ("unorganized", "organized", "review", "rejects")
+LOOK_INTO = {"similar": ("organized", {"similar": True}), "suspicious": ("organized", {"suspicious": True}),
+             "undated": ("organized", {"undated": True}), "small": ("organized", {"reason": "small"}),
+             "later": ("review", {"reason": "later"})}
+
+
+def places(db_path: Path, *, match_min=90) -> dict:
+    """Each place's whole count, before any gallery filter, and each Look into count where its link opens."""
+    ns_similarity_cache.match_distance(match_min)
+    with catalog.connect(db_path) as conn:
+        conn.execute('BEGIN')
+        counts = {name: conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(name, match_min)}").fetchone()[0]
+                  for name in PLACES}
+        look = {}
+        for name, (place, flags) in LOOK_INTO.items():
+            extra, values = _filters(None, flags.get("undated", False), None, match_min=match_min,
+                                     similar=flags.get("similar", False), suspicious=flags.get("suspicious", False),
+                                     reason=flags.get("reason", "all"))
+            look[name] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(place, match_min)}" + extra,
+                                      values).fetchone()[0]
+    return {"places": counts, "look_into": look}
+
+
 def photo_position(db_path: Path, photo_id: int, *, view="all", sort="newest", page_size=60,
                    q=None, undated=False, dates=None, types=None, folders=None, root=None, ids=None, match_min=75, group_sets=False, set_reference=None,
                    run=None, similar=False, suspicious=False, reason="all") -> dict:
