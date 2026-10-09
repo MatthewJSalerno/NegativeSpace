@@ -850,3 +850,14 @@ An externally missing original with a verified Library copy is a normal observat
 not a failed Move. Keep it in Library, record what was observed in history, and update
 Move counts. If the copy cannot be verified, use the shared File issues explanation and
 Check it now action. A disconnected/empty source retains the existing safety question.
+
+
+## Metadata source tabs (planned)
+
+Within Photo information, reuse shared tabs for Used metadata, Embedded/EXIF and XMP.
+Used metadata is the default; a textual Primary marker identifies the preferred active
+source. Navigation between source snapshots never changes which source is active.
+Distinguish empty fields from absent fields and retain per-field origin for mixed
+metadata. Viewing an alternate XMP version is separate from a confirmed Use this version
+operation. Keep the field table geometry and surrounding navigation stable. The engine
+contract and deferred UI work are in [xmp-metadata.md](xmp-metadata.md).

@@ -129,8 +129,9 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] The in-tray for Small images and Review later (`docs/webui-spec.md` §7.9).
 - [x] Library-only review decisions, source exclusion from similarity, backend eligibility, separate source
   failure facts, explicit Stats scopes and consistent Job #ID · Action status labels.
-- [ ] Design source-side sidecar/version import decisions separately from the Library
-  review inbox; preserve existing recovery durability gates.
+- [ ] Implement source-side sidecar/version import decisions in Not organized, separately
+  from the Library inbox. The agreed contract is in `docs/xmp-metadata.md`; durable
+  storage, archive layout and recovery still need implementation.
 - [ ] Add the remaining Library reasons to the shared inbox/workspace: suspicious dates with acknowledgment;
   No capture date and sidecar/edit reasons with their respective workstreams.
 - [ ] Bulk review answers within one reason. Individual Mark reviewed/Done and the
@@ -159,7 +160,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
   never blocks Copy/Move. Mark reviewed persists per photo/content and does not clear
   other reasons. Existing selection/Reject workflow; no bulk Keep or automatic unticking.
 - [ ] "Which photo is this sidecar for?": a short-named XMP sidecar that could belong to
-  several photos, held with them until the user answers (`docs/engine-spec.md` §9.6).
+  several photos, held in Not organized until association is resolved
+  (`docs/xmp-metadata.md`, `docs/engine-spec.md` §9.6).
 
 ## Similar photos
 
@@ -177,6 +179,12 @@ Found 2026-10-05 looking for screens that do the same job twice.
   concrete bottleneck before proposing another database.
 
 ## Dates and metadata
+
+- [x] Pure metadata provenance resolver: distinct snapshots, explicit active XMP,
+  field origins, preserved original bytes, alternatives and empty-versus-absent rules.
+  Unit tested; not yet connected to Index or the catalog.
+- [ ] Complete the XMP pipeline and source tabs described in `docs/xmp-metadata.md`.
+  Reader, durable storage, associations, verified transfers, API and UI remain unbuilt.
 
 - [ ] Read XMP sidecars at Index (always on); the sidecar's value wins per field, both
   kept, each shown with its source; sidecars travel with their photos through Copy, Move,

@@ -161,6 +161,9 @@ jobs:
       - name: Uncertain file outcomes
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p attention_test.py -v
 
+      - name: Metadata provenance foundation
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_test.py -v
+
       - name: Copied originals removed outside the app
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p copied_source_test.py -v
 

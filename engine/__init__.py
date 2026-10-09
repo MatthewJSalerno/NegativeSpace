@@ -10,7 +10,8 @@ the fsync steps), store (catalog writes), fileinfo (dates, metadata, hashes), th
 destinations, targeting (which photos a run acts on), jobs, maintenance, backups,
 runtime (shared run state), workers (cancellable read-only pools), constants and deps; ns_db (the catalog schema and its rules,
 shared with the web API), review (catalog-only review decisions), attention (explicit
-read-only checks of uncertain file outcomes), and the ns_similarity modules.
+read-only checks of uncertain file outcomes), metadata (source-aware resolution for the
+planned XMP pipeline; not yet connected to Index), and the ns_similarity modules.
 
 Modules refer to one another as `module.name`, never `from module import name`: one
 binding per name, so replacing a function (a test injecting a fault) replaces it for

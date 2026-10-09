@@ -1246,22 +1246,21 @@ sidecar leaves the photo's bytes unchanged, so its SHA-1, duplicates and lineage
     shows any outside change. The way back is a new recorded edit, or **Restore the
     original sidecar**, itself a recorded step (with no sidecar at first, it removes the
     one NegativeSpace made).
-*   **A short-named sidecar that could belong to several photos** (`IMG_0001.xmp` beside
-    `IMG_0001.jpg` and `IMG_0001.dng`) is never guessed: one photo of that name, or one the
-    note names inside (Adobe records `crs:RawFileName`), takes it; otherwise the user
-    chooses in Needs review, the answer is recorded and the note renamed to the full-name
-    form. Until then nothing happens to the note or to any photo it could belong to: the
-    job lists them skipped, waiting for the answer, and Index reports how many.
+*   **Ambiguous short-named sidecars** use the association policy in
+    [xmp-metadata.md](xmp-metadata.md): Ask me (default), RAW only, non-RAW only,
+    or all matching photos. Explicit associations take precedence. Unresolved cases
+    remain in Not organized as Metadata choice needed, with affected pairs skipped
+    by Copy/Move. They are not Library Needs review items.
 *   **Existing sidecars are read at Index, always** (decided 2026-10-05; no setting). A
     sidecar holds what someone deliberately corrected (a date, a caption, a rating), and
     reading it changes nothing on disk. Today an `.xmp` beside a photo is neither read nor
     carried by Copy and Move, so edits made in another tool stay behind in the source.
-*   **The sidecar wins, field by field** (decided 2026-10-05; no setting): where a sidecar
-    and the embedded EXIF disagree, the sidecar's value is used, as Lightroom, darktable
-    and Immich do, since it records the later correction; a field only the EXIF holds
-    comes from the EXIF. Both values are kept, and every displayed value names its source
-    (`webui-spec.md` §7.5). *Why no priority setting:* few could set it correctly without
-    knowing which tool wrote what, and changing it would silently refile photos.
+*   **The active sidecar wins, field by field:** explicitly empty XMP values remain
+    empty; only absent fields fall back to embedded metadata. Preserve both source
+    snapshots and field origins. Viewing a source tab does not change the active source.
+    [xmp-metadata.md](xmp-metadata.md) defines version conflicts, shared associations,
+    malformed sidecars and the pending UI contract. Only its pure resolution helper is
+    built; Index, storage, safe transfers and source tabs remain unimplemented.
 *   **Still to settle when building:** read-back verification of a sidecar write, as for
     in-file writes.
 

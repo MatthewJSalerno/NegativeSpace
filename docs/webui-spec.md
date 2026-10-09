@@ -2223,20 +2223,22 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   app derives the difference from one photo). Time-zone tags are never added or changed;
   the screen says the amount is the user's responsibility. The preview flags photos
   landing in the future.
-* **Displayed details say where they came from, lightly** (decided 2026-10-05): one source
-  line per block of details, such as "Details from: XMP sidecar · file's EXIF" above the
-  photo panel's details or the comparison table, not a label on every field. A value that
-  came from the sidecar rather than the file carries a small **XMP** tag; the value it
-  replaced stays in the photo's history. A date that is a file's modification time is
-  always marked so (§3.1), and suggestions always name their source ("from the filename").
+* **Metadata source tabs (planned):** Used metadata (default), Embedded/EXIF and XMP
+  inside Photo information, with the active preferred source visibly marked Primary.
+  Effective values may mix sources; use restrained source labels and distinguish empty
+  from absent fields. Tab navigation never changes the chosen source. Preserve both
+  original sources, including alternate XMP versions. The full engine/UI handoff and
+  implementation boundary are in [xmp-metadata.md](xmp-metadata.md).
 * **Where edits are saved** (decided 2026-10-02, `engine-spec.md` §9.6): Settings › Files
   sets it for RAW formats (default **XMP sidecar**) and other formats (default **In the
   file**). RAW photos are therefore editable out of the box, through their sidecars.
   Editing inside a RAW file is opt-in: with it off, choosing it offers **Review and turn on
   RAW editing…**, the consent step with its warnings, returning to the editable form.
-* **A sidecar that could belong to several photos** waits in Needs review (§7.9): "IMG_0001.xmp
-  could belong to IMG_0001.jpg or IMG_0001.dng. Which one?" Until answered, neither the note
-  nor those photos are copied, moved or edited.
+* **Ambiguous sidecars and conflicting XMP versions (planned)** wait in
+  Not organized as Metadata choice needed, not the Library review inbox. Apply the
+  association settings or ask for a recorded choice; show separate source versions
+  without discarding alternatives. Copy/Move skips affected pairs until resolved.
+  See [xmp-metadata.md](xmp-metadata.md) for batch choices and shared sidecars.
 * **An unedited original arriving later** (its bytes match an edited photo's earlier
   SHA-1) is not organized again: it goes to Needs review (§7.9) as "old version of a photo
   you fixed", with **Don't keep it** and **Keep it as its own photo**.

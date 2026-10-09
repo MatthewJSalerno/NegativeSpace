@@ -884,3 +884,19 @@ docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app:ro -w /app \
 `DRIVER=copied_source_browser_drive.py sh tests/browser/webui_browser_test.sh` validates
 the existing Library/Inspector/history presentation and refreshed Move eligibility
 after removing an original from the harness's generated source.
+
+
+## Metadata provenance foundation
+
+Run the generated source-resolution tests in an app image with the checkout mounted
+(the production image does not include tests). Substitute your own image tag:
+
+```sh
+docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app:ro -w /app \
+  negativespace python3 -m unittest discover -s tests -p metadata_test.py -v
+```
+
+The suite covers explicit XMP precedence, missing versus empty fields, source origins,
+original-byte round trips, alternate versions, invalid bindings, typed differences and
+mutation isolation. These are pure helper tests: they do not validate XML parsing,
+catalog durability, Index or sidecar transfers, which are not connected yet.
