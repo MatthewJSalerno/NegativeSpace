@@ -304,7 +304,10 @@ metadata source; choosing a base or field donor never silently changes that writ
 Changing the primary source itself remains a separate deliberate choice. Preservation and
 write/read-back verification must complete before consolidation removes a redundant file.
 If required information cannot be preserved or safely reapplied, explain the limitation
-and keep both photos. Composite/linked-field selection semantics remain to be discussed.
+and keep both photos. Select complete logical fields, not arbitrary fragments of their
+underlying tags: Location carries its coordinates and related tags together; Date taken
+carries its recorded time-zone information. Missing components stay missing instead of
+being borrowed silently from another version. Exact per-format mappings still need tests.
 
 For the proposed JPEG content comparison, unchanged encoded image data and the required
 decoding information determine the base-image candidate. Orientation instructions and
@@ -321,12 +324,15 @@ staged output to establish equality; record links from both histories and preser
 required metadata before any redundant-file removal. This is a new coordinated workflow,
 not permission to feed image-content matches into today's whole-file duplicate cleanup.
 
-A metadata-independent content hash is only a proposed discovery mechanism. Define and
-verify its input per format before implementation: removing EXIF alone is insufficient.
-The JPEG direction above does not define RAW interpretation or all JPEG extensions.
-Algorithm, format coverage, performance and equality verification remain open. A pHash
-match never establishes exact image-content equality. Neither hash stores image data or
-reconstructs a file. Do not claim these consolidation/reproduction capabilities are built.
+A generated-only [JPEG experiment](jpeg-content-hash-experiment.md) now tests a versioned
+SHA-256 fingerprint over encoded image data and decoding context, with separate recognized
+metadata hashing. Twenty tests pass, including independent ExifTool edits and decoded-pixel
+checks; measured warm-read cost is documented. It is isolated under tools, not used by
+Index or cleanup. Unsupported layouts are refused, and decoding/metadata preservation
+are not certified by the fingerprint. RAW and broader JPEG coverage, integrated cost and
+pre-removal equality verification remain open. A pHash match never establishes exact
+image-content equality. Neither hash stores image data or reconstructs a file. These
+consolidation/reproduction capabilities remain unbuilt.
 
 Existing edit-backup policy remains: a pre-action catalog backup and structured metadata
 history for all edits; verified temporary outputs and recovery material until completion;

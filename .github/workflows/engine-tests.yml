@@ -167,6 +167,9 @@ jobs:
       - name: XMP reader and ownership planning
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p xmp_test.py -v
 
+      - name: Generated JPEG content fingerprint experiment
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p jpeg_content_hash_test.py -v
+
       - name: XMP catalog storage and backup restoration
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p xmp_store_test.py -v
 

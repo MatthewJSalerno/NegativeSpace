@@ -223,11 +223,14 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [ ] Base metadata version plus optional explicit field overrides from other versions,
   with final-value/donor preview, unchanged originals and per-field provenance in a new
   version. Write to the established primary; donor choice never changes the write target.
-  Reuse the comparison for all supported metadata differences. Linked-field semantics
-  remain to be discussed; see `docs/xmp-metadata.md` and `docs/ui-design.md`.
+  Reuse the comparison for all supported metadata differences. Logical fields carry their
+  related tags together, with no invented/mixed components; see `docs/xmp-metadata.md`.
 - [ ] Reproduce supported source/pre-edit metadata states from unchanged surviving
   image content and complete structured history as a new verified operation. No exact
   photo-byte or lost-image recovery promise; see `docs/xmp-metadata.md`.
+- [x] Generated JPEG content-fingerprint experiment: 20 tests for metadata invariance,
+  coding/image changes, conservative refusal and bounded read-only hashing, plus measured
+  warm-read timings. See `docs/jpeg-content-hash-experiment.md`; no engine integration.
 - [ ] Define and measure per-format metadata-independent image equality before building
   confirmed duplicate consolidation with retained metadata alternatives and both histories.
   Whole-file and pHash matching alone do not implement this workflow.

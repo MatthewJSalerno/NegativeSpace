@@ -952,3 +952,23 @@ benchmark and its limitations are documented in `docs/xmp-storage-measurements.m
 Run database/API and engine smoke regressions when changing these catalog/backup paths;
 enable the public RAW samples for smoke validation. No browser workflow can yet import
 XMP; live transfer and primary-source activation remain separate work.
+
+
+## Generated JPEG content fingerprint experiment
+
+The standalone prototype is not used by Index or duplicate cleanup. Its 20 generated
+fixture tests run in CI and need no demo/library access. Run in your own app image:
+
+```sh
+docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app:ro -w /app \
+  negativespace python3 -m unittest discover -s tests -p jpeg_content_hash_test.py -v
+
+docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app:ro -w /app \
+  negativespace python3 tools/benchmark-jpeg-content.py --repeats 7
+```
+
+The tests use real ExifTool edits and independent Pillow decoding, including baseline
+and progressive JPEGs, orientation/profile changes, quantization-table-only changes,
+restart markers, custom extensions and unsupported/truncated input. They do not prove
+complete JPEG conformance, metadata restoration or safe consolidation. Measured results
+and exact coverage are in [the experiment report](../docs/jpeg-content-hash-experiment.md).
