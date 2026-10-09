@@ -99,13 +99,13 @@ with sync_playwright() as p:
         page.goto(sys.argv[1])
         expect(page.locator('.card').first).to_be_visible()
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), width
-        for name in ('Settings','Browse'):
+        for name in ('Settings','Menu','Filters'):
             box = page.get_by_role('button',name=name,exact=True).bounding_box()
             assert box and box['height'] >= 44 and box['width'] >= 44, (name,box)
         card_target = page.locator('.card-check').first.bounding_box()
         assert card_target['height'] >= 44 and card_target['width'] >= 44
-        page.get_by_role('button',name='Browse',exact=True).click()
-        check = page.locator('.side-panel input[type=checkbox]').first
+        page.get_by_role('button',name='Filters',exact=True).click()
+        check = page.locator('.filters-panel input[type=checkbox]').first
         expect(check).to_be_visible()
         box = check.bounding_box()
         assert box['height'] >= 44 and box['width'] >= 44

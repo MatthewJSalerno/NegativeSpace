@@ -201,7 +201,7 @@ with sync_playwright() as p:
     expect(note).to_contain_text(f"Rejected {name}.")
     expect(note.get_by_role("button", name="Return it to the library")).to_be_visible()
     page.get_by_role("button", name="Close", exact=True).click()
-    page.get_by_role("navigation", name="Views").get_by_role("button", name=re.compile(r"^Rejects")).click()
+    page.get_by_role("navigation", name="Main").get_by_role("link", name=re.compile(r"^Rejects\b")).click()
     page.get_by_role("searchbox", name="Search filenames").fill(name)
     expect(page.locator(".card")).to_have_count(1)
     expect(page.locator(f".card[data-id='{reference}']")).to_be_visible()

@@ -9,7 +9,7 @@ export const TOP_FILES = ".";
 export type BrowseBy = "folders" | "dates";
 const BROWSE_KEY = "ns.browseBy";
 
-// Folders or Dates in the left panel (webui-spec 2): Folders by default, the choice
+// Folders or Dates in the Filters panel (webui-spec 2): Folders by default, the choice
 // remembered per browser. A filter in the address for the other tree shows that one.
 export function initialBrowseBy(folders: string[], dates: string[]): BrowseBy {
   if (dates.length && !folders.length) return "dates";

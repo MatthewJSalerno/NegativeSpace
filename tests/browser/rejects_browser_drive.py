@@ -29,7 +29,11 @@ def selection_bar(page):
 
 
 def view_button(page, name):
-    return page.get_by_role("navigation", name="Views").get_by_role("button", name=re.compile(rf"^{name}"))
+    return page.get_by_role("navigation", name="Main").get_by_role("link", name=re.compile(rf"^{name}\b"))
+
+
+def place_count(page, name):
+    return view_button(page, name).locator(".sidebar-count")
 
 
 with sync_playwright() as p:
@@ -59,18 +63,18 @@ with sync_playwright() as p:
     expect(bar.get_by_role("button", name="Copy (1)…")).to_be_visible()
     expect(bar.get_by_role("button", name=re.compile(r"^Reject"))).to_have_count(0)
     expect(bar.get_by_role("button", name=re.compile(r"^Return"))).to_have_count(0)
-    bar.get_by_role("button", name="Clear").click()
+    bar.get_by_role("button", name="Clear selection").click()
 
     run_job(request, "copy")
     page.goto(BASE)
     view_button(page, "Library").click()
 
-    # The view buttons count what the search finds, as the gallery does.
+    # The sidebar's places count what the search finds, as the gallery does.
     page.get_by_role("searchbox", name="Search filenames").fill("photo-002")
     expect(page.locator(".card")).to_have_count(1)
-    expect(view_button(page, "Library")).to_contain_text("(1)")
-    expect(view_button(page, "Not organized")).to_contain_text("(0)")
-    expect(view_button(page, "Rejects")).to_contain_text("(0)")
+    expect(place_count(page, "Library")).to_have_text("1")
+    expect(place_count(page, "Not organized")).to_have_text("0")
+    expect(place_count(page, "Rejects")).to_have_text("0")
 
     # One photo, from the Inspector: asked first in a sentence, starting on Cancel.
     page.locator(".card-image").first.click()
@@ -85,13 +89,13 @@ with sync_playwright() as p:
     expect(banner).to_contain_text(re.compile(r"Job #\d+ · Reject finished"), timeout=60_000)
     expect(banner).to_contain_text("1 of 1 photo moved to Rejects")
     expect(page.locator(".card")).to_have_count(0)
-    expect(view_button(page, "Library")).to_contain_text("(0)")
-    expect(view_button(page, "Rejects")).to_contain_text("(1)")
+    expect(place_count(page, "Library")).to_have_text("0")
+    expect(place_count(page, "Rejects")).to_have_text("1")
     dismiss_banner()
 
     # The Rejects view: the photo, what Rejects holds, and how to empty it, in the page.
     page.get_by_role("searchbox", name="Search filenames").fill("")
-    expect(view_button(page, "Library")).to_contain_text(f"({PHOTOS - 1:,})")
+    expect(place_count(page, "Library")).to_have_text(f"{PHOTOS - 1:,}")
     view_button(page, "Rejects").click()
     expect(page).to_have_url(re.compile(r"view=rejects"))
     expect(page.locator(".card")).to_have_count(1)
@@ -145,7 +149,7 @@ with sync_playwright() as p:
     bar = selection_bar(page)
     expect(bar.get_by_role("button", name="Return to library (2)…")).to_be_enabled()
     expect(bar.get_by_role("button", name=re.compile(r"^Reject"))).to_have_count(0)
-    bar.get_by_role("button", name="Clear").click()
+    bar.get_by_role("button", name="Clear selection").click()
 
     # From the job's log: a photo opens in the Inspector, which returns it, with the
     # action outlined so it reads as a button.
@@ -190,18 +194,18 @@ with sync_playwright() as p:
     other = page.locator(".card:not(.selected) .card-check").first
     expect(other.locator("input")).to_be_disabled()
     expect(other).to_have_attribute("title", re.compile("Library photos can't be selected with photos in Rejects"))
-    selection_bar(page).get_by_role("button", name="Clear", exact=True).click()
+    selection_bar(page).get_by_role("button", name="Clear selection", exact=True).click()
     page.get_by_role("button", name="Select", exact=True).click()
     page.get_by_role("menuitem", name=re.compile(r"^Select all in this view")).click()
     expect(selection_bar(page).get_by_role("button", name=re.compile(r"^Return"))).to_have_count(0)
-    selection_bar(page).get_by_role("button", name="Clear", exact=True).click()
+    selection_bar(page).get_by_role("button", name="Clear selection", exact=True).click()
     page.goto(f"{BASE}/?view=rejects")
     page.locator(".card-check input").nth(0).click()
     bar = selection_bar(page)
     bar.get_by_role("button", name="Return to library (1)…").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Return to library", exact=True).click()
     expect(banner).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
-    expect(view_button(page, "Rejects")).to_contain_text("(0)")
+    expect(place_count(page, "Rejects")).to_have_text("0")
 
     # The reminder: on every page once Rejects passes a limit, until it is under both again.
     settings = request.get("/api/v1/settings").json()

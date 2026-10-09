@@ -1,13 +1,11 @@
 import { useDismissedRun } from "../dismissal";
 import { StableContent } from "./ui/StableContent";
-import { PageNavigation } from "./PageNavigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Logo } from "./Logo";
-import { PageTools } from "./PageTools";
+import { AppFrame } from "./AppFrame";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
 import { reasonsText, jobLabel, modeName, showsPhotos, summary, useJobCompletion, useJobFeed } from "../jobs";
-import { follow, photoUrl, useHeaderHeight, useNavigation } from "../nav";
+import { follow, photoUrl, useNavigation } from "../nav";
 import { usePaged } from "../paged";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
 import { SearchField } from "./ui/SearchField";
@@ -118,7 +116,6 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
     setNotice(null); setRetryNote(null);
   });
   const header = useRef<HTMLElement>(null);
-  useHeaderHeight(header);
 
   const apiFilters = { ...filters, since: dayStart(dates.from), until: dayStart(dates.to, 1) };
 
@@ -238,17 +235,12 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
   };
 
   return (
-    <div className="app">
-      <header className="toolbar" ref={header}>
-        <div className="toolbar-row">
-          <h1 className="brand"><Logo />NegativeSpace</h1>
-          <PageNavigation active="logs" />
-          <PageTools version={status.version} onOpenSettings={onOpenSettings} />
-        </div>
+    <AppFrame header={header} status={status} onOpenSettings={onOpenSettings} current={{ page: "logs" }}
+      banners={<>
         <JobDrawer jobs={jobs} connection={connection} />
         <FinishedBanner jobs={jobs} dismissedId={dismissedId} onDismiss={dismissRun} dismissal={dismissal} />
         <RejectsReminder status={status} />
-      </header>
+      </>}>
 
       <main id="main-content" tabIndex={-1} className="logs">
         <h2>{failuresOnly ? "Failures" : "Log"}{filters.photo != null ? ` for photo #${filters.photo}` : ""}</h2>
@@ -353,7 +345,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
         </ol>
         <p className="muted back"><a href="/" onClick={follow}>← Back to the library</a></p>
       </main>
-    </div>
+    </AppFrame>
   );
 }
 

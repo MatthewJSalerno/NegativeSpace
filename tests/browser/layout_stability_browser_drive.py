@@ -56,10 +56,17 @@ with sync_playwright() as p:
         positions=[]
         for path in ('/','/logs','/stats'):
             page.goto(sys.argv[1]+path)
-            nav=page.get_by_role('navigation',name='Pages',exact=True)
-            expect(nav).to_be_visible()
-            positions.append(nav.get_by_role('link',name='Logs',exact=True).bounding_box()['x'])
-        assert max(positions)-min(positions)<=1,positions
+            # The sidebar never moves sideways between pages (banners above it may differ);
+            # narrow, its Menu button stays put.
+            if width > 800:
+                nav=page.get_by_role('navigation', name='Main',exact=True)
+                expect(nav).to_be_visible()
+                box=nav.get_by_role('link',name='Logs',exact=True).bounding_box()
+                positions.append((box['x'],0))
+            else:
+                box=page.get_by_role('button',name='Menu',exact=True).bounding_box()
+                positions.append((box['x'],box['y']))
+        assert all(abs(x-positions[0][0])<=1 and abs(y-positions[0][1])<=1 for x,y in positions),positions
         for place in ('organized','review'):
             page.goto(sys.argv[1]+f'/?view={place}')
             expect(page.locator('.card')).to_have_count(60)

@@ -94,7 +94,9 @@ with sync_playwright() as p:
     photo_count = request.get('/api/v1/photos?view=similar&match_min=90').json()['total']
     expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_text(
         f'Has similar photos ({photo_count})')
+    page.get_by_role('button', name=re.compile('^Filters')).click()
     expect(page.get_by_text('trip / day 1', exact=True)).to_be_visible()  # Hidden members remain filterable.
+    page.get_by_role('button', name='Close filters', exact=True).click()
     page.wait_for_load_state('networkidle')
     grouping_requests = []
     def record_grouping_request(request):
@@ -260,10 +262,10 @@ with sync_playwright() as p:
     shot('needs-review-filtered-photos')
     page.goto(sys.argv[1]+'/?view=review&similar=1&group_sets=1')
     expect(group).to_be_checked()
-    page.get_by_role('button',name=re.compile(r'^Library \(')).first.click()
+    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Library\b')).click()
     expect(group).to_be_checked()
     expect(page.get_by_role('button',name='Review this set',exact=True).first).to_be_visible()
-    page.get_by_role('button',name=re.compile(r'^Needs review \(')).first.click()
+    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Needs review\b')).click()
     expect(group).to_be_checked()
     group.uncheck()
     page.reload()

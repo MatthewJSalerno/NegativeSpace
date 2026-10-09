@@ -207,7 +207,7 @@ whose latest delivery was a Move that could not delete the original, why (a run'
 capture date. `total` is what this request shows, every filter applied. `matches` counts
 each view’s individual photos with every filter applied, even when `group_sets` makes
 `total` count representative sets. `matches.undated` counts this view’s photos with no
-capture date under the other filters: the view buttons show these (`webui-spec.md` §2),
+capture date under the other filters: the sidebar's places show these on the Library (`webui-spec.md` §2),
 and they offer another view when a search finds nothing in this one. The date sorts put undatable rows last.
 
 For `view=similar`, each item includes `similar_count`, and the response includes
@@ -222,6 +222,15 @@ recompute pHashes or pair distances. Counts, items and coverage share one snapsh
 `match_min` also applies to `/photos/timeline`, `/photos/types`, `/photos/folders`,
 `/photos/ids` and the JSON body of `/photos/position`, so facets, selection and
 navigation agree. Invalid query/position percentages return 422.
+
+### `GET /api/v1/photos/places`
+
+The navigation sidebar's counts (`webui-spec.md` §2, the page frame): each place whole,
+before any gallery filter, and each **Look into** shortcut as Library with only that
+filter on, which is what its link opens. `match_min` (default 90) sets Has similar photos:
+
+    {"places": {"unorganized": 0, "organized": 4499, "review": 31, "rejects": 4},
+     "look_into": {"similar": 167, "suspicious": 8, "undated": 1356, "small": 9}}
 
 ### `GET /api/v1/photos/timeline`
 
@@ -936,7 +945,7 @@ set membership. Different neighborhoods with equal counts stay separate.
 
 List `total` and returned IDs/positions describe representatives; per-photo
 `similar_count` still counts direct matches. `counts` remain uncollapsed library photo counts; filter-aware `matches`
-supply the view buttons. Sidebar queries count representatives in their normal filter
+supply the sidebar's places. Filter-panel queries count representatives in their normal filter
 scope. `matches` for other views retains normal photo-filter semantics. No photo,
 EXIF, persisted group, or catalog schema is changed. Without `group_sets`, existing
 API behavior is unchanged.

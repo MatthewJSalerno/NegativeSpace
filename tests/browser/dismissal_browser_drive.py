@@ -46,7 +46,7 @@ with sync_playwright() as p:
     expect(banner.get_by_role('alert')).to_contain_text('Could not save the dismissal')
     expect(banner.get_by_role('button', name='Retry dismissal', exact=True)).to_be_enabled()
     # Shared state retains the actionable error across navigation and narrow reflow.
-    page.get_by_role('link', name='Library', exact=True).first.click()
+    page.get_by_role('link', name='NegativeSpace', exact=True).click()
     expect(banner.get_by_role('alert')).to_be_visible()
     page.set_viewport_size({'width': 720, 'height': 900})
     expect(banner.get_by_role('button', name='Retry dismissal', exact=True)).to_be_in_viewport()

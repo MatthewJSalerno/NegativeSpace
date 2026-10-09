@@ -678,7 +678,7 @@ class JobsAndCatalog(ApiCase):
                          "Select all cannot keep a selection to one place")
         searched = self.client.get("/api/v1/photos", params={"view": "rejects", "q": "IMG_0002"}).json()
         self.assertEqual((searched["matches"]["rejects"], searched["matches"]["all"], searched["matches"]["undated"]),
-                         (1, 0, 1), "the view buttons' counts do not follow the search")
+                         (1, 0, 1), "the places' counts do not follow the search")
 
         again = self.wait_for(self.start(mode="copy"))
         self.assertEqual(again["outcome"]["skip_reasons"], {"already_rejected": 1},
@@ -900,7 +900,7 @@ class JobsAndCatalog(ApiCase):
         only_2023 = photos(date=["2023"])
         self.assertEqual([i["date_taken"][:7] for i in only_2023["items"]], ["2023-11"])
         self.assertEqual((only_2023["counts"]["all"], only_2023["matches"]["all"]), (2, 1),
-                         "the view buttons count the library; matches follow the filters")
+                         "the places count the library; matches follow the filters")
         self.assertEqual(photos(date=["2020-09", "2023"])["total"], 2, "checked dates add up")
         self.assertEqual(photos(date=["none"])["total"], 0)
         self.assertEqual(self.client.get("/api/v1/photos", params={"date": "June"}).status_code, 400)
@@ -927,7 +927,7 @@ class JobsAndCatalog(ApiCase):
         only_png = self.client.get("/api/v1/photos", params={"type": "png"}).json()
         self.assertEqual([i["filename"] for i in only_png["items"]], ["scan.png"])
         self.assertEqual((only_png["counts"]["all"], only_png["matches"]["all"]), (3, 1),
-                         "the view buttons count the library; matches follow the type filter")
+                         "the places count the library; matches follow the type filter")
         ids = self.client.get("/api/v1/photos/ids", params={"type": "jpg"}).json()
         self.assertEqual(ids["total"], 2, "Select all takes exactly the types shown")
         both = self.client.get("/api/v1/photos", params={"type": ["jpg", "png"], "date": "2023"}).json()
@@ -1223,7 +1223,7 @@ class JobsAndCatalog(ApiCase):
         shown = self.client.get("/api/v1/photos", params=scope).json()
         self.assertEqual(sorted(p["id"] for p in shown["items"]), sorted(chosen), "the job view shows other photos")
         self.assertEqual(shown["total"], len(chosen))
-        self.assertEqual(shown["counts"]["all"], len(listed), "the view buttons count only the job's photos")
+        self.assertEqual(shown["counts"]["all"], len(listed), "the places count only the job's photos")
         self.assertEqual(sorted(self.client.get("/api/v1/photos/ids", params=scope).json()["ids"]), sorted(chosen))
         searched = self.client.get("/api/v1/photos", params={**scope, "q": listed[0]["filename"]}).json()
         self.assertEqual([p["id"] for p in searched["items"]], chosen, "search does not find the job's photo")

@@ -81,6 +81,16 @@ class ReviewTests(ApiCase):
         self.assertEqual(self.client.get('/api/v1/photos?view=organized&q=photo-3').json()['elsewhere']['unorganized'],1)
         self.assertEqual(self.client.get('/api/v1/photos?view=review&reason=unknown').status_code,400)
 
+    def test_sidebar_counts_match_what_each_link_opens(self):
+        self.enable()
+        got=self.client.get('/api/v1/photos/places').json()
+        for name in ('unorganized','organized','review','rejects'):
+            self.assertEqual(got['places'][name],self.client.get('/api/v1/photos?view='+name).json()['total'],name)
+        for name,query in (('similar','similar=true&match_min=90'),('suspicious','suspicious=true'),('undated','undated=true'),('small','reason=small')):
+            self.assertEqual(got['look_into'][name],self.client.get('/api/v1/photos?view=organized&'+query).json()['total'],name)
+        self.assertEqual(got['look_into']['suspicious'],1)
+        self.assertEqual(self.client.get('/api/v1/photos/places?match_min=50').status_code,422)
+
     def test_changed_content_is_not_silently_marked_reviewed(self):
         self.enable()
         body=self.decision()

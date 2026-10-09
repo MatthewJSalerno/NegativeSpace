@@ -114,11 +114,11 @@ Users can select individual files or multiple files across grid views to run tar
   become the only ones. *Why disabled, not cleared:* a selection built across pages is
   never lost to one stray tick. *Why keep Move for Rejects:* a source that ends empty
   should not need deleting in two places; the warning makes the consequence plain.
-* **Grouping and facet requests:** Turning similar-photo grouping on or off reloads gallery results and grouped date-jump positions, but reuses the unchanged per-photo Dates, Types and Folders sidebar counts.
-* **Selection across views:** retain explicit photo selections when changing pages
-  or filters. The top row, after **Logs**, shows the total and the number outside the
-  displayed view, for example **“25 selected · 10 outside this view”**, with **Show
-  only selected** and **Clear**; clearing while showing only the selection returns to
+* **Grouping and facet requests:** Turning similar-photo grouping on or off reloads gallery results and grouped date-jump positions, but reuses the unchanged per-photo Dates, Types and Folders counts in the Filters panel.
+* **Selection across views:** retain explicit photo selections when changing pages,
+  places or filters. The selection bar, in place of the top bar, shows the total and the
+  number outside the displayed view, for example **“25 selected · 10 outside this view”**,
+  with **✕** (Clear selection) and **Show only selected**; clearing while showing only the selection returns to
   the results. Show only selected temporarily shows only the selected
   photos, including those hidden by prior filters or pagination, and allows inspection
   and deselection; the photos shown are fixed on entry, so one unticked there stays on
@@ -178,8 +178,8 @@ Users can select individual files or multiple files across grid views to run tar
   dates”**; **Select these**
   selects what the filter shows, as Select all in this view does. The boxes themselves only filter: unchecking a month to look
   elsewhere must never change the selection). The tree's own counts ignore it, so an
-  unticked month keeps its number. On a
-  narrow screen the panel opens from a **Browse** button.
+  unticked month keeps its number. Types, Folders and Dates are in the **Filters** panel
+  beside Sort (the page frame, below).
 * **Browse by Folders or Dates:** under Types, **Browse by [Folders | Dates]** chooses the
   tree below it; **Folders** is the default, and the choice is remembered per browser (a
   filter in the address for the other tree shows that one). The **Folders** tree is the
@@ -194,8 +194,7 @@ Users can select individual files or multiple files across grid views to run tar
   tree, not the destination's:* the destination is `YYYY/MM/DD` and `Undated/<year>`, which
   the Dates tree already shows; the source's folders are what the user knows, every photo
   has one (a moved photo under the folder it came from), and they are what a job can act
-  on. The left panel's edge can be dragged, or moved with the arrow keys, since folder
-  paths can be wide; a name wider than the panel ends in "…", whole on hover.
+  on. A name wider than the Filters panel ends in "…", whole on hover.
 * **A folder's Copy or Move:** with exactly one folder shown, **Jobs ▾ → Copy ▸ / Move ▸
   → this folder: Family scans (318)** takes that folder and its subfolders, however many
   photos: the engine is given the folder (`--source-subdir`), not a list of photos. The count
@@ -212,9 +211,10 @@ Users can select individual files or multiple files across grid views to run tar
   Types and dates combine, and the filter line names both (**"Showing 42 of 1,160 photos
   · only 2019, HEIC · Select these 42 · Show all dates · Show all types"**). **All
   photos** clears them too.
-* **The view buttons count what the filters find; the filter line names the library.**
-  With a search, dates, types, folders or No capture date on, each view's number is how
-  many photos that view would show under them, so the number on a button always matches
+* **The sidebar's places count what the filters find; the filter line names the library.**
+  On the Library page, with a search, dates, types, folders or No capture date on, each
+  place's number is how many photos it would show under them, since choosing a place there
+  keeps them, so the number always matches
   what clicking it shows, and the line above the gallery gives the library's size:
   **"Showing 9 of 1,160 photos · only 2022, 2023"**. **Why not the whole library on the
   buttons:** a search for one name still read "Rejects (1)" or "Organized (1,160)", and a
@@ -253,9 +253,10 @@ across pages, and a page count that the grid's columns did not divide left gaps.
 tree jumps to a year or month by the page it starts on (`GET /api/v1/photos/timeline`).
 The page, page size, sort, view, search, dates and open photo live in the URL.
 In-app links and browser Back/Forward apply the destination URL even on the same
-screen. The Library link resets browsing filters and closes the Inspector; within
-the mounted Library it keeps the explicit selection but exits selection-only or
-transfer-review mode. History restores the recorded page and photo, not an exact
+screen. The logo link (the Library at its last place) resets browsing filters and
+closes the Inspector; a sidebar place keeps the search and filters and closes the
+Inspector. Within the mounted Library
+both keep the explicit selection but leave selection-only or transfer-review mode. History restores the recorded page and photo, not an exact
 scroll pixel position or a transient review. Logs links replace the log's filters
 and expand the single linked job. Recording local control or scroll changes in the
 address does not itself count as navigation or reset the current selection.
@@ -265,9 +266,23 @@ information icon. It shows the
 photos whose EXIF has no date taken, which are filed under Undated by their file's
 modification date, counted in the current view. It combines with the view and the
 search; the view counts show photos matching the active filters, and the filter line says
-how many are shown. A review reason narrows only the inbox, not other locations. Each view button keeps its width whatever its count, with room for
-**(999,999)** in even-width digits, so switching views never moves them. Every location preserves the search and filter chips. **Clear filters** removes
+how many are shown. A review reason narrows only the inbox, not other locations. The
+sidebar's counts sit in their own right-aligned column in even-width digits, so a count
+changing never moves a label. Every location preserves the search and filter chips. **Clear filters** removes
 restrictions without changing the location or explicit selection.
+
+**The page frame** (decided 2026-10-08, after Immich; built). Library, Logs and Stats
+share one frame: a sticky top bar (the logo, the filename search and **Jobs ▾** on the
+Library, Dark mode, Settings) and a navigation sidebar on every page: the four places
+with their counts; **Look into** (Has similar photos, Suspicious dates, No capture date,
+Small images), each opening Library with only that filter on and counting what it opens
+(`GET /photos/places`); **Activity** (Logs, Stats); the build at the foot. On the Library
+a place keeps the search and filters, as the place buttons did, and leaves Show only
+selected or a review first; from Logs or Stats it opens the place whole. While photos
+are selected, the selection bar takes the top bar, keeping the search (§4). Types, Folders and Dates
+are in the **Filters** panel beside Sort, opened over the photos. Below 800px the
+sidebar hides behind a **☰ Menu** button and opens over the page. The design rules are
+in `ui-design.md`, "Page frame".
 
 **Views and the review inbox** (implemented; decisions updated 2026-10-07). The gallery has three locations and a review inbox.
 Its four entry points:
@@ -283,10 +298,10 @@ A copied photo belongs to the Library; its untouched original in the source is n
 counted again. **All photos** is removed from navigation. Old links remain readable. Needs review overlaps the location views: its count is distinct photos awaiting decisions, not additional files, and the four counts must never be added together. Each reviewed photo names its location.
 **Has similar photos**, **Suspicious dates** and **No capture date** stop being views and
 become filters within a place ("Library · has similar photos"), as No capture date
-already is. *Why:* the view buttons then answer one question, where is it, and drop from
+already is. *Why:* the places then answer one question, where is it, and drop from
 six to four. Settled 2026-10-07:
 
-* **The filters are a row of chips** under the four view buttons, each with its count in
+* **The filters are a row of chips** under the place's heading, each with its count in
   the place shown ("Has similar photos (167) · Suspicious dates (8) · No capture date
   (1,356)"), as Needs review's reasons are (§7.9): one pattern for narrowing a place.
 * **Small images** stays beside **No capture date** as a toggle in Library and
@@ -568,7 +583,7 @@ copied once)"**. The API groups them from the engine's reason text (`webui/outco
 Stats retains warning/failure accent borders and consistent folder-table cell spacing
 as specified in `ui-design.md`.
 
-**Which build is running** shows at the top right, beside Settings, on every page and on
+**Which build is running** shows at the foot of the sidebar on every page and on
 the first-run and catalog-problem screens: **"v0.1.0 · main · 2c4728f"**, the release in
 `VERSION` and the branch and commit the image was built from, so a report names the
 exact code. `VERSION` is raised with each merged change that alters behaviour.
@@ -576,8 +591,10 @@ exact code. `VERSION` is raised with each merged change that alters behaviour.
 Actions are in two places (decided 2026-10-05), the pattern of Google Photos, Apple Photos
 and Gmail, so that no menu has to adapt to what is selected:
 
-* **The selection bar**, in the sticky top bar while photos are selected: "4 photos
-  selected", then only the actions that apply to them, each with its count:
+* **The selection bar**, taking the sticky top bar while photos are selected:
+  **✕** (Clear selection) and "4 photos selected" where the logo was, the search where it
+  was (a selection is built across searches), Show only selected (or Back to results),
+  then only the actions that apply to them, each with its count:
   **Copy (n)…** and **Move (n)…** by the engine's rule (`ns_db.TRANSFER_ELIGIBLE`),
   **Reject (n)…** for photos in the library, **Return to library (n)…** for photos in
   Rejects (§7.8). A selection is one place (§2): library photos get Copy, Move and Reject;
@@ -586,20 +603,18 @@ and Gmail, so that no menu has to adapt to what is selected:
   If another job has moved only some selected photos into or out of Rejects, the
   whole new request is refused with a reason and nothing is changed; choose photos
   from one location and submit again. Replaying an accepted request keeps its original run.
-  Then Show only selected (or Back to results) and Clear. An action that
-  takes none of them is absent, not disabled; each asks first, through the same review.
+  An action that takes none of them is absent, not disabled; each asks first, through the same review.
   While a job runs the actions wait, saying why.
-* **Jobs ▾**, after **Library** on the Library page only: the library-wide jobs,
+* **Jobs ▾**, in the top bar on the Library page only: the library-wide jobs,
   **Index**, and **Copy ▸** / **Move ▸** of **this folder** (the one folder the Folders tree
   shows) and **all (n)**. *Why "Jobs":* it holds exactly the jobs, and pairs with Logs,
   which lists them; "Organize" sat over the Organized view and would clash with To
-  organize, and "Actions" would overlap the selection bar. Logs and Stats have no menu; Logs offers
-  **Run an Index** where a failure needs it. The shared page navigation reserves the
-  Jobs slot on these pages so Logs stays in the same position; there is no disabled Jobs button.
+  organize, and "Actions" would overlap the selection bar. Logs and Stats have no menu, and no disabled one; Logs offers
+  **Run an Index** where a failure needs it.
 * *Why the top bar, not a floating bottom bar:* the selection count is already read there,
   the bar stays in view, and a bottom bar would cover the last row of photos.
-The toolbar's second row holds the views,
-search and sort. Every item carries a one-line explanation, and one that cannot run
+The search is in the top bar; Filters and Sort end
+the place's heading row. Every Jobs item carries a one-line explanation, and one that cannot run
 replaces it with why: a job is running, nothing is indexed, nothing is selected, or
 nothing is left (**"Nothing to copy - every photo is copied or organized."**). The
 **all** counts are the whole catalog's, by the engine's own rule
@@ -1202,7 +1217,7 @@ always occupies its row, showing **Showing all log entries** when unrestricted.
 Status **only** shortcuts retain their space when unavailable, and the job summary
 retains control height without Expand all. See the shared layout contract in
 `ui-design.md`, "Stable navigation and filtering".
-**Built** (`api-spec.md` §5a). The Library and Logs pages are switched from the toolbar. The
+**Built** (`api-spec.md` §5a). Logs is in the sidebar's **Activity**, on every page. The
 log is grouped by job, newest first: each job is one line (its summary and how many
 entries match) until opened, and its entries page on their own. Filters apply inside
 every job; while any is set, a job with nothing matching is left out. A finished
@@ -1216,8 +1231,8 @@ state follows in-app navigation across Library, Logs and Stats. Reloading before
 write is acknowledged may interrupt it; an unsaved dismissal then remains visible.
 After acknowledgment, clearing browser storage or reloading does not bring it back.
 The catalog is authoritative; an old browser dismissal ID never hides a new catalog's
-banners. No browser-only dismissal is saved or replayed. The Logs page has the Library's top row
-without **Jobs**, whose jobs belong with the photos; the page links never move. The
+banners. No browser-only dismissal is saved or replayed. The Logs page has the Library's frame
+without the search and **Jobs**, whose jobs belong with the photos; the sidebar never moves. The
 active filters are named in one line with one reset (**"Showing: job #3 · Failed ·
 “photo-00” · Clear all filters"**). An open job's entries load in batches of 100 as the
 list scrolls, and the job's header line, with its collapse arrow, stays at the top
@@ -1802,7 +1817,7 @@ scope. Equal visual hashes count, exact byte copies are represented once, and th
 reference itself is excluded. No new image comparisons run when controls change.
 
 The URL saves `match_min` separately from Inspector `match`, alongside `sort=matches`.
-Changes reset gallery paging to one but retain explicit selection; sidebar counts,
+Changes reset gallery paging to one but retain explicit selection; filter-panel counts,
 Select all and photo positioning use the same membership. Show only selected keeps
 all selected files even without qualifying matches, with the percentage disabled;
 known counts sort first, then zero and unavailable counts. The initial sort is Most matches first. Remember explicit sort choices per view
@@ -2391,9 +2406,9 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   Library (filters, selection, bulk answers), and working through them reuses the
   workspace built for such tasks.
 * **Filter by reason; bulk within one reason** (planned for review answers; existing bulk Reject is available with preview and confirmation). A mixed
-  selection offers only shared actions. One filter row beneath location navigation
+  selection offers only shared actions. One filter row beneath the place heading
   includes the review-reason toggles and their counts; **Review one by one** stays above
-  the photos. Folders and Dates remain in the sidebar. Active chips toggle off, and no
+  the photos. Types, Folders and Dates are in the Filters panel. Active chips toggle off, and no
   active chips means the whole inbox. Do not duplicate Small images in another row.
   Switching reminders keeps controls and results stable; explanations share a content-sized
   area, with only the current explanation accessible.
@@ -2681,7 +2696,7 @@ conflicting EXIF tags are outside this first policy. Never infer an offset or re
 a recorded value. Legitimate historical material may still be flagged.
 
 Use existing gallery controls, card geometry, selection, pagination and URL state
-(`view=suspicious`). Counts, sidebar filters and Select all use the same membership.
+(`view=suspicious`). Counts, the Filters panel and Select all use the same membership.
 Explain the policy beside results. The Inspector shows the reason, recorded value,
 source and a link to the affected view. Similar photos offer clues, not automatic
 corrections. The comparison Capture information table includes a Date review row

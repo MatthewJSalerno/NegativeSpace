@@ -276,6 +276,14 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         except ValueError as exc:
             raise _bad_request(exc)
 
+    @app.get("/api/v1/photos/places")
+    def get_places(match_min: int = Query(90, ge=75, le=100)):
+        """The navigation sidebar's counts: each place whole, and each Look into shortcut."""
+        try:
+            return gallery.places(cfg.db_path, match_min=match_min)
+        except ValueError as exc:
+            raise _bad_request(exc)
+
     @app.get("/api/v1/photos/timeline")
     def get_timeline(view: str = "all", q: Optional[str] = None, undated: bool = False,
                      date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
