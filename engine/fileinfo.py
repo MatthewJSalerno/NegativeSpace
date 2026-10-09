@@ -227,8 +227,8 @@ def extract_date_from_metadata(metadata: dict) -> Optional[datetime]:
     guess-indistinguishable-from-a-fact problem Undated/ exists to prevent.
 
     They stay in `metadata` and reach the catalog as review evidence — the
-    Inspector can expose them as metadata. The planned Needs review screen
-    will offer date clues (webui-spec.md 7.9). Retaining and promoting are
+    Inspector exposes them as metadata. Suggested dates in Needs review
+    remain planned (webui-spec.md 7.9). Retaining and promoting are
     different things.
     """
     if "DateTimeOriginal" in metadata:

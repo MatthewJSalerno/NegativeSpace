@@ -1,7 +1,8 @@
 # User guide
 
 A first session with NegativeSpace, start to finish. The screenshots use NASA's public
-image library; yours will look the same with your own photos.
+image library. Screenshots show an earlier interface; navigation and setup details below
+describe the current app.
 
 > **Before you start:** NegativeSpace is not a backup of your photos. It backs up its
 > catalog, never the photos themselves; keeping your own backups of your photos is your
@@ -12,14 +13,16 @@ Install it first: the [README's quick start](../README.md#quick-start) takes fou
 ## 1. First start
 
 Open **http://localhost:8080**. There is no catalog yet, so the page offers to create one,
-then walks through the settings in four short steps. They are starting values, and every
+then walks through the settings in five steps. They are starting values, and every
 one can be changed later from the gear icon at the top right.
 
-![The first of the four setup steps](images/welcome.png)
+![Setup appearance choices (earlier interface)](images/welcome.png)
 
-The **Files** step chooses which file types to look for, and when to be reminded to empty
-Rejects. **Backups** explains what NegativeSpace backs up (its catalog, not your photos).
-**Performance** sets how many photos are read at once.
+The **Appearance** step sets the palette and light/dark preference. **Files** chooses
+file types, the earliest expected photo year, and when to be reminded to empty Rejects.
+It also requires a choice to enable or disable small-image reminders; these never
+restrict Copy or Move. **Backups** explains catalog backups, **Performance** sets how
+many photos are read at once, and **Access** saves additional addresses used to open the app.
 
 ![The Files step: file types and the Rejects reminder](images/welcome-files.png)
 
@@ -38,9 +41,11 @@ shows at the top of the page; closing the browser does not stop it.
 
 ## 3. Look around
 
-When the Index finishes, the gallery shows every photo. Browse by **Folders** or **Dates**
-on the left, search by filename, and use the views along the top: everything, what is not
-yet organized, look-alikes, suspicious dates, Rejects, and photos with no capture date.
+When Index finishes, **Not organized** shows the source photos and an Index summary.
+**Library**, **Needs review**, and **Rejects** remain empty until photos are organized.
+Browse by **Folders** or **Dates** on the left, or search by filename. After Copy or Move,
+Library holds organized photos, Needs review filters those needing attention, and
+Rejects holds photos you have rejected. Reason filters sit beneath these locations.
 
 ![The gallery, showing one year](images/gallery.png)
 
@@ -71,7 +76,8 @@ to delete anything for its library to be complete.
 
 ## 5. Similar photos
 
-**Has similar photos** lists photos with look-alikes. Open one and choose **Similar
+**Has similar photos** lists organized Library photos with look-alikes; unorganized
+source files are not compared in this view. Open one and choose **Similar
 photos**: the counts show how many matches it has at each percentage. The percentage
 measures visual similarity, not certainty; below 90%, matches are more likely to be
 unrelated.
@@ -100,9 +106,10 @@ empty Rejects and the photo is gone. Every Move that includes rejected photos sa
 
 ## 7. Check dates
 
-**Suspicious dates** lists photos whose recorded year is before 1800 or in the future,
-usually a camera clock that was never set. They are hints to look at; NegativeSpace
-changes no date by itself.
+**Suspicious dates** flags recorded years earlier than the minimum you chose in setup
+(default 1800), or more than one year ahead of the current UTC year. Change the minimum
+in **Settings › Files** to suit your collection. These are clues to investigate, not proof
+of a wrong date; NegativeSpace changes no date by itself.
 
 ![Photos with suspicious dates](images/suspicious-dates.png)
 

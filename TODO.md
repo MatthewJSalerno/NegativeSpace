@@ -51,10 +51,15 @@ Found 2026-10-05 looking for screens that do the same job twice.
   set. Only the combined view of several overlapping sets goes; if it is ever missed, it
   returns as a section of the Similar photos tab, not a window.
 - [x] Needs review decision layout: large photo, compact controls, one reason/action
-  panel and matching thumbnails that open comparison. Remaining two-photo rejection
+  panel and a match-count link to the existing Similar photos tab. Remaining two-photo rejection
   proposals belong with the unbuilt "looks like a reject" reason below.
 
 ## Views
+
+- [ ] Check Library/Jobs/Logs spacing and alignment in a future UI batch; preserve
+  the reserved Jobs position so Logs does not shift when Jobs is unavailable.
+- [ ] Refresh user-guide screenshots for the current setup and review workflows.
+  The guide labels the existing screenshots as an earlier interface.
 
 - [x] Empty review queues return to the filtered gallery with a completion message;
   closing review checks whether the open preview still belongs in the view.
