@@ -1354,6 +1354,18 @@ stays the same photo: the edit is a step in its lineage, its earlier SHA-1 value
 kept (§10). There is no user-facing undo:
 each file's history holds every previous value, and a correction is a new recorded edit.
 
+**Earlier-state reproduction and consolidation (planned).** Given a surviving unchanged
+image and complete structured metadata history, reproduce supported recorded source or
+pre-edit metadata as a new confirmed edit, not an undo. This does not promise an identical
+file hash or recovery of unknown/unwritable metadata. Exact photo restoration requires
+an original-file copy; the catalog cannot recreate lost image content. Preserve alternate
+metadata and both origins before any confirmed consolidation of identical image content.
+The definition and verification of metadata-independent equality remain undecided; pHash
+is not such proof. Do not extend whole-file duplicate cleanup to these candidates before
+the coordinated preservation and confirmation workflow exists. The detailed contract,
+edit failure handling and deferred destination scan are in
+[xmp-metadata.md](xmp-metadata.md).
+
 **Catalog backups for edits** are kept apart from job backups (their own retention,
 default 20 each), so a run of single-photo edits never pushes out a job's backup. The
 backup list names each kind and what triggered it.

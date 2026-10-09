@@ -265,6 +265,49 @@ folders. Making an older XMP primary is a new verified operation with preview, c
 and lineage; it does not erase intervening history. Catalog backup validation must cover
 restoring and verifying retained BLOBs, not just database integrity.
 
+## Earlier metadata states and duplicate consolidation (agreed; not built)
+
+Reproduction of an earlier meaningful state is distinct from exact-file restoration.
+Given surviving unchanged image content and complete structured records, the goal is to
+reproduce supported recorded metadata from either the source observation or a selected
+pre-edit state. Preserve original observations, before/after field values, absence,
+explicit emptiness, removals, source/primary bindings and version origins. Human-readable
+log messages alone are insufficient. Reproduction is a new verified operation with
+preview, confirmation and lineage; it does not erase history or add an automatic undo.
+
+The resulting photo may have a different internal layout and whole-file hash. Do not
+promise exact original photo bytes without retaining a full original file. Unknown,
+unrecorded or unwritable proprietary metadata cannot be promised reproducible. Catalog
+backups and lineage cannot recover lost image content. The existing byte-exact guarantee
+for retained XMP originals is separate and remains unchanged.
+
+Distinguish two proposed duplicate categories:
+
+- Complete photo-file equality permits one verified surviving copy, preserving both
+  origins and histories; separately associated XMP versions may still differ.
+- Identical image content with different metadata requires preservation of each metadata
+  version and its origin before consolidation, with an explicit primary-source choice.
+  Retaining metadata must not replace one version with an automatic merged snapshot.
+
+An edit that would create an exact duplicate should preview the surviving photo and
+explain the preservation/removal consequences before confirmation. Prepare and verify
+staged output to establish equality; record links from both histories and preserve
+required metadata before any redundant-file removal. This is a new coordinated workflow,
+not permission to feed image-content matches into today's whole-file duplicate cleanup.
+
+A metadata-independent content hash is only a proposed discovery mechanism. Define and
+verify its input per format before implementation: removing EXIF alone does not define
+which XMP, color, orientation or RAW interpretation data belong in the comparison.
+Algorithm, format coverage, performance and equality verification remain open. A pHash
+match never establishes exact image-content equality. Neither hash stores image data or
+reconstructs a file. Do not claim these consolidation/reproduction capabilities are built.
+
+Existing edit-backup policy remains: a pre-action catalog backup and structured metadata
+history for all edits; verified temporary outputs and recovery material until completion;
+exact retained XMP versions; optional first-edit original-file copies for explicitly
+enabled embedded RAW editing. There is no new requirement to permanently retain every
+pre-edit JPEG or other ordinary photo file.
+
 ## Interrupted transfers (planned)
 
 Completion is per photo: verify the destination photo, its required sidecar and retained
@@ -275,6 +318,20 @@ Uncertain outcomes use File needs checking; never label an uncertain operation s
 Test interruption and restart at each publication, catalog and source-removal boundary
 before claiming the combined photo/XMP durability guarantees are enforced.
 
+During Copy/Move, verify destination names, written photo/sidecar content and durable
+records before source cleanup; a name collision cannot authorize overwriting or adopting
+unrelated destination content. These are checks on the operation's actual targets, not
+a catalog-wide destination scan. A broader **Check my destination** inventory/diff/repair
+workflow for external changes is deferred to a separate discussion.
+
+If metadata saving succeeds but subsequent refiling fails, retain the verified edit and
+record the actual location plus Needs refiling. Explain the specific permission, space or
+storage error; the user fixes the cause and retries only the move, carrying active XMP.
+An uncertain outcome requires verification before retry. Individual edit failures may
+leave unrelated photos eligible to continue, but shared storage failures that make further
+writes unsafe stop new edits. Completed edits remain; report succeeded, failed and
+not-started photos separately. These edit/transfer integration rules remain unbuilt.
+
 ## UI handoff — not implemented
 
 When Settings opens during a running job, show the shared informational notice near
@@ -283,6 +340,14 @@ to future jobs, not this one.”** Keep its layout stable if the job starts/fini
 Settings is open. Retain the near-Save explanation and active-job save confirmation;
 see `webui-spec.md` §3 and `ui-design.md`. This prominent active-job notice is pending;
 the generic future-jobs notice and save confirmation already exist.
+
+Future reproduction/consolidation messaging must distinguish supported earlier metadata
+states from exact original files: while unchanged image content remains available,
+recorded metadata can be reproduced through supported writes, but the file hash may
+change. Catalog backups are not photo backups. Present this as a future capability until
+it is implemented and verified; do not promise recovery of missing pixels or unsupported
+metadata. Consolidation previews identify the surviving photo and preservation of both
+origins/history and metadata alternatives.
 
 Within Photo information, use the shared tabs for **Used metadata**, **Embedded/EXIF**
 and **XMP**. Used metadata is the default. Keep the existing Photo information / Similar

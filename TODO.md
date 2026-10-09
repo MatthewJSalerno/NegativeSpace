@@ -220,6 +220,17 @@ Found 2026-10-05 looking for screens that do the same job twice.
   checkboxes. Edits target the established primary; format defaults apply when no write
   target is established. Changing primary requires preview/confirmation. Sidecars move
   with their photos and are part of lineage (§9.6).
+- [ ] Reproduce supported source/pre-edit metadata states from unchanged surviving
+  image content and complete structured history as a new verified operation. No exact
+  photo-byte or lost-image recovery promise; see `docs/xmp-metadata.md`.
+- [ ] Define and measure per-format metadata-independent image equality before building
+  confirmed duplicate consolidation with retained metadata alternatives and both histories.
+  Whole-file and pHash matching alone do not implement this workflow.
+- [ ] Implement edit failure handling: verified metadata survives a failed refile with
+  a specific repair reason and move-only retry; shared unsafe storage failures stop new
+  batch edits, retaining completed work and explicit per-photo outcomes.
+- [ ] Discuss broader destination inventory/diff/repair separately. **Check my destination**
+  is deferred; ordinary per-operation collision/write verification remains required.
 - [ ] Saved orientation edits, separate from temporary viewing rotation: one
   end-of-review decision for photos still rotated, in the comparison and the photo
   panel, and the selection bar's Rotate… for a selection; no control on thumbnails
