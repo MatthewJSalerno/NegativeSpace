@@ -900,3 +900,23 @@ The suite covers explicit XMP precedence, missing versus empty fields, source or
 original-byte round trips, alternate versions, invalid bindings, typed differences and
 mutation isolation. These are pure helper tests: they do not validate XML parsing,
 catalog durability, Index or sidecar transfers, which are not connected yet.
+
+
+## XMP reader and association planning
+
+The helpers are independent of live Index/transfer jobs. Run in the app image with the
+checkout mounted, substituting your own image tag:
+
+```sh
+docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app:ro -w /app \
+  negativespace python3 -m unittest discover -s tests -p xmp_test.py -v
+```
+
+32 tests use generated XML and isolated temporary files, including a sidecar produced
+by the bundled ExifTool. Coverage includes absent/empty values, qualified/unknown tags,
+arrays/localized values, original encoding/bytes, DTD/entity refusal, resource ceilings,
+malformed/unsupported content, traversal and symlinks, special files, permission failures,
+file/directory changes during reads, full-name/shared ownership, policy ambiguity,
+orphans and tentative primary precedence. The 11 `metadata_test.py` tests separately
+cover resolution. These suites do not establish XMP catalog durability or transfer
+safety: those integrations are still unbuilt. No photo samples or running app are used.

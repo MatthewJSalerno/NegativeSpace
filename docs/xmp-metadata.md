@@ -6,9 +6,13 @@
 separate embedded and XMP snapshots, resolves an explicitly chosen source, and returns
 field origins and differences. It does not read files or change the catalog.
 
-**Index does not yet read XMP.** Parsing, association, durable snapshots, API exposure,
-sidecar transfers, version decisions, metadata editing and the source tabs remain
-unimplemented. Enable XMP-derived organization only alongside safe sidecar transfer;
+`engine/xmp.py` now captures bounded RDF/XML sidecars without writing files, and
+`engine/xmp_association.py` plans ownership from a complete source photo inventory.
+Both are independently tested, including generated ExifTool output.
+
+**Index does not yet read XMP.** The helpers are not connected to live jobs. Durable
+snapshots, Index integration, API exposure, sidecar transfers, version decisions,
+metadata editing and the source tabs remain unimplemented. Enable XMP-derived organization only alongside safe sidecar transfer;
 using corrected dates while leaving their sidecars behind would lose metadata.
 
 This document records the agreed import contract and the UI handoff. General editing
@@ -48,7 +52,57 @@ source kind (`embedded`, `xmp`, `mixed`, or null for no effective fields), and f
 whose presence or values differ across snapshots. Original bytes are represented as
 base64 with a SHA-1 fingerprint. This is an in-memory contract, not a storage schema or
 public API. Persist original content as binary BLOBs as specified below, not base64
-text. The future reader must enforce parsing limits and filesystem safety.
+text. The reader's limits and filesystem contract follow below.
+
+## Reader and ownership helper boundary (built; not integrated)
+
+`xmp.read_sidecar(root, relative_name, source_id=...)` opens a stable regular file
+through directory descriptors, refuses traversal/symlinks/nonregular files, checks
+identity/size/timestamps before and after reading and verifies the directory chain.
+An unstable or partial read is never returned as an original for archival. This is
+read-time safety, not a substitute for verification before later deletion.
+
+The parser refuses DTDs and entity declarations without fetching external resources.
+Its initial safety ceilings are 8 MiB of input, 64 nested elements, 50,000 elements and
+100,000 attributes. Exceeding a ceiling holds the item for attention; it is neither
+truncated nor treated as junk. These are safety bounds, not measured tuning values.
+Original bytes retain comments, formatting and encoding. Qualified XML property trees
+retain unknown structures and repeated properties for inspection, without guessing
+aliases from short tag names. Parsed trees are not a byte reconstruction format.
+
+Supported canonical fields are EXIF DateTimeOriginal; TIFF Make, Model, Orientation;
+XMP Rating; and Dublin Core title, description, subject, creator and rights. Common
+attribute/element literals, RDF Bag/Seq and language Alt values are supported. Empty
+literals/containers remain present. Unknown forms of mapped fields, repeated mapped
+fields or unsupported subjects yield attention with the original capture retained;
+there is no silent partial effective-metadata result. Unknown unmapped structures are
+retained without applying them. The reader is not a complete RDF/schema validator.
+Date/rating/orientation values are lexical strings, not yet validated semantic values.
+The future embedded-metadata adapter, canonical type normalization and date validation
+must be built before these values can determine organization or semantic comparisons.
+
+Results distinguish `valid`, `not_xmp` and `needs_attention`, with stable reason codes.
+Only confidently unrelated recognized binaries/empty files or well-formed unrelated
+XML are non-XMP; malformed/unknown inputs stay held. An unfamiliar wrapper containing
+XMP/RDF stays held too. Extension alone and a parse error never establish junk.
+
+`xmp_association.PhotoInventory` indexes all supported source photo paths once, then
+looks up each sidecar in its directory. Callers must pass the full inventory before
+job filters; the helper cannot detect an already filtered input. Stems preserve exact
+case and Unicode; recognized extensions are case-insensitive. Filename-case variants
+are not silently merged. Declared RawFileName ownership must be a basename and match
+an existing candidate; conflicts are held. It never follows a path from metadata.
+
+`primary_candidates` suggests primary candidates only for newly organized photos
+whose associations are resolved: a full-name version takes priority, but multiple
+full-name candidates remain unresolved. All associations remain available as alternatives.
+No helper modifies recorded ownership/primary, catalog rows or file content. Duplicate
+version reuse, catalog choices and orphan-notice clearing require the pending integration.
+
+The parser design follows [Adobe's XMP serialization model](https://developer.adobe.com/xmp/docs/xmp-specifications/)
+and uses [Expat handlers](https://docs.python.org/3.11/library/pyexpat.html) to enforce
+resource and declaration restrictions. `tests/xmp_test.py` exercises these boundaries
+using generated XML/files, including output written by the bundled ExifTool.
 
 ## Association and import decisions
 
@@ -175,9 +229,9 @@ multiple-version fixtures before enabling the screens.
 
 ## Remaining implementation and decisions
 
-- Build a bounded, safe reader and explicit canonical field mapping that preserves
-  missing versus empty values and all extracted tags; do not treat arbitrary bytes
-  accepted by the pure resolver as validated XMP.
+- Integrate the tested bounded reader/association helpers. Add the embedded-field
+  adapter and canonical type/date validation; expand unsupported RDF forms with fixtures
+  as needed. Do not treat arbitrary bytes accepted by the pure resolver as validated XMP.
 - Design durable snapshot/version/origin storage and association records, then integrate
   Index, effective metadata and the API. The resolver alone provides no crash durability.
 - Implement verified photo/sidecar transfer, collision handling, partial shared Move,

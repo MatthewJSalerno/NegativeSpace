@@ -153,9 +153,10 @@ with what it needs:
 | Writing metadata: in the file, or an XMP sidecar (the default for RAW; decided) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
 
 The agreed XMP import/source-precedence contract and the deferred metadata-tab UI are
-tracked in [xmp-metadata.md](xmp-metadata.md). A pure engine resolution helper is built;
-XMP reading at Index, durable version storage, sidecar transfers and editing remain
-planned. The helper does not enable these features in the running app.
+tracked in [xmp-metadata.md](xmp-metadata.md). Pure resolution, bounded sidecar reading
+and ownership-planning helpers are built. XMP reading at Index, durable version storage,
+sidecar transfers and editing remain planned. The helpers do not enable these features
+in the running app.
 
 Further gaps between the documented web workflows and what the engine can answer
 (`engine-spec.md` §9.8):

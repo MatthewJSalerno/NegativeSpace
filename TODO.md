@@ -183,8 +183,12 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Pure metadata provenance resolver: distinct snapshots, explicit active XMP,
   field origins, preserved original bytes, alternatives and empty-versus-absent rules.
   Unit tested; not yet connected to Index or the catalog.
+- [x] Bounded read-only XMP capture and pure ownership planning, tested with generated
+  RDF/XML, ExifTool output, unsafe paths, changing files and association policies.
+  Not connected to Index; semantic date/type validation and embedded adapter remain.
 - [ ] Complete the XMP pipeline and source tabs described in `docs/xmp-metadata.md`.
-  Reader, durable storage, associations, verified transfers, API and UI remain unbuilt.
+  Live reader/association integration, durable storage, verified transfers, API and UI
+  remain unbuilt.
 - [ ] Benchmark and implement lossless XMP BLOB storage (Zstandard only when smaller),
   content reuse with independent arrival lineage, verified restoration and backup coverage.
   No separate destination archive; compression level awaits measurements.

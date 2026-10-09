@@ -1268,8 +1268,9 @@ The format's default determines the write target when none has been established.
     empty; only absent fields fall back to embedded metadata. Preserve both source
     snapshots and field origins. Viewing a source tab does not change the active source.
     [xmp-metadata.md](xmp-metadata.md) defines version conflicts, shared associations,
-    malformed sidecars and the pending UI contract. Only its pure resolution helper is
-    built; Index, storage, safe transfers and source tabs remain unimplemented.
+    malformed sidecars and the pending UI contract. Its pure resolution helper is
+    built along with bounded XMP capture and ownership-planning helpers; live Index
+    integration, storage, safe transfers and source tabs remain unimplemented.
 *   **Original XMP preservation (planned):** store exact originals as catalog BLOBs,
     compressed with Zstandard only when smaller, with original size/hash and encoding.
     Deduplicate content without merging arrival lineage. Benchmark before choosing a
