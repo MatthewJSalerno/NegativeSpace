@@ -875,3 +875,14 @@ between metadata sources. Import choices must distinguish preserving an inactive
 from activating it; use the case-specific workflow in `xmp-metadata.md`. For rejected
 matches, metadata and location choices are independent and share one explicit preview
 and confirmation. All of these metadata screens remain unimplemented.
+
+
+The planned metadata comparison offers one base-version choice with optional per-field
+**Use from this version** overrides in the shared field table. Keep the selected base,
+each overridden field's donor and the resulting value visible; distinguish Empty from
+Not present. Offer a final combined-result preview before saving. Choosing donors does
+not change the primary write target or activate versions through navigation. Explain
+unsupported preservation/writes rather than claiming a safe consolidation. Reuse this
+flow for dates, location, orientation and color information instead of inventing a
+separate conflict screen for each. The original versions and field origins remain in
+history; a composed result is a new version, not an overwrite of the donor snapshots.

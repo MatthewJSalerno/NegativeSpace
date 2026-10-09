@@ -289,6 +289,32 @@ Distinguish two proposed duplicate categories:
   version and its origin before consolidation, with an explicit primary-source choice.
   Retaining metadata must not replace one version with an automatic merged snapshot.
 
+Use one metadata-comparison workflow rather than a separate conflict process for each
+property. The user chooses a base metadata version and may explicitly override selected
+supported fields from another retained version: for example, use X but take the capture
+date from Y. Using the base unchanged remains the simple path; field selection is optional.
+Preview the complete proposed values, per-field donor/version, changes and any refiling
+before confirmation. An explicitly selected empty value clears the field; do not silently
+fall back. Distinguish absence from emptiness and leave no implicit donor selection.
+
+Saving a composed result creates a new recorded metadata version, retaining the base and
+all donor versions unchanged. Record its base version, explicit overrides and their
+origins alongside before/after values. Write supported changes to the established primary
+metadata source; choosing a base or field donor never silently changes that write target.
+Changing the primary source itself remains a separate deliberate choice. Preservation and
+write/read-back verification must complete before consolidation removes a redundant file.
+If required information cannot be preserved or safely reapplied, explain the limitation
+and keep both photos. Composite/linked-field selection semantics remain to be discussed.
+
+For the proposed JPEG content comparison, unchanged encoded image data and the required
+decoding information determine the base-image candidate. Orientation instructions and
+color information are metadata differences shown in this same comparison workflow, not
+separate per-property user workflows. Physical image rewriting is not normalized into
+an exact-content match. Preserve presentation metadata sufficiently to reproduce supported
+states; a profile name alone is not its original profile data. Precise format coverage,
+profile preservation/reapplication and conservative handling of unfamiliar structures
+remain implementation requirements, not claims that current extracted EXIF is sufficient.
+
 An edit that would create an exact duplicate should preview the surviving photo and
 explain the preservation/removal consequences before confirmation. Prepare and verify
 staged output to establish equality; record links from both histories and preserve
@@ -296,8 +322,8 @@ required metadata before any redundant-file removal. This is a new coordinated w
 not permission to feed image-content matches into today's whole-file duplicate cleanup.
 
 A metadata-independent content hash is only a proposed discovery mechanism. Define and
-verify its input per format before implementation: removing EXIF alone does not define
-which XMP, color, orientation or RAW interpretation data belong in the comparison.
+verify its input per format before implementation: removing EXIF alone is insufficient.
+The JPEG direction above does not define RAW interpretation or all JPEG extensions.
 Algorithm, format coverage, performance and equality verification remain open. A pHash
 match never establishes exact image-content equality. Neither hash stores image data or
 reconstructs a file. Do not claim these consolidation/reproduction capabilities are built.

@@ -220,6 +220,11 @@ Found 2026-10-05 looking for screens that do the same job twice.
   checkboxes. Edits target the established primary; format defaults apply when no write
   target is established. Changing primary requires preview/confirmation. Sidecars move
   with their photos and are part of lineage (§9.6).
+- [ ] Base metadata version plus optional explicit field overrides from other versions,
+  with final-value/donor preview, unchanged originals and per-field provenance in a new
+  version. Write to the established primary; donor choice never changes the write target.
+  Reuse the comparison for all supported metadata differences. Linked-field semantics
+  remain to be discussed; see `docs/xmp-metadata.md` and `docs/ui-design.md`.
 - [ ] Reproduce supported source/pre-edit metadata states from unchanged surviving
   image content and complete structured history as a new verified operation. No exact
   photo-byte or lost-image recovery promise; see `docs/xmp-metadata.md`.
