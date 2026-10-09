@@ -867,3 +867,20 @@ Run `SIMILARITY_RECOVERY_FIXTURE=1 DRIVER=attention_browser_drive.py sh tests/br
 with your own app/web image tags. The disposable catalog fixture exercises Inspector,
 Logs, Library-only File issues filtering, unresolved and resolved checks, review queue
 refresh, and desktop/narrow reflow. It does not touch a real catalog.
+
+
+## Externally removed Copied originals
+
+`copied_source_test.py` runs real Index/Copy jobs on generated photos and covers verified
+observations, Move eligibility, duplicate savings, empty-source confirmation, actionable
+verification failures, explicit recovery, renamed paths, cancellation, path bounds,
+source reappearance and atomic catalog rollback. Run as a non-root deployment user:
+
+```sh
+docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app:ro -w /app \
+  negativespace python3 -m unittest discover -s tests -p copied_source_test.py -v
+```
+
+`DRIVER=copied_source_browser_drive.py sh tests/browser/webui_browser_test.sh` validates
+the existing Library/Inspector/history presentation and refreshed Move eligibility
+after removing an original from the harness's generated source.

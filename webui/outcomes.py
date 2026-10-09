@@ -20,7 +20,7 @@ _SUCCESS = {"indexed", "duplicates", PhotoStatus.COPIED, PhotoStatus.COMPLETED,
             PhotoStatus.REJECTED, PhotoStatus.REJECTED_COPIED, OPERATION_RETURNED}
 _FAILURE = {"failed", PhotoStatus.FAILED, "missing", "changed", "unreadable"}
 _SKIPPED = {"unchanged", OPERATION_SKIPPED, "already", "kept", "Already_Gone", "unknown"}
-_REQUESTED_PHASES = {"INDEX": ("scanning",), "COPY": ("scanning", "transferring"),
+_REQUESTED_PHASES = {"INDEX": ("scanning", "checking_destination"), "COPY": ("scanning", "transferring"),
                      "MOVE": ("scanning", "transferring", "removing_duplicates"),
                      "SIMILARITY": ("scanning", "matching"), "REBUILD": ("rebuilding_thumbnails",), "CHECK": ("checking_destination",),
                      "REJECT": ("transferring",), "RETURN": ("transferring",)}

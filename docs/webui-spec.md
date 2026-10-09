@@ -2889,3 +2889,9 @@ operation outcomes remain historical; the check has its own linked operation. Bu
 submission failure, reload and request replay follow existing job controls. A generic
 full destination scan, missing-photo restoration, and automatic conflict cleanup are
 separate features. Checking does not promise to repair the photo or storage.
+
+A full Index can also discover a Copied photo whose original was removed outside the
+app. A verified Library copy remains in Library as Found at destination, with a history
+explanation and no remaining Move eligibility. An unverified copy uses the same File
+issues panel and recovery action. Empty-source confirmation still applies; the app does
+not assume that an empty mount means its originals were deliberately deleted.

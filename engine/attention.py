@@ -76,7 +76,7 @@ def check_issue(db_path, source_root, dest_root, run_id, issue_id):
         paths = {'source':Path(old) if old else None,'destination':Path(new) if new else None}
         if not photo or not sha or photo[0] != sha:
             problem = 'The catalog content has changed or has no recorded checksum. Review the file history before taking further action.'
-        elif kind not in ('copy','move','move_already_present','duplicate_removal',*relocate._RELOCATION_NOUNS):
+        elif kind not in ('copy','move','move_already_present','duplicate_removal','copied_source_check',*relocate._RELOCATION_NOUNS):
             problem = 'This operation has no supported transfer intent. Review its recorded evidence outside the app.'
         elif (photo[2] not in (old,new) if relocation else (photo[1] != old or photo[2] != new)):
             problem = 'The catalog paths have changed since this operation. Review the current file history.'

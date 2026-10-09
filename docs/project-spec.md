@@ -137,6 +137,8 @@ Delivered and validated against a real library. In place today:
     backup holds.
 *   Discovery accounting per full Index: files found, eligible and excluded by type.
 *   Removal of thumbnails whose content no catalogued photo holds.
+*   Full Index reconciles externally missing Copied originals against verified Library
+    copies; uncertain copies use the shared file-issue recovery workflow.
 
 Only a usable `DateTimeOriginal` places a photo in the date tree. Anything else
 files under `Undated/<year>/`, the year taken from the source's modification time

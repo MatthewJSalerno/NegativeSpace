@@ -585,7 +585,8 @@ def main():
             # Only a full walk can say what is no longer there.
             vanished = scan.mark_vanished_sources(str(db_path), run_id, source_path, candidates,
                                              dest_root=dest_path,
-                                             confirm_empty=args.confirm_source_empty)
+                                             confirm_empty=args.confirm_source_empty,
+                                             check_copied=not (args.copy or args.move))
             if vanished:
                 runtime.logger.warning(
                     f"{vanished:,} catalogued file(s) under {source_path} no longer exist; recorded as "

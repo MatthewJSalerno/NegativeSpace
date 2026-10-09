@@ -15,11 +15,13 @@ Open work, open design questions and the durability claims ledger. Designs live 
 
 ## Copy, then delete the originals yourself
 
-- [ ] A Copied photo whose original was deleted outside NegativeSpace is not recorded: a
-  full Index checks for missing originals only among photos not yet copied. It should read
-  as normal ("original removed outside NegativeSpace; the copy is in the library"),
-  recorded in the photo's history, never as a failure, and drop out of Move's count and
-  Stats' "A Move would free" (`docs/engine-spec.md` §4.2). Copy-only users depend on it.
+- [x] Full Index detects externally missing originals of Copied Library photos, verifies
+  their recorded destination, and records Found_At_Destination with source presence
+  missing. Verified photos stay in Library and leave Move's eligible count. An empty
+  source still requires confirmation; unverified copies enter File issues with Check
+  it now. Repeat Index does not duplicate observations or retry an open file issue.
+  Duplicate savings recognize observed deliveries; absent duplicate originals no longer
+  contribute to Stats' “A Move would free.” No photo is moved or deleted by this check.
 
 ## Names
 

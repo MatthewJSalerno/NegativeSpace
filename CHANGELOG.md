@@ -9,6 +9,8 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Full Index recognizes externally removed Copied originals after verifying their Library copies, updates Move eligibility, and exposes unverified copies through File issues.
+
 - Show uncertain file outcomes in photo information, Logs and the Library review inbox; verify recorded files with Check it now without moving or deleting photos.
 
 ### Added

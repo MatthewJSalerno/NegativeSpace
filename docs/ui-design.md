@@ -845,3 +845,8 @@ Issues remain visible in Not organized and Rejects. Active Library photos also e
 Other locations never enter the Library inbox. A successful check refreshes counts and
 photo state; an emptied review queue follows the standard return-to-gallery behavior.
 Checks with two remaining relocation names do not remove either name automatically.
+
+An externally missing original with a verified Library copy is a normal observation,
+not a failed Move. Keep it in Library, record what was observed in history, and update
+Move counts. If the copy cannot be verified, use the shared File issues explanation and
+Check it now action. A disconnected/empty source retains the existing safety question.
