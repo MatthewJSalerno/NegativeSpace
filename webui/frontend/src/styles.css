@@ -90,6 +90,8 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 .sidebar .sidebar-item[aria-pressed=true] { box-shadow: inset 3px 0 0 var(--accent); }
 .sidebar .sidebar-item[aria-disabled=true] { color: var(--muted); cursor: default; }
 .sidebar-group { display: flex; flex-direction: column; gap: 2px; }
+/* Source folders, under Not organized. */
+.sidebar a.sidebar-sub { min-height: 36px; padding-left: var(--space-8); }
 .sidebar-count { margin-left: auto; color: var(--muted); font-size: var(--type-xs); font-weight: var(--weight-normal); font-variant-numeric: tabular-nums; }
 .sidebar-heading { margin: var(--space-4) var(--space-3) var(--space-1); font-size: var(--type-xs); color: var(--muted); }
 .sidebar-foot { margin-top: auto; padding: var(--space-4) var(--space-3) 0; }
@@ -203,6 +205,35 @@ button.link.status-only { font-size: var(--type-xs); }
 @media (min-width: 801px) {
   .gallery-pane { min-width: 420px; }
 }
+
+/* Source folders (webui-spec 2): the source's folder tree beside the gallery, in view as
+   it scrolls; folders with nothing to show stay listed, dimmed, so the tree keeps its shape. */
+.source-tree { flex: 0 0 300px; align-self: flex-start; position: sticky; top: var(--header-offset);
+  max-height: calc(100vh - var(--header-offset)); overflow-y: auto; display: grid; gap: var(--space-4); align-content: start;
+  padding: var(--space-4) var(--space-3) var(--space-6); border-right: 1px solid var(--border); }
+.source-tree .segmented button { font-size: var(--type-xs); }
+.folder-row.empty .folder-name, .folder-row.empty .dates-count { color: var(--muted); }
+@media (max-width: 800px) {
+  .content:has(> .source-tree) { flex-wrap: wrap; }
+  .source-tree { flex: 1 1 100%; position: static; max-height: 40vh; border-right: 0; border-bottom: 1px solid var(--border); }
+}
+
+/* The date scrubber (YearScrubber.tsx), at the gallery's right edge and in view as it
+   scrolls: year labels on a track; the marker is where the screen is, the floating label
+   the month under the pointer. */
+.scrubber { flex: 0 0 48px; align-self: flex-start; position: sticky; top: var(--header-offset);
+  height: calc(100vh - var(--header-offset)); padding: var(--space-4) 0 var(--space-6); }
+.scrubber-track { position: relative; height: 100%; cursor: row-resize; touch-action: none; user-select: none;
+  border-left: 1px dotted var(--border); }
+.scrubber-year { position: absolute; right: var(--space-1); transform: translateY(-50%); min-height: 0; padding: 0 var(--space-1);
+  border: 0; background: none; color: var(--muted); font-size: var(--type-xs); font-variant-numeric: tabular-nums; line-height: 1.4; }
+.scrubber-year:hover { color: var(--text); background: none; }
+.scrubber-marker { position: absolute; left: 0; right: 0; height: 2px; background: var(--accent); pointer-events: none; }
+.scrubber-hover { position: absolute; right: calc(100% + var(--space-2)); transform: translateY(-50%); white-space: nowrap;
+  padding: var(--space-1) var(--space-2); border-radius: var(--control-radius); background: var(--surface-2); color: var(--text);
+  font-size: var(--type-xs); box-shadow: var(--shadow); pointer-events: none; z-index: var(--layer-menu); }
+@media (max-width: 800px) { .scrubber { display: none; } }
+@media (forced-colors: active) { .scrubber-marker { background: Highlight; } }
 
 /* The movable divider between gallery and Inspector. */
 .divider {

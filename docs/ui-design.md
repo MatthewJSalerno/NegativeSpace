@@ -152,9 +152,35 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   sits under its heading, and the panel's own heading stays in view as it scrolls, so
   neither is a scroll away. *Why not a second column:* the sidebar holds the left edge,
   and two columns of controls before the photos crowded the gallery.
+- **Date scrubber** (`YearScrubber.tsx`), down the gallery's right edge and in view as it
+  scrolls, while the gallery is sorted by date (not in Show only selected, a review, or
+  grouped similar photos); its column stays while it loads or a filter leaves one year,
+  so the gallery never shifts sideways: the years in the gallery's order, each
+  given room by how many photos it holds, "No date" last. Labels go to the years holding
+  the most photos first, where they have room, so a large year is never unlabelled beside
+  a near-empty one. Pointing shows the month under the pointer; a click, or a drag's
+  release, goes there; a year label is a button that goes to that year. A marker shows
+  where the screen is. It uses the Dates tree's jump, so a date the filters hide says so.
+  *From:* Immich's timeline scrubber. Keyboard users reach the year labels, and any
+  month through Filters › Dates.
+- **Source folders** (maintainer, 2026-10-09), indented under Not organized in the sidebar:
+  Not organized with the source's folder tree beside the gallery (the Folders tree, in a
+  pane, in view as it scrolls), and a switch, **Waiting | Still in source** ("Everything
+  still in the source": what is waiting, plus the originals of photos already copied or
+  rejected after a Copy). Every catalogued folder stays listed, dimmed at 0 when nothing in
+  it is shown, so the tree keeps its shape as photos are organized. With one folder
+  ticked, the heading names it and **Copy this folder (n)…** / **Move this folder (n)…**
+  sit under it, counted as the Jobs menu counts them: a Move also removes the originals of
+  photos already copied, each once its copy is verified again. In this view the Filters
+  panel holds Types and Dates only. Empty states offer the next step as a button (**Show
+  everything still in the source**, **Go to Library**). *Why under Not organized:* source
+  folders matter while photos wait to be organized or their originals wait to be removed;
+  the Library and the destination are laid out by date, which the date scrubber navigates.
+  Filters › Folders still narrows any place by source folder.
 - **Narrow windows (800px and below):** the sidebar hides behind a **☰ Menu** button at
   the start of the top bar and opens over the page; Esc, a click outside or choosing a
-  link closes it. At 700px and below the Filters panel spans the window, as menus do.
+  link closes it. The date scrubber hides. At 700px and below the Filters panel spans the
+  window, as menus do.
   Desktop is the target; this keeps a half-screen window usable.
 
 ## Stable navigation and filtering

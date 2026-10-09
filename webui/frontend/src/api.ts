@@ -38,7 +38,8 @@ export type PlaceView = "unorganized" | "organized" | "review" | "rejects";
 export type LookInto = "similar" | "suspicious" | "undated" | "small" | "later";
 export interface Places { places: Record<PlaceView, number>; look_into: Record<LookInto, number> }
 
-export type View ="review" | "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects";
+// "source": every photo whose original is still in the source (Source folders).
+export type View = "review" | "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects" | "source";
 // A job acting on photos; Reject and Return to library need a selection or a folder.
 export type ActionMode = "copy" | "move" | "reject" | "return";
 // Where a photo is, for selecting: a selection holds library photos or photos in Rejects,
@@ -114,6 +115,8 @@ export interface BrowseFilters {
   dates?: string[];
   types?: string[];
   folders?: string[];
+  // The folder tree only: list every catalogued folder, at 0 where nothing is shown.
+  every?: boolean;
 }
 
 // A source folder in the Folders tree (GET /photos/folders): its path relative to the
@@ -146,6 +149,7 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
   (f.dates ?? []).forEach((d) => query.append("date", d));
   (f.types ?? []).forEach((t) => query.append("type", t));
   (f.folders ?? []).forEach((d) => query.append("folder", d));
+  if (f.every) query.set("every", "true");
   return query;
 }
 

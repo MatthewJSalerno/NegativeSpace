@@ -47,7 +47,11 @@ The places are in the sidebar on the left. **Filters** beside the sort narrows b
 **Folders** or **Dates**, and the box at the top searches by filename. After Copy or Move,
 Library holds organized photos, Needs review filters those needing attention, and
 Rejects holds photos you have rejected. **Look into**, under the places, narrows the place
-you are in: photos with look-alikes, suspicious dates, no capture date, small images.
+you are in: photos with look-alikes, suspicious dates, no capture date, small images. The
+years down the right edge jump through the gallery: point to see the month, click to go.
+**Source folders**, under Not organized, lists the source's folders: copy or move a folder
+at a time, and with **Still in source**, find the originals of photos you have already
+copied and move them off the source.
 
 ![The gallery, showing one year](images/gallery.png)
 

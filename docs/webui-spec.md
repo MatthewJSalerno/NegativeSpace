@@ -250,7 +250,9 @@ a go-to-page box), and 60, 120 or 240 photos load at a time (**Load 60 at a time
 Selecting in bulk speaks of the screen and the view, not pages. **Why not separate pages any more:** they were chosen
 because selection was defined per page; the selection is now an explicit list kept
 across pages, and a page count that the grid's columns did not divide left gaps. The date
-tree jumps to a year or month by the page it starts on (`GET /api/v1/photos/timeline`).
+tree, and the **date scrubber** at the gallery's right edge (years given room by their
+photos; point for the month, click or drag to go there), jump to a year or month by the
+page it starts on (`GET /api/v1/photos/timeline`).
 The page, page size, sort, view, search, dates and open photo live in the URL.
 In-app links and browser Back/Forward apply the destination URL even on the same
 screen. The logo link (the Library at its last place) resets browsing filters and
@@ -282,7 +284,12 @@ within the place shown, counted there, dimmed where they do not apply. From Logs
 a place opens whole, and a filter opens Library (Review later: Needs review) with only it
 on. While photos are selected, the selection bar takes the top bar, grouped at its start
 and keeping the search (§4). Types, Folders and Dates
-are in the **Filters** panel beside Sort, opened over the photos. Below 800px the
+are in the **Filters** panel beside Sort, opened over the photos. Under Not organized,
+**Source folders** (`?view=unorganized&tree=1`) shows the source's folder tree beside
+the gallery, every catalogued folder listed (`GET /photos/folders?every=true`), with
+**Waiting | Still in source** (`view=source`: photos whose original is still in the
+source, so the originals of copied photos can be found and moved off by folder) and, for
+one ticked folder, **Copy this folder (n)…** / **Move this folder (n)…**. Below 800px the
 sidebar hides behind a **☰ Menu** button and opens over the page. The design rules are
 in `ui-design.md`, "Page frame".
 

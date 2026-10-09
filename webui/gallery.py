@@ -525,7 +525,8 @@ def file_types(db_path: Path, *, view="all", q=None, undated=False, dates=None, 
 
 
 def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False, dates=None, types=None,
-                keep=None, match_min=75, group_sets=False, run=None, similar=False, suspicious=False, reason="all") -> dict:
+                keep=None, match_min=75, group_sets=False, run=None, similar=False, suspicious=False, reason="all",
+                every=False) -> dict:
     """The source's folders for the Folders tree (webui-spec 2): built from catalogued
     source paths, never a disk listing, so every folder offered holds photos a job can
     act on. Each folder counts its photos recursively under the view, search, dates and
@@ -533,8 +534,9 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
     number), and, whatever the filters, the photos a Copy or a Move of it would take
     (ns_db.TRANSFER_ELIGIBLE), for the Jobs menu. A chain of folders each holding only one
     folder and no photos is one row ("Camera / Nikon D750"). A folder in `keep` stays
-    listed at 0, so a ticked folder can be unticked. Photos outside the source folder
-    (a catalog shared with another source) are counted in `outside`, not placed."""
+    listed at 0, so a ticked folder can be unticked; with `every`, so does every catalogued
+    folder (Source folders keeps the tree's shape as photos are organized). Photos outside
+    the source folder (a catalog shared with another source) are counted in `outside`, not placed."""
     _check_view(view)
     filtered, params = _filters(q, undated, dates, types, group_sets=group_sets and (view == "similar" or similar), group_view=view, match_min=match_min, run=run, similar=similar, suspicious=suspicious, reason=reason)
     base = str(root).rstrip("/") + "/"
@@ -571,7 +573,7 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
     kept = {_folder(root, k) for k in keep or []}
 
     def listed(path, node):
-        return node["photos"] > 0 or path in kept or any(k.startswith(path + "/") for k in kept)
+        return every or node["photos"] > 0 or path in kept or any(k.startswith(path + "/") for k in kept)
 
     def build(prefix, sub):
         out = []

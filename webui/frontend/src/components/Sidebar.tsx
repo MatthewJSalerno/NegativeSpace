@@ -1,11 +1,11 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { Fragment, useEffect, useState, type MouseEvent } from "react";
 import { api, savedMatchMinimum, type LookInto, type PlaceView, type Places, type Status } from "../api";
 import { count } from "../format";
 import { follow } from "../nav";
 import { VersionTag } from "./VersionTag";
 
-// What the sidebar marks as current: a place, or Logs or Stats.
-export interface SidebarCurrent { place?: PlaceView | null; page?: "logs" | "stats" }
+// What the sidebar marks as current: a place, Source folders, or Logs or Stats.
+export interface SidebarCurrent { place?: PlaceView | null; sourceFolders?: boolean; page?: "logs" | "stats" }
 
 // The Library page's filters, shown in Look into: on or off, the count in the place shown
 // under the other filters, and why a filter does not apply to that place (null: it does).
@@ -88,7 +88,12 @@ export function Sidebar({ current, version, matchMin, refresh, filters, onPlace,
   };
   return (
     <nav id="sidebar" className="sidebar" aria-label="Main">
-      {PLACES.map((p) => link(`/?view=${p.view}`, p.label, current.place === p.view, counts?.places[p.view], p.view))}
+      {PLACES.map((p) => <Fragment key={p.view}>
+        {link(`/?view=${p.view}`, p.label, current.place === p.view, counts?.places[p.view], p.view)}
+        {/* The source's folders, under the place whose photos are still in them. */}
+        {p.view === "unorganized" && <a href="/?view=unorganized&tree=1" className="sidebar-sub"
+           aria-current={current.sourceFolders ? "page" : undefined} onClick={(e) => go(e)}><span>Source folders</span></a>}
+      </Fragment>)}
       <h2 className="sidebar-heading" id="look-into">Look into</h2>
       <div className="sidebar-group" role="group" aria-labelledby="look-into">
         {LOOK.map((l) => filters ? toggle(l, filters) : link(l.href, l.label, false, counts?.look_into[l.key]))}

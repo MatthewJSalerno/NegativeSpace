@@ -306,12 +306,15 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/photos/folders")
     def get_folders(view: str = "all", q: Optional[str] = None, undated: bool = False,
                     date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                    folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all"):
+                    folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all",
+                    every: bool = False):
         """The source's folders with their counts; `folder` names ticked folders, which stay
-        listed at 0 but do not narrow the counts (the tree ignores its own filter)."""
+        listed at 0 but do not narrow the counts (the tree ignores its own filter); `every`
+        lists every catalogued folder, at 0 where nothing is shown."""
         try:
             return gallery.folder_tree(cfg.db_path, cfg.source, view=view, q=q, undated=undated, dates=date,
-                                       types=type, keep=folder, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason)
+                                       types=type, keep=folder, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason,
+                                       every=every)
         except ValueError as exc:
             raise _bad_request(exc)
 

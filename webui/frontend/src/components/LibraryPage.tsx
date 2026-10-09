@@ -11,6 +11,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { AppFrame } from "./AppFrame";
 import type { SidebarFilters } from "./Sidebar";
 import { FiltersButton } from "./FiltersButton";
+import { YearScrubber } from "./YearScrubber";
 import { api, ApiError, savedMatchMinimum, submissionSnapshot, subscribeSubmission, MATCH_THRESHOLDS, type ActionMode, type PlaceView, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
 import { count, plural } from "../format";
 import { jobLabel, summary, useJobCompletion, useJobFeed } from "../jobs";
@@ -36,7 +37,11 @@ import { follow, navigate, rememberLibraryQuery, useNavigation } from "../nav";
 // The Inspector's least width, and the gallery's beside it.
 const MIN_SIDE = 320;
 const MIN_GALLERY = 420;
-const VIEW_LABEL: Record<View, string> = { all: "Search results", unorganized: "Not organized", organized: "Library", similar: "Has similar photos", suspicious: "Suspicious dates", rejects: "Rejects", review: "Needs review" };
+// The date scrubber's width (styles.css .scrubber), kept clear of the Inspector, and the
+// Source folders tree's (.source-tree).
+const SCRUBBER = 48;
+const SOURCE_TREE = 300;
+const VIEW_LABEL: Record<View, string> = { all: "Search results", unorganized: "Not organized", organized: "Library", similar: "Has similar photos", suspicious: "Suspicious dates", rejects: "Rejects", review: "Needs review", source: "Everything still in the source" };
 const PLACE_VIEWS: View[] = ["unorganized", "organized", "review", "rejects"];
 // The review bar's words for each job a selection can be reviewed for.
 // Why a review left selected photos out: what each action takes (catalog.ACTION_STATUSES).
@@ -83,7 +88,9 @@ function readUrl(hasLibrary = true) {
   const matchPage = Number(p.get("match_page"));
   const similar = (view === "organized" || view === "review" || view === "all") && (legacy === "similar" || p.get("similar") === "1");
   return {
-    view: (["all", "unorganized", "organized", "similar", "suspicious", "rejects", "review"] as View[]).includes(view) ? view : "all",
+    view: (["all", "unorganized", "organized", "similar", "suspicious", "rejects", "review", "source"] as View[]).includes(view) ? view : "all",
+    // Source folders (webui-spec 2): Not organized, or everything still in the source, by folder.
+    sourceTree: p.get("tree") === "1" && (view === "unorganized" || view === "source"),
     similar,
     groupSets: p.has("group_sets") ? p.get("group_sets") !== "0" : savedGrouping(),
     suspicious: legacy === "suspicious" || p.get("suspicious") === "1",
@@ -128,6 +135,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
 }) {
   const initial = useRef(readUrl((status.library_photos ?? 0) > 0)).current;
   const [view, setView] = useState<View>(initial.view);
+  const [sourceTree, setSourceTree] = useState(initial.sourceTree);
   const [reviewReturn, setReviewReturn] = useState<{ url: string; anchor: number; offset: number; opener: number } | null>(null);
   const restoringReview = useRef<typeof reviewReturn>(null);
   useEffect(() => { if (PLACE_VIEWS.includes(view)) savePreference("ns.place", view); }, [view]);
@@ -232,7 +240,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     if (window.location.pathname !== "/") return;
     const next = readUrl((status.library_photos ?? 0) > 0);
     setSimilar(next.similar); setGroupSets(next.groupSets); setSuspicious(next.suspicious); setReason(next.reason); setReviewPhoto(next.reviewPhoto);
-    setView(next.view); setSort(next.sort); setMatchMin(next.matchMin);
+    setView(next.view); setSourceTree(next.sourceTree); setSort(next.sort); setMatchMin(next.matchMin);
     setQ(next.q); setSearch(next.q);
     setPage(next.page); setPageSize(next.size);
     setUndated(next.undated); setDates(next.dates);
@@ -337,6 +345,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     types.forEach((t) => p.append("type", t));
     folders.forEach((f) => p.append("folder", f));
     if (jobRun != null) p.set("run", String(jobRun));
+    if (sourceTree) p.set("tree", "1");
     if (openId != null) {
       p.set("photo", String(openId));
       if (comparison?.origin === openId) p.set("review", JSON.stringify(comparison));
@@ -392,9 +401,9 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   // filter; the ticked folders are sent so they stay listed at 0.
   useEffect(() => {
     let live = true;
-    api.folders({ view: browseView, similar, suspicious, reason: reviewFilter, run: jobRun ?? undefined, match_min: galleryMinimum, q, undated, dates, types, folders }).then((t) => live && setFolderTree(t), () => live && setFolderTree(null));
+    api.folders({ view: browseView, similar, suspicious, reason: reviewFilter, run: jobRun ?? undefined, match_min: galleryMinimum, q, undated, dates, types, folders, every: sourceTree }).then((t) => live && setFolderTree(t), () => live && setFolderTree(null));
     return () => { live = false; };
-  }, [similar, suspicious, reason, browseView, jobRun, galleryMinimum, q, undated, dates, types, folders, refreshKey]);
+  }, [similar, suspicious, reason, browseView, jobRun, galleryMinimum, q, undated, dates, types, folders, sourceTree, refreshKey]);
 
   const memberBrowse = focus?.kind === "set" ? { view: "all" as const, q: "", undated: false,
     set_reference: focus.reference!, match_min: focus.threshold!, dates: [], types: [], folders: [] } : null;
@@ -660,17 +669,19 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     restoringReview.current = null;
   }, [list.ready, flat, view]);
   const chooseView = (v: View) => {
-    setJobRun(null); jobFilters.current = null; setFollowJob(null);
+    setJobRun(null); jobFilters.current = null; setFollowJob(null); setSourceTree(false);
     sortChoices.current[similar ? "similar" : view] = sort;
     setView(v);
     setOpenId(null); setLocate(null); setRevealId(null); setComparison(null); setReviewPhoto(null);
     const scope: View = similar && (v === "organized" || v === "review") ? "similar" : v;
     setSort(sortChoices.current[scope] ?? savedSort(scope));
     setPage(1);
-    if (v === "unorganized" || v === "rejects") setSimilar(false);
+    if (v === "unorganized" || v === "rejects" || v === "source") setSimilar(false);
     if (v !== "review" && (v !== "organized" || reason !== "small")) setReason("all");
     if (v === "all") { setUndated(false); setDates([]); setTypes([]); setFolders([]); }
   };
+  // Source folders' switch: what is waiting, or everything still in the source.
+  const chooseSourceScope = (v: "unorganized" | "source") => { chooseView(v); setSourceTree(true); };
   const jumpTo = (key: string) => {
     const newestFirst = sort !== "oldest";
     const target = datePage(jumpTimeline ?? timeline ?? { months: [], undated: 0 }, newestFirst, pageSize, key);
@@ -758,7 +769,12 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   // The divider between the gallery and the Inspector: drag it, or focus it and use
   // the arrow keys. The photo grid keeps MIN_GALLERY. Clamp restored preferences too,
   // and recalculate when the window resizes.
-  const inspectorMax = Math.max(MIN_SIDE, contentWidth - MIN_GALLERY - 8);
+  // The date scrubber, beside the gallery while it is sorted by date: the timeline under the
+  // date filter when one is on, as a jump uses. Its column stays while the timeline loads or
+  // a filter leaves one year, so the gallery never shifts sideways.
+  const scrubTimeline = dates.length ? jumpTimeline : timeline;
+  const scrubber = !focus && !grouped && (browseSort === "newest" || browseSort === "oldest");
+  const inspectorMax = Math.max(MIN_SIDE, contentWidth - MIN_GALLERY - 8 - (scrubber ? SCRUBBER : 0) - (sourceTree ? SOURCE_TREE : 0));
   const boundedWidth = (px: number) => Math.round(Math.min(inspectorMax, Math.max(MIN_SIDE, px)));
   const effectivePanelWidth = boundedWidth(Number.isFinite(panelWidth) && panelWidth != null ? panelWidth : contentWidth / 2);
   // The latest width, so arrow keys pressed faster than the page redraws each count.
@@ -881,7 +897,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   // place shown; Small images and Review later are one reminder scope at a time. Choosing
   // one leaves Show only selected or a review first, as a place does.
   const libraryOnly = view === "organized" || view === "review" ? null
-    : view === "unorganized" ? "Organized photos only: open Library or Needs review." : "Library photos only: open Library or Needs review.";
+    : view === "rejects" ? "Library photos only: open Library or Needs review." : "Organized photos only: open Library or Needs review.";
   const lookFilters: SidebarFilters = {
     on: { similar, suspicious, undated, small: reason === "small", later: reason === "later" },
     counts: { similar: data?.chips?.similar, suspicious: data?.chips?.suspicious, undated: data?.chips?.undated,
@@ -901,13 +917,14 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       if (key === "small" || key === "later") setReason(reason === key ? "all" : key);
     },
   };
-  const filtersActive = dates.length + types.length + folders.length;
+  // Source folders shows its folders in the tree, not in the Filters panel.
+  const filtersActive = dates.length + types.length + (sourceTree ? 0 : folders.length);
   const searchField = <SearchField className="search" placeholder="Search filenames" value={search}
                                    onValueChange={(v) => { if (focus) backToResults(); setSearch(v); }} aria-label="Search filenames" />;
 
   return (
     <AppFrame header={header} status={status} onOpenSettings={onOpenSettings} className={openId != null ? "with-inspector" : ""}
-      current={{ place: placeShown }} matchMin={matchMin} refresh={refreshKey} filters={lookFilters}
+      current={{ place: sourceTree ? null : placeShown, sourceFolders: sourceTree }} matchMin={matchMin} refresh={refreshKey} filters={lookFilters}
       onPlace={(v) => { if (focus) backToResults(); chooseView(v); }}
       search={searchField}
       jobs={<JobsMenu
@@ -929,18 +946,29 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
         {actionError && <p className="error banner" role="alert">{actionError} <button onClick={() => setActionError(null)}>Dismiss</button></p>}
       </>}>
       <main id="main-content" tabIndex={-1} className="content" ref={content}>
+        {sourceTree && !focus && (
+          <aside className="source-tree" aria-label="Source folders">
+            <div className="segmented" role="group" aria-label="Show">
+              <button type="button" aria-pressed={view === "unorganized"} onClick={() => chooseSourceScope("unorganized")}
+                      title="Photos not organized yet">Waiting</button>
+              <button type="button" aria-pressed={view === "source"} onClick={() => chooseSourceScope("source")}
+                      title="Everything still in the source: what is waiting, and the originals of photos already copied">Still in source</button>
+            </div>
+            <FoldersPanel tree={folderTree} folders={folders} onFolders={changeFolders} heading="Source folders" />
+          </aside>
+        )}
         <div className="gallery-pane">
           <div className="gallery-context">
-            {!focus && <h2>{VIEW_LABEL[view]}</h2>}
-            {!focus && (undated || dates.length > 0 || types.length > 0 || folders.length > 0 || !!q || similar || suspicious) && <p className="section-note">
-              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...folders.map(folderLabel)].filter(Boolean).join(" · ")}
-              {" "}<button className="link" onClick={() => { setSimilar(false); setSuspicious(false); setUndated(false); setReason("all"); if (sort === "matches") setSort("newest"); setQ(""); setSearch(""); setDates([]); setTypes([]); setFolders([]); setPage(1); }}>Clear filters</button>
+            {!focus && <h2>{sourceTree && folderShown ? folderLabel(folderShown.path) : sourceTree ? "Source folders" : VIEW_LABEL[view]}</h2>}
+            {!focus && (undated || dates.length > 0 || types.length > 0 || (folders.length > 0 && !sourceTree) || !!q || similar || suspicious) && <p className="section-note">
+              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
+              {" "}<button className="link" onClick={() => { setSimilar(false); setSuspicious(false); setUndated(false); setReason("all"); if (sort === "matches") setSort("newest"); setQ(""); setSearch(""); setDates([]); setTypes([]); if (!sourceTree) setFolders([]); setPage(1); }}>Clear filters</button>
             </p>}
             <span className="gallery-tools">
               <FiltersButton active={filtersActive} open={filtersOpen && !focus} onOpen={setFiltersOpen} disabled={!!focus}>
                 <TypesPanel types={typeCounts} selected={types} onTypes={changeTypes} />
-                <BrowseBySwitch value={browseBy} onChange={setBrowseBy} />
-                {browseBy === "folders"
+                {!sourceTree && <BrowseBySwitch value={browseBy} onChange={setBrowseBy} />}
+                {browseBy === "folders" && !sourceTree
                   ? <FoldersPanel tree={folderTree} folders={folders} onFolders={changeFolders} />
                   : <DatesPanel timeline={timeline} dates={dates} current={currentDates} oldestFirst={browseSort === "oldest"}
                                 sortedByDate={browseSort === "newest" || browseSort === "oldest"}
@@ -957,6 +985,16 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               </select>
             </span>
           </div>
+          {!focus && sourceTree && folderShown && (
+            <div className="photo-actions">
+                <button className="photo-action" disabled={jobRunning || !folderShown.eligible.copy} onClick={() => askFolder("copy")}
+                        title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : !folderShown.eligible.copy ? "Nothing to copy there - every photo in it is copied or organized." : "Copy what is waiting in this folder and its subfolders. The source is left untouched."}>
+                  Copy this folder ({count(folderShown.eligible.copy)})…</button>
+                <button className="photo-action" disabled={jobRunning || !folderShown.eligible.move} onClick={() => askFolder("move")}
+                        title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : !folderShown.eligible.move ? "Nothing to move there - every photo in it is organized." : "Move what is waiting, and remove the originals of photos already copied once each copy is verified again."}>
+                  Move this folder ({count(folderShown.eligible.move)})…</button>
+            </div>
+          )}
           {loadError && <p className="error">{loadError}</p>}
           {notice && (
             <p className="notice" role="status">
@@ -1014,7 +1052,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             </div>
           )}
           {!focus && browseView === "rejects" && data?.rejects && <RejectsLine rejects={data.rejects} />}
-          {!focus && view === "unorganized" && data?.index_summary && data.index_summary.photos > 0 && (indexSummaryClosed
+          {!focus && view === "unorganized" && !sourceTree && data?.index_summary && data.index_summary.photos > 0 && (indexSummaryClosed
             ? <button ref={summaryToggle} onClick={() => { setPreviewSummaryExpanded(true); toggleIndexSummary(null); }}>Show index summary</button>
             : <section className="notice index-summary" aria-label="Index summary">
             <div className="index-summary-heading"><h3>{indexNeedsAttention ? `${plural(data.index_summary.failed, "file")} ${data.index_summary.failed === 1 ? "needs" : "need"} attention` : "Index summary"}</h3>
@@ -1106,7 +1144,15 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           </p>}
           {!focus && data && data.total === 0 && (
             <div className="empty">
-              {noPhotos ? (
+              {sourceTree && !noPhotos && !q ? (
+                view === "unorganized" ? <>
+                  <h2>{folderShown ? `Nothing waiting in ${folderLabel(folderShown.path)}` : "Nothing waiting to be organized"}</h2>
+                  {(data.counts.source ?? 0) > 0
+                    ? <><p>Originals of photos already copied are still in the source; a Move removes them once each copy is verified again.</p>
+                        <button className="primary" onClick={() => chooseSourceScope("source")}>Show everything still in the source</button></>
+                    : <><p>Every catalogued photo has left the source.</p><button onClick={() => chooseView("organized")}>Go to Library</button></>}
+                </> : <><h2>Every catalogued photo has left the source</h2><button onClick={() => chooseView("organized")}>Go to Library</button></>
+              ) : noPhotos ? (
                 <>
                   <h2>{view === "unorganized" ? "Index your source to find photos" : view === "organized" ? "No photos organized yet" : view === "review" ? "Nothing needs review yet" : "No rejected photos"}</h2>
                   {view === "unorganized" ? <><p>Indexing reads your source photos; nothing is moved or copied.</p><button className="primary" onClick={start("index")} disabled={jobRunning} aria-live="polite">{submission.pending?.body.mode === "index" ? "Starting…" : "Index source"}</button></>
@@ -1151,6 +1197,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             </>
           )}
         </div>
+        {scrubber && <YearScrubber timeline={scrubTimeline} newestFirst={browseSort !== "oldest"}
+                                                    current={currentDates} onJump={jumpTo} />}
         {openId != null && (
           <>
             <div className="divider" role="separator" aria-orientation="vertical" aria-label="Resize the photo panel"

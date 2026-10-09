@@ -42,10 +42,11 @@ export function folderLabel(path: string): string {
 // their own; a folder some of whose subfolders are ticked shows a dash. Counts follow
 // the view, search, dates and types, never this filter, so an unticked folder keeps
 // its number. Long names end in "…", with the whole path on hover.
-export function FoldersPanel({ tree, folders, onFolders }: {
+export function FoldersPanel({ tree, folders, onFolders, heading = "Folders" }: {
   tree: FolderTree | null;
   folders: string[];
   onFolders: (folders: string[]) => void;
+  heading?: string;
 }) {
   const [open, setOpen] = useState<Set<string>>(() => {
     const ancestors = new Set<string>();
@@ -75,7 +76,7 @@ export function FoldersPanel({ tree, folders, onFolders }: {
     const id = `folder-${node.path}`;
     return (
       <li key={node.path}>
-        <div className="dates-row folder-row" style={{ paddingLeft: 4 + depth * 16 }}>
+        <div className={`dates-row folder-row${node.photos === 0 ? " empty" : ""}`} style={{ paddingLeft: 4 + depth * 16 }}>
           <input type="checkbox" id={id} checked={ticked(node.path)} disabled={!!parent}
                  title={parent ? `Included in ${folderLabel(parent)}` : undefined}
                  ref={(el) => { if (el) el.indeterminate = partly(node.path); }}
@@ -96,9 +97,9 @@ export function FoldersPanel({ tree, folders, onFolders }: {
 
   const top = tree.top_files.photos > 0 || folders.includes(TOP_FILES);
   return (
-    <nav className="dates-panel folders-panel" aria-label="Folders">
+    <nav className="dates-panel folders-panel" aria-label={heading}>
       <div className="dates-head">
-        <h2>Folders</h2>
+        <h2>{heading}</h2>
         <Tip text="Check folders to show only the photos in them, subfolders included. Uncheck them all to show everything."><span className="dates-show-only">Show only</span></Tip>
       </div>
       <p className="dates-status muted">

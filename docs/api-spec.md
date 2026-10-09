@@ -173,7 +173,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 
 | Parameter | Values | Default |
 | :--- | :--- | :--- |
-| `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed), `similar` (destination photos with visual matches at `match_min` or higher), `suspicious` (recorded date outside review bounds), `rejects` (Rejected, Rejected_Copied, whose file is still in `dest/rejects`) | `all` |
+| `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed), `similar` (destination photos with visual matches at `match_min` or higher), `suspicious` (recorded date outside review bounds), `rejects` (Rejected, Rejected_Copied, whose file is still in `dest/rejects`), `source` (every photo whose original is still in the source: `unorganized` plus Copied and Rejected_Copied, for Source folders) | `all` |
 | `sort` | `newest`, `oldest`, `largest`, `smallest`, `name`, `matches` (`view=similar` only) | `newest` |
 | `match_min` | integer percentage 75–100, applies to similarity membership/counts | 75 |
 | `q` | filename search: current and original names, including removed duplicates' names; never folder names | none |
@@ -266,7 +266,9 @@ disk listing, so every folder offered holds photos a job can act on:
 
 *   **`photos`** counts a folder's photos, subfolders included, for the same `view`, `q`,
     `undated`, `date` and `type`; `folder` does not narrow it, so an unticked folder keeps
-    its count. A folder named in `folder` stays listed at 0, so it can be unticked.
+    its count. A folder named in `folder` stays listed at 0, so it can be unticked; with
+    `every=true`, every catalogued folder stays listed, at 0 where nothing is shown
+    (Source folders).
 *   **`eligible`** is what a Copy or a Move of the folder would take (`--source-subdir`,
     `ns_db.TRANSFER_ELIGIBLE`), whatever the filters: Jobs' "this folder".
 *   **`name`** folds a chain of folders, each holding one folder and no photos of its own,

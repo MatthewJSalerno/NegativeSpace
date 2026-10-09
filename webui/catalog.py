@@ -28,10 +28,16 @@ NOT_ORGANIZED = (PhotoStatus.PENDING, PhotoStatus.PROCESSING, PhotoStatus.FAILED
 # A duplicate's content is shown once, on its anchor, with a duplicate count: the
 # gallery lists photographs, not every copy of one (webui-spec 7.2).
 COPIES = (PhotoStatus.DUPLICATE, PhotoStatus.REMOVED_DUPLICATE)
+# Every photo whose original is still in the source, for Source folders' "Everything still
+# in the source" (webui-spec 2): what is waiting, plus what was copied, or rejected after a
+# Copy, whose Move would remove the original. Identical extra copies stay on their
+# anchor's card, as everywhere.
+STILL_IN_SOURCE = NOT_ORGANIZED + (PhotoStatus.COPIED, PhotoStatus.REJECTED_COPIED)
 # Rejected photos leave every other view; the Rejects view shows those whose file is
 # still in dest/rejects (engine-spec 9.5).
 VIEWS = {"all": DELIVERED + NOT_ORGANIZED, "organized": DELIVERED, "unorganized": NOT_ORGANIZED, "similar": DELIVERED,
-         "suspicious": DELIVERED + NOT_ORGANIZED, "rejects": IN_REJECTS_STATUSES, "review": DELIVERED}
+         "suspicious": DELIVERED + NOT_ORGANIZED, "rejects": IN_REJECTS_STATUSES, "review": DELIVERED,
+         "source": STILL_IN_SOURCE}
 # Photos whose catalogued file is at the destination, in the library or in Rejects.
 AT_DESTINATION = DELIVERED + IN_REJECTS_STATUSES
 # How long one listing of dest/rejects answers "is this file still there", so a gallery

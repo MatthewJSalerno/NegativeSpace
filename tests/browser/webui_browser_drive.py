@@ -41,6 +41,12 @@ def filters(page):
     return panel
 
 
+def close_filters(page):
+    """Closes the Filters panel if open: it lies over the line above the photos."""
+    if page.locator("#filters-panel").is_visible():
+        page.get_by_role("button", name="Close filters", exact=True).click()
+
+
 def place_count(page, name):
     return (page.get_by_role("navigation", name="Main").get_by_role("link", name=re.compile(rf"^{name}\b"))
             .locator(".sidebar-count"))
@@ -195,6 +201,7 @@ with sync_playwright() as p:
     expect(item).to_be_disabled()
     expect(item).to_contain_text("Show one folder to act on it.")
     page.keyboard.press("Escape")
+    close_filters(page)
     page.locator(".gallery-filters").get_by_role("button", name="Show all folders").click()
     expect(page).not_to_have_url(re.compile(r"folder="))
     # Dates, the other way to browse; this browser remembers the choice.
@@ -223,6 +230,15 @@ with sync_playwright() as p:
         - document.querySelector('.toolbar').getBoundingClientRect().height - 2)""")
     expect(page.locator(".dates-row.current.month", has_text="January")).to_have_count(1, timeout=5_000)
     page.goto(BASE + "/?view=all")
+    # The date scrubber, at the gallery's right edge: a year label goes to that year, and a
+    # click on the track goes to the month under the pointer, here the newest.
+    scrubber = page.get_by_role("navigation", name="Jump to a date")
+    scrubber.get_by_role("button", name="Go to 2019").click()
+    expect(page).to_have_url(re.compile(rf"page={NEWER // 60 + 1}\b"))
+    expect(page.locator(".card-sub", has_text="2019").first).to_be_visible()
+    track = page.locator(".scrubber-track").bounding_box()
+    page.mouse.click(track["x"] + track["width"] / 2, track["y"] + 4)
+    expect(page).not_to_have_url(re.compile(r"page="))
     # The date tree: clicking the older year jumps to its page, closing the panel; its
     # first photo is photo number NEWER + 1. Checking it shows only that year, and the
     # address keeps it.
@@ -247,6 +263,7 @@ with sync_playwright() as p:
     dates.get_by_label("Show only 2019").check()
     expect(page.locator(".gallery-filters")).to_contain_text(f"Showing {OLDER} of {PHOTOS} photos")
     # Select these: the photos the date filter shows, in one click.
+    close_filters(page)
     page.locator(".gallery-filters").get_by_role("button", name=f"Select these {OLDER}").click()
     expect(page.locator(".selection-line")).to_contain_text(f"{OLDER} photos selected")
     page.locator(".selection-line").get_by_role("button", name="Clear selection").click()
@@ -267,6 +284,7 @@ with sync_playwright() as p:
     expect(notice).to_have_count(0)
     filters(page)
     dates.get_by_label("Show only 2023").uncheck()
+    close_filters(page)
     page.locator(".gallery-filters").get_by_role("button", name="Show all dates").click()
     # Types, above Dates and folded until opened: only the types the library holds (here, JPEG).
     filters(page)
@@ -282,6 +300,7 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"type=jpg"))
     types.get_by_role("button", name=re.compile(r"Types")).click()           # folded, it still names the filter
     expect(types.get_by_role("button", name=re.compile(r"Types"))).to_contain_text("JPG")
+    close_filters(page)
     page.locator(".gallery-filters").get_by_role("button", name="Show all types").click()
     expect(page).not_to_have_url(re.compile(r"type="))
     # Oldest first turns the tree over: the oldest year leads.
@@ -356,7 +375,7 @@ with sync_playwright() as p:
     # The divider: drag it, and a wide panel puts the details beside the photo.
     page.set_viewport_size({"width": 2000, "height": 900})
     divider = page.get_by_role("separator", name="Resize the photo panel")
-    expect(divider).to_have_attribute("aria-valuemax", "1332")
+    expect(divider).to_have_attribute("aria-valuemax", "1284")   # beside the date scrubber
     before = inspector.bounding_box()["width"]
     box = divider.bounding_box()
     page.mouse.move(box["x"] + 4, box["y"] + 200)
@@ -711,6 +730,7 @@ with sync_playwright() as p:
     page.locator(".year-bar", has_text="2023").click()
     expect(page).to_have_url(re.compile(r"date=2023"))
     expect(page.locator(".gallery-filters .tip")).to_have_attribute("data-tip", "Only 2023")
+    close_filters(page)
     page.locator(".gallery-filters").get_by_role("button", name="Show all dates").click()
 
     page.get_by_role("button", name="Settings").click()
@@ -789,6 +809,24 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"q=photo-000"))
     page.reload()
     expect(page.get_by_role("searchbox", name="Search filenames")).to_have_value("photo-000")
+
+    # Source folders, under Not organized: what is waiting, by folder, or everything still in
+    # the source. A folder with nothing waiting stays listed, dimmed; its copied originals
+    # are still in the source, and a Move of the folder would remove them.
+    page.goto(BASE + "/?view=unorganized")
+    page.get_by_role("navigation", name="Main").get_by_role("link", name="Source folders").click()
+    expect(page).to_have_url(re.compile(r"tree=1"))
+    tree = page.get_by_role("navigation", name="Source folders")
+    expect(tree.locator(".folder-row.empty", has_text="trip / day 1")).to_be_visible()
+    page.get_by_role("button", name="Still in source", exact=True).click()
+    expect(page).to_have_url(re.compile(r"view=source"))
+    expect(tree.locator(".folder-row", has_text="trip / day 1").locator(".dates-count")).to_have_text("10")
+    tree.get_by_label("Show only trip / day 1").check()
+    expect(page.get_by_role("heading", name="trip / day 1", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="Copy this folder (0)…")).to_be_disabled()
+    expect(page.get_by_role("button", name="Move this folder (10)…")).to_be_enabled()
+    expect(page.locator(".card .badge-copied")).to_have_count(10)
+    shot("source-folders")
 
     phone = browser.new_page(viewport={"width": 390, "height": 844}, is_mobile=True)
     phone.goto(BASE)

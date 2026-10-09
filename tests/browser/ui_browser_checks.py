@@ -285,7 +285,7 @@ def check_ui(browser, base, _shot):
     expect(outer).to_be_visible()
     assert page.locator(".inspector").bounding_box()["width"] <= float(outer.get_attribute("aria-valuemax")) + 1
     page.set_viewport_size({"width": 1100, "height": 900})
-    expect(outer).to_have_attribute("aria-valuemax", "432")
+    expect(outer).to_have_attribute("aria-valuemax", "384")   # beside the date scrubber
     assert page.locator(".gallery-pane").bounding_box()["width"] >= 419
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.set_viewport_size({"width": 1400, "height": 900})
@@ -311,7 +311,7 @@ def check_ui(browser, base, _shot):
     outer = page.get_by_role("separator", name="Resize the photo panel", exact=True)
     # Wait for the page to measure the wider window; keys pressed before then are clamped
     # to the old width.
-    expect(outer).to_have_attribute("aria-valuemax", "1732")
+    expect(outer).to_have_attribute("aria-valuemax", "1684")
     outer.focus()
     for _ in range(20):
         page.keyboard.press("ArrowLeft")

@@ -981,6 +981,19 @@ class JobsAndCatalog(ApiCase):
         statuses = {i["filename"]: i["status"] for i in self.client.get("/api/v1/photos", params={"page_size": 60}).json()["items"]}
         self.assertEqual({n for n, st in statuses.items() if st == "Completed"}, {"a.jpg", "b.jpg", "c.jpg"})
 
+        # Source folders: what is waiting, everything still in the source, and every folder
+        # kept listed as photos are organized.
+        self.wait_for(self.start(mode="copy", source_subdir="My_Photos"))
+        self.assertEqual(names(view="source", folder="My_Photos"), ["e.jpg"], "a copied photo's original is still in the source")
+        self.assertEqual(names(view="unorganized", folder="My_Photos"), [], "but it is no longer waiting")
+        self.assertEqual(names(view="source", folder="Phone"), [], "a moved photo has left the source")
+        waiting = {f["path"]: f for f in self.client.get(
+            "/api/v1/photos/folders", params={"view": "unorganized", "every": "true"}).json()["folders"]}
+        self.assertEqual((waiting["Phone"]["photos"], waiting["My_Photos"]["photos"], waiting["MyXPhotos"]["photos"]), (0, 0, 1))
+        self.assertEqual(waiting["My_Photos"]["eligible"], {"copy": 0, "move": 1}, "a Move would remove the original")
+        listed = [f["path"] for f in self.client.get("/api/v1/photos/folders", params={"view": "unorganized"}).json()["folders"]]
+        self.assertNotIn("Phone", listed, "without every, an empty folder drops out")
+
     def test_folder_jobs_preserve_literal_names_and_leave_siblings_untouched(self):
         cases = (("album ", "album"), (" album", "album"), (" ", "neighbor"),
                  ("outer / inner ", "outer / inner"), ("café_100% ", "café_100%"),

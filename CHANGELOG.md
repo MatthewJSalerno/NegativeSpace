@@ -17,6 +17,11 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 - A no-progress reminder with Keep waiting and explicit cancellation of photo workers.
 
 ### Changed
+- A date scrubber down the gallery's right edge: the years, sized by their photos; point
+  for the month, click or drag to go there.
+- **Source folders**, under Not organized: the source's folder tree beside the photos,
+  showing what is waiting or everything still in the source, with Copy and Move for the
+  folder chosen, so the originals of copied photos can be moved off folder by folder.
 - A new page frame, after Immich's: a sidebar on every page with the places, each
   counting everything it holds; **Look into**, which now holds the filters that were a
   row of chips (Has similar photos, Suspicious dates, No capture date, Small images,
