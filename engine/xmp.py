@@ -4,10 +4,13 @@ Not connected to Index/Copy/Move. Preserve original bytes and qualified XML tree
 only explicitly supported RDF forms enter canonical fields. No XML resource is fetched.
 """
 
+import calendar
 import contextlib
 import os
+import re
 import stat
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path, PurePosixPath
 from xml.parsers import expat
 
@@ -34,7 +37,7 @@ def _tag(namespace, local):
     return '{' + namespace + '}' + local
 
 
-# Lexical values only: no dates are interpreted or normalized here. In particular,
+# Validate supported values, preserving lexical precision and unknown time zones.
 # CreateDate is not a capture-date alias. The Index date adapter is a separate step.
 FIELD_TAGS = {
     _tag(EXIF, 'DateTimeOriginal'): 'date_taken',
@@ -169,6 +172,52 @@ def _field_value(field, node):
     raise _Refused('unsupported_property')
 
 
+_DATE = re.compile(
+    r'(?P<year>[0-9]{4})(?:-(?P<month>[0-9]{2})(?:-(?P<day>[0-9]{2})'
+    r'(?:T(?P<hour>[0-9]{2}):(?P<minute>[0-9]{2})'
+    r'(?::(?P<second>[0-9]{2})(?:\.[0-9]+)?)?'
+    r'(?:Z|[+-](?P<zone_hour>[0-9]{2}):(?P<zone_minute>[0-9]{2}))?)?)?)?')
+_REAL = re.compile(r'[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)')
+_ORIENTATION = re.compile(r'\+?0*[1-8]')
+
+
+def _valid_date(value):
+    """Adobe XMP Date syntax/calendar checks, without completing or shifting dates."""
+    match = _DATE.fullmatch(value)
+    if match is None:
+        return False
+    parts = {key: int(item) for key, item in match.groupdict().items() if item is not None}
+    if 'month' in parts and not 1 <= parts['month'] <= 12:
+        return False
+    if 'day' in parts and not 1 <= parts['day'] <= calendar.monthrange(parts['year'], parts['month'])[1]:
+        return False
+    return all(parts.get(key, 0) <= maximum for key, maximum in (
+        ('hour', 23), ('minute', 59), ('second', 59), ('zone_hour', 23), ('zone_minute', 59)))
+
+
+def _validate_fields(fields):
+    """Validate only interpreted values, not unknown extension schemas or truthfulness.
+
+    Explicit empty strings remain clearing values under the import contract. Values
+    are not stripped/coerced; originals and snapshots keep the user's exact content.
+    A problem holds the whole source rather than silently falling back to embedded.
+    """
+    for field, value in fields.items():
+        if value == '':
+            continue
+        if field == 'date_taken' and not _valid_date(value):
+            raise _Refused('invalid_date_taken')
+        if field == 'orientation' and _ORIENTATION.fullmatch(value) is None:
+            raise _Refused('invalid_orientation')
+        if field == 'rating':
+            # Decimal avoids rounding a value just outside a boundary into range.
+            if _REAL.fullmatch(value) is None:
+                raise _Refused('invalid_rating')
+            number = Decimal(value)
+            if not (number == -1 or 0 <= number <= 5):
+                raise _Refused('invalid_rating')
+
+
 def parse_bytes(data: bytes, *, source_id: str) -> ReadResult:
     """Capture RDF/XML without XML rewriting, truthiness fallback or alias guessing.
 
@@ -234,6 +283,7 @@ def parse_bytes(data: bytes, *, source_id: str) -> ReadResult:
                     fields[field] = _field_value(field, node)
                 if name == _tag(CRS, 'RawFileName'):
                     owners.append(_literal(node))
+        _validate_fields(fields)
         if len(owners) > 1:
             raise _Refused('repeated_owner')
         owner = owners[0] if owners else None

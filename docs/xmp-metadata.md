@@ -82,9 +82,40 @@ literals/containers remain present. Unknown forms of mapped fields, repeated map
 fields or unsupported subjects yield attention with the original capture retained;
 there is no silent partial effective-metadata result. Unknown unmapped structures are
 retained without applying them. The reader is not a complete RDF/schema validator.
-Date/rating/orientation values are lexical strings, not yet validated semantic values.
-The future embedded-metadata adapter, canonical type normalization and date validation
-must be built before these values can determine organization or semantic comparisons.
+The reader validates mapped date, orientation and rating values before producing a
+usable source. A bad value holds the entire source with `invalid_date_taken`,
+`invalid_orientation` or `invalid_rating`, retaining its original and XML snapshot.
+Storage reparses the capture, so a held value cannot bypass validation through retention.
+Reader revision 2 records this validation contract; no catalog schema change is needed.
+
+Dates follow XMP's partial-date and date-time syntax, with calendar/leap-day, clock and
+numeric-offset checks. Precision, fractions and time zones remain as written; missing
+components or an unknown time zone are never invented. Four-digit years including 0000
+are preserved at this reader boundary; this does not assert that they can be used for
+filing. Suspicious but possible dates stay available for the separate review policy.
+TIFF orientation accepts integers 1–8. Ratings accept decimal -1 or values from 0 through
+5, including fractional ratings; decimal comparisons avoid rounding an invalid value
+into range. Imported -1 is metadata, not permission to move a photo to Rejects.
+Explicit empty values still clear fields under the agreed import contract, even where
+a strict external schema might expect a number/date. Whitespace-only typed values are
+held, not silently trimmed into blanks. Unknown extension fields remain uninterpreted.
+
+These are validated lexical snapshots, not normalized cross-format values. The future
+embedded-metadata adapter and canonical normalization/partial-date filing policy must
+be built before these values can determine organization or semantic comparisons.
+
+Independent compatibility tests exercise generated packets through the bundled ExifTool
+reader and ExifTool-written packets through our reader, covering UTF-8/UTF-16, Unicode,
+arrays, localized text, orientation, ratings and dates. They assert field agreement and
+unchanged original bytes. ExifTool is required for these tests (already in the app image),
+not invoked as a new runtime validator. Neither these tests nor ExifTool's `-validate`
+option establish complete XMP conformance or that metadata belongs to a particular photo.
+Adobe's toolkit is not an additional installation dependency.
+
+The rules follow Adobe's [data types](https://developer.adobe.com/xmp/docs/xmp-namespaces/xmp-data-types/),
+[TIFF properties](https://developer.adobe.com/xmp/docs/xmp-namespaces/tiff/) and
+[XMP properties](https://github.com/adobe/xmp-docs/blob/master/XMPNamespaces/xmp.md).
+ExifTool documents the limits of its validation in its [FAQ](https://exiftool.org/faq.html).
 
 Results distinguish `valid`, `not_xmp` and `needs_attention`, with stable reason codes.
 Only confidently unrelated recognized binaries/empty files or well-formed unrelated
@@ -262,7 +293,7 @@ multiple-version fixtures before enabling the screens.
 ## Remaining implementation and decisions
 
 - Integrate the tested bounded reader/association helpers. Add the embedded-field
-  adapter and canonical type/date validation; expand unsupported RDF forms with fixtures
+  adapter and cross-format type/date normalization; expand unsupported RDF forms with fixtures
   as needed. Do not treat arbitrary bytes accepted by the pure resolver as validated XMP.
 - Integrate the stored snapshots/arrivals into Index and build current association/primary
   choice records, effective metadata and the API. Retention does not activate a version.

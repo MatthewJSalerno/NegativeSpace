@@ -912,7 +912,7 @@ docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app:ro -w /app \
   negativespace python3 -m unittest discover -s tests -p xmp_test.py -v
 ```
 
-33 tests use generated XML and isolated temporary files, including a sidecar produced
+40 tests use generated XML and isolated temporary files, including a sidecar produced
 by the bundled ExifTool. Coverage includes absent/empty values, qualified/unknown tags,
 arrays/localized values, original encoding/bytes, DTD/entity refusal, resource ceilings,
 malformed/unsupported content, traversal and symlinks, special files, permission failures,
@@ -922,12 +922,23 @@ cover resolution. These suites do not establish XMP catalog durability or transf
 safety: storage is tested separately and transfer integration is still unbuilt. No photo samples or running app are used.
 
 
+The reader suite also validates partial/full dates, leap days, clock/offset bounds,
+orientation 1–8 and decimal ratings (-1 or 0–5), without rewriting lexical values or
+filling missing dates/time zones. Explicit blanks remain distinct from absent fields.
+Invalid values cannot supply a usable source. Two independent compatibility tests use
+ExifTool to read our generated UTF-8/UTF-16 packets and generate packets our reader
+checks; they cover all eight orientations and four ratings, including a fractional one.
+ExifTool must be available; these checks fail rather than silently skip without it.
+They compare actual metadata and preserved bytes, not just successful process exits.
+This is interoperability coverage, not a complete standards-conformance lint.
+
+
 ## XMP storage and catalog backup validation
 
 Schema 23 requires a fresh generated catalog. `xmp_store_test.py` covers compressed/raw
 round trips, unknown encodings, corrupt/oversized frames, separate arrivals over shared
 content, immutable lineage, transaction/savepoint rollback, request-like replay binding,
-bounded damaged originals, metadata queries without decoding, backup round trips, corrupt
+bounded damaged/invalid-value originals (attention-only), metadata queries without decoding, backup round trips, corrupt
 backup refusal, arrival watermarks and XMP-only post-job backups.
 
 ```sh

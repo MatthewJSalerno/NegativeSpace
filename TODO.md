@@ -185,7 +185,11 @@ Found 2026-10-05 looking for screens that do the same job twice.
   Unit tested; not yet connected to Index or the catalog.
 - [x] Bounded read-only XMP capture and pure ownership planning, tested with generated
   RDF/XML, ExifTool output, unsafe paths, changing files and association policies.
-  Not connected to Index; semantic date/type validation and embedded adapter remain.
+  Not connected to Index; embedded adapter and cross-format normalization remain.
+- [x] Validate supported XMP dates, orientation and decimal ratings before exposing fields;
+  preserve explicit blanks, unknown fields and exact originals. Independent generated
+  ExifTool read/write compatibility tests and attention-only storage checks pass.
+  This is not full XMP conformance certification or live import integration.
 - [ ] Complete the XMP pipeline and source tabs described in `docs/xmp-metadata.md`.
   Live reader/association integration, primary-choice state, verified transfers, API and UI
   remain unbuilt.

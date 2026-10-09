@@ -14,6 +14,8 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 - Show uncertain file outcomes in photo information, Logs and the Library review inbox; verify recorded files with Check it now without moving or deleting photos.
 
 ### Added
+- Supported XMP date, orientation and rating validation, with independent generated
+  ExifTool compatibility checks. Invalid values remain attention-only; originals are preserved.
 - Compressed original XMP storage with immutable arrivals and verified catalog backups
   (schema 23; fresh development catalog required). Index/transfer integration remains planned.
 - A generated XMP compression benchmark and oversized-sidecar refusal before content reads.

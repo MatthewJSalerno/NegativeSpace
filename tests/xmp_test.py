@@ -1,6 +1,7 @@
 """Generated XML and isolated files only; no catalog, sample or library access."""
 import base64
 import errno
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -154,6 +155,70 @@ class ReaderTests(unittest.TestCase):
         self.assertEqual(len(result.tags['properties']), 2)
 
 
+class ValueValidationTests(unittest.TestCase):
+    def test_dates_preserve_precision_timezone_and_suspicious_but_possible_years(self):
+        for value in ('0000', '0001-01-01', '1999', '2004-02', '2000-02-29',
+                      '2218-09-22', '2004-01-02T03:04', '2004-01-02T03:04Z',
+                      '2004-01-02T03:04:05', '2004-01-02T03:04:05.123456789',
+                      '2004-01-02T03:04:05+05:30', '2004-01-02T03:04:05-03:30'):
+            with self.subTest(value=value):
+                result = parsed(f'<exif:DateTimeOriginal>{value}</exif:DateTimeOriginal>')
+                self.assertEqual((result.state, result.code), ('valid', 'parsed'))
+                self.assertEqual(result.source.fields['date_taken'], value)
+
+    def test_impossible_or_unsupported_dates_hold_original_without_fallback(self):
+        for value in ('not a date', '2001-02-29', '1900-02-29', '2004-04-31',
+                      '2004-00-01', '2004-13', '2004-01-00', '2004-01-32',
+                      '2004-01-02T24:00', '2004-01-02T12:60', '2004-01-02T12:00:60',
+                      '2004-01-02T12:00+24:00', '2004-01-02T12:00+01:60',
+                      '2004-01-02T12:00:00.', '2004-01-02T12:00+0200',
+                      '2004:01:02 12:00:00', '2004-01-02Z', '2004-1-2', ' 2004',
+                      '2004-01-02T12:00:00Zjunk', '２００４'):
+            with self.subTest(value=value):
+                raw = packet(f'<exif:DateTimeOriginal>{value}</exif:DateTimeOriginal>',
+                             'tiff:Make="Retained camera"')
+                result = xmp.parse_bytes(raw, source_id='s')
+                self.assertEqual((result.state, result.code), ('needs_attention', 'invalid_date_taken'))
+                self.assertIsNone(result.source)
+                self.assertEqual(result.original_bytes, raw)
+                self.assertIn('{'+xmp.TIFF+'}Make', result.tags['properties'])
+
+    def test_orientation_valid_integer_forms_and_invalid_values(self):
+        for value in ('1', '2', '3', '4', '5', '6', '7', '8', '+06', '0001', ''):
+            with self.subTest(value=value):
+                result = parsed(attributes=f'tiff:Orientation="{value}"')
+                self.assertEqual(result.state, 'valid')
+                self.assertEqual(result.source.fields['orientation'], value)
+        for value in ('0', '9', '-1', '1.0', '1e0', 'normal', '１', ' 1', '1 ', '9'*5000):
+            with self.subTest(value=value[:40]):
+                result = parsed(attributes=f'tiff:Orientation="{value}"')
+                self.assertEqual((result.state, result.code), ('needs_attention', 'invalid_orientation'))
+                self.assertIsNone(result.source)
+
+    def test_rating_is_decimal_range_not_integer_stars_or_float_rounding(self):
+        for value in ('-1', '-1.0', '0', '-0', '+0', '.5', '2.5', '5', '05.000', ''):
+            with self.subTest(value=value):
+                result = parsed(attributes=f'xmp:Rating="{value}"')
+                self.assertEqual(result.state, 'valid')
+                self.assertEqual(result.source.fields['rating'], value)
+        for value in ('-2', '-.5', '5.0000000000000000000000000000001',
+                      '-1.000000000000000000000000000001', '6', 'NaN', 'Infinity',
+                      '1e0', '1.', '.', 'five', ' 1', '１', '9'*5000):
+            with self.subTest(value=value[:40]):
+                result = parsed(attributes=f'xmp:Rating="{value}"')
+                self.assertEqual((result.state, result.code), ('needs_attention', 'invalid_rating'))
+                self.assertIsNone(result.source)
+
+    def test_explicit_blanks_clear_typed_fields_and_unknown_values_stay_uninterpreted(self):
+        result = parsed('<exif:DateTimeOriginal/><tiff:Orientation/><xmp:Rating/>'
+                        '<custom:Rating>5000</custom:Rating><custom:date>invalid</custom:date>')
+        embedded = metadata.MetadataSource('embedded', 'embedded', {},
+                    {'date_taken': '2004', 'orientation': 6, 'rating': 5})
+        resolved = metadata.resolve_sources(embedded, [result.source], active_xmp_id='generated')
+        self.assertEqual(resolved['effective'], {'date_taken': '', 'orientation': '', 'rating': ''})
+        self.assertEqual(len(result.tags['properties']), 5)
+
+
 class FileTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -191,6 +256,51 @@ class FileTests(unittest.TestCase):
         self.assertEqual(result.source.fields['keywords'], ['one', 'two'])
         self.assertEqual(result.source.fields['rating'], '0')
         self.assertEqual(result.original_bytes, path.read_bytes())
+
+    def exiftool(self, *arguments):
+        completed = subprocess.run(['exiftool', *arguments], capture_output=True, text=True, timeout=15)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        return completed.stdout
+
+    def test_independent_exiftool_reads_generated_packets_without_changing_originals(self):
+        # ExifTool is an independent reader, not a complete XMP-conformance oracle.
+        for encoding in ('utf-8', 'utf-16'):
+            for rating in ('-1', '0', '2.5', '5'):
+                with self.subTest(encoding=encoding, rating=rating):
+                    text = packet('<exif:DateTimeOriginal>2004-02-29T23:59:58.123+05:30</exif:DateTimeOriginal>'
+                                  '<dc:subject><rdf:Bag><rdf:li>雪</rdf:li><rdf:li>two</rdf:li></rdf:Bag></dc:subject>'
+                                  '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">A &amp; B</rdf:li></rdf:Alt></dc:description>',
+                                  f'tiff:Orientation="6" tiff:Make="Camera" xmp:Rating="{rating}"').decode()
+                    raw = (f'<?xml version="1.0" encoding="{encoding}"?>' + text).encode(encoding)
+                    path = self.root / 'independent.xmp'
+                    path.write_bytes(raw)
+                    own = self.read(path.name)
+                    self.assertEqual(own.state, 'valid')
+                    other = json.loads(self.exiftool('-j', '-G1', '-n', '-XMP:all', '-Warning', '-Error', str(path)))[0]
+                    self.assertFalse(any(key.endswith((':Warning', ':Error')) for key in other), other)
+                    self.assertEqual(other['XMP-tiff:Orientation'], int(own.source.fields['orientation']))
+                    self.assertEqual(other['XMP-xmp:Rating'], float(own.source.fields['rating']))
+                    self.assertEqual(other['XMP-tiff:Make'], own.source.fields['camera_make'])
+                    self.assertEqual(other['XMP-dc:Subject'], own.source.fields['keywords'])
+                    self.assertEqual(other['XMP-dc:Description'], own.source.fields['caption']['x-default'])
+                    self.assertEqual(other['XMP-exif:DateTimeOriginal'], '2004:02:29 23:59:58.123+05:30')
+                    self.assertEqual(path.read_bytes(), raw)
+                    self.assertEqual(own.original_bytes, raw)
+
+    def test_exiftool_written_orientation_and_rating_matrix_is_supported(self):
+        for orientation in range(1, 9):
+            with self.subTest(orientation=orientation):
+                path = self.root / f'generated-{orientation}.xmp'
+                rating = ('-1', '0', '2.5', '5')[(orientation - 1) % 4]
+                self.exiftool(f'-XMP-tiff:Orientation#={orientation}', f'-XMP-xmp:Rating={rating}',
+                              '-XMP-exif:DateTimeOriginal=2000:02:29 12:30:45',
+                              '-XMP-dc:Title=Generated title', str(path))
+                result = self.read(path.name)
+                self.assertEqual(result.state, 'valid')
+                self.assertEqual(result.source.fields['orientation'], str(orientation))
+                self.assertEqual(result.source.fields['rating'], rating)
+                self.assertEqual(result.source.fields['date_taken'], '2000-02-29T12:30:45')
+                self.assertEqual(result.source.fields['title'], {'x-default': 'Generated title'})
 
     def test_traversal_absolute_and_non_xmp_names_refused(self):
         for name in ('../a.xmp', '/a.xmp', 'a/../photo.xmp', './photo.xmp', 'a//b.xmp',

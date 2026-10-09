@@ -81,6 +81,18 @@ class StorageTests(unittest.TestCase):
         args.update(kw)
         return xmp_store.retain_capture(self.conn, **args)
 
+    def test_invalid_typed_values_are_retained_only_for_attention(self):
+        data = (f'<rdf:RDF xmlns:rdf="{xmp.RDF}" xmlns:tiff="{xmp.TIFF}">'
+                '<rdf:Description rdf:about="" tiff:Orientation="9"/></rdf:RDF>').encode()
+        with ns_db.transaction(self.conn):
+            with self.assertRaises(xmp_store.InvalidCapture):
+                self.retain(data)
+            self.retain(data, role='candidate', basis='unresolved')
+        version = self.conn.execute('SELECT version_id,validation_state,validation_code,fields_json,reader_version '
+                                    'FROM xmp_versions').fetchone()
+        self.assertEqual(tuple(version)[1:], ('needs_attention', 'invalid_orientation', None, 2))
+        self.assertEqual(xmp_store.original_bytes(self.conn, version[0]), data)
+
     def backup(self):
         return ns_db.backup_catalog(self.path, self.backup_dir, self.root / 'appdata', trigger='manual')
 

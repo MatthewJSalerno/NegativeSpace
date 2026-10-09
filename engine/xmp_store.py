@@ -15,7 +15,7 @@ from engine import ns_db, xmp
 # levels cost more for little gain. Still store raw whenever compression is larger.
 # See docs/xmp-storage-measurements.md; this is not a claim about every library.
 COMPRESSION_LEVEL = 1
-READER_VERSION = 1
+READER_VERSION = 2
 
 
 class InvalidCapture(ValueError):

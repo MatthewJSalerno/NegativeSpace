@@ -155,7 +155,8 @@ with what it needs:
 The agreed XMP import/source-precedence contract and the deferred metadata-tab UI are
 tracked in [xmp-metadata.md](xmp-metadata.md). Pure resolution, bounded sidecar reading
 and ownership-planning helpers plus immutable compressed version/arrival storage are
-built. Catalog backups verify and retain these originals. XMP reading at Index,
+built. Supported field-value validation and independent ExifTool compatibility tests
+cover the reader; catalog backups verify and retain originals. XMP reading at Index,
 primary-choice state, sidecar transfers and editing remain planned; storage alone
 does not enable importing XMP in the running app.
 
