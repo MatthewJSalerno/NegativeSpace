@@ -9,8 +9,9 @@ import { SimilarityRecovery } from "./SimilarityRecovery";
 import { PageBoundary } from "./ui/PageBoundary";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { AppFrame } from "./AppFrame";
+import type { SidebarFilters } from "./Sidebar";
 import { FiltersButton } from "./FiltersButton";
-import { api, ApiError, savedMatchMinimum, submissionSnapshot, subscribeSubmission, MATCH_THRESHOLDS, type ActionMode, type LookInto, type PlaceView, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
+import { api, ApiError, savedMatchMinimum, submissionSnapshot, subscribeSubmission, MATCH_THRESHOLDS, type ActionMode, type PlaceView, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
 import { count, plural } from "../format";
 import { jobLabel, summary, useJobCompletion, useJobFeed } from "../jobs";
 import { Gallery } from "./Gallery";
@@ -469,6 +470,17 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     return () => { live = false; };
   }, [similar, suspicious, reason, locate, view, sort, galleryMinimum, grouped, q, undated, dates, types, folders, pageSize, focus, refreshKey]);
 
+  // A search or filter change closes the open photo once it no longer matches, as leaving a
+  // review does; one that still matches stays open where it is. A pending locate (a link
+  // to a photo) keeps its own course.
+  const filterKey = JSON.stringify([similar, suspicious, reason, undated, dates, types, folders, q, matchMin]);
+  const lastFilterKey = useRef(filterKey);
+  useEffect(() => {
+    if (lastFilterKey.current === filterKey) return;
+    lastFilterKey.current = filterKey;
+    if (openId != null && !focus) setLocate((cur) => cur ?? { id: openId, delta: 0, checkOnly: true });
+  }, [filterKey]);
+
   useEffect(() => {
     if (revealId == null || !list.ready || !flat.items.some(item => item.id === revealId)) return;
     const frame = requestAnimationFrame(() => {
@@ -749,8 +761,12 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const inspectorMax = Math.max(MIN_SIDE, contentWidth - MIN_GALLERY - 8);
   const boundedWidth = (px: number) => Math.round(Math.min(inspectorMax, Math.max(MIN_SIDE, px)));
   const effectivePanelWidth = boundedWidth(Number.isFinite(panelWidth) && panelWidth != null ? panelWidth : contentWidth / 2);
+  // The latest width, so arrow keys pressed faster than the page redraws each count.
+  const widthNow = useRef(effectivePanelWidth);
+  widthNow.current = effectivePanelWidth;
   const setWidth = (px: number) => {
     const clamped = boundedWidth(px);
+    widthNow.current = clamped;
     setPanelWidth(clamped);
     try { localStorage.setItem("ns.inspectorWidth", String(clamped)); } catch { /* per-viewer convenience only */ }
   };
@@ -767,7 +783,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
-  const currentWidth = () => effectivePanelWidth;
+  const currentWidth = () => widthNow.current;
 
   const start = (mode: "index" | ActionMode, fileIds?: number[]) => async () => {
     setActionError(null);
@@ -851,7 +867,6 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   };
 
   const noPhotos = status.photos === 0;
-  const filterCount = (n: number) => <span className="filter-count" style={{ minWidth: `${count(status.photos).length + 2}ch` }}>({count(n)})</span>;
 
   const screenSelected = screenItems.filter((i) => selected.has(i.id)).length;
   const onPager = focus ? setFocusPage : setPage;
@@ -861,22 +876,38 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const indexNeedsAttention = !!data?.index_summary && data.index_summary.failed === data.index_summary.photos
     && data.index_summary.failed > 0;
 
-  // The sidebar marks the place shown, or the Look into shortcut when that one filter alone is on.
-  const lookShown: LookInto | null = (() => {
-    if (jobRun != null || view !== "organized" || q || dates.length || types.length || folders.length) return null;
-    const on = ([similar && "similar", suspicious && "suspicious", undated && "undated", reason === "small" && "small"] as const)
-      .filter((k): k is LookInto => !!k);
-    return on.length === 1 ? on[0] : null;
-  })();
-  const placeShown = jobRun == null && !lookShown && (PLACE_VIEWS as View[]).includes(view) ? view as PlaceView : null;
+  const placeShown = jobRun == null && (PLACE_VIEWS as View[]).includes(view) ? view as PlaceView : null;
+  // The gallery's filters, in the sidebar's Look into (webui-spec 2): they combine within the
+  // place shown; Small images and Review later are one reminder scope at a time. Choosing
+  // one leaves Show only selected or a review first, as a place does.
+  const libraryOnly = view === "organized" || view === "review" ? null
+    : view === "unorganized" ? "Organized photos only: open Library or Needs review." : "Library photos only: open Library or Needs review.";
+  const lookFilters: SidebarFilters = {
+    on: { similar, suspicious, undated, small: reason === "small", later: reason === "later" },
+    counts: { similar: data?.chips?.similar, suspicious: data?.chips?.suspicious, undated: data?.chips?.undated,
+              small: data?.chips?.small, later: data?.reasons?.later },
+    why: { similar: libraryOnly, suspicious: null, undated: null, small: libraryOnly,
+           later: view === "review" ? null : "Only in Needs review." },
+    onToggle: (key) => {
+      if (focus) backToResults();
+      setPage(1);
+      if (key === "similar") {
+        setSimilar(!similar);
+        const scope: View = !similar ? "similar" : view;
+        setSort(sortChoices.current[scope] ?? savedSort(scope));
+      }
+      if (key === "suspicious") setSuspicious(!suspicious);
+      if (key === "undated") setUndated(!undated);
+      if (key === "small" || key === "later") setReason(reason === key ? "all" : key);
+    },
+  };
   const filtersActive = dates.length + types.length + folders.length;
   const searchField = <SearchField className="search" placeholder="Search filenames" value={search}
                                    onValueChange={(v) => { if (focus) backToResults(); setSearch(v); }} aria-label="Search filenames" />;
 
   return (
     <AppFrame header={header} status={status} onOpenSettings={onOpenSettings} className={openId != null ? "with-inspector" : ""}
-      current={{ place: placeShown, look: lookShown }} matchMin={matchMin} refresh={refreshKey}
-      placeCounts={data ? data.matches as Record<PlaceView, number> : undefined}
+      current={{ place: placeShown }} matchMin={matchMin} refresh={refreshKey} filters={lookFilters}
       onPlace={(v) => { if (focus) backToResults(); chooseView(v); }}
       search={searchField}
       jobs={<JobsMenu
@@ -925,15 +956,6 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                 {similar && jobRun == null && <option value="matches">Most matches first</option>}
               </select>
             </span>
-          </div>
-          <div className="review-chips" role="group" aria-label={view === "review" ? "Review reason" : "Filter photos"}>
-            {(view === "organized" || view === "review") && <button aria-pressed={similar} disabled={!!focus} className={similar ? "active" : ""} onClick={() => { setSimilar(!similar); setPage(1); const scope: View = !similar ? "similar" : view; setSort(sortChoices.current[scope] ?? savedSort(scope)); }}>Has similar photos {filterCount(data?.chips?.similar ?? 0)}</button>}
-            <button aria-pressed={suspicious} disabled={!!focus} className={suspicious ? "active" : ""} onClick={() => { setSuspicious(!suspicious); setPage(1); }}>Suspicious dates {filterCount(data?.chips?.suspicious ?? 0)}</button>
-            <button aria-pressed={undated} disabled={!!focus} className={undated ? "active" : ""} onClick={() => { setUndated(!undated); setPage(1); }}>No capture date {filterCount(data?.chips?.undated ?? 0)}</button>
-            {(view === "organized" || view === "review") && <button disabled={!!focus} aria-pressed={reason === "small"}
-              className={reason === "small" ? "active" : ""} onClick={() => { setReason(reason === "small" ? "all" : "small"); setPage(1); }}>Small images {filterCount(data?.chips?.small ?? 0)}</button>}
-            {view === "review" && <button disabled={!!focus} aria-pressed={reason === "later"}
-              className={reason === "later" ? "active" : ""} onClick={() => { setReason(reason === "later" ? "all" : "later"); setPage(1); }}>Review later {filterCount(data?.reasons?.later ?? 0)}</button>}
           </div>
           {loadError && <p className="error">{loadError}</p>}
           {notice && (
@@ -1023,7 +1045,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             <div className="photo-actions"><button disabled={!data?.total} title={!data?.total ? "No photos match these review filters." : undefined}
               onClick={() => setReviewPhoto(data!.items[0].id)}>Review one by one</button></div>
             <StableContent active={reason} variants={{
-              all: <p className="section-note">Use the filters above to focus your review. Click an active filter again to clear it.</p>,
+              all: <p className="section-note">Use Look into in the sidebar to focus your review. Click an active filter again to clear it.</p>,
               small: <p className="section-note">Small size is a reason to look, not a reason to reject. Mark reviewed clears a photo’s size reminder. <button className="photo-action" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>,
               later: <p className="section-note">Photos you marked to revisit. Done clears the reminder and leaves the photo in place.</p>,
             }} />

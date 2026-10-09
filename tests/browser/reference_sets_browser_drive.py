@@ -93,7 +93,7 @@ with sync_playwright() as p:
     expect(page.locator('.gallery-summary')).to_contain_text('5 sets')
     photo_count = request.get('/api/v1/photos?view=similar&match_min=90').json()['total']
     expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_text(
-        f'Has similar photos ({photo_count})')
+        f'Has similar photos {photo_count:,}')
     page.get_by_role('button', name=re.compile('^Filters')).click()
     expect(page.get_by_text('trip / day 1', exact=True)).to_be_visible()  # Hidden members remain filterable.
     page.get_by_role('button', name='Close filters', exact=True).click()
@@ -238,7 +238,7 @@ with sync_playwright() as p:
     # Filters ungroup without changing the explicit saved preference or selection.
     page.locator('.card input[type=checkbox]').first.check()
     for label in ('Suspicious dates','No capture date','Small images','Review later'):
-        chip=page.get_by_role('group',name='Review reason').get_by_role('button',name=re.compile('^'+label))
+        chip=page.get_by_role('group',name='Look into').get_by_role('button',name=re.compile('^'+label))
         chip.click()
         expect(group).not_to_be_checked()
         expect(group).to_be_disabled()

@@ -35,7 +35,7 @@ export interface Status {
 // The navigation sidebar's counts (GET /photos/places): each place whole, and each Look
 // into shortcut as Library with only that filter on.
 export type PlaceView = "unorganized" | "organized" | "review" | "rejects";
-export type LookInto = "similar" | "suspicious" | "undated" | "small";
+export type LookInto = "similar" | "suspicious" | "undated" | "small" | "later";
 export interface Places { places: Record<PlaceView, number>; look_into: Record<LookInto, number> }
 
 export type View ="review" | "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects";

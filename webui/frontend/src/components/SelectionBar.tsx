@@ -5,8 +5,9 @@ import { count, plural } from "../format";
 export type SelectionCounts = Record<ActionMode, number>;
 
 // The selection bar (webui-spec 4): the ticked photos and the actions that apply to them,
-// taking the sticky top bar while anything is selected; ✕ clears the selection and gives
-// the top bar back. The search stays where it was: a selection is built across searches.
+// taking the sticky top bar while anything is selected, grouped at its start so the count
+// and what can be done with it are read together; ✕ clears the selection and gives the
+// top bar back. The search stays, after them: a selection is built across searches.
 // An action that cannot take any of the selected photos is left out rather than shown
 // disabled; each still asks first, through the same review as before. While a job runs
 // the actions wait, saying why. A selection in Rejects offers Return to library first,
@@ -53,7 +54,6 @@ export function SelectionBar({ selected, outside, focused, reviewing, counts, pl
           </span>}
         </span>
       </span>
-      {search && <div className="topbar-search">{search}</div>}
       {focused
         ? <button className="link" onClick={onBack}>Back to results</button>
         : <button className="link" onClick={onShowSelected}>Show only selected</button>}
@@ -67,6 +67,7 @@ export function SelectionBar({ selected, outside, focused, reviewing, counts, pl
           ))}
         </span>
       )}
+      {search && <div className="topbar-search">{search}</div>}
     </div>
   );
 }

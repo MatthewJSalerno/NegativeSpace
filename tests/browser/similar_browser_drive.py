@@ -36,7 +36,8 @@ with sync_playwright() as p:
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.goto(sys.argv[1])
     expect(page.get_by_role('link', name='Similar', exact=True)).to_have_count(0)
-    expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_count(0)
+    # Not organized has no similar photos to look into: the filter stays in its row, dimmed.
+    expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_attribute('aria-disabled', 'true')
     page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Library\b')).click()
     page.get_by_role('button', name=re.compile('^Has similar photos')).click()
     expect(page.locator('.card')).to_have_count(0)

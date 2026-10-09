@@ -118,14 +118,14 @@ with sync_playwright() as p:
     # Explicit mode overrides the device and stays identical across screens/tabs.
     page.set_viewport_size({'width':1600,'height':1100})
     page.emulate_media(color_scheme='light')
-    page.get_by_role('button',name='Dark mode',exact=True).click()
+    page.get_by_role('switch',name='Dark mode',exact=True).click()
     expect(page.locator('html')).to_have_attribute('data-theme','dark')
     expect(other.locator('html')).to_have_attribute('data-theme','dark')
     page.reload()
     expect(page.locator('html')).to_have_attribute('data-theme','dark')
     for path in ('/logs','/stats','/'):
         page.goto(sys.argv[1]+path)
-        expect(page.get_by_role('button',name='Dark mode',exact=True)).to_have_attribute('aria-pressed','true')
+        expect(page.get_by_role('switch',name='Dark mode',exact=True)).to_have_attribute('aria-checked','true')
         expect(page.get_by_role('button',name='Settings',exact=True)).to_be_visible()
     page.goto(sys.argv[1]+'/stats')
     page.get_by_role('button',name='Open Settings for backups',exact=True).click()

@@ -309,6 +309,9 @@ def check_ui(browser, base, _shot):
     # A wide desktop Inspector uses the same separator vertically.
     page.set_viewport_size({"width": 2400, "height": 900})
     outer = page.get_by_role("separator", name="Resize the photo panel", exact=True)
+    # Wait for the page to measure the wider window; keys pressed before then are clamped
+    # to the old width.
+    expect(outer).to_have_attribute("aria-valuemax", "1732")
     outer.focus()
     for _ in range(20):
         page.keyboard.press("ArrowLeft")

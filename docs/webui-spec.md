@@ -211,14 +211,14 @@ Users can select individual files or multiple files across grid views to run tar
   Types and dates combine, and the filter line names both (**"Showing 42 of 1,160 photos
   · only 2019, HEIC · Select these 42 · Show all dates · Show all types"**). **All
   photos** clears them too.
-* **The sidebar's places count what the filters find; the filter line names the library.**
-  On the Library page, with a search, dates, types, folders or No capture date on, each
-  place's number is how many photos it would show under them, since choosing a place there
-  keeps them, so the number always matches
-  what clicking it shows, and the line above the gallery gives the library's size:
-  **"Showing 9 of 1,160 photos · only 2022, 2023"**. **Why not the whole library on the
-  buttons:** a search for one name still read "Rejects (1)" or "Organized (1,160)", and a
-  view opened from that number then looked empty or wrong (maintainer, 2026-10-01).
+* **The sidebar's places count what they hold; the filter line says what is shown.**
+  Each place's number is how many photos it holds, whatever the search or filters; with
+  any on, the line above the gallery says what they find of it: **"Showing 9 of 1,160
+  photos · only 2022, 2023"**. *Why not counts that follow the filters* (maintainer,
+  2026-10-09, replacing the 2026-10-01 rule): after 4 photos were rejected, a Rejects count
+  following the search read 0, and under Has similar photos it read 0 though choosing
+  Rejects turns that filter off and shows all 4. A place's number now always says what it
+  holds.
   The Stats page's formats open the Library filtered to that type. Going to a date the filter hides
   says so and offers the fixes as buttons that apply them and then go there: **“December
   2016 is outside the dates shown. Show December 2016 too · Show all dates”**.
@@ -261,25 +261,27 @@ scroll pixel position or a transient review. Logs links replace the log's filter
 and expand the single linked job. Recording local control or scroll changes in the
 address does not itself count as navigation or reset the current selection.
 
-**No capture date** is a quick filter beside the views, with its count and no adjacent
+**No capture date** is a Look into filter, with its count and no adjacent
 information icon. It shows the
 photos whose EXIF has no date taken, which are filed under Undated by their file's
 modification date, counted in the current view. It combines with the view and the
-search; the view counts show photos matching the active filters, and the filter line says
-how many are shown. A review reason narrows only the inbox, not other locations. The
-sidebar's counts sit in their own right-aligned column in even-width digits, so a count
-changing never moves a label. Every location preserves the search and filter chips. **Clear filters** removes
+search, and the filter line says how many are shown. A review reason narrows only the
+inbox, not other locations. The sidebar's counts sit in their own right-aligned column in
+even-width digits, so a count changing never moves a label. Every location preserves the
+search and filters. **Clear filters** removes
 restrictions without changing the location or explicit selection.
 
 **The page frame** (decided 2026-10-08, after Immich; built). Library, Logs and Stats
 share one frame: a sticky top bar (the logo, the filename search and **Jobs ▾** on the
-Library, Dark mode, Settings) and a navigation sidebar on every page: the four places
-with their counts; **Look into** (Has similar photos, Suspicious dates, No capture date,
-Small images), each opening Library with only that filter on and counting what it opens
-(`GET /photos/places`); **Activity** (Logs, Stats); the build at the foot. On the Library
-a place keeps the search and filters, as the place buttons did, and leaves Show only
-selected or a review first; from Logs or Stats it opens the place whole. While photos
-are selected, the selection bar takes the top bar, keeping the search (§4). Types, Folders and Dates
+Library, the Dark mode switch, Settings) and a navigation sidebar on every page: the four
+places with what each holds (`GET /photos/places`); **Look into**, the gallery's filters
+(Has similar photos, Suspicious dates, No capture date, Small images, Review later);
+**Activity** (Logs, Stats); the build at the foot. On the Library a place keeps the search
+and filters, and leaves Show only selected or a review first; Look into's filters toggle
+within the place shown, counted there, dimmed where they do not apply. From Logs or Stats
+a place opens whole, and a filter opens Library (Review later: Needs review) with only it
+on. While photos are selected, the selection bar takes the top bar, grouped at its start
+and keeping the search (§4). Types, Folders and Dates
 are in the **Filters** panel beside Sort, opened over the photos. Below 800px the
 sidebar hides behind a **☰ Menu** button and opens over the page. The design rules are
 in `ui-design.md`, "Page frame".
@@ -301,12 +303,13 @@ become filters within a place ("Library · has similar photos"), as No capture d
 already is. *Why:* the places then answer one question, where is it, and drop from
 six to four. Settled 2026-10-07:
 
-* **The filters are a row of chips** under the place's heading, each with its count in
-  the place shown ("Has similar photos (167) · Suspicious dates (8) · No capture date
-  (1,356)"), as Needs review's reasons are (§7.9): one pattern for narrowing a place.
+* **The filters are the sidebar's Look into** (maintainer, 2026-10-09; they were a chip
+  row above the photos, which repeated Look into), each with its count in the place shown
+  ("Has similar photos 167 · Suspicious dates 8 · No capture date 1,356"), with Needs
+  review's reasons (§7.9): one pattern for narrowing a place.
 * **Small images** stays beside **No capture date** as a toggle in Library and
-  Needs review. Click again to clear it; it never changes location. Needs review adds
-  Review later to this same row, with no second reason row or All reasons control.
+  Needs review. Click again to clear it; it never changes location. Review later follows
+  it, for Needs review, with no second reason list or All reasons control.
   Review photo… explicitly enters the dedicated workspace.
 * **The first visit opens on Not organized** while the library is empty. Once it holds a photo, an unscoped visit restores the browser’s last location (`ns.place`), defaulting to Library. Explicit URLs and refreshes preserve the requested view. *Why:* a default view with nothing in it tells a newcomer
   nothing; Not organized is where the first job starts.
@@ -366,13 +369,13 @@ in the other view, show its count and a link rather than implying no matches exi
 
 ### Filter and search behavior
 
-Filter chips combine with AND: Has similar photos plus No capture date finds photos
+Look into's filters combine with AND: Has similar photos plus No capture date finds photos
 meeting both conditions. Dates, types, folders and filename search also apply. The
 visible filter summary names every active restriction; Clear filters preserves the
 location and explicit photo selection. Small images and Review later choose one
-reminder scope at a time; clicking it again clears it. Other chips combine with that
-scope. No active chips means all photos in the current location/inbox. Sidebar filters
-continue to apply. Counts count photos, not notes; overlapping reasons do not duplicate a photo.
+reminder scope at a time; clicking it again clears it. Other filters combine with that
+scope. None active means all photos in the current location/inbox. The Filters panel's
+types, folders and dates continue to apply. Counts count photos, not notes; overlapping reasons do not duplicate a photo.
 
 When a filename search finds nothing in the current location, offer matches in the
 other locations. These escape links retain the filename search and clear narrowing
@@ -591,10 +594,9 @@ exact code. `VERSION` is raised with each merged change that alters behaviour.
 Actions are in two places (decided 2026-10-05), the pattern of Google Photos, Apple Photos
 and Gmail, so that no menu has to adapt to what is selected:
 
-* **The selection bar**, taking the sticky top bar while photos are selected:
-  **✕** (Clear selection) and "4 photos selected" where the logo was, the search where it
-  was (a selection is built across searches), Show only selected (or Back to results),
-  then only the actions that apply to them, each with its count:
+* **The selection bar**, taking the sticky top bar while photos are selected, grouped
+  at its start: **✕** (Clear selection), "4 photos selected" in the accent, Show only
+  selected (or Back to results), then only the actions that apply to them, each with its count:
   **Copy (n)…** and **Move (n)…** by the engine's rule (`ns_db.TRANSFER_ELIGIBLE`),
   **Reject (n)…** for photos in the library, **Return to library (n)…** for photos in
   Rejects (§7.8). A selection is one place (§2): library photos get Copy, Move and Reject;
@@ -604,7 +606,8 @@ and Gmail, so that no menu has to adapt to what is selected:
   whole new request is refused with a reason and nothing is changed; choose photos
   from one location and submit again. Replaying an accepted request keeps its original run.
   An action that takes none of them is absent, not disabled; each asks first, through the same review.
-  While a job runs the actions wait, saying why.
+  While a job runs the actions wait, saying why. The search follows the actions and stays
+  usable: a selection is built across searches.
 * **Jobs ▾**, in the top bar on the Library page only: the library-wide jobs,
   **Index**, and **Copy ▸** / **Move ▸** of **this folder** (the one folder the Folders tree
   shows) and **all (n)**. *Why "Jobs":* it holds exactly the jobs, and pairs with Logs,
@@ -2406,10 +2409,10 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   Library (filters, selection, bulk answers), and working through them reuses the
   workspace built for such tasks.
 * **Filter by reason; bulk within one reason** (planned for review answers; existing bulk Reject is available with preview and confirmation). A mixed
-  selection offers only shared actions. One filter row beneath the place heading
-  includes the review-reason toggles and their counts; **Review one by one** stays above
-  the photos. Types, Folders and Dates are in the Filters panel. Active chips toggle off, and no
-  active chips means the whole inbox. Do not duplicate Small images in another row.
+  selection offers only shared actions. The sidebar's Look into holds the review-reason
+  toggles and their counts; **Review one by one** stays above the photos. Types, Folders
+  and Dates are in the Filters panel. Active filters toggle off, and none active means the
+  whole inbox. Do not duplicate Small images elsewhere.
   Switching reminders keeps controls and results stable; explanations share a content-sized
   area, with only the current explanation accessible.
 * **A note exists only when a person must decide.** Facts the catalog can compute (every

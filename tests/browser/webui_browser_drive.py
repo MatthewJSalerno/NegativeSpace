@@ -251,7 +251,7 @@ with sync_playwright() as p:
     expect(page.locator(".selection-line")).to_contain_text(f"{OLDER} photos selected")
     page.locator(".selection-line").get_by_role("button", name="Clear selection").click()
     expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
-    expect(place_count(page, "Not organized")).to_have_text(f"{OLDER}")   # what the filters find, as shown
+    expect(place_count(page, "Not organized")).to_have_text(f"{PHOTOS:,}")   # the whole place, whatever the filters
     filters(page)
     expect(dates.get_by_role("button", name="2023", exact=True)).to_be_visible()   # counts ignore the filter
     page.reload()
@@ -736,15 +736,17 @@ with sync_playwright() as p:
 
     # The quick filter for photos with no capture date in their EXIF.
     undated_filter = page.get_by_role("button", name=re.compile(r"^No capture date"))
-    expect(undated_filter).to_contain_text(f"({PHOTOS - 2:,})")
+    expect(undated_filter.locator(".sidebar-count")).to_have_text(f"{PHOTOS - 2:,}")
+    library = place_count(page, "Library").inner_text()
     labels = page.get_by_role("navigation", name="Main").locator("a > span:first-child")
     where = "ss => ss.map(s => { const r = s.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y)]; })"
     widths = labels.evaluate_all(where)
     undated_filter.click()
     expect(page).to_have_url(re.compile(r"undated=1"))
     expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS - 2:,} photos")
-    # The places count what the filter finds, and their labels stay put.
-    expect(place_count(page, "Library")).to_have_text(f"{PHOTOS - 2:,}")
+    # The places count the whole place, and their labels stay put.
+    expect(undated_filter).to_have_attribute("aria-pressed", "true")
+    expect(place_count(page, "Library")).to_have_text(library)
     after = labels.evaluate_all(where)
     assert after == widths, f"the sidebar's labels moved: {widths} -> {after}"
     undated_filter.click()

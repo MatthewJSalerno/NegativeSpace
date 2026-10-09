@@ -80,15 +80,21 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 .sidebar { flex: 0 0 var(--sidebar-w); position: sticky; top: var(--header-offset); height: calc(100vh - var(--header-offset));
   overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: var(--space-3) var(--space-2);
   background: var(--surface); border-right: 1px solid var(--border); }
-.sidebar a { display: flex; align-items: center; gap: var(--space-2); min-height: 40px; padding: 0 var(--space-3);
-  border-radius: var(--control-radius); color: var(--text); text-decoration: none; }
-.sidebar a:hover { background: var(--surface-2); }
-.sidebar a[aria-current] { background: var(--surface-2); color: var(--accent); font-weight: var(--weight-strong); }
+.sidebar a, .sidebar .sidebar-item { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 40px;
+  padding: 0 var(--space-3); border: 0; border-radius: var(--control-radius); background: none; color: var(--text);
+  font: inherit; text-align: left; text-decoration: none; }
+.sidebar a:hover, .sidebar .sidebar-item:hover:not([aria-disabled=true]) { background: var(--surface-2); }
+.sidebar a[aria-current], .sidebar .sidebar-item[aria-pressed=true] { background: var(--surface-2); color: var(--accent); font-weight: var(--weight-strong); }
+/* A Look into filter that is on also carries a bar at its start, so on reads without colour
+   (generated text would join its accessible name). */
+.sidebar .sidebar-item[aria-pressed=true] { box-shadow: inset 3px 0 0 var(--accent); }
+.sidebar .sidebar-item[aria-disabled=true] { color: var(--muted); cursor: default; }
+.sidebar-group { display: flex; flex-direction: column; gap: 2px; }
 .sidebar-count { margin-left: auto; color: var(--muted); font-size: var(--type-xs); font-weight: var(--weight-normal); font-variant-numeric: tabular-nums; }
 .sidebar-heading { margin: var(--space-4) var(--space-3) var(--space-1); font-size: var(--type-xs); color: var(--muted); }
 .sidebar-foot { margin-top: auto; padding: var(--space-4) var(--space-3) 0; }
 .sidebar-backdrop { display: none; }
-@media (forced-colors: active) { .sidebar a[aria-current] { outline: 2px solid Highlight; outline-offset: -2px; } }
+@media (forced-colors: active) { .sidebar a[aria-current], .sidebar .sidebar-item[aria-pressed=true] { outline: 2px solid Highlight; outline-offset: -2px; } }
 /* Narrow windows: the sidebar hides behind the menu button and opens over the page. */
 @media (max-width: 800px) {
   .menu-toggle { display: inline-grid; place-items: center; }
@@ -144,7 +150,8 @@ button.link { border: 0; padding: 0; background: none; color: var(--accent); tex
   font-size: inherit; line-height: inherit; text-underline-offset: 3px; }
 
 /* The log and the Error Center. */
-.logs { padding: var(--space-6); display: grid; gap: var(--space-6); }
+/* align-content: start, or the frame's full-height page spreads the rows apart. */
+.logs { padding: var(--space-6); display: grid; gap: var(--space-4); align-content: start; }
 .logs h2 { font-size: var(--type-lg); }
 .logs p { margin: 0; }
 .log-filters { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); align-items: center; }
@@ -333,7 +340,9 @@ body.dragging { cursor: col-resize; user-select: none; }
   padding: var(--space-4); display: grid; gap: var(--space-6); align-content: start;
   background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); }
 .filters-panel[hidden] { display: none; }
-.filters-panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.filters-panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  position: sticky; top: calc(-1 * var(--space-4)); z-index: 1; margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+  padding: var(--space-2) var(--space-4); background: var(--surface); border-bottom: 1px solid var(--border); }
 .filters-panel-head h2 { font-size: var(--type-md); }
 .type-row { padding-left: var(--space-1); }
 .type-row label { cursor: pointer; }
@@ -354,6 +363,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .dates-name:hover { color: var(--accent); text-decoration: underline; }
 .dates-count { color: var(--muted); font-size: var(--type-sm); }
 .dates-foot { font-size: var(--type-sm); margin: var(--space-2) 0 0; }
+/* What a tree shows, and its Show all, right under its heading: never a scroll away. */
+.dates-status { font-size: var(--type-xs); margin: 0 0 var(--space-2); }
 /* Browse by Folders or Dates, under Types. */
 .browse-by { display: grid; gap: var(--space-1); }
 .browse-by .muted { font-size: var(--type-xs); }
@@ -529,7 +540,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 @media (max-width: 700px) { .version-tag { display: none; } }
 
 /* The Stats page (webui-spec 5.9). */
-.stats { padding: var(--space-6); display: grid; gap: var(--space-6); max-width: 1400px; }
+.stats { padding: var(--space-6); display: grid; gap: var(--space-6); max-width: 1400px; align-content: start; }
 .stats h2 { margin: 0; }
 /* Fixed columns, each row one height, so every box edge lines up. */
 .stat-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); }
@@ -720,11 +731,28 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .info-section h3 { font-size: var(--type-md); }
 .section-note, .dates-show-only, .dates-foot, .browse-by .muted, .view-count { font-size: var(--type-xs); }
 .selection-line button { padding-top: 0; padding-bottom: 0; }
-/* ✕ and the count take the brand's width, so the search keeps its place. */
-.selection-head { display: flex; align-items: center; gap: var(--space-2); flex: 0 0 auto;
-  min-width: calc(var(--sidebar-w) - var(--space-6) - var(--space-4)); }
-/* The selection bar's actions: outlined, as a photo's own actions are, at the bar's end. */
-.selection-actions { display: inline-flex; flex-wrap: wrap; gap: var(--space-2); margin-left: auto; }
+/* The Dark mode switch (PageTools.tsx): a track whose knob slides right, on the accent,
+   when dark is on. */
+.theme-switch { display: inline-flex; align-items: center; gap: var(--space-2); }
+.theme-switch-track { position: relative; flex: none; width: 36px; height: 20px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--control-border); transition: background-color .15s; }
+.theme-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--muted); transition: transform .15s; }
+.theme-switch[aria-checked=true] .theme-switch-track { background: var(--accent); border-color: var(--accent); }
+.theme-switch[aria-checked=true] .theme-switch-knob { transform: translateX(16px); background: var(--accent-text); }
+@media (prefers-reduced-motion: reduce) { .theme-switch-track, .theme-switch-knob { transition: none; } }
+@media (forced-colors: active) {
+  .theme-switch-track { border-color: ButtonText; }
+  .theme-switch-knob { background: ButtonText; }
+  .theme-switch[aria-checked=true] .theme-switch-track { background: Highlight; border-color: Highlight; }
+  .theme-switch[aria-checked=true] .theme-switch-knob { background: HighlightText; }
+}
+/* The selection bar, grouped at the start: ✕ and the count in the accent, Show only
+   selected, the actions (outlined, as a photo's own actions are), then the search. */
+.selection-head { display: flex; align-items: center; gap: var(--space-2); flex: 0 0 auto; }
+.selection-summary > strong { color: var(--accent); font-size: var(--type-md); }
+.selection-actions { display: inline-flex; flex-wrap: wrap; gap: var(--space-2); }
+.selection-line .topbar-search { margin-left: auto; flex: 1 1 240px; max-width: 560px; }
 .selection-line .selection-actions button { padding: 0 var(--space-3); }
 @media (max-width: 800px) {
   :root { --control-height: 44px; }
@@ -904,9 +932,6 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .set-members li > img, .set-members li > .thumb-placeholder { width: 100%; height: 160px; object-fit: contain; background: var(--surface-2); }
 .set-members li > button { margin-top: auto; }
 
-/* Review reasons are filters; photo checkboxes continue to select action targets. */
-.review-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-bottom: var(--space-3); }
-.review-chips button[aria-pressed="true"] { background: var(--surface-2); outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .review-note { margin-block: var(--space-4); }
 .review-note p { margin-block: var(--space-2); }
@@ -937,7 +962,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .gallery-tools { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 
 /* Filtering a fixed selection must not resize its toolbar as hidden counts change. */
-.selection-summary { display: grid; line-height: 1.25; }
+.selection-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); }
 .selection-outside { display: grid; font-size: var(--type-xs); }
 .selection-outside > span { grid-area: 1 / 1; }
 .selection-outside-size { visibility: hidden; }
@@ -948,7 +973,6 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
   .toolbar { position: static; }
 }
 
-.review-chips .filter-count { display: inline-block; font-variant-numeric: tabular-nums; text-align: center; }
 
 /* Routine filter guidance swaps in place; do not insert new rows above results. */
 .stable-content { display: grid; }

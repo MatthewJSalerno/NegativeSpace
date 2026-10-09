@@ -226,11 +226,13 @@ navigation agree. Invalid query/position percentages return 422.
 ### `GET /api/v1/photos/places`
 
 The navigation sidebar's counts (`webui-spec.md` §2, the page frame): each place whole,
-before any gallery filter, and each **Look into** shortcut as Library with only that
-filter on, which is what its link opens. `match_min` (default 90) sets Has similar photos:
+before any gallery filter, and each **Look into** filter where its link from Logs or Stats
+opens it: Library with only that filter on, or Needs review for Review later. On the
+Library page the Look into counts come from `chips` and `reasons` instead, for the place
+shown. `match_min` (default 90) sets Has similar photos:
 
     {"places": {"unorganized": 0, "organized": 4499, "review": 31, "rejects": 4},
-     "look_into": {"similar": 167, "suspicious": 8, "undated": 1356, "small": 9}}
+     "look_into": {"similar": 167, "suspicious": 8, "undated": 1356, "small": 9, "later": 3}}
 
 ### `GET /api/v1/photos/timeline`
 

@@ -17,12 +17,14 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 - A no-progress reminder with Keep waiting and explicit cancellation of photo workers.
 
 ### Changed
-- A new page frame, after Immich's: a sidebar on every page with the places and their
-  counts, **Look into** shortcuts (Has similar photos, Suspicious dates, No capture date,
-  Small images), Logs, Stats and the version; the search, Jobs, Dark mode and Settings in
-  the top bar. Types, Folders and Dates moved from the left panel into a **Filters**
-  button beside Sort. Ticking photos turns the top bar into the selection bar, keeping
-  the search. In a narrow window the sidebar opens from a ☰ Menu button.
+- A new page frame, after Immich's: a sidebar on every page with the places, each
+  counting everything it holds; **Look into**, which now holds the filters that were a
+  row of chips (Has similar photos, Suspicious dates, No capture date, Small images,
+  Review later); Logs, Stats and the version. The search, Jobs, a Dark mode switch and
+  Settings are in the top bar. Types, Folders and Dates moved from the left panel into a
+  **Filters** button beside Sort, each with its Show all at the top. Ticking photos turns
+  the top bar into the selection bar: the count, Show only selected and the actions
+  together, then the search. In a narrow window the sidebar opens from a ☰ Menu button.
 - Consistent Library/review filters, stable navigation and filter guidance, compact
   completed-job/source summaries, and clear source-versus-Library matching scope.
 - Identical related sets appear once. Photo Review links to the complete match browser without a partial thumbnail list,

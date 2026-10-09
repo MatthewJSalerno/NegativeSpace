@@ -46,7 +46,8 @@ When Index finishes, **Not organized** shows the source photos and an Index summ
 The places are in the sidebar on the left. **Filters** beside the sort narrows by type,
 **Folders** or **Dates**, and the box at the top searches by filename. After Copy or Move,
 Library holds organized photos, Needs review filters those needing attention, and
-Rejects holds photos you have rejected. Reason filters sit beneath these locations.
+Rejects holds photos you have rejected. **Look into**, under the places, narrows the place
+you are in: photos with look-alikes, suspicious dates, no capture date, small images.
 
 ![The gallery, showing one year](images/gallery.png)
 

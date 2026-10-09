@@ -69,10 +69,10 @@ with sync_playwright() as p:
     page.goto(BASE)
     view_button(page, "Library").click()
 
-    # The sidebar's places count what the search finds, as the gallery does.
+    # The sidebar's places count everything in them, whatever the search finds.
     page.get_by_role("searchbox", name="Search filenames").fill("photo-002")
     expect(page.locator(".card")).to_have_count(1)
-    expect(place_count(page, "Library")).to_have_text("1")
+    expect(place_count(page, "Library")).to_have_text(f"{PHOTOS:,}")
     expect(place_count(page, "Not organized")).to_have_text("0")
     expect(place_count(page, "Rejects")).to_have_text("0")
 
@@ -89,7 +89,7 @@ with sync_playwright() as p:
     expect(banner).to_contain_text(re.compile(r"Job #\d+ · Reject finished"), timeout=60_000)
     expect(banner).to_contain_text("1 of 1 photo moved to Rejects")
     expect(page.locator(".card")).to_have_count(0)
-    expect(place_count(page, "Library")).to_have_text("0")
+    expect(place_count(page, "Library")).to_have_text(f"{PHOTOS - 1:,}")
     expect(place_count(page, "Rejects")).to_have_text("1")
     dismiss_banner()
 
