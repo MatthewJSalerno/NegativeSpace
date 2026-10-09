@@ -341,7 +341,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 22 and refuses incompatible catalogs before processing.
+initializes schema version 23 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -547,6 +547,38 @@ CREATE TABLE file_observations (
     error_message TEXT
 );
 
+-- Retained original XMP and independent arrival/participant lineage. Immutable.
+CREATE TABLE xmp_versions (
+    version_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sha256 TEXT NOT NULL UNIQUE CHECK(length(sha256)=64),
+    encoding TEXT NOT NULL CHECK(encoding IN ('raw','zstd')),
+    original_size INTEGER NOT NULL CHECK(original_size BETWEEN 1 AND 8388608),
+    payload BLOB NOT NULL CHECK(typeof(payload)='blob' AND length(payload)<=original_size),
+    validation_state TEXT NOT NULL CHECK(validation_state IN ('valid','needs_attention')),
+    validation_code TEXT NOT NULL, reader_version INTEGER NOT NULL CHECK(reader_version>0),
+    fields_json TEXT CHECK(fields_json IS NULL OR json_valid(fields_json)),
+    tags_json TEXT NOT NULL CHECK(json_valid(tags_json)),
+    CHECK((validation_state='valid')=(fields_json IS NOT NULL)),
+    CHECK(encoding!='raw' OR length(payload)=original_size));
+
+CREATE TABLE xmp_arrivals (
+    arrival_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    version_id INTEGER NOT NULL REFERENCES xmp_versions(version_id),
+    run_id INTEGER NOT NULL REFERENCES runs(id),
+    source_relative_path TEXT NOT NULL, observed_at TEXT NOT NULL,
+    UNIQUE(run_id,source_relative_path));
+
+CREATE INDEX idx_xmp_arrivals_version ON xmp_arrivals(version_id,arrival_id);
+
+CREATE TABLE xmp_arrival_files (
+    arrival_id INTEGER NOT NULL REFERENCES xmp_arrivals(arrival_id),
+    file_id INTEGER NOT NULL REFERENCES files(file_id),
+    role TEXT NOT NULL CHECK(role IN ('candidate','owner')),
+    basis TEXT NOT NULL CHECK(basis IN ('unresolved','full_name','declared_owner','single','policy','confirmed')),
+    PRIMARY KEY(arrival_id,file_id), CHECK((role='candidate')=(basis='unresolved')));
+
+CREATE INDEX idx_xmp_file_arrivals ON xmp_arrival_files(file_id,arrival_id);
+
 -- Participants in one operation, by role. Connects copies and duplicate
 -- removals without merging their histories.
 CREATE TABLE operation_files (
@@ -739,7 +771,8 @@ CREATE TABLE backup_attempts (
     related_run_id INTEGER REFERENCES runs(id),
     started_at TEXT NOT NULL, ended_at TEXT,
     outcome TEXT CHECK(outcome IN ('succeeded','failed','interrupted')),
-    error_category TEXT, error_detail TEXT
+    error_category TEXT, error_detail TEXT,
+    xmp_arrival_highwater INTEGER NOT NULL DEFAULT 0 CHECK(xmp_arrival_highwater>=0)
 );
 
 -- 'pruned': retention removed the file. 'missing': gone for a reason the
@@ -1271,11 +1304,14 @@ The format's default determines the write target when none has been established.
     malformed sidecars and the pending UI contract. Its pure resolution helper is
     built along with bounded XMP capture and ownership-planning helpers; live Index
     integration, storage, safe transfers and source tabs remain unimplemented.
-*   **Original XMP preservation (planned):** store exact originals as catalog BLOBs,
-    compressed with Zstandard only when smaller, with original size/hash and encoding.
-    Deduplicate content without merging arrival lineage. Benchmark before choosing a
-    compression level. Include byte-restoration tests in catalog backup validation.
-    See [xmp-metadata.md](xmp-metadata.md) for the agreed import cases and guarantee limits.
+*   **Original XMP storage primitive (built; import not integrated):** exact originals
+    are catalog BLOBs, Zstandard level 1 only when smaller, with original size/SHA-256
+    and encoding. Arrivals/participants are separate immutable records. Retention reparses
+    bytes, rejects unrelated/oversized inputs and requires a FULL transaction; damaged
+    bounded captures remain attention-only, with no effective fields. Backups validate
+    every retained original before publication and record their exact arrival watermark.
+    See [xmp-metadata.md](xmp-metadata.md) for remaining integration and guarantee limits,
+    and [xmp-storage-measurements.md](xmp-storage-measurements.md) for the measurement.
 
 **Verify all requested fields before replacement (planned).** Apply a photo's
 requested metadata changes to a temporary working copy and read back every requested
@@ -1638,7 +1674,7 @@ photo/review revisions are refused. Small-image eligibility is a query over deli
 content dimensions and `small_image_min` (positive integer pixels, null for off).
 Acknowledgements survive re-indexing unchanged content and rule changes. Review later
 is independently resolved by Done. Review events are included in catalog backups and
-unbacked-change accounting. Development catalogs require schema 22; no migration.
+unbacked-change accounting. Development catalogs require schema 23; no migration.
 
 
 ## 11. Explicit uncertain-outcome verification

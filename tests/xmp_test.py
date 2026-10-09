@@ -264,6 +264,19 @@ class FileTests(unittest.TestCase):
         self.assertEqual(result.code, 'changed_during_read')
         self.assertIsNone(result.original_bytes)
 
+    def test_five_gibibyte_sidecar_is_refused_before_reading_any_bytes(self):
+        path = self.root / 'huge.xmp'
+        with path.open('wb') as stream:
+            stream.truncate(5 * 1024 ** 3)  # Sparse generated file; no huge allocation.
+        before = path.stat()
+        with mock.patch.object(xmp.os, 'read', side_effect=AssertionError('Oversized file was read')):
+            result = self.read('huge.xmp')
+        self.assertEqual((result.state, result.code), ('needs_attention', 'size_limit'))
+        self.assertIsNone(result.original_bytes)
+        self.assertIsNone(result.source)
+        self.assertEqual(path.stat().st_size, before.st_size)
+        self.assertEqual(path.stat().st_mtime_ns, before.st_mtime_ns)
+
     def test_large_or_growing_input_is_never_partially_captured(self):
         with mock.patch.object(xmp, 'MAX_BYTES', 4):
             result = self.read()

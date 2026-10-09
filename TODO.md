@@ -103,7 +103,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 ## Needs review
 
 - [x] Earliest expected year in setup and Settings; shared suspicious-date query policy
-  updates counts, filtering and inspection without editing metadata. Schema 22 requires
+  updates counts, filtering and inspection without editing metadata. Schema 23 requires
   a fresh development catalog, following the existing no-migration policy.
 - [x] Responsive Inspector waits behind already-open dialogs during resizing; Settings
   remains usable and retains focus until closed.
@@ -187,11 +187,13 @@ Found 2026-10-05 looking for screens that do the same job twice.
   RDF/XML, ExifTool output, unsafe paths, changing files and association policies.
   Not connected to Index; semantic date/type validation and embedded adapter remain.
 - [ ] Complete the XMP pipeline and source tabs described in `docs/xmp-metadata.md`.
-  Live reader/association integration, durable storage, verified transfers, API and UI
+  Live reader/association integration, primary-choice state, verified transfers, API and UI
   remain unbuilt.
-- [ ] Benchmark and implement lossless XMP BLOB storage (Zstandard only when smaller),
-  content reuse with independent arrival lineage, verified restoration and backup coverage.
-  No separate destination archive; compression level awaits measurements.
+- [x] Measured XMP BLOB storage: Zstandard level 1 only when smaller, exact-byte/hash
+  verification, immutable content/arrival/participant records and catalog backup coverage
+  (schema 23). Retention is not connected to Index/Copy/Move; activation remains unbuilt.
+- [ ] Measure XMP parsed-data growth and backup costs at large unique-version counts;
+  the generated compression experiment is not a full-library capacity result.
 - [ ] Metadata differences review for already edited Library photos and combined
   metadata/location choices for rejected matches (`docs/xmp-metadata.md`).
 
@@ -251,6 +253,7 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 | 13 | Startup reconciliation commits at `synchronous=FULL` | `reconcile_interrupted_state` | **Enforced**, tested (`startup reconciliation commits at full synchronous`). Recovery records evidence and attention state — conclusions from observations that may not be repeatable, because storage disappears and files are replaced between runs. A lost repair would discard the only record that an outcome could not be established. It runs once per interrupted row at startup, so the cost is negligible. |
 | 14 | A Move never deletes a source on the strength of an fsync a network share may acknowledge early | `--confirm-network-destination`, `engine-spec.md` §4.1 | **Enforced**, tested (`a move to a network share asks before anything is deleted`, `the destination filesystem is read from the mount table`). A client cannot see how a share is exported — an `async` NFS export acknowledges an `fsync` before the data is on disk — so the engine does not try to. It reads the destination's filesystem type from the mount table and, for a network filesystem, stops a Move before copying or deleting anything: a needs-attention issue recommends Copy (which never deletes, so it is the one way to guarantee no loss) and the user chooses Copy instead, Move anyway after confirming the share is exported `sync`, or neither. Copy is never stopped. **Residual, by the maintainer's decision:** a confirmed Move is only as durable as the share's honesty about `fsync`, and a mount table that cannot be read is treated as local. |
 | 15 | A destination file with an unresolved needs-attention issue never authorizes deleting a duplicate source | `ns_db.paths_needing_attention`, `engine-spec.md` §4.2 | **Enforced**, tested (`a_copy_needing_attention_never_authorizes_removing_a_duplicate`, and the database tests for the lookup). Move's duplicate cleanup drops such copies from its candidates before verifying bytes; with none left the source stays, recorded `Skipped` with the reason, and the next Move after the issue is resolved removes it. A matching SHA-1 alone is not enough, because recovery could not establish what is at that path. |
+| 16 | Retained XMP originals round-trip exactly from an intact catalog or a backup containing them; corrupted payloads are never published as verified backups | `xmp_store`, `docs/xmp-metadata.md` | **Enforced for the storage primitive**, tested (`xmp_store_test.py`): bounded decode, size/hash checks, FULL transaction and rollback, backup restoration/refusal, arrival watermark including a concurrent arrival. Live XMP import/transfer and user restoration are not built; this is not a photo rollback or hardware-loss guarantee. |
 
 ### Outstanding
 

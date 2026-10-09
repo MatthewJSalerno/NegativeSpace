@@ -14,6 +14,9 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 - Show uncertain file outcomes in photo information, Logs and the Library review inbox; verify recorded files with Check it now without moving or deleting photos.
 
 ### Added
+- Compressed original XMP storage with immutable arrivals and verified catalog backups
+  (schema 23; fresh development catalog required). Index/transfer integration remains planned.
+- A generated XMP compression benchmark and oversized-sidecar refusal before content reads.
 - Internal bounded XMP reader and photo-association planner, with generated parsing,
   filesystem-safety and ownership tests. Live Index and sidecar transfers are not enabled.
 - Internal metadata provenance resolver preserving separate embedded/XMP snapshots,

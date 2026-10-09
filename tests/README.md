@@ -714,7 +714,7 @@ Manual review before merging: choose On and Off on separate fresh catalogs, revi
 mixed-size delivered photos, verify a useful small photo disappears only from Small
 images after Mark reviewed, and verify unwanted photos follow the existing Reject
 confirmation. Inspect the workspace and first-run Files at desktop zoom. This branch
-uses schema 22 and requires a fresh development catalog; it does not migrate schema 20.
+uses schema 23 and requires a fresh development catalog; it does not migrate schema 20.
 
 The review browser driver also covers first-step navigation, source Index summary,
 Copy confirmation, Library review markers, focused inbox entry and return with search,
@@ -912,11 +912,32 @@ docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app:ro -w /app \
   negativespace python3 -m unittest discover -s tests -p xmp_test.py -v
 ```
 
-32 tests use generated XML and isolated temporary files, including a sidecar produced
+33 tests use generated XML and isolated temporary files, including a sidecar produced
 by the bundled ExifTool. Coverage includes absent/empty values, qualified/unknown tags,
 arrays/localized values, original encoding/bytes, DTD/entity refusal, resource ceilings,
 malformed/unsupported content, traversal and symlinks, special files, permission failures,
 file/directory changes during reads, full-name/shared ownership, policy ambiguity,
 orphans and tentative primary precedence. The 11 `metadata_test.py` tests separately
 cover resolution. These suites do not establish XMP catalog durability or transfer
-safety: those integrations are still unbuilt. No photo samples or running app are used.
+safety: storage is tested separately and transfer integration is still unbuilt. No photo samples or running app are used.
+
+
+## XMP storage and catalog backup validation
+
+Schema 23 requires a fresh generated catalog. `xmp_store_test.py` covers compressed/raw
+round trips, unknown encodings, corrupt/oversized frames, separate arrivals over shared
+content, immutable lineage, transaction/savepoint rollback, request-like replay binding,
+bounded damaged originals, metadata queries without decoding, backup round trips, corrupt
+backup refusal, arrival watermarks and XMP-only post-job backups.
+
+```sh
+docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app:ro -w /app \
+  negativespace python3 -m unittest discover -s tests -p xmp_store_test.py -v
+```
+
+The reader suite now creates a sparse 5 GiB `.xmp` and proves its contents are never read
+or changed. This uses negligible disk allocation and no real photo files. The codec
+benchmark and its limitations are documented in `docs/xmp-storage-measurements.md`.
+Run database/API and engine smoke regressions when changing these catalog/backup paths;
+enable the public RAW samples for smoke validation. No browser workflow can yet import
+XMP; live transfer and primary-source activation remain separate work.

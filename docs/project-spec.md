@@ -154,9 +154,10 @@ with what it needs:
 
 The agreed XMP import/source-precedence contract and the deferred metadata-tab UI are
 tracked in [xmp-metadata.md](xmp-metadata.md). Pure resolution, bounded sidecar reading
-and ownership-planning helpers are built. XMP reading at Index, durable version storage,
-sidecar transfers and editing remain planned. The helpers do not enable these features
-in the running app.
+and ownership-planning helpers plus immutable compressed version/arrival storage are
+built. Catalog backups verify and retain these originals. XMP reading at Index,
+primary-choice state, sidecar transfers and editing remain planned; storage alone
+does not enable importing XMP in the running app.
 
 Further gaps between the documented web workflows and what the engine can answer
 (`engine-spec.md` §9.8):
@@ -285,7 +286,7 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 22; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
+at schema version 23; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
 It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its

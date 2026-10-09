@@ -1506,7 +1506,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 22 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 23 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -2590,6 +2590,13 @@ or let the next normally required backup occur. A new backup captures the curren
 catalog, not a reconstruction of its state at interruption. A failed or incomplete
 snapshot must not be offered as a usable backup. Subsequent successful backups can
 resolve the outstanding warning without erasing the historical failure record. The engine supplies this: `ns_db.unbacked_changes` counts the catalog records no successful backup holds, excluding `Skipped` and `Cancelled` rows because they record that nothing was done, and names the runs they came from and the last successful backup's time. Every engine start logs the same warning when that count is above zero. The API reads the function for the Settings warning.
+
+Retained XMP originals and their arrivals are part of the catalog backup (schema 23).
+The backend verifies each original before publishing a backup and tracks the included
+arrival IDs, so a later arrival is not falsely reported as backed up. Retaining metadata
+without a photo operation also qualifies for a post-job backup. Live XMP import and
+metadata restoration screens are still planned; catalog restoration alone does not
+publish sidecars or undo photo changes.
 
 Keep the **latest 20 automatic backups by default**, configurable in Settings.
 Prune the oldest only after a new backup succeeds. Manual backups remain until the

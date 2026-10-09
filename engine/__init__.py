@@ -12,7 +12,8 @@ runtime (shared run state), workers (cancellable read-only pools), constants and
 shared with the web API), review (catalog-only review decisions), attention (explicit
 read-only checks of uncertain file outcomes), metadata (source-aware resolution for the
 planned XMP pipeline), xmp (bounded sidecar reads), xmp_association (pure ownership
-planning; these XMP helpers are not yet connected to Index), and the ns_similarity modules.
+planning), xmp_store (retained metadata BLOBs/arrivals and backup validation;
+XMP import is not yet connected to Index), and the ns_similarity modules.
 
 Modules refer to one another as `module.name`, never `from module import name`: one
 binding per name, so replacing a function (a test injecting a fault) replaces it for

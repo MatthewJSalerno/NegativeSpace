@@ -10,9 +10,14 @@ field origins and differences. It does not read files or change the catalog.
 `engine/xmp_association.py` plans ownership from a complete source photo inventory.
 Both are independently tested, including generated ExifTool output.
 
-**Index does not yet read XMP.** The helpers are not connected to live jobs. Durable
-snapshots, Index integration, API exposure, sidecar transfers, version decisions,
-metadata editing and the source tabs remain unimplemented. Enable XMP-derived organization only alongside safe sidecar transfer;
+`engine/xmp_store.py` now retains exact originals, parsed snapshots and immutable
+arrival/participant records in schema 23, with verified catalog backup coverage.
+
+**Index does not yet read XMP.** Import/association integration, primary-choice state,
+API exposure, sidecar transfers, version decisions, metadata editing and source tabs
+remain unimplemented. Older catalogs are refused, not migrated; do not deploy this
+schema change over a running development catalog without an explicit reset plan.
+Enable XMP-derived organization only alongside safe sidecar transfer;
 using corrected dates while leaving their sidecars behind would lose metadata.
 
 This document records the agreed import contract and the UI handoff. General editing
@@ -159,7 +164,7 @@ that source photo. Leave the shared source sidecar while another associated sour
 still needs it. Remove it only when all required copies are verified and no associated
 source photo needs it; uncertainty means retaining it. Copy leaves all source files alone.
 
-## Exact originals, compression and catalog backups (decided; not built)
+## Exact originals, compression and catalog backups (storage built; import pending)
 
 Store retained original XMP bytes as BLOBs in the catalog, alongside separately queryable
 parsed metadata and lineage. There is no separate destination archive in this design.
@@ -174,14 +179,41 @@ Store identical content once while preserving each arrival's filename, source, j
 association independently. Ordinary metadata/gallery queries use parsed fields and must
 not read/decompress the original BLOB per photo.
 
-Measure compression level, space and read/write cost on representative generated XMP
-before choosing a level. Include small/large sidecars, repeated and distinct versions,
-unknown fields and formatting variations; prove exact byte round trips. Do not promise
-an unmeasured ratio or expose a compression setting to users. Catalog backups are already
-compressed, so the main expected benefit is a smaller working catalog, not guaranteed
-smaller backup files. Blob storage, measurement and restoration are all still pending.
+The generated [storage experiment](xmp-storage-measurements.md) selected Zstandard
+level 1. It compared raw/levels 1, 3, 6 and 10 and verified exact round trips; no compression
+control is exposed to users. Catalog backups are already compressed, so a smaller
+working catalog is the main benefit. Capacity and backup costs at 200k/500k unique XMP
+versions are not yet measured.
 
-Once implemented and validated, the preservation claim is: **Every retained XMP version
+Schema 23 adds `xmp_versions`, `xmp_arrivals` and `xmp_arrival_files`. Versions carry
+binary payload, encoding, original size/SHA-256, reader revision, classification/code,
+parsed fields and qualified tags. Arrivals keep run and relative source path (including
+original filename), while participant rows independently retain each file identity and
+its candidate/owner evidence. These records are immutable; they do not yet represent
+current primary choice or future activation history.
+
+Retention reparses bytes rather than trusting a caller's claimed classification. Empty,
+known-unrelated and over-limit captures are refused. A bounded damaged/unsupported
+capture may be preserved as `needs_attention`, with no effective fields and only
+candidate participants; it cannot be a resolved metadata source. Oversized originals
+never become BLOBs. A 5 GiB sparse-file test verifies refusal before even one file-content
+read. Exceeding the size limit says the file needs attention, not that it cannot be XMP.
+
+The caller must supply a FULL-synchronous transaction. A savepoint prevents orphan
+content on a refused arrival; same-run/path replay must match content and participants.
+This does not replace the future source-deletion and publication gates. Reading a saved
+original verifies bounded frame parameters, checksum, decoded length and SHA-256; extra
+frames/trailing bytes, unknown codecs and corruption are refused. A query checks stored
+length before returning payload to Python, and gallery metadata queries need no BLOB.
+
+Backup publication verifies each version one at a time, then verifies the compressed
+SQLite snapshot. The snapshot and live backup record hold the maximum included arrival
+ID, so later arrivals remain unbacked regardless of clock order. XMP-only jobs qualify
+for the existing post-job backup. Tests restore the catalog backup and verify original
+bytes and lineage; a corrupt version prevents backup publication. This does not add
+an in-app sidecar restoration/activation operation.
+
+The tested storage-level preservation claim is: **Every retained XMP version
 can be reproduced byte for byte from the catalog or a backup containing that version.**
 A backup predating an arrival cannot recover that arrival. Restoring the database does
 not automatically rewind destination files, restore deleted photos or recreate source
@@ -232,14 +264,13 @@ multiple-version fixtures before enabling the screens.
 - Integrate the tested bounded reader/association helpers. Add the embedded-field
   adapter and canonical type/date validation; expand unsupported RDF forms with fixtures
   as needed. Do not treat arbitrary bytes accepted by the pure resolver as validated XMP.
-- Design durable snapshot/version/origin storage and association records, then integrate
-  Index, effective metadata and the API. The resolver alone provides no crash durability.
+- Integrate the stored snapshots/arrivals into Index and build current association/primary
+  choice records, effective metadata and the API. Retention does not activate a version.
 - Implement verified photo/sidecar transfer, collision handling, partial shared Move,
   decisions, and recovery before enabling XMP-derived Copy/Move organization.
-- Implement the decided compressed-BLOB catalog storage and benchmark compression
-  before selecting a level. Validate backup restoration and every interrupted transfer
-  stage before claiming preservation. Retention/purging must not silently discard versions
-  still referenced by lineage.
+- Measure parsed-metadata growth and backup time at large XMP counts. Byte-storage and
+  backup restoration tests pass; interrupted photo/sidecar transfer still needs implementation
+  and failure tests. Retention/purging must not discard lineage-referenced versions.
 - Build the source tabs and import decision UI in the separate UI workstream.
 - Detecting a sidecar changed between Index and Copy/Move is deferred for future
   discussion. The current expectation is to reindex after an external edit. This does
