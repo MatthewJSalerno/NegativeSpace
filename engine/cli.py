@@ -14,7 +14,7 @@ from typing import List
 
 from engine.ns_db import PhotoStatus, RunStatus, SUPPORTED_EXTENSIONS
 from engine import (
-    backups, constants, deps, destinations, maintenance, ns_db, ns_similarity, reconcile,
+    backups, constants, deps, destinations, maintenance, metadata_index, ns_db, ns_similarity, reconcile,
     relocate, runtime, scan, store, targeting, thumbnails, transfer, workers)
 
 
@@ -197,7 +197,18 @@ def main():
     mode_group.add_argument('--check-issue', type=positive_int, help='Verify one uncertain operation without modifying photo files.')
     mode_group.add_argument('--review-decision', action='store_true',
                             help='Record a catalog-only review decision supplied as JSON on standard input; changes no photo files.')
+    mode_group.add_argument('--metadata', choices=('preview','apply','retry','discard','source-cleanup-preview'),
+                            help='Metadata engine request as bounded JSON on stdin: edit/source-cleanup previews, verified XMP/JPEG save, explicit retry or discard of an unchanged edit.')
+    parser.add_argument('--confirm-edited-sources', action='store_true',
+                        help='With --move and --request-id: confirm removal of selected source originals whose Library copies have verified embedded edits. Applies only to this job; exact original photo bytes are not retained.')
     args = parser.parse_args()
+    if args.confirm_edited_sources and (not args.move or not args.request_id):
+        parser.error('--confirm-edited-sources requires --move and --request-id.')
+    if args.metadata:
+        if args.file_ids or args.file_ids_from or args.source_subdir:
+            parser.error('--metadata takes its explicit selection from JSON stdin.')
+        if args.metadata not in ('preview','source-cleanup-preview') and not args.request_id:
+            parser.error('--metadata mutations require --request-id.')
     if args.check_issue is not None and args.check_issue > 2**63-1:
         parser.error("--check-issue requires a positive 64-bit issue ID.")
     if args.repair_photo is not None and (args.repair_photo < 1 or args.repair_photo > 2**63-1 or args.repair_similarity != 'missing'):
@@ -234,9 +245,27 @@ def main():
 
     # 2. Configure Logging
     # --preview answers on stdout in JSON for the API, so its log goes to the file only.
-    answers_in_json = (args.review_decision or args.preview is not None or args.clear_previews or args.rename_candidates is not None
+    answers_in_json = (args.metadata or args.review_decision or args.preview is not None or args.clear_previews or args.rename_candidates is not None
                        or (args.rename is not None and args.dry_run))
     runtime.configure_logging(log_dir, console=not answers_in_json)
+    metadata_request = None
+    if args.metadata:
+        from engine import metadata_command
+        try:
+            metadata_request = metadata_command.read_request(sys.stdin.buffer)
+            metadata_command.validate(metadata_request, args.metadata)
+            if args.metadata == 'source-cleanup-preview':
+                from engine import metadata_source_cleanup
+                print(json.dumps(metadata_source_cleanup.preview_batch(db_path,
+                    photo_ids=metadata_request['photo_ids'], source_root=Path(args.source).absolute(),
+                    destination_root=Path(args.dest).absolute())))
+                sys.exit(0)
+            if args.metadata == 'preview':
+                print(json.dumps(metadata_command.previews(db_path, Path(args.dest).resolve(), metadata_request)))
+                sys.exit(0)
+        except (ValueError, OSError, ns_db.SchemaError, ns_db.RevisionConflict) as exc:
+            print(json.dumps({'error':str(exc)}))
+            sys.exit(2)
     if args.preview is not None:
         # Before the lock on purpose: a preview changes no photo file (see preview_for_photo).
         result = thumbnails.preview_for_photo(db_path, Path(args.cache).resolve(), args.preview)
@@ -270,6 +299,9 @@ def main():
             f"Wait for it to finish, or cancel it, then retry."
         )
         sys.exit(1)
+
+    if args.metadata:
+        sys.exit(metadata_command.run(args, db_path, base_dir, lock_fd, metadata_request))
 
     if args.review_decision:
         from engine import review
@@ -412,6 +444,7 @@ def main():
     submitted = {"force_rehash": args.force_rehash,
                  "confirm_source_empty": args.confirm_source_empty,
                  "confirm_network_destination": args.confirm_network_destination,
+                 "confirm_edited_sources": args.confirm_edited_sources,
                  "thumbnails": not args.no_thumbnails,
                  "cache": str(Path(args.cache).resolve())}
     try:
@@ -755,6 +788,8 @@ def main():
                     f"Pending (their original changed, failed or disappeared), {demoted} marked "
                     f"Duplicate (their content is already delivered or queued)."
                 )
+            metadata_index.capture_index(str(db_path), run_id, source_path, candidates,
+                worker_count=worker_count, log_dir=str(log_dir), force=args.force_rehash)
             runtime.run_progress.start("matching", None)
             def matching_progress(done, total):
                 runtime.run_progress.set_total(total)
@@ -762,8 +797,9 @@ def main():
                 if runtime.run_progress.due():
                     runtime.run_progress.write_now()
             with contextlib.closing(store.get_db_connection(str(db_path))) as matching_conn:
-                matching_complete = ns_similarity.refresh(matching_conn, cancelled=runtime.cancel_requested.is_set,
-                                                          progress=matching_progress)
+                matching_complete = (not runtime.cancel_requested.is_set() and
+                    ns_similarity.refresh(matching_conn, cancelled=runtime.cancel_requested.is_set,
+                                          progress=matching_progress))
             runtime.run_progress.write_now()
             if not matching_complete:
                 run_outcome = RunStatus.CANCELLED

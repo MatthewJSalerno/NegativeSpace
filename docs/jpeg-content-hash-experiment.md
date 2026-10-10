@@ -1,6 +1,8 @@
 # JPEG image-content fingerprint experiment
 
-Status: **generated-fixture prototype, not engine integration or deletion approval**.
+Status: **prototype retained; production integration deferred by the maintainer**.
+Finish EXIF/XMP preservation and verified editing first. This extra hash is not needed
+for detecting exact whole-file duplicate results of a future staged metadata edit.
 `tools/jpeg_content_hash.py` is imported only by its tests and benchmark. No catalog
 column, Index behavior, duplicate cleanup, photo editing or UI behavior is changed.
 
@@ -107,6 +109,35 @@ complete directory-containment or source-deletion gate.
 Two in-memory mutations verified the assertions: omitting quantization tables caused
 the table-only change test to fail; incorrectly including metadata caused ten ExifTool
 edit cases to fail. No production or prototype source was changed by these mutations.
+
+## Bounded demo assessment and priority decision
+
+A read-only pass over the demo library examined 4,859 regular files: 4,778 had a JPEG
+signature, 80 did not, and one was unreadable. One nonregular entry was skipped. Of the
+JPEG-signature files, 4,641 received a fingerprint (97.1%); 137 were refused, including
+117 with unsupported APP13 resources. Refusal is not a declaration that a photo is bad.
+The first measurement stopped on the deliberately unreadable fixture; the completed
+pass counted it separately, without changing its permissions or contents.
+
+Whole-file SHA-256 grouping found 95 repeated-file entries. The proposed fingerprint
+additionally found 45 groups containing 100 distinct whole-file versions (55 additional
+versions beyond one per group). All 45 groups had differing metadata fingerprints and
+independently decoded to identical stored pixel bytes. This does not apply orientation
+or ICC color management and is not consolidation approval. Of those groups, 27 contained
+only sample originals, 17 mixed originals and generated scenarios, and one only generated
+scenarios. Even the originals include metadata test fixtures: no personal-library yield
+or storage-saving estimate follows from these counts.
+
+The JPEG inputs totaled 300,391,434 bytes. A single local fingerprint pass took 0.793 s;
+whole-file reads preceded fingerprinting, and total assessment time including independent
+group decoding was 1.117 s. These small, warm-read demo inputs do not replace the generated
+large-image measurements above or establish integrated Index/network performance.
+
+The maintainer chose to defer production integration and broader format support. Keep
+this evidence and prototype; prioritize metadata preservation, primary-source choices
+and verified edits. Whole-file hashes already provide the identity needed for exact
+post-edit duplicate detection; the proposed hash supplies an optional additional form
+of discovery. No new catalog field, import behavior or cleanup action is enabled.
 
 ## Before integration
 

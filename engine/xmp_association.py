@@ -2,7 +2,7 @@
 
 Call with every supported photo in the source inventory BEFORE job filters. Results
 are tentative for new/unresolved associations; recorded ownership/primary choices
-must take precedence when the catalog integration is built.
+take precedence in the catalog capture layer. These pure helpers never save decisions.
 """
 
 from collections import defaultdict
@@ -20,7 +20,8 @@ class Association:
     state: str  # associated, needs_choice, needs_attention, orphan, ignored
     photos: tuple[str, ...]  # Owners when associated; affected candidates otherwise.
     reason: str
-    basis: str | None = None  # full_name, declared_owner, single, policy
+    basis: str | None = None  # full_name, declared_owner, single, policy, confirmed
+    candidates: tuple[str, ...] = ()  # Complete pre-policy candidates when captured by Index.
 
 
 class PhotoInventory:

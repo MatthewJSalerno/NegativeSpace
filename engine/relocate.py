@@ -11,7 +11,7 @@ from engine.ns_db import (
     PhotoStatus, RunStatus, OPERATION_CANCELLED, OPERATION_SKIPPED, OPERATION_RENAMED,
     OPERATION_RETURNED, IN_REJECTS_STATUSES, SUPPORTED_EXTENSIONS)
 from engine import (
-    backups, constants, destinations, durable, fileinfo, jobs, ns_db, reconcile, runtime, store,
+    backups, constants, destinations, durable, fileinfo, jobs, metadata_relocate, ns_db, reconcile, runtime, store,
     targeting)
 
 
@@ -132,10 +132,10 @@ def plan_rename(conn, dest_root: Path, photo_id: int, name: str) -> dict:
     current_path = Path(current)
     stem = _new_name_stem(name, current_path.suffix)
     wanted = current_path.parent / f"{stem}{current_path.suffix}"
-    candidate, counter = wanted, 1
-    while candidate != current_path and os.path.lexists(candidate):
-        candidate = current_path.parent / f"{stem}_{counter}{current_path.suffix}"
-        counter += 1
+    try:
+        candidate = metadata_relocate.choose_target(conn, dest_root, current_path, wanted, 'rename')
+    except (OSError, ValueError) as exc:
+        raise RenameRefused(str(exc)) from exc
     return {"photo_id": photo_id, "sha1": sha1, "current_path": current, "new_path": str(candidate),
             "collision": candidate != wanted and candidate != current_path,
             "unchanged": candidate == current_path}
@@ -213,21 +213,35 @@ def rename_delivered_file(db_path: Path, dest_root: Path, backups_dir: Path, bas
             runtime.logger.error("No files were changed because the catalog backup failed.")
             return RunStatus.FAILED
 
+        expected = {"old_path": old, "new_path": new, "file_id": file_id, "sha1_hash": plan["sha1"]}
+        try:
+            wanted = Path(old).with_name(_new_name_stem(name, Path(old).suffix) + Path(old).suffix)
+            sidecar = metadata_relocate.plan(conn, dest_root, old, new, plan["sha1"], wanted=wanted)
+        except (OSError, ValueError) as exc:
+            store.log_operation(conn, run_id, photo_id, old, new, PhotoStatus.FAILED,
+                                f"Not renamed: {exc}. Nothing was changed.")
+            return RunStatus.FAILED
+        if sidecar:
+            expected['sidecar'] = sidecar
         with ns_db.transaction(conn):
             op = ns_db.begin_operation(conn, run_id=run_id, photo_id=photo_id, source_path=old,
-                                       dest_path=new, kind="rename",
-                                       expected={"old_path": old, "new_path": new, "file_id": file_id,
-                                                 "sha1_hash": plan["sha1"]})
-        phase = "rename"
+                                       dest_path=new, kind="rename", expected=expected)
+        phase = "pair" if sidecar else "rename"
         try:
-            method = _rename_noreplace(old, new)
-            phase = "sync"
-            durable._fsync_directory(Path(new).parent)
-        except OSError as exc:
+            if sidecar:
+                metadata_relocate.perform(conn, op, expected)
+            else:
+                method = _rename_noreplace(old, new)
+                phase = "sync"
+                durable._fsync_directory(Path(new).parent)
+        except (OSError, ValueError) as exc:
             _record_relocation_failure(conn, op, "rename", phase, old, new, file_id, exc)
             return RunStatus.FAILED
         with ns_db.transaction(conn):
-            _record_rename(conn, op, old, new, file_id, detail={"method": method})
+            if sidecar:
+                metadata_relocate.finish(conn, op, expected, 'rename', photo_id)
+            else:
+                _record_rename(conn, op, old, new, file_id, detail={"method": method})
         runtime.logger.info(f"Renamed {Path(old).name} to {Path(new).name} in {Path(new).parent}"
                     + (" (the name was taken, so a suffix was added)" if plan["collision"] else "") + ".")
         return RunStatus.COMPLETED
@@ -448,35 +462,52 @@ def relocate_in_destination(db_path: Path, dest_root: Path, backups_dir: Path, b
                 wanted = destinations._rejects_path_for(dest_root, old)
                 status_after = PhotoStatus.REJECTED_COPIED if status == PhotoStatus.COPIED else PhotoStatus.REJECTED
                 operation_status = PhotoStatus.REJECTED
-            new = str(destinations.get_unique_dest_path(wanted))
+            try:
+                new = str(metadata_relocate.choose_target(conn, dest_root, old, wanted, kind))
+                sidecar = metadata_relocate.plan(conn, dest_root, old, new, sha1, wanted=wanted)
+            except (OSError, ValueError) as exc:
+                store.log_operation(conn, run_id, photo_id, old, str(wanted), PhotoStatus.FAILED,
+                                    f"Not {past}: {exc}. Nothing was changed.")
+                failed += 1
+                runtime.run_progress.add(PhotoStatus.FAILED)
+                continue
             file_id = (conn.execute("SELECT file_id FROM file_states WHERE current_path = ? AND "
                                     "location_role = 'destination' AND presence_state = 'present'",
                                     (old,)).fetchone() or [None])[0]
+            expected = {"old_path": old, "new_path": new, "file_id": file_id, "sha1_hash": sha1,
+                        "status_before": status, "status_after": status_after,
+                        "operation_status": operation_status}
+            if sidecar:
+                expected['sidecar'] = sidecar
             with ns_db.transaction(conn):
                 operation_id = ns_db.begin_operation(
                     conn, run_id=run_id, photo_id=photo_id, source_path=old, dest_path=new, kind=kind,
-                    expected={"old_path": old, "new_path": new, "file_id": file_id, "sha1_hash": sha1,
-                              "status_before": status, "status_after": status_after,
-                              "operation_status": operation_status})
-            phase = "prepare"
+                    expected=expected)
+            phase = "pair" if sidecar else "prepare"
             try:
-                durable._mkdir_durable(Path(new).parent)
-                phase = "rename"
-                method = _rename_noreplace(old, new)
-                phase = "sync"
-                durable._fsync_directory(Path(new).parent)
-                durable._fsync_directory(Path(old).parent)
-            except OSError as exc:
+                if sidecar:
+                    metadata_relocate.perform(conn, operation_id, expected)
+                else:
+                    durable._mkdir_durable(Path(new).parent)
+                    phase = "rename"
+                    method = _rename_noreplace(old, new)
+                    phase = "sync"
+                    durable._fsync_directory(Path(new).parent)
+                    durable._fsync_directory(Path(old).parent)
+            except (OSError, ValueError) as exc:
                 uncertain = _record_relocation_failure(conn, operation_id, kind, phase, old, new, file_id, exc)
                 needs_recovery = needs_recovery or uncertain
                 failed += 1
                 runtime.run_progress.add(PhotoStatus.FAILED)
                 continue
             with ns_db.transaction(conn):
-                _record_relocation(conn, operation_id, old, new, file_id, step=kind,
-                                   detail={"method": method, "status_before": status},
-                                   operation_status=operation_status, photo_id=photo_id,
-                                   status_after=status_after)
+                if sidecar:
+                    metadata_relocate.finish(conn, operation_id, expected, kind, photo_id)
+                else:
+                    _record_relocation(conn, operation_id, old, new, file_id, step=kind,
+                                       detail={"method": method, "status_before": status},
+                                       operation_status=operation_status, photo_id=photo_id,
+                                       status_after=status_after)
             done += 1
             runtime.run_progress.add(operation_status)
 

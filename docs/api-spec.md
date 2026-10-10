@@ -123,12 +123,22 @@ revision 0.
      "rejects_reminder_days": {"value": 30 | null, "revision": 0, "default": 30},
      "small_image_min": {"value": null, "revision": 0, "default": null},
      "suspicious_min_year": {"value": 1800, "revision": 0, "default": 1800},
+     "xmp_association": {"value": "ask", "revision": 0, "default": "ask"},
+     "metadata_write_raw": {"value": "xmp", "revision": 0, "default": "xmp"},
+     "metadata_write_non_raw": {"value": "embedded", "revision": 0, "default": "embedded"},
      "job_active": false}
 
 `workers.detected` is the number of CPUs the container may use (`ns_db.available_cpus`):
 the host's cores, reduced by a CPU set or a CPU quota. `limited_by` names which applies.
 The two `rejects_reminder_` settings are the web interface's own, never part of a job's
 configuration: a positive whole number, or `null` for off.
+
+`xmp_association` accepts `ask`, `raw_only`, `non_raw_only`, or `all`. The two
+`metadata_write_` preferences accept `xmp` or `embedded`. All three use the same
+revision-checked save and frozen job configuration. Association preferences affect
+unresolved capture proposals; saved ownership wins. Write preferences are recorded
+only until editing is implemented; they never override an established primary.
+Setup/Settings controls and metadata-decision routes remain unimplemented.
 
 ### `PUT /api/v1/settings`
 
@@ -184,7 +194,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 | `page`, `page_size` | page from 1; 1 to 240 photos | 1, 60 |
 
     {"items": [{"id": 12, "status": "Pending", "file_size": 3012443,
-                "date_taken": "2023-06-05T21:20:00", "date_source": "exif" | "file_mtime",
+                "date_taken": "2023-06-05T21:20:00", "date_source": "exif" | "xmp" | "file_mtime",
                 "filename": "IMG_0001.jpg", "duplicates": 1,
                 "failure": null | "Permission denied", "kept": null | "Read-only file system"}, ...],
      "page": 1, "page_size": 60, "total": 1160,

@@ -102,7 +102,8 @@ def retain_capture(conn, *, data, run_id, source_relative_path, file_ids,
                    role='candidate', basis='unresolved'):
     """Retain a captured sidecar in a caller-owned FULL transaction.
 
-    No live Index caller yet. The caller binds run/path and participants from the full
+    Index binds tentative captures; it never activates a version. The caller binds
+    run/path and participants from the full
     source inventory, not a request's claim. A same-run/path replay must match both
     bytes and participants. Settings/primary state are never changed by retention.
     An inner savepoint prevents orphan content if a caller catches a refused arrival.

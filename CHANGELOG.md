@@ -9,23 +9,103 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Qualified embedded JPEG edits now publish through recorded recovery steps, update
+  retained content/cache identity and metadata history, and refile changed dates.
+  Reindex preserves edited Library state; exact-result duplicates are reported without
+  automatic deletion. Sources stay unless a later Move explicitly confirms edited-source cleanup.
+
 - Full Index recognizes externally removed Copied originals after verifying their Library copies, updates Move eligibility, and exposes unverified copies through File issues.
 
 - Show uncertain file outcomes in photo information, Logs and the Library review inbox; verify recorded files with Check it now without moving or deleting photos.
 
 ### Added
+- One-job consent for Move after embedded edits, with a read-only source-cleanup preview,
+  verified original/retained hashes and image history, exact sidecar archives, pre-action
+  backup, durable deletion evidence and explicit retry. Unconfirmed originals remain
+  while other files proceed. The future web confirmation is documented, not built.
+- Qualify explicit common-field removal in JPEG EXIF, including linked date/GPS tags,
+  exact preservation of existing EXIF header values, verified absence and date refiling.
+  The metadata CLI accepts independent `remove_fields`; no primary switches silently.
+  Document and enforce the agreed JPEG/XMP release boundaries for unsupported formats
+  and EXIF value representations.
+- Reapply supported source/pre-edit metadata as a new verified engine operation, with
+  historical provenance, XMP field removals that preserve absence, and verified image
+  history across embedded edits. Unsupported representations refuse without partial
+  changes; exact photo restoration and metadata UI remain outside this workflow.
+- Compose supported metadata fields from a retained base version with explicit donor or
+  typed overrides, complete value/provenance previews and verified saves to the established
+  primary. Missing fields stay unchanged; explicit blanks remain empty. Engine-only.
+- Apply confirmed incoming XMP and Return choices through the metadata engine CLI, with
+  effective-value/location previews, verified pre-action backups, exact alternative
+  retention and explicit interruption recovery. Metadata and Rejects location remain
+  independent choices. Copy/Move separately verifies any later source cleanup.
+- Multiple-sidecar first imports: full-filename or explicit primary selection, exact
+  retention of every alternative, distinct arrival history for identical packets, and
+  verified shared-source cleanup. Partial Move jobs retain recorded ownership; interrupted
+  alternative cleanup requires explicit retry. Unresolved metadata choices remain at source.
+- Photo-only imports now file using captured embedded-XMP/EXIF priority after verified
+  delivery. The metadata CLI can switch an existing Library photo to embedded EXIF or
+  embedded XMP without rewriting either source, preserving inactive sidecars and recording
+  any date move with recovery history. Automatic read priority does not change write defaults.
+- Verified embedded JPEG working copies with unchanged originals, metadata read-back,
+  image/ICC preservation checks, bounded tools and staging-failure cleanup. Embedded
+  XMP supports common fields; EXIF refuses values it cannot represent. The journaled
+  publisher now connects Library replacement and content/cache updates; additional formats
+  remain unqualified.
+- Verified XMP editing through a bounded JSON engine CLI: explicit common-field changes,
+  field copying with donor provenance, deliberate retained-XMP activation, batch backups,
+  date refiling and interruption recovery. XMP sidecar saves leave photo bytes unchanged;
+  web editing controls remain unfinished.
+- Common-field XMP plans and preservation-aware packet construction, with linked GPS,
+  multilingual text, exact decimal ratings and independent ExifTool checks. Verified XMP
+  execution is connected; broader embedded writers remain pending; no UI changes.
+- Incoming duplicate XMP preservation, deliberate version/location choices, stale-target
+  protection and verified source cleanup with retry. Existing metadata and Rejects
+  locations are preserved by default; confirmed activation/Return now uses the metadata CLI. Schema 26 requires
+  a fresh development catalog and records metadata-observation progress.
+- Resolved single-sidecar Copy/Move imports now file by the selected metadata date,
+  establish primary/ownership only after pair verification, include XMP in space checks,
+  and resume interrupted transfers through explicit same-mode CLI jobs. Empty/partial
+  dates use the original Undated year; forced reindex preserves delivered names/dates.
+  Broader import activation, non-JPEG embedded editing and web retry remain pending.
+- Sidecar-aware Rename, Reject and Return for recorded photo/XMP pairs: verify both
+  new files before retiring either old name, preserve full-filename sidecars, recover
+  interrupted cleanup, and reuse the recorded target on explicit retry. Check it now
+  verifies the whole pair without moving or removing files. Broader incoming metadata
+  choices remain guarded; resolved single-sidecar imports are now connected.
+- Internal verified photo/XMP pair transfer with full-filename sidecars, shared-owner
+  cleanup checks, durable recovery evidence and explicit retry. Generated failure/crash
+  tests cover the deletion gates. Normal single-sidecar jobs and destination pair relocation
+  are connected; unresolved/duplicate metadata cases remain held.
+- Read-only Date taken/Orientation edit plans with field-scoped changes, linked EXIF date
+  components, minimal first-XMP construction and catalog-bound filing previews. Verified
+  qualified JPEG publication and XMP history/recovery are connected; additional formats and editing UI remain pending.
+- Saved metadata ownership and primary-source decisions with version-bound previews,
+  stale-confirmation refusal, request replay safety and backup coverage (schema 25).
+  XMP preferences are frozen per job; saved choices survive re-index and default changes.
+  Decision UI/API and broader activation remain pending; resolved single-sidecar jobs are connected.
+- Hold unresolved photo/XMP pairs during Copy/Move and duplicate cleanup; other
+  photos proceed and held pairs receive a specific explanation.
+- Read-only Index metadata observations: qualified embedded EXIF/XMP and retained
+  sidecars, proposed source priority, unchanged-photo reuse and sidecar-only re-index
+  detection. Index preserves established imports; activation happens after verified
+  pair delivery. Immutable observations and decisions require schema 26 (fresh catalog).
+- Internal EXIF/XMP comparison adapter for qualified capture dates, camera fields and
+  orientation, retaining original evidence and empty/partial values. Generated JPEG/TIFF
+  compatibility tests pass; the adapter itself does not edit or transfer files.
 - An isolated generated-JPEG content-hash experiment with metadata-invariance tests
   and measured timings; it does not change import or duplicate cleanup.
 - Supported XMP date, orientation and rating validation, with independent generated
   ExifTool compatibility checks. Invalid values remain attention-only; originals are preserved.
-- Compressed original XMP storage with immutable arrivals and verified catalog backups
-  (schema 23; fresh development catalog required). Index/transfer integration remains planned.
+- Compressed original XMP storage with immutable arrivals and verified catalog backups.
+  Index retention and resolved single-sidecar transfers are connected.
 - A generated XMP compression benchmark and oversized-sidecar refusal before content reads.
 - Internal bounded XMP reader and photo-association planner, with generated parsing,
-  filesystem-safety and ownership tests. Live Index and sidecar transfers are not enabled.
+  filesystem-safety and ownership tests. Index captures evidence; resolved imports
+  establish ownership after verified delivery.
 - Internal metadata provenance resolver preserving separate embedded/XMP snapshots,
-  explicit empty values and field origins. XMP import and source tabs remain planned;
-  their agreed contract and UI handoff are documented.
+  explicit empty values and field origins. Resolved single-sidecar import is connected;
+  source tabs and broader import decisions remain planned in the UI handoff.
 - Needs review for small images and review-later notes, with destination-only actions,
   first-run preferences, suspicious-date limits and shared appearance controls.
 - Allowed-address management in setup and Settings, independent of catalog replacement,
@@ -61,6 +141,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 ## [0.16.0] - 2026-10-06
 
 ### Added
+- Apply confirmed incoming XMP and Return choices through the metadata engine CLI, with
+  effective-value/location previews, verified pre-action backups, exact alternative
+  retention and explicit interruption recovery. Metadata and Rejects location remain
+  independent choices. Copy/Move separately verifies any later source cleanup.
 - The Dates panel has an order button beside its heading (**↓ Newest**, **↑ Oldest**, or
   **↕ Date** when sorted otherwise) that sets the gallery's date order; the Sort menu
   follows it, and it follows the Sort menu.
@@ -104,6 +188,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
   photos are left out: Reject takes only photos already organized."
 
 ### Added
+- Apply confirmed incoming XMP and Return choices through the metadata engine CLI, with
+  effective-value/location previews, verified pre-action backups, exact alternative
+  retention and explicit interruption recovery. Metadata and Rejects location remain
+  independent choices. Copy/Move separately verifies any later source cleanup.
 - README: a security section (there is no sign-in yet), a recovery guide
   ([docs/recovery.md](docs/recovery.md)) and the GPL-3.0 license.
 - A user guide with screenshots ([docs/user-guide.md](docs/user-guide.md)), and screenshots
@@ -143,6 +231,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 ## [0.12.0] - 2026-10-02
 
 ### Added
+- Apply confirmed incoming XMP and Return choices through the metadata engine CLI, with
+  effective-value/location previews, verified pre-action backups, exact alternative
+  retention and explicit interruption recovery. Metadata and Rejects location remain
+  independent choices. Copy/Move separately verifies any later source cleanup.
 - Rejects on Stats (what it holds, what has been emptied), and a reminder on every page
   once Rejects passes a size or age limit set in Settings. **New catalog format.**
 
@@ -159,6 +251,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 ## [0.10.0] - 2026-10-02
 
 ### Added
+- Apply confirmed incoming XMP and Return choices through the metadata engine CLI, with
+  effective-value/location previews, verified pre-action backups, exact alternative
+  retention and explicit interruption recovery. Metadata and Rejects location remain
+  independent choices. Copy/Move separately verifies any later source cleanup.
 - Reject from Similar photos and from the side-by-side comparison; **Keep this one, reject
   the rest**.
 - A clear button in every search box.
@@ -166,6 +262,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 ## [0.9.0] - 2026-10-01
 
 ### Added
+- Apply confirmed incoming XMP and Return choices through the metadata engine CLI, with
+  effective-value/location previews, verified pre-action backups, exact alternative
+  retention and explicit interruption recovery. Metadata and Rejects location remain
+  independent choices. Copy/Move separately verifies any later source cleanup.
 - Reject and Return to library: turned-down photos move to `rejects/`, never deleted, and
   identical copies stay out of the library. **New catalog format.**
 

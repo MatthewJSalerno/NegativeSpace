@@ -61,6 +61,16 @@ def check_issue(db_path, source_root, dest_root, run_id, issue_id):
         detail = json.loads(intent[0]) if intent and intent[0] else {}
         expected = detail.get('expected') or {}
         kind = detail.get('kind')
+        if kind == 'metadata_source_cleanup':
+            from engine import metadata_source_cleanup
+            result=metadata_source_cleanup.execute(c,original,source_root=source_root,destination_root=dest_root,observe=True)
+            return {**result,'message':result.get('error') or 'Source cleanup is verified complete. No files were deleted by this check.'}
+        if kind == 'metadata_edit':
+            from engine import metadata_save
+            return metadata_save.check(c, original, destination_root=dest_root)
+        if expected.get('sidecar') and kind in relocate._RELOCATION_NOUNS:
+            from engine import metadata_relocate
+            return metadata_relocate.recover(c, original, run_id, allow_cleanup=False, dest_root=dest_root)
         photo = c.execute('SELECT sha1_hash,source_path,dest_path,status FROM photos WHERE id=?',(pid,)).fetchone()
         # Transfers may omit a digest in intent. Use the immutable scan observation
         # that existed then, never a later mutable photo-row hash as historical proof.

@@ -1,6 +1,7 @@
 """Bounded read-only XMP capture for the planned import pipeline.
 
-Not connected to Index/Copy/Move. Preserve original bytes and qualified XML trees;
+Index retains captured evidence for verified Copy/Move. Preserve original
+bytes and qualified XML trees;
 only explicitly supported RDF forms enter canonical fields. No XML resource is fetched.
 """
 
@@ -14,6 +15,7 @@ from decimal import Decimal
 from pathlib import Path, PurePosixPath
 from xml.parsers import expat
 
+from engine import metadata_gps
 from engine.metadata import MetadataSource
 
 RDF = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#'
@@ -51,6 +53,7 @@ FIELD_TAGS = {
     _tag(DC, 'creator'): 'creators',
     _tag(DC, 'rights'): 'rights',
 }
+GPS_TAGS = {_tag(EXIF, name):part for name,part in metadata_gps.PARTS.items()}
 _ARRAY_FIELDS = {'keywords': 'Bag', 'creators': 'Seq'}
 _LOCALIZED_FIELDS = {'caption', 'title', 'rights'}
 
@@ -283,6 +286,10 @@ def parse_bytes(data: bytes, *, source_id: str) -> ReadResult:
                     fields[field] = _field_value(field, node)
                 if name == _tag(CRS, 'RawFileName'):
                     owners.append(_literal(node))
+        gps={name.rsplit('}',1)[1]: _literal(nodes[0]) for name,nodes in tags['properties'].items() if name in GPS_TAGS}
+        if any(len(nodes)!=1 for name,nodes in tags['properties'].items() if name in GPS_TAGS):
+            raise _Refused('repeated_field')
+        if gps:fields['gps']=metadata_gps.from_xmp(gps)
         _validate_fields(fields)
         if len(owners) > 1:
             raise _Refused('repeated_owner')

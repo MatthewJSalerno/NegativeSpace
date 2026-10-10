@@ -714,7 +714,7 @@ Manual review before merging: choose On and Off on separate fresh catalogs, revi
 mixed-size delivered photos, verify a useful small photo disappears only from Small
 images after Mark reviewed, and verify unwanted photos follow the existing Reject
 confirmation. Inspect the workspace and first-run Files at desktop zoom. This branch
-uses schema 23 and requires a fresh development catalog; it does not migrate schema 20.
+uses schema 26 and requires a fresh development catalog; it does not migrate schema 20.
 
 The review browser driver also covers first-step navigation, source Index summary,
 Copy confirmation, Library review markers, focused inbox entry and return with search,
@@ -899,8 +899,37 @@ docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app:ro -w /app \
 The suite covers explicit XMP precedence, missing versus empty fields, source origins,
 original-byte round trips, alternate versions, invalid bindings, typed differences and
 mutation isolation. These are pure helper tests: they do not validate XML parsing,
-catalog durability, Index or sidecar transfers, which are not connected yet.
+catalog durability or Index (covered by the storage and Index suites below), nor
+sidecar transfers, which have separate integration suites below.
 
+
+## Embedded EXIF/XMP comparison adapter
+
+Run `python3 -m unittest discover -s tests -p metadata_adapter_test.py -v` in the
+same app Docker image with the checkout mounted read-only. Thirteen tests include real
+ExifTool writes/reads of generated JPEG and TIFF files, qualified tag isolation,
+unchanged original evidence, numeric-looking text, linked capture-date components,
+unknown zones/precision, explicit blank/partial XMP precedence, invalid input refusal,
+exact decimal normalization and detached arrays/localized values. ExifTool is required.
+
+The existing flat Index capture is not an input. Index uses a separate qualified
+observation phase; live organization and write operations have separate integration suites below.
+
+## Index metadata observations
+
+Run `python3 -m unittest discover -s tests -p metadata_index_test.py -v` in the same
+Docker image with this checkout mounted read-only. Generated cases run actual Index,
+re-index and Copy jobs: qualified EXIF/embedded-XMP/sidecar priority, blank/partial values,
+unchanged filing/bytes, sidecar-only changes, repeat no-ops, full-name alternatives,
+malformed and unsafe sidecars, sibling ambiguity outside selection/extension filters,
+transaction rollback, cancellation between complete observations, re-index after cancellation,
+immutable observations and backup restoration/concurrent arrivals.
+The suite also checks descriptor safety, changed-photo refusal and cache/force behavior.
+
+Schema 24 adds `metadata_captures` and the snapshot's metadata-capture watermark.
+Older development catalogs are refused. The phase records proposals only; it does not
+activate filing metadata, expose source tabs, or carry sidecars in Copy/Move.
+Catalog-only explicit choices are covered by the decision suite below.
 
 ## XMP reader and association planning
 
@@ -919,7 +948,7 @@ malformed/unsupported content, traversal and symlinks, special files, permission
 file/directory changes during reads, full-name/shared ownership, policy ambiguity,
 orphans and tentative primary precedence. The 11 `metadata_test.py` tests separately
 cover resolution. These suites do not establish XMP catalog durability or transfer
-safety: storage is tested separately and transfer integration is still unbuilt. No photo samples or running app are used.
+safety: storage and normal single-sidecar transfers have separate suites below. No photo samples or running app are used.
 
 
 The reader suite also validates partial/full dates, leap days, clock/offset bounds,
@@ -935,7 +964,7 @@ This is interoperability coverage, not a complete standards-conformance lint.
 
 ## XMP storage and catalog backup validation
 
-Schema 23 requires a fresh generated catalog. `xmp_store_test.py` covers compressed/raw
+Schema 26 requires a fresh generated catalog. `xmp_store_test.py` covers compressed/raw
 round trips, unknown encodings, corrupt/oversized frames, separate arrivals over shared
 content, immutable lineage, transaction/savepoint rollback, request-like replay binding,
 bounded damaged/invalid-value originals (attention-only), metadata queries without decoding, backup round trips, corrupt
@@ -950,8 +979,8 @@ The reader suite now creates a sparse 5 GiB `.xmp` and proves its contents are n
 or changed. This uses negligible disk allocation and no real photo files. The codec
 benchmark and its limitations are documented in `docs/xmp-storage-measurements.md`.
 Run database/API and engine smoke regressions when changing these catalog/backup paths;
-enable the public RAW samples for smoke validation. No browser workflow can yet import
-XMP; live transfer and primary-source activation remain separate work.
+enable the public RAW samples for smoke validation. XMP decision and retry controls
+are not available in the browser yet; normal CLI single-sidecar imports are covered below.
 
 
 ## Generated JPEG content fingerprint experiment
@@ -972,3 +1001,333 @@ and progressive JPEGs, orientation/profile changes, quantization-table-only chan
 restart markers, custom extensions and unsupported/truncated input. They do not prove
 complete JPEG conformance, metadata restoration or safe consolidation. Measured results
 and exact coverage are in [the experiment report](../docs/jpeg-content-hash-experiment.md).
+
+
+## Saved metadata decisions
+
+Run `python3 -m unittest discover -s tests -p metadata_decisions_test.py -v` in the app
+Docker image with this checkout mounted read-only. Generated actual jobs cover explicit
+ownership, frozen job settings, preserved primary versions, stale/tampered choices,
+request replay/conflicts, active-job refusal, atomic rollback, immutable decisions,
+backup watermarks and held photo/XMP pairs during direct Copy/Move and duplicate cleanup.
+Schema 25 adds decisions and their backup watermark; use a fresh development catalog.
+Decision UI/API remains pending. Index tests assert that a resolved pair uses captured
+XMP filing, while unresolved/duplicate cases remain held.
+
+
+## Field-scoped edit planning
+
+Run `python3 -m unittest discover -s tests -p metadata_edits_test.py -v` in the same
+Docker image with this checkout mounted read-only. Generated tests cover minimal first
+XMP, untouched fallback fields, established primary precedence, blank/partial dates,
+linked EXIF date components, no incidental refile on Orientation, invalid/unsupported
+requests and catalog-bound read-only previews. ExifTool independently reads generated
+XMP and applies planned date tags to a temporary JPEG; original bytes, camera/caption/GPS
+and decoded pixels remain unchanged. No user files, existing demos or edit API are used.
+This validates planning/interoperability, not safe production publication or recovery.
+
+
+## Photo/XMP pair transfer primitive
+
+Run `python3 -m unittest discover -s tests -p metadata_transfer_test.py -v` in the app
+Docker image with this checkout mounted read-only. The generated catalog/photo fixtures
+exercise real Copy/Move filesystem work through the internal engine primitive, source
+preservation, shared-owner cleanup, identical/differing destination XMP, orphan detection,
+paired filename suffixes, symlink/path refusal, FULL transaction enforcement, crash
+boundaries, retry/replay and pair-aware startup recovery. Tests inject disk/fsync/catalog
+failures and process-like interruptions; they do not alter a sample library or demo.
+
+Normal CLI jobs support resolved first imports, including multiple sidecars; unresolved choices stay
+held. Recorded-pair Rename/Reject/Return is tested separately. Pair issue/retry UI is not exposed.
+Passing this suite does not establish the complete import/edit lifecycle or hardware
+power-loss behavior. No new public flags or schema version accompany the primitive.
+
+## Photo/XMP destination relocation
+
+Run `python3 -m unittest discover -s tests -p metadata_relocate_test.py -v` in the app
+Docker image with this checkout mounted read-only. Generated photos and XMP are delivered
+using the internal pair primitive, then exercised through Rename, Reject and Return.
+Checks cover exact bytes, retained photo identity, unchanged import sources, collision
+suffixes, orphan/unrecorded/missing sidecars, symlinks, hard-link fallback, no overwrite,
+publication/cleanup crashes, directory and catalog barriers, cancellation, stale catalog
+state and retry history. Recovery never accepts a photo-only result. Check it now must
+not remove either old name, and explicit retry must reuse the originally intended names.
+Also run `metadata_transfer_test.py`, `attention_test.py`, `webui_api_test.py` and the full
+engine smoke suite (including public RAW fixtures) when changing this lifecycle.
+These simulated failures do not prove hardware power-loss behavior. No UI walkthrough
+is required for this engine-only primitive; the web decision/retry workflow remains unbuilt.
+
+## Normal single-sidecar import and activation
+
+Run `python3 -m unittest discover -s tests -p metadata_import_test.py -v` in the app
+Docker image. Generated jobs verify XMP date filing, explicit EXIF choice, missing versus
+blank/partial dates, timezone calendar-day preservation, unchanged source/sidecar bytes,
+Copy then Move, shared owners, collisions, existing-photo refusal, sidecar space estimates,
+per-pair cancellation, source-directory durability, failed publication/retry and forced
+reindex after Rename. Activation and initial decisions appear only after verified transfer.
+This suite covers the single-sidecar import path. Resolved multiple-sidecar imports,
+incoming metadata choices and metadata edits are implemented and covered by the dedicated
+suites below; unresolved choices remain held. Web retry eligibility/counts and
+source/decision controls still need a separate implementation and browser walkthrough
+before those controls are released.
+
+### Common-field construction and incoming XMP alternatives
+
+Run these with the checkout mounted read-only in your own app Docker image:
+
+```sh
+python3 -m unittest discover -s tests -p metadata_common_fields_test.py -v
+python3 -m unittest discover -s tests -p metadata_writer_test.py -v
+python3 -m unittest discover -s tests -p metadata_incoming_test.py -v
+```
+
+Common-field tests use generated XMP and independent ExifTool reads for title, caption,
+keywords, ordered creators, rights, ratings, date, orientation and linked GPS. They cover
+explicit clears, partial GPS without fallback, decimal precision, invalid types/XML,
+language alternatives and namespace-prefix conflicts. Writer tests preserve unknown
+properties/comments and prove a no-op keeps the original bytes. These are construction
+and preview tests, not proof of file edit execution or embedded RAW write support.
+
+Incoming-version tests run real generated Index/Copy/Move jobs. They cover different and
+identical versions, no-current-XMP choices, Rejects, separate activation requirements,
+request replay, stale targets, corrupt retained photos/BLOBs, source changes, cleanup
+failure/retry, preserved origin names and duplicate Copy counts. No demo or real-library
+files are required. Run the metadata and XMP suites together with database/API and full
+engine smoke regressions after changing these integration points. Public RAW fixtures
+remain read-only and enable both RAW smoke checks.
+
+
+## Verified XMP edits and primary activation
+
+Run `python3 -m unittest discover -s tests -p metadata_save_test.py -v` in the app
+image, with the checkout mounted read-only. Generated catalogs exercise actual CLI
+preview/apply/retry/discard, request replay/conflicts, frozen settings, common-field
+publication, field donor provenance, deliberate retained-XMP primary activation,
+no-op timestamps, date/Undated pair refiling, Reject/Return, force reindex, exact originals
+in restored backups, orphan/symlink refusal, collisions, storage failures, interrupted
+publication, partial staging files, failed refiling and explicit abandonment guards.
+These checks do not certify embedded photo writing or the future metadata UI.
+
+The engine accepts a bounded JSON object on stdin. `--metadata preview` changes no files;
+use the usual configured `--base` and `--dest`. For example:
+
+```json
+{"edits":[{"photo_id":1,"capture_id":1,"changes":{"title":"Example title"}}]}
+```
+
+The response contains `previews`, including each `token`, target and filing change.
+For `--metadata apply --request-id UNIQUE_ID`, send the same edit entry with its confirmed
+`token` added. IDs and token must come from that catalog; examples are shapes, not a
+ready-made confirmation. A different primary or a changed capture/settings invalidates
+the preview. The engine accepts XMP sidecars and qualified embedded JPEG targets; unsupported
+formats or representations are refused without silently selecting another primary.
+
+To remove mapped fields instead of writing empty values, provide `remove_fields`:
+
+```json
+{"edits":[{"photo_id":1,"capture_id":1,"changes":{},"remove_fields":["date_taken","orientation"]}]}
+```
+
+Preview and confirm with the same token flow. Independent fields may be supplied in
+`changes`; a field cannot be both set and removed. Removing a date removes its linked
+fraction/offset and previews refiling. Removal affects only the established primary;
+XMP fallback remains visible in the preview. It is not a general metadata/privacy scrub.
+`metadata_writer_limits_test.py` qualifies JPEG EXIF mapped-field removals, unrelated
+header/property preservation, actual removal read-back, no-op behavior, CLI history and
+refiling, refusal boundaries, and sidecar plans for non-JPEG formats. It runs in CI.
+The agreed release limits are in `docs/xmp-metadata.md` → Release writer boundaries.
+
+To copy explicit fields, add `copy_fields` and omit those fields from `changes`:
+
+```json
+{"edits":[{"photo_id":1,"capture_id":1,"changes":{},"copy_fields":{"date_taken":{"photo_id":2,"capture_id":2,"source_id":"exif"}}}]}
+```
+
+A donor may instead use `{"photo_id":2,"version_id":3}` for retained associated XMP.
+An absent donor value is refused; an explicitly empty value is copied as empty. The
+write target remains the selected photo's established primary.
+
+To compose a base version with explicit overrides, add `base` using either donor shape:
+
+```json
+{"edits":[{"photo_id":1,"capture_id":1,"base":{"photo_id":2,"version_id":3},"changes":{"title":"Chosen title"},"copy_fields":{"date_taken":{"photo_id":2,"capture_id":2,"source_id":"exif"}}}]}
+```
+
+For the base without overrides, supply empty `changes` and `copy_fields` objects. Present
+supported base fields are copied; absent fields stay unchanged, while explicit empties
+clear the supported field. The preview lists absent base fields and each final value's
+origin. Unknown base properties are not transplanted, and the established primary remains
+the write target. Apply uses the same preview/token flow above.
+`metadata_composition_test.py` exercises actual sidecar and embedded JPEG saves,
+base/override/typed provenance, no-op preservation, explicit blanks/absence, linked fields,
+unknown target-property preservation, invalid donors, stale provenance and request replay.
+It runs in CI with the other metadata suites.
+
+To reproduce this photo's supported source metadata, select its historical capture:
+
+```json
+{"edits":[{"photo_id":1,"capture_id":5,"reproduce":{"capture_id":1}}]}
+```
+
+The outer `capture_id` binds current edit evidence; the inner one selects the historical
+observation. Alternatively use `"reproduce":{"before_operation_id":42}` for the state
+before a completed metadata edit. Preview first, then add the token for Apply as above.
+The request targets the current primary, retains history and records a new operation.
+Preview distinguishes absent fields/removals from explicit blanks and includes filing.
+The original source may be gone, but the organized image must still verify. Hash changes
+require a verified image-preserving edit chain; this cannot recover missing pixels.
+Unsupported value representations or fallback that would refill historical absences
+refuse the complete request. Mapped-field removal is qualified for sidecars and embedded
+JPEG EXIF/XMP.
+
+`metadata_reproduce_test.py` covers real source/pre-edit reapplication, absent/blank dates,
+linked-field removal, history/identity checks, missing sources versus missing destination
+images, embedded history chains, stale previews, retries, no-op history and CLI replay.
+Run it in the same Docker environment as the other metadata suites; it is also in CI.
+
+A deliberate whole-XMP primary change is a different entry shape:
+
+```json
+{"edits":[{"photo_id":1,"capture_id":1,"version_id":3}]}
+```
+
+Preview it first, then add that preview token for Apply. The version must have a confirmed
+association with the photo. The selected exact packet becomes primary only after verified
+publication; earlier versions remain in lineage. This entry shape is Library-only;
+confirmed incoming decisions use the separate shape below, including Rejects.
+
+For `--metadata retry` or `--metadata discard`, with a new request ID:
+
+```json
+{"operation_ids":[123]}
+```
+
+Retry resumes the saved intent and frozen settings. Discard requires an unchanged original;
+it cannot undo saved metadata or abandon a required date move. Both run under the engine
+lock. All prepared edits in a batch are archived before one verified pre-action backup;
+shared unsafe storage failures stop later publications while completed edits remain saved.
+UI routes and non-JPEG embedded writers remain unfinished. Incoming choices use the
+verified engine entry point described below.
+
+For production metadata/backup costs without photos, run
+`python3 tools/benchmark-xmp-storage.py --catalog-versions 200000` in the same image.
+The command uses generated temporary data and prints aggregate JSON; measured scope and
+results are in [xmp-storage-measurements.md](../docs/xmp-storage-measurements.md).
+
+
+## Embedded JPEG working-copy verification
+
+Run `python3 -m unittest discover -s tests -p metadata_embedded_test.py -v` inside the
+app image with a read-only checkout. Fixtures are generated JPEGs; no real-photo source
+or writable Library mount is required. The suite exercises real ExifTool writes,
+independent read-back, baseline/progressive JPEGs, ICC bytes, EXIF date companions,
+common fields, XMP unknown-property preservation, no-ops, permissions, path refusal,
+storage failure and changed-input cleanup. Injected lying/corrupt writers must fail
+verification without changing the original. Oversized output and stalled subprocesses
+must be stopped. These tests qualify the staging helper, not Library publication,
+content/cache updates, TIFF/RAW editing or the future UI. Also run the metadata suites
+when changing the shared edit planner.
+
+
+## Embedded JPEG publication and recovery
+
+Run `python3 -m unittest discover -s tests -p metadata_photo_save_test.py -v` in the app
+image with the checkout mounted read-only. Generated fixtures cover CLI preview/apply,
+request replay, new content/cache identity, original source preservation, date/Undated
+refiling, unchanged inactive sidecars, no-op inode preservation, discarded unsaved edits,
+unexpected path bytes, failed verification, interrupted publication and move-only retry.
+Reindex both completed and unfinished edits; exercise Reject/Return, detached duplicate
+sources and exact-result duplicate reporting without consolidation. Run all metadata,
+XMP, database/API/recovery suites and engine smoke checks after shared catalog changes.
+Public RAW smoke tests validate ordinary RAW import, not embedded RAW editing.
+
+
+## Photo-only priority and embedded-primary switching
+
+Run `python3 -m unittest discover -s tests -p metadata_primary_test.py -v` in the app
+image with a read-only checkout. Generated JPEGs carry conflicting EXIF, embedded XMP
+and optional sidecars. Check default/explicit priority, blank/partial dates, unchanged
+photo/sidecar bytes, source switching after editing, failed refiles and move-only retry,
+Copy-to-Move, forced reindex, changing destination, collisions, interrupted activation
+and CLI replay. No embedded RAW writing or UI is exercised.
+
+An embedded-source switch has this entry shape (preview first, then add its token for Apply):
+
+```json
+{"edits":[{"photo_id":1,"capture_id":1,"primary_id":"exif"}]}
+```
+
+Use `embedded_xmp` for an existing embedded XMP source. Neither form rewrites tags.
+Also run the existing API permission-failure/retry test and engine smoke recovery checks:
+a failed metadata read must still be reported as a failed transfer with its actual reason.
+
+
+## Multiple-sidecar first imports
+
+Run `python3 -m unittest discover -s tests -p metadata_multi_import_test.py -v` inside
+the app image with a read-only checkout. Generated fixtures cover full-name priority,
+explicit alternate choices, equally specific conflicts, identical-content reuse with
+separate arrivals, damaged packets, all-owner association, partial Moves across jobs,
+replacement owner identities, corrupt BLOBs, changed/missing sources, interrupted cleanup,
+directory-barrier retry, primary switches and known alternatives arriving again.
+
+Assert exact original bytes and a retention notice, not just file counts. Only the selected
+packet belongs beside the destination photo; alternatives remain in catalog lineage.
+Pair evidence and every original must verify before any source deletion. Recovery must
+leave unfinished cleanup for an explicit retry. Also run the existing metadata transfer,
+Index/decision, incoming, database/API/XMP suites and engine smoke tests for shared-path changes.
+
+
+## Apply incoming metadata and Return choices
+
+Run `python3 -m unittest discover -s tests -p metadata_incoming_apply_test.py -q` inside
+the app image with a read-only checkout. Generated fixtures cover all combinations of
+Keep current/Use incoming and stay in Rejects/Return; new and existing sidecars; exact
+original retention; late sidecars on an already Copied source; repeated Copy then Move;
+stale decisions/captures/identities and frozen decision watermarks; occupied/orphan/symlink
+targets; corrupt inactive archives; cancellation, backup failure, interrupted Return and
+read-only checks. CLI tests cover request replay and invalid entry shapes.
+
+First use `metadata_incoming.preview` and `metadata_incoming.confirm` to record the
+combined choice. These are catalog helpers, not web routes. Then pass the confirmed
+incoming decision identity, the **retained photo's** ID and its latest capture to the
+existing `--metadata preview` JSON interface:
+
+```json
+{"edits":[{"photo_id":1,"capture_id":4,"incoming_decision_id":7}]}
+```
+
+For `--metadata apply`, add the returned token to that entry and supply a new job request
+ID. Retry/Discard uses the usual operation-ID request. Application changes no incoming
+source files; run Copy/Move separately when desired. Verify that the decision receipt
+appears only after successful publication/filing, Rejects never returns implicitly,
+photo bytes remain identical and all original XMP versions remain retrievable. Reuse
+existing metadata-save, incoming-preservation, relocation and smoke checks for shared
+paths. Save full logs locally and report totals/failures, not every passing test.
+
+### Move after an embedded edit (engine only)
+
+`metadata_source_cleanup_test.py` uses generated photos to check one-job consent,
+source/destination and image-history verification, backup/fsync refusal, sidecar
+archives/shared owners, request replay, changed-file refusal and interrupted retry.
+It also checks that unconfirmed edited sources stay while other photos move, and
+filename-only changes need no extra confirmation. Run it with the standard Docker
+unittest command above; it is included in engine CI.
+
+For engine integration, `--metadata source-cleanup-preview` reads
+`{"photo_ids":[1,2]}` from stdin and reports affected files under the configured roots.
+The preview changes nothing. A deliberate `--move --confirm-edited-sources
+--request-id <new-id>` confirms edited-source removal for that job's normal selection;
+Copy rejects the flag. Use generated fixtures, inspect retained bytes/history and
+remaining source names, and verify that omitting the flag preserves edited originals.
+The web confirmation remains a separate implementation; no manual UI validation is
+required for this engine-only change.
+
+### Metadata UI acceptance still pending
+
+The metadata engine has automated generated-fixture coverage, including verified saves,
+date refiling, recovery and job-confirmed source cleanup. **Full user validation remains
+pending implementation of the metadata API and UI.** Command-line test reruns do not
+replace that walkthrough. Validate source choice, editing previews, save/recovery feedback
+and the Move confirmation through the eventual screens before claiming end-to-end UX
+acceptance. No metadata screens were implemented as part of this engine delivery.

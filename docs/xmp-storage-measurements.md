@@ -44,9 +44,40 @@ The additional reduction in an already-compressed backup was small (about 1.9% f
 level 1); the primary benefit is working-catalog size. The production codec also checks
 size/hash, verifies newly compressed representations, and verifies retained originals
 at backup time. Those additional checks and parsed metadata costs are not in the codec
-benchmark timings. Large-catalog backup time with many unique XMP versions remains to
-be measured; no 200k/500k XMP capacity claim follows from this experiment.
+benchmark timings. The production-schema measurement below includes these costs at 200,000 versions;
+neither experiment is a full-library capacity prediction.
 
 Schema 23 storage and backup tests cover byte restoration, deduplicated content with
 independent arrivals, rollback/replay, corrupted payload refusal and oversized frame
-headers. Live Index/Copy/Move XMP integration remains unbuilt.
+headers. Index and resolved single-sidecar Copy/Move are connected; broader import decisions remain unfinished.
+
+
+## Production-schema capacity measurement
+
+Run `tools/benchmark-xmp-storage.py --catalog-versions 200000` in the app image.
+This creates only generated metadata and logical file identities in the real schema,
+retains each unique packet through `xmp_store.retain_capture`, and uses the real verified
+catalog backup. It does not create photo files, scan shares, or benchmark gallery queries.
+The packet profile is deliberately small: a distinct title, a date and two keywords.
+
+One local Docker run on schema 26 measured:
+
+| Measure | Result |
+| --- | ---: |
+| Unique retained and verified XMP versions | 200,000 |
+| Original XML bytes | 94,288,890 |
+| Compressed original BLOB bytes | 62,310,214 |
+| Parsed fields and XML-structure JSON bytes | 494,666,670 |
+| Checkpointed catalog bytes, including identities/indexes/arrivals | 885,190,656 |
+| Retention time, FULL transactions of 1,000 versions | 20.83 s |
+| Complete original-BLOB verification | 0.61 s |
+| Verified catalog backup time | 5.04 s |
+| Compressed backup bytes | 31,487,888 |
+
+Parsed XML structure dominates compressed originals for these small packets. Compression
+of original blobs alone does not control total catalog growth. One metadata edit batch now
+prepares its versions before taking a single pre-action backup, avoiding a whole-catalog
+snapshot per photo. These timings are single observations with warm local storage; real
+packets, observation histories, photo rows, edits and slower backup storage add costs.
+No compression setting or threshold was tuned to this fixture, and there is no 500,000-photo
+capacity claim from a 200,000-version metadata-only measurement.

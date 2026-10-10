@@ -17,7 +17,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 23
+SCHEMA_VERSION = 26
 
 # --- Status vocabularies -----------------------------------------------------
 #
@@ -604,6 +604,25 @@ FOUNDATION_DDL = (
         sha1_hash TEXT, file_size INTEGER, file_mtime REAL, birthtime REAL,
         metadata_json TEXT NOT NULL, observed_at TEXT NOT NULL,
         error_message TEXT)""",
+    """CREATE TABLE metadata_captures (
+        capture_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id INTEGER NOT NULL REFERENCES runs(id),
+        file_id INTEGER NOT NULL REFERENCES files(file_id),
+        source_relative_path TEXT NOT NULL, catalog_sha1 TEXT,
+        embedded_json TEXT NOT NULL CHECK(json_valid(embedded_json)),
+        report_json TEXT NOT NULL CHECK(json_valid(report_json)),
+        observed_at TEXT NOT NULL, UNIQUE(run_id,file_id))""",
+    "CREATE INDEX idx_metadata_file_capture ON metadata_captures(file_id,capture_id)",
+    """CREATE TABLE metadata_decisions (
+        decision_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL CHECK(kind IN ('association','primary','incoming')),
+        scope TEXT NOT NULL,
+        capture_id INTEGER NOT NULL REFERENCES metadata_captures(capture_id),
+        request_id TEXT NOT NULL UNIQUE,
+        request_json TEXT NOT NULL CHECK(json_valid(request_json)),
+        value_json TEXT NOT NULL CHECK(json_valid(value_json)),
+        created_at TEXT NOT NULL)""",
+    "CREATE INDEX idx_metadata_decision_scope ON metadata_decisions(kind,scope,decision_id)",
     """CREATE TABLE xmp_versions (
         version_id INTEGER PRIMARY KEY AUTOINCREMENT,
         sha256 TEXT NOT NULL UNIQUE CHECK(length(sha256)=64),
@@ -635,7 +654,7 @@ FOUNDATION_DDL = (
         file_id INTEGER NOT NULL REFERENCES files(file_id),
         role TEXT NOT NULL CHECK(role IN ('source','destination','retained_copy')), PRIMARY KEY(operation_id,file_id,role))""",
     """CREATE TABLE settings (
-        key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days','small_image_min','suspicious_min_year')),
+        key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days','small_image_min','suspicious_min_year','xmp_association','metadata_write_raw','metadata_write_non_raw')),
         value_json TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0),
         updated_at TEXT NOT NULL)""",
     # The photos a run was asked to act on, recorded with the run itself: what the user
@@ -738,7 +757,7 @@ FOUNDATION_DDL = (
     # always the sum of `counts_json`, so the counts never disagree with the bar.
     """CREATE TABLE run_progress (
         run_id INTEGER NOT NULL REFERENCES runs(id),
-        phase TEXT NOT NULL CHECK(phase IN ('discovering','scanning','transferring',
+        phase TEXT NOT NULL CHECK(phase IN ('discovering','scanning','metadata','transferring',
                                             'removing_duplicates','rebuilding_thumbnails',
                                             'checking_destination','matching')),
         seq INTEGER NOT NULL, total INTEGER CHECK(total IS NULL OR total >= 0),
@@ -767,7 +786,9 @@ FOUNDATION_DDL = (
         started_at TEXT NOT NULL, ended_at TEXT,
         outcome TEXT CHECK(outcome IN ('succeeded','failed','interrupted')),
         error_category TEXT, error_detail TEXT,
-        xmp_arrival_highwater INTEGER NOT NULL DEFAULT 0 CHECK(xmp_arrival_highwater>=0))""",
+        xmp_arrival_highwater INTEGER NOT NULL DEFAULT 0 CHECK(xmp_arrival_highwater>=0),
+        metadata_capture_highwater INTEGER NOT NULL DEFAULT 0 CHECK(metadata_capture_highwater>=0),
+        metadata_decision_highwater INTEGER NOT NULL DEFAULT 0 CHECK(metadata_decision_highwater>=0))""",
     # 'pruned' is the retention limit removing the file; 'missing' is the file
     # gone for a reason the application did not record.
     # What the web interface remembers for its user, beside the catalog it describes:
@@ -814,7 +835,7 @@ def initialize(db_path):
             for table in ('files', 'file_origins', 'source_snapshots', 'file_observations', 'operation_files',
                           'run_configs', 'job_requests', 'operation_events', 'operation_evidence',
                           'file_changes', 'attention_evidence', 'review_events',
-                          'xmp_versions', 'xmp_arrivals', 'xmp_arrival_files'):
+                          'xmp_versions', 'xmp_arrivals', 'xmp_arrival_files', 'metadata_captures', 'metadata_decisions'):
                 for action in ('UPDATE', 'DELETE'):
                     conn.execute(f"CREATE TRIGGER immutable_{table}_{action} BEFORE {action} ON {table} "
                                  "BEGIN SELECT RAISE(ABORT, 'immutable lineage/configuration'); END")
@@ -831,7 +852,7 @@ def require_schema(conn):
                     'attention_issues','attention_evidence','file_changes','content_similarity','similarity_hashes',
                     'similarity_count_cache','similarity_count_state',
                     'review_events','thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state',
-                    'xmp_versions','xmp_arrivals','xmp_arrival_files'}
+                    'xmp_versions','xmp_arrivals','xmp_arrival_files','metadata_captures','metadata_decisions'}
         present = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if not required <= present:
             raise SchemaError("Incomplete catalog schema")
@@ -863,6 +884,9 @@ def save_ui_state(conn, values):
 # past either limit; null switches that limit off.
 SUSPICIOUS_MIN_YEAR_DEFAULT = 1800
 
+METADATA_DEFAULTS = {'xmp_association': 'ask', 'metadata_write_raw': 'xmp',
+                     'metadata_write_non_raw': 'embedded'}
+
 REJECTS_REMINDER_DEFAULTS = {'rejects_reminder_bytes': 1_000_000_000, 'rejects_reminder_days': 30}
 
 
@@ -871,7 +895,11 @@ def validate_settings(values):
         raise ValueError("settings must be an object")
     normalized = {}
     for key, value in values.items():
-        if key == 'workers':
+        if key in METADATA_DEFAULTS:
+            allowed = ('ask','raw_only','non_raw_only','all') if key == 'xmp_association' else ('xmp','embedded')
+            if not isinstance(value, str) or value not in allowed:
+                raise ValueError(f'Invalid {key}')
+        elif key == 'workers':
             if type(value) is not int or value < 1:
                 raise ValueError("workers must be a positive integer")
         elif key == 'backup_retention':
@@ -948,10 +976,13 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
                 if row[1] != payload:
                     raise RequestConflict("request ID was already used for different input")
                 return row[0], False
-        config = dict(defaults or {})
+        config = {**METADATA_DEFAULTS, **(defaults or {})}
         # The reminder limits are the web interface's, not a job's.
         config.update({k: v['value'] for k,v in read_settings(conn).items() if k not in REJECTS_REMINDER_DEFAULTS})
         config.update(overrides or {})
+        validate_settings({key: config[key] for key in METADATA_DEFAULTS})
+        config['metadata_decision_highwater'] = conn.execute(
+            'SELECT COALESCE(MAX(decision_id),0) FROM metadata_decisions').fetchone()[0]
         cur = conn.execute("INSERT INTO runs(mode,source_path,dest_path,file_ids_filter,started_at,status) VALUES(?,?,?,?,?,?)",
                            (mode, source, destination, _json(targeting) if targeting else None, utc_now(), RunStatus.PREPARING))
         run_id = cur.lastrowid
@@ -1539,8 +1570,11 @@ def _snapshot(conn, attempt_id, final):
             except xmp_store.InvalidBlob as exc:
                 raise BackupFailed("verification_failed", str(exc)) from exc
             highwater = dst.execute("SELECT COALESCE(MAX(arrival_id),0) FROM xmp_arrivals").fetchone()[0]
+            metadata_highwater = dst.execute("SELECT COALESCE(MAX(capture_id),0) FROM metadata_captures").fetchone()[0]
+            decision_highwater = dst.execute("SELECT COALESCE(MAX(decision_id),0) FROM metadata_decisions").fetchone()[0]
             dst.execute("UPDATE backup_attempts SET outcome='succeeded', ended_at=?, "
-                        "xmp_arrival_highwater=? WHERE attempt_id=?", (utc_now(), highwater, attempt_id))
+                        "xmp_arrival_highwater=?, metadata_capture_highwater=?, metadata_decision_highwater=? WHERE attempt_id=?",
+                        (utc_now(), highwater, metadata_highwater, decision_highwater, attempt_id))
             dst.commit()
             check = dst.execute("PRAGMA quick_check").fetchone()[0]
             version = dst.execute("SELECT version FROM catalog_schema").fetchone()[0]
@@ -1552,7 +1586,7 @@ def _snapshot(conn, attempt_id, final):
         os.rename(packed, final)
         _fsync_dir(final.parent)
         raw.unlink()
-        return final.stat().st_size, highwater
+        return final.stat().st_size, highwater, metadata_highwater, decision_highwater
     except BackupFailed:
         for leftover in owned:
             leftover.unlink(missing_ok=True)
@@ -1594,7 +1628,7 @@ def backup_catalog(db_path, backups_dir, appdata_dir, *, trigger, related_run_id
         filename = f"{BACKUP_PREFIX}{stamp}-{attempt_id:06d}-{trigger}{BACKUP_SUFFIX}"
         try:
             _check_backup_storage(backups_dir, appdata_dir)
-            size, highwater = _snapshot(conn, attempt_id, Path(backups_dir) / filename)
+            size, highwater, metadata_highwater, decision_highwater = _snapshot(conn, attempt_id, Path(backups_dir) / filename)
         except BackupFailed as exc:
             with transaction(conn):
                 conn.execute("UPDATE backup_attempts SET outcome='failed', ended_at=?, "
@@ -1605,7 +1639,8 @@ def backup_catalog(db_path, backups_dir, appdata_dir, *, trigger, related_run_id
         now = utc_now()
         with transaction(conn):
             conn.execute("UPDATE backup_attempts SET outcome='succeeded', ended_at=?, "
-                         "xmp_arrival_highwater=? WHERE attempt_id=?", (now, highwater, attempt_id))
+                         "xmp_arrival_highwater=?, metadata_capture_highwater=?, metadata_decision_highwater=? WHERE attempt_id=?",
+                         (now, highwater, metadata_highwater, decision_highwater, attempt_id))
             conn.execute("INSERT INTO backup_artifacts(attempt_id,relative_filename,size,compression_format,"
                          "created_at,availability,last_checked_at) VALUES(?,?,?,?,?,'present',?)",
                          (attempt_id, filename, size, BACKUP_COMPRESSION, now, now))
@@ -1621,7 +1656,7 @@ def backup_catalog(db_path, backups_dir, appdata_dir, *, trigger, related_run_id
 def unbacked_changes(conn, *, exclude_run_id=None):
     """Catalog records no successful backup holds: operations written after the newest
     successful backup started, other than Skipped and Cancelled rows, which record that
-    nothing was done, plus review events and XMP arrivals. XMP coverage uses the
+    nothing was done, plus review events, XMP arrivals, metadata captures and catalog-only decisions. XMP coverage uses the
     actual snapshot's arrival-ID watermark rather than wall-clock ordering.
     Returns (count, newest successful backup's start or None, sorted run ids). `exclude_run_id` leaves out a run still in progress, whose own post-job
     backup will cover it. webui-spec 9: report this after an interruption or a failed
@@ -1653,7 +1688,21 @@ def unbacked_changes(conn, *, exclude_run_id=None):
     run_ids = {int(r) for r in runs.split(",")} if runs else set()
     if xmp_runs:
         run_ids.update(int(r) for r in xmp_runs.split(","))
-    return count + xmp_count, since, sorted(run_ids)
+    metadata_highwater = conn.execute("SELECT COALESCE(MAX(metadata_capture_highwater),0) "
+                                       "FROM backup_attempts WHERE outcome='succeeded'").fetchone()[0]
+    metadata_sql = "SELECT COUNT(*),GROUP_CONCAT(DISTINCT run_id) FROM metadata_captures WHERE capture_id>?"
+    metadata_params = [metadata_highwater]
+    if exclude_run_id is not None:
+        metadata_sql += " AND run_id!=?"
+        metadata_params.append(exclude_run_id)
+    metadata_count, metadata_runs = conn.execute(metadata_sql, metadata_params).fetchone()
+    if metadata_runs:
+        run_ids.update(int(r) for r in metadata_runs.split(','))
+    decision_highwater = conn.execute("SELECT COALESCE(MAX(metadata_decision_highwater),0) "
+                                      "FROM backup_attempts WHERE outcome='succeeded'").fetchone()[0]
+    decision_count = conn.execute('SELECT COUNT(*) FROM metadata_decisions WHERE decision_id>?',
+                                  (decision_highwater,)).fetchone()[0]
+    return count + xmp_count + metadata_count + decision_count, since, sorted(run_ids)
 
 
 def backup_retention(conn):

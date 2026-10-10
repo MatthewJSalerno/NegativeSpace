@@ -164,6 +164,66 @@ jobs:
       - name: Metadata provenance foundation
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_test.py -v
 
+      - name: Embedded EXIF and XMP comparison adapter
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_adapter_test.py -v
+
+      - name: Field-scoped metadata edit planning
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_edits_test.py -v
+
+      - name: Common metadata fields
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_common_fields_test.py -v
+
+      - name: Preservation-aware XMP writing
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_writer_test.py -v
+
+      - name: Verified embedded JPEG working copies
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_embedded_test.py -v
+
+      - name: Embedded metadata priority and primary switching
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_primary_test.py -v
+
+      - name: Embedded JPEG publication and recovery
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_photo_save_test.py -v
+
+      - name: Verified XMP edits and recovery
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_save_test.py -v
+
+      - name: Apply incoming XMP and Return choices
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_incoming_apply_test.py -v
+
+      - name: Incoming XMP alternatives
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_incoming_test.py -v
+
+      - name: Verified photo and XMP pair transfers
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_transfer_test.py -v
+
+      - name: Multiple-sidecar first imports
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_multi_import_test.py -v
+
+      - name: Normal single-sidecar imports
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_import_test.py -v
+
+      - name: Photo and XMP destination relocation
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_relocate_test.py -v
+
+      - name: Confirmed edited-source cleanup
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_source_cleanup_test.py -v
+
+      - name: Metadata writer limits
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_writer_limits_test.py -v
+
+      - name: Earlier metadata reproduction
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_reproduce_test.py -v
+
+      - name: Base metadata composition
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_composition_test.py -v
+
+      - name: Saved metadata decisions
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_decisions_test.py -v
+
+      - name: Index metadata observations
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_index_test.py -v
+
       - name: XMP reader and ownership planning
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p xmp_test.py -v
 

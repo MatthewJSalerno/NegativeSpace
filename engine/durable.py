@@ -222,10 +222,13 @@ def _fsync_chain_to_root(directory: Path):
 def _remove_verified_source(source: Path, verified_copy: Path, source_identity: tuple,
                             description: str):
     """
-    The ONLY place a user's source file is deleted.
+    The ONLY place a user's source photo is deleted.
 
-    Every caller has already compared live hashes of the source and the copy.
-    That is necessary and not sufficient, so this refuses the deletion unless
+    Ordinary transfer callers have compared live hashes of source and copy.
+    The explicit edited-source cleanup caller instead verifies both distinct hashes,
+    the image-preserving edit chain and archived source metadata, with consent and a
+    verified backup for this Move job. It never claims exact original-photo retention.
+    Those proofs are necessary and not sufficient, so this refuses deletion unless
     three more things hold, and fails closed on any doubt:
 
     1. The copy is a DIFFERENT file. Two paths can name one file — one folder
@@ -243,9 +246,9 @@ def _remove_verified_source(source: Path, verified_copy: Path, source_identity: 
        (_fsync_chain_to_root).
 
        The chain is established HERE, at the gate, not left to the caller.
-       Only one of the three callers copies the file itself and so passes
-       through _mkdir_durable; the other two delete against a copy an earlier
-       run delivered, and that run's mkdir proves nothing — a directory exists
+       Some callers copy immediately and pass through _mkdir_durable; others
+       delete against a copy an earlier run delivered, and that run's mkdir
+       proves nothing — a directory exists
        the moment mkdir returns, which is before its entry is durable in its
        parent. A caller that already established the chain pays nothing, since
        the verified set is consulted first.

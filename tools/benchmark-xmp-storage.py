@@ -19,7 +19,7 @@ import time
 import zstandard
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from engine import xmp
+from engine import ns_db, xmp, xmp_store
 
 
 def fixtures():
@@ -95,10 +95,65 @@ def measure(samples, level, repeats):
             'profiles': profile_sizes}
 
 
+
+def catalog_measure(count):
+    """Production retention + backup, metadata-only generated identities, bounded RAM."""
+    with tempfile.TemporaryDirectory() as folder:
+        root = Path(folder)
+        base, backup = root/'appdata', root/'backups'
+        base.mkdir(); backup.mkdir()
+        db = base/'catalog.db'
+        ns_db.initialize(db)
+        conn = ns_db.connect(db, synchronous='FULL')
+        try:
+            run, _ = ns_db.create_run(conn, mode='INDEX', source='generated', destination='generated')
+            started = time.perf_counter()
+            for offset in range(0, count, 1000):
+                with ns_db.transaction(conn):
+                    for i in range(offset, min(offset+1000, count)):
+                        fid = conn.execute('INSERT INTO files(created_run_id,created_at) VALUES(?,?)',
+                                           (run, ns_db.utc_now())).lastrowid
+                        data = (f'<rdf:RDF xmlns:rdf="{xmp.RDF}" xmlns:dc="{xmp.DC}" xmlns:exif="{xmp.EXIF}">'
+                            '<rdf:Description rdf:about=""><exif:DateTimeOriginal>2005-03-04T05:06:07</exif:DateTimeOriginal>'
+                            f'<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Generated photo {i}</rdf:li></rdf:Alt></dc:title>'
+                            '<dc:subject><rdf:Bag><rdf:li>generated</rdf:li><rdf:li>benchmark</rdf:li></rdf:Bag></dc:subject>'
+                            '</rdf:Description></rdf:RDF>').encode()
+                        xmp_store.retain_capture(conn, data=data, run_id=run, source_relative_path=f'generated/{i}.jpg.xmp',
+                            file_ids=[fid], role='owner', basis='confirmed')
+            retention_seconds = time.perf_counter()-started
+            measured = conn.execute('SELECT COUNT(*),SUM(original_size),SUM(length(payload)), '
+                'SUM(length(CAST(fields_json AS BLOB))+length(CAST(tags_json AS BLOB))) FROM xmp_versions').fetchone()
+            assert measured[0] == count
+            conn.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+            database_bytes = db.stat().st_size
+            started = time.perf_counter()
+            verified = xmp_store.verify_blobs(conn)
+            verification_seconds = time.perf_counter()-started
+            started = time.perf_counter()
+            result = ns_db.backup_catalog(db, backup, base, trigger='manual')
+            backup_seconds = time.perf_counter()-started
+            if result['outcome'] != 'succeeded':
+                raise RuntimeError('Generated catalog backup failed: '+str(result.get('error_category')))
+            return {'generated':True, 'scope':'Metadata-only production schema; one unique small XMP per generated identity, no photos or file scanning.',
+                'versions':count, 'verified_versions':verified, 'retention_seconds':retention_seconds,
+                'original_bytes':measured[1], 'compressed_blob_bytes':measured[2], 'parsed_json_bytes':measured[3],
+                'database_bytes':database_bytes, 'verification_seconds':verification_seconds,
+                'backup_seconds':backup_seconds, 'backup_bytes':(backup/result['filename']).stat().st_size,
+                'retention_batch_size':1000, 'schema':ns_db.SCHEMA_VERSION}
+        finally:
+            conn.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repeats', type=int, default=7)
+    parser.add_argument('--catalog-versions', type=int, help='Measure production parsed metadata, BLOB retention and verified backup for this many unique generated versions.')
     args = parser.parse_args()
+    if args.catalog_versions is not None:
+        if not 1 <= args.catalog_versions <= 500000:
+            parser.error('--catalog-versions must be between 1 and 500000')
+        print(json.dumps(catalog_measure(args.catalog_versions), indent=2))
+        return
     if args.repeats < 1:
         parser.error('--repeats must be positive')
     arrivals, samples = fixtures()

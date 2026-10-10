@@ -861,6 +861,20 @@ Check it now action. A disconnected/empty source retains the existing safety que
 
 ## Metadata source tabs (planned)
 
+Setup's Files step and Settings › Files share a visible **Which metadata is used?**
+explanation beside the metadata questions. Use normal shared body/supporting text and
+a short ordered list: XMP sidecar (separate file), embedded XMP (inside the photo), then
+embedded EXIF (inside the photo). Keep this essential guidance out of tooltip-only help.
+Explain missing versus explicitly empty fields, preservation of all sources and the
+precedence of deliberate/existing source choices. Distinguish reading priority from
+where edits are saved; no extra required choice or automatic primary change is implied.
+Keep its layout stable when preferences change. The full planned copy and precedence
+contract live in `xmp-metadata.md`; do not show it as current behavior before integration.
+
+Name **XMP sidecar**, **Embedded XMP** and **Embedded EXIF** distinctly in source
+explanations. Within the embedded view retain separate labelled evidence for embedded
+XMP and EXIF; a generic XMP label must not imply that the value came from a sidecar.
+
 Within Photo information, reuse shared tabs for Used metadata, Embedded/EXIF and XMP.
 Used metadata is the default; a textual Primary marker identifies the preferred active
 source. Navigation between source snapshots never changes which source is active.
@@ -886,3 +900,19 @@ unsupported preservation/writes rather than claiming a safe consolidation. Reuse
 flow for dates, location, orientation and color information instead of inventing a
 separate conflict screen for each. The original versions and field origins remain in
 history; a composed result is a new version, not an overwrite of the donor snapshots.
+
+
+The planned metadata editor previews only deliberately changed logical fields, including
+required companion changes/removals (such as a date's fraction or offset). Prefill whole
+logical values; don't hide data loss behind a simplified date widget. Creating a first
+RAW sidecar should be explained in the confirmation, along with the edit target and any
+refiling. Keep camera, location and other untouched fields informational. Read-only engine
+previews do not enable Save until verified writing/history/recovery are implemented.
+
+Metadata editor source fields (planned): show the write target's own captured values;
+never prefill a missing XMP property from the effective fallback view. Other sources
+remain inspectable for explicit copying. Distinguish Not set from Explicitly cleared,
+with a deliberate Clear value action and a preview of its fallback/refiling effects.
+No ordinary unchanged Save copies values between sources. Failed edits use the shared
+issue treatment and specific resolution paths; no job-level undo or generic dismissal
+of uncertain file outcomes is introduced. These are handoff rules, not built controls.

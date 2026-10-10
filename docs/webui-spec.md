@@ -391,6 +391,17 @@ saved until **Save and continue** on the last. Saving lands in Not organized, wh
 source** waits, whatever page an earlier session left in the address bar. After
 first run, Settings opens as a window over the current view.
 
+**Planned metadata guidance:** when metadata questions are added, the Files step and
+Settings › Files show the same visible **Which metadata is used?** explanation beside
+association and write preferences. Show the default order: **XMP sidecar** (a separate
+file beside the photo), **Embedded XMP** (inside the photo), then **Embedded EXIF** (inside
+the photo, often written by the camera). Explain that only a missing field falls through;
+an explicitly empty field stays empty, all sources remain inspectable, and deliberate or
+established source choices take precedence. This read priority is separate from where
+future edits are saved. It is guidance, not an extra required setup question or a claim
+that the current Index implements the planned priority. Wording and the engine/UI
+handoff are in [xmp-metadata.md](xmp-metadata.md); use the shared design treatment.
+
 **Startup without a usable catalog:** distinguish a missing database from access
 errors and from an invalid or corrupt database. Do not silently replace an existing
 database or interpret a storage error as a fresh installation. If no database is
@@ -1513,7 +1524,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 23 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 25 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -1967,6 +1978,19 @@ and remain recognizable by content. Detected destination mismatches follow §7.6
 
 ### 7.5 Editing metadata
 
+**Field scope (agreed; editing UI pending):** Save changes only explicitly selected
+fields and their required companions. The editor shows the primary source's own values,
+not effective fallback values: an absent XMP date stays absent unless the user explicitly
+types or copies a value. Distinguish Not set from Explicitly cleared; an explicit clear
+suppresses fallback and previews Undated filing. Prefill an existing complete Date taken value, including
+recorded fraction/offset, so changing its calendar portion does not silently drop other
+components. Show deliberate removals in the preview. First XMP creation defaults for RAW
+and contains only changed fields; no sidecar is created merely by Index. Other fields
+continue to read from the embedded sources. Establish primary only after verified Save.
+The engine has verified sidecar publication/refiling and an embedded JPEG working-copy
+writer. Embedded publication/recovery and this screen remain unimplemented. Never expose
+a functioning Save from a preview or a working-copy writer alone.
+
 **Planned, not implemented.** This section specifies the shared editor and its
 write behavior. Temporary comparison rotation is implemented separately below.
 
@@ -2097,6 +2121,16 @@ failure leaves the original unchanged and logs the failed fields; do not apply o
 the successful fields of that photo's edit. Other photos in the batch may succeed.
 Retain recovery material until publication and required refiling have completed;
 report any failure at those later stages accurately (§7.1).
+
+**Later Move after editing (planned controls; engine available).** Date correction and
+its Library folder move are one action and one confirmation, leaving the source alone.
+If a later Move includes sources whose organized copies have embedded edits, offer one
+job-level choice: **Include these N originals** or **Leave these originals at source**,
+with an expandable list. State that edited Library versions and original metadata history
+are retained, but exact original photo bytes are not. Other selected photos follow normal
+Move. Do not ask for each photo, and do not offer permanent suppression of this source-
+deletion confirmation. Filename-only changes use ordinary byte verification. Bind the
+choice to the submitted selection/job; no UI implementation is included in this engine work.
 
 **Logs link back to the photo.** An edit's log entry provides **View photo**, opening
 the current photo info panel with its failure details/history and **Edit metadata**
@@ -2233,8 +2267,10 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
 * **Metadata source tabs (planned):** Used metadata (default), Embedded/EXIF and XMP
   inside Photo information, with the active preferred source visibly marked Primary.
   Effective values may mix sources; use restrained source labels and distinguish empty
-  from absent fields. Tab navigation never changes the chosen source. Preserve both
-  original sources, including alternate XMP versions. The full engine/UI handoff and
+  from absent fields. Name XMP sidecar, Embedded XMP and Embedded EXIF explicitly;
+  distinguish embedded sources within the embedded view without merging their evidence.
+  Tab navigation never changes the chosen source. Preserve all original sources,
+  including alternate XMP versions. The full engine/UI handoff and
   implementation boundary are in [xmp-metadata.md](xmp-metadata.md).
 * **Where edits are saved** (decided 2026-10-02, `engine-spec.md` §9.6): Settings › Files
   sets it for RAW formats (default **XMP sidecar**) and other formats (default **In the
@@ -2247,7 +2283,7 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   Not organized as Metadata choice needed. Apply the
   association settings or ask for a recorded choice; show separate source versions
   without discarding alternatives. Copy/Move skips affected pairs until resolved.
-  Already edited Library photos instead retain differing incoming XMP as alternatives,
+  Library photos with existing XMP or metadata edits retain differing incoming XMP as alternatives,
   keep their primary and enter Needs review → Metadata differences after preservation.
   Rejected matches present metadata and Return/leave-rejected choices together.
   Setup requires an association preference. See [xmp-metadata.md](xmp-metadata.md)
