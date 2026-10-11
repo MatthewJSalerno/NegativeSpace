@@ -58,9 +58,9 @@ def run_maintenance_job(args, db_path: Path, lock_fd, *, mode: str, label: str, 
             if reconcile_files:
                 reconcile.reconcile_interrupted_state(db_path, run_id)
             else:
-                # Matching recovery must not resume a filesystem mutation.
+                # Read-only maintenance must not resume a filesystem mutation.
                 with contextlib.closing(store.get_db_connection(str(db_path), synchronous="FULL")) as old_runs:
-                    for (old_id,) in old_runs.execute("SELECT id FROM runs WHERE mode='SIMILARITY' AND id!=? AND status IN ('Preparing','Running','Cancelling')", (run_id,)).fetchall():
+                    for (old_id,) in old_runs.execute("SELECT id FROM runs WHERE mode=? AND id!=? AND status IN ('Preparing','Running','Cancelling')", (mode, run_id)).fetchall():
                         ns_db.transition_run(old_runs, old_id, RunStatus.INTERRUPTED, reconciled_by=run_id)
             with contextlib.closing(store.get_db_connection(str(db_path))) as conn:
                 ns_db.transition_run(conn, run_id, RunStatus.RUNNING)

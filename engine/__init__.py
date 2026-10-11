@@ -9,7 +9,25 @@ transfer (Copy and Move), relocate (Rename, Reject, Return to library), reconcil
 the fsync steps), store (catalog writes), fileinfo (dates, metadata, hashes), thumbnails,
 destinations, targeting (which photos a run acts on), jobs, maintenance, backups,
 runtime (shared run state), workers (cancellable read-only pools), constants and deps; ns_db (the catalog schema and its rules,
-shared with the web API), review (catalog-only review decisions), and the ns_similarity modules.
+shared with the web API), review (catalog-only review decisions), attention (explicit
+read-only checks of uncertain file outcomes), metadata (source-aware resolution for the
+planned XMP pipeline), metadata_adapter (qualified EXIF/comparison views),
+xmp (bounded sidecar reads), xmp_association (pure ownership
+planning), xmp_store (retained metadata BLOBs/arrivals and backup validation;
+no publication in storage), metadata_transfer (internal verified photo/XMP pairs and recovery;
+resolved first imports and alternative preservation via metadata_import), metadata_relocate (recorded photo/XMP Rename, Reject,
+Return and pair-aware recovery), metadata_edits (field/base composition previews and first-XMP construction),
+metadata_reproduce (supported historical-state reapplication with image-history proof),
+metadata_writer (preservation-aware XMP bytes), metadata_embedded (verified JPEG working copies),
+metadata_photo_save (journaled JPEG publication and content identity),
+metadata_primary (verified embedded-source activation without rewriting), metadata_save (verified metadata
+publication, history and refiling), metadata_command (bounded JSON edit jobs), metadata_gps (linked GPS validation),
+metadata_incoming (incoming XMP alternatives, choices and verified duplicate cleanup),
+metadata_incoming_apply (verified combined incoming primary/Return choices),
+metadata_source_cleanup (job-confirmed edited-source retirement with image-history proof),
+metadata_decisions (saved choices and preview/confirmation),
+metadata_capture/metadata_index (read-only source
+observations and proposed priority, never activation), and the ns_similarity modules.
 
 Modules refer to one another as `module.name`, never `from module import name`: one
 binding per name, so replacing a function (a test injecting a fault) replaces it for
@@ -22,6 +40,21 @@ Source and destination must be separate, non-overlapping underlying folders.
 Never mount the same folder at both paths or nest one inside the other,
 including on network shares. Overlapping mounts can cause unintended file
 deletion and are not reliably detected by the engine.
+
+- --metadata {preview,apply,retry,discard,source-cleanup-preview} (Optional) Bounded JSON on stdin for
+  metadata engine workflows. Preview returns identity-bound plans without the engine
+  lock. Apply saves supported XMP/JPEG edits or deliberately activates an associated
+  retained version or switches to an existing embedded source without rewriting it.
+  Retry resumes a recorded edit; discard requires a verified unchanged original. Mutations require --request-id, take the engine lock, freeze
+  job settings, and use catalog backups. Embedded writes require qualified JPEG values;
+  other formats refuse without switching primary.
+
+- --confirm-edited-sources (Optional) With --move and --request-id only: one job's
+  consent to remove selected originals with verified edited Library copies. Requires
+  a verified catalog backup, live file checks and image-preserving edit history.
+  Never stored as a setting. Without it, these sources stay while other files proceed.
+  --metadata source-cleanup-preview takes {"photo_ids":[...]} on stdin and reports
+  affected originals read-only using --source and --dest; it grants no deletion consent.
 
 - --review-decision (Optional) Record one catalog-only review decision from JSON stdin,
   under the engine lock. Returns JSON; never changes photo bytes or transfer status.
@@ -100,6 +133,8 @@ default Index):
   delivered file a new name, or list the names its duplicate group carried.
 - --reject / --return-to-library, with --file-ids(-from) or --source-subdir: move organized
   photos from dest/library to dest/rejects, or back (spec §9.5). Nothing is deleted.
+- --check-issue ISSUE_ID: verify one uncertain operation and record fresh evidence;
+  updates the catalog only, never moves, deletes or overwrites photo files.
 - --repair-similarity missing|comparisons: recover missing visual hashes from
   destination originals, or resume stored-hash comparisons; never edits photos.
   --repair-photo PHOTO_ID limits the missing-hash recovery to one photo.

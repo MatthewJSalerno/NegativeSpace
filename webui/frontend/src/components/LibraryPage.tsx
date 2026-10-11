@@ -12,7 +12,7 @@ import { AppFrame } from "./AppFrame";
 import type { SidebarFilters } from "./Sidebar";
 import { FiltersButton } from "./FiltersButton";
 import { YearScrubber } from "./YearScrubber";
-import { LOOK_KEYS, filterApplies, savedFilterPins, useFilterPins } from "../filterPins";
+import { LOOK_KEYS, REASON_KEYS, filterApplies, savedFilterPins, useFilterPins } from "../filterPins";
 import { api, ApiError, savedMatchMinimum, submissionSnapshot, subscribeSubmission, MATCH_THRESHOLDS, type ActionMode, type LookInto, type PlaceView, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
 import { count, plural } from "../format";
 import { jobLabel, summary, useJobCompletion, useJobFeed } from "../jobs";
@@ -97,7 +97,7 @@ function readUrl(hasLibrary = true) {
     similar,
     groupSets: p.has("group_sets") ? p.get("group_sets") !== "0" : savedGrouping(),
     suspicious: legacy === "suspicious" || p.get("suspicious") === "1" || defaults.includes("suspicious"),
-    reason: ["small", "later"].includes(p.get("reason") || "") ? p.get("reason")! : defaults.includes("small") ? "small" : defaults.includes("later") ? "later" : "all",
+    reason: ["small", "later", "issues"].includes(p.get("reason") || "") ? p.get("reason")! : defaults.includes("small") ? "small" : defaults.includes("later") ? "later" : defaults.includes("issues") ? "issues" : "all",
     reviewPhoto: Number(p.get("review_photo")) || null,
     sort: p.get("sort") === "matches" && !similar ? "newest" as Sort : (p.get("sort") as Sort) || savedSort(similar ? "similar" : view),
     matchMin: MATCH_THRESHOLDS.includes(Number(p.get("match_min"))) ? Number(p.get("match_min")) : savedMatchMinimum(),
@@ -671,7 +671,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     (opener?.querySelector<HTMLElement>(".review-card-notes a") ?? opener?.querySelector<HTMLElement>(".card-image"))?.focus({ preventScroll: true });
     restoringReview.current = null;
   }, [list.ready, flat, view]);
-  const activeLook: Record<LookInto, boolean> = { similar, suspicious, undated, small: reason === "small", later: reason === "later" };
+  const activeLook: Record<LookInto, boolean> = { similar, suspicious, undated, small: reason === "small", later: reason === "later", issues: reason === "issues" };
   const applyLook = (keys: LookInto[]) => {
     const nextSimilar = keys.includes("similar");
     if (nextSimilar !== similar) {
@@ -679,7 +679,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       setSort(sortChoices.current[scope] ?? savedSort(scope));
     }
     setSimilar(nextSimilar); setSuspicious(keys.includes("suspicious")); setUndated(keys.includes("undated"));
-    setReason(keys.includes("small") ? "small" : keys.includes("later") ? "later" : "all");
+    setReason(REASON_KEYS.find(key => keys.includes(key)) ?? "all");
     setPage(1);
   };
   const chooseView = (v: View) => {
@@ -691,7 +691,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     setSort(sortChoices.current[scope] ?? savedSort(scope));
     setPage(1);
     if (v === "unorganized" || v === "rejects" || v === "source") setSimilar(false);
-    if (v !== "review" && v !== "organized") setReason("all");
+    if (v !== "review" && (v !== "organized" || reason === "issues")) setReason("all");
     if (v === "all") { setUndated(false); setDates([]); setTypes([]); setFolders([]); }
     // Reapply eligible pinned filters when choosing a place, keeping unavailable pins
     // remembered without applying them to the wrong location.
@@ -703,6 +703,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     if (eligible.includes("undated")) setUndated(true);
     if (eligible.includes("small")) setReason("small");
     else if (eligible.includes("later")) setReason("later");
+    else if (eligible.includes("issues")) setReason("issues");
   };
   // Source folders' switch: what is waiting, or everything still in the source.
   const chooseSourceScope = (v: "unorganized" | "source") => { chooseView(v); setSourceTree(true); };
@@ -922,6 +923,11 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     : view === "rejects" ? "Library photos only: open Library or Needs review." : "Organized photos only: open Library or Needs review.";
   const hasFilters = undated || dates.length > 0 || types.length > 0 || folders.length > 0
     || !!q || !!search || similar || suspicious || reason !== "all" || pins.length > 0;
+  const reasonLabels = { small: "Small images", later: "Review later", issues: "File issues" };
+  const reasonWhy = (key: keyof typeof reasonLabels) => {
+    const other = REASON_KEYS.find(item => item !== key && pins.includes(item));
+    return other ? `Unpin ${reasonLabels[other as keyof typeof reasonLabels]} first; these filters cannot be combined.` : null;
+  };
   const lookFilters: SidebarFilters = {
     onClear: !focus && hasFilters ? () => {
       savePins([]); setSimilar(false); setSuspicious(false); setUndated(false); setReason("all");
@@ -931,10 +937,11 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     on: activeLook,
     pinned: pins,
     counts: { similar: data?.chips?.similar, suspicious: data?.chips?.suspicious, undated: data?.chips?.undated,
-              small: data?.chips?.small, later: data?.reasons?.later },
+              small: data?.chips?.small, later: data?.reasons?.later, issues: data?.reasons?.issues },
     why: { similar: libraryOnly, suspicious: null, undated: null,
-      small: libraryOnly ?? (pins.includes("later") ? "Unpin Review later first; these two filters cannot be combined." : null),
-      later: libraryOnly ?? (pins.includes("small") ? "Unpin Small images first; these two filters cannot be combined." : null) },
+      small: libraryOnly ?? reasonWhy("small"),
+      later: libraryOnly ?? reasonWhy("later"),
+      issues: view !== "review" ? "Only in Needs review." : reasonWhy("issues") },
     onToggle: key => {
       if (focus) backToResults();
       if (activeLook[key]) {
@@ -950,7 +957,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       if (focus) backToResults();
       savePins([...pins, key]);
       applyLook([...LOOK_KEYS.filter(item => activeLook[item] &&
-        !(key === "small" && item === "later") && !(key === "later" && item === "small")), key]);
+        !(REASON_KEYS.includes(key) && REASON_KEYS.includes(item))), key]);
     },
   };
   // Source folders shows its folders in the tree, not in the Filters panel.
@@ -998,7 +1005,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           <div className="gallery-context">
             {!focus && <h2>{sourceTree && folderShown ? folderLabel(folderShown.path) : sourceTree ? "Source folders" : VIEW_LABEL[view]}</h2>}
             {!focus && (undated || dates.length > 0 || types.length > 0 || (folders.length > 0 && !sourceTree) || !!q || similar || suspicious || reason !== "all" || pins.length > 0) && <p className="section-note">
-              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", reason === "small" && "Small images", reason === "later" && "Review later", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
+              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", reason === "small" && "Small images", reason === "later" && "Review later", reason === "issues" && "File issues", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
             </p>}
             <span className="gallery-tools">
               <FiltersButton active={filtersActive} open={filtersOpen && !focus} onOpen={setFiltersOpen} disabled={!!focus}>
@@ -1121,6 +1128,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             <StableContent active={reason} variants={{
               all: <p className="section-note">Choose a filter in Look into. Pin filters to keep them while trying another; click an active filter to clear it.</p>,
               small: <p className="section-note">Small size is a reason to look, not a reason to reject. Mark reviewed clears a photo’s size reminder. <button className="photo-action" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>,
+              issues: <p className="section-note">Operations needing verification. Check it now reads the recorded files and updates the catalog without moving or deleting photos.</p>,
               later: <p className="section-note">Photos you marked to revisit. Done clears the reminder and leaves the photo in place.</p>,
             }} />
           </>}

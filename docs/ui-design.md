@@ -128,14 +128,16 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   ("Showing 2 of 4,738").
 - **Look into is the only place the gallery's filters live** (maintainer, 2026-10-09; no
   chip row above the photos): Has similar photos, Suspicious dates, No capture date,
-  Small images and Review later. On the Library page each is a toggle (`aria-pressed`;
+  Small images, Review later and File issues. File issues applies only in Needs review;
+  source/rejected-file recovery remains in Inspector and Logs. On the Library page each is a toggle (`aria-pressed`;
   on, it takes the current-item surface and a bar at its start) that narrows the place
   shown. Clicking an inactive filter replaces unpinned Look into filters; clicking an
   active one turns it off and removes its pin. Each row has a separate, always-present
   **Pin / Unpin** button (`aria-pressed`, named for its filter). Pinning enables the filter
   and keeps it while browsing others; unpinning leaves it applied until replaced or cleared.
   Inactive-filter counts predict the next click with the eligible pins; active-filter
-  counts describe the current intersection. Small images and Review later remain exclusive:
+  counts describe the current intersection. Small images, Review later and File issues share
+  one reason scope and remain exclusive:
   pinning either disables the other with an explanation telling the user which to unpin. A filter that does not apply to the
   place stays in its row, dimmed (`aria-disabled`), saying why on hover: Has similar
   photos, Small images and Review later are for Library and Needs review.
@@ -545,6 +547,13 @@ selection before saving. It keeps drafts, marks affected fields, describes their
 errors and focuses the first invalid control. Server errors remain visible. Success
 uses a polite status, not an urgent alert. Loading failures offer an explicit retry.
 
+Planned Settings active-job notice: use the shared neutral informational treatment near
+the top, outside tab panels, to explain that saved processing settings affect future
+jobs only. It is not an error, requires no dismissal, and does not disable Save. Keep
+job-active/idle explanations in a shared stable-content area so background completion
+cannot move form controls. Preserve the immediate behavior of appearance and review
+reminders and the clarification near Save (`webui-spec.md` §3).
+
 Warnings that require user action must have a working resolution path. Say what is
 affected, what the user can do, and provide the action or a direct link to the
 relevant filtered view. A count alone is not a completed workflow. While another
@@ -785,7 +794,7 @@ Look into filters; pinned conditions combine with it. Small images uses the exis
 size-reminder predicate in Library or Needs review; Review later is also available with
 its count in both places, including zero. Switching between them retains the reminder
 filter; switching to Not organized or Rejects clears it.
-Small images and Review later remain exclusive; unpin one before choosing the other. Clicking an active filter clears it; none active means the whole
+Small images, Review later and File issues share an exclusive reason scope; unpin the active reason before choosing another. Clicking an active filter clears it; none active means the whole
 current location/inbox. Do not repeat these controls above the photos or add All reasons. Use native buttons with aria-pressed, shared
 text roles and visible focus. Types, Folders and Dates are in
 the Filters panel. Name active restrictions visibly and provide Clear all filters without changing
@@ -954,3 +963,84 @@ requiring hover. Review shows a match count and a count-labelled link
 to the existing full match browser, without candidate thumbnails; following it retains
 reference, percentage, filters and checkbox selection. Browser Back restores the same
 photo and position in the review queue. This is navigation, not a photo action.
+
+
+## Uncertain file outcomes
+
+Use one shared File issues panel in the Inspector, the affected Logs operation and
+Photo Review. It shows **File needs checking**, the recorded reason, expandable
+**Recorded evidence**, and **Check it now**. Explain that the check updates the catalog
+but never moves, overwrites or deletes photo files. Disable the action while a job runs,
+with its reason; submission failures retain an idempotent retry. Report the actual check
+result, not success merely because a job was accepted. Unresolved checks retain their
+explanation and external correction guidance. There is no mark-resolved bypass.
+
+Issues remain visible in Not organized and Rejects. Active Library photos also enter
+**Needs review → File issues** using the shared Look into sidebar and review workspace.
+Other locations never enter the Library inbox. A successful check refreshes counts and
+photo state; an emptied review queue follows the standard return-to-gallery behavior.
+Checks with two remaining relocation names do not remove either name automatically.
+
+An externally missing original with a verified Library copy is a normal observation,
+not a failed Move. Keep it in Library, record what was observed in history, and update
+Move counts. If the copy cannot be verified, use the shared File issues explanation and
+Check it now action. A disconnected/empty source retains the existing safety question.
+
+
+## Metadata source tabs (planned)
+
+Setup's Files step and Settings › Files share a visible **Which metadata is used?**
+explanation beside the metadata questions. Use normal shared body/supporting text and
+a short ordered list: XMP sidecar (separate file), embedded XMP (inside the photo), then
+embedded EXIF (inside the photo). Keep this essential guidance out of tooltip-only help.
+Explain missing versus explicitly empty fields, preservation of all sources and the
+precedence of deliberate/existing source choices. Distinguish reading priority from
+where edits are saved; no extra required choice or automatic primary change is implied.
+Keep its layout stable when preferences change. The full planned copy and precedence
+contract live in `xmp-metadata.md`; do not show it as current behavior before integration.
+
+Name **XMP sidecar**, **Embedded XMP** and **Embedded EXIF** distinctly in source
+explanations. Within the embedded view retain separate labelled evidence for embedded
+XMP and EXIF; a generic XMP label must not imply that the value came from a sidecar.
+
+Within Photo information, reuse shared tabs for Used metadata, Embedded/EXIF and XMP.
+Used metadata is the default; a textual Primary marker identifies the preferred active
+source. Navigation between source snapshots never changes which source is active.
+Distinguish empty fields from absent fields and retain per-field origin for mixed
+metadata. Viewing an alternate XMP version is separate from a confirmed Use this version
+operation. Keep the field table geometry and surrounding navigation stable. The engine
+contract and deferred UI work are in [xmp-metadata.md](xmp-metadata.md).
+
+A primary-source change always previews effective-value differences, any refiling and
+future edit target, then requires confirmation. Keep this separate from copying values
+between metadata sources. Import choices must distinguish preserving an inactive version
+from activating it; use the case-specific workflow in `xmp-metadata.md`. For rejected
+matches, metadata and location choices are independent and share one explicit preview
+and confirmation. All of these metadata screens remain unimplemented.
+
+
+The planned metadata comparison offers one base-version choice with optional per-field
+**Use from this version** overrides in the shared field table. Keep the selected base,
+each overridden field's donor and the resulting value visible; distinguish Empty from
+Not present. Offer a final combined-result preview before saving. Choosing donors does
+not change the primary write target or activate versions through navigation. Explain
+unsupported preservation/writes rather than claiming a safe consolidation. Reuse this
+flow for dates, location, orientation and color information instead of inventing a
+separate conflict screen for each. The original versions and field origins remain in
+history; a composed result is a new version, not an overwrite of the donor snapshots.
+
+
+The planned metadata editor previews only deliberately changed logical fields, including
+required companion changes/removals (such as a date's fraction or offset). Prefill whole
+logical values; don't hide data loss behind a simplified date widget. Creating a first
+RAW sidecar should be explained in the confirmation, along with the edit target and any
+refiling. Keep camera, location and other untouched fields informational. Read-only engine
+previews do not enable Save until verified writing/history/recovery are implemented.
+
+Metadata editor source fields (planned): show the write target's own captured values;
+never prefill a missing XMP property from the effective fallback view. Other sources
+remain inspectable for explicit copying. Distinguish Not set from Explicitly cleared,
+with a deliberate Clear value action and a preview of its fallback/refiling effects.
+No ordinary unchanged Save copies values between sources. Failed edits use the shared
+issue treatment and specific resolution paths; no job-level undo or generic dismissal
+of uncertain file outcomes is introduced. These are handoff rules, not built controls.

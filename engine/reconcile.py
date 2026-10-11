@@ -24,7 +24,7 @@ def _recovery_observe(path: Path):
         return "unreadable"
 
 
-def _recovery_verify(path: Path, expected):
+def _recovery_verify(path: Path, expected, cancelled=None):
     """Hash a stable regular file, without following a replacement symlink or
     blocking on a substituted FIFO. Recovery observes; it never edits this file.
     """
@@ -40,6 +40,8 @@ def _recovery_verify(path: Path, expected):
                 return "not_file", details
             digest = hashlib.sha1()
             for chunk in iter(lambda: stream.read(constants.SHA1_CHUNK_SIZE), b""):
+                if cancelled and cancelled():
+                    return "cancelled", details
                 digest.update(chunk)
             after = os.fstat(stream.fileno())
             details["observed_sha1"] = digest.hexdigest()
@@ -93,12 +95,48 @@ def reconcile_interrupted_state(db_path: Path, run_id: int):
         if not cursor.fetchone():
             return
 
+        # Source cleanup leaves the edited photo organized. Observe its own intent;
+        # startup must never inherit a previous job's permission to delete.
+        from engine import metadata_source_cleanup
+        for op, raw in conn.execute(
+                "SELECT o.id,e.detail_json FROM operations o JOIN operation_events e ON e.operation_id=o.id "
+                "WHERE e.step='intent' AND json_extract(e.detail_json,'$.kind')='metadata_source_cleanup' "
+                "AND NOT EXISTS(SELECT 1 FROM operation_events f WHERE f.operation_id=o.id "
+                "AND f.step='source_cleanup_complete')").fetchall():
+            m=json.loads(raw)['expected']
+            metadata_source_cleanup.execute(conn,op,source_root=m['source_root'],destination_root=m['dest_root'],observe=True)
+
+        # Metadata edits keep the photo in Library while a sidecar/save is pending.
+        # Observe their own journal; transfer recovery must not infer photo-only success.
+        from engine import metadata_save
+        for op, root in conn.execute(
+                "SELECT o.id,r.dest_path FROM operations o JOIN runs r ON r.id=o.run_id "
+                "JOIN operation_events e ON e.operation_id=o.id WHERE e.step='intent' "
+                "AND json_extract(e.detail_json,'$.kind')='metadata_edit' "
+                "AND NOT EXISTS(SELECT 1 FROM operation_events f WHERE f.operation_id=o.id "
+                "AND f.step='metadata_edit_finished')").fetchall():
+            metadata_save.check(conn, op, destination_root=root)
+
         cursor.execute(
             f"SELECT id, source_path, dest_path, sha1_hash FROM photos "
             f"WHERE status = '{PhotoStatus.PROCESSING}'"
         )
         for record_id, src_str, dst_str, sha1 in cursor.fetchall():
             src, dst = Path(src_str), Path(dst_str)
+            # A photo alone cannot establish delivery of a required photo/XMP pair.
+            # Dispatch before the legacy photo-only recovery and partial cleanup.
+            intents = ns_db.unsettled_operations(conn, record_id)
+            if intents:
+                detail = conn.execute("SELECT detail_json FROM operation_events WHERE operation_id=? AND step='intent' ORDER BY event_id LIMIT 1",
+                                      (intents[-1][0],)).fetchone()
+                if detail and json.loads(detail[0] or '{}').get('kind') == 'metadata_incoming_transfer':
+                    from engine import metadata_incoming
+                    metadata_incoming.execute(conn, intents[-1][0], recover=True, recovery_run_id=run_id)
+                    continue
+                if detail and json.loads(detail[0] or '{}').get('kind') == 'metadata_pair_transfer':
+                    from engine import metadata_transfer
+                    metadata_transfer.recover(conn, intents[-1][0], run_id=run_id)
+                    continue
 
             # Partials carry a random suffix (see _stage_copy), so they are found
             # by prefix. Only regular files are removed: a symlink at a
@@ -230,6 +268,10 @@ def reconcile_interrupted_state(db_path: Path, run_id: int):
                 ns_db.settle_operation(conn, operation_id, status=final, step="recovery",
                                        outcome="not_started", error_message=note)
 
+            if expected.get('metadata_activation') and verification=='match' and final!=PhotoStatus.FAILED:
+                from engine import metadata_import
+                metadata_import.activate_photo(conn,operation_id,record_id,expected['metadata_activation'],expected_sha1)
+
             if expected.get("rejected"):
                 # A rejected photo's Move goes to Rejects; whatever happened, it stays
                 # rejected (engine-spec 9.5): delivered there, or still waiting with its source.
@@ -320,6 +362,10 @@ def _reconcile_interrupted_renames(conn, run_id: int):
         if kind not in relocate._RELOCATION_NOUNS:
             continue
         expected = detail.get("expected") or {}
+        if expected.get('sidecar'):
+            from engine import metadata_relocate
+            metadata_relocate.recover(conn, operation_id, run_id)
+            continue
         file_id = expected.get("file_id")
         noun = relocate._RELOCATION_NOUNS[kind]
         states = {"old": observe(old), "new": observe(new)}

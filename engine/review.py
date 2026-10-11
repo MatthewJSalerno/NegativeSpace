@@ -2,7 +2,7 @@
 import contextlib
 import json
 import re
-from engine import ns_db
+from engine import ns_db, attention
 
 REASONS = ('small', 'later')
 DELIVERED = "'Completed','Copied','Found_At_Destination'"
@@ -10,7 +10,7 @@ LIMIT_SQL = "(SELECT CAST(value_json AS INTEGER) FROM settings WHERE key='small_
 
 
 def predicate(reason='all'):
-    if reason not in ('all', *REASONS):
+    if reason not in ('all', 'issues', *REASONS):
         raise ValueError('Unknown review reason')
     small = (f"p.status IN ({DELIVERED}) AND EXISTS (SELECT 1 FROM contents c WHERE c.hash_algorithm='sha1' "
              f"AND c.digest=p.sha1_hash AND c.width>0 AND c.height>0 AND min(c.width,c.height)<{LIMIT_SQL}) "
@@ -18,7 +18,8 @@ def predicate(reason='all'):
              "AND e.sha1=p.sha1_hash AND e.action='reviewed')")
     later = (f"p.status IN ({DELIVERED}) AND "
              "(SELECT e.action FROM review_events e WHERE e.photo_id=p.id AND e.reason='later' ORDER BY e.id DESC LIMIT 1)='later'")
-    return {'small': small, 'later': later, 'all': f'(({small}) OR ({later}))'}[reason]
+    issues = f"p.status IN ({DELIVERED}) AND ({attention.predicate()})"
+    return {'small': small, 'later': later, 'issues': issues, 'all': f'(({small}) OR ({later}) OR ({issues}))'}[reason]
 
 
 def details(conn, photo_id):

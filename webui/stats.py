@@ -108,8 +108,8 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
         # a duplicate whose original is not yet copied has saved nothing so far.
         saved = conn.execute(
             f"SELECT COUNT(*), COALESCE(SUM(d.file_size), 0) FROM photos d WHERE d.status IN ({ns_db.sql_values(catalog.COPIES)}) "
-            "AND EXISTS (SELECT 1 FROM photos a WHERE a.sha1_hash = d.sha1_hash AND a.id != d.id AND a.status IN (?, ?))",
-            (PhotoStatus.COPIED, PhotoStatus.COMPLETED)).fetchone()
+            "AND EXISTS (SELECT 1 FROM photos a WHERE a.sha1_hash = d.sha1_hash AND a.id != d.id AND a.status IN (?, ?, ?))",
+            (PhotoStatus.COPIED, PhotoStatus.COMPLETED, PhotoStatus.FOUND_AT_DESTINATION)).fetchone()
         # Coverage (webui-spec 6.2): every run, with what decides whether it established it.
         coverage_runs = conn.execute(
             "SELECT r.id, r.mode, r.status, r.file_ids_filter, COALESCE(r.ended_at, r.started_at) AS at, "

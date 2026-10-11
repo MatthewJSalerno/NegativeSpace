@@ -11,7 +11,7 @@ from engine.ns_db import (
     PhotoStatus, RunStatus, OPERATION_CANCELLED, OPERATION_SKIPPED, IN_REJECTS_STATUSES,
     REJECTED_STATUSES)
 from engine import (
-    constants, destinations, durable, fileinfo, ns_db, runtime, scan, store, targeting)
+    constants, destinations, durable, fileinfo, metadata_decisions, metadata_import, metadata_incoming, metadata_source_cleanup, metadata_transfer, ns_db, runtime, scan, store, targeting)
 
 
 # --- Pre-Flight Space Validation ---
@@ -278,9 +278,9 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     durable._verified_directories.clear()
     durable._unsupported_dir_fsync_reported = False
     # FULL rather than the default NORMAL, and this is the only caller that
-    # asks. Every delete here commits status=Processing with dest_path BEFORE
-    # unlinking, and reconcile_interrupted_state finds interrupted work by that
-    # marker alone. Under NORMAL a commit is not fsynced, so a power cut can
+    # asks. Ordinary transfers commit status=Processing with dest_path BEFORE
+    # unlinking; reconciliation uses that marker. Edited-source cleanup instead
+    # journals its own intent and verification while keeping the photo organized. Under NORMAL a commit is not fsynced, so a power cut can
     # take the marker while the unlink — which IS fsynced — survives, and the
     # next run finds the source gone with nothing explaining it.
     #
@@ -304,6 +304,30 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         predicate_params
     )
     pending_records = cursor.fetchall()
+    extra_pairs = cursor.execute("SELECT id,source_path,dest_path,metadata_json FROM photos WHERE status='Failed' "
+        "AND EXISTS(SELECT 1 FROM operations o JOIN operation_events e ON e.operation_id=o.id "
+        "WHERE o.photo_id=photos.id AND e.step='intent' AND json_extract(e.detail_json,'$.kind')='metadata_pair_transfer')"
+        + predicate,predicate_params).fetchall()
+    pending_records.extend(extra_pairs)
+    # A reindex can observe an already removed duplicate source while its XMP
+    # cleanup is still incomplete. The recorded issue, not photo status, owns retry.
+    incoming_retries = conn.execute("SELECT id,source_path,dest_path,metadata_json FROM photos WHERE "
+        "EXISTS(SELECT 1 FROM attention_issues a JOIN operations o ON o.id=a.operation_id "
+        "WHERE o.photo_id=photos.id AND a.category='metadata_incoming_incomplete' AND a.resolved_at IS NULL)"
+        + predicate,predicate_params).fetchall()
+    included = {row[0] for row in pending_records}
+    pending_records.extend(row for row in incoming_retries if row[0] not in included)
+    # An interrupted edited-source cleanup may already have removed the photo,
+    # with XMP cleanup pending. A rescan's Failed status must not hide its intent.
+    if args.move:
+        cleanup_retries = conn.execute("SELECT id,source_path,dest_path,metadata_json FROM photos WHERE "
+            "EXISTS(SELECT 1 FROM operations o JOIN operation_events e ON e.operation_id=o.id "
+            "WHERE o.photo_id=photos.id AND e.step='intent' "
+            "AND json_extract(e.detail_json,'$.kind')='metadata_source_cleanup' "
+            "AND NOT EXISTS(SELECT 1 FROM operation_events f WHERE f.operation_id=o.id "
+            "AND f.step='source_cleanup_complete'))" + predicate,predicate_params).fetchall()
+        included = {row[0] for row in pending_records}
+        pending_records.extend(row for row in cleanup_retries if row[0] not in included)
     # Rejected photos whose source is still here (engine-spec 9.5): the Move carries them
     # to their place in Rejects, not into the library, and they stay rejected.
     rejected_ids = {row[0] for row in cursor.execute(
@@ -365,7 +389,56 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     already_delivered = 0
     delivered_bytes = 0
     sizes = {}
+    pair_plans = {}
+    photo_plans = {}
+    pair_holds = {}
+    metadata_read_failures = {}
+    edited_ids = {row[0] for row in pending_records if metadata_source_cleanup.needed(conn,row[0])}
+    cleanup_error = None
+    cleanup_confirmed = bool(args.move and getattr(args,'confirm_edited_sources',False))
+    if edited_ids and cleanup_confirmed:
+        try:
+            metadata_source_cleanup.authorize_run(conn,run_id,db_path=db_path,
+                backups_dir=Path(args.backups),base_dir=Path(args.base))
+        except (ValueError,OSError) as exc:
+            cleanup_error = str(exc)
+    incoming_retry_ids = {row[0] for row in incoming_retries}
     for candidate_id, candidate_src, candidate_dst, _ in pending_records:
+        if candidate_id in edited_ids:
+            continue  # Retain the existing edited destination; no photo is copied again.
+        if candidate_id in incoming_retry_ids:
+            continue  # Cleanup uses recorded preservation evidence, not a fresh capture.
+        try:
+            retry = metadata_import.retry_operation(conn,candidate_id,run_id)
+            pair = metadata_import.plan(conn,candidate_id,run_id) if retry is None else None
+            if pair and pair.get('photo_only'):
+                photo_plans[candidate_id]=pair
+                candidate_dst=pair['destination']
+                pair=None
+            if retry or pair:
+                pair_plans[candidate_id] = (pair,retry)
+                m = retry[1] if retry else None
+                target = m['photo_destination'] if m else pair['destination']
+                photo_size = os.stat(candidate_src).st_size if os.path.exists(candidate_src) else 0
+                side_size = conn.execute('SELECT original_size FROM xmp_versions WHERE version_id=?',
+                    (m['version_id'] if m else pair['version_id'],)).fetchone()[0]
+                sizes[candidate_id] = photo_size
+                # Size is a preflight estimate only; the pair verifies hashes live.
+                for path,size in ((target,photo_size),(target+'.xmp',side_size)):
+                    try:
+                        present = os.stat(path).st_size == size
+                    except OSError:
+                        present = False
+                    if not present: total_bytes_needed += size
+                continue
+        except OSError as exc:
+            metadata_read_failures[candidate_id] = str(exc)
+            continue
+        except (ValueError,ns_db.RevisionConflict) as exc:
+            pair_holds[candidate_id] = str(exc)
+            continue
+        if candidate_id not in photo_plans and metadata_decisions.transfer_hold(conn, candidate_id):
+            continue  # Held pairs require no destination space; the loop records why.
         try:
             sizes[candidate_id] = os.stat(candidate_src).st_size
         except OSError:
@@ -450,6 +523,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     last_progress_at, last_progress_done, last_progress_bytes = transfer_started, 0, 0
     bytes_done = 0
     was_cancelled = False
+    incoming_handled = set()
     for index, (record_id, src, stored_dst, metadata_json) in enumerate(pending_records):
         if runtime.cancel_requested.is_set():
             was_cancelled = True
@@ -488,9 +562,75 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             last_progress_at, last_progress_done, last_progress_bytes = now, index, bytes_done
         bytes_done += sizes.get(record_id, 0)
 
+        if record_id in edited_ids:
+            if not cleanup_confirmed or cleanup_error:
+                store.log_operation(conn,run_id,record_id,src,stored_dst,OPERATION_SKIPPED,
+                    cleanup_error or metadata_source_cleanup.NOTICE)
+                runtime.run_progress.add(OPERATION_SKIPPED)
+            else:
+                try:
+                    result = metadata_source_cleanup.transfer(conn,photo_id=record_id,run_id=run_id,
+                        source_root=source_root,destination_root=dest_path)
+                    runtime.run_progress.add(result['status'])
+                except (ValueError,OSError,ns_db.RevisionConflict) as exc:
+                    store.log_operation(conn,run_id,record_id,src,stored_dst,PhotoStatus.FAILED,str(exc))
+                    runtime.run_progress.add(PhotoStatus.FAILED)
+            continue
+        try:
+            incoming = metadata_incoming.transfer(conn,photo_id=record_id,run_id=run_id,destination_root=dest_path,move=args.move)
+        except (ValueError,OSError,ns_db.RevisionConflict) as exc:
+            incoming = {'status':OPERATION_SKIPPED,'error':str(exc)}
+            store.log_operation(conn,run_id,record_id,src,None,OPERATION_SKIPPED,str(exc))
+        if incoming is not None:
+            incoming_handled.add(record_id)
+            runtime.run_progress.add(incoming['status'])
+            continue
+        if record_id in pair_plans:
+            pair,retry = pair_plans[record_id]
+            try:
+                if retry:
+                    # Reindex can replace a projected path, but never the durable intent.
+                    with ns_db.transaction(conn):
+                        conn.execute('UPDATE photos SET dest_path=? WHERE id=?',(retry[1]['photo_destination'],record_id))
+                    op = metadata_transfer.retry(conn,retry[0],run_id=run_id)
+                else:
+                    op = metadata_transfer.prepare(conn,run_id=run_id,photo_id=record_id,
+                        capture_id=pair['capture_id'],destination=pair['destination'],move=args.move,activate=True)
+                result = metadata_transfer.execute(conn,op)
+                runtime.run_progress.add(result['status'])
+                runtime.logger.info(f"Photo/XMP pair {record_id}: {result['status']}" +
+                    (f" — {result.get('error') or result.get('sidecar_note')}" if result.get('error') or result.get('sidecar_note') else ''))
+            except (ValueError,OSError,ns_db.RevisionConflict) as exc:
+                # A retry may commit its intent before re-verification fails.
+                # Settle that pair, rather than leaving Processing in a finished job.
+                active = conn.execute("SELECT id FROM operations WHERE run_id=? AND photo_id=? AND status='Processing' ORDER BY id DESC LIMIT 1",
+                                      (run_id,record_id)).fetchone()
+                if active:
+                    result = metadata_transfer.recover(conn,active[0])
+                    runtime.run_progress.add(result['status'])
+                else:
+                    store.log_operation(conn,run_id,record_id,src,None,OPERATION_SKIPPED,
+                        f'Photo/XMP pair left for attention: {exc}')
+                    runtime.run_progress.add(OPERATION_SKIPPED)
+            continue
+        if record_id in metadata_read_failures:
+            # An unreadable photo is a failed transfer, not a metadata decision.
+            # Preserve its source and keep the normal failure/retry route visible.
+            cursor.execute('UPDATE photos SET status=? WHERE id=?',(PhotoStatus.FAILED,record_id))
+            store.log_operation(conn,run_id,record_id,src,stored_dst,PhotoStatus.FAILED,
+                                metadata_read_failures[record_id])
+            runtime.run_progress.add(PhotoStatus.FAILED)
+            continue
+        hold = pair_holds.get(record_id) or (None if record_id in photo_plans else metadata_decisions.transfer_hold(conn, record_id))
+        if hold:
+            store.log_operation(conn, run_id, record_id, src, None, OPERATION_SKIPPED, hold)
+            runtime.run_progress.add(OPERATION_SKIPPED)
+            continue
         label = destinations._display_path(src, source_root)
         rejected = record_id in rejected_ids
-        dst = stored_dst if rejected else destinations._destination_for(dest_path, src, metadata_json, stored_dst)
+        activation=photo_plans.get(record_id)
+        dst = (activation['destination'] if activation else
+               stored_dst if rejected else destinations._destination_for(dest_path, src, metadata_json, stored_dst))
 
         if rejected and scan._source_missing(src):
             # Rejected after a Copy, and its source has gone since: nothing to remove.
@@ -569,7 +709,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                     conn, run_id=run_id, photo_id=record_id, source_path=src,
                     dest_path=resolved_dst, kind="move_already_present",
                     expected={"sha1_hash": verified_sha1, "source_removed": True,
-                              **({"rejected": True} if rejected else {})})
+                              **({"rejected": True} if rejected else {}),
+                              **({'metadata_activation':activation} if activation else {})})
                 conn.commit()
                 try:
                     if source_identity is None:
@@ -602,7 +743,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             )
             store.log_operation(conn, run_id, record_id, src, resolved_dst, final_status, skip_error,
                           has_collision, commit=False, operation_id=intent_id,
-                          step="move_already_present",
+                          metadata_activation=activation, step="move_already_present",
                           delivery=dict(source_removed=row_status in (PhotoStatus.COMPLETED, PhotoStatus.REJECTED),
                                         created=False, sha1_hash=verified_sha1)
                           if final_status != PhotoStatus.FAILED else None)
@@ -645,7 +786,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             conn, run_id=run_id, photo_id=record_id, source_path=src, dest_path=resolved_dst,
             kind="move" if args.move else "copy",
             expected={"source_removed": bool(args.move), "created": True,
-                      **({"rejected": True} if rejected else {})})
+                      **({"rejected": True} if rejected else {}),
+                              **({'metadata_activation':activation} if activation else {})})
         conn.commit()
 
         # --move deletes the verified source (delete_source=True, the
@@ -665,7 +807,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         cursor.execute("UPDATE photos SET status = ? WHERE id = ?", (row_status, record_id))
         store.log_operation(conn, run_id, record_id, src, resolved_dst, final_status, error_message,
                       has_collision, commit=False, operation_id=intent_id,
-                      step="move" if args.move else "copy",
+                      metadata_activation=activation, step="move" if args.move else "copy",
                       delivery=dict(source_removed=args.move and success, created=True,
                                     sha1_hash=verified_content.get("sha1_hash"))
                       if success or copied_only else None)
@@ -698,6 +840,8 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         if duplicate_records:
             runtime.run_progress.start("removing_duplicates", len(duplicate_records))
         for index, (record_id, dup_src_str, sha1_hash) in enumerate(duplicate_records):
+            if record_id in incoming_handled:
+                continue
             if runtime.run_progress.due():
                 runtime.run_progress.write(conn)
                 conn.commit()
@@ -716,6 +860,19 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 conn.commit()
                 break
 
+            try:
+                incoming = metadata_incoming.transfer(conn,photo_id=record_id,run_id=run_id,destination_root=dest_path,move=True)
+            except (ValueError,OSError,ns_db.RevisionConflict) as exc:
+                incoming = {'status':OPERATION_SKIPPED,'error':str(exc)}
+                store.log_operation(conn,run_id,record_id,dup_src_str,None,OPERATION_SKIPPED,str(exc))
+            if incoming is not None:
+                runtime.run_progress.add(incoming['status'])
+                continue
+            hold = metadata_decisions.transfer_hold(conn, record_id)
+            if hold:
+                store.log_operation(conn, run_id, record_id, dup_src_str, None, OPERATION_SKIPPED, hold)
+                runtime.run_progress.add(OPERATION_SKIPPED)
+                continue
             dup_src = Path(dup_src_str)
             if scan._source_missing(dup_src_str):
                 # Gone already. If its content is on the destination, record that
@@ -872,8 +1029,22 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         # Part of the Copy's scope, so they join its denominator and its counts
         # in the one commit that records them.
         copy_skips = 0
+        incoming_copy_count = 0
         for record_id, dup_src_str, sha1_hash in cursor.fetchall():
-            reason, pointer = _duplicate_skip_reason(cursor, sha1_hash, copying=True)
+            if record_id in incoming_handled:
+                continue
+            conn.commit()
+            try:
+                incoming = metadata_incoming.transfer(conn,photo_id=record_id,run_id=run_id,destination_root=dest_path,move=False)
+            except (ValueError,OSError,ns_db.RevisionConflict) as exc:
+                incoming = {'status':OPERATION_SKIPPED,'error':str(exc)}
+                store.log_operation(conn,run_id,record_id,dup_src_str,None,OPERATION_SKIPPED,str(exc))
+            if incoming is not None:
+                incoming_copy_count += 1
+                runtime.run_progress.add(incoming['status'])
+                continue
+            hold = metadata_decisions.transfer_hold(conn, record_id)
+            reason, pointer = (hold, None) if hold else _duplicate_skip_reason(cursor, sha1_hash, copying=True)
             store.log_operation(conn, run_id, record_id, dup_src_str, pointer, OPERATION_SKIPPED, reason,
                           commit=False)
             copy_skips += 1
@@ -908,7 +1079,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                 commit=False
             )
             copy_skips += 1
-        runtime.run_progress.set_total((runtime.run_progress.total or 0) + copy_skips)
+        runtime.run_progress.set_total((runtime.run_progress.total or 0) + copy_skips + incoming_copy_count)
         runtime.run_progress.add(OPERATION_SKIPPED, copy_skips)
         runtime.run_progress.write(conn)
         conn.commit()

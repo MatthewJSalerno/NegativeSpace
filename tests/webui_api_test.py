@@ -267,6 +267,37 @@ class RejectsReminder(ApiCase):
 
 
 class RequestIdentity(ApiCase):
+    def test_ordinary_jobs_record_no_edited_source_consent_and_replay(self):
+        self.create_catalog()
+        make_photo(self.cfg.source / 'sample.jpg', 'ordinary-jobs')
+        for mode in ('index', 'copy', 'move'):
+            body = {'mode': mode, 'request_id': 'ordinary-' + mode}
+            if mode != 'index':
+                body['file_ids'] = [self.client.get('/api/v1/photos').json()['items'][0]['id']]
+            run = self.wait_for(self.start(**body))
+            self.assertEqual(run['status'], 'Completed')
+            with sqlite3.connect(self.cfg.db_path) as conn:
+                payload = json.loads(conn.execute('SELECT submitted_request_json FROM job_requests WHERE request_id=?',
+                                                  (body['request_id'],)).fetchone()[0])
+            self.assertIs(payload['submitted']['confirm_edited_sources'], False)
+            with self.engine_lock_held(), patch('webui.jobs.subprocess.Popen') as spawn:
+                replay = self.client.post('/api/v1/jobs/start', json=body)
+                self.assertEqual((replay.status_code, replay.json().get('id')), (202, run['id']))
+                spawn.assert_not_called()
+        self.assertEqual(len(self.client.get('/api/v1/runs').json()['runs']), 3)
+
+    def test_cli_edited_source_consent_cannot_replay_as_an_ordinary_web_move(self):
+        self.create_catalog()
+        make_photo(self.cfg.source / 'sample.jpg', 'consent-identity')
+        self.wait_for(self.start(mode='index'))
+        result = subprocess.run(self.cfg.engine_argv('--move', '--request-id', 'confirmed-cleanup',
+                                '--confirm-edited-sources'), cwd=ENGINE_CWD, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        with patch('webui.jobs.subprocess.Popen') as spawn:
+            response = self.client.post('/api/v1/jobs/start', json={'mode': 'move', 'request_id': 'confirmed-cleanup'})
+            self.assertEqual((response.status_code, response.json()['error']), (409, 'request_conflict'))
+            spawn.assert_not_called()
+
     def test_replay_and_lookup_keep_the_original_run_after_newer_work_and_restart(self):
         self.create_catalog()
         make_photo(self.cfg.source / 'sample.jpg', 'identity')

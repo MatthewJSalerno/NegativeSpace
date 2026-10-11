@@ -123,12 +123,22 @@ revision 0.
      "rejects_reminder_days": {"value": 30 | null, "revision": 0, "default": 30},
      "small_image_min": {"value": null, "revision": 0, "default": null},
      "suspicious_min_year": {"value": 1800, "revision": 0, "default": 1800},
+     "xmp_association": {"value": "ask", "revision": 0, "default": "ask"},
+     "metadata_write_raw": {"value": "xmp", "revision": 0, "default": "xmp"},
+     "metadata_write_non_raw": {"value": "embedded", "revision": 0, "default": "embedded"},
      "job_active": false}
 
 `workers.detected` is the number of CPUs the container may use (`ns_db.available_cpus`):
 the host's cores, reduced by a CPU set or a CPU quota. `limited_by` names which applies.
 The two `rejects_reminder_` settings are the web interface's own, never part of a job's
 configuration: a positive whole number, or `null` for off.
+
+`xmp_association` accepts `ask`, `raw_only`, `non_raw_only`, or `all`. The two
+`metadata_write_` preferences accept `xmp` or `embedded`. All three use the same
+revision-checked save and frozen job configuration. Association preferences affect
+unresolved capture proposals; saved ownership wins. Write preferences are recorded
+only until editing is implemented; they never override an established primary.
+Setup/Settings controls and metadata-decision routes remain unimplemented.
 
 ### `PUT /api/v1/settings`
 
@@ -184,7 +194,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 | `page`, `page_size` | page from 1; 1 to 240 photos | 1, 60 |
 
     {"items": [{"id": 12, "status": "Pending", "file_size": 3012443,
-                "date_taken": "2023-06-05T21:20:00", "date_source": "exif" | "file_mtime",
+                "date_taken": "2023-06-05T21:20:00", "date_source": "exif" | "xmp" | "file_mtime",
                 "filename": "IMG_0001.jpg", "duplicates": 1,
                 "failure": null | "Permission denied", "kept": null | "Read-only file system"}, ...],
      "page": 1, "page_size": 60, "total": 1160,
@@ -232,7 +242,7 @@ Library page the Look into counts come from `chips` and `reasons` instead, for t
 shown. `match_min` (default 90) sets Has similar photos:
 
     {"places": {"unorganized": 0, "organized": 4499, "review": 31, "rejects": 4},
-     "look_into": {"similar": 167, "suspicious": 8, "undated": 1356, "small": 9, "later": 3}}
+     "look_into": {"similar": 167, "suspicious": 8, "undated": 1356, "small": 9, "later": 3, "issues": 1}}
 
 ### `GET /api/v1/photos/timeline`
 
@@ -422,6 +432,9 @@ saved before sending. Legacy callers omitting it receive a server-generated ID.
 An accepted ID with the same normalized request returns its original run without
 spawning, even during a different active job; different input returns
 `409 request_conflict`. Acceptance is durable in the engine's `job_requests` table.
+Index/Copy/Move request identity includes `confirm_edited_sources: false`, matching
+the engine default. The web API does not yet offer edited-source cleanup consent;
+a CLI request that explicitly enabled it cannot replay as an ordinary web Move.
 *   **Validated before anything runs:** mode, one targeting at most, ids as positive
     integers no greater than `2^63 - 1`, never more ids than the catalog holds photos (no
     other limit), and a folder that stays inside the source. Everything else is
@@ -990,11 +1003,11 @@ reload before retrying. Success is shown only after acknowledgement.
 ### Composable review browsing
 
 Gallery listing, IDs, position, types, folders and timeline accept `similar` and
-`suspicious` booleans and `reason` (all/small/later). These combine with existing
+`suspicious` booleans and `reason` (all/small/later/issues). These combine with existing
 filters. `view=review` selects distinct active Library photos with an unresolved supported reason. Reminders on source/rejected files do not contribute. History remains readable; new decisions require a delivered active photo.
 `GET /photos` optionally accepts `filter_pins`, a comma-separated subset of similar,
-suspicious, undated, small and later (empty string means no pins). Unknown keys or both
-small and later return 400. This changes only sidebar counts, not gallery membership:
+suspicious, undated, small, later and issues (empty string means no pins). Unknown keys or
+multiple reason pins (small/later/issues) return 400. File issues pins apply only in Needs review. This changes only sidebar counts, not gallery membership:
 an inactive filter's count replaces unpinned Look into conditions, while active counts
 retain the current intersection. Place, search, date, type, folder and run constraints
 remain; pins unavailable in the place do not apply. Omit the parameter for existing
@@ -1030,6 +1043,30 @@ The catalog setting `suspicious_min_year` accepts an integer from 1 to 9999 (def
 it is suspicious; the future-year rule remains current UTC year + 1. The photo-list
 response includes `date_min_year` so its policy text agrees with its query results.
 Changing the setting changes browse/inspection results, never recorded metadata.
+
+### `GET /api/v1/photos/{photo_id}/issues`
+
+Returns `{items}` for open uncertain-operation issues belonging to this photo, in
+any catalog location. Each item has `issue_id`, `operation_id`, `summary`, `opened_at`
+and up to 20 newest evidence observations (location, path, kind, result, timestamp,
+and recorded details). Unknown photos return 404. Reads do not examine the filesystem
+or modify the catalog. Inspector responses include the same `issues`; operation log
+items include issues attached to that operation.
+
+### `POST /api/v1/issues/check`
+
+Accepts `{issue_id, request_id?}` and returns the accepted run with 202. The issue ID
+is a positive 64-bit integer; unknown fields or invalid IDs return 400. A missing or
+resolved issue returns `409 issue_changed`; an active engine job returns the existing
+busy refusal. Request IDs follow the normal replay/conflict rules, including replay
+after the issue is resolved. The engine rechecks under its lock, reads only recorded
+paths inside the configured source/destination, and records a CHECK job. No request
+can supply a filesystem path or dismiss an issue without verification.
+
+Verified evidence, catalog repair and resolution commit together; failures retain the
+issue and explanation. `reason=issues` filters active Library photos with unresolved
+issues, contributing to Needs review counts and card reasons. Source and rejected
+photos retain their issues in information and Logs without entering that inbox.
 
 ## 8. Designed, not built
 

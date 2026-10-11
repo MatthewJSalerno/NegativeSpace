@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { LookInto } from "./api";
 
-export const LOOK_KEYS: LookInto[] = ["similar", "suspicious", "undated", "small", "later"];
+export const LOOK_KEYS: LookInto[] = ["similar", "suspicious", "undated", "small", "later", "issues"];
+export const REASON_KEYS: LookInto[] = ["small", "later", "issues"];
 const STORAGE_KEY = "ns.filterPins";
 let fallback: LookInto[] = [];
 
@@ -9,11 +10,13 @@ export function savedFilterPins(): LookInto[] {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
     if (!Array.isArray(value)) return [];
-    return LOOK_KEYS.filter(key => value.includes(key) && !(key === "later" && value.includes("small")));
+    const reason = REASON_KEYS.find(key => value.includes(key));
+    return LOOK_KEYS.filter(key => value.includes(key) && (!REASON_KEYS.includes(key) || key === reason));
   } catch { return fallback; }
 }
 
 export function filterApplies(key: LookInto, view: string): boolean {
+  if (key === "issues") return view === "review";
   if (key === "later" || key === "similar" || key === "small") return view === "organized" || view === "review";
   return true;
 }

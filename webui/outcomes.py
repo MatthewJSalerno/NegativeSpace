@@ -20,7 +20,7 @@ _SUCCESS = {"indexed", "duplicates", PhotoStatus.COPIED, PhotoStatus.COMPLETED,
             PhotoStatus.REJECTED, PhotoStatus.REJECTED_COPIED, OPERATION_RETURNED}
 _FAILURE = {"failed", PhotoStatus.FAILED, "missing", "changed", "unreadable"}
 _SKIPPED = {"unchanged", OPERATION_SKIPPED, "already", "kept", "Already_Gone", "unknown"}
-_REQUESTED_PHASES = {"INDEX": ("scanning",), "COPY": ("scanning", "transferring"),
+_REQUESTED_PHASES = {"INDEX": ("scanning", "checking_destination"), "COPY": ("scanning", "transferring"),
                      "MOVE": ("scanning", "transferring", "removing_duplicates"),
                      "SIMILARITY": ("scanning", "matching"), "REBUILD": ("rebuilding_thumbnails",), "CHECK": ("checking_destination",),
                      "REJECT": ("transferring",), "RETURN": ("transferring",)}
@@ -87,7 +87,7 @@ def _outcome(conn, run: dict, progress: list) -> dict:
         "SELECT COUNT(*) FROM operations WHERE run_id = ? AND photo_id IS NULL AND status = ? "
         "AND reconciles_operation_id IS NULL", (run["id"], PhotoStatus.FAILED)).fetchone()[0]
     recovered = conn.execute("SELECT COUNT(*) FROM operations WHERE run_id = ? AND "
-                             "reconciles_operation_id IS NOT NULL", (run["id"],)).fetchone()[0]
+                             "reconciles_operation_id IS NOT NULL AND status NOT IN ('Failed','Cancelled')", (run["id"],)).fetchone()[0]
     skip_reasons = {}
     for (message,) in conn.execute("SELECT error_message FROM operations WHERE run_id = ? AND status = ? "
                                    "AND reconciles_operation_id IS NULL", (run["id"], OPERATION_SKIPPED)):

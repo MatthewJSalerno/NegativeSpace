@@ -1300,6 +1300,11 @@ def _run_fixture_move(engine, args, db_path, destination, run_id):
     """Fault-injection calls still need a real parent run with FK checks enabled."""
     with sqlite3.connect(db_path) as conn:
         conn.execute("INSERT OR IGNORE INTO runs(id,mode,started_at,status) VALUES(?, 'MOVE', 'test', 'Running')", (run_id,))
+        conn.execute('UPDATE runs SET source_path=?,dest_path=? WHERE id=?',(args.source,str(destination),run_id))
+        config={**engine.ns_db.METADATA_DEFAULTS,
+                **{key:item['value'] for key,item in engine.ns_db.read_settings(conn).items()}}
+        config['metadata_decision_highwater']=conn.execute('SELECT COALESCE(MAX(decision_id),0) FROM metadata_decisions').fetchone()[0]
+        conn.execute('INSERT OR IGNORE INTO run_configs VALUES(?,?)',(run_id,json.dumps(config)))
     return engine._run_move_or_copy(args, db_path, destination, run_id)
 
 
@@ -4363,12 +4368,13 @@ def every_job_phase_reports_progress_that_agrees_with_the_record():
 
     run_engine(case)
     p = _progress(case)
-    check(phases(p) == ["discovering", "scanning", "matching"], f"Index phases: {phases(p)}")
+    check(phases(p) == ["discovering", "scanning", "metadata", "matching"], f"Index phases: {phases(p)}")
     check(p[0]["total"] is None and p[0]["counts"] == {"eligible": 4, "excluded": 1},
           f"discovery must count what it walked, with no total: {p[0]}")
     check(p[1]["total"] == 4 and p[1]["counts"] == {"indexed": 3, "duplicates": 1},
           f"first scan: {p[1]}")
-    check(p[2]['counts']['Compared'] == p[2]['total'] > 0, f"Hash comparison progress: {p[2]}")
+    check(p[2]['total'] == 4 and p[2]['counts'] == {'Captured':4}, f"Metadata observation progress: {p[2]}")
+    check(p[3]['counts']['Compared'] == p[3]['total'] > 0, f"Hash comparison progress: {p[3]}")
 
     run_engine(case)
     p = _progress(case)
@@ -4377,15 +4383,15 @@ def every_job_phase_reports_progress_that_agrees_with_the_record():
 
     run_engine(case, "--copy")
     p = _progress(case)
-    check(phases(p) == ["discovering", "scanning", "matching", "transferring"], f"Copy phases: {phases(p)}")
-    check(p[3]["counts"] == _transfer_outcomes(case) == {"Copied": 3, "Skipped": 1},
-          f"Copy progress {p[3]['counts']} disagrees with the record {_transfer_outcomes(case)}")
+    check(phases(p) == ["discovering", "scanning", "metadata", "matching", "transferring"], f"Copy phases: {phases(p)}")
+    check(p[4]["counts"] == _transfer_outcomes(case) == {"Copied": 3, "Skipped": 1},
+          f"Copy progress {p[4]['counts']} disagrees with the record {_transfer_outcomes(case)}")
 
     run_engine(case, "--move")
     p = _progress(case)
-    check(phases(p) == ["discovering", "scanning", "matching", "transferring", "removing_duplicates"],
+    check(phases(p) == ["discovering", "scanning", "metadata", "matching", "transferring", "removing_duplicates"],
           f"Move phases: {phases(p)}")
-    combined = collections.Counter(p[3]["counts"]) + collections.Counter(p[4]["counts"])
+    combined = collections.Counter(p[4]["counts"]) + collections.Counter(p[5]["counts"])
     check(dict(combined) == _transfer_outcomes(case) == {"Completed": 3, "Removed_Duplicate": 1},
           f"Move progress {dict(combined)} disagrees with the record {_transfer_outcomes(case)}")
 

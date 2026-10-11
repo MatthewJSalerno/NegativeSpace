@@ -32,6 +32,7 @@ const LOOK: { key: LookInto; label: string; href: string }[] = [
   { key: "suspicious", label: "Suspicious dates", href: "/?view=organized&suspicious=1" },
   { key: "undated", label: "No capture date", href: "/?view=organized&undated=1" },
   { key: "small", label: "Small images", href: "/?view=organized&reason=small" },
+  { key: "issues", label: "File issues", href: "/?view=review&reason=issues" },
   { key: "later", label: "Review later", href: "/?view=review&reason=later" },
 ];
 

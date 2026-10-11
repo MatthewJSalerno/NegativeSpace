@@ -91,7 +91,7 @@ def find_content_on_destination(conn, sha1: Optional[str]) -> Optional[Path]:
 
 
 def record_found_at_destination(conn, run_id: int, record_id: int, source: str, found: Path,
-                                sha1: str):
+                                sha1: str, note: Optional[str] = None):
     """Records a photo or duplicate whose source is gone and whose exact content is on
     the destination, as Found_At_Destination.
 
@@ -102,7 +102,7 @@ def record_found_at_destination(conn, run_id: int, record_id: int, source: str, 
     observed destination or linked if already recorded, the source identity marked missing
     rather than removed, the settled operation and the new status commit together.
     """
-    note = (f"The source is gone and its exact content is on the destination at {found}. "
+    note = note or (f"The source is gone and its exact content is on the destination at {found}. "
             f"Recorded as found there; nothing was copied or deleted.")
     with ns_db.transaction(conn):
         operation_id = ns_db.begin_operation(

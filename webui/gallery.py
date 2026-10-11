@@ -6,7 +6,7 @@ import posixpath
 from pathlib import Path
 from typing import Optional
 
-from engine import ns_db, review
+from engine import ns_db, review, attention
 from engine import ns_similarity_cache
 from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
 from . import catalog
@@ -213,6 +213,7 @@ def _review_cards(conn, rows):
         {review.LIMIT_SQL} AS minimum,
         ({review.predicate('small')}) AS small,
         ({review.predicate('later')}) AS later,
+        ({review.predicate('issues')}) AS issues,
         (SELECT e.note FROM review_events e WHERE e.photo_id=p.id AND e.reason='later'
          ORDER BY e.id DESC LIMIT 1) AS note
         FROM photos p LEFT JOIN contents c ON c.hash_algorithm='sha1' AND c.digest=p.sha1_hash
@@ -227,6 +228,8 @@ def _review_cards(conn, rows):
         if row['later']:
             reasons.append({'reason': 'later', 'label': 'Review later',
                 'message': row['note'] or 'You asked to come back to this photo.'})
+        if row['issues']:
+            reasons.append({'reason':'issues','label':'File needs checking','message':'An operation could not be verified.'})
         cards[row['id']] = {'reasons': reasons, 'location':
             'Library' if row['status'] in catalog.DELIVERED else
             'Rejects' if row['status'] in IN_REJECTS_STATUSES else 'Not organized'}
@@ -316,17 +319,18 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
     run_sql, run_params = _run_clause(run)
     pins = None if filter_pins is None else set(filter_pins.split(',')) - {''}
     if pins is not None:
-        if pins - {'similar', 'suspicious', 'undated', 'small', 'later'} or {'small', 'later'} <= pins:
+        if pins - {'similar', 'suspicious', 'undated', 'small', 'later', 'issues'} or len(pins & {'small', 'later', 'issues'}) > 1:
             raise ValueError('Choose valid compatible filter pins.')
         if view not in ('organized', 'review', 'job'): pins -= {'similar', 'small', 'later'}
+        if view != 'review': pins.discard('issues')
     active = {'similar': similar, 'suspicious': suspicious, 'undated': undated,
-              'small': reason == 'small', 'later': reason == 'later'}
+              'small': reason == 'small', 'later': reason == 'later', 'issues': reason == 'issues'}
 
     def count_filters(key):
         # Active buttons describe the current intersection. An inactive button will
         # replace the unpinned filters, so count its future intersection with pins.
         kept = active if pins is None or active.get(key) else {name: name in pins for name in active}
-        target_reason = key if key in ('small', 'later') else 'small' if kept['small'] else 'later' if kept['later'] else 'all'
+        target_reason = key if key in ('small', 'later', 'issues') else next((name for name in ('small', 'later', 'issues') if kept[name]), 'all')
         return _filters(q, key == 'undated' or kept['undated'], dates, types, folders, root,
                         match_min=match_min, similar=key == 'similar' or kept['similar'],
                         suspicious=key == 'suspicious' or kept['suspicious'], reason=target_reason, run=run)
@@ -365,11 +369,11 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
         reasons = {}
         # Library and job galleries also expose the Review later filter; only the
         # inbox needs the additional reason totals.
-        reason_keys = ('all', *review.REASONS) if view == 'review' else ('later',) if view in ('organized', 'job') else ()
+        reason_keys = ('all', 'issues', *review.REASONS) if view == 'review' else ('later',) if view in ('organized', 'job') else ()
         for key in reason_keys:
             extra, values = _filters(q, undated, dates, types, folders, root, match_min=match_min,
                                     similar=similar, suspicious=suspicious, reason=key, run=run)
-            if key == 'later' and pins is not None:
+            if key in ('later', 'issues') and pins is not None:
                 extra, values = count_filters(key)
             reasons[key] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE ({review.predicate()}) AND ({_view_clause(view, match_min)})"+extra, values).fetchone()[0]
         # No capture date under every other filter, for its button, as the views are counted.
@@ -402,7 +406,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
 PLACES = ("unorganized", "organized", "review", "rejects")
 LOOK_INTO = {"similar": ("organized", {"similar": True}), "suspicious": ("organized", {"suspicious": True}),
              "undated": ("organized", {"undated": True}), "small": ("organized", {"reason": "small"}),
-             "later": ("review", {"reason": "later"})}
+             "later": ("review", {"reason": "later"}), "issues": ("review", {"reason": "issues"})}
 
 
 def places(db_path: Path, *, match_min=90) -> dict:
@@ -659,6 +663,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         snapshot = conn.execute(
             "SELECT s.file_mtime FROM photo_files pf JOIN source_snapshots s USING(file_id) "
             "WHERE pf.photo_id = ?", (photo_id,)).fetchone()
+        issues = attention.for_photo(conn, photo_id)
         failure = None
         if p["status"] == PhotoStatus.FAILED:
             last = conn.execute("SELECT error_message FROM operations WHERE photo_id = ? AND status = ? ORDER BY id DESC LIMIT 1",
@@ -681,7 +686,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         "file_modified": snapshot["file_mtime"] if snapshot else p["file_mtime"],
         "date_taken": meta.get("date_taken"), "date_source": meta.get("date_source"),
         "date_warning": p["date_warning"],
-        "camera": camera, "visual_issue": visual_issue, "failure": failure,
+        "camera": camera, "visual_issue": visual_issue, "failure": failure, "issues": issues,
         # A capture time's offset, when the camera recorded one; without it the
         # time zone is unknown and must not be shown as UTC (webui-spec 10).
         "date_offset": meta.get("OffsetTimeOriginal"),

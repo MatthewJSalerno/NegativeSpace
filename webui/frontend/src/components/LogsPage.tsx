@@ -1,3 +1,4 @@
+import { FileIssues } from "./FileIssues";
 import { useDismissedRun } from "../dismissal";
 import { StableContent } from "./ui/StableContent";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -30,6 +31,7 @@ const STATUS_LABEL: Record<string, string> = {
 function failureHint(op: Operation): string | null {
   if (op.status === "Copied_Only")
     return "The copy is at the destination; the original is still in the source. Once the source can be written, move it again to finish the Move.";
+  if (op.issues?.length) return null;
   if (op.status !== "Failed") return null;
   const m = op.error_message ?? "";
   if (/cannot identify image|UnidentifiedImageError|not an image|empty file|zero.byte/i.test(m)) return "The file could not be read as a supported image. Check it outside this app and repair, replace or remove it from the source before re-indexing. It is not a similarity candidate.";
@@ -414,7 +416,7 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
                   <tr key={op.id} className={`log-${op.status.toLowerCase()}`}>
                     <td className="nowrap">{instant(op.timestamp)}</td>
                     <td className="log-status">
-                      {STATUS_LABEL[op.status] ?? op.status}
+                      {op.mode === "CHECK" && op.recovery && op.status === "Skipped" ? "Verified" : STATUS_LABEL[op.status] ?? op.status}
                       {op.recovery && <div><span className="badge">Recovery of earlier work</span></div>}
                       {op.run_level && op.status === "Failed" && <div><span className="badge">Folder or job</span></div>}
                     </td>
@@ -431,6 +433,7 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
                       )}
                     </td>
                     <td>
+                      {op.photo_id != null && op.issues?.length > 0 && <FileIssues photoId={op.photo_id} initialIssues={op.issues} operationId={op.id} />}
                       {op.error_message && <div className="message">{op.error_message}</div>}
                       {hint && <div className="hint">{hint}{CALLS_FOR_INDEX.test(hint) && <> {indexButton}</>}</div>}
                       {op.status === "Failed" && op.photo_status && op.photo_status !== "Failed" && (
