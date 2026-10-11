@@ -24,7 +24,11 @@ with sync_playwright() as pw:
     for mode in ('index','copy'):
         r=request.post('/api/v1/jobs/start',data={'mode':mode}); assert r.ok,r.text(); wait(r.json()['id'])
     with sqlite3.connect('/catalog/db/ns_sqlite.db') as c:
+        # Review by name below: resolve the last of two Library issues so the
+        # remaining, earlier item must be reached with Previous. Worker completion
+        # order (and therefore photo IDs) must not choose which path this tests.
         records=c.execute("SELECT id,source_path,dest_path,sha1_hash FROM photos WHERE status='Copied' ORDER BY id LIMIT 3").fetchall()
+        records.sort(key=lambda row: (os.path.basename(row[1]).lower(), row[0]), reverse=True)
         run=c.execute('SELECT MAX(id) FROM runs').fetchone()[0]
         for i,(pid,src,dst,sha) in enumerate(records):
             op=c.execute("INSERT INTO operations(run_id,photo_id,source_path,dest_path,status,timestamp) VALUES(?,?,?,?,'Failed','2026-01-01T00:00:00+00:00')",(run,pid,src,dst)).lastrowid
@@ -61,17 +65,21 @@ with sync_playwright() as pw:
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth+1')
         panel.get_by_text('Recorded evidence',exact=True).click()
     page.set_viewport_size({'width':1440,'height':1000})
-    page.goto(f'{base}/?view=review&reason=issues&photo={pid}&review_photo={pid}')
+    page.goto(f'{base}/?view=review&reason=issues&sort=name&photo={pid}&review_photo={pid}')
     workspace=page.get_by_role('dialog',name='Review photos',exact=True)
     expect(workspace.get_by_role('heading',name='File issue review')).to_be_visible()
+    expect(workspace).to_contain_text('Photo 2 of 2')
     with page.expect_response(lambda r:r.request.method=='POST' and r.url.endswith('/api/v1/issues/check')) as result:
         workspace.get_by_role('button',name='Check it now').click()
     assert result.value.ok;wait(result.value.json()['id'])
     assert get(f'photos/{pid}/issues')['items']==[]
     assert get('photos?view=review&reason=issues')['total']==1
     expect(workspace).to_contain_text('File issue resolved.',timeout=15000)
-    if workspace.get_by_text('No more photos at this position.',exact=False).count():
-        workspace.get_by_role('button',name='Previous photo',exact=True).click()
+    # The notice is set before the refreshed queue arrives. Wait for its settled
+    # state instead of taking an immediate count() snapshot during loading.
+    expect(workspace.get_by_text('No more photos at this position.',exact=False)).to_be_visible()
+    workspace.get_by_role('button',name='Previous photo',exact=True).click()
+    expect(workspace).to_contain_text('Photo 1 of 1')
     expect(workspace).to_contain_text('catalog content has changed',timeout=15000)
     assert not errors,errors
     browser.close()

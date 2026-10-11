@@ -8,6 +8,9 @@ The CI job has a 45-minute limit for the combined serial browser, API, metadata
 and engine suites. The previous 20-minute limit cancelled a run after 56 successful
 steps, before the final recovery/review and smoke checks could finish. This is an
 overall job budget; individual test timeouts and assertions remain unchanged.
+The file-issue browser fixture fixes its review order by filename and waits for the
+refreshed queue before using Previous. A resolution notice alone does not mean the
+follow-up gallery request has finished.
 
 Build the image first — the Python suites run inside it, because they need ExifTool,
 Pillow, imagehash and rawpy:
