@@ -7,6 +7,7 @@ import re
 import sys
 import time
 from playwright.sync_api import expect, sync_playwright
+from ui_browser_checks import finished_notice, close_notifications
 
 BASE = sys.argv[1]
 NEWER, OLDER, DUPLICATES = (int(a) for a in sys.argv[2:5])
@@ -45,14 +46,14 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={"width": 1400, "height": 900})
     page.on("console", lambda m: m.type == "error" and not m.text.startswith("Failed to load resource") and errors.append(m.text))
     page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
-    banner = page.locator(".finished-banner")
+    banner = page.locator(".notification-item").first
 
     def shot(name):
         if os.environ.get("SHOTS"):
             page.screenshot(path=f"{os.environ['SHOTS']}/{name}.png")
 
     def dismiss_banner():
-        page.get_by_role("button", name="Dismiss", exact=True).first.click()
+        close_notifications(page)
         expect(banner).to_have_count(0)
 
     # Before any Copy or Move nothing is in the library: the selection bar offers only what
@@ -86,8 +87,8 @@ with sync_playwright() as p:
     expect(dialog.get_by_role("button", name="Cancel")).to_be_focused()
     shot("r1-confirm-reject")
     dialog.get_by_role("button", name="Reject", exact=True).click()
-    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Reject finished"), timeout=60_000)
-    expect(banner).to_contain_text("1 of 1 photo moved to Rejects")
+    expect(finished_notice(page)).to_contain_text(re.compile(r"Job #\d+ · Reject finished"), timeout=60_000)
+    expect(finished_notice(page)).to_contain_text("1 of 1 photo moved to Rejects")
     expect(page.locator(".card")).to_have_count(0)
     expect(place_count(page, "Library")).to_have_text(f"{PHOTOS - 1:,}")
     expect(place_count(page, "Rejects")).to_have_text("1")
@@ -118,7 +119,7 @@ with sync_playwright() as p:
     dialog = page.get_by_role("alertdialog")
     expect(dialog).to_contain_text("Return this photo to the library?")
     dialog.get_by_role("button", name="Return to library", exact=True).click()
-    expect(banner).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
+    expect(finished_notice(page)).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
     expect(page.locator(".card")).to_have_count(0)
     expect(line).to_contain_text("Rejects is empty.")
     dismiss_banner()
@@ -134,10 +135,10 @@ with sync_playwright() as p:
     expect(page.locator(".card")).to_have_count(2)
     shot("r3-review-before-reject")
     review.get_by_role("button", name="Reject these 2 photos").click()
-    expect(banner).to_contain_text("2 of 2 photos moved to Rejects", timeout=60_000)
+    expect(finished_notice(page)).to_contain_text("2 of 2 photos moved to Rejects", timeout=60_000)
     # Back in Library, which the rejected photos have left; the banner opens the job's.
     expect(page.get_by_role("region", name="Review before rejecting")).to_have_count(0)
-    banner.get_by_role("button", name="Show these photos").click()
+    banner.get_by_role("link", name="Show these photos").click()
     expect(page.get_by_role("region", name="A job's photos")).to_contain_text(re.compile(r"The 2 photos in Job #\d+ · Reject"))
     dismiss_banner()
 
@@ -165,7 +166,7 @@ with sync_playwright() as p:
     shot("r3b-return-from-log")
     back.click()
     page.get_by_role("alertdialog").get_by_role("button", name="Return to library", exact=True).click()
-    expect(banner).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
+    expect(finished_notice(page)).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
     dismiss_banner()
 
     # In the Rejects view, the selection bar offers Return to library and not Reject.
@@ -180,7 +181,7 @@ with sync_playwright() as p:
     bar = selection_bar(page)
     expect(bar.get_by_role("button", name=re.compile(r"^Reject"))).to_have_count(0)
     # A selection in Rejects offers Return first, then a Move that says what it deletes.
-    expect(bar.locator(".selection-actions button").first).to_have_text("Return to library (1)…")
+    expect(bar.locator(".selection-actions button").first).to_have_accessible_name("Return to library (1)…")
     move = bar.get_by_role("button", name="Move (1)…")
     expect(move).to_have_attribute("title", re.compile("Those copies become the only ones"))
     move.click()
@@ -204,7 +205,7 @@ with sync_playwright() as p:
     bar = selection_bar(page)
     bar.get_by_role("button", name="Return to library (1)…").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Return to library", exact=True).click()
-    expect(banner).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
+    expect(finished_notice(page)).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
     expect(place_count(page, "Rejects")).to_have_text("0")
 
     # The reminder: on every page once Rejects passes a limit, until it is under both again.
@@ -219,7 +220,7 @@ with sync_playwright() as p:
     page.locator(".card-image").first.click()
     page.get_by_role("button", name="Reject…", exact=True).click()
     page.get_by_role("alertdialog").get_by_role("button", name="Reject", exact=True).click()
-    expect(banner).to_contain_text("1 of 1 photo moved to Rejects", timeout=60_000)
+    expect(finished_notice(page)).to_contain_text("1 of 1 photo moved to Rejects", timeout=60_000)
     expect(reminder).to_contain_text(re.compile(r"Rejects holds [\d.]+ KB in 1 photo"))
     expect(reminder.get_by_role("button", name="How to empty Rejects")).to_be_visible()
     shot("r5-reminder")
@@ -256,11 +257,11 @@ with sync_playwright() as p:
     page.locator(".card-check input").first.click()
     selection_bar(page).get_by_role("button", name="Return to library (1)…").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Return to library", exact=True).click()
-    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Return to library finished"), timeout=60_000)
+    expect(finished_notice(page)).to_contain_text(re.compile(r"Job #\d+ · Return to library finished"), timeout=60_000)
     returned = request.get("/api/v1/runs").json()["runs"][0]
     assert returned["mode"] == "RETURN", returned
     expect(line_above).to_contain_text(f"The 1 photo in Job #{returned['id']} · Return to library")
-    expect(banner).to_contain_text(f"Job #{returned['id']} · Return to library finished")
+    expect(finished_notice(page)).to_contain_text(f"Job #{returned['id']} · Return to library finished")
 
     assert not errors, f"browser errors: {errors}"
     print("Rejects browser checks passed")

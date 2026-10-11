@@ -620,7 +620,12 @@ export type SimilarityRecoveryPage = {
   total: number; retryable: number; generatable: number; state: { unavailable: number; pending: number }; page: number; page_size: number;
 };
 
+export interface NotificationPage { items: { run: Run; read: boolean }[]; next_before: number | null }
+
 export const api = {
+  unreadNotifications: () => request<{ unread: number }>("GET", "/api/v1/notifications/unread"),
+  notifications: (before?: number) => request<NotificationPage>("GET", `/api/v1/notifications${before ? `?before=${before}` : ""}`),
+  readNotifications: (run_ids: number[]) => request<{ read_ids: number[] }>("PUT", "/api/v1/notifications/read", { run_ids }),
   access: () => request<AccessSettings>("GET", "/api/v1/access"),
   saveAccess: (hosts: string[], revision: number, confirm_current_host = false) =>
     request<AccessSettings>("PUT", "/api/v1/access", { hosts, revision, confirm_current_host }),

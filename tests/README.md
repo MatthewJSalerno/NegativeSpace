@@ -260,7 +260,7 @@ also test writable-source removal, selected/folder/whole-source targeting, stale
 answers, changed roots, busy engine and unsupported input. No real network share
 or maintainer data is needed; network durability itself is not tested.
 
-`DRIVER=transfer_outcome_browser_drive.py` checks mixed and all-failed prerequisite scans for Copy and Move, including banner
+`DRIVER=transfer_outcome_browser_drive.py` checks mixed and all-failed prerequisite scans for Copy and Move, including notification
 counts and View failures links. It modifies only the harness's disposable photos.
 The API suite also runs all four cases with a writable source to verify successful
 Move alongside scan failures. Existing verdict cases cover cancellation, copied-only,
@@ -714,7 +714,7 @@ Manual review before merging: choose On and Off on separate fresh catalogs, revi
 mixed-size delivered photos, verify a useful small photo disappears only from Small
 images after Mark reviewed, and verify unwanted photos follow the existing Reject
 confirmation. Inspect the workspace and first-run Files at desktop zoom. This branch
-uses schema 22 and requires a fresh development catalog; it does not migrate schema 20.
+uses the current schema and requires a fresh development catalog; it does not migrate older catalogs.
 
 The review browser driver also covers first-step navigation, source Index summary,
 Copy confirmation, Library review markers, focused inbox entry and return with search,
@@ -813,13 +813,14 @@ Fresh-start/source eligibility checks:
 
 A terminal run record does not mean the engine has released its lock: the catalog
 backup runs after settlement. Before starting another job or asserting a finished
-banner, wait for both a terminal run status and `GET /api/v1/jobs/active` returning
+notification, wait for both a terminal run status and `GET /api/v1/jobs/active` returning
 `active: null`. Do not retry a refused start to hide an unexpected refusal.
 
-`DRIVER=dismissal_browser_drive.py` checks delayed and failed catalog dismissal writes,
-Library/Logs navigation while saving, visible retry at narrow desktop width, interrupted
-reload before acknowledgment, storage clearing after acknowledgment, and stale browser
-IDs versus catalog authority. It deliberately holds the PUT instead of relying on timing.
+`DRIVER=notifications_browser_drive.py` checks delayed and failed notification-read writes,
+failed saves with retry, interrupted reload before acknowledgment, storage clearing after
+acknowledgment, new-job unread counts, result links and selection geometry. It deliberately
+holds the PUT instead of relying on timing; pagination and concurrent acknowledgments are
+also covered by the API suite.
 
 The source-scope browser check starts Copy from the Index summary and verifies that
 completion replaces the photo facts with a compact failure notice, without reloading.
@@ -854,3 +855,20 @@ open. The workspace and preview close, the filtered gallery shows zero photos an
 completion message, and the URL no longer points to that photo/review. With other
 queue items remaining, Back closes only a preview that no longer matches the view;
 a still-matching preview and checkbox selection remain intact.
+
+## Notification bell and selection stability
+
+Run `notifications_test.py` inside the app Docker image. It verifies per-job read state,
+strict/atomic refusal (including IDs outside SQLite’s integer range), cursor pagination,
+concurrent acknowledgments, idempotence and
+badge queries that do not derive outcomes. Run `notifications_browser_drive.py` with the
+standard browser harness: it checks failed/delayed saves, reload and navigation, new jobs,
+result links, inline failure details without covering actions, count-width stability
+across digit changes, dark/light and narrow reflow.
+Existing job workflows use the shared `finished_notice` helper to inspect their result
+through the bell. Safety questions remain in actionable banners independently of read state.
+
+Manual: open the bell after Index/Copy; verify each job, result and links; close/reload
+and confirm the unread count stays cleared. Run another job and check that it creates
+one new unread notice. Select 1, 9, 10 and more photos: the adjacent actions should stay
+in place. Opening the bell must not move the gallery. Check Logs/Stats and desktop zoom.

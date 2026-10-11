@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from "rea
 import type { PlaceView, Status } from "../api";
 import { follow, useHeaderHeight } from "../nav";
 import { Logo } from "./Logo";
+import { Notifications } from "./Notifications";
 import { PageTools } from "./PageTools";
 import { Sidebar, type SidebarCurrent, type SidebarFilters } from "./Sidebar";
 
@@ -11,7 +12,7 @@ import { Sidebar, type SidebarCurrent, type SidebarFilters } from "./Sidebar";
 // top bar. Below 800px the sidebar hides behind the menu button and opens over the page;
 // the button stays while photos are selected, so the places and filters are still in reach.
 export function AppFrame({ header, current, status, onOpenSettings, search, jobs, selection, banners,
-                           matchMin, refresh, filters, onPlace, className = "", children }: {
+                           matchMin, refresh, filters, onPlace, onShowPhotos, className = "", children }: {
   header: RefObject<HTMLElement | null>;
   current: SidebarCurrent;
   status: Status;
@@ -24,6 +25,7 @@ export function AppFrame({ header, current, status, onOpenSettings, search, jobs
   refresh?: unknown;
   filters?: SidebarFilters;
   onPlace?: (view: PlaceView) => void;
+  onShowPhotos?: (id: number) => void;
   className?: string;
   children: ReactNode;
 }) {
@@ -52,6 +54,7 @@ export function AppFrame({ header, current, status, onOpenSettings, search, jobs
             {jobs}
             <PageTools onOpenSettings={onOpenSettings} />
           </>}
+          <Notifications onShowPhotos={onShowPhotos} />
         </div>
         {banners}
       </header>

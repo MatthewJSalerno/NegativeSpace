@@ -156,7 +156,7 @@ browser, so clearing a browser's data or opening another does not bring it back:
 
     {"dismissed_run": 12}
 
-`dismissed_run` is the newest job whose finished banner was dismissed; it covers that job
+`dismissed_run` is the newest job whose safety-decision banner was dismissed; it covers that job
 and every earlier one. A value that is not a recorded run id is `400 invalid_request`.
 Not a setting: settings configure jobs and are copied into each run's configuration.
 
@@ -1030,3 +1030,27 @@ These are designed in `webui-spec.md` and will be described here when they exist
 *   The curation actions: rename, the destination check (offered from a lineage
     tree's copy), thumbnail cache controls, and later metadata editing, all of which
     the engine already supports or is specified to (`engine-spec.md` §9).
+
+## Job notifications
+
+### `GET /api/v1/notifications/unread`
+
+Returns `{"unread": 3}`: finished jobs without an individual read marker. This count
+query does not derive detailed outcomes or scan per-photo operation results.
+
+### `GET /api/v1/notifications`
+
+Optional `before` (run ID from 1 through 2^63−1) and `limit` (1–50, default 20) provide descending
+run-ID pagination. Returns `{"items": [{"run": <run response>, "read": false}],
+"next_before": <id or null>}`. Only Completed, Cancelled, Failed and Interrupted jobs
+appear. This read does not acknowledge any notices. Invalid query parameters return 422.
+
+### `PUT /api/v1/notifications/read`
+
+Accepts `{"run_ids": [1, 2]}` (1–100 integer IDs of finished jobs, each from 1 through 2^63−1), returns
+`{"read_ids": [1, 2]}`. Writes independent `read_notification:<id>` keys in `ui_state`;
+replays are idempotent and concurrent browsers add rather than replace acknowledgments.
+The whole batch is refused for invalid/unknown/active jobs (`400 invalid_request`).
+A write blocked by catalog availability returns `503 catalog_busy`. This changes no
+job outcome, safety decision, file issue, file or selection. Counts decrease only after
+acknowledgment; clients must not mark unseen older entries read.

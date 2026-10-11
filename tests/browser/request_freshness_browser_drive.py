@@ -6,6 +6,7 @@ import time
 from collections import Counter
 from urllib.parse import urlsplit
 from playwright.sync_api import expect, sync_playwright
+from ui_browser_checks import finished_notice, close_notifications
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
@@ -45,7 +46,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(1200)
     before = counts['/api/v1/stats']
     copied = job('copy')
-    expect(page.locator('.finished-banner')).to_contain_text(f'Job #{copied}')
+    expect(finished_notice(page)).to_contain_text(f'Job #{copied}')
     expect(page.locator('.stat-tile').filter(has_text='In Library')).to_contain_text('100%')
     page.wait_for_timeout(1200)
     assert counts['/api/v1/stats'] == before + 1, counts

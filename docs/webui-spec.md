@@ -141,11 +141,14 @@ Users can select individual files or multiple files across grid views to run tar
   returns to the view it came from, and so does committing. Copy all and Move all still
   confirm in a dialog: there is no selection to review.
 * **After a job, stay where you were** (decided 2026-10-06). Starting a job clears the
-  selection and leaves the gallery where it was. The finished banner of a job that acted
+  selection and leaves the gallery where it was. The notification of a job that acted
   on photos (Copy, Move, Reject, Return to library, Rename) offers **Show these photos**,
   on every page, and so does each such job in Logs (**Show these photos in the library**,
   beside Retry): the gallery then shows the photos that job recorded, wherever they are
-  now, library or Rejects (`view=job&run=<id>`, in the address). Its line reads "The 400
+  now, library or Rejects (`view=job&run=<id>`, in the address). Membership uses catalog
+  photo IDs, not historical paths: later app-managed relocations retain the link and
+  show current state. It is not a historical file snapshot; removed duplicate copies
+  are excluded, and an empty result remains possible. Logs retain recorded outcomes. Its line reads "The 400
   photos in Job #3 · Copy · 398 of 400 files copied · 2 skipped · Back to results" ("their status
   updates when the job ends" while it runs), and each photo's badge shows where it stands.
   It opens with no search, dates, types or folders, so none of the job's photos is hidden
@@ -153,11 +156,11 @@ Users can select individual files or multiple files across grid views to run tar
   Select all, ticking and the selection bar work as anywhere. **Back to results** restores
   the filters it opened over; a view button leaves it with the filters as they are. A
   job started from a job's photos takes the view with it when it ends ("The 2 photos in
-  Job #8 · Return to library"), so the line above them and the finished banner, which names
+  Job #8 · Return to library"), so the line above them and the notification, which names
   its job too ("Job #8 · Return to library finished"), describe the same job. With nothing
   ticked, the selection bar is hidden. *Why not land on the job's photos:* it
   took you from where you were after every job, with the page's controls greyed out,
-  while most jobs need no follow-up. *Why not a tab or chip for the job:* the banner and
+  while most jobs need no follow-up. *Why not a tab or chip for the job:* the notification and
   Logs already lead there.
 * **Date tree:** a **Dates** panel left of the gallery lists years and their months with
   counts for the current view and search, every year unfolded to start, every month with
@@ -566,19 +569,21 @@ wrong for every such file that does carry a date.
 
 ### 4.1 Real-Time Operations Drawer
 When a job is active, its progress shows at the top of the page, under the toolbar. When
-it finishes, its result replaces it there as a banner until dismissed.
+it finishes, its result appears in the Notifications bell. Only jobs requiring a safety
+decision retain an actionable banner. Opening notifications never answers those decisions.
 
-**A failure count says why on hover.** Hovering (or focusing) a finished job's result
-lists why its files failed, each reason with its count, the file paths removed so reasons
-group (**"Why they failed: Permission denied: 2"**); the Logs page's job lines do
-the same, and a Failed photo's badge in the gallery gives its own latest reason.
+**A failure count has an explanation.** A notification's **Details** disclosure below
+its links lists why its files failed, each reason with its count, the file paths removed
+so reasons group (**"Why they failed: Permission denied: 2"**). Long explanations expand
+inside the panel instead of covering its links. The Logs page's job lines retain
+hover/focus explanations, and a Failed photo's badge gives its own latest reason.
 
 **A Move that could only copy says so, without stopping to ask.** When a Move cannot
 delete an original (a read-only source, a permission), the engine records the verified
 copy it made (`engine-spec.md` §4.2) and the screens name it **Copied only**, in the
 warning colour: never Moved, never Failed. The result reads **"Move finished, originals
 kept · 0 of 4,836 files moved · 4,836 copied only: the original could not be removed"**,
-and its hover gives the reasons (**"Why originals were kept: Read-only file system:
+and its details give the reasons (**"Why originals were kept: Read-only file system:
 4,836"**). The log has a **Copied only** status with its own filter, a hint that the copy
 is at the destination, and **Move the n copied-only photos again** to finish the job once
 the source can be written. The gallery badge reads **Copied only**, with the reason
@@ -586,7 +591,7 @@ on hover; the Inspector's history and the lineage tree say **original kept**. *W
 ask on the first failure:* nothing is lost either way, and a question nobody is there to
 answer would stall an overnight job; a clear account afterwards serves better.
 
-A finished job's banner explains its skips, grouped by the reason each photo recorded,
+A finished job's notification explains its skips, grouped by the reason each photo recorded,
 for example **"5 skipped (3 copied by an earlier job, 2 duplicates: the same content is
 copied once)"**. The API groups them from the engine's reason text (`webui/outcomes.py`).
 
@@ -1231,17 +1236,15 @@ retains control height without Expand all. See the shared layout contract in
 log is grouped by job, newest first: each job is one line (its summary and how many
 entries match) until opened, and its entries page on their own. Filters apply inside
 every job; while any is set, a job with nothing matching is left out. A finished
-job's banner links to its log, opened on that job, and, when it failed, to **View failures**.
-A dismissed banner stays dismissed on every page, in every browser, and after the
-browser's data is cleared: the dismissal is kept with the catalog (`PUT /api/v1/ui-state`),
-and covers that job and every earlier one. Dismiss keeps the banner visible with a disabled
-**Saving…** button until the server acknowledges the write. A failed write shows
-**Could not save the dismissal. Try again.** and **Retry dismissal**. Pending/error
-state follows in-app navigation across Library, Logs and Stats. Reloading before a
-write is acknowledged may interrupt it; an unsaved dismissal then remains visible.
-After acknowledgment, clearing browser storage or reloading does not bring it back.
-The catalog is authoritative; an old browser dismissal ID never hides a new catalog's
-banners. No browser-only dismissal is saved or replayed. The Logs page has the Library's frame
+job's notification links to its log, opened on that job, and to **View failures** when
+appropriate. The shared bell lists completed, cancelled, failed and interrupted jobs,
+newest first, in pages of 20. Opening it or loading older entries marks only those
+entries read. Per-job receipts live in `ui_state`; they survive reload, cleared browser
+storage and navigation, and concurrent reads are additive. A failed save leaves the
+count unchanged and exposes Retry marking read. Read status never resolves failures,
+starts jobs or dismisses safety questions. Active progress and actionable safety banners
+remain separate. Safety-banner dismissal retains its acknowledged catalog-backed
+`dismissed_run` contract. The Logs page has the Library's frame
 without the search and **Jobs**, whose jobs belong with the photos; the sidebar never moves. The
 active filters are named in one line with one reset (**"Showing: job #3 · Failed ·
 “photo-00” · Clear all filters"**). An open job's entries load in batches of 100 as the
@@ -1264,7 +1267,7 @@ A searchable table logging every operation performed by the engine:
   CSV/JSON export. The photo info page opens this view scoped to the selected
   photo's full history, with access to the surrounding run.
 
-**Filtering by run is what two other screens link into**, so it is a first-class filter rather than a search convenience: the failure banner links here scoped to the most recent run, and the Dashboard's coverage message (§5.9) links here scoped to *every run since the last complete scan*. The filter therefore accepts a set of run ids, not only one.
+**Filtering by run is what two other screens link into**, so it is a first-class filter rather than a search convenience: a job notification links here scoped to its run, and the Dashboard's coverage message (§5.9) links here scoped to *every run since the last complete scan*. The filter therefore accepts a set of run ids, not only one.
 
 ### 5.5 Job Outcome Is Derived, Not Read From `runs.status`
 
@@ -1531,7 +1534,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 22 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 27 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -1601,7 +1604,7 @@ ORDER BY r.ended_at DESC LIMIT 1;
 **Return the excluded runs, not just the date.** Suppressing a scan silently would trade a wrong date for a missing one. Alongside `last_indexed_at`, report how many Index runs since then failed to establish coverage, and the run ids the UI needs to link into Logs (§5.4):
 
 * `coverage.established_by_run` — the run the date came from, or `null`
-* `coverage.scans_with_issues_since` — count of untargeted Index runs after it that recorded a run-level failure. Deliberately **Index runs only**: a failed Move says nothing about scan coverage, and the failure banner already covers that case. Conflating them would make a delivery problem read as a staleness problem.
+* `coverage.scans_with_issues_since` — count of untargeted Index runs after it that recorded a run-level failure. Deliberately **Index runs only**: a failed Move says nothing about scan coverage, and the job notification already covers that case. Conflating them would make a delivery problem read as a staleness problem.
 * `coverage.run_ids_since` — every run after that date, whatever its mode, since the user clicking through wants to see the whole gap rather than only its failures.
 
 **Extension scope counts too.** An Index run with a narrowed `--exts` scans the full tree, succeeds completely at a smaller job, and records no failure, having examined only some file types. Its effective extension set is recorded in `run_configs` (`engine-spec.md` §6.5), so the API can see it: an Index whose effective extensions omit a supported type does not advance the coverage date, and is listed in `run_ids_since` like any other later run.
@@ -2589,7 +2592,7 @@ abandons the pending action without changing files.
 
 If a post-job
 backup fails, preserve the job's actual result, show a separate backup warning and
-offer **Retry backup**: its own line in the finished-job banner. Do not describe
+offer **Retry backup** in a separate persistent backup notice. Do not describe
 completed file work as failed merely because its backup failed.
 
 **Where backups live:** in Settings, not on a page of their own; the top row is full, and

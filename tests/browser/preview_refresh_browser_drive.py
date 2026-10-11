@@ -2,6 +2,7 @@
 import sys
 import time
 from playwright.sync_api import expect, sync_playwright
+from ui_browser_checks import finished_notice, close_notifications
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
@@ -34,7 +35,8 @@ with sync_playwright() as p:
 
     page.route(missing, fail)
     page.route(permanent, fail)
-    page.goto(sys.argv[1])
+    # Still in source retains a copied photo; Not organized correctly removes it.
+    page.goto(sys.argv[1] + "/?view=source")
     card = page.locator(f'.card[data-id="{ids[0]}"]')
     stuck = page.locator(f'.card[data-id="{ids[1]}"]')
     healthy = page.locator(f'.card[data-id="{ids[2]}"] img')
@@ -50,7 +52,7 @@ with sync_playwright() as p:
     page.unroute(missing)
     scroll_before = page.evaluate('window.scrollY')
     run = job(mode='copy', file_ids=[ids[0]])
-    expect(page.locator('.finished-banner a').first).to_have_attribute('href', f'/logs?run={run}', timeout=15000)
+    expect(finished_notice(page).get_by_role('link', name='View log', exact=True)).to_have_attribute('href', f'/logs?run={run}', timeout=15000)
     expect(panel).not_to_contain_text('Not written yet.')
     expect(panel.locator('.photo-history')).to_contain_text('Copied')
     expect(card.locator('img')).to_be_visible()
@@ -62,13 +64,10 @@ with sync_playwright() as p:
     assert healthy.evaluate('(img) => img === window.healthyImage && window.healthyLoads === 0')
     assert abs(page.evaluate('window.scrollY') - scroll_before) < 3
     run = job(mode='move', file_ids=[ids[0]])
-    banner = page.locator('.finished-banner')
-    expect(banner).to_contain_text('copied only', timeout=15000)
-    detail = banner.locator('.tip > span').first
-    assert detail.evaluate('(el) => getComputedStyle(el).textDecorationLine') == 'none'
-    help_button = banner.get_by_role('button', name='More information')
-    help_button.click()
-    expect(banner.get_by_role('note')).to_be_visible()
+    banner = page.locator('.notification-item').first
+    expect(finished_notice(page)).to_contain_text('copied only', timeout=15000)
+    banner.locator('summary').click()
+    expect(banner.locator('details p')).to_contain_text('Why originals were kept:')
     expect(panel.locator('.photo-history')).to_contain_text('Copied only')
     assert not errors, errors
     browser.close()

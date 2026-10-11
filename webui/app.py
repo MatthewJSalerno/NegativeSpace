@@ -21,7 +21,7 @@ from engine import ns_db, review
 from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, oplog, outcomes, stats
-from . import access, matching, security
+from . import access, matching, notifications, security
 from . import config, jobs as job_commands
 from .config import Config
 from .jobs import JobRefused, JobRunner
@@ -471,6 +471,23 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/runs")
     def get_runs(limit: int = Query(100, ge=1, le=500)):
         return {"runs": oplog.list_runs(cfg.db_path, limit=limit)}
+
+    @app.get("/api/v1/notifications/unread")
+    def unread_notifications():
+        return {"unread": notifications.unread_count(cfg.db_path)}
+
+    @app.get("/api/v1/notifications")
+    def list_notifications(before: Optional[int] = Query(None, ge=1, le=2**63-1), limit: int = Query(20, ge=1, le=50)):
+        return notifications.page(cfg.db_path, before, limit)
+
+    @app.put("/api/v1/notifications/read")
+    def read_notifications(body: dict = Body(...)):
+        try:
+            return notifications.mark_read(cfg.db_path, body)
+        except ValueError as exc:
+            raise HTTPException(400, {"error": "invalid_request", "message": str(exc)})
+        except sqlite3.OperationalError:
+            raise HTTPException(503, {"error": "catalog_busy", "message": "Could not mark notifications read. Try again."})
 
     # -- Jobs -----------------------------------------------------------------
 

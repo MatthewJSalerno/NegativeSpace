@@ -1251,6 +1251,20 @@ class JobsAndCatalog(ApiCase):
         found = self.client.post("/api/v1/photos/position", json={"photo_id": chosen[0], **scope}).json()
         self.assertIsNotNone(found["position"], "a job's photo cannot be located in its view")
         self.assertEqual(self.client.get("/api/v1/photos", params={"view": "job", "run": 0}).status_code, 422)
+        # Old job links follow the catalog identity through later relocations; they
+        # must not retain the original Copy path or exclude photos now in Rejects.
+        before = self.client.get(f"/api/v1/photos/{chosen[0]}/inspect").json()["dest_path"]
+        self.wait_for(self.start(mode="reject", file_ids=chosen))
+        rejected = self.client.get("/api/v1/photos", params=scope).json()
+        self.assertEqual([p["id"] for p in rejected["items"]], chosen)
+        detail = self.client.get(f"/api/v1/photos/{chosen[0]}/inspect").json()
+        self.assertNotEqual(detail["dest_path"], before)
+        self.assertIn("/rejects/", detail["dest_path"])
+        self.wait_for(self.start(mode="return", file_ids=chosen))
+        returned = self.client.get("/api/v1/photos", params=scope).json()
+        self.assertEqual([p["id"] for p in returned["items"]], chosen)
+        self.assertEqual(self.client.get(f"/api/v1/photos/{chosen[0]}/inspect").json()["dest_path"], before)
+
 
     def test_a_selection_reaches_the_engine_in_a_private_file_and_is_kept_with_the_job(self):
         import stat

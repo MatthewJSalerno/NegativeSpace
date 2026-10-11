@@ -115,8 +115,8 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
 
 - **Top bar**, sticky: the logo and name (a link to the Library's last place), the
   filename search on the Library, **Jobs ▾** on the Library, then the **Dark mode** switch and
-  Settings. Logs and Stats have neither search nor Jobs, and no disabled stand-in for
-  them. Job and Rejects banners sit under the top bar.
+  Settings and **Notifications**. The bell remains available during selection. Logs and Stats have neither search nor Jobs, and no disabled stand-in for
+  them. Active progress, safety questions and Rejects reminders sit under the top bar.
 - **Sidebar** (`Sidebar.tsx`, 240px), on every page: the four places in workflow order
   (Not organized, Library, Needs review, Rejects), each with how many photos it holds,
   whatever the search or filters; **Look into**, the gallery's filters; **Activity**: Logs
@@ -183,6 +183,33 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   window, as menus do.
   Desktop is the target; this keeps a half-screen window usable.
 
+### Notifications
+
+The bell is shared by Library, Logs and Stats and remains available during selection.
+It displays an unread count (99+ visually, exact count in its accessible name). Its
+labelled disclosure overlays content without moving the gallery; Escape and Close return
+focus to the bell, and clicking outside closes it. The list scrolls within the viewport
+and loads older jobs explicitly, 20 at a time. Every card uses the shared job title,
+semantic outcome border, counts, time and links to its photos, failures and log.
+Long failure/original-kept reasons expand in a native **Details** disclosure below
+the links, never in a hover that covers the actions. Opening Details stays within
+the scrolling panel and leaves that card's action row in place.
+
+Opening the panel marks only the loaded notices read, after server acknowledgment.
+Loading older notices marks that loaded batch read. The catalog stores independent,
+additive receipts per job, so two browsers cannot undo each other's reads. A read is
+not a dismissal of the job's failure or a response to a safety question. Failed writes
+keep the unread status and offer Retry marking read. Ordinary completed-job banners
+are replaced by the bell. Active progress, connection loss, submission failures, safety
+questions, Rejects reminders and contextual file warnings stay visible where actionable.
+The bell fetches its count on initial load, job completion and window focus; detailed
+outcomes load only while the panel is used. Page navigation does not repeat count reads.
+
+Selection counts reserve text space based on catalog capacity, including the outside-view
+count and each offered action count. Numbers use tabular digits. Selecting additional
+photos must not move adjacent actions; this adds no selection limit. Different available
+actions and narrow-window wrapping may still change the layout.
+
 ## Stable navigation and filtering
 
 Ordinary job submission stays on the initiating control/dialog; the central Index
@@ -190,7 +217,7 @@ button replaces its label with **Starting…** and disables repeat submission. A
 global submission banner must not push down the page. Uncertain/failed submission
 recovery stays immediately visible, and real job progress still appears in the drawer.
 
-Finished-job dismissal is an acknowledged action: keep the banner and replace Dismiss
+Safety-question banner dismissal is an acknowledged action: keep the banner and replace Dismiss
 with disabled **Saving…** while saving. On failure keep the result visible with a
 plain error and **Retry dismissal**. Share that state across pages; never hide a
 banner optimistically or rely on a browser-only copy of the dismissal.
@@ -784,7 +811,7 @@ Choosing a reminder scope alone does not add Clear filters beside the location h
 click the active filter again to clear it. Other active gallery filters retain Clear filters.
 
 The selection bar reserves the width of its outside-this-view message for the
-current selection size. Filtering must not make this message appear/disappear in a
+catalog capacity. Filtering must not make this message appear/disappear in a
 way that wraps the toolbar and shifts the gallery. The sizing copy is hidden from
 view and assistive technology; a zero outside count is not announced as a warning.
 

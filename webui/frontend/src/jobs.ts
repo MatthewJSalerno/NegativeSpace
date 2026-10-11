@@ -218,7 +218,7 @@ export function summary(run: Run, numbered = true): { headline: string; detail: 
   return { headline, detail: parts.join(" · ") || "No files were processed.", tone };
 }
 
-// The hover text for a run's problems: why originals were kept and why files failed,
+// The shared explanation for a run's problems: why originals were kept and why files failed,
 // each reason with its count, most first.
 export function reasonsText(outcome: Outcome | null | undefined): string | null {
   const block = (title: string, all: Record<string, number> | undefined) => {

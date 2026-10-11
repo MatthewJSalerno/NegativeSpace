@@ -1017,3 +1017,31 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .gallery-filter-summary { min-height: var(--control-height); display: flex; align-items: center; }
 
 .access-addresses { overflow-wrap: anywhere; }
+
+/* Notification disclosure overlays content; reading results never shifts the gallery. */
+.notifications { position: relative; flex: 0 0 auto; }
+.notification-trigger { display: inline-flex; align-items: center; gap: var(--space-1); }
+.notification-count { min-width: 3ch; font-variant-numeric: tabular-nums; color: var(--accent); }
+.notifications-panel { position: absolute; right: 0; top: calc(100% + var(--space-2)); z-index: var(--layer-menu);
+  width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 96px); overflow: auto;
+  background: var(--surface); border: 1px solid var(--control-border); border-radius: var(--radius); padding: var(--space-4); box-shadow: var(--shadow); }
+.notifications-panel > p { margin: var(--space-3) 0; }
+.notifications-head, .notification-heading { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
+.notifications-head h2 { font-size: var(--type-md); margin: 0; }
+.notification-item { border-left: 4px solid var(--muted); background: var(--surface-2); border-radius: var(--radius);
+  padding: var(--space-3); margin: var(--space-3) 0; }
+.notification-item.finished-good { border-left-color: var(--good); }
+.notification-item.finished-warn { border-left-color: var(--warn); }
+.notification-item.finished-bad { border-left-color: var(--bad); }
+.notification-item h3 { margin: 0; font-size: var(--type-sm); text-transform: none; letter-spacing: normal; color: var(--text); }
+.notification-item p { margin: var(--space-2) 0; }
+.notification-details { margin-top: var(--space-2); }
+.notification-details summary { cursor: pointer; }
+.notification-details p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.notification-links { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+.selection-count { display: inline-grid; font-variant-numeric: tabular-nums; }
+.selection-count > span { grid-area: 1 / 1; }
+.selection-count-size { visibility: hidden; }
+@media (max-width: 800px) {
+  .notifications-panel { position: fixed; top: 64px; right: 16px; left: 16px; width: auto; max-height: calc(100dvh - 80px); }
+}

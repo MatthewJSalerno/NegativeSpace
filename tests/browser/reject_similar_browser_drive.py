@@ -8,6 +8,7 @@ import re
 import sys
 import time
 from playwright.sync_api import expect, sync_playwright
+from ui_browser_checks import finished_notice, close_notifications
 
 BASE = sys.argv[1]
 errors = []
@@ -44,7 +45,7 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={"width": 1440, "height": 1000})
     page.on("console", lambda m: m.type == "error" and not m.text.startswith("Failed to load resource") and errors.append(m.text))
     page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
-    banner = page.locator(".finished-banner")
+    banner = page.locator(".notification-item").first
 
     def shot(label):
         if os.environ.get("SHOTS"):
@@ -95,7 +96,7 @@ with sync_playwright() as p:
     dialog = page.get_by_role("alertdialog")
     expect(dialog).to_contain_text(f"Reject {first['filename']}?")
     dialog.get_by_role("button", name="Reject", exact=True).click()
-    expect(banner).to_contain_text("1 of 1 photo moved to Rejects", timeout=60_000)
+    expect(finished_notice(page)).to_contain_text("1 of 1 photo moved to Rejects", timeout=60_000)
     assert status_of(first["id"]) == "Rejected_Copied"
     total -= 1
     expect(keeping).to_have_text(f"Keep reference, reject {total} matches…")
@@ -168,7 +169,7 @@ with sync_playwright() as p:
     expect(review).to_contain_text(f"{total - 1:,} of {total:,} look-alikes will be moved to Rejects.")
     shot("s5-keep-review")
     review.get_by_role("button", name=f"Reject these {total - 1} photos").click()
-    expect(banner).to_contain_text(f"{total - 1} of {total - 1} photos moved to Rejects", timeout=60_000)
+    expect(finished_notice(page)).to_contain_text(f"{total - 1} of {total - 1} photos moved to Rejects", timeout=60_000)
     assert status_of(reference) == "Copied", "the kept photo was rejected"
     assert status_of(int(kept_too)) == "Copied", "an unticked look-alike was rejected"
 
@@ -216,7 +217,7 @@ with sync_playwright() as p:
     page.locator(f".card[data-id='{reference}'] .card-check input").click()
     page.get_by_role("region", name="Selection").get_by_role("button", name="Return to library (1)…").click()
     page.get_by_role("alertdialog").get_by_role("button", name="Return to library", exact=True).click()
-    expect(banner).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
+    expect(finished_notice(page)).to_contain_text("1 of 1 photo returned to the library", timeout=60_000)
     expect(note).to_have_count(0)
     assert status_of(reference) == "Copied"
 

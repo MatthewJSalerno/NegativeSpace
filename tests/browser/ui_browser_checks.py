@@ -395,3 +395,28 @@ def check_ui(browser, base, _shot):
     assert not errors, errors
     page.close()
     print("shared UI: focus, menus, validation, help, theme contrast, retry, narrow layout and forced colors ok")
+
+
+def finished_notice(page):
+    """Open the latest settled job result through the notification bell."""
+    import time
+    from urllib.parse import urlsplit
+    base = urlsplit(page.url)
+    endpoint = f'{base.scheme}://{base.netloc}/api/v1/jobs/active'
+    for _ in range(900):
+        if page.request.get(endpoint).json()['active'] is None:
+            break
+        time.sleep(.2)
+    else:
+        raise AssertionError('Job did not settle')
+    bell = page.get_by_role('button', name=re.compile(r'^Notifications,'))
+    if bell.get_attribute('aria-expanded') == 'true': bell.click()
+    bell.click()
+    item = page.locator('.notification-item').first
+    expect(item).to_be_visible(timeout=15000)
+    return item
+
+
+def close_notifications(page):
+    button = page.get_by_role('button', name='Close notifications', exact=True)
+    if button.count(): button.click()

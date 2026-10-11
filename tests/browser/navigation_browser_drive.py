@@ -3,6 +3,7 @@ import re
 import sys
 import time
 from playwright.sync_api import expect, sync_playwright
+from ui_browser_checks import finished_notice, close_notifications
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
@@ -24,7 +25,7 @@ with sync_playwright() as p:
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.goto(sys.argv[1] + '/logs?status=Failed&q=missing&from=2020-01-01')
     expect(page.get_by_role('checkbox', name=re.compile(r'^Failed '))).to_be_checked()
-    page.locator('.finished-banner').get_by_role('link', name='View log', exact=True).click()
+    finished_notice(page).get_by_role('link', name='View log', exact=True).click()
     expect(page.get_by_role('searchbox', name='Search the log')).to_have_value('')
     expect(page.get_by_role('checkbox', name=re.compile(r'^Indexed \(\d'))).to_be_checked()
     expect(page.locator('.log-table tbody tr').first).to_be_visible()

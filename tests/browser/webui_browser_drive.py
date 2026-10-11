@@ -16,6 +16,7 @@ import sys
 import time
 
 from playwright.sync_api import expect, sync_playwright
+from ui_browser_checks import finished_notice, close_notifications
 
 BASE = sys.argv[1]
 NEWER, OLDER, DUPLICATES = (int(a) for a in sys.argv[2:5])
@@ -147,13 +148,11 @@ with sync_playwright() as p:
 
     # Index; the result shows at the top of the page, and the gallery refreshes itself.
     page.get_by_role("button", name="Index source").click()
-    banner = page.locator(".finished-banner")
-    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Index finished"), timeout=180_000)
-    expect(banner).to_contain_text(f"{PHOTOS + DUPLICATES:,} new or changed, including {DUPLICATES:,} duplicate")
-    top = banner.bounding_box()["y"]
-    browse = page.locator(".topbar").bounding_box()
-    assert 0 <= top - (browse["y"] + browse["height"]) <= 24, \
-        f"the finished-job banner is not immediately below the top bar (y={top})"
+    banner = page.locator(".notification-item").first
+    expect(finished_notice(page)).to_contain_text(re.compile(r"Job #\d+ · Index finished"), timeout=180_000)
+    expect(finished_notice(page)).to_contain_text(f"{PHOTOS + DUPLICATES:,} new or changed, including {DUPLICATES:,} duplicate")
+    expect(page.locator('.finished-banner')).to_have_count(0)
+    close_notifications(page)
     expect(page.locator(".card")).to_have_count(60)
     expect(place_count(page, "Not organized")).to_have_text(f"{PHOTOS:,}")
     time.sleep(1)
@@ -478,14 +477,14 @@ with sync_playwright() as p:
     expect(review).to_have_count(0)
     expect(line).to_have_count(0)
     expect(page).to_have_url(re.compile(r"date=2019"))
-    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Copy finished"), timeout=60_000)
-    expect(banner).to_contain_text("3 of 3 files copied")
+    expect(finished_notice(page)).to_contain_text(re.compile(r"Job #\d+ · Copy finished"), timeout=60_000)
+    expect(finished_notice(page)).to_contain_text("3 of 3 files copied")
     # A dismissal this browser kept from an earlier catalog, whose job numbers ran higher,
     # must not hide this catalog's banners: the catalog's record wins.
     page.evaluate("localStorage.setItem('ns.dismissedRun', '999')")
     page.reload()
-    expect(banner).to_contain_text("3 of 3 files copied")
-    banner.get_by_role("button", name="Show these photos").click()
+    expect(finished_notice(page)).to_contain_text("3 of 3 files copied")
+    finished_notice(page).get_by_role("link", name="Show these photos").click()
     job = page.get_by_role("region", name="A job's photos")
     expect(job).to_contain_text(re.compile(r"The 3 photos in Job #\d+ · Copy"))
     expect(job).to_contain_text("3 of 3 files copied")
@@ -525,8 +524,8 @@ with sync_playwright() as p:
     expect(dialog).to_contain_text(f"every photo not yet copied ({PHOTOS - 3:,})")
     dialog.get_by_role("button", name="Copy").click()
     page.get_by_role("searchbox", name="Search filenames").fill("")
-    expect(banner).to_contain_text(re.compile(r"Job #\d+ · Copy finished with failures"), timeout=120_000)
-    expect(banner).to_contain_text(
+    expect(finished_notice(page)).to_contain_text(re.compile(r"Job #\d+ · Copy finished with failures"), timeout=120_000)
+    expect(finished_notice(page)).to_contain_text(
         f"{PHOTOS - 4} of {PHOTOS + DUPLICATES} files copied · 1 failed · {3 + DUPLICATES} skipped "
         f"(3 copied by an earlier job, {DUPLICATES} duplicates: the same content is copied once)")
     # Hovering the failure count gives the reasons; a Failed photo's badge gives its own.
@@ -548,7 +547,7 @@ with sync_playwright() as p:
     expect(page.locator(".menu")).to_have_count(0)
 
     # The Error Center: the log filtered to this job's failures, with what to do and Retry.
-    banner.get_by_role("link", name="View failures").click()
+    finished_notice(page).get_by_role("link", name="View failures").click()
     expect(page).to_have_url(re.compile(r"/logs\?run=\d+&status=Failed"))
     expect(page.get_by_role("heading", name="Failures")).to_be_visible()
     # The same top row as the Library, without Jobs (its jobs belong with the photos),
@@ -573,8 +572,8 @@ with sync_playwright() as p:
     retry_id = retried.value.json()["id"]
     # What Retry did is said beside it, not at the top of the page.
     expect(page.locator(".retry .notice")).to_contain_text("Retrying 1 photo as a new Copy")
-    expect(page.locator(".finished-banner")).to_contain_text(f"Job #{retry_id} · Copy finished", timeout=60_000)
-    expect(page.locator(".finished-banner")).to_contain_text("1 of 1 file copied")
+    expect(finished_notice(page)).to_contain_text(f"Job #{retry_id} · Copy finished", timeout=60_000)
+    expect(finished_notice(page)).to_contain_text("1 of 1 file copied")
     # Status boxes: arriving from a message ticks only what it named; All statuses ticks
     # every one again, which is no filter at all.
     statuses = page.locator(".status-checks")
@@ -616,19 +615,14 @@ with sync_playwright() as p:
     expect(page.get_by_label("Search the log")).to_have_value("")
     expect(page.locator(".dates-filter-line > span")).to_have_text("Showing all log entries")
     expect(page.get_by_role("button", name="Clear all filters", exact=True)).to_have_count(0)
-    # A banner dismissed in the library stays dismissed on the log.
-    page.get_by_role("link", name="Library").first.click()
-    expect(page.locator(".finished-banner")).to_be_visible()
-    page.locator(".finished-banner").get_by_role("button", name="Dismiss").click()
-    page.get_by_role("link", name="Logs").first.click()
-    expect(page.locator(".job-group").first).to_be_visible()
-    expect(page.locator(".finished-banner")).to_have_count(0)
-    # Kept with the catalog, not the browser: clearing the browser's storage keeps it dismissed.
-    page.evaluate("localStorage.clear()")
+    # Opening notices acknowledges them in the catalog across navigation and reload.
+    finished_notice(page)
+    expect(page.get_by_role('button', name='Notifications, 0 unread', exact=True)).to_be_visible()
+    close_notifications(page)
+    page.get_by_role('link', name='Logs', exact=True).first.click()
+    page.evaluate('localStorage.clear()')
     page.reload()
-    expect(page.locator(".job-group").first).to_be_visible()
-    page.wait_for_timeout(1500)
-    expect(page.locator(".finished-banner")).to_have_count(0)
+    expect(page.get_by_role('button', name='Notifications, 0 unread', exact=True)).to_be_visible()
     page.get_by_role("link", name="Library").first.click()
     expect(page).to_have_url(re.compile(r"/(\?.*)?$"))
     expect(page.locator(".card").first).to_be_visible()

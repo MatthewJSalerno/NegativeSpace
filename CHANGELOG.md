@@ -9,6 +9,15 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+### Navigation notifications
+
+- Finished jobs appear in a shared notification bell with persistent per-job read status,
+  scrollable results and links to photos, failures and Logs. Active progress and safety
+  decisions remain visible. Selection/action counts reserve space to prevent button shifts.
+- Catalog schema 27 adds notification read receipts; older development catalogs require a
+  fresh catalog. Metadata editing UI is not part of this navigation change.
+
+
 ### Added
 - Needs review for small images and review-later notes, with destination-only actions,
   first-run preferences, suspicious-date limits and shared appearance controls.

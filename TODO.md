@@ -277,3 +277,23 @@ Deferred performance work — the unchanged-file check loading every settled row
 Stalled read-only workers now support user-requested cancellation of decoder process
 groups, with a no-progress reminder and Keep waiting. Kernel-blocked storage remains
 an explicit limitation in engine-spec §8; automatic file skipping is not planned.
+
+## Navigation refinement
+
+- [x] Phase 2 navigation (date scrubber and Source folders): maintainer accepted navigation.
+- [x] Shared notification bell with catalog-backed per-job read state; ordinary completed
+  jobs move out of banners, while active progress and actionable safety warnings remain.
+- [x] Stable selection/action count widths based on catalog capacity, with no selection cap.
+- [x] Automated validation: 155 notification/database/API tests; full browser workflow,
+  notification persistence/retry/geometry, safety decisions, job-refresh requests and
+  both Reject workflows passed. Shared light/dark and narrow-window screenshots inspected;
+  spec/schema/API checks passed. No claim of full UI acceptance from automated checks.
+- [x] Maintainer validated the bell options, new-job updates and stationary selection actions.
+- [x] Maintainer validated the Details disclosure replacing notification hovers that covered links.
+- [x] Final local checks: navigation, preview refresh, mixed/all-failed transfers and
+  stalled-job cancellation passed; oversized notification IDs are rejected before SQLite,
+  and old job-photo links follow subsequent Reject/Return operations. Contract checks passed.
+- [ ] Future UI cycle: subtle date-scrubber ticks between year labels, retaining usable
+  click spacing and avoiding an implication that gaps represent equal time intervals.
+- [ ] Integrate the stacked page-frame/date-scrubber/refinement branches only after approval.
+  The metadata engine branch remains separate; reconcile schema changes before integration.

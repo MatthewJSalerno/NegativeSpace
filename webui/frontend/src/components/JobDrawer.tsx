@@ -11,7 +11,7 @@ import { SafetyQuestions } from "./SafetyQuestions";
 // elapsed time from the job's recorded start, and Cancel. Per-file detail belongs
 // to the logs, not here.
 // The live progress while a job runs, at the top of the page under the toolbar
-// (webui-spec 4.1). When it finishes, FinishedBanner takes its place.
+// (webui-spec 4.1). Finished results appear in Notifications; safety decisions stay visible.
 export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Connection }) {
   const [now, setNow] = useState(Date.now());
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -99,7 +99,7 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
 
 }
 
-// A finished job's result, at the top of the page under the toolbar, until dismissed.
+// A finished job requiring a safety decision stays visible independently of notification read state.
 export function FinishedBanner({ jobs, dismissedId, onDismiss, dismissal, onShowPhotos }: {
   jobs: JobState;
   dismissedId: number | null;
@@ -111,7 +111,7 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss, dismissal, onShow
   // Dismissing a job's banner covers it and every earlier job; a newer one still shows.
   const run = !jobs.active && jobs.last && jobs.last.id != null && (dismissedId == null || jobs.last.id > dismissedId)
     ? jobs.last : null;
-  if (!run || !run.outcome) return null;
+  if (!run || !run.outcome || !run.questions?.length) return null;
   const s = summary(run as Run, true);
   const ended = run.ended_at ? Date.parse(run.ended_at) : null;
   const started = run.started_at ? Date.parse(run.started_at) : null;

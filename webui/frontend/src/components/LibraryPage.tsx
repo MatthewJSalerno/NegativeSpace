@@ -924,6 +924,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
 
   return (
     <AppFrame header={header} status={status} onOpenSettings={onOpenSettings} className={openId != null ? "with-inspector" : ""}
+      onShowPhotos={showJob}
       current={{ place: sourceTree ? null : placeShown, sourceFolders: sourceTree }} matchMin={matchMin} refresh={refreshKey} filters={lookFilters}
       onPlace={(v) => { if (focus) backToResults(); chooseView(v); }}
       search={searchField}
@@ -934,7 +935,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               onIndex={start("index")}
               onTransfer={(mode, scope) => (scope === "folder" ? askFolder(mode) : askTransfer(mode))} />}
       selection={selected.size > 0 ? (
-        <SelectionBar selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
+        <SelectionBar capacity={status.photos} selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
                       counts={selectionActions} place={place} jobRunning={jobRunning} search={searchField} onAction={transferSelected}
                       onShowSelected={showSelected} onBack={backToResults} onClear={clearSelection} />
       ) : undefined}

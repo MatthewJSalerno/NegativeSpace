@@ -205,7 +205,7 @@ service. Built and tested:
         place per selection (library photos or photos in Rejects, never both), and Copy,
         Move, Reject and Return of a selection reviewed on screen before they run;
     *   the job drawer, with live counts, elapsed time and Cancel; after a job, the gallery
-        stays where it was and the finished banner names the job ("Copy #8 finished",
+        stays where it was and the notification names the job ("Job #8 · Copy finished",
         never "failed" for a job that ran to its end) with **Show these photos**: the
         job's photos, wherever they are now, which search and the filters narrow;
     *   the split Inspector, with a movable divider, the 1024px preview, the file's own
@@ -278,7 +278,7 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 22; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
+at schema version 27; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
 It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its
