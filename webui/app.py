@@ -21,7 +21,7 @@ from engine import ns_db, review, attention
 from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, oplog, outcomes, stats
-from . import access, matching, notifications, security
+from . import access, matching, notifications, security, metadata_view
 from . import config, jobs as job_commands
 from .config import Config
 from .jobs import JobRefused, JobRunner
@@ -377,6 +377,15 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(400, {'error':'invalid_request','message':'Send the issue ID and optional request ID only.'})
         run_id = jobs.check_issue(body.get('issue_id'), body.get('request_id'))
         return outcomes.get_run(cfg.db_path, run_id)
+
+    @app.get("/api/v1/photos/{photo_id}/metadata")
+    def photo_metadata(photo_id: int):
+        if not 1 <= photo_id <= 2**63-1:
+            raise HTTPException(404, {"error": "unknown_photo", "message": "No such photo."})
+        found = metadata_view.inspect(cfg.db_path, photo_id)
+        if found is None:
+            raise HTTPException(404, {"error": "unknown_photo", "message": "No such photo."})
+        return found
 
     @app.get("/api/v1/photos/{photo_id}/inspect")
     def inspect(photo_id: int):

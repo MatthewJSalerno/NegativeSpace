@@ -870,28 +870,26 @@ a failed step opens to its recorded reason and **Retry this photo**; hovering or
 a path shows its size, content fingerprint and whether it matches, and when it was
 recorded. Escape closes the window only, not the panel behind it.
 
-**Show all metadata.** The Index records every tag ExifTool reads (Pillow's when ExifTool
-finds nothing), not a curated subset; the Inspector's fields are a few of them. A folded
-**Show all metadata (n tags)** inside **Photo EXIF information**, under the fields it
-extends, lists every one by name, with a
-filter box; its header, with **Hide all metadata**, stays at the top of the panel while
-the tags scroll. It is read from the catalog, so it shows the photo as last indexed, and costs
-no file read.
+**Metadata sources.** Separate XMP Sidecar, Embedded XMP and EXIF tabs show captured
+source values. A textual Primary badge identifies verified activation, not the viewed
+tab or an unexecuted decision. Other tabs compare canonical fields against primary,
+with differences-only and field filtering. Empty and Not recorded are distinct.
+Qualified tags stay under each source's All recorded source tags disclosure. Captured
+values are shown without inventing a timezone. Applied save receipts take precedence
+over later source Index observations; this is catalog evidence, not a live file scan.
 
-**Label what comes from the photo's own metadata as such.** The Inspector groups the
-EXIF dates (taken, digitized, modified), camera and exposure under **Photo EXIF
-information**. Each date shows the offset EXIF recorded for it (`OffsetTimeOriginal`,
-`OffsetTimeDigitized`, `OffsetTime`). If none has one, a single small note under the
-heading says the camera recorded no time zone. If only some do, the others are marked
-with an asterisk that the note explains. A time without a zone is never shown as UTC or
-shifted.
+**Show all metadata.** The folded **Show all metadata (n tags)** inside
+**Additional recorded metadata** retains the broad photo/file tag view, including
+computed properties outside the source mappings. Its filter and sticky Hide control
+remain. Neither tag disclosure changes files or source selection. Viewing errors expose
+Retry metadata; capture/interpretation issues keep their explanation and a photo-log link.
 
 **Clicking the preview enlarges it** over the blurred page, with the photo's details
 below; Esc or the close button returns. It shows the 1024px preview, the largest image
 the engine makes. The file's own date stays out
 of that section: **File modified**, as the first scan observed it, sits under the file's
-size. A photo whose EXIF has no capture date says so in the EXIF section, and its File
-modified row notes that this date is what files it under Undated.
+size. Missing source fields remain Not recorded in comparison. The File modified row
+identifies modification-time fallback when that is what files the photo under Undated.
 
 **Why no file creation date:** a copy is a new file with a new creation date, so for
 an organized photo it is the day NegativeSpace copied it, and elsewhere usually the day
@@ -2027,7 +2025,7 @@ and remain recognizable by content. Detected destination mismatches follow §7.6
 
 ### 7.5 Editing metadata
 
-**First UI scope (agreed 2026-10-11; not yet built):** inspect captured EXIF,
+**First UI scope (agreed 2026-10-11; read-only viewer built, editing pending):** inspect captured EXIF,
 embedded XMP and sidecar XMP broadly, but edit/copy only **Date taken**. NegativeSpace
 organizes photos; general metadata editors are outside this first UI. Other fields
 are read-only, including camera/lens, title, caption, keywords, rating, creator,
@@ -2047,10 +2045,11 @@ components. Show deliberate removals in the preview. First XMP creation defaults
 and contains only changed fields; no sidecar is created merely by Index. Other fields
 continue to read from the embedded sources. Establish primary only after verified Save.
 The engine has verified sidecar and qualified embedded JPEG publication, refiling,
-history and recovery. The metadata API and editing screen remain unimplemented. Web
+history and recovery. The source-view API is read-only; metadata mutation routes and editing remain unimplemented. Web
 Save must use those verified paths, not a preview or working-copy writer alone.
 
-**Planned, not implemented.** This section specifies the shared editor and its
+**Editing controls are planned, not implemented.** The read-only source viewer is built.
+This section specifies the shared editor and its
 write behavior. Temporary comparison rotation is implemented separately below.
 
 **Leaving an editor with unsaved changes:** when in-app navigation or closing the
@@ -2324,14 +2323,15 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   app derives the difference from one photo). Time-zone tags are never added or changed;
   the screen says the amount is the user's responsibility. The preview flags photos
   landing in the future.
-* **Metadata source tabs (planned):** **XMP Sidecar**, **Embedded XMP** and **EXIF**
+* **Metadata source tabs (read-only viewer built):** **XMP Sidecar**, **Embedded XMP** and **EXIF**
   inside Photo information. Initially view the primary source when available; mark
   its tab with a textual **Primary** badge distinct from the viewed-tab selection.
   Each tab shows captured source values. Other tabs offer **Compare with primary**
   (Field / Primary value / This source) and **Show differences only**. Distinguish
   Empty from Not recorded, retain per-field origin for effective fallback values,
   and preserve alternate versions. Copy to primary is limited to Date taken in the
-  first UI. Switching primary is a separate previewed, confirmed action; tab changes
+  planned first editing UI; copy and primary-change controls are not built.
+  Switching primary is a separate previewed, confirmed action; tab changes
   and comparisons never write. See `ui-design.md` and [xmp-metadata.md](xmp-metadata.md).
 * **Where edits are saved** (decided 2026-10-02, `engine-spec.md` §9.6): Settings › Files
   sets it for RAW formats (default **XMP sidecar**) and other formats (default **In the

@@ -9,6 +9,11 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Photo information now separates XMP Sidecar, Embedded XMP and EXIF into read-only
+  tabs, identifies the applied Primary source, and compares alternative values with
+  it. Empty values remain distinct from missing fields; retained sidecar versions
+  and captured source tags remain inspectable. Date-editing controls are still pending.
+
 - Look into filters can be pinned while browsing other filters. Clear all filters now
   sits beside Look into and clears search and folder/date/type restrictions as well.
 - Decorative date-scrubber ticks fill large gaps without changing year positions.

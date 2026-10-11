@@ -1412,3 +1412,21 @@ imply general field editing. When the API/screens exist, validate:
 This checklist is future acceptance work, not a claim of implemented controls or passing
 browser tests. Saved rotation and general composition remain separate scope. Reconcile
 this record with the specs, TODO and private handoff before the next merge.
+
+### Read-only metadata source viewer
+
+`metadata_view_test.py` checks capture-only versus verified primary, pending choices,
+reindex after activation, source separation, explicit empties, unknown/oversized IDs,
+content mismatch and unchanged catalog contents. Run with the standard Docker unittest
+command. `METADATA_VIEW_FIXTURE=1 DRIVER=metadata_sources_browser_drive.py` uses the
+browser harness's generated three-source photo to check real Index/Copy captures,
+conflicting dates, Primary identity, comparison, field search, keyboard navigation,
+light/dark reflow and failed-read retry. Both checks run in CI. The metadata test fixture
+never reads the demo library. Date-copy/edit and primary-change acceptance remain pending.
+
+Local generated-fixture validation for this viewer: 10 source-view API tests and the
+98-test existing API regression suite passed in Docker. The source-view browser check
+and full shared-UI/main browser walkthrough passed; light/dark and narrow screenshots
+were inspected. Spec checks passed (476 section references, 51 API routes). Maintainer
+visual acceptance of the new source viewer remains pending; these results do not claim
+validation of the future date-editing controls.

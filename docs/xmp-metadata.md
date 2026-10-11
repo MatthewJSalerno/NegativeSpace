@@ -33,10 +33,11 @@ metadata. `metadata_capture` and `metadata_index` implement this boundary.
 `metadata_import` connects resolved first imports to normal Copy/Move and
 selected-date filing; primary/ownership establishment follows verified pair completion.
 Reindex preserves an established import's filing and current filename. Other canonical
-fields/origins remain in the activation receipt for future source viewers. Photo-only
+fields/origins remain in the activation receipt for the source viewer. Photo-only
 imports now apply embedded-XMP/EXIF priority after verified delivery. Deliberate embedded
 primary switches are available through the engine CLI without rewriting tags.
-Decision/retry UI, non-JPEG embedded editing and source tabs remain unfinished.
+Decision/retry UI and non-JPEG embedded editing remain unfinished. The web source
+viewer is read-only and compares recorded EXIF, embedded XMP and sidecar versions.
 The engine now saves common-field XMP edits, copies explicit fields from retained sources,
 activates associated XMP versions deliberately, and refiles verified pairs. Confirmed
 incoming metadata/Return choices execute through verified jobs; their decision UI remains
@@ -141,9 +142,9 @@ Malformed supported values refuse the comparison view; callers must retain the c
 and explain the issue, not silently select another source. Unknown fields, arrays and
 localized values remain unchanged. These views are not replacement storage snapshots,
 filing dates or a metadata-writing API. Generated JPEG and TIFF tests independently write
-and read EXIF using ExifTool, then compare against bounded-reader XMP captures. Additional logical fields (including location), broader format fixtures, active
-source viewers remain pending; photo-only and resolved first-import
-imports use these captured fields for filing.
+and read EXIF using ExifTool, then compare against bounded-reader XMP captures. Common logical fields, including location, and the read-only source viewer are built;
+broader format fixtures and mutation controls remain separate work. Photo-only and
+resolved first imports use these captured fields for filing.
 
 Extraction references: [ExifTool JSON/group options](https://exiftool.org/exiftool_pod2.html)
 and [EXIF tag groups](https://exiftool.org/TagNames/EXIF.html).
@@ -581,7 +582,7 @@ This bridge handles distinct incoming photo identities and confirmed late-XMP ch
 for the original of an already Copied photo. The latter preserves the organized anchor
 instead of relabeling it as its own duplicate; repeated Copy and subsequent Move keep
 the verified binding. Unconfirmed late versions remain held. Non-JPEG embedded writers
-and metadata API/UI remain unfinished. Photo-only read priority, verified XMP/qualified
+and metadata mutation API/UI remain unfinished. Photo-only read priority, verified XMP/qualified
 JPEG edits and deliberate Library embedded-source activation are built.
 
 ## Reader and ownership helper boundary (built; Index capture connected)
@@ -1057,7 +1058,7 @@ external-edit conflict UI or automatic reconciliation is added in this workstrea
 Check my destination remains deferred. The engine must still verify its own actual
 reads/writes, prevent unintended overwrites and verify before deleting source files.
 
-## UI handoff — not implemented
+## UI handoff — source viewer built, editing and decisions pending
 
 Setup's Files step and Settings › Files must show **Which metadata is used?** beside
 the metadata association/write questions. Keep the priority explanation visible, using
@@ -1074,7 +1075,7 @@ required choice. Suggested copy:
 > preserved. This read priority is separate from where future edits are saved.
 
 Use the same explanation in both locations. Index observes priority; a resolved
-first-import Copy/Move activates filing only after verification. In the planned source viewer, name **XMP sidecar**, **Embedded
+first-import Copy/Move activates filing only after verification. In the source viewer, name **XMP sidecar**, **Embedded
 XMP** and **EXIF** on separate tabs rather than merging embedded evidence or labelling
 every XMP value as a sidecar value. Keep the Primary marker and field provenance accurate. Viewing is
 not activation; deliberate source changes still require preview and confirmation.
@@ -1117,7 +1118,7 @@ first-sidecar creation or Undated filing when applicable. One confirmation cover
 Save and required refiling. Missing XMP dates are never prefilled from another source.
 **Make this source primary…** remains a separate deliberate preview/confirmation of
 effective-value changes, future edit target and any refiling; copying does not activate
-the donor. UI details live in `ui-design.md`; the metadata routes/screens are unbuilt.
+the donor. UI details live in `ui-design.md`; source reads are built; mutation routes and controls remain unbuilt.
 
 A completed job must summarize unresolved cases (for example, "1 photo needs a metadata
 choice") and link to Not organized → Metadata choice needed. An alternative retained
@@ -1148,7 +1149,7 @@ Job-confirmed post-edit source cleanup and writer qualification are complete wit
 agreed release boundaries above. PR #105 merged after passing CI; PR #107 subsequently
 integrated the navigation stack and schema 28 after its combined checks passed.
 Additional formats/representations are deferred work, not hidden items
-in this countdown. Source tabs, decision/edit controls and pair-retry screens belong to the
+in this countdown. Source tabs are built; decision/edit controls and pair-retry screens belong to the
 separate API/UI workstream.
 
 XMP and qualified JPEG publication/recovery, earlier-state reapplication, base composition

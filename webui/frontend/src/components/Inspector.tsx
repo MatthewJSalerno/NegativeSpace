@@ -9,6 +9,7 @@ import { createPortal } from "react-dom";
 import { api, ApiError, type PhotoDetail } from "../api";
 import { bytes, epoch, isFallbackDate } from "../format";
 import { follow, logUrl } from "../nav";
+import { MetadataSources } from "./MetadataSources";
 import { LineageDialog } from "./LineageDialog";
 import { jobLabel } from "../jobs";
 import { Thumb } from "./Thumb";
@@ -27,7 +28,6 @@ const STATUS: Record<string, string> = {
 const IN_LIBRARY = ["Completed", "Copied", "Found_At_Destination"];
 const IN_REJECTS = ["Rejected", "Rejected_Copied"];
 
-const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modified: "Date modified" };
 
 // The split-screen Inspector (webui-spec 4.2): the grid thumbnail at once, the
 // 1024px preview as soon as the engine has made it, and what the catalog records.
@@ -303,26 +303,8 @@ function Section({ title, note, children }: { title: string; note?: ReactNode; c
   );
 }
 
-function exifTime(value: string) {
-  // EXIF writes "2021:05:01 10:00:00"; show the date with dashes, the time as recorded.
-  const [date, time = ""] = value.split(" ");
-  return `${date.replace(/:/g, "-")} ${time}`.trim();
-}
-
 function Details({ detail: d, onLineage, refreshKey, review }: { detail: PhotoDetail; onLineage: () => void; refreshKey: number; review?: ReactNode }) {
   const fallback = isFallbackDate(d.date_source);
-  const exposure = [d.iso != null ? `ISO ${d.iso}` : null, d.aperture != null ? `f/${d.aperture}` : null,
-                    d.shutter != null ? `${d.shutter}s` : null].filter(Boolean).join(" · ");
-  // Time zones: EXIF records one per date only when the camera wrote an offset tag.
-  // If none did, one note covers them all; if only some did, the others get an asterisk.
-  const dates = d.exif_dates ?? [];
-  const withZone = dates.filter((x) => x.offset).length;
-  const mixed = withZone > 0 && withZone < dates.length;
-  const zoneNote = dates.length === 0 ? null
-    : withZone === 0 ? "Times are as the camera recorded them; it recorded no time zone."
-    : mixed ? "* No time zone recorded for this time; it is shown as the camera recorded it."
-    : null;
-  const taken = dates.find((x) => x.field === "taken");
   return (
     <div className="inspector-body">
       <FileIssues key={d.id} photoId={d.id} initialIssues={d.issues ?? []} />
@@ -345,15 +327,8 @@ function Details({ detail: d, onLineage, refreshKey, review }: { detail: PhotoDe
           {fallback && <div className="muted">* Files it under Undated: no EXIF date taken.</div>}
         </Row>
       </Section>
-      <Section title="Photo EXIF information" note={zoneNote}>
-        {!taken && <Row label="Date taken"><span className="muted">Not in the photo's EXIF</span></Row>}
-        {dates.map((x) => (
-          <Row key={x.field} label={<>{EXIF_DATE_LABEL[x.field]}{mixed && !x.offset ? " *" : ""}</>}>
-            {exifTime(x.value)}{x.offset ? ` (UTC${x.offset})` : ""}
-          </Row>
-        ))}
-        <Row label="Camera">{d.camera ?? <span className="muted">Not recorded</span>}</Row>
-        <Row label="Exposure">{exposure || <span className="muted">Not recorded</span>}</Row>
+      <MetadataSources key={d.id} photoId={d.id} refreshKey={refreshKey} />
+      <Section title="Additional recorded metadata" note="Other captured photo and file details. Source comparisons are above.">
         <tr className="meta-row"><td colSpan={2}><AllMetadata tags={d.metadata ?? []} /></td></tr>
       </Section>
 
@@ -387,8 +362,8 @@ function Details({ detail: d, onLineage, refreshKey, review }: { detail: PhotoDe
   );
 }
 
-// Every tag the Index recorded, folded until asked for under the EXIF fields it
-// extends (webui-spec 4.2): those fields are a few of them. Read from the catalog, so it is the photo as last indexed.
+// Additional catalogued photo/file tags, folded until requested (webui-spec 4.2).
+// Source-specific values and comparisons live in MetadataSources above.
 function AllMetadata({ tags }: { tags: [string, unknown][] }) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
@@ -407,7 +382,7 @@ function AllMetadata({ tags }: { tags: [string, unknown][] }) {
       </div>
       {open && (
         <>
-          <p className="muted">Every tag recorded when the photo was last indexed, including the ones above.</p>
+          <p className="muted">Catalogued photo and file tags. These may include computed file properties; use the source tabs above to compare metadata.</p>
           {shown.length === 0 ? <p className="muted">No tag matches “{filter}”.</p> : (
             <table className="meta-table">
               <tbody>

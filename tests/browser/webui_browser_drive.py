@@ -323,8 +323,8 @@ with sync_playwright() as p:
     expect(inspector).to_contain_text("Not yet organized")
     expect(inspector).to_contain_text("Proposed destination path")
     expect(inspector.locator(".inspector-image img:not([style*='none'])")).to_be_visible(timeout=15_000)
-    expect(inspector).to_contain_text("Photo EXIF information")
-    expect(inspector).to_contain_text("Not in the photo's EXIF")
+    expect(inspector).to_contain_text("Additional recorded metadata")
+    expect(inspector).to_contain_text("Metadata sources")
     expect(inspector).not_to_contain_text("File created")
     expect(inspector).to_contain_text("File modified")
     # The file's time says what it is for, briefly; how it was recorded is on hover.
@@ -339,8 +339,8 @@ with sync_playwright() as p:
     widths = inspector.locator("table.info").evaluate_all("ts => ts.map(t => Math.round(t.getBoundingClientRect().width))")
     assert len(widths) == 3 and len(set(widths)) == 1, f"the information tables differ in width: {widths}"
     # Show all metadata: every tag recorded, folded until asked for, with a filter, inside
-    # the EXIF section it extends.
-    exif = inspector.locator(".info-section", has=page.get_by_role("heading", name="Photo EXIF information"))
+    # the additional recorded metadata section.
+    exif = inspector.locator(".info-section", has=page.get_by_role("heading", name="Additional recorded metadata"))
     exif.get_by_role("button", name=re.compile(r"^Show all metadata \(\d+ tags\)")).click()
     expect(inspector.locator(".meta-table")).to_contain_text("ImageWidth")
     # Scrolled to the last tag, Hide stays in reach, below the panel's own title bar.
@@ -360,7 +360,7 @@ with sync_playwright() as p:
     inspector.locator(".inspector-image").click()
     lightbox = page.locator(".lightbox")
     expect(lightbox).to_be_visible()
-    expect(lightbox).to_contain_text("Photo EXIF information")
+    expect(lightbox).to_contain_text("Additional recorded metadata")
     blur = lightbox.evaluate("e => getComputedStyle(e).backdropFilter")
     assert "blur" in blur, f"the enlarged view does not blur the page behind it: {blur}"
     shot("5-enlarged")
@@ -786,8 +786,7 @@ with sync_playwright() as p:
     expect(page.locator(".card")).to_have_count(1, timeout=5_000)
     page.locator(".card-image").first.click()
     expect(inspector).to_contain_text("2023-01-15 09:30:00")
-    expect(inspector.locator(".info-section", has=page.get_by_role("heading", name="Photo EXIF information"))
-           .locator(".section-note")).to_contain_text("recorded no time zone")
+    expect(inspector.locator(".metadata-sources")).to_contain_text("Dates are shown as recorded; no time zone is assumed.")
     expect(inspector.locator("th", has_text="*")).to_have_count(0)
     # Its lineage has a duplicate branch; the duplicate's path opens that photo.
     inspector.get_by_role("button", name="View lineage tree").click()

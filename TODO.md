@@ -196,7 +196,8 @@ This is the authoritative countdown for the current metadata engine work. Keep t
 numbers fixed, report progress as **Task X of 7**, and disclose any scope change. Tests
 and documentation belong to each task. Final regression/review, commit and push are
 release gates, not additional feature tasks. API/UI work and deferred ideas below are
-outside this countdown. The first UI scope is agreed below; its controls are not built.
+outside this countdown. The read-only viewer is built; date edits and decisions below
+remain pending.
 
 | Task | Status | Remaining scope / completed boundary |
 | --- | --- | --- |
@@ -296,14 +297,14 @@ These are completed capabilities, not additional open closeout tasks.
   see [jpeg-content-hash-experiment.md](docs/jpeg-content-hash-experiment.md).
   No production image-only hashing or duplicate consolidation is enabled.
 
-### API/UI work — separate, not started in this engine closeout
+### API/UI work — source viewer built; editing and decisions pending
 
 First UI scope agreed: show metadata broadly, edit/copy **Date taken only**. The
 common-field engine remains intact. General metadata editors, whole-source composition,
 cross-photo/bulk copying and date shifts are deferred controls, not prerequisites.
 Saved orientation stays a separate action from temporary preview rotation.
 
-- [ ] Source viewer in Photo information: separate XMP Sidecar / Embedded XMP / EXIF
+- [x] Read-only source viewer in Photo information: separate XMP Sidecar / Embedded XMP / EXIF
   tabs, textual Primary badge and stable captured-field tables. Alternative tabs offer
   Compare with primary and Show differences only; distinguish Empty, Not recorded and
   unreadable/request failures. Follow `docs/ui-design.md` for the shared controls.

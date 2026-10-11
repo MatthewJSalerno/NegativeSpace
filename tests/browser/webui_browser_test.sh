@@ -65,6 +65,16 @@ for i in range($DUPLICATES):
     make(f'/src/copy-of-{i:03d}.jpg', i)
 "
 
+if [ "${METADATA_VIEW_FIXTURE:-0}" = 1 ]; then
+    docker run --rm --user "$ME" --entrypoint python3 -v "$WORK/src":/src "$IMAGE" -c '
+from pathlib import Path
+import subprocess
+p=Path("/src/photo-000.jpg")
+subprocess.run(["exiftool", "-overwrite_original", "-XMP-dc:Title=Generated embedded title", "-XMP-exif:DateTimeOriginal=2022:02:03 04:05:06", str(p)],check=True)
+p.with_name(p.name+".xmp").write_text("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:exif=\"http://ns.adobe.com/exif/1.0/\"><rdf:RDF><rdf:Description exif:DateTimeOriginal=\"2021-02-03T04:05:06\"/></rdf:RDF></x:xmpmeta>")
+'
+fi
+
 docker network create "$NET" >/dev/null
 # Named "app" on the network, as in compose: the web container's nginx proxies to it.
 set --

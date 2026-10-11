@@ -987,7 +987,7 @@ Move counts. If the copy cannot be verified, use the shared File issues explanat
 Check it now action. A disconnected/empty source retains the existing safety question.
 
 
-## Metadata source tabs (planned)
+## Metadata source tabs
 
 Setup's Files step and Settings › Files share a visible **Which metadata is used?**
 explanation beside the metadata questions. Use normal shared body/supporting text and
@@ -1049,7 +1049,12 @@ still distinguish retaining an inactive alternative from activating it; rejected
 metadata and location choices remain independent (`xmp-metadata.md`). Broader import,
 primary-choice and recovery screens remain separately tracked work.
 
-These are planned controls, not implemented screens. The engine's broader composition
+**Built:** read-only source tabs, applied Primary badge, retained-version viewing,
+comparison, differences-only, field filtering and recorded-tag disclosure. The photo
+and file tag disclosure remains under Additional recorded metadata. The viewer reads
+catalog snapshots; it does not reread files or imply destination verification.
+**Pending:** date copying/editing, primary changes, setup guidance and decision controls.
+The engine's broader composition
 and earlier-state reproduction capabilities remain built; exposing their general field
 controls is deferred. Before merge, reconcile specs, backlog, validation evidence and
 private handoff with implemented behavior and explicit remaining scope.

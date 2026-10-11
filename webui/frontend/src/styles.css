@@ -1058,3 +1058,11 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 @media (max-width: 800px) {
   .notifications-panel { position: fixed; top: 64px; right: 16px; left: 16px; width: auto; max-height: calc(100dvh - 80px); }
 }
+
+/* Source tabs reuse Inspector tabs and comparison tables. Reserve control space when
+   switching sources, including at desktop zoom, without clipping wrapped labels. */
+.metadata-sources .inspector-tabs { flex-wrap: wrap; }
+.metadata-sources .inspector-tabs button { flex: 1 1 100px; }
+.metadata-source-options { display: flex; flex-wrap: wrap; gap: var(--space-2); min-height: 44px; align-items: center; }
+.metadata-sources [role=tabpanel] { padding-top: var(--space-2); }
+.metadata-sources details { margin-top: var(--space-3); }

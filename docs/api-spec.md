@@ -375,6 +375,23 @@ ExifTool's full set (or Pillow's when ExifTool found nothing for the file), not 
 subset. The engine's own `date_taken` and `date_source` are left out; they are above.
 Read from the catalog, so it shows the photo as last indexed.
 
+### `GET /api/v1/photos/{id}/metadata`
+
+Read-only catalog snapshots for the metadata source viewer. Returns `photo_id`,
+`primary_id` (null until verified activation), `applied`, `recorded`, `notice`,
+`field_sources`, `issues`, and `sources`. Each source has `id`, `kind`, `label`,
+`available`, canonical `fields`, qualified `tags`, and interpretation `issues`;
+sidecars also carry `version_id`. EXIF and embedded XMP are distinct. Retained sidecar
+versions remain alternatives unless a verified receipt identifies them as primary.
+Empty JSON values and absent keys remain distinct. No raw XMP payload is returned.
+
+Reads use a single catalog transaction; no filesystem reads, XMP decompression,
+source activation, job submission or catalog writes occur. Verified saved values take
+precedence over later source Index observations. Content mismatch suppresses the Primary
+claim and exposes an issue; capture-only observations do not imply activation.
+Unknown, nonpositive or oversized IDs return 404 `unknown_photo`; noninteger IDs return
+422. No editing or primary-change endpoint is introduced.
+
 ### `GET /api/v1/photos/{id}/lineage`
 
 Everything recorded about a photo's files, for the lineage tree (`webui-spec.md` §6.3):

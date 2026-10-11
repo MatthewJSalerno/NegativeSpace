@@ -49,6 +49,17 @@ export const placeOf = (status: string): Place =>
   status === "Rejected" || status === "Rejected_Copied" ? "rejects" : "library";
 export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name" | "matches";
 
+export interface MetadataSourceView {
+  id: string; kind: string; label: string; version_id?: number;
+  fields: Record<string, unknown>; tags: Record<string, unknown>; available: boolean;
+  issues: { code: string; detail?: string }[];
+}
+export interface MetadataView {
+  photo_id: number; primary_id: string | null; sources: MetadataSourceView[];
+  issues: { code: string; detail?: string }[]; recorded: boolean; applied: boolean;
+  notice: string | null; field_sources: Record<string, string>;
+}
+
 export interface PhotoItem {
   id: number;
   status: string;
@@ -708,6 +719,7 @@ export const api = {
   lineage: (id: number) => request<Lineage>("GET", `/api/v1/photos/${id}/lineage`),
   fileIssues: (id: number) => request<{items: FileIssue[]}>("GET", `/api/v1/photos/${id}/issues`),
   checkIssue: (issue_id: number, request_id: string) => request<Run>("POST", "/api/v1/issues/check", {issue_id,request_id}),
+  metadata: (id: number) => request<MetadataView>("GET", `/api/v1/photos/${id}/metadata`),
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   answerQuestion: (id: number, question: SafetyQuestion, answer: SafetyAnswer) =>
     submitJob(`/api/v1/runs/${id}/answer`, { question, answer }),
