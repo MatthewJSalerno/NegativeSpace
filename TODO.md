@@ -6,8 +6,9 @@ Open work, open design questions and the durability claims ledger. Designs live 
 
 Maintenance: update this backlog in the same change that implements and validates work.
 Mark completed scope accurately, split partial engine/API/UI completion, and remove
-duplicate open entries. Keep the component specs and handoff consistent; do not leave
-finished work unchecked or count it again.
+duplicate open entries. Before every merge, reconcile component specs, this backlog,
+validation notes and the private handoff against what is built and what remains pending.
+Do not leave finished work unchecked or count it again.
 
 ## Uncertain file outcomes
 
@@ -55,10 +56,6 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Views
 
-- [ ] Discuss resetting the Inspector to Photo information when clicking a different
-  gallery photo. Decide whether Has similar photos keeps its Similar photos
-  default, and distinguish card clicks from previous/next navigation, which
-  retains the chosen tab. Discussion only; current behavior is unchanged.
 - [ ] Check Library/Jobs/Logs spacing and alignment in a future UI batch; preserve
   the reserved Jobs position so Logs does not shift when Jobs is unavailable.
 - [ ] Refresh user-guide screenshots for the current setup and review workflows.
@@ -199,7 +196,7 @@ This is the authoritative countdown for the current metadata engine work. Keep t
 numbers fixed, report progress as **Task X of 7**, and disclose any scope change. Tests
 and documentation belong to each task. Final regression/review, commit and push are
 release gates, not additional feature tasks. API/UI work and deferred ideas below are
-outside this countdown; no metadata UI work is authorized yet.
+outside this countdown. The first UI scope is agreed below; its controls are not built.
 
 | Task | Status | Remaining scope / completed boundary |
 | --- | --- | --- |
@@ -215,14 +212,16 @@ Closeout validation (2026-10-10): 409 metadata regression tests passed; the fina
 source-cleanup suite passed all 19 cases. The engine smoke suite passed 154 tests,
 including both public RAW checks, with zero failures/skips. Specification references,
 schema/API documentation and whitespace checks passed. The engine branch is committed
-and pushed in PR #105; passing GitHub CI and merge review remain release gates.
+and merged through PR #105 after passing CI. PR #107 combined it with navigation
+and schema 28; all 68 combined CI steps passed before merge.
 The API/UI checklist below is separate.
 
 PR #105 follow-up: corrected the web job-identity check to include the engine’s
 edited-source consent field as false. This prevents accepted jobs from appearing
 refused. Request replay and explicit CLI consent remain distinct; no cleanup consent
 is granted by this correction. The original failing browser suite now passes, as do
-117 API/source-cleanup tests and specification/API checks. GitHub CI still gates merge.
+117 API/source-cleanup tests and specification/API checks. The full GitHub run passed
+and the fix is merged.
 
 **Full user validation is pending the metadata UI.** These automated engine results
 are not acceptance of the future editing experience. Once the API and screens exist,
@@ -299,13 +298,28 @@ These are completed capabilities, not additional open closeout tasks.
 
 ### API/UI work — separate, not started in this engine closeout
 
+First UI scope agreed: show metadata broadly, edit/copy **Date taken only**. The
+common-field engine remains intact. General metadata editors, whole-source composition,
+cross-photo/bulk copying and date shifts are deferred controls, not prerequisites.
+Saved orientation stays a separate action from temporary preview rotation.
+
+- [ ] Source viewer in Photo information: separate XMP Sidecar / Embedded XMP / EXIF
+  tabs, textual Primary badge and stable captured-field tables. Alternative tabs offer
+  Compare with primary and Show differences only; distinguish Empty, Not recorded and
+  unreadable/request failures. Follow `docs/ui-design.md` for the shared controls.
+- [ ] First date editor: manual Date taken or Copy to primary from another source of
+  the photo; complete date/companion handling, explicit clear, previewed target and
+  before/after date/path, one Save/refile confirmation and verified failure recovery.
+  Other fields remain read-only. Copying never activates the donor source.
+
 - [ ] One Move-job confirmation for edited-source originals: affected count/list,
   **Include these originals** or **Leave these originals at source**; explain that exact
   original photo bytes are not retained. Bind the displayed selection to the job.
   No per-photo prompts or permanent consent. Engine preview and confirmed cleanup exist.
 
-- [ ] Retained-source tabs and deliberate association/primary-choice controls, with the
-  same priority explanation in setup and Settings and a clearly marked active source.
+- [ ] Deliberate association/primary-choice controls, separate from viewing and copying,
+  with effective-value/refiling previews and the same priority explanation in setup and
+  Settings. The source viewer is tracked above, not a duplicate implementation task.
 - [ ] Prominent active-job Settings notice (`webui-spec.md` §3); generic future-jobs
   notice/save confirmation already exist.
 - [ ] Metadata-choice job notices and linked Not organized queue; metadata-difference
@@ -313,10 +327,9 @@ These are completed capabilities, not additional open closeout tasks.
   matches. Retained alternatives already have engine preservation notices/history.
 - [ ] **Before release: expose pair retry**, with eligible selections/counts, issue details,
   explicit same-mode retry and browser validation. Engine CLI retries are built.
-- [ ] Source-specific editing and explicit field copying between photos: controls for
-  Clear value, no-ops, previews, batch outcomes and failed-edit abandonment. Engine
-  support exists for qualified writers. Reference, donor and targets remain distinct;
-  selection/navigation never chooses a primary implicitly (`webui-spec.md` §7.5).
+- [ ] Deferred broader composition/cross-photo and bulk date controls. Engine support
+  exists for qualified common fields; exposing it is outside the first date UI. Preserve
+  explicit donor/target roles and never choose primary implicitly (`webui-spec.md` §7.5).
 - [ ] Saved orientation controls, separate from temporary viewing rotation: an
   end-of-review decision in comparison/photo panels and Rotate… for a selection,
   with no thumbnail control. Qualified engine Orientation writes are built;
@@ -468,4 +481,5 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
   tests, six browser workflows, frontend build and spec/API/schema checks passed.
   File issues uses the sidebar and its pin rules; older schema-26/27 catalogs are
   refused without modification.
-- [ ] Finish combined GitHub checks and merge the UI PR.
+- [x] Combined GitHub checks passed (68 steps); PR #107 merged after #105. Superseded
+  PRs #104/#106 closed. Main includes the full navigation and metadata engine stack.

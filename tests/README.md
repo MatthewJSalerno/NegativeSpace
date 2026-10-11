@@ -1392,3 +1392,23 @@ suites cover File issues in the shared sidebar, including pin exclusivity, count
 refresh and recovery. Local integration validation passed 195 database/API tests and
 six browser workflows: main UI, filters, notifications, review, file-issue recovery and
 externally removed copied originals. GitHub runs the complete combined suite before merge.
+
+### First metadata UI acceptance — planned, not yet run
+
+The agreed first web editor changes only Date taken; broad metadata viewing does not
+imply general field editing. When the API/screens exist, validate:
+
+- Separate sidecar XMP, embedded XMP and EXIF fixtures; mixed/conflicting sources and
+  alternate versions. Primary remains visibly identified when another tab is selected.
+- Compare with primary and differences-only show the two captured values; explicit
+  Empty and absent Not recorded remain distinct. Read/request failures expose recovery.
+- Viewing, tab changes and comparison do not change bytes, primary, paths or history.
+- Date copying/manual edits preserve untouched fields and date companions, never
+  prefill missing XMP from fallback values, and clearly preview clears and destinations.
+- Unsupported writer values cannot save or trigger an automatic primary switch. Save
+  uses one confirmation for the date and any refiling; failures retain actionable details.
+- Keyboard tabs, focus, stable layout, both themes and desktop zoom follow shared checks.
+
+This checklist is future acceptance work, not a claim of implemented controls or passing
+browser tests. Saved rotation and general composition remain separate scope. Reconcile
+this record with the specs, TODO and private handoff before the next merge.

@@ -6,7 +6,9 @@ Metadata editing primarily supports correcting dates and organizing photos. The
 common-field engine foundation remains available, but this release does not aim to
 replace a general-purpose EXIF editor. Qualify reliable date changes, preservation,
 filing and recovery before expanding format or tag coverage. The agreed writer
-limits below remain explicit; broader editing support is deferred.
+limits below remain explicit; broader editing controls are deferred. The first UI
+shows and compares captured fields broadly, but edits/copies only Date taken. Saved
+orientation is a separate future action; common-field engine support remains intact.
 
 ## Implementation status
 
@@ -1072,10 +1074,9 @@ required choice. Suggested copy:
 > preserved. This read priority is separate from where future edits are saved.
 
 Use the same explanation in both locations. Index observes priority; a resolved
-resolved first-import Copy/Move activates filing only after verification. In the planned source viewer, name **XMP sidecar**, **Embedded
-XMP** and **Embedded EXIF** explicitly. Distinguish the two embedded sources within the
-embedded view rather than silently merging their evidence or labelling every XMP value
-as a sidecar value. Keep the Primary marker and field provenance accurate. Viewing is
+first-import Copy/Move activates filing only after verification. In the planned source viewer, name **XMP sidecar**, **Embedded
+XMP** and **EXIF** on separate tabs rather than merging embedded evidence or labelling
+every XMP value as a sidecar value. Keep the Primary marker and field provenance accurate. Viewing is
 not activation; deliberate source changes still require preview and confirmation.
 
 When Settings opens during a running job, show the shared informational notice near
@@ -1093,18 +1094,30 @@ qualified writer boundaries; the UI remains planned. Do not promise recovery of 
 pixels or unsupported metadata. Consolidation previews identify the surviving photo and preservation of both
 origins/history and metadata alternatives.
 
-Within Photo information, use the shared tabs for **Used metadata**, **Embedded/EXIF**
-and **XMP**. Used metadata is the default. Keep the existing Photo information / Similar
-photos navigation intact. The active preferred source has a visible textual **Primary**
-marker, not just a color. Used metadata may mix XMP and embedded values; show their
-origins accurately using the shared field table and restrained source labels.
+Within Photo information, use shared **XMP Sidecar**, **Embedded XMP** and **EXIF**
+tabs, preserving the outer Photo information / Similar photos navigation. Open the
+primary source initially when available and mark its tab **Primary**, not just with
+color. Selecting another tab only views that source. Source tables show captured values;
+filing information separately identifies any effective fallback origin.
 
-Source views show captured metadata, not only conflicts. Distinguish **Empty** from
-**Not present**. Allow inspection of alternate XMP versions without activating them;
-mark the active version clearly. Do not call every alternative an earlier edit.
-**Use this version** is a separate confirmed action, enabled only after the backend can
-safely persist the choice, lineage and any required refiling. The preview also states
-where future edits will go; switching primary is not copying metadata between sources.
+Alternative tabs offer **Compare with primary**, showing Field / Primary value /
+This source with neutral differences and **Show differences only**. Distinguish
+**Empty** from **Not recorded** and request/read errors from either. Alternate sidecar
+versions remain inspectable, with the active version clearly identified.
+
+The first editing UI exposes only **Date taken**. **Copy to primary…** prepares its
+draft from the viewed donor; manual input is also available. Absent donor fields leave
+the target unchanged; explicit empty values propose a clear, disclosed before saving
+and subject to the writer's representation limits. Only requested date components and
+required companions change. Other fields remain read-only; no general Select All or
+whole-source composition control is required. The broader engine remains supported.
+
+Preview the exact primary write target, before/after date and filing paths, including
+first-sidecar creation or Undated filing when applicable. One confirmation covers
+Save and required refiling. Missing XMP dates are never prefilled from another source.
+**Make this source primary…** remains a separate deliberate preview/confirmation of
+effective-value changes, future edit target and any refiling; copying does not activate
+the donor. UI details live in `ui-design.md`; the metadata routes/screens are unbuilt.
 
 A completed job must summarize unresolved cases (for example, "1 photo needs a metadata
 choice") and link to Not organized → Metadata choice needed. An alternative retained
@@ -1132,8 +1145,9 @@ The authoritative engine countdown and separate UI/deferred backlog are in
 when a task is implemented and validated; completed foundations are not new tasks.
 
 Job-confirmed post-edit source cleanup and writer qualification are complete within the
-agreed release boundaries above. Final branch regression/review, commit and push remain
-release gates. Additional formats/representations are deferred work, not hidden items
+agreed release boundaries above. PR #105 merged after passing CI; PR #107 subsequently
+integrated the navigation stack and schema 28 after its combined checks passed.
+Additional formats/representations are deferred work, not hidden items
 in this countdown. Source tabs, decision/edit controls and pair-retry screens belong to the
 separate API/UI workstream.
 

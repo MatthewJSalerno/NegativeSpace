@@ -300,8 +300,12 @@ Specified but not yet on screen:
     rebuild grid thumbnails (the engine jobs exist; `webui-spec.md` §4.2.1).
 *   The Index file-type summary (files found, eligible and excluded by type), which the
     engine records per full Index (`webui-spec.md` §5.1).
-*   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built), undated photos as a Needs review reason with suggested dates, and metadata editing (`webui-spec.md` §7.5, with its
-    decided details).
+*   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built),
+    undated photos with suggested dates, and the first metadata UI: separate sidecar XMP,
+    embedded XMP and EXIF tabs, primary-source comparison, and Date taken editing/copying
+    with a filing preview (`webui-spec.md` §7.5). Other fields remain read-only; broader
+    engine capabilities do not imply a general-purpose web editor. Saved orientation is
+    separately planned.
 *   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file resolution, and the similar-to-a-reject check
     (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);

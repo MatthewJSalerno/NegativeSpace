@@ -999,48 +999,57 @@ where edits are saved; no extra required choice or automatic primary change is i
 Keep its layout stable when preferences change. The full planned copy and precedence
 contract live in `xmp-metadata.md`; do not show it as current behavior before integration.
 
-Name **XMP sidecar**, **Embedded XMP** and **Embedded EXIF** distinctly in source
-explanations. Within the embedded view retain separate labelled evidence for embedded
-XMP and EXIF; a generic XMP label must not imply that the value came from a sidecar.
+### First metadata UI: inspect broadly, edit Date taken
 
-Within Photo information, reuse shared tabs for Used metadata, Embedded/EXIF and XMP.
-Used metadata is the default; a textual Primary marker identifies the preferred active
-source. Navigation between source snapshots never changes which source is active.
-Distinguish empty fields from absent fields and retain per-field origin for mixed
-metadata. Viewing an alternate XMP version is separate from a confirmed Use this version
-operation. Keep the field table geometry and surrounding navigation stable. The engine
-contract and deferred UI work are in [xmp-metadata.md](xmp-metadata.md).
+The agreed first UI supports photo organization, not general metadata editing.
+Keep the common-field engine capabilities, but expose **Date taken** as the only
+editable logical field in this first UI. Other captured fields remain readable and
+comparable without edit/copy controls. Saved orientation is a separate future action;
+temporary preview rotation stays temporary. Broader field editors, bulk composition
+and copying arbitrary tags are not prerequisites for this UI.
 
-A primary-source change always previews effective-value differences, any refiling and
-future edit target, then requires confirmation. Keep this separate from copying values
-between metadata sources. Import choices must distinguish preserving an inactive version
-from activating it; use the case-specific workflow in `xmp-metadata.md`. For rejected
-matches, metadata and location choices are independent and share one explicit preview
-and confirmation. All of these metadata screens remain unimplemented.
+Within Photo information, use the shared tabs for **XMP Sidecar**, **Embedded XMP**
+and **EXIF**. Keep the outer Photo information / Similar photos tabs intact. Each
+source tab shows that source's captured values, not a merged effective view. Keep
+missing, unreadable and failed-to-load sources distinct; do not present an error as
+an empty source. Alternative sidecar versions remain inspectable without activation.
+Use the primary source as the initial source tab when available. Mark its heading
+with a persistent textual **Primary** badge and shared emphasis; color alone is
+insufficient. The selected-tab indicator identifies the viewed source, not the primary.
+When effective filing values fall back to another source, label that origin accurately
+in the photo's filing information without filling gaps in a source tab.
 
+On an alternative source tab, **Compare with primary** reveals the shared table:
+**Field | Primary value | This source**. Keep row order stable and mark differences
+neutrally. Offer **Show differences only** within comparison. Display **Empty** for
+an explicitly empty field and **Not recorded** for an absent one. Compare source
+values, not filename/file-time fallback dates. Neither checkbox writes metadata or
+changes primary. Reuse shared table headings, focus behavior and stable panel geometry.
 
-The planned metadata comparison offers one base-version choice with optional per-field
-**Use from this version** overrides in the shared field table. Keep the selected base,
-each overridden field's donor and the resulting value visible; distinguish Empty from
-Not present. Offer a final combined-result preview before saving. Choosing donors does
-not change the primary write target or activate versions through navigation. Explain
-unsupported preservation/writes rather than claiming a safe consolidation. Reuse this
-flow for dates, location, orientation and color information instead of inventing a
-separate conflict screen for each. The original versions and field origins remain in
-history; a composed result is a new version, not an overwrite of the donor snapshots.
+Only Date taken offers **Copy to primary…**. Selecting it prepares a draft; it does
+not write. Manual correction uses **Edit Date taken…**. Show the date's complete
+recorded value, including any fraction/offset; preserve companion components unless
+the user explicitly changes them. An absent donor field leaves the primary unchanged;
+an explicitly empty donor date proposes a clear, visibly identified before Save.
+Writer limitations still apply: an unrepresentable value cannot enable Save, and the
+app never switches primary or silently substitutes another representation. Do not
+show general Select all fields or wholesale replacement controls in this first UI.
 
+The draft starts from the primary write target's own values, never inferred fallback
+values. Preview the source, write target, before/after date and current/resulting
+location. Explain first-sidecar creation where applicable. One confirmation covers
+saving and required refiling, including Undated filing after a deliberate clear;
+other fields remain unchanged except required date companions. No permanent consent
+or automatic save. Failure and recovery reuse the shared job/issue controls.
 
-The planned metadata editor previews only deliberately changed logical fields, including
-required companion changes/removals (such as a date's fraction or offset). Prefill whole
-logical values; don't hide data loss behind a simplified date widget. Creating a first
-RAW sidecar should be explained in the confirmation, along with the edit target and any
-refiling. Keep camera, location and other untouched fields informational. Read-only engine
-previews do not enable Save until verified writing/history/recovery are implemented.
+**Make this source primary…** is a separate deliberate action with a preview of all
+effective-value differences, any refiling and future write target. Copy to primary
+never activates the donor. Preserve all source versions and provenance. Import choices
+still distinguish retaining an inactive alternative from activating it; rejected-photo
+metadata and location choices remain independent (`xmp-metadata.md`). Broader import,
+primary-choice and recovery screens remain separately tracked work.
 
-Metadata editor source fields (planned): show the write target's own captured values;
-never prefill a missing XMP property from the effective fallback view. Other sources
-remain inspectable for explicit copying. Distinguish Not set from Explicitly cleared,
-with a deliberate Clear value action and a preview of its fallback/refiling effects.
-No ordinary unchanged Save copies values between sources. Failed edits use the shared
-issue treatment and specific resolution paths; no job-level undo or generic dismissal
-of uncertain file outcomes is introduced. These are handoff rules, not built controls.
+These are planned controls, not implemented screens. The engine's broader composition
+and earlier-state reproduction capabilities remain built; exposing their general field
+controls is deferred. Before merge, reconcile specs, backlog, validation evidence and
+private handoff with implemented behavior and explicit remaining scope.

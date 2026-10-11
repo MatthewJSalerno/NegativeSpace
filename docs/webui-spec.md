@@ -2027,6 +2027,16 @@ and remain recognizable by content. Detected destination mismatches follow §7.6
 
 ### 7.5 Editing metadata
 
+**First UI scope (agreed 2026-10-11; not yet built):** inspect captured EXIF,
+embedded XMP and sidecar XMP broadly, but edit/copy only **Date taken**. NegativeSpace
+organizes photos; general metadata editors are outside this first UI. Other fields
+are read-only, including camera/lens, title, caption, keywords, rating, creator,
+copyright, location and color information. The common-field engine remains available;
+its capabilities do not require corresponding web controls. Saved orientation remains
+a separate future action. Broader donor/bulk composition and date-shift workflows
+below are deferred designs, not acceptance requirements for the first date UI.
+The authoritative tab/comparison presentation is in `ui-design.md`, Metadata source tabs.
+
 **Field scope (agreed; editing UI pending):** Save changes only explicitly selected
 fields and their required companions. The editor shows the primary source's own values,
 not effective fallback values: an absent XMP date stays absent unless the user explicitly
@@ -2036,9 +2046,9 @@ recorded fraction/offset, so changing its calendar portion does not silently dro
 components. Show deliberate removals in the preview. First XMP creation defaults for RAW
 and contains only changed fields; no sidecar is created merely by Index. Other fields
 continue to read from the embedded sources. Establish primary only after verified Save.
-The engine has verified sidecar publication/refiling and an embedded JPEG working-copy
-writer. Embedded publication/recovery and this screen remain unimplemented. Never expose
-a functioning Save from a preview or a working-copy writer alone.
+The engine has verified sidecar and qualified embedded JPEG publication, refiling,
+history and recovery. The metadata API and editing screen remain unimplemented. Web
+Save must use those verified paths, not a preview or working-copy writer alone.
 
 **Planned, not implemented.** This section specifies the shared editor and its
 write behavior. Temporary comparison rotation is implemented separately below.
@@ -2058,11 +2068,11 @@ unsaved-change warning where available; its wording and buttons are browser-cont
 Record the intended tag/group, permitted representation and values, and write support
 for supported photo formats. Validate in the UI and again before writing in the
 backend; translate friendly controls to the required metadata representation.
-**Editable metadata is organizational fields only: text, numbers and dates** (decided
-2026-10-01), where the writer and format support them. Lists (keywords), GPS and other
-structured values are read-only, labelled "Can't be edited here yet". *Why not every
-writable tag:* tools built for detailed metadata, such as Immich, already cover that, and
-a wrong-but-valid structured value (latitude and longitude swapped) passes any check.
+**Only Date taken is editable in the first UI** (scope narrowed 2026-10-11), subject
+to the qualified writer limits. Other metadata is read-only; do not imply that every
+tag will eventually become editable. Dedicated metadata tools cover those use cases.
+Validate only the exposed logical date and required companions; displaying other
+recorded tags does not authorize writes to them.
 Filesystem stat, structural image properties and computed catalog fields are never
 editable. Do not confuse ExifTool writability with permission to edit derived properties. Keep capture date/time and its
 optional timezone offset distinct, consistent with §10.
@@ -2076,8 +2086,8 @@ unwanted destination copy is a separate explicit action with its own review and
 confirmation (§7.8). A catalog hash match never authorizes source deletion without
 the engine's live verification.
 
-**This is the feature that makes the engine modify a photo file.** Everything
-else copies, verifies and deletes *sources*; nothing has ever altered content.
+**Verified metadata editing can modify delivered photo bytes.** The engine supports
+qualified JPEG writes and XMP sidecars; this section specifies their future web controls.
 
 Three shapes of one operation, differing only in where the value comes from and
 how many targets it lands on: a date the user types for a single photo with no
@@ -2092,10 +2102,11 @@ applied to hundreds of scans that all carry a scanner's wrong date.
   differences and gaps marked. Each column also shows its preview, filename,
   current location, and recorded original names and paths — historical paths
   labelled as such, never implying a file still exists there.
-* **Copy chosen fields from another column** via a checkbox per field with
-  Select All, offering only the fields that donor actually holds. Clearing a
-  field is a separate action from copying. Donor and targets must be visually
-  distinct.
+* **First UI: Copy to primary…** is available only for Date taken, with the donor
+  source and primary target named. It prepares a draft and never saves directly. An
+  absent donor date leaves the target unchanged; an explicit empty proposes a clear
+  and must be identified in the preview, subject to writer support. General field
+  checkboxes and Select All belong to deferred broader composition controls.
 * **Bulk acts on the explicit selection only**, never on "everything currently
   visible".
 * **Edits that change nothing:** preview counts such as **“20 selected · 12 will
@@ -2182,7 +2193,7 @@ deletion confirmation. Filename-only changes use ordinary byte verification. Bin
 choice to the submitted selection/job; no UI implementation is included in this engine work.
 
 **Logs link back to the photo.** An edit's log entry provides **View photo**, opening
-the current photo info panel with its failure details/history and **Edit metadata**
+the current photo info panel with its failure details/history and **Edit Date taken…**
 when the delivered file is available and no conflicting job is active. Resolve the
 photo through lineage even after name, path or hash changes. The user can correct
 the input and submit a new previewed, confirmed edit; following the link never retries
@@ -2265,7 +2276,8 @@ former duplicates, and history shows that. The tag goes where the photo's edits 
 XMP sidecar that RAW formats use by default, which leaves the photo's bytes and identity
 unchanged). Where neither can take `Orientation` safely, the control is unavailable with
 that reason. It never falls back to re-encoding, to the other storage method, or to a
-catalog-only rotation a gallery would not see. Both write paths remain unbuilt.
+catalog-only rotation a gallery would not see. Qualified engine write paths are built;
+the saved-rotation web controls remain unbuilt.
 
 **A changed date refiles the photo** to the folder its new date implies,
 automatically and with no setting to disable it. Correcting the date *is* the
@@ -2288,46 +2300,48 @@ rename against the current state. Later actions may have reused a name or change
 placement, so reversing an old operation is not a supported recovery mechanism.
 Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
 
-**Decided details (2026-10-01), for the screens above:**
+**Screen details (date/source scope revised 2026-10-11):**
 
-* **Single photo:** an organized photo's Inspector offers **Edit EXIF**, opening the editor
-  as a workspace (§7.7). The form lists date taken, orientation (↺ ↻, as in comparison),
-  camera and lens first, and **Show all EXIF data** for the rest. Columns: field, current
-  value, new value; an empty new value means unchanged, a changed row is highlighted with
-  **Reset**, and **Clear** is separate. Read-only tags say why on hover.
+* **Single photo:** an organized photo's information offers **Edit Date taken…**.
+  Start from the primary source's own value, with Reset and a deliberate Clear value
+  action. Other fields remain readable; do not build a general Edit EXIF form. Preview
+  before/after date and destination, then confirm Save and any refiling together.
 * **Dates are never invented:** the user types the full date and time; with no date at
   all, the time is still required (no midnight or noon convention). The offset is
   optional and never added. Input and the file's ability to store each field are checked
   before Save, with the error beside the field.
-* **Donor to targets:** any photo can be pinned with **Use as donor**; targets are gathered
+* **Deferred cross-photo donor/bulk controls:** any photo can be pinned with **Use as donor**; targets are gathered
   by any means (similar matches, a folder, a date, a search, ticks, mixed across views),
   and any target can become the donor. A selection is trusted whatever view it came from.
   Each field applies as **Fill empty only** (the default) or **Replace existing**; one
   confirmation for the whole operation, only when something is replaced, naming fields
   and counts. Never one prompt per photo.
-* **One date for many photos keeps each photo's own time of day by default,** so their
+* **Deferred bulk-date controls:** one date for many photos keeps each photo's own time of day by default, so their
   order survives (scans stay in scanning order), with the reason stated under the field;
   **Use one time for all** applies one time instead. Times are never spaced out
   automatically.
-* **Shift date and time:** **Shift by…**, or **I know when one of these was taken** (the
+* **Deferred date-shift controls:** **Shift by…**, or **I know when one of these was taken** (the
   app derives the difference from one photo). Time-zone tags are never added or changed;
   the screen says the amount is the user's responsibility. The preview flags photos
   landing in the future.
-* **Metadata source tabs (planned):** Used metadata (default), Embedded/EXIF and XMP
-  inside Photo information, with the active preferred source visibly marked Primary.
-  Effective values may mix sources; use restrained source labels and distinguish empty
-  from absent fields. Name XMP sidecar, Embedded XMP and Embedded EXIF explicitly;
-  distinguish embedded sources within the embedded view without merging their evidence.
-  Tab navigation never changes the chosen source. Preserve all original sources,
-  including alternate XMP versions. The full engine/UI handoff and
-  implementation boundary are in [xmp-metadata.md](xmp-metadata.md).
+* **Metadata source tabs (planned):** **XMP Sidecar**, **Embedded XMP** and **EXIF**
+  inside Photo information. Initially view the primary source when available; mark
+  its tab with a textual **Primary** badge distinct from the viewed-tab selection.
+  Each tab shows captured source values. Other tabs offer **Compare with primary**
+  (Field / Primary value / This source) and **Show differences only**. Distinguish
+  Empty from Not recorded, retain per-field origin for effective fallback values,
+  and preserve alternate versions. Copy to primary is limited to Date taken in the
+  first UI. Switching primary is a separate previewed, confirmed action; tab changes
+  and comparisons never write. See `ui-design.md` and [xmp-metadata.md](xmp-metadata.md).
 * **Where edits are saved** (decided 2026-10-02, `engine-spec.md` §9.6): Settings › Files
   sets it for RAW formats (default **XMP sidecar**) and other formats (default **In the
   file**). These defaults apply when no primary write target is established; an existing
   primary overrides them. A primary change requires an explicit preview and confirmation,
   including its effect on future edits and any refiling. Tabs do not change it.
-  Editing inside a RAW file is opt-in: with it off, choosing it offers **Review and turn on
-  RAW editing…**, the consent step with its warnings, returning to the editable form.
+  This release qualifies embedded JPEG writes and XMP sidecars only. Embedded RAW,
+  TIFF and HEIC writes remain deferred; no setting or consent enables an unqualified
+  writer. Explain unsupported targets and require a deliberate source change rather
+  than switching storage automatically.
 * **Unresolved sidecar association/version choices (planned)** wait in
   Not organized as Metadata choice needed. Apply the
   association settings or ask for a recorded choice; show separate source versions
