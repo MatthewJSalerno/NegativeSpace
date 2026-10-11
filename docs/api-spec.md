@@ -419,6 +419,9 @@ saved before sending. Legacy callers omitting it receive a server-generated ID.
 An accepted ID with the same normalized request returns its original run without
 spawning, even during a different active job; different input returns
 `409 request_conflict`. Acceptance is durable in the engine's `job_requests` table.
+Index/Copy/Move request identity includes `confirm_edited_sources: false`, matching
+the engine default. The web API does not yet offer edited-source cleanup consent;
+a CLI request that explicitly enabled it cannot replay as an ordinary web Move.
 *   **Validated before anything runs:** mode, one targeting at most, ids as positive
     integers no greater than `2^63 - 1`, never more ids than the catalog holds photos (no
     other limit), and a folder that stays inside the source. Everything else is

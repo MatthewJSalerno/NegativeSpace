@@ -314,7 +314,9 @@ class JobRunner:
                     "targeting": targeting, "overrides": {},
                     "submitted": {"force_rehash": False, "thumbnails": True, "cache": str(self.cfg.cache.resolve()),
                                   "confirm_source_empty": "--confirm-source-empty" in flags,
-                                  "confirm_network_destination": "--confirm-network-destination" in flags}}
+                                  "confirm_network_destination": "--confirm-network-destination" in flags,
+                                  # Edited-source cleanup is not exposed by the web API yet.
+                                  "confirm_edited_sources": False}}
         for flag, mode in (("--reject", "REJECT"), ("--return-to-library", "RETURN")):
             if flag in flags:
                 expected = {**expected, "mode": mode, "submitted": {}}

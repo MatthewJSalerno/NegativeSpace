@@ -250,7 +250,9 @@ another tab's job and a slow Copy with an open confirmation. It also drops a req
 before delivery, reloads the page, and retries using the same persisted ID. The
 fixture delays Copy after acceptance; it otherwise runs the real engine. API tests
 cover concurrent replay, conflict, lookup after API restart, safety-answer replay,
-invalid IDs and a simulated late acceptance race. The normal suite exercises all
+invalid IDs and a simulated late acceptance race. Ordinary Index/Copy/Move must
+record edited-source cleanup consent as false and replay without spawning; a CLI
+Move with explicit consent must conflict with an ordinary web Move of the same ID. The normal suite exercises all
 ordinary submission call sites using the same manager.
 
 `DRIVER=safety_questions_browser_drive.py` uses the real engine with only filesystem-type detection replaced, against the

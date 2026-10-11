@@ -214,8 +214,15 @@ outside this countdown; no metadata UI work is authorized yet.
 Closeout validation (2026-10-10): 409 metadata regression tests passed; the final
 source-cleanup suite passed all 19 cases. The engine smoke suite passed 154 tests,
 including both public RAW checks, with zero failures/skips. Specification references,
-schema/API documentation and whitespace checks passed. Final branch review, commit
-and push remain release gates; the API/UI checklist below is separate.
+schema/API documentation and whitespace checks passed. The engine branch is committed
+and pushed in PR #105; passing GitHub CI and merge review remain release gates.
+The API/UI checklist below is separate.
+
+PR #105 follow-up: corrected the web job-identity check to include the engine’s
+edited-source consent field as false. This prevents accepted jobs from appearing
+refused. Request replay and explicit CLI consent remain distinct; no cleanup consent
+is granted by this correction. The original failing browser suite now passes, as do
+117 API/source-cleanup tests and specification/API checks. GitHub CI still gates merge.
 
 **Full user validation is pending the metadata UI.** These automated engine results
 are not acceptance of the future editing experience. Once the API and screens exist,

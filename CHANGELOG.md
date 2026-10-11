@@ -9,6 +9,9 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Match the engine’s edited-source consent field when checking web job identity,
+  preventing accepted Index/Copy/Move requests from falsely reporting a conflict.
+
 - Qualified embedded JPEG edits now publish through recorded recovery steps, update
   retained content/cache identity and metadata history, and refile changed dates.
   Reindex preserves edited Library state; exact-result duplicates are reported without
