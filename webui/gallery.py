@@ -310,10 +310,27 @@ def _counted_list(sort, match_min, *, include=False, ids=None):
 
 def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, page_size=60, undated=False,
                 dates=None, types=None, folders=None, root=None, match_min=75, group_sets=False, set_reference=None,
-                run=None, similar=False, suspicious=False, reason="all") -> dict:
+                run=None, similar=False, suspicious=False, reason="all", filter_pins=None) -> dict:
     _check_view("similar" if (similar or set_reference is not None) and sort == "matches" else view, sort, page, page_size)
     filtered, filtered_params = _filters(q, undated, dates, types, folders, root, group_sets=group_sets and (view == "similar" or similar), group_view=view, match_min=match_min, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason)
     run_sql, run_params = _run_clause(run)
+    pins = None if filter_pins is None else set(filter_pins.split(',')) - {''}
+    if pins is not None:
+        if pins - {'similar', 'suspicious', 'undated', 'small', 'later'} or {'small', 'later'} <= pins:
+            raise ValueError('Choose valid compatible filter pins.')
+        if view not in ('organized', 'review', 'job'): pins -= {'similar', 'small', 'later'}
+    active = {'similar': similar, 'suspicious': suspicious, 'undated': undated,
+              'small': reason == 'small', 'later': reason == 'later'}
+
+    def count_filters(key):
+        # Active buttons describe the current intersection. An inactive button will
+        # replace the unpinned filters, so count its future intersection with pins.
+        kept = active if pins is None or active.get(key) else {name: name in pins for name in active}
+        target_reason = key if key in ('small', 'later') else 'small' if kept['small'] else 'later' if kept['later'] else 'all'
+        return _filters(q, key == 'undated' or kept['undated'], dates, types, folders, root,
+                        match_min=match_min, similar=key == 'similar' or kept['similar'],
+                        suspicious=key == 'suspicious' or kept['suspicious'], reason=target_reason, run=run)
+
     with catalog.connect(db_path) as conn:
         conn.execute('BEGIN')
         # Location counts cover all photos there; total covers this filtered page.
@@ -335,7 +352,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
                              filtered_params).fetchone()[0]
         if view not in catalog.VIEWS:
             counts[view] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}" + run_sql, run_params).fetchone()[0]
-        # Chip counts omit their own restriction, but retain the other restrictions.
+        # Legacy counts retain other restrictions; pin-aware counts follow the next filter click.
         elsewhere = {}
         if q:
             search_sql, search_params = _search_clause(q)
@@ -343,17 +360,18 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
                 elsewhere[place] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(place, match_min)}"+search_sql, search_params).fetchone()[0]
         chips = {}
         for chip in ('similar', 'suspicious', 'undated', 'small'):
-            extra, values = _filters(q, True if chip=='undated' else undated, dates, types, folders, root,
-                match_min=match_min, similar=True if chip=='similar' else similar,
-                suspicious=True if chip=='suspicious' else suspicious, reason='small' if chip=='small' else reason, run=run)
+            extra, values = count_filters(chip)
             chips[chip] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}"+extra, values).fetchone()[0]
         reasons = {}
-        # Reason chips exist only in the inbox; other galleries need its total, not
-        # three additional counts over the same photo set.
-        for key in ('all', *review.REASONS) if view == 'review' else ():
+        # Library and job galleries also expose the Review later filter; only the
+        # inbox needs the additional reason totals.
+        reason_keys = ('all', *review.REASONS) if view == 'review' else ('later',) if view in ('organized', 'job') else ()
+        for key in reason_keys:
             extra, values = _filters(q, undated, dates, types, folders, root, match_min=match_min,
                                     similar=similar, suspicious=suspicious, reason=key, run=run)
-            reasons[key] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE ({review.predicate()})"+extra, values).fetchone()[0]
+            if key == 'later' and pins is not None:
+                extra, values = count_filters(key)
+            reasons[key] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE ({review.predicate()}) AND ({_view_clause(view, match_min)})"+extra, values).fetchone()[0]
         # No capture date under every other filter, for its button, as the views are counted.
         no_date, no_date_params = _filters(q, True, dates, types, folders, root, match_min=match_min, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason)
         matches["undated"] = conn.execute(

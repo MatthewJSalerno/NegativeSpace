@@ -255,7 +255,8 @@ because selection was defined per page; the selection is now an explicit list ke
 across pages, and a page count that the grid's columns did not divide left gaps. The date
 tree, and the **date scrubber** at the gallery's right edge (years given room by their
 photos; point for the month, click or drag to go there), jump to a year or month by the
-page it starts on (`GET /api/v1/photos/timeline`).
+page it starts on (`GET /api/v1/photos/timeline`). Subtle ticks fill the scrubber's gaps
+without adding click targets or implying equal time intervals; labels retain clear space.
 The page, page size, sort, view, search, dates and open photo live in the URL.
 In-app links and browser Back/Forward apply the destination URL even on the same
 screen. The logo link (the Library at its last place) resets browsing filters and
@@ -270,11 +271,13 @@ address does not itself count as navigation or reset the current selection.
 information icon. It shows the
 photos whose EXIF has no date taken, which are filed under Undated by their file's
 modification date, counted in the current view. It combines with the view and the
-search, and the filter line says how many are shown. A review reason narrows only the
-inbox, not other locations. The sidebar's counts sit in their own right-aligned column in
+search, and the filter line says how many are shown. A review reason narrows Library or the
+Needs review inbox, not Not organized or Rejects. The sidebar's counts sit in their own right-aligned column in
 even-width digits, so a count changing never moves a label. Every location preserves the
-search and filters. **Clear filters** removes
-restrictions without changing the location or explicit selection.
+search and filters. **Clear all filters**, beside the sidebar's **Look into** heading,
+removes search, folder (including Source folders), date, type and review restrictions
+and saved pins without changing the location or explicit selection. Its space remains
+reserved when hidden so the filters below do not move.
 
 **The page frame** (decided 2026-10-08, after Immich; built). Library, Logs and Stats
 share one frame: a sticky top bar (the logo, the filename search and **Jobs ▾** on the
@@ -282,8 +285,9 @@ Library, the Dark mode switch, Settings) and a navigation sidebar on every page:
 places with what each holds (`GET /photos/places`); **Look into**, the gallery's filters
 (Has similar photos, Suspicious dates, No capture date, Small images, Review later);
 **Activity** (Logs, Stats); the build at the foot. On the Library a place keeps the search
-and filters, and leaves Show only selected or a review first; Look into's filters toggle
-within the place shown, counted there, dimmed where they do not apply. From Logs or Stats
+and filters, and leaves Show only selected or a review first. Look into's filters replace
+unpinned filters within the place shown; separate Pin buttons retain filters while
+browsing others. Filters stay dimmed where they do not apply. From Logs or Stats
 a place opens whole, and a filter opens Library (Review later: Needs review) with only it
 on. While photos are selected, the selection bar takes the top bar, grouped at its start
 and keeping the search (§4). Types, Folders and Dates
@@ -319,7 +323,9 @@ six to four. Settled 2026-10-07:
   review's reasons (§7.9): one pattern for narrowing a place.
 * **Small images** stays beside **No capture date** as a toggle in Library and
   Needs review. Click again to clear it; it never changes location. Review later follows
-  it, for Needs review, with no second reason list or All reasons control.
+  it in both Library and Needs review, with a count (including zero), and no second
+  reason list or All reasons control. Switching between these places retains the
+  reminder filter; switching to Not organized or Rejects clears it.
   Review photo… explicitly enters the dedicated workspace.
 * **The first visit opens on Not organized** while the library is empty. Once it holds a photo, an unscoped visit restores the browser’s last location (`ns.place`), defaulting to Library. Explicit URLs and refreshes preserve the requested view. *Why:* a default view with nothing in it tells a newcomer
   nothing; Not organized is where the first job starts.
@@ -379,12 +385,22 @@ in the other view, show its count and a link rather than implying no matches exi
 
 ### Filter and search behavior
 
-Look into's filters combine with AND: Has similar photos plus No capture date finds photos
-meeting both conditions. Dates, types, folders and filename search also apply. The
-visible filter summary names every active restriction; Clear filters preserves the
-location and explicit photo selection. Small images and Review later choose one
-reminder scope at a time; clicking it again clears it. Other filters combine with that
-scope. None active means all photos in the current location/inbox. The Filters panel's
+Clicking an inactive Look into filter replaces the unpinned Look into filters. Pin a
+filter to keep it while choosing another: pinned Has similar photos plus No capture date
+finds photos meeting both conditions (AND). Pinning enables it; unpinning leaves it
+applied until the next choice. Clicking an active filter turns it off and removes its pin.
+Dates, types, folders and filename search continue to apply independently. Counts on
+inactive filters predict the results of choosing them with eligible pins; active counts
+reflect the current intersection. This reuses the gallery response's count queries.
+
+Pins are saved per browser, with an in-memory fallback when storage is blocked. The URL
+remains authoritative on refresh, shared links and Back/Forward: saved pins do not narrow
+explicit photo/job links. A bare start page and sidebar place/filter choices reapply
+eligible pins; pins unavailable in a place remain removable. Preference changes sync
+across tabs without silently changing another tab's current results. The filter summary
+names every active restriction; Clear all filters clears pins too and preserves location
+and explicit photo selection. Small images and Review later remain exclusive: pinning
+one disables the other with an explanation and an Unpin route. None active means all photos in the current location/inbox. The Filters panel's
 types, folders and dates continue to apply. Counts count photos, not notes; overlapping reasons do not duplicate a photo.
 
 When a filename search finds nothing in the current location, offer matches in the
@@ -807,10 +823,14 @@ Failed lookups offer a retry while leaving the Inspector open.
 History's **Open in the log** and **View lineage tree** actions share text size and
 alignment, retaining their link and button semantics respectively.
 Clicking an image opens a right-side 50% detail panel. **Photo information** is the
-default tab outside Has similar photos; opening a gallery card in that view selects
-**Similar photos**, which holds the matching controls and thumbnails (§7.4).
-Both tabs share the reference preview and its resize divider. The active tab and
-chosen match threshold remain selected when navigating to another photo.
+default on every gallery-card click, including Has similar photos, even when the
+previous photo showed Similar photos. **Similar photos** holds matching controls and
+thumbnails (§7.4). Both tabs share the reference preview and its resize divider.
+The Inspector's previous/next controls retain the active tab and chosen match threshold.
+Explicit match links/comparison actions still open their requested view; reload and
+browser history restore the tab recorded in the URL. While details load, the gallery
+status preserves the tab layout; an unknown status reserves space rather than flashing
+a single tab. Actions continue to depend on loaded details.
 
 **The file's modification time** is the time the file carried when the first Index read
 it, not a date the photo was scanned; its label says so on hover (**"As recorded when
@@ -1835,7 +1855,7 @@ Select all and photo positioning use the same membership. Show only selected kee
 all selected files even without qualifying matches, with the percentage disabled;
 known counts sort first, then zero and unavailable counts. The initial sort is Most matches first. Remember explicit sort choices per view
 in browser storage; restore them on return. Explicit URL sorts take precedence. Clicking a gallery card carries the gallery
-percentage into its matches and opens the Similar photos tab. Later Inspector
+percentage into its matches and opens Photo information. Later Inspector
 threshold changes remain local; previous/next retains that Inspector choice.
 Photos without qualifying recorded matches are omitted. A coverage note appears
 when destination hashes are unavailable or comparisons unfinished; absence from this

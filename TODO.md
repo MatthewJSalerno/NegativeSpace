@@ -280,6 +280,11 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 
 ## Navigation refinement
 
+- [ ] Future UX discussion: the full-screen view opened by clicking the large Inspector
+  preview feels visually cluttered, particularly the photo information displayed with
+  it. Review the photo/metadata layout and shared styling before deciding changes.
+  Discussion only; no redesign approved yet.
+
 - [x] Phase 2 navigation (date scrubber and Source folders): maintainer accepted navigation.
 - [x] Shared notification bell with catalog-backed per-job read state; ordinary completed
   jobs move out of banners, while active progress and actionable safety warnings remain.
@@ -293,7 +298,31 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 - [x] Final local checks: navigation, preview refresh, mixed/all-failed transfers and
   stalled-job cancellation passed; oversized notification IDs are rejected before SQLite,
   and old job-photo links follow subsequent Reject/Return operations. Contract checks passed.
-- [ ] Future UI cycle: subtle date-scrubber ticks between year labels, retaining usable
-  click spacing and avoiding an implication that gaps represent equal time intervals.
+- [x] Subtle date-scrubber ticks between year labels, preserving year positions and
+  click targets; spacing follows photo counts, not equal time intervals.
+- [x] Maintainer validated date-scrubber ticks.
+- [x] Gallery-card clicks reset the Inspector to Photo information, including in Has
+  similar photos. Explicit match links and Inspector previous/next keep their intended tab.
+  Generated filter-pin and similarity browser suites passed, including tab restoration.
+- [x] Maintainer validated the Inspector tab reset when clicking gallery photos.
+- [x] Inspector tabs use gallery status while details load, preventing the single-tab
+  flash during gallery clicks and Previous/Next navigation. Held-response browser
+  checks verify both labels, selection and widths before details arrive; the full
+  similarity browser flow passes. Maintainer confirmed the tabs look good.
+- [x] Filter pins: click to replace unpinned Look into filters, pin to retain; pins survive
+  refresh in the browser. Clear all filters removes pins. Small images/Review later stay
+  exclusive, with an Unpin explanation. Existing gallery queries supply next-click counts.
+- [x] Final automated validation: 116 API/review tests, focused pin browser flow, full
+  browser/shared UI and review workflows, spec/API/schema checks and light/dark/narrow
+  screenshot review passed. Clear action geometry and source-folder reset are covered.
+- [x] Review later and its count are available in Library and Needs review; the same
+  pin, replacement and reminder-exclusion rules apply in both. Validated with 20
+  API/review tests and the generated-photo browser flow (zero/nonzero counts, filtering,
+  navigation, refresh, pins and desktop reflow).
+- [x] Maintainer validated Review later in Library and Needs review.
+- [x] Maintainer validated filter pins.
+- [x] Move Clear all filters beside Look into, reserve its space, and clear search,
+  folder/date/type restrictions and saved pins while retaining place and selection.
+- [ ] Maintainer visual check of the final Clear all filters placement.
 - [ ] Integrate the stacked page-frame/date-scrubber/refinement branches only after approval.
   The metadata engine branch remains separate; reconcile schema changes before integration.

@@ -9,6 +9,18 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Look into filters can be pinned while browsing other filters. Clear all filters now
+  sits beside Look into and clears search and folder/date/type restrictions as well.
+- Decorative date-scrubber ticks fill large gaps without changing year positions.
+
+- Inspector tab labels and widths remain stable while the next photo’s details load.
+
+- Clicking a gallery photo opens Photo information, even if the previous photo
+  showed Similar photos.
+
+- Review later is available with its count in both Library and Needs review, using
+  the same pin rules and retaining the filter when switching between these places.
+
 ### Navigation notifications
 
 - Finished jobs appear in a shared notification bell with persistent per-job read status,
@@ -26,6 +38,12 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 - A no-progress reminder with Keep waiting and explicit cancellation of photo workers.
 
 ### Changed
+- Look into filters replace unpinned filters when clicked; separate pin controls retain
+  filters across choices and browser refreshes. Clear filters removes pins too, and
+  filter counts reflect the results of the next choice. Small images and Review later
+  remain exclusive with an explicit unpin explanation.
+- Subtle guide ticks fill the date scrubber between year labels without changing date
+  positions or navigation.
 - A date scrubber down the gallery's right edge: the years, sized by their photos; point
   for the month, click or drag to go there.
 - **Source folders**, under Not organized: the source's folder tree beside the photos,

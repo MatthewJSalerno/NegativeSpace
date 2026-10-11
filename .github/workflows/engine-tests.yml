@@ -129,6 +129,12 @@ jobs:
       - name: Instance access in a browser
         run: DRIVER=access_browser_drive.py sh tests/browser/webui_browser_test.sh
 
+      - name: Gallery filter pin counts
+        run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest filter_pins_test -v
+
+      - name: Gallery filter pins in a browser
+        run: DRIVER=filter_pins_browser_drive.py sh tests/browser/webui_browser_test.sh
+
       - name: Notification read receipts
         run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest notifications_test -v
 

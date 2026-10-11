@@ -656,11 +656,12 @@ export const api = {
     request<Settings>("PUT", "/api/v1/settings", { values, revisions }),
   validateExtension: (extension: string) =>
     request<ExtensionSupport>("POST", "/api/v1/settings/validate-extension", { extension }),
-  photos: (params: BrowseFilters & { sort: Sort; page: number; page_size: number }) => {
+  photos: (params: BrowseFilters & { sort: Sort; page: number; page_size: number; filter_pins?: string }) => {
     const query = browseQuery(params);
     query.set("sort", params.sort);
     query.set("page", String(params.page));
     query.set("page_size", String(params.page_size));
+    if (params.filter_pins !== undefined) query.set("filter_pins", params.filter_pins);
     return request<PhotoPage>("GET", `/api/v1/photos?${query}`);
   },
   photoPosition: (params: BrowseFilters & { photo_id: number; sort: Sort; page_size: number; ids?: number[] }) =>

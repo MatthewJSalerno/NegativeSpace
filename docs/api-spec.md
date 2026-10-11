@@ -992,8 +992,19 @@ reload before retrying. Success is shown only after acknowledgement.
 Gallery listing, IDs, position, types, folders and timeline accept `similar` and
 `suspicious` booleans and `reason` (all/small/later). These combine with existing
 filters. `view=review` selects distinct active Library photos with an unresolved supported reason. Reminders on source/rejected files do not contribute. History remains readable; new decisions require a delivered active photo.
+`GET /photos` optionally accepts `filter_pins`, a comma-separated subset of similar,
+suspicious, undated, small and later (empty string means no pins). Unknown keys or both
+small and later return 400. This changes only sidebar counts, not gallery membership:
+an inactive filter's count replaces unpinned Look into conditions, while active counts
+retain the current intersection. Place, search, date, type, folder and run constraints
+remain; pins unavailable in the place do not apply. Omit the parameter for existing
+combining-filter count behavior. No server-side preference or schema change is added.
+
 Listings include `chips` (similar/suspicious/undated/small), `reasons` and filename-only
-`elsewhere` location counts. `reason=small` filters Library as well as the inbox, using
+`elsewhere` location counts. Library and job listings also include `reasons.later`,
+scoped to the current browsing constraints; the inbox includes all reason counts.
+`reason=later` filters Library as well as the inbox to active review reminders.
+`reason=small` filters Library as well as the inbox, using
 unacknowledged destination size reminders; it never restricts imports. Chip counts
 apply the other current filters; the small count evaluates that reminder scope.
 Review and organized/similar cards include compact location and current reason details

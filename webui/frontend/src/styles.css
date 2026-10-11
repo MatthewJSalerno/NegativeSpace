@@ -89,11 +89,22 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
    (generated text would join its accessible name). */
 .sidebar .sidebar-item[aria-pressed=true] { box-shadow: inset 3px 0 0 var(--accent); }
 .sidebar .sidebar-item[aria-disabled=true] { color: var(--muted); cursor: default; }
+.sidebar-filter-row { display: flex; align-items: stretch; }
+.sidebar-filter-row .sidebar-item { flex: 1; min-width: 0; }
+.filter-pin { flex: 0 0 32px; padding: 0; display: grid; place-items: center; color: var(--muted); }
+.filter-pin[aria-pressed=true] { color: var(--accent); background: var(--surface-2); }
+.filter-pin[aria-pressed=true] svg { fill: var(--accent); }
+.filter-pin[aria-disabled=true] { color: var(--muted); cursor: default; }
+@media (forced-colors: active) { .filter-pin[aria-pressed=true] { outline: 2px solid Highlight; outline-offset: -2px; } }
 .sidebar-group { display: flex; flex-direction: column; gap: 2px; }
 /* Source folders, under Not organized. */
 .sidebar a.sidebar-sub { min-height: 36px; padding-left: var(--space-8); }
 .sidebar-count { margin-left: auto; color: var(--muted); font-size: var(--type-xs); font-weight: var(--weight-normal); font-variant-numeric: tabular-nums; }
 .sidebar-heading { margin: var(--space-4) var(--space-3) var(--space-1); font-size: var(--type-xs); color: var(--muted); }
+.sidebar-filter-heading { display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-1); margin: var(--space-4) var(--space-3) var(--space-1); font-size: var(--type-xs); }
+.sidebar-filter-heading .sidebar-heading { margin: 0; }
+.sidebar-filter-heading .link { white-space: nowrap; }
 .sidebar-foot { margin-top: auto; padding: var(--space-4) var(--space-3) 0; }
 .sidebar-backdrop { display: none; }
 @media (forced-colors: active) { .sidebar a[aria-current], .sidebar .sidebar-item[aria-pressed=true] { outline: 2px solid Highlight; outline-offset: -2px; } }
@@ -225,6 +236,8 @@ button.link.status-only { font-size: var(--type-xs); }
   height: calc(100vh - var(--header-offset)); padding: var(--space-4) 0 var(--space-6); }
 .scrubber-track { position: relative; height: 100%; cursor: row-resize; touch-action: none; user-select: none;
   border-left: 1px dotted var(--border); }
+.scrubber-tick { position: absolute; right: var(--space-4); width: var(--space-2);
+  border-top: 1px solid var(--muted); opacity: .5; pointer-events: none; }
 .scrubber-year { position: absolute; right: var(--space-1); transform: translateY(-50%); min-height: 0; padding: 0 var(--space-1);
   border: 0; background: none; color: var(--muted); font-size: var(--type-xs); font-variant-numeric: tabular-nums; line-height: 1.4; }
 .scrubber-year:hover { color: var(--text); background: none; }

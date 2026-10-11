@@ -33,7 +33,7 @@ const EXIF_DATE_LABEL = { taken: "Date taken", digitized: "Date digitized", modi
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice, onReviewPhoto }: SetActions & {
+export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice, onReviewPhoto }: SetActions & {
   // Reject this photo, or return it from Rejects; each asks first.
   onReject?: (filename: string) => void;
   onReturn?: () => void;
@@ -46,6 +46,8 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   comparison: ComparisonState | null;
   onComparison: (state: ComparisonState | null) => void;
   id: number;
+  // Gallery status reserves the correct tabs while details load; never authorizes actions.
+  statusHint?: string;
   width: number | null;
   onClose: () => void;
   onStep: (delta: number) => void;
@@ -108,7 +110,10 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
   const [lineage, setLineage] = useState(false);
   const inLibrary = !!detail && detail.id === id && IN_LIBRARY.includes(detail.status);
   const canCompare = inLibrary || (!!detail && detail.id === id && IN_REJECTS.includes(detail.status));
-  const activeTab = canCompare ? tab : "information";
+  const layoutStatus = detail?.id === id ? detail.status : statusHint;
+  const layoutInLibrary = layoutStatus != null && IN_LIBRARY.includes(layoutStatus);
+  const layoutCanCompare = layoutStatus == null || layoutInLibrary || IN_REJECTS.includes(layoutStatus);
+  const activeTab = layoutCanCompare ? tab : "information";
   useEffect(() => {
     if (detail?.id !== id || canCompare) return;
     if (tab !== "information") onTab("information");
@@ -223,10 +228,12 @@ export function Inspector({ id, width, onClose, onStep, onOpenPhoto, jobRunning,
                e.preventDefault(); e.stopPropagation();
                resizePreview(e.key === "Home" ? 20 : e.key === "End" ? 75 : previewShare + (e.key === before ? -5 : 5));
              }}><span aria-hidden="true">⋮⋮</span></div>
-        <div className="inspector-side">
+        <div className="inspector-side" aria-busy={detail == null && error == null}>
           {error && <p className="error">{error}</p>}
-          <TabList className="inspector-tabs" label="Photo inspector" idBase={tabId} value={activeTab} onChange={onTab}
-            tabs={canCompare ? [{ value: "information", label: inLibrary ? "Photo information" : "File information" }, { value: "similar", label: inLibrary ? "Similar photos" : "Similar photos in Library" }] : [{ value: "information", label: "File information" }]} />
+          <div style={{ flexShrink: 0, visibility: layoutStatus == null ? "hidden" : undefined }} aria-hidden={layoutStatus == null ? true : undefined}>
+            <TabList className="inspector-tabs" label="Photo inspector" idBase={tabId} value={activeTab} onChange={onTab}
+              tabs={layoutCanCompare ? [{ value: "information", label: layoutInLibrary ? "Photo information" : "File information" }, { value: "similar", label: layoutInLibrary ? "Similar photos" : "Similar photos in Library" }] : [{ value: "information", label: "File information" }]} />
+          </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", activeTab)}>
             {detail && activeTab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
               review={inLibrary ? <ReviewNote key={id} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto}

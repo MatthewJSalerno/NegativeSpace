@@ -872,3 +872,27 @@ Manual: open the bell after Index/Copy; verify each job, result and links; close
 and confirm the unread count stays cleared. Run another job and check that it creates
 one new unread notice. Select 1, 9, 10 and more photos: the adjacent actions should stay
 in place. Opening the bell must not move the gallery. Check Logs/Stats and desktop zoom.
+
+## Gallery filter pins
+
+Run `filter_pins_test.py` inside the app image with `PYTHONPATH=/app/tests:/app` for
+replacement-versus-intersection counts, unchanged gallery membership, search scope and
+invalid/exclusive pins. `DRIVER=filter_pins_browser_drive.py` in the normal generated
+browser harness covers replacement, pin persistence, exclusive reminders, exact job
+links, retained selection, keyboard access and light/dark desktop reflow. It checks
+Clear all filters in the sidebar, stable filter-row positions, and clearing Source
+folders/search without changing place. It also
+holds Inspector detail responses to check that gallery clicks and arrow navigation
+keep both tab labels and widths stable while loading.
+
+Manual: in Library, click No capture date then Suspicious dates; only the latter stays
+active. Pin Small images and try those date filters again: Small images stays applied.
+Review later should show its count immediately in Library, including zero. Filter by
+it, switch to Needs review and back, and confirm the same reminder remains applied.
+Refresh, then check the Small images/Review later restriction in both places and
+its unpin explanation. Clear all filters, beside Look into, should remove saved pins,
+search and folder/date/type restrictions without clearing photo selection or changing
+place. The filter rows should stay still when that action appears or disappears. No Index or Copy
+is needed when the demo is already populated. Open a photo, choose Similar photos,
+then click a different gallery photo: Photo information should open. Check this in
+Library and Has similar photos; reloading an explicit Similar photos tab should retain it.

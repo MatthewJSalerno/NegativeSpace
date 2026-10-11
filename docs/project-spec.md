@@ -243,12 +243,12 @@ service. Built and tested:
     the library** for each job that acted on photos; and CSV/JSON export.
 
 Built review workflow: Library, Not organized and Rejects are location views; Needs review
-is an overlapping inbox of organized Library photos. Each location has one row of filter toggles; Small images
-filters Library in place, and the inbox adds Review later to the same row. Active chips
+is an overlapping inbox of organized Library photos. The sidebar holds the Look into filters; Small images
+and Review later filter both Library and the inbox in place, with counts in both. Active filters
 clear on a second click. The Inspector groups information and actions, while the dedicated
 review workspace puts a large photo beside its reasons, decision buttons and matching clues.
 Place changes close stale previews; source previews temporarily collapse the Index summary.
-Filter chips combine, reminder chips choose one scope, and
+Filter clicks replace unpinned conditions, pinned conditions combine, reminder filters choose one scope, and
 filename searches offer matches in other locations. Small-image cleanup is opt-in at
 first run and never blocks transfers. Mark reviewed acknowledges only the size concern;
 Review later / Done records a separate reminder. Both persist in the catalog with review

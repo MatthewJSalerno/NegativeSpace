@@ -768,13 +768,13 @@ with sync_playwright() as p:
     assert after == widths, f"the sidebar's labels moved: {widths} -> {after}"
     undated_filter.click()
     expect(page).not_to_have_url(re.compile(r"undated=1"))
-    # Clear filters resets restrictions without changing location or selection.
+    # Clear all filters resets restrictions without changing location or selection.
     undated_filter.click()
     filters(page)
     page.get_by_role("navigation", name="Dates").get_by_label("Show only 2019").check()
     page.get_by_role("searchbox", name="Search filenames").fill("photo")
     expect(page).to_have_url(re.compile(r"q=photo"))
-    page.get_by_role("button", name="Clear filters", exact=True).click()
+    page.get_by_role("button", name="Clear all filters", exact=True).click()
     page.get_by_role("searchbox", name="Search filenames").fill("photo")
     expect(page).not_to_have_url(re.compile(r"undated=1|date="))
     expect(page).to_have_url(re.compile(r"q=photo"))

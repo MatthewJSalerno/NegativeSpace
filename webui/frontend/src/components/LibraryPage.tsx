@@ -12,7 +12,8 @@ import { AppFrame } from "./AppFrame";
 import type { SidebarFilters } from "./Sidebar";
 import { FiltersButton } from "./FiltersButton";
 import { YearScrubber } from "./YearScrubber";
-import { api, ApiError, savedMatchMinimum, submissionSnapshot, subscribeSubmission, MATCH_THRESHOLDS, type ActionMode, type PlaceView, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
+import { LOOK_KEYS, filterApplies, savedFilterPins, useFilterPins } from "../filterPins";
+import { api, ApiError, savedMatchMinimum, submissionSnapshot, subscribeSubmission, MATCH_THRESHOLDS, type ActionMode, type LookInto, type PlaceView, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
 import { count, plural } from "../format";
 import { jobLabel, summary, useJobCompletion, useJobFeed } from "../jobs";
 import { Gallery } from "./Gallery";
@@ -85,23 +86,25 @@ function readUrl(hasLibrary = true) {
   const p = new URLSearchParams(window.location.search);
   const legacy = p.get("view") as View;
   const view = legacy === "similar" ? "organized" : legacy === "suspicious" ? "organized" : legacy || savedPlace(hasLibrary);
+  // Only an unqualified start page uses saved pins. Explicit links/history are exact.
+  const defaults = hasLibrary && p.size === 0 ? savedFilterPins().filter(key => filterApplies(key, view)) : [];
   const matchPage = Number(p.get("match_page"));
-  const similar = (view === "organized" || view === "review" || view === "all") && (legacy === "similar" || p.get("similar") === "1");
+  const similar = (view === "organized" || view === "review" || view === "all") && (legacy === "similar" || p.get("similar") === "1" || defaults.includes("similar"));
   return {
     view: (["all", "unorganized", "organized", "similar", "suspicious", "rejects", "review", "source"] as View[]).includes(view) ? view : "all",
     // Source folders (webui-spec 2): Not organized, or everything still in the source, by folder.
     sourceTree: p.get("tree") === "1" && (view === "unorganized" || view === "source"),
     similar,
     groupSets: p.has("group_sets") ? p.get("group_sets") !== "0" : savedGrouping(),
-    suspicious: legacy === "suspicious" || p.get("suspicious") === "1",
-    reason: ["small", "later"].includes(p.get("reason") || "") ? p.get("reason")! : "all",
+    suspicious: legacy === "suspicious" || p.get("suspicious") === "1" || defaults.includes("suspicious"),
+    reason: ["small", "later"].includes(p.get("reason") || "") ? p.get("reason")! : defaults.includes("small") ? "small" : defaults.includes("later") ? "later" : "all",
     reviewPhoto: Number(p.get("review_photo")) || null,
     sort: p.get("sort") === "matches" && !similar ? "newest" as Sort : (p.get("sort") as Sort) || savedSort(similar ? "similar" : view),
     matchMin: MATCH_THRESHOLDS.includes(Number(p.get("match_min"))) ? Number(p.get("match_min")) : savedMatchMinimum(),
     q: p.get("q") || "",
     page: Math.max(1, Number(p.get("page")) || 1),
     size: PAGE_SIZES.includes(Number(p.get("size"))) ? Number(p.get("size")) : PAGE_SIZES[0],
-    undated: p.get("undated") === "1",
+    undated: p.get("undated") === "1" || defaults.includes("undated"),
     dates: p.getAll("date"),
     types: p.getAll("type"),
     folders: p.getAll("folder"),
@@ -134,6 +137,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   onOpenSettings: () => void;
 }) {
   const initial = useRef(readUrl((status.library_photos ?? 0) > 0)).current;
+  const { pins, save: savePins } = useFilterPins();
   const [view, setView] = useState<View>(initial.view);
   const [sourceTree, setSourceTree] = useState(initial.sourceTree);
   const [reviewReturn, setReviewReturn] = useState<{ url: string; anchor: number; offset: number; opener: number } | null>(null);
@@ -193,9 +197,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     initial.photo == null ? null : { id: initial.photo, delta: 0 });
   const [revealId, setRevealId] = useState<number | null>(null);
   const openFromGallery = (id: number) => {
-    setLocate(null); setRevealId(null); setOpenId(id);
+    setLocate(null); setRevealId(null); setOpenId(id); setInspectorTab("information");
     if (similar && jobRun == null) {
-      setInspectorTab("similar");
       setMatchState({ photo: id, view: { threshold: focus?.kind === "set" ? focus.threshold! : matchMin, page: 1 } });
     }
   };
@@ -360,8 +363,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     rememberLibraryQuery(p.toString());
   }, [similar, groupSets, suspicious, reason, view, sort, matchMin, q, page, pageSize, undated, dates, types, folders, jobRun, openId, matchView, inspectorTab, comparison, reviewPhoto]);
 
-  const results = usePaged((p) => api.photos({ view: browseView, similar, suspicious, reason: reviewFilter, run: jobRun ?? undefined, sort: browseSort, match_min: galleryMinimum, group_sets: grouped, q, page: p, page_size: pageSize, undated, dates, types, folders }),
-                           JSON.stringify([similar, suspicious, reason, browseView, jobRun, browseSort, galleryMinimum, grouped, q, undated, dates, types, folders]), jump, pageSize, refreshKey, setLoadError);
+  const results = usePaged((p) => api.photos({ filter_pins: pins.filter(pin => filterApplies(pin, view)).join(","), view: browseView, similar, suspicious, reason: reviewFilter, run: jobRun ?? undefined, sort: browseSort, match_min: galleryMinimum, group_sets: grouped, q, page: p, page_size: pageSize, undated, dates, types, folders }),
+                           JSON.stringify([pins, similar, suspicious, reason, browseView, jobRun, browseSort, galleryMinimum, grouped, q, undated, dates, types, folders]), jump, pageSize, refreshKey, setLoadError);
   const data: PhotoPage | null = results.meta;
   // The Rejects view sees an emptied file first; the reminder follows it.
   const rejectsShown = browseView === "rejects" ? data?.rejects?.photos : undefined;
@@ -668,6 +671,17 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     (opener?.querySelector<HTMLElement>(".review-card-notes a") ?? opener?.querySelector<HTMLElement>(".card-image"))?.focus({ preventScroll: true });
     restoringReview.current = null;
   }, [list.ready, flat, view]);
+  const activeLook: Record<LookInto, boolean> = { similar, suspicious, undated, small: reason === "small", later: reason === "later" };
+  const applyLook = (keys: LookInto[]) => {
+    const nextSimilar = keys.includes("similar");
+    if (nextSimilar !== similar) {
+      const scope: View = nextSimilar ? "similar" : view;
+      setSort(sortChoices.current[scope] ?? savedSort(scope));
+    }
+    setSimilar(nextSimilar); setSuspicious(keys.includes("suspicious")); setUndated(keys.includes("undated"));
+    setReason(keys.includes("small") ? "small" : keys.includes("later") ? "later" : "all");
+    setPage(1);
+  };
   const chooseView = (v: View) => {
     setJobRun(null); jobFilters.current = null; setFollowJob(null); setSourceTree(false);
     sortChoices.current[similar ? "similar" : view] = sort;
@@ -677,8 +691,18 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     setSort(sortChoices.current[scope] ?? savedSort(scope));
     setPage(1);
     if (v === "unorganized" || v === "rejects" || v === "source") setSimilar(false);
-    if (v !== "review" && (v !== "organized" || reason !== "small")) setReason("all");
+    if (v !== "review" && v !== "organized") setReason("all");
     if (v === "all") { setUndated(false); setDates([]); setTypes([]); setFolders([]); }
+    // Reapply eligible pinned filters when choosing a place, keeping unavailable pins
+    // remembered without applying them to the wrong location.
+    const eligible = pins.filter(key => filterApplies(key, v));
+    if (eligible.includes("similar")) {
+      setSimilar(true); setSort(sortChoices.current.similar ?? savedSort("similar"));
+    }
+    if (eligible.includes("suspicious")) setSuspicious(true);
+    if (eligible.includes("undated")) setUndated(true);
+    if (eligible.includes("small")) setReason("small");
+    else if (eligible.includes("later")) setReason("later");
   };
   // Source folders' switch: what is waiting, or everything still in the source.
   const chooseSourceScope = (v: "unorganized" | "source") => { chooseView(v); setSourceTree(true); };
@@ -893,28 +917,40 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     && data.index_summary.failed > 0;
 
   const placeShown = jobRun == null && (PLACE_VIEWS as View[]).includes(view) ? view as PlaceView : null;
-  // The gallery's filters, in the sidebar's Look into (webui-spec 2): they combine within the
-  // place shown; Small images and Review later are one reminder scope at a time. Choosing
-  // one leaves Show only selected or a review first, as a place does.
+  // Click a filter to browse; pins retain compatible filters while choosing another.
   const libraryOnly = view === "organized" || view === "review" ? null
     : view === "rejects" ? "Library photos only: open Library or Needs review." : "Organized photos only: open Library or Needs review.";
+  const hasFilters = undated || dates.length > 0 || types.length > 0 || folders.length > 0
+    || !!q || !!search || similar || suspicious || reason !== "all" || pins.length > 0;
   const lookFilters: SidebarFilters = {
-    on: { similar, suspicious, undated, small: reason === "small", later: reason === "later" },
+    onClear: !focus && hasFilters ? () => {
+      savePins([]); setSimilar(false); setSuspicious(false); setUndated(false); setReason("all");
+      if (sort === "matches") setSort("newest");
+      setQ(""); setSearch(""); setDates([]); setTypes([]); setFolders([]); setPage(1);
+    } : undefined,
+    on: activeLook,
+    pinned: pins,
     counts: { similar: data?.chips?.similar, suspicious: data?.chips?.suspicious, undated: data?.chips?.undated,
               small: data?.chips?.small, later: data?.reasons?.later },
-    why: { similar: libraryOnly, suspicious: null, undated: null, small: libraryOnly,
-           later: view === "review" ? null : "Only in Needs review." },
-    onToggle: (key) => {
+    why: { similar: libraryOnly, suspicious: null, undated: null,
+      small: libraryOnly ?? (pins.includes("later") ? "Unpin Review later first; these two filters cannot be combined." : null),
+      later: libraryOnly ?? (pins.includes("small") ? "Unpin Small images first; these two filters cannot be combined." : null) },
+    onToggle: key => {
       if (focus) backToResults();
-      setPage(1);
-      if (key === "similar") {
-        setSimilar(!similar);
-        const scope: View = !similar ? "similar" : view;
-        setSort(sortChoices.current[scope] ?? savedSort(scope));
+      if (activeLook[key]) {
+        // Turning off a filter also removes its pin, so it cannot unexpectedly return.
+        savePins(pins.filter(pin => pin !== key));
+        applyLook(LOOK_KEYS.filter(item => activeLook[item] && item !== key));
+      } else {
+        applyLook([...pins.filter(pin => filterApplies(pin, view)), key]);
       }
-      if (key === "suspicious") setSuspicious(!suspicious);
-      if (key === "undated") setUndated(!undated);
-      if (key === "small" || key === "later") setReason(reason === key ? "all" : key);
+    },
+    onPin: key => {
+      if (pins.includes(key)) { savePins(pins.filter(pin => pin !== key)); return; }
+      if (focus) backToResults();
+      savePins([...pins, key]);
+      applyLook([...LOOK_KEYS.filter(item => activeLook[item] &&
+        !(key === "small" && item === "later") && !(key === "later" && item === "small")), key]);
     },
   };
   // Source folders shows its folders in the tree, not in the Filters panel.
@@ -961,9 +997,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
         <div className="gallery-pane">
           <div className="gallery-context">
             {!focus && <h2>{sourceTree && folderShown ? folderLabel(folderShown.path) : sourceTree ? "Source folders" : VIEW_LABEL[view]}</h2>}
-            {!focus && (undated || dates.length > 0 || types.length > 0 || (folders.length > 0 && !sourceTree) || !!q || similar || suspicious) && <p className="section-note">
-              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
-              {" "}<button className="link" onClick={() => { setSimilar(false); setSuspicious(false); setUndated(false); setReason("all"); if (sort === "matches") setSort("newest"); setQ(""); setSearch(""); setDates([]); setTypes([]); if (!sourceTree) setFolders([]); setPage(1); }}>Clear filters</button>
+            {!focus && (undated || dates.length > 0 || types.length > 0 || (folders.length > 0 && !sourceTree) || !!q || similar || suspicious || reason !== "all" || pins.length > 0) && <p className="section-note">
+              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", reason === "small" && "Small images", reason === "later" && "Review later", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
             </p>}
             <span className="gallery-tools">
               <FiltersButton active={filtersActive} open={filtersOpen && !focus} onOpen={setFiltersOpen} disabled={!!focus}>
@@ -1084,7 +1119,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             <div className="photo-actions"><button disabled={!data?.total} title={!data?.total ? "No photos match these review filters." : undefined}
               onClick={() => setReviewPhoto(data!.items[0].id)}>Review one by one</button></div>
             <StableContent active={reason} variants={{
-              all: <p className="section-note">Use Look into in the sidebar to focus your review. Click an active filter again to clear it.</p>,
+              all: <p className="section-note">Choose a filter in Look into. Pin filters to keep them while trying another; click an active filter to clear it.</p>,
               small: <p className="section-note">Small size is a reason to look, not a reason to reject. Mark reviewed clears a photo’s size reminder. <button className="photo-action" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>,
               later: <p className="section-note">Photos you marked to revisit. Done clears the reminder and leaves the photo in place.</p>,
             }} />
@@ -1210,7 +1245,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                    if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() + 40); }
                    if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() - 40); }
                  }} />
-            <Inspector onReviewPhoto={() => setReviewPhoto(openId!)} setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && similar && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
+            <Inspector onReviewPhoto={() => setReviewPhoto(openId!)} setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && similar && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} statusHint={flat.items.find(item => item.id === openId)?.status} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
                        onReject={(name) => askTransfer("reject", [openId], undefined, name)} onReturn={() => askTransfer("return", [openId])}
                        onRejectMatch={(id, name) => askTransfer("reject", [id], undefined, name)} onKeep={(keep, name, threshold) => void keepAndReview(keep, name, threshold)}

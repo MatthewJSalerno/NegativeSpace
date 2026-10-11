@@ -130,12 +130,25 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   chip row above the photos): Has similar photos, Suspicious dates, No capture date,
   Small images and Review later. On the Library page each is a toggle (`aria-pressed`;
   on, it takes the current-item surface and a bar at its start) that narrows the place
-  shown, with its count there under the other filters; they combine, and Small images
-  and Review later are one reminder scope at a time. A filter that does not apply to the
+  shown. Clicking an inactive filter replaces unpinned Look into filters; clicking an
+  active one turns it off and removes its pin. Each row has a separate, always-present
+  **Pin / Unpin** button (`aria-pressed`, named for its filter). Pinning enables the filter
+  and keeps it while browsing others; unpinning leaves it applied until replaced or cleared.
+  Inactive-filter counts predict the next click with the eligible pins; active-filter
+  counts describe the current intersection. Small images and Review later remain exclusive:
+  pinning either disables the other with an explanation telling the user which to unpin. A filter that does not apply to the
   place stays in its row, dimmed (`aria-disabled`), saying why on hover: Has similar
-  photos and Small images are for Library and Needs review, Review later for Needs review.
+  photos, Small images and Review later are for Library and Needs review.
   On Logs and Stats each is a link that opens Library (Review later: Needs review) with
-  only that filter on, counted as it opens.
+  only that filter on, counted as it opens. Pins are remembered per browser (`ns.filterPins`),
+  synchronized as preferences across tabs, and remain usable for the visit if storage fails.
+  Refresh preserves the URL's actual filters. Explicit links/history, including job photos,
+  are never narrowed by saved pins. A bare start page and sidebar place/filter choices
+  apply eligible pins; unavailable pins remain visible and removable. Clear all filters clears
+  all pins as well as search, date, type and folder restrictions (including Source folders),
+  retaining the location and photo selection. The action sits beside **Look into**, with
+  its space reserved when nothing can be cleared or while reviewing a selection. Logs
+  and Stats reserve the same header geometry without a gallery-clear action.
 - **The selection takes the top bar.** While photos are selected the selection bar
   replaces the top bar's contents (`.topbar.selecting`, on `--surface-2`), grouped at its
   start so the count and what can be done with it are read together: **✕** (Clear
@@ -160,7 +173,9 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   the most photos first, where they have room, so a large year is never unlabelled beside
   a near-empty one. Pointing shows the month under the pointer; a click, or a drag's
   release, goes there; a year label is a button that goes to that year. A marker shows
-  where the screen is. It uses the Dates tree's jump, so a date the filters hide says so.
+  where the screen is. Subtle, non-interactive ticks fill the gaps, with clear space
+  around the year labels. They are visual guides, not equal calendar intervals: year
+  positions still follow photo counts. It uses the Dates tree's jump, so a date the filters hide says so.
   *From:* Immich's timeline scrubber. Keyboard users reach the year labels, and any
   month through Filters › Dates.
 - **Source folders** (maintainer, 2026-10-09), indented under Not organized in the sidebar:
@@ -234,7 +249,7 @@ Logs always has a filter-summary row; unavailable status **only** shortcuts reta
 their space without remaining interactive. Job-list summaries reserve control height
 when Expand all disappears. Gallery counts and filter actions share a stable summary
 row; grouping controls have their own wrapping row when similarity is active. Reserve
-control height for the location heading's Clear filters action. Longer user-entered
+space beside the sidebar's Look into heading for Clear all filters, even when hidden. Longer user-entered
 filters may wrap naturally; do not hide meaningful restrictions to force a height.
 
 Adding substantive controls (such as similarity tools), opening a job or Inspector,
@@ -340,14 +355,18 @@ all chosen files, including those without matches; disable the gallery percentag
 while that scope is open. Has similar photos initially uses Most matches first. Remember explicit sort choices
 per view in browser storage (`ns.sort.<view>`); switching views restores that view’s
 last order. An explicit URL sort wins without rewriting the saved preference. Clicking a gallery card carries the gallery percentage into Inspector
-matches and opens the **Similar photos** tab. Users can subsequently
+matches and opens **Photo information**. Users can subsequently
 choose another Inspector percentage without changing gallery order; previous/next
 photo navigation retains that Inspector choice.
 
 The Library Inspector has **Photo information** and **Similar photos** tabs. Rejects has **File information** and **Similar photos in Library**; Not organized has only File information. Default to
-Photo information outside Has similar photos; remember the active tab and threshold
-when using previous/next. A gallery-card click in Has similar photos always opens
-Similar photos, even after the user switched to Photo information.
+Photo information on every gallery-card click, including Has similar photos, even if
+Similar photos was open on the previous photo. Remember the active tab and threshold
+when using the Inspector's previous/next controls. Explicit similar-photo links and
+comparison actions still open their requested view; reload and history restore the URL tab.
+While photo details load, use the gallery’s known status to keep the tab labels and
+widths stable. If status is unknown, reserve the tab row without showing a guessed
+single tab. Only loaded details determine available photo actions.
 The preview and its resize divider are shared by both tabs. In Similar photos, the
 large preview has a plain **Reference photo** heading and an accent border. Do not
 repeat its thumbnail in the matches pane: put **Keep reference, reject n matches…**
@@ -761,15 +780,15 @@ unchanged. Back to Library restores the entry filters, sort and visible photo po
 for this visit. Mark reviewed clears the reminder, not the Library photo.
 
 Places and filters have different roles: the places are links, the Look into filters
-toggles (page frame, above). Similar photos, Suspicious dates and No capture date
-combine; Small images toggles the existing size-reminder predicate within Library or
-Needs review, without navigating; Review later does the same in Needs review.
-Small images and Review later choose one reminder scope at a time, combining with the
-other filters. Leaving Needs review clears its Review later restriction, so Library
-cannot inherit a filter with no visible control. Clicking an active filter clears it; none active means the whole
+toggles with separate pins (page frame, above). Clicking a filter replaces unpinned
+Look into filters; pinned conditions combine with it. Small images uses the existing
+size-reminder predicate in Library or Needs review; Review later is also available with
+its count in both places, including zero. Switching between them retains the reminder
+filter; switching to Not organized or Rejects clears it.
+Small images and Review later remain exclusive; unpin one before choosing the other. Clicking an active filter clears it; none active means the whole
 current location/inbox. Do not repeat these controls above the photos or add All reasons. Use native buttons with aria-pressed, shared
 text roles and visible focus. Types, Folders and Dates are in
-the Filters panel. Name active restrictions visibly and provide Clear filters without changing
+the Filters panel. Name active restrictions visibly and provide Clear all filters without changing
 place or selection. Search offers a route to filename matches in other locations.
 
 Small-image review is destination cleanup, never a Copy/Move restriction. First-run
@@ -792,11 +811,11 @@ The short card reason also exposes that rule through shared `Tip` help on hover,
 keyboard focus or the information button.
 
 Keep **Small images** beside **No capture date** as a filter toggle in Library and
-Needs review. It preserves location, search, other filters and checkbox selection.
+Needs review. It preserves location, search, pinned filters and checkbox selection.
 **Review photo…** opens the dedicated review workspace; filtering never opens it.
 
 The current gallery location is a section heading above its content, consistently across
-views. Active restrictions and Clear filters sit beside it in supporting text; an
+views. Active restrictions sit beside it in supporting text; an
 unfiltered view does not repeat its name in a small muted breadcrumb.
 The Index summary labels absent positive width/height as **Image size unavailable**.
 Shared help explains that unsupported formats, unreadable files or incomplete processing
@@ -807,8 +826,9 @@ Switching Needs review reasons must not move the place heading or results summar
 Reason explanations share an automatically sized grid area that accommodates the longest
 wrapped text at the current width/text size; do not use fixed heights or clip guidance.
 Only the current explanation is visible, focusable or exposed to assistive technology.
-Choosing a reminder scope alone does not add Clear filters beside the location heading:
-click the active filter again to clear it. Other active gallery filters retain Clear filters.
+Clear all filters remains available for any active reminder/filter or saved pin, including
+pins unavailable in the current place; it also clears those pins. Clicking an active
+filter clears that filter and its pin.
 
 The selection bar reserves the width of its outside-this-view message for the
 catalog capacity. Filtering must not make this message appear/disappear in a

@@ -70,9 +70,9 @@ with sync_playwright() as p:
     page.reload()
     expect(show_summary).to_be_visible()
     expect(summary).to_have_count(0)
-    page.get_by_role('button',name='No capture date',exact=False).first.click()
+    page.get_by_role('button',name=re.compile('^No capture date')).first.click()
     expect(summary).to_have_count(0)
-    page.get_by_role('button',name='No capture date',exact=False).first.click()
+    page.get_by_role('button',name=re.compile('^No capture date')).first.click()
     show_summary.click()
     expect(summary.get_by_role('button',name='Close index summary',exact=True)).to_be_focused()
     summary.get_by_role('button',name='Close index summary',exact=True).click()
@@ -129,7 +129,7 @@ with sync_playwright() as p:
     expect(review_dialog).to_be_visible()
     expect(page).to_have_url(__import__('re').compile(fr'review_photo={opener}'))
     review_dialog.get_by_role('button',name='Back to gallery',exact=False).click()
-    expect(page.get_by_role('group',name='Look into').get_by_role('button',name='Small images',exact=False)).to_have_attribute('aria-pressed','true')
+    expect(page.get_by_role('group',name='Look into').get_by_role('button',name=re.compile('^Small images'))).to_have_attribute('aria-pressed','true')
     page.get_by_role('button',name='Back to Library',exact=False).click()
     expect(page.get_by_label('Search filenames',exact=True)).to_have_value('photo-')
     expect(page.get_by_label('Sort',exact=True)).to_have_value('name')
@@ -139,7 +139,7 @@ with sync_playwright() as p:
     page.get_by_label('Search filenames',exact=True).fill('')
     page.get_by_label('Sort',exact=True).select_option('newest')
     expect(page).not_to_have_url(__import__('re').compile(r'q='))
-    size_filter=page.get_by_role('group',name='Look into',exact=True).get_by_role('button',name='Small images',exact=False)
+    size_filter=page.get_by_role('group',name='Look into',exact=True).get_by_role('button',name=re.compile('^Small images'))
     size_filter.click()
     expect(place(page,'Library')).to_have_attribute('aria-current','page')
     expect(size_filter).to_have_attribute('aria-pressed','true')
@@ -154,10 +154,10 @@ with sync_playwright() as p:
     place(page,'Needs review').click()
     expect(inspector).to_have_count(0)
     look=page.get_by_role('group',name='Look into')
-    # Review later applies in Needs review only; elsewhere it stays in its row, dimmed.
+    # Review later is available in both Library and Needs review.
     expect(look.get_by_role('button',name=re.compile('^Review later'))).not_to_have_attribute('aria-disabled','true')
     expect(page.get_by_role('button',name=re.compile('^Small images'))).to_have_count(1)
-    look.get_by_role('button',name='Small images',exact=False).click()
+    look.get_by_role('button',name=re.compile('^Small images')).click()
     expect(page.locator(f'.card[data-id="{first}"] input')).to_be_checked()
     # Switching reasons must not move the heading or the results below it.
     reasons=page.get_by_role('group',name='Look into',exact=True)
@@ -167,7 +167,7 @@ with sync_playwright() as p:
         for key,label in (('all','Small images'),('small','Small images'),('later','Review later'),('all','Review later'),('small','Small images')):
             if width <= 800: page.get_by_role('button',name='Menu',exact=True).click()
             with page.expect_response(lambda r: '/api/v1/photos?' in r.url and f'reason={key}' in r.url) as response:
-                reasons.get_by_role('button',name=label,exact=False).click()
+                reasons.get_by_role('button',name=re.compile('^'+re.escape(label))).click()
             total=response.value.json()['total']
             expect(page.locator('.gallery-summary').first).to_contain_text(f'{total} photo')
             positions=page.evaluate("[document.querySelector('.gallery-context'),document.querySelector('.gallery-summary')].map(e=>e.getBoundingClientRect().top+scrollY)")
@@ -245,12 +245,12 @@ with sync_playwright() as p:
     expect(page.locator(f'.card[data-id="{first}"]')).to_be_visible()
     page.reload()
     expect(page.locator(f'.card[data-id="{first}"]')).to_be_visible()
-    # Leaving the inbox cannot carry a hidden Review later restriction into Library.
+    # Both places expose Review later, retaining its visible restriction and count.
     place(page,'Library').click()
-    expect(page).not_to_have_url(__import__('re').compile(r'reason=later'))
-    expect(page.locator('.card')).to_have_count(60)
+    expect(page).to_have_url(re.compile(r'reason=later'))
+    expect(page.get_by_role('group',name='Look into').get_by_role('button',name=re.compile('^Review later'))).to_have_attribute('aria-pressed','true')
+    expect(page.locator('.card')).to_have_count(1)
     place(page,'Needs review').click()
-    page.get_by_role('group',name='Look into').get_by_role('button',name=re.compile('^Review later')).click()
     page.locator(f'.card[data-id="{first}"] .card-image').click()
     expect(inspector).to_be_visible()
     inspector.get_by_role('button',name='Review photo…',exact=True).click()
@@ -311,7 +311,7 @@ with sync_playwright() as p:
     assert not get(f'photos/{rejected}/review')['reasons']
     workspace.get_by_role('button',name='Back to gallery',exact=False).click()
     page.goto(base+'/?view=organized&suspicious=1&undated=1')
-    page.get_by_role('button',name='Clear filters',exact=True).click()
+    page.get_by_role('button',name='Clear all filters',exact=True).click()
     expect(place(page,'Library')).to_have_attribute('aria-current','page')
     place(page,'Needs review').click()
     small=page.get_by_role('group',name='Look into').get_by_role('button',name=re.compile('^Small images'))
@@ -325,10 +325,10 @@ with sync_playwright() as p:
     dialog.get_by_role('button',name='Close settings',exact=True).click()
     expect(small.locator('.sidebar-count')).to_have_text('0')
     page.goto(base+'/?view=organized')
-    page.get_by_role('button',name='Has similar photos',exact=False).first.click()
-    page.get_by_role('button',name='No capture date',exact=False).first.click()
-    expect(page.get_by_role('button',name='Has similar photos',exact=False).first).to_have_attribute('aria-pressed','true')
-    expect(page.get_by_role('button',name='No capture date',exact=False).first).to_have_attribute('aria-pressed','true')
+    page.get_by_role('button',name='Pin Has similar photos',exact=True).click()
+    page.get_by_role('button',name=re.compile('^No capture date')).first.click()
+    expect(page.get_by_role('button',name=re.compile('^Has similar photos')).first).to_have_attribute('aria-pressed','true')
+    expect(page.get_by_role('button',name=re.compile('^No capture date')).first).to_have_attribute('aria-pressed','true')
     if os.environ.get('SHOTS'):
         page.screenshot(path=os.environ['SHOTS']+'/review-desktop.png',full_page=True)
     page.set_viewport_size({'width':720,'height':500})

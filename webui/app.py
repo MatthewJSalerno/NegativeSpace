@@ -269,10 +269,10 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_photos(view: str = "all", sort: str = "newest", q: Optional[str] = None,
                    page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=240), undated: bool = False,
                    date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                   folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all"):
+                   folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", filter_pins: Optional[str] = None):
         try:
             return gallery.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size,
-                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason)
+                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason, filter_pins=filter_pins)
         except ValueError as exc:
             raise _bad_request(exc)
 

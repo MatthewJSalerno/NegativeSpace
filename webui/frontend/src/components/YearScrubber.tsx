@@ -67,6 +67,17 @@ export function YearScrubber({ timeline, newestFirst, current, onJump }: {
     return placed.sort((a, b) => a.top - b.top);
   }, [segments, height]);
 
+  // Decorative guides along the photo-count track, not calendar intervals. Leave
+  // space around year labels and add no pointer or keyboard targets.
+  const ticks = useMemo(() => {
+    if (!segments.length) return [];
+    const positions: number[] = [];
+    for (let y = 16; y < height; y += 16) {
+      if (labels.every(label => Math.abs(label.top * height - y) >= LABEL_SPACE)) positions.push(y);
+    }
+    return positions;
+  }, [segments, labels, height]);
+
   const at = (clientY: number): Segment | null => {
     const box = track.current?.getBoundingClientRect();
     if (!box || !segments.length) return null;
@@ -91,6 +102,7 @@ export function YearScrubber({ timeline, newestFirst, current, onJump }: {
     <nav className="scrubber" aria-label="Jump to a date">
       <div className="scrubber-track" ref={track} onPointerDown={down} onPointerMove={move} onPointerUp={up}
            onPointerLeave={() => { if (!dragging.current) setHover(null); }}>
+        {ticks.map(top => <span key={top} className="scrubber-tick" style={{ top }} aria-hidden="true" />)}
         {shown && <span className="scrubber-marker" style={{ top: `${shown.top * 100}%` }} aria-hidden="true" />}
         {labels.map((l) => (
           <button key={l.key} type="button" className="scrubber-year" style={{ top: `${l.top * 100}%` }}
