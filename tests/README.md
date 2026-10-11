@@ -1456,6 +1456,13 @@ conflicting dates, Primary identity, comparison, field search, keyboard navigati
 light/dark reflow and failed-read retry. Both checks run in CI. The metadata test fixture
 never reads the demo library. Date-copy/edit and primary-change acceptance remain pending.
 
+The merged metadata scenario generator also passed all six tests unchanged. A build
+with a public RAW sample produced 57 cases and 61 photos; the branch reader reported
+37 valid, 10 needs-attention and 3 not-XMP results across 50 XMP sidecars. These include
+intentional invalid inputs. Use the manifest's written values as expectations, not its
+`engine_today` observations. This checks the generator and records reader behavior;
+it does not establish that the viewer handles every scenario correctly.
+
 Local generated-fixture validation for this viewer: 10 source-view API tests and the
 98-test existing API regression suite passed in Docker. The source-view browser check
 and full shared-UI/main browser walkthrough passed; light/dark and narrow screenshots
