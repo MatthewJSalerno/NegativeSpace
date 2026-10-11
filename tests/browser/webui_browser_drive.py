@@ -528,8 +528,11 @@ with sync_playwright() as p:
     expect(finished_notice(page)).to_contain_text(
         f"{PHOTOS - 4} of {PHOTOS + DUPLICATES} files copied · 1 failed · {3 + DUPLICATES} skipped "
         f"(3 copied by an earlier job, {DUPLICATES} duplicates: the same content is copied once)")
-    # Hovering the failure count gives the reasons; a Failed photo's badge gives its own.
-    expect(banner.locator(".tip")).to_have_attribute("data-tip", re.compile(r"Why they failed:\nPermission denied: 1"))
+    # Notification Details gives the reasons; a Failed photo's badge gives its own.
+    banner.locator("summary").click()
+    expect(banner.locator("details p")).to_be_visible()
+    expect(banner.locator("details p")).to_contain_text("Why they failed:\nPermission denied: 1")
+    close_notifications(page)
     page.get_by_role("searchbox", name="Search filenames").fill("photo-129")
     expect(page.locator(".badge-failed")).to_have_attribute("title", "Failed: Permission denied")
     page.get_by_role("searchbox", name="Search filenames").fill("")
