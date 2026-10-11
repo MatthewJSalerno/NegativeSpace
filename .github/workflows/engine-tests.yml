@@ -14,7 +14,9 @@ jobs:
   smoke:
     name: Smoke suite (in container)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The serial browser, API and metadata suites exceed 20 minutes on hosted
+    # runners. Keep a bounded job budget with room for the final smoke tests.
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
