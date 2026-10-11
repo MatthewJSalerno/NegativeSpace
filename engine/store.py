@@ -117,7 +117,7 @@ def finish_run(db_path: str, run_id: int, status: str):
 def log_operation(conn: sqlite3.Connection, run_id: int, photo_id: Optional[int], source_path: str,
                    dest_path: Optional[str], status: str, error_message: Optional[str] = None,
                    has_name_collision: bool = False, commit: bool = True, delivery=None,
-                   operation_id: Optional[int] = None, step: str = "transfer"):
+                   operation_id: Optional[int] = None, step: str = "transfer", metadata_activation=None):
     """
     Appends one row to the operations audit log. Never overwrites — every call
     is new history.
@@ -174,6 +174,12 @@ def log_operation(conn: sqlite3.Connection, run_id: int, photo_id: Optional[int]
     if delivery is not None:
         ns_db.record_delivery(conn, operation_id=record, photo_id=photo_id,
                               run_id=run_id, destination=dest_path, **delivery)
+        from engine import metadata_import
+        if metadata_activation is None:
+            intent=conn.execute("SELECT detail_json FROM operation_events WHERE operation_id=? AND step='intent' ORDER BY event_id LIMIT 1",(record,)).fetchone()
+            metadata_activation=json.loads(intent[0]).get('expected',{}).get('metadata_activation') if intent else None
+        if metadata_activation:
+            metadata_import.activate_photo(conn,record,photo_id,metadata_activation,delivery.get('sha1_hash'))
     if status == OPERATION_SKIPPED and dest_path:
         # A relationship to the recorded retained file is not a fresh verification.
         conn.execute("INSERT OR IGNORE INTO operation_files SELECT ?,file_id,'retained_copy' FROM file_states WHERE current_path=? AND location_role='destination' AND presence_state='present'",
@@ -333,6 +339,8 @@ def db_writer_worker(db_path: str):
                 "SELECT id, status FROM photos WHERE source_path = ? AND (status IS NULL OR status NOT IN "
                 f"({constants.sql_values(constants.SOURCE_CONSUMED_STATUSES)}))", (result.file_path,)).fetchone()
             live_id, prior_status = live if live else (None, None)
+            from engine import metadata_photo_save
+            protected_edit = metadata_photo_save.protect_scan(conn, live_id)
 
             # Exclude the file's own row (by id: a consumed row at the same path is a
             # different, delivered photo and counts) and rows that are themselves
@@ -410,6 +418,10 @@ def db_writer_worker(db_path: str):
                 conn, result.run_id, photo_id, result.file_path, result.dest_path, status,
                 result.error_message, result.has_name_collision, commit=False
             )
+            from engine import metadata_import
+            metadata_import.restore_delivered(conn, photo_id)
+            if protected_edit:
+                metadata_photo_save.restore_scan(conn, protected_edit)
             conn.execute("RELEASE scan_row")
 
             # Counted only once the row is safely in the batch.

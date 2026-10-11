@@ -208,7 +208,25 @@ catalogue, not the tree, so relocating them is a separate action.
 
         Nothing is copied or deleted. This is the state a power cut leaves when a Move's catalog commits are lost and its file operations survive (`TODO.md` claim 10). A full Index also applies it to a row an earlier targeted Index already marked `Failed`. `Found_At_Destination` counts as delivered wherever that matters — as a duplicate group's anchor, as a copy duplicate cleanup verifies against, and as a source a later run must not re-scan.
 
-        **An empty source folder raises a question instead of a guess.** An unplugged share and a Move that took every photo look identical: an existing, empty directory. When a full walk finds no supported files under the source root while the catalog holds `Pending` or `Duplicate` rows there — or when *none* of a Move/Copy selection's sources exist — the engine changes no status and opens one needs-attention issue (`source_root_empty`) asking which it is. Each refused run records one run-level `Failed` operation, even when an earlier run already opened the question; scan and transfer within one run share that refusal. The open question is not duplicated, and repeated refusals never establish fresh scan coverage. Unsupported files left in the folder do not count: a Move leaves them behind by design. A Move/Copy records each selected photo `Skipped` with a reason pointing at the question. The CLI answer is `--confirm-source-empty`; the web UI offers **It really is empty** and submits the confirmed answer through `POST /api/v1/runs/{id}/answer`, preserving the original job scope: the folder really is empty, so the checks above run, rows found on the destination are recorded `Found_At_Destination`, the rest are marked missing, and the issue is closed. Files reappearing in the folder close it too. **Why not decide automatically:** a guess either way writes a false record — photos still on an unplugged drive recorded as found elsewhere, or delivered photos recorded as lost.
+        **Copied originals removed externally:** an untargeted Index also checks Copied
+        rows whose original is definitely absent. It verifies the recorded Library path
+        (including a prior rename), not a newly projected filename. A stable regular
+        file with the recorded SHA-1 produces Found_At_Destination and source presence
+        `missing`, with a history note describing the observed absence, without claiming who removed it.
+        It does not invent a Move or delete anything. These photos leave Move eligibility;
+        their verified copies still anchor duplicate savings. Existing originals are not
+        rehashed for this check. Cancellation or an original reappearing during hashing
+        leaves the status unchanged.
+
+        If the Library copy cannot be verified, the photo retains its last known status
+        and gains one `unestablished_outcome` issue with recorded observations. Restore
+        the expected file/storage and use Check it now; subsequent Index runs do not
+        repeat an open issue. The observation, lineage and issue records commit at FULL.
+        The existing checking_destination phase reports progress and contributes to Index
+        outcomes, so an unsuccessful verification is visible in its finished-job banner.
+        Scoped Index and transfer runs do not perform this additional Copied-row sweep.
+
+        **An empty source folder raises a question instead of a guess.** An unplugged share and a Move that took every photo look identical: an existing, empty directory. When a full walk finds no supported files under the source root while the catalog holds `Pending` or `Duplicate` rows there (also `Copied` for a full Index) — or when *none* of a Move/Copy selection's sources exist — the engine changes no status and opens one needs-attention issue (`source_root_empty`) asking which it is. Each refused run records one run-level `Failed` operation, even when an earlier run already opened the question; scan and transfer within one run share that refusal. The open question is not duplicated, and repeated refusals never establish fresh scan coverage. Unsupported files left in the folder do not count: a Move leaves them behind by design. A Move/Copy records each selected photo `Skipped` with a reason pointing at the question. The CLI answer is `--confirm-source-empty`; the web UI offers **It really is empty** and submits the confirmed answer through `POST /api/v1/runs/{id}/answer`, preserving the original job scope: the folder really is empty, so the checks above run, rows found on the destination are recorded `Found_At_Destination`, the rest are marked missing, and the issue is closed. Files reappearing in the folder close it too. **Why not decide automatically:** a guess either way writes a false record — photos still on an unplugged drive recorded as found elsewhere, or delivered photos recorded as lost.
     *   **Nothing unreadable is only logged:** A folder that cannot be listed, or a file that cannot be inspected, during discovery is recorded as a `Failed` operation of the run, with `photo_id` NULL and the folder or file path as `source_path`. A scan result the database writer cannot store is rolled back on its own (each result's row and operation are one unit), and the run is then marked `Failed` without moving or copying anything, since the catalog no longer reflects what was scanned.
     *   **Exit status:** The engine exits `0` only when the run did not fail. A `Failed` run, a missing `--source`, or a `--source` that is not a folder exits `1`; invalid arguments such as `--workers 0` exit `2`. `--backup-now` exits `1` when no verified backup was written. A request ID reused for different input exits `3`, and one already accepted exits `4`; neither starts anything (§4.1). A cancelled run exits `0` — it did what was asked.
     *   **ExifTool startup check:** Before touching the database or source/dest paths at all, the engine verifies both the `exiftool` binary and the `PyExifTool` package are available and exits immediately with a clear fatal error if either is missing (§3.3) — tested with the binary hidden from `PATH`: it fails cleanly and creates no directories or database files.
@@ -259,7 +277,7 @@ catalogue, not the tree, so relocating them is a separate action.
     and records a detected overlap as a failed backup. Two separate network mounts of
     one export look like different storage and are not detected, which is why the
     host-directory requirement stays documented. Separate physical disks are not required.
-*   **Database:** **SQLite**, opened in WAL mode with a 5-second busy timeout for safe concurrent access between the writer thread and any read-only inspection. **Two synchronous levels, deliberately.** The scan path runs `synchronous=NORMAL`: it survives process death — `SIGKILL`, OOM-kill, a `docker stop` timing out — but not a power cut, and it is ~4.4x faster when committing scan results a hundred rows at a time. The Move/Copy loop opens its connection at `FULL` instead, because it commits `status = Processing` with `dest_path` *before* unlinking a source and reconciliation finds interrupted work by that marker alone; losing it to a power cut leaves a successfully delivered photo recorded `Failed`. `FULL` costs 1.42x on that path, where several fsyncs per file are already being paid, so the guarantee is bought where it matters and declined where it is expensive. The audit rows that loop writes are fsynced with it. **Every run then settles at `FULL`** (`finish_run`), and in WAL mode that one commit fsyncs the whole WAL, so the scan path's `NORMAL` commits become durable too once the run settles. That costs one fsync per run, not per batch; a run killed before settling keeps the `NORMAL` exposure for its last batch (`TODO.md` claim 12). Backup attempts record their outcome at `FULL` as well.
+*   **Database:** **SQLite**, opened in WAL mode with a 5-second busy timeout for safe concurrent access between the writer thread and any read-only inspection. **Two synchronous levels, deliberately.** The scan path runs `synchronous=NORMAL`: it survives process death — `SIGKILL`, OOM-kill, a `docker stop` timing out — but not a power cut, and it is ~4.4x faster when committing scan results a hundred rows at a time. The Move/Copy loop opens its connection at `FULL` instead, because it commits `status = Processing` with `dest_path` *before* unlinking a source and ordinary transfer reconciliation finds interrupted work by that marker; confirmed edited-source cleanup journals its own intent/verification at FULL while the photo stays organized; losing it to a power cut leaves a successfully delivered photo recorded `Failed`. `FULL` costs 1.42x on that path, where several fsyncs per file are already being paid, so the guarantee is bought where it matters and declined where it is expensive. The audit rows that loop writes are fsynced with it. **Every run then settles at `FULL`** (`finish_run`), and in WAL mode that one commit fsyncs the whole WAL, so the scan path's `NORMAL` commits become durable too once the run settles. That costs one fsync per run, not per batch; a run killed before settling keeps the `NORMAL` exposure for its last batch (`TODO.md` claim 12). Backup attempts record their outcome at `FULL` as well.
 
     **Startup reconciliation commits at `FULL` too** (`TODO.md` claim 13): its evidence and attention records are conclusions from observations that may not be repeatable — storage disappears and files are replaced between runs — so losing one would discard the only record that an outcome could not be established.
 
@@ -323,7 +341,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 22 and refuses incompatible catalogs before processing.
+initializes schema version 26 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -529,6 +547,63 @@ CREATE TABLE file_observations (
     error_message TEXT
 );
 
+-- Immutable read-only observations, not active metadata or transfer instructions.
+CREATE TABLE metadata_captures (
+    capture_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER NOT NULL REFERENCES runs(id),
+    file_id INTEGER NOT NULL REFERENCES files(file_id),
+    source_relative_path TEXT NOT NULL, catalog_sha1 TEXT,
+    embedded_json TEXT NOT NULL CHECK(json_valid(embedded_json)),
+    report_json TEXT NOT NULL CHECK(json_valid(report_json)),
+    observed_at TEXT NOT NULL, UNIQUE(run_id,file_id)
+);
+CREATE INDEX idx_metadata_file_capture ON metadata_captures(file_id,capture_id);
+
+-- Retained original XMP and independent arrival/participant lineage. Immutable.
+-- Incoming choices preserve alternatives; saving a choice alone does not activate it.
+CREATE TABLE metadata_decisions (
+    decision_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL CHECK(kind IN ('association','primary','incoming')),
+    scope TEXT NOT NULL,
+    capture_id INTEGER NOT NULL REFERENCES metadata_captures(capture_id),
+    request_id TEXT NOT NULL UNIQUE,
+    request_json TEXT NOT NULL CHECK(json_valid(request_json)),
+    value_json TEXT NOT NULL CHECK(json_valid(value_json)),
+    created_at TEXT NOT NULL
+);
+CREATE INDEX idx_metadata_decision_scope ON metadata_decisions(kind,scope,decision_id);
+
+CREATE TABLE xmp_versions (
+    version_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sha256 TEXT NOT NULL UNIQUE CHECK(length(sha256)=64),
+    encoding TEXT NOT NULL CHECK(encoding IN ('raw','zstd')),
+    original_size INTEGER NOT NULL CHECK(original_size BETWEEN 1 AND 8388608),
+    payload BLOB NOT NULL CHECK(typeof(payload)='blob' AND length(payload)<=original_size),
+    validation_state TEXT NOT NULL CHECK(validation_state IN ('valid','needs_attention')),
+    validation_code TEXT NOT NULL, reader_version INTEGER NOT NULL CHECK(reader_version>0),
+    fields_json TEXT CHECK(fields_json IS NULL OR json_valid(fields_json)),
+    tags_json TEXT NOT NULL CHECK(json_valid(tags_json)),
+    CHECK((validation_state='valid')=(fields_json IS NOT NULL)),
+    CHECK(encoding!='raw' OR length(payload)=original_size));
+
+CREATE TABLE xmp_arrivals (
+    arrival_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    version_id INTEGER NOT NULL REFERENCES xmp_versions(version_id),
+    run_id INTEGER NOT NULL REFERENCES runs(id),
+    source_relative_path TEXT NOT NULL, observed_at TEXT NOT NULL,
+    UNIQUE(run_id,source_relative_path));
+
+CREATE INDEX idx_xmp_arrivals_version ON xmp_arrivals(version_id,arrival_id);
+
+CREATE TABLE xmp_arrival_files (
+    arrival_id INTEGER NOT NULL REFERENCES xmp_arrivals(arrival_id),
+    file_id INTEGER NOT NULL REFERENCES files(file_id),
+    role TEXT NOT NULL CHECK(role IN ('candidate','owner')),
+    basis TEXT NOT NULL CHECK(basis IN ('unresolved','full_name','declared_owner','single','policy','confirmed')),
+    PRIMARY KEY(arrival_id,file_id), CHECK((role='candidate')=(basis='unresolved')));
+
+CREATE INDEX idx_xmp_file_arrivals ON xmp_arrival_files(file_id,arrival_id);
+
 -- Participants in one operation, by role. Connects copies and duplicate
 -- removals without merging their histories.
 CREATE TABLE operation_files (
@@ -690,7 +765,7 @@ CREATE TABLE run_discovery (
 -- total is NULL while unknown (discovery). done is the sum of counts_json.
 CREATE TABLE run_progress (
     run_id INTEGER NOT NULL REFERENCES runs(id),
-    phase TEXT NOT NULL CHECK(phase IN ('discovering','scanning','transferring',
+    phase TEXT NOT NULL CHECK(phase IN ('discovering','scanning','metadata','transferring',
                                         'removing_duplicates','rebuilding_thumbnails',
                                         'checking_destination','matching')),
     seq INTEGER NOT NULL, total INTEGER CHECK(total IS NULL OR total >= 0),
@@ -721,7 +796,10 @@ CREATE TABLE backup_attempts (
     related_run_id INTEGER REFERENCES runs(id),
     started_at TEXT NOT NULL, ended_at TEXT,
     outcome TEXT CHECK(outcome IN ('succeeded','failed','interrupted')),
-    error_category TEXT, error_detail TEXT
+    error_category TEXT, error_detail TEXT,
+    xmp_arrival_highwater INTEGER NOT NULL DEFAULT 0 CHECK(xmp_arrival_highwater>=0),
+    metadata_capture_highwater INTEGER NOT NULL DEFAULT 0 CHECK(metadata_capture_highwater>=0),
+    metadata_decision_highwater INTEGER NOT NULL DEFAULT 0 CHECK(metadata_decision_highwater>=0)
 );
 
 -- 'pruned': retention removed the file. 'missing': gone for a reason the
@@ -763,7 +841,7 @@ Explicit initialization is available before Index. Settings saves use narrowly s
 
 ```sql
 CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days','small_image_min','suspicious_min_year')),
+    key TEXT PRIMARY KEY CHECK(key IN ('workers','exts','backup_retention','rejects_reminder_bytes','rejects_reminder_days','small_image_min','suspicious_min_year','xmp_association','metadata_write_raw','metadata_write_non_raw')),
     value_json TEXT NOT NULL,
     revision INTEGER NOT NULL CHECK(revision > 0),
     updated_at TEXT NOT NULL
@@ -807,7 +885,7 @@ CREATE INDEX idx_review_photo ON review_events(photo_id, reason, id);
 *   **Single-Instance Guarantee (across runs):** At most one engine process may run at a time, enforced by the OS-level lock in §4.1 — this is what makes the "Thread Safety" guarantee below hold once the web UI can trigger the engine from several places. Without it, two processes (each thread-safe internally) could race at the filesystem and database level, for example both resolving the same free destination name, or both reconciling the same interrupted row. The lock makes the "two processes at once" precondition impossible rather than trying to make each race safe.
 *   **Thread Safety:** Index results are written by one dedicated consumer thread; scoped settings writes may use separate connections with SQLite serializing transactions; all other work happens in separate processes that communicate results back through an in-memory queue, never by opening the database themselves.
 *   **Durability:** The engine can recover from both a graceful interruption and a hard crash — orphaned partial files are cleaned up, interrupted `Processing` file-records are reconciled to their correct state, and run-records left in an active state are marked `Interrupted`, all on the next startup.
-*   **Safety:** No file is deleted from source until a byte-for-byte verified copy exists at the destination. This holds for both direct moves and duplicate-source cleanup, and is never bypassed by cancellation — a cancelled run simply stops starting new work, it never skips verification on work already in flight.
+*   **Safety:** Normal Move and duplicate-source cleanup require a byte-for-byte verified destination copy before source deletion. The deliberate post-edit exception requires one explicit Move-job confirmation, both live hashes, verified image-preserving edit history, retained original metadata/sidecars and a verified catalog backup (`xmp-metadata.md`, Source cleanup after embedded edits). It keeps the edited version and does not promise exact original photo bytes. Cancellation never bypasses verification; startup observation never starts this cleanup.
 *   **Nothing at the destination changes on the engine's own initiative.** Every modification or removal of an existing file under `--dest` is the direct result of the user explicitly requesting that specific change. This has two layers, and both matter:
     *   **Automatic operations only add.** Index, Copy and Move never modify or remove a file that already exists at the destination. A bug in those paths can at worst leave a redundant file, never destroy one — which is why `--copy` is trivially safe and why a failed move leaves the source intact.
     *   **User-initiated changes are recorded.** Curation (§9) does modify the destination: a rename records both the old and new path; a superseded file is deleted, with an operation recording its path, size, hash and the reason. Deletion is never a side effect — it follows an explicit per-file choice, and a bulk selection must state its count and be confirmed first. By the time curation happens the sources are typically gone, so a destination file may be the only copy in existence: the guarantee here is a complete record of what was removed and why, not the ability to undo it. A user who wants the stronger guarantee keeps the source and mounts it `:ro`.
@@ -1162,6 +1240,13 @@ recorded, and the file is renamed without overwriting to the same folders under
 directory entries made durable; one commit then points every row naming the old path
 at the new one and sets `Rejected`, or `Rejected_Copied` when the source is still in
 place. Recovery settles an interrupted reject from what is on disk, as for a rename.
+A recorded XMP follows the photo using `<full-photo-filename>.xmp` for Rename, Reject
+and Return. Both new members verify and become durable before either old name is
+retired. Hard links avoid copying unchanged bytes where supported; otherwise stage and
+verify copies with no-replace publication. A missing/unverified recorded XMP, unknown
+sidecar ownership or orphan target XMP refuses the relocation. Partial publication
+retains an issue and the recorded target for explicit retry; no new suffix is invented.
+The retained photo identity and sidecar version remain linked through relocation history.
 `--return-to-library` does the reverse for photos in Rejects, into the date folder their
 EXIF implies, restoring the status they had (`Copied` while the source is still there).
 
@@ -1188,6 +1273,17 @@ review, §9.8). The screens are `webui-spec.md` §7.8.
 
 ### 9.6. Writing Metadata Into Files
 
+
+The metadata decision foundation (`metadata_decisions`, schema 25) records explicit,
+version-bound association and primary choices without editing files or changing filing
+metadata. It uses consistent previews, stale-evidence checks and idempotent confirmation;
+active jobs refuse new confirmations. XMP settings and the decision high-water mark are
+frozen at job acceptance. Index and transfer preflight preserve decisions separately from
+new observations. Resolved single-/multiple-sidecar first imports are integrated into normal Copy/Move;
+unresolved ownership/version and duplicate cases stay at source with a Skipped explanation.
+Decision routes and UI are pending; see `docs/xmp-metadata.md` for the precise implementation boundary.
+
+
 Correcting or merging EXIF — persisting a good copy's date onto the survivor, or
 filling in a date a file never had. This is the only capability that mutates
 file *contents*, and the scope boundary in `project-spec.md` §1 is what makes it
@@ -1200,8 +1296,57 @@ sees.
 answer to "can `Orientation` be written here safely", which the rest of this
 capability needs anyway; a format without one is refused, not re-encoded.
 
+**Photo/XMP transfer (resolved first-import jobs built):** `metadata_transfer`
+records durable pair intent, verifies both destination members before Move cleanup,
+preserves shared source XMP until the other owners have verified delivery receipts,
+and handles explicit retry and pair-aware read-only recovery. Multiple associated
+sidecars retain all exact originals: full-name or explicit priority selects the one
+published packet, while alternatives remain in catalog lineage. Every archived version
+verifies before source cleanup; shared ownership persists across partial jobs and
+interrupted alternative cleanup requires explicit retry. Ordinary filename
+collisions suffix both names; orphan/differing destination XMP requires attention.
+Recorded pairs follow Rename/Reject/Return through `metadata_relocate`. `metadata_import`
+connects normal Copy/Move, sidecar space estimates and per-photo cancellation. The selected
+capture date determines filing; blank/partial dates use the original Undated year. Initial
+primary/ownership and filing metadata commit only with verified pair completion. Explicit
+same-mode retries reuse recorded intent. Reindex preserves established filing/current
+names. Incoming duplicate alternatives now have verified preservation and explicit
+choices, without implicitly changing primary/location. Confirmed choices now execute
+through metadata jobs: primary selection and Return are independent, activation/filing
+are verified, and immutable applied receipts authorize separately verified Copy/Move
+source handling. Unfinished choices remain held; no source is removed by applying metadata.
+Photo-only imports apply embedded-XMP/EXIF
+read priority only after verified delivery. The engine CLI can deliberately activate an
+existing embedded source without rewriting tags; inactive sidecars follow any date move
+unchanged. Verified Library XMP activation and qualified JPEG editing are also connected;
+non-JPEG embedded editing and the decision/edit UI remain unfinished;
+see [xmp-metadata.md](xmp-metadata.md) for the implementation boundary.
+
+**Field-scoped edit planning (built; XMP and qualified JPEG execution connected):** `metadata_edits` previews
+the common XMP field set against captured metadata and the established primary
+(date/orientation, title/caption, keywords, rating, creators/rights and linked GPS).
+Embedded EXIF planning covers representable common fields; writer limits are listed in
+`xmp-metadata.md`.
+New XMP bytes contain only requested fields; unrelated values continue through read
+fallback. Linked EXIF date tags are changed/removed together; Orientation alone never
+refiles a photo. Catalog previews bind evidence/settings and show proposed filing paths.
+The preservation-aware XMP writer constructs and validates changed packet bytes while
+retaining unknown properties. `metadata_save` connects verified XMP staging/publication,
+pre-action backups, active sources, edit history, date refiling and recovery. The JSON
+`--metadata` CLI exposes preview/apply/retry/discard, with request replay protection and
+job-frozen preferences. It supports base-version composition with explicit whole-field
+overrides and donor provenance, individual field copying, and separate retained-XMP
+activation. Explicit `remove_fields` removes mapped values independently of `changes`,
+with read-back verification and date refiling. Embedded writing is limited to qualified
+JPEG; other supported formats can use XMP sidecars by deliberate primary choice.
+Absent base fields stay unchanged; explicit empty values remain empty where representable.
+Qualified JPEG publication uses
+`metadata_photo_save`; other photo formats and web edit routes remain unfinished. See `xmp-metadata.md` for supported/refused cases and `tests/README.md` for
+request examples.
+
 **Write changes back to the metadata source.** Embedded metadata is updated inside
-the delivered photo, or in its XMP sidecar where the settings say so (below). Manually
+the delivered photo, or in its established primary XMP sidecar. Settings supply the
+default when no write target is established (below). Manually
 entered values go to the same place. Retained source originals are not edited. A format
 that cannot take the chosen method fails explicitly: never a silent fallback to the other
 method, and never a correction stored only in the catalog.
@@ -1213,6 +1358,13 @@ the file** as the opt-in that brings the RAW consent and warnings; **other forma
 (JPEG, HEIC, TIFF…) default to **In the file**, with **XMP sidecar** as the option. A
 sidecar leaves the photo's bytes unchanged, so its SHA-1, duplicates and lineage stay put.
 
+**Established primary overrides those defaults (planned).** Edits target only the
+photo's established primary source, including fields currently displayed via fallback.
+Changing primary is a separate explicit action with a preview of values, refiling and
+future edit target, followed by confirmation. Viewing tabs or changing format defaults
+never changes primary. Copying values between sources remains a separate future action.
+The format's default determines the write target when none has been established.
+
 *   **Naming:** the full filename plus `.xmp` (`IMG_0001.CR2.xmp`). Immich reads this form
     first and darktable writes it, and a RAW and its JPEG never share a note; Lightroom
     reads only `IMG_0001.xmp`, and has no option until someone needs one.
@@ -1221,36 +1373,56 @@ sidecar leaves the photo's bytes unchanged, so its SHA-1, duplicates and lineage
     says why.
 *   **An existing sidecar is kept and added to:** it travels with the photo, renamed to the
     full-name form; an edit changes only the edited fields. With both `IMG_0001.xmp` and
-    `IMG_0001.CR2.xmp`, the full-name one wins.
+    `IMG_0001.CR2.xmp`, the full-name one wins for a new photo; retain other associated
+    versions. Existing photos keep their established primary.
 *   **Sidecars are part of the lineage:** each change records the fields before and after;
     the sidecar as it first arrived is kept byte for byte in the catalog before the first
     change, so fields NegativeSpace does not understand survive; its SHA-1 at each step
     shows any outside change. The way back is a new recorded edit, or **Restore the
     original sidecar**, itself a recorded step (with no sidecar at first, it removes the
     one NegativeSpace made).
-*   **A short-named sidecar that could belong to several photos** (`IMG_0001.xmp` beside
-    `IMG_0001.jpg` and `IMG_0001.dng`) is never guessed: one photo of that name, or one the
-    note names inside (Adobe records `crs:RawFileName`), takes it; otherwise the user
-    chooses in Needs review, the answer is recorded and the note renamed to the full-name
-    form. Until then nothing happens to the note or to any photo it could belong to: the
-    job lists them skipped, waiting for the answer, and Index reports how many.
+*   **Ambiguous short-named sidecars** use the association policy in
+    [xmp-metadata.md](xmp-metadata.md): Ask me (default), RAW only, non-RAW only,
+    or all matching photos. Explicit associations take precedence. Unresolved cases
+    remain in Not organized as Metadata choice needed, with affected pairs skipped
+    by Copy/Move. They are not Library Needs review items.
 *   **Existing sidecars are read at Index, always** (decided 2026-10-05; no setting). A
     sidecar holds what someone deliberately corrected (a date, a caption, a rating), and
-    reading it changes nothing on disk. Today an `.xmp` beside a photo is neither read nor
-    carried by Copy and Move, so edits made in another tool stay behind in the source.
-*   **The sidecar wins, field by field** (decided 2026-10-05; no setting): where a sidecar
-    and the embedded EXIF disagree, the sidecar's value is used, as Lightroom, darktable
-    and Immich do, since it records the later correction; a field only the EXIF holds
-    comes from the EXIF. Both values are kept, and every displayed value names its source
-    (`webui-spec.md` §7.5). *Why no priority setting:* few could set it correctly without
-    knowing which tool wrote what, and changing it would silently refile photos.
-*   **Still to settle when building:** read-back verification of a sidecar write, as for
-    in-file writes.
+    reading it changes nothing on disk. Index now captures associated sidecars and
+    qualified embedded metadata as separate observations. Proposed priority is recorded
+    without changing live filing dates at Index. Resolved first-import Copy/Move
+    verifies the pair before activating its selected date; unresolved cases remain held.
+*   **Default read priority (filing active for photo-only and resolved first imports):** selected valid associated XMP sidecar, then
+    XMP embedded in the photo, then embedded EXIF. Apply per field only when no established
+    or deliberate source choice overrides the default. Explicitly empty values stay
+    empty; only absent fields fall through, and a partial date is still present.
+    Preserve all source snapshots and exact field origins. Invalid/unresolved sources
+    follow attention/decision rules, not silent fallback. Viewing a source tab, changing
+    Settings or a later arrival never silently replaces an established primary.
+    Read priority is separate from write-target defaults and embedded RAW consent.
+    [xmp-metadata.md](xmp-metadata.md) defines version conflicts, shared associations,
+    malformed sidecars and the pending UI contract. Its pure resolution helper is
+    built along with three-source observations and saved explicit ownership/primary
+    decisions. Resolved first-import Copy/Move now activates the filing date only after
+    verified transfer; other canonical values/origins remain in the activation receipt.
+    Embedded-source activation and qualified JPEG/XMP editing use the engine CLI.
+    Decision routes and source tabs remain pending.
+*   **Original XMP storage (capture and resolved first-import jobs connected):** exact originals
+    are catalog BLOBs, Zstandard level 1 only when smaller, with original size/SHA-256
+    and encoding. Arrivals/participants are separate immutable records. Retention reparses
+    bytes, rejects unrelated/oversized inputs and requires a FULL transaction; damaged
+    bounded captures remain attention-only, with no effective fields. Backups validate
+    every retained original before publication and record their exact arrival watermark.
+    See [xmp-metadata.md](xmp-metadata.md) for remaining integration and guarantee limits,
+    and [xmp-storage-measurements.md](xmp-storage-measurements.md) for the measurement.
 
-**Verify all requested fields before replacement (planned).** Apply a photo's
+**Verify all requested fields before replacement (qualified JPEG publication built).** Apply a photo's
 requested metadata changes to a temporary working copy and read back every requested
 field, including explicit removals, against the validated intended values. Replace
 the original only after all requested fields and required file-integrity checks pass.
+The JPEG writer and journaled publisher are specified in `xmp-metadata.md`. They update
+retained content identity and caches, preserve source observations, and report exact
+duplicate results without consolidating files.
 If a field fails writing or verification, discard the failed working copy, leave
 the original unchanged and log the per-photo failure with field details. Never
 publish a subset of the requested field changes. Other photos in a batch may succeed.
@@ -1287,6 +1459,21 @@ only the move; the mark stays in the Inspector and log until resolved. An edited
 stays the same photo: the edit is a step in its lineage, its earlier SHA-1 values are
 kept (§10). There is no user-facing undo:
 each file's history holds every previous value, and a correction is a new recorded edit.
+
+**Earlier-state reproduction (engine built); consolidation (planned).** Given a surviving unchanged
+image and complete structured metadata history, reproduce supported recorded source or
+pre-edit metadata as a new confirmed edit, not an undo. This does not promise an identical
+file hash or recovery of unknown/unwritable metadata. `metadata_reproduce` binds a source
+observation or completed pre-edit state to the current photo and primary. XMP removals
+and mapped EXIF removals retain absence; unsupported value representations refuse at
+the agreed release boundary. Different photo hashes require a chain of verified image-preserving writes. Exact photo restoration requires
+an original-file copy; the catalog cannot recreate lost image content. Preserve alternate
+metadata and both origins before any confirmed consolidation of identical image content.
+The definition and verification of metadata-independent equality remain undecided; pHash
+is not such proof. Do not extend whole-file duplicate cleanup to these candidates before
+the coordinated preservation and confirmation workflow exists. The detailed contract,
+edit failure handling and deferred destination scan are in
+[xmp-metadata.md](xmp-metadata.md).
 
 **Catalog backups for edits** are kept apart from job backups (their own retention,
 default 20 each), so a run of single-photo edits never pushes out a job's backup. The
@@ -1390,16 +1577,17 @@ on purpose. Orphan cleanup after an interrupted *edit* waits for edits to exist.
 workflows need the five below as well. None of them is visible as engine work from
 the UI side — each looks like a screen until you ask what it reads from.
 
-| Capability | Needed by | Why it cannot be supported today |
+| Capability | Needed by | Engine/API status |
 | :--- | :--- | :--- |
-| **Refiling after a date change** | Any metadata correction, single or bulk | This is what makes §9.7 enforceable. Within one destination it is an **atomic rename**, not a Copy-Verify-Delete: no bytes move and there is nothing to verify. The engine already computes a file's correct folder, creates date folders durably, and resolves name collisions — what is new is the destination-to-destination move and an operation recording both paths |
-| **Field-level before/after for metadata edits** | Full lineage and informed manual correction | Preserve the original indexed information and each change, linking old/new identities when content hashes change. No user-facing undo; see §10 |
-| **A batch identity** | Bulk metadata apply | So an edit and the refile it triggers read as one action rather than two unrelated ones. `runs.run_id` is the precedent for exactly this grouping |
-| **Pre-action catalog backup** | Before a confirmed EXIF edit | The engine half of backups is built (§4.1): post-job and manual snapshots, retention, availability. Rename (§9.4), Reject and Return (§9.5) take a `pre_action` backup and stop when it fails (`webui-spec.md` §9); EXIF edits must do the same when they exist |
+| **Refiling after a date change** | Any metadata correction, single or bulk | Built for XMP edits using verified pair publication before old-name cleanup. Failed refiling retains the saved metadata and permits move-only retry. Qualified JPEG edits also support recorded refiling; other formats remain unfinished |
+| **Field-level before/after for metadata edits** | Full lineage and informed manual correction | XMP and qualified JPEG operations retain versions, field differences, explicit donor origins and embedded hash/content transitions. No user-facing undo; see §10 |
+| **A batch identity** | Bulk metadata apply | Built for XMP and qualified JPEG through a METADATA run and one operation per photo spanning edit/refile/retry; each outcome remains distinct |
+| **Pre-action catalog backup** | Before a confirmed EXIF edit | Built: XMP/qualified JPEG edit batches and confirmed edited-source cleanup require a verified `pre_action` catalog backup before mutation, as Rename (§9.4), Reject and Return (§9.5) do. A failed backup prevents their file changes (`webui-spec.md` §9) |
 | **Serving a file for download** | Log export; retrieving a backup | **API work rather than engine work**, recorded here because it is the same gap twice and worth building once |
 
-**Two of these want a schema change**: field-level before/after and a batch
-identity.
+XMP and qualified JPEG paths use immutable operation events, retained versions and run
+identities, including verified embedded content transitions; no additional schema change
+is needed for the job-confirmed edited-source cleanup.
 
 ### 9.9. Destination layout
 
@@ -1608,4 +1796,31 @@ photo/review revisions are refused. Small-image eligibility is a query over deli
 content dimensions and `small_image_min` (positive integer pixels, null for off).
 Acknowledgements survive re-indexing unchanged content and rule changes. Review later
 is independently resolved by Done. Review events are included in catalog backups and
-unbacked-change accounting. Development catalogs require schema 22; no migration.
+unbacked-change accounting. Development catalogs require schema 26; no migration.
+
+
+## 11. Explicit uncertain-outcome verification
+
+`--check-issue ISSUE_ID` runs under the engine lock as CHECK, without normal startup
+filesystem reconciliation. It reads only the recorded source/destination pair for an
+open uncertain operation within the configured mounts. It refuses stale content/path
+bindings and unsupported intents; symlinks and non-regular files are not verified copies.
+SHA-1 verification checks file stability, and cancellation leaves the issue open.
+
+One original location verified and destination absent permits a transfer to return to
+Pending (or Duplicate). A verified destination with an absent original is recorded as
+Found_At_Destination, not proof of who removed the original. Both verified transfer copies
+remain intact and the catalog records Copied. Rejected transfers retain their location.
+For Rename/Reject/Return, exactly one verified location permits a catalog-only repair;
+two remaining names are ambiguous and neither is removed, even if hard-linked.
+For recorded photo/XMP relocations, both new members must verify and both old names
+must be absent before Check it now repairs the catalog. Partial pairs and unfinished
+old-name cleanup remain File issues; repeat the original action after restoring access.
+Startup recovery may finish verified old-name cleanup, but never publishes a missing
+member. Ordinary photo-only recovery is not used for pair intents.
+
+The check writes a new operation linked to the uncertain operation. Fresh observations,
+lineage/catalog updates and issue resolution share a FULL-synchronous transaction.
+Original operation events are not rewritten. A failure updates the issue explanation
+and retains its deletion gate; there is no dismiss-without-evidence operation. No schema
+change is needed. Generic destination inventory remains a separate CHECK mode.

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional, Callable, List
 
 from engine.ns_db import PhotoStatus, SUPPORTED_EXTENSIONS
-from engine import constants, destinations, fileinfo, ns_db, runtime, store, targeting, thumbnails
+from engine import attention, constants, destinations, fileinfo, ns_db, reconcile, runtime, store, targeting, thumbnails
 
 
 def _failed_result(file_path_str: str, run_id: int, error_message: str) -> runtime.ProcessingResult:
@@ -409,8 +409,62 @@ def _source_missing(path: str) -> bool:
     return False
 
 
+def _check_missing_copied_source(conn, run_id, photo_id, source, destination, sha1, dest_root):
+    """Observe an externally missing original; never infer that this run moved it."""
+    if runtime.cancel_requested.is_set():
+        return None
+    if attention.for_photo(conn, photo_id):
+        return 'unknown'  # Existing uncertainty uses the explicit Check it now flow.
+    target = Path(destination) if destination else None
+    state, details = 'unestablished', {}
+    try:
+        if (target is not None and dest_root is not None and target.is_absolute()
+                and target.is_relative_to(dest_root) and dest_root.is_dir()
+                and target.resolve().is_relative_to(dest_root.resolve())):
+            state = reconcile._recovery_observe(target)
+            if state == 'present':
+                state, details = reconcile._recovery_verify(
+                    target, sha1, cancelled=runtime.cancel_requested.is_set)
+    except (OSError, RuntimeError) as exc:
+        state, details = 'unreadable', {'error': type(exc).__name__}
+    if runtime.cancel_requested.is_set():
+        return None
+    # The source may have returned while a large destination was being read.
+    if reconcile._recovery_observe(Path(source)) != 'absent':
+        return 'unknown'
+    if state == 'match':
+        destinations.record_found_at_destination(
+            conn, run_id, photo_id, source, target, sha1,
+            note='The original is no longer at its source location (for example, removed '
+                 'or relocated outside NegativeSpace). '
+                 'Its Library copy was verified; nothing was copied or deleted by this job.')
+        return 'ok'
+    message = ('The original is no longer at its source location, and its Library copy '
+               f'could not be verified ({state}). Restore the expected file or reconnect '
+               'its storage, then use Check it now in the photo information or Logs. '
+               'Nothing was moved or deleted.')
+    with ns_db.transaction(conn):
+        op = ns_db.begin_operation(conn, run_id=run_id, photo_id=photo_id,
+            source_path=source, dest_path=destination, kind='copied_source_check',
+            expected={'sha1_hash': sha1})
+        ns_db.record_evidence(conn, operation_id=op, location_role='source',
+            observed_path=source, observation_kind='stat', result='absent')
+        ns_db.record_evidence(conn, operation_id=op, location_role='destination',
+            observed_path=destination, observation_kind='sha1' if details else 'stat',
+            result=state if state in ('absent', 'mismatch') else 'unreadable',
+            details=dict(details, state=state))
+        ns_db.settle_operation(conn, op, status=PhotoStatus.FAILED,
+            step='copied_source_check', outcome='unestablished', error_message=message)
+        file_row = conn.execute('SELECT file_id FROM photo_files WHERE photo_id=?', (photo_id,)).fetchone()
+        ns_db.open_attention_issue(conn, operation_id=op,
+            file_id=file_row[0] if file_row else None,
+            category='unestablished_outcome', summary=message)
+    return 'failed'
+
+
 def mark_vanished_sources(db_path: str, run_id: int, root: Path, discovered: List[str],
-                          dest_root: Optional[Path] = None, confirm_empty: bool = False) -> int:
+                          dest_root: Optional[Path] = None, confirm_empty: bool = False,
+                          check_copied: bool = False) -> int:
     """
     After a full walk of `root`, settles catalogued files that no longer exist.
     Returns how many were marked Failed.
@@ -427,14 +481,17 @@ def mark_vanished_sources(db_path: str, run_id: int, root: Path, discovered: Lis
     is there it is recorded Found_At_Destination instead (see
     record_found_at_destination). That covers a Move whose catalog commits were
     lost, and a row an earlier targeted Index already marked Failed. Duplicates
-    are settled after the rows they may depend on.
+    are settled after the rows they may depend on. With check_copied, a missing
+    Copied original is checked only against its recorded Library path; failures
+    retain its status and open an explicit file issue rather than guessing.
 
     A file counts as gone only when stat() says it does not exist. Anything
     else — a permission error, an I/O fault, an --exts filter that simply did
     not list it — leaves the row alone: unreadable is not absent.
 
     A walk that found NOTHING is not believed while the catalog still holds
-    Pending or Duplicate rows here. An unmounted share leaves exactly that shape
+    Pending, Duplicate or (when requested) Copied rows here. An unmounted share
+    leaves exactly that shape
     — a directory that exists and is empty — and every stat() beneath it then
     says "not found", so the sweep would condemn the entire catalogue under this
     root in one pass. Instead the user is asked: an attention issue says the
@@ -443,13 +500,17 @@ def mark_vanished_sources(db_path: str, run_id: int, root: Path, discovered: Lis
     lets the sweep run. The check lives here rather than at the call site so no
     caller can skip it.
     """
+    # Copied observations are an explicit full-Index task, not transfer accounting.
+    statuses = (PhotoStatus.PENDING, PhotoStatus.DUPLICATE, PhotoStatus.FAILED)
+    if check_copied:
+        statuses += (PhotoStatus.COPIED,)
     seen = set(discovered)
     clause, params = targeting._path_prefix_clause(root)
-    conn = store.get_db_connection(db_path)
+    conn = store.get_db_connection(db_path, synchronous="FULL")
     try:
         rows = conn.execute(
             f"SELECT id, source_path, dest_path, status, sha1_hash, metadata_json FROM photos "
-            f"WHERE status IN ({constants.sql_values((PhotoStatus.PENDING, PhotoStatus.DUPLICATE, PhotoStatus.FAILED))})"
+            f"WHERE status IN ({constants.sql_values(statuses)})"
             + clause,
             params
         ).fetchall()
@@ -466,8 +527,20 @@ def mark_vanished_sources(db_path: str, run_id: int, root: Path, discovered: Lis
         # Photos before duplicates: a duplicate's content may be found through a
         # row this same pass is about to record as found.
         rows.sort(key=lambda r: r[3] == PhotoStatus.DUPLICATE)
+        copied = [r for r in rows if r[3] == PhotoStatus.COPIED and r[1] not in seen and _source_missing(r[1])]
+        if copied:
+            runtime.run_progress.start('checking_destination', len(copied))
+            for row_id, path, dest, status, sha1, metadata_json in copied:
+                result = _check_missing_copied_source(conn, run_id, row_id, path, dest, sha1, dest_root)
+                if result is None:
+                    break
+                runtime.run_progress.add(result)
+                runtime.run_progress.maybe_write_now()
+            runtime.run_progress.write_now()
         gone = []
         for row_id, path, dest, status, sha1, metadata_json in rows:
+            if status == PhotoStatus.COPIED or runtime.cancel_requested.is_set():
+                continue
             if path in seen or not _source_missing(path):
                 continue
             found = None

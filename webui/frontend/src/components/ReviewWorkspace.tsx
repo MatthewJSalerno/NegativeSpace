@@ -1,3 +1,4 @@
+import { FileIssues } from "./FileIssues";
 import { follow } from "../nav";
 import { SimilarityRecovery } from "./SimilarityRecovery";
 import { ReviewPreview, DEFAULT_VIEW, type PreviewView } from "./ReviewPreview";
@@ -74,7 +75,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
     return ()=>{live=false;};
   }, [rejectRun, jobs.last?.id, jobs.active]);
   const changed = (message: string) => {setNotice(message); setRevision(n=>n+1);};
-  const title = filters.reason === "small" ? "Small-image review" : filters.reason === "later" ? "Review later"
+  const title = filters.reason === "issues" ? "File issue review" : filters.reason === "small" ? "Small-image review" : filters.reason === "later" ? "Review later"
     : filters.suspicious ? "Suspicious-date review" : filters.undated ? "Missing-date review" : "Photo review";
   const matchLink = new URLSearchParams(window.location.search);
   matchLink.delete("review_photo");
@@ -90,6 +91,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
     {photo && <div className="review-photos">
       <ReviewPreview prominent label="Photo to review" photo={photo} view={views[photo.id] ?? DEFAULT_VIEW} onChange={v=>setViews(old=>({...old,[photo.id]:v}))} refreshKey={revision}/>
       <aside className="review-decision-panel" aria-label="Review decision">
+        <FileIssues key={photo.id} photoId={photo.id} initialIssues={photo.issues ?? []} onResolved={()=>changed("File issue resolved.")} />
         <ReviewNote key={photo.id} id={photo.id} refreshKey={revision} reason={filters.reason} disabled={!!jobs.active} onBusy={setBusy} onResolved={changed}
           concerns={photo.date_warning ? [{label:"Suspicious date",message:`${photo.date_taken ?? "Unknown date"}. ${photo.date_warning} Date editing is not available yet.`}]
             : !photo.exif_dates?.some(d => d.field === "taken") ? [{label:"No capture date",message:"No date taken is recorded in the photo’s EXIF. Date editing is not available yet."}] : []}

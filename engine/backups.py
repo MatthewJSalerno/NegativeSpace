@@ -11,14 +11,16 @@ from engine import ns_db, runtime, store
 def backup_after_job(db_path: Path, backups_dir: Path, base_dir: Path, run_id: int):
     """One automatic backup after a job that recorded changes, including a failed
     or cancelled one. Skipped and Cancelled rows record that nothing was done, so
-    a job holding only those (a repeated Copy, an unchanged Index) gets none:
-    otherwise every no-op run would push a meaningful backup out of retention.
+    a job holding only those and no new XMP arrivals gets none. New XMP arrivals
+    count even when photo operations were skipped; no-op runs must not push a
+    meaningful backup out of retention.
     A failed backup is reported beside the job's result and never changes it."""
     try:
         with contextlib.closing(store.get_db_connection(str(db_path))) as conn:
             recorded = conn.execute(
                 "SELECT COUNT(*) FROM operations WHERE run_id = ? AND status NOT IN (?, ?)",
                 (run_id, OPERATION_SKIPPED, OPERATION_CANCELLED)).fetchone()[0]
+            recorded += conn.execute("SELECT COUNT(*) FROM xmp_arrivals WHERE run_id=?", (run_id,)).fetchone()[0]
         if not recorded:
             runtime.logger.info("No catalog changes recorded by this run; no backup needed.")
             return

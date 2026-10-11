@@ -391,6 +391,17 @@ saved until **Save and continue** on the last. Saving lands in Not organized, wh
 source** waits, whatever page an earlier session left in the address bar. After
 first run, Settings opens as a window over the current view.
 
+**Planned metadata guidance:** when metadata questions are added, the Files step and
+Settings › Files show the same visible **Which metadata is used?** explanation beside
+association and write preferences. Show the default order: **XMP sidecar** (a separate
+file beside the photo), **Embedded XMP** (inside the photo), then **Embedded EXIF** (inside
+the photo, often written by the camera). Explain that only a missing field falls through;
+an explicitly empty field stays empty, all sources remain inspectable, and deliberate or
+established source choices take precedence. This read priority is separate from where
+future edits are saved. It is guidance, not an extra required setup question or a claim
+that the current Index implements the planned priority. Wording and the engine/UI
+handoff are in [xmp-metadata.md](xmp-metadata.md); use the shared design treatment.
+
 **Startup without a usable catalog:** distinguish a missing database from access
 errors and from an invalid or corrupt database. Do not silently replace an existing
 database or interpret a storage error as a fresh installation. If no database is
@@ -424,6 +435,13 @@ settings while a job is active; saved values apply only to jobs started after th
 save. Each job retains its starting configuration, available in its job details.
 Display a persistent notice in the job settings section, near Save:
 **“Changes apply to future jobs. Active jobs will continue with their existing settings.”**
+**Planned prominence improvement:** opening Settings while a job runs also shows an
+informational notice near the top, outside the tab panels: **“A job is running.
+Processing changes you save now will apply to future jobs, not this one.”** Keep this
+notice visible across tabs and update it in place when job state changes. Use the shared
+stable-content pattern to avoid moving the controls while the user edits. Appearance
+and review-reminder preferences still apply immediately; this notice concerns engine
+processing. The existing generic near-Save notice and save confirmation remain.
 Repeat that clarification in the save confirmation when a job is active. Do not
 require cancelling a job to save settings. Saves go through `ns_db.save_settings`,
 which checks revisions and waits a bounded time for the writer (§6.1).
@@ -1506,7 +1524,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 22 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 25 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -1960,6 +1978,19 @@ and remain recognizable by content. Detected destination mismatches follow §7.6
 
 ### 7.5 Editing metadata
 
+**Field scope (agreed; editing UI pending):** Save changes only explicitly selected
+fields and their required companions. The editor shows the primary source's own values,
+not effective fallback values: an absent XMP date stays absent unless the user explicitly
+types or copies a value. Distinguish Not set from Explicitly cleared; an explicit clear
+suppresses fallback and previews Undated filing. Prefill an existing complete Date taken value, including
+recorded fraction/offset, so changing its calendar portion does not silently drop other
+components. Show deliberate removals in the preview. First XMP creation defaults for RAW
+and contains only changed fields; no sidecar is created merely by Index. Other fields
+continue to read from the embedded sources. Establish primary only after verified Save.
+The engine has verified sidecar publication/refiling and an embedded JPEG working-copy
+writer. Embedded publication/recovery and this screen remain unimplemented. Never expose
+a functioning Save from a preview or a working-copy writer alone.
+
 **Planned, not implemented.** This section specifies the shared editor and its
 write behavior. Temporary comparison rotation is implemented separately below.
 
@@ -2090,6 +2121,16 @@ failure leaves the original unchanged and logs the failed fields; do not apply o
 the successful fields of that photo's edit. Other photos in the batch may succeed.
 Retain recovery material until publication and required refiling have completed;
 report any failure at those later stages accurately (§7.1).
+
+**Later Move after editing (planned controls; engine available).** Date correction and
+its Library folder move are one action and one confirmation, leaving the source alone.
+If a later Move includes sources whose organized copies have embedded edits, offer one
+job-level choice: **Include these N originals** or **Leave these originals at source**,
+with an expandable list. State that edited Library versions and original metadata history
+are retained, but exact original photo bytes are not. Other selected photos follow normal
+Move. Do not ask for each photo, and do not offer permanent suppression of this source-
+deletion confirmation. Filename-only changes use ordinary byte verification. Bind the
+choice to the submitted selection/job; no UI implementation is included in this engine work.
 
 **Logs link back to the photo.** An edit's log entry provides **View photo**, opening
 the current photo info panel with its failure details/history and **Edit metadata**
@@ -2223,20 +2264,30 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   app derives the difference from one photo). Time-zone tags are never added or changed;
   the screen says the amount is the user's responsibility. The preview flags photos
   landing in the future.
-* **Displayed details say where they came from, lightly** (decided 2026-10-05): one source
-  line per block of details, such as "Details from: XMP sidecar · file's EXIF" above the
-  photo panel's details or the comparison table, not a label on every field. A value that
-  came from the sidecar rather than the file carries a small **XMP** tag; the value it
-  replaced stays in the photo's history. A date that is a file's modification time is
-  always marked so (§3.1), and suggestions always name their source ("from the filename").
+* **Metadata source tabs (planned):** Used metadata (default), Embedded/EXIF and XMP
+  inside Photo information, with the active preferred source visibly marked Primary.
+  Effective values may mix sources; use restrained source labels and distinguish empty
+  from absent fields. Name XMP sidecar, Embedded XMP and Embedded EXIF explicitly;
+  distinguish embedded sources within the embedded view without merging their evidence.
+  Tab navigation never changes the chosen source. Preserve all original sources,
+  including alternate XMP versions. The full engine/UI handoff and
+  implementation boundary are in [xmp-metadata.md](xmp-metadata.md).
 * **Where edits are saved** (decided 2026-10-02, `engine-spec.md` §9.6): Settings › Files
   sets it for RAW formats (default **XMP sidecar**) and other formats (default **In the
-  file**). RAW photos are therefore editable out of the box, through their sidecars.
+  file**). These defaults apply when no primary write target is established; an existing
+  primary overrides them. A primary change requires an explicit preview and confirmation,
+  including its effect on future edits and any refiling. Tabs do not change it.
   Editing inside a RAW file is opt-in: with it off, choosing it offers **Review and turn on
   RAW editing…**, the consent step with its warnings, returning to the editable form.
-* **A sidecar that could belong to several photos** waits in Needs review (§7.9): "IMG_0001.xmp
-  could belong to IMG_0001.jpg or IMG_0001.dng. Which one?" Until answered, neither the note
-  nor those photos are copied, moved or edited.
+* **Unresolved sidecar association/version choices (planned)** wait in
+  Not organized as Metadata choice needed. Apply the
+  association settings or ask for a recorded choice; show separate source versions
+  without discarding alternatives. Copy/Move skips affected pairs until resolved.
+  Library photos with existing XMP or metadata edits retain differing incoming XMP as alternatives,
+  keep their primary and enter Needs review → Metadata differences after preservation.
+  Rejected matches present metadata and Return/leave-rejected choices together.
+  Setup requires an association preference. See [xmp-metadata.md](xmp-metadata.md)
+  for the case-specific prompts, identical arrivals, orphan and shared sidecars.
 * **An unedited original arriving later** (its bytes match an edited photo's earlier
   SHA-1) is not organized again: it goes to Needs review (§7.9) as "old version of a photo
   you fixed", with **Don't keep it** and **Keep it as its own photo**.
@@ -2583,6 +2634,13 @@ catalog, not a reconstruction of its state at interruption. A failed or incomple
 snapshot must not be offered as a usable backup. Subsequent successful backups can
 resolve the outstanding warning without erasing the historical failure record. The engine supplies this: `ns_db.unbacked_changes` counts the catalog records no successful backup holds, excluding `Skipped` and `Cancelled` rows because they record that nothing was done, and names the runs they came from and the last successful backup's time. Every engine start logs the same warning when that count is above zero. The API reads the function for the Settings warning.
 
+Retained XMP originals and their arrivals are part of the catalog backup (schema 23).
+The backend verifies each original before publishing a backup and tracks the included
+arrival IDs, so a later arrival is not falsely reported as backed up. Retaining metadata
+without a photo operation also qualifies for a post-job backup. Live XMP import and
+metadata restoration screens are still planned; catalog restoration alone does not
+publish sidecars or undo photo changes.
+
 Keep the **latest 20 automatic backups by default**, configurable in Settings.
 Prune the oldest only after a new backup succeeds. Manual backups remain until the
 user removes them directly from the mounted backup storage. Backup deletion controls
@@ -2873,3 +2931,25 @@ It has no candidate thumbnail list or separate comparison entry points. Keep the
 current photo, gallery filters and explicit selection; browser Back restores the same
 photo and review queue position. Do not create another match gallery. The Inspector of a failed source file shows its latest recorded failure
 reason directly, a fallback when none was recorded, and the existing failure-log link.
+
+
+## 12. Uncertain-operation checks
+
+Built: open `unestablished_outcome` issues appear in photo information and their original
+Logs operation, including source and rejected records. Library photos also contribute
+to Needs review and its **File issues** filter. The shared panel shows the reason and
+recorded evidence, with **Check it now** launching a scoped, cancellable CHECK job.
+It does not run generic startup file reconciliation or mutate photo files.
+
+A verified check repairs catalog state and clears the issue atomically. Failed checks
+record new evidence and retain the issue with a specific explanation. Original failed
+operation outcomes remain historical; the check has its own linked operation. Busy,
+submission failure, reload and request replay follow existing job controls. A generic
+full destination scan, missing-photo restoration, and automatic conflict cleanup are
+separate features. Checking does not promise to repair the photo or storage.
+
+A full Index can also discover a Copied photo whose original was removed outside the
+app. A verified Library copy remains in Library as Found at destination, with a history
+explanation and no remaining Move eligibility. An unverified copy uses the same File
+issues panel and recovery action. Empty-source confirmation still applies; the app does
+not assume that an empty mount means its originals were deliberately deleted.

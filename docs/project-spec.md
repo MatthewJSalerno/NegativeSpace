@@ -137,6 +137,8 @@ Delivered and validated against a real library. In place today:
     backup holds.
 *   Discovery accounting per full Index: files found, eligible and excluded by type.
 *   Removal of thumbnails whose content no catalogued photo holds.
+*   Full Index reconciles externally missing Copied originals against verified Library
+    copies; uncertain copies use the shared file-issue recovery workflow.
 
 Only a usable `DateTimeOriginal` places a photo in the date tree. Anything else
 files under `Undated/<year>/`, the year taken from the source's modification time
@@ -150,16 +152,49 @@ with what it needs:
 | :--- | :--- | :--- |
 | Writing metadata: in the file, or an XMP sidecar (the default for RAW; decided) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
 
+The agreed XMP import/source-precedence contract and the deferred metadata-tab UI are
+tracked in [xmp-metadata.md](xmp-metadata.md). Pure resolution, bounded sidecar reading
+and ownership-planning helpers plus immutable compressed version/arrival storage are
+built. Supported field-value validation and independent ExifTool compatibility tests
+cover the reader; catalog backups verify and retain originals. Index now records qualified
+EXIF/embedded-XMP and sidecar evidence with proposed priority. Schema 25 adds saved
+explicit ownership/primary choices, stale-safe confirmation and frozen XMP preferences.
+Resolved single-/multiple-sidecar first imports now use the selected source for filing through normal
+Copy/Move, with verification before activation and source cleanup. Recorded pairs follow
+Rename/Reject/Return. Reindex preserves established filing and names; unresolved ownership/primary choices remain held. Alternatives stay in exact
+catalog storage and shared-source cleanup requires verified preservation. Incoming duplicate XMP can be preserved
+without replacing current primary/location; deliberate Library XMP and embedded-source
+activation are built. Photo-only filing now applies captured embedded-XMP/EXIF priority
+after verified delivery without rewriting tags or changing write defaults. Common-field
+XMP saves, minimal first-sidecar creation,
+base-version composition with explicit field overrides, individual field copying,
+verified history/recovery and date refiling are built behind a
+bounded JSON engine CLI. Verified JPEG working copies support embedded XMP and
+representable EXIF common fields, with journaled publication/recovery, content/cache
+updates and date refiling. Supported source/pre-edit metadata can be reapplied as a new
+verified operation with historical provenance and explicit XMP absence handling; this
+does not restore exact photo bytes or implement whole-job undo.
+Confirmed incoming XMP/Return choices use verified metadata
+jobs; late sidecars beside an already Copied original use the same decision path. Other
+embedded writer formats are explicitly deferred for this release; JPEG EXIF mapped-field
+removal is qualified, and decision/retry UI remains planned. Copy preserves source originals;
+Move can remove originals whose retained photo was embedded-edited only with one explicit
+confirmation for that job and verified image history, hashes, sidecars and a pre-action
+backup. No exact-original-photo reconstruction is promised. Without that consent, those
+sources stay while the remaining Move work proceeds; see the metadata contract.
+
+Metadata field-level before/after history, a batch job identity and verified pre-action
+catalog backups are built for the qualified engine editing paths; their editing UI
+remains unfinished. The fixed engine closeout is tracked in
+[TODO.md — Dates and metadata](../TODO.md#dates-and-metadata).
+
 Further gaps between the documented web workflows and what the engine can answer
 (`engine-spec.md` §9.8):
 
 | Gap | Blocks |
 | :--- | :--- |
 | Thumbnail cleanup after an interrupted edit (waits on metadata editing) | Cache tidiness after an interrupted edit; nothing user-facing |
-| Refiling after a date change | Any metadata correction; it is what makes the destination contract enforceable |
-| Field-level before/after | Full lineage and informed manual corrections; no undo operations |
-| A batch identity | Bulk apply reading as one action |
-| Pre-action catalog backup for EXIF edits | EXIF edits; rename, reject and return already take one |
+| Refiling for additional embedded formats | XMP and qualified JPEG date refiling are built; other formats remain unfinished |
 | Serving a file for download | Log export and backup retrieval — API work, not engine |
 
 **The destination contract** — every file under `--dest` sits in the folder its
@@ -266,7 +301,7 @@ Specified but not yet on screen:
     engine records per full Index (`webui-spec.md` §5.1).
 *   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built), undated photos as a Needs review reason with suggested dates, and metadata editing (`webui-spec.md` §7.5, with its
     decided details).
-*   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file and uncertain-outcome resolution, and the similar-to-a-reject check
+*   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file resolution, and the similar-to-a-reject check
     (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);
     the export-sidecar notice at Index.
@@ -277,7 +312,7 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 22; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
+at schema version 26; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
 It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its
@@ -285,7 +320,9 @@ identity, and reuse of an existing destination keeps both identities and links t
 source removal. Recovery records durable intent before every mutation and concludes
 from observed evidence, opening an attention issue when an outcome cannot be
 established. Complete lineage for every catalogued file in every settled status is
-enforced by test (`TODO.md` claim 11). Content-version history is not yet built. See
+enforced by test (`TODO.md` claim 11). Qualified JPEG edits record retained content-version
+changes and metadata history; this does not promise restoration of exact earlier photo
+bytes without a file backup. See
 `engine-spec.md` §6.5 and §10.
 
 Library-only review is enforced by the decision API as well as the Inspector. Source
@@ -304,3 +341,9 @@ Settings › Access persist additional allowed hostnames/IPs in application data
 the catalog. Catalog rebuild/restore never resets this policy. Local and deployment
 addresses provide initial access/recovery; this does not add sign-in or configure DNS.
 See `webui-spec.md` §11 for revision checks, current-address confirmation and live enforcement.
+
+
+Uncertain-operation verification is built: the Inspector and Logs expose open issues
+and recorded evidence in every location; active Library issues also enter Needs review.
+Check it now performs a scoped read-only verification and atomic catalog repair without
+moving or deleting photos. Broader destination inventory UI remains planned.

@@ -4,30 +4,29 @@ Open work, open design questions and the durability claims ledger. Designs live 
 `docs/`; features specified but not yet built are listed in
 [project-spec.md](docs/project-spec.md) §4 ("Specified but not yet on screen").
 
-## "Couldn't confirm what happened" issues are invisible and never clear
+Maintenance: update this backlog in the same change that implements and validates work.
+Mark completed scope accurately, split partial engine/API/UI completion, and remove
+duplicate open entries. Keep the component specs and handoff consistent; do not leave
+finished work unchecked or count it again.
 
-- [ ] **Found 2026-10-05; rare, but a dead end.** When recovery cannot establish what
-  happened to a photo (an interrupted or failed Move, Rename, Reject or Return whose files
-  cannot be verified; `engine-spec.md` §4.2 and §9.4), it records the evidence and opens an
-  `unestablished_outcome` attention issue. Three gaps remain:
-  - **Invisible:** the screens show only the empty-source and network-share issues; a
-    per-photo issue appears in no panel, log view or count.
-  - **Never clears once recovery gives up:** an issue resolves only when a later recovery
-    verifies the outcome; one settled as unestablished is never looked at again.
-  - **Silently blocks:** under claim 15 such a library copy never authorizes removing a
-    duplicate's original.
+## Uncertain file outcomes
 
-  Planned fix: a Needs review note, "Couldn't confirm what happened to this photo", held,
-  showing its evidence, with **Check it now**: a destination check of that file whose
-  verified result clears the issue (`docs/webui-spec.md` §7.9).
+- [x] Shared warning/evidence and Check it now in photo information and Logs; active
+  Library issues also appear in Needs review → File issues. A read-only engine check
+  resolves supported outcomes only with fresh verified evidence, preserving original
+  history and the deletion gate while uncertainty remains.
+- [ ] Broader destination inventory UI and external restoration guidance beyond the
+  recorded operation pair remain separate from this scoped verification.
 
 ## Copy, then delete the originals yourself
 
-- [ ] A Copied photo whose original was deleted outside NegativeSpace is not recorded: a
-  full Index checks for missing originals only among photos not yet copied. It should read
-  as normal ("original removed outside NegativeSpace; the copy is in the library"),
-  recorded in the photo's history, never as a failure, and drop out of Move's count and
-  Stats' "A Move would free" (`docs/engine-spec.md` §4.2). Copy-only users depend on it.
+- [x] Full Index detects externally missing originals of Copied Library photos, verifies
+  their recorded destination, and records Found_At_Destination with source presence
+  missing. Verified photos stay in Library and leave Move's eligible count. An empty
+  source still requires confirmation; unverified copies enter File issues with Check
+  it now. Repeat Index does not duplicate observations or retry an open file issue.
+  Duplicate savings recognize observed deliveries; absent duplicate originals no longer
+  contribute to Stats' “A Move would free.” No photo is moved or deleted by this check.
 
 ## Names
 
@@ -56,6 +55,10 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Views
 
+- [ ] Discuss resetting the Inspector to Photo information when clicking a different
+  gallery photo. Decide whether Has similar photos keeps its Similar photos
+  default, and distinguish card clicks from previous/next navigation, which
+  retains the chosen tab. Discussion only; current behavior is unchanged.
 - [ ] Check Library/Jobs/Logs spacing and alignment in a future UI batch; preserve
   the reserved Jobs position so Logs does not shift when Jobs is unavailable.
 - [ ] Refresh user-guide screenshots for the current setup and review workflows.
@@ -109,7 +112,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 ## Needs review
 
 - [x] Earliest expected year in setup and Settings; shared suspicious-date query policy
-  updates counts, filtering and inspection without editing metadata. Schema 22 requires
+  updates counts, filtering and inspection without editing metadata. Schema 25 requires
   a fresh development catalog, following the existing no-migration policy.
 - [x] Responsive Inspector waits behind already-open dialogs during resizing; Settings
   remains usable and retains focus until closed.
@@ -135,8 +138,9 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] The in-tray for Small images and Review later (`docs/webui-spec.md` §7.9).
 - [x] Library-only review decisions, source exclusion from similarity, backend eligibility, separate source
   failure facts, explicit Stats scopes and consistent Job #ID · Action status labels.
-- [ ] Design source-side sidecar/version import decisions separately from the Library
-  review inbox; preserve existing recovery durability gates.
+- [ ] Implement source-side sidecar/version import decisions in Not organized, separately
+  from the Library inbox. The agreed contract is in `docs/xmp-metadata.md`; durable
+  compressed-BLOB storage is built, but import decisions and transfer recovery are not.
 - [ ] Add the remaining Library reasons to the shared inbox/workspace: suspicious dates with acknowledgment;
   No capture date and sidecar/edit reasons with their respective workstreams.
 - [ ] Bulk review answers within one reason. Individual Mark reviewed/Done and the
@@ -165,7 +169,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
   never blocks Copy/Move. Mark reviewed persists per photo/content and does not clear
   other reasons. Existing selection/Reject workflow; no bulk Keep or automatic unticking.
 - [ ] "Which photo is this sidecar for?": a short-named XMP sidecar that could belong to
-  several photos, held with them until the user answers (`docs/engine-spec.md` §9.6).
+  several photos, held in Not organized until association is resolved
+  (`docs/xmp-metadata.md`, `docs/engine-spec.md` §9.6).
 
 ## Similar photos
 
@@ -184,23 +189,153 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Dates and metadata
 
-- [ ] Read XMP sidecars at Index (always on); the sidecar's value wins per field, both
-  kept, each shown with its source; sidecars travel with their photos through Copy, Move,
-  Reject and Return. Today they are neither read nor carried (`docs/engine-spec.md` §9.6).
+The editing priority is accurate dates and reliable organization, not a
+general-purpose EXIF editor. Keep the existing common-field foundation and the agreed
+release limits; do not expand format/tag coverage to close this workstream.
 
-- [ ] Extend date review to malformed/raw EXIF fields, conflicting capture tags,
-  configurable bounds and dismissing known-valid dates if users need these. Current
-  flags inspect only the recorded gallery date.
-- [ ] EXIF editing and copying details between photos, with explicit targets, previews
-  and per-file history (`docs/webui-spec.md` §7.5, `docs/engine-spec.md` §9.6). The
-  reference, donor and targets are distinct roles, never inferred from navigation or
-  checkboxes. Edits go in the file or an XMP sidecar by format (decided 2026-10-02,
-  §9.6): sidecars move with their photos and are part of its lineage.
-- [ ] Saved orientation edits, separate from temporary viewing rotation: one
-  end-of-review decision for photos still rotated, in the comparison and the photo
-  panel, and the selection bar's Rotate… for a selection; no control on thumbnails
-  (`docs/webui-spec.md` §7.5). Built on the verified Orientation write; no save promise
-  before that works.
+### Engine closeout: 7 of 7 complete, 0 feature tasks remaining
+
+This is the authoritative countdown for the current metadata engine work. Keep the task
+numbers fixed, report progress as **Task X of 7**, and disclose any scope change. Tests
+and documentation belong to each task. Final regression/review, commit and push are
+release gates, not additional feature tasks. API/UI work and deferred ideas below are
+outside this countdown; no metadata UI work is authorized yet.
+
+| Task | Status | Remaining scope / completed boundary |
+| --- | --- | --- |
+| 1 of 7 | Complete | Photo-only embedded-XMP/EXIF read priority and deliberate Library embedded-source switching, with verified filing and immutable history. |
+| 2 of 7 | Complete | Resolved multiple-sidecar first imports: full-name or explicit primary, exact alternative retention, ownership records and verified shared-source cleanup/recovery. Unresolved choices remain held. |
+| 3 of 7 | Complete | Confirmed incoming **Use incoming** / **Return to Library** choices execute through verified metadata jobs. Independent metadata/location choices, exact alternatives, late-XMP imports, immutable applied receipts, backup/refiling/retry and separately verified source cleanup are tested. |
+| 4 of 7 | Complete | Compose present supported fields from an immutable base with explicit donor/typed overrides, final-value and per-field provenance previews, unchanged primary target, verified XMP/JPEG saves and retained originals. Missing base fields stay unchanged; explicit empties remain empty. |
+| 5 of 7 | Complete | Reapply supported source/pre-edit effective metadata through a new verified edit, preserving history and distinguishing absence from emptiness. XMP/JPEG EXIF removals, current-primary binding and unchanged-image history checks are tested; no exact photo-byte reconstruction or lost-image recovery promise. |
+| 6 of 7 | Complete | Qualified mapped EXIF removals, preservation/read-back and explicit CLI removal. Agreed release: JPEG embedded writes and XMP sidecars; embedded TIFF/HEIC/RAW deferred. Unrepresentable EXIF values refuse without primary fallback. See the release writer matrix in the metadata contract. |
+| 7 of 7 | Complete | Job-scoped Move consent, read-only affected-file preview, live original/retained hash and image-history proof, sidecar archives/shared owners, pre-action backup and durable cleanup/retry. Nineteen generated-fixture tests pass, including batch consent, unrelated normal transfers, Rename, Rejects and interruption between photo/XMP cleanup. No permanent deletion consent; web prompt remains separate. |
+
+Closeout validation (2026-10-10): 409 metadata regression tests passed; the final
+source-cleanup suite passed all 19 cases. The engine smoke suite passed 154 tests,
+including both public RAW checks, with zero failures/skips. Specification references,
+schema/API documentation and whitespace checks passed. The engine branch is committed
+and pushed in PR #105; passing GitHub CI and merge review remain release gates.
+The API/UI checklist below is separate.
+
+PR #105 follow-up: corrected the web job-identity check to include the engine’s
+edited-source consent field as false. This prevents accepted jobs from appearing
+refused. Request replay and explicit CLI consent remain distinct; no cleanup consent
+is granted by this correction. The original failing browser suite now passes, as do
+117 API/source-cleanup tests and specification/API checks. GitHub CI still gates merge.
+
+**Full user validation is pending the metadata UI.** These automated engine results
+are not acceptance of the future editing experience. Once the API and screens exist,
+validate metadata-source selection, date edits and destination previews, save/recovery
+feedback, and the one-job confirmation for removing edited originals. No metadata UI
+walkthrough is required or possible for this engine-only delivery; GitHub CI and code
+review remain separate merge checks.
+
+For tasks 4–5, donor choice never changes the write target. Logical fields carry their
+related tags together, with no invented or mixed components. See
+[the metadata contract](docs/xmp-metadata.md) for the agreed behavior and limitations.
+
+### Completed engine foundation
+
+These are completed capabilities, not additional open closeout tasks.
+
+- [x] Pure metadata provenance resolver and qualified EXIF/embedded-XMP comparison:
+  separate source snapshots, exact field origins, explicit empty-versus-absent rules,
+  linked date/GPS components and retained unknown evidence. Legacy flat metadata is not
+  used as qualified input; this is not full XMP conformance certification.
+- [x] Bounded RDF/XML reader, complete-folder ownership planning, supported-value
+  validation and independent generated ExifTool compatibility checks. Index captures
+  proposed priority without activating a new primary or changing delivered files.
+- [x] Exact XMP original BLOBs, Zstandard level 1 only when smaller, immutable
+  versions/arrivals/participants, size/hash verification and catalog backup coverage.
+  Parsed-data growth and backup costs were measured at 200,000 unique generated versions;
+  see [xmp-storage-measurements.md](docs/xmp-storage-measurements.md). This metadata-only
+  fixture is not a full-library capacity prediction.
+- [x] Immutable ownership/primary decisions, version-bound previews, stale/replay refusal
+  and backup coverage. Preferences and decision revisions freeze at job acceptance;
+  later Settings changes do not affect the running job.
+- [x] Resolved single-/multiple-sidecar first Copy/Move imports: primary/ownership and selected-date filing activate
+  after pair verification. Shared-owner cleanup, collision/orphan refusal, space estimates,
+  per-photo cancellation, explicit same-mode retry and read-only recovery are tested.
+  Unresolved metadata choices remain at source with a specific explanation.
+  Full-filename priority is applied without discarding alternatives; identical versions
+  reuse a BLOB while retaining distinct arrivals. Shared ownership survives partial
+  Move jobs, but a new file identity at an old source path cannot inherit that ownership.
+  Every original must verify before source cleanup; incomplete cleanup requires explicit retry.
+- [x] Photo-only imports apply embedded XMP before EXIF after verified delivery; automatic
+  read priority does not establish an embedded write primary or override RAW-sidecar defaults.
+  Explicit blank/partial dates stay Undated using the original file year. Reindex preserves
+  established metadata/names; photo-only force Index retains delivery-repair eligibility.
+- [x] Recorded photo/XMP pairs follow Rename, Reject and Return, verifying both new members
+  before retiring old names. Recovery refuses photo-only success. Check it now observes
+  without changing files; fault tests cover history, cancellation and durability barriers.
+- [x] Incoming duplicate XMP alternatives and combined version/location choice records
+  (schema 26). Keep current preserves primary/Rejects location. Copy keeps sources;
+  Move cleanup verifies the retained photo, exact BLOB and shared ownership. Interrupted
+  cleanup is retryable. Confirmed Use incoming/Return choices now apply through verified
+  metadata jobs; sources remain untouched until a separate verified Copy/Move. Failed
+  filing keeps saved metadata and requires explicit Retry; no implicit Return or undo.
+- [x] Common-field plans and preservation-aware XMP saves: date, orientation, title/caption,
+  keywords, rating, creators/rights and linked GPS. Unknown properties and exact originals
+  survive; first XMP contains only requested fields. No fallback autofill or implicit
+  primary change. True no-ops preserve bytes.
+- [x] Bounded metadata JSON CLI with preview/apply/retry/discard, a job identity and
+  per-photo outcomes, one verified pre-action backup per prepared batch, immutable
+  before/after history and field donor provenance. Unchanged unsaved edits can be discarded;
+  saved metadata survives failed refiling, with move-only retry. Unsafe shared storage
+  stops new edits while preserving completed work. No job-level undo.
+- [x] Deliberate Library XMP-version and embedded EXIF/XMP activation, with effective-value
+  and date-filing preview. Embedded-source switching rewrites neither metadata source;
+  inactive sidecars follow unchanged. Copy/Move holds unfinished metadata operations.
+- [x] Qualified JPEG working-copy writer and durable publication/recovery: metadata
+  read-back, protected encoded image/ICC bytes and decoded pixels, bounded tools,
+  permissions and cleanup. Embedded XMP supports the common fields; EXIF refuses
+  unrepresentable values. Source/retained content lineage, SHA/cache updates and date
+  refiling are connected. Reindex preserves edited state and unfinished bindings;
+  old duplicate pointers detach and exact-result duplicates are reported without deletion.
+- [x] Generated JPEG content-fingerprint experiment: 20 tests plus warm-read measurements;
+  see [jpeg-content-hash-experiment.md](docs/jpeg-content-hash-experiment.md).
+  No production image-only hashing or duplicate consolidation is enabled.
+
+### API/UI work — separate, not started in this engine closeout
+
+- [ ] One Move-job confirmation for edited-source originals: affected count/list,
+  **Include these originals** or **Leave these originals at source**; explain that exact
+  original photo bytes are not retained. Bind the displayed selection to the job.
+  No per-photo prompts or permanent consent. Engine preview and confirmed cleanup exist.
+
+- [ ] Retained-source tabs and deliberate association/primary-choice controls, with the
+  same priority explanation in setup and Settings and a clearly marked active source.
+- [ ] Prominent active-job Settings notice (`webui-spec.md` §3); generic future-jobs
+  notice/save confirmation already exist.
+- [ ] Metadata-choice job notices and linked Not organized queue; metadata-difference
+  review for edited Library photos and combined metadata/location choices for rejected
+  matches. Retained alternatives already have engine preservation notices/history.
+- [ ] **Before release: expose pair retry**, with eligible selections/counts, issue details,
+  explicit same-mode retry and browser validation. Engine CLI retries are built.
+- [ ] Source-specific editing and explicit field copying between photos: controls for
+  Clear value, no-ops, previews, batch outcomes and failed-edit abandonment. Engine
+  support exists for qualified writers. Reference, donor and targets remain distinct;
+  selection/navigation never chooses a primary implicitly (`webui-spec.md` §7.5).
+- [ ] Saved orientation controls, separate from temporary viewing rotation: an
+  end-of-review decision in comparison/photo panels and Rotate… for a selection,
+  with no thumbnail control. Qualified engine Orientation writes are built;
+  UI eligibility must respect format/writer limits.
+
+### Deferred work and open discussions
+
+- [ ] Extend date review to malformed/raw EXIF, conflicting capture tags and acknowledgment
+  of known-valid dates if needed. Current flags use the recorded gallery date;
+  the configurable earliest suspicious year is already built.
+- [ ] **Deferred by maintainer:** production metadata-independent image hashing,
+  broader fingerprint formats and image-content duplicate consolidation. Retain the
+  tested JPEG experiment; complete metadata preservation/editing first.
+- [ ] Broader destination inventory/diff/repair (**Check my destination**) remains a
+  separate discussion. Ordinary per-operation collision/write verification is required.
+- [ ] Revisit sidecars edited externally between Index and Copy/Move. For now the user
+  reindexes after an external edit; existing verification/deletion gates still apply.
+- [ ] Legacy IPTC precedence/mappings and additional RDF representations require decisions
+  and fixtures. Preserving extracted evidence does not imply a qualified read/write mapping.
 
 ## Stats
 
@@ -226,19 +361,22 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 | :--- | :--- | :--- | :--- |
 | 1 | A source is deleted only after its copy's **bytes** are fsynced | `engine-spec.md` §4.2, §7 | **Enforced**, tested (`durability barriers precede source deletion`) |
 | 2 | …and after the copy's **own directory entry** is fsynced | `engine-spec.md` §4.2 | **Enforced**, tested |
-| 3 | …and after **every ancestor entry from `--dest` down**, retried until it succeeds | `engine-spec.md` §4.2 | **Enforced at the deletion gate**, for all three deletion callers, tested (`a failed ancestor sync is retried not forgotten`, `the already present deletion establishes the ancestor barrier`, `duplicate cleanup establishes the ancestor barrier`) |
+| 3 | …and after **every ancestor entry from `--dest` down**, retried until it succeeds | `engine-spec.md` §4.2 | **Enforced at the deletion gate**, for all source-deletion callers, tested (`a failed ancestor sync is retried not forgotten`, `the already present deletion establishes the ancestor barrier`, `duplicate cleanup establishes the ancestor barrier`) |
 | 4 | The chain walk never touches anything **above** `--dest` | this file | **Enforced**, tested (`the durability chain never reaches above the destination`) |
 | 5 | The source is unchanged since it was verified | `engine-spec.md` §4.2 | **Enforced**, tested (`a source edited after verification is kept`) |
 | 6 | The copy is a different file from the source | `engine-spec.md` §4.2 | **Enforced**, tested (`a source is never deleted as its own copy`) |
 | 7 | `mtime` is preserved by a copy | `engine-spec.md` §9.2 | **Enforced**, tested (`a delivered copy keeps its source mtime exactly`) — to the nanosecond, for Copy and Move, with undated and dated photos |
 | 8 | The documented repair for a destination file removed outside the engine — re-index with `--force-rehash`, then Copy — actually re-delivers it | `Skipped` reason string, `webui-spec.md` §5.3 | **Enforced**, tested (`the documented recovery redelivers a removed destination file`) |
 | 9 | A filesystem that cannot fsync directories **says so at runtime**, rather than leaving the weaker guarantee to be inferred from this document | `engine-spec.md` §4.2 | **Enforced**, tested (`an unsupported directory fsync is reported once per run`). Once per run, naming the first such directory — once per directory would be a line per date folder. |
-| 10 | The move/copy loop **commits its intent marker at `synchronous=FULL`**, so `status=Processing` with `dest_path` is fsynced before the source is unlinked | `get_db_connection`, `engine-spec.md` §5 | **Enforced**, tested (`the move loop commits at full synchronous`). Scoped to that one connection — the scan path keeps `NORMAL`; measured 1.42x on the move path (+1.9 ms/photo) against the ~4.4x `NORMAL` buys on the scan path. **The claim stops at the fsync:** whether a real power cut preserves it depends on the storage honouring it, which is untested (see the power-loss item below). **If the marker is lost anyway, the next run still records the truth**, tested (`a move whose catalog commits were lost is recorded as found`): a photo or duplicate whose source is gone and whose exact content is on the destination is recorded `Found_At_Destination` from that evidence, never `Failed` and never as an action it did not take. An entirely empty source folder is asked about rather than guessed at (`an empty source asks before anything is recorded`; engine-spec §4.2). |
+| 10 | The move/copy loop **commits its intent at `synchronous=FULL`** before source unlink: ordinary transfers use `status=Processing` with `dest_path`; edited-source cleanup uses its own journal and verification while the photo stays organized | `get_db_connection`, `engine-spec.md` §5 | **Enforced**, tested (`the move loop commits at full synchronous`). Scoped to that one connection — the scan path keeps `NORMAL`; measured 1.42x on the move path (+1.9 ms/photo) against the ~4.4x `NORMAL` buys on the scan path. **The claim stops at the fsync:** whether a real power cut preserves it depends on the storage honouring it, which is untested (see the power-loss item below). **If the marker is lost anyway, the next run still records the truth**, tested (`a move whose catalog commits were lost is recorded as found`): a photo or duplicate whose source is gone and whose exact content is on the destination is recorded `Found_At_Destination` from that evidence, never `Failed` and never as an action it did not take. An entirely empty source folder is asked about rather than guessed at (`an empty source asks before anything is recorded`; engine-spec §4.2). |
 | 11 | **Complete lineage is reconstructable for every catalogued file, in every settled status** — original Index snapshot, current state, creation origin, and every operation it took part in | `webui-spec.md` §6.3, `engine-spec.md` §10 | **Enforced**, tested (`every_catalogued_file_assembles_complete_lineage`). Four catalogs, because one cannot hold every status at rest: a run ending in Move leaves `Completed`/`Failed`/`Removed_Duplicate`; one ending in a targeted Copy leaves `Pending`/`Copied`/`Duplicate`; lost catalog commits leave `Found_At_Destination`; rejecting after a Move and after a Copy, then emptying Rejects, leaves `Rejected`/`Rejected_Copied`/`Rejected_Emptied`. The test asserts the required set is covered, so a NEW status that nothing verifies fails it. The guard also rejects settled source removals still recorded as present and successful transfer intents with no destination participant. Interrupted-Move tests cover verified fresh delivery, reuse of an existing copy, duplicate removal, unverified destinations and atomic rollback of a failed lineage repair. **One documented exception:** a destination the engine found rather than created has no source snapshot, because no Index ever saw it; it is recorded as `observed_destination` with a NULL origin rather than given a fabricated one. Verified against a real-library catalog of 971 identities at 0.02–0.08 ms per history. |
 | 12 | **A settled run's whole history is fsynced when it settles**, including scan results and audit rows the scan path committed at `NORMAL` | `finish_run`, `engine-spec.md` §5 | **Enforced**, tested (`a settled run fsyncs the history its scan committed at normal`). In WAL mode a `FULL` commit fsyncs the WAL file, which covers every earlier `NORMAL` commit in it: one history-settle fsync per run (a dirty count-cache rebuild adds its own commit). **Why not `FULL` on the scan path:** it pays the ~4.4x on every batch to protect rows a re-Index reproduces. Backup attempts record their outcome at `FULL` too. **Scope:** a run killed before it settles is not covered — its last `NORMAL` batch can be lost to a power cut, it is recorded `Interrupted`, and a re-Index reproduces the scan rows; a database writer that misses its 60 s shutdown deadline can commit after the settle. Like claim 10, the claim stops at the fsync. **If a power cut takes a run's scan rows anyway, the next Index re-creates them identically**, tested (`scan rows lost with their commits are recreated by the next index`). |
 | 13 | Startup reconciliation commits at `synchronous=FULL` | `reconcile_interrupted_state` | **Enforced**, tested (`startup reconciliation commits at full synchronous`). Recovery records evidence and attention state — conclusions from observations that may not be repeatable, because storage disappears and files are replaced between runs. A lost repair would discard the only record that an outcome could not be established. It runs once per interrupted row at startup, so the cost is negligible. |
 | 14 | A Move never deletes a source on the strength of an fsync a network share may acknowledge early | `--confirm-network-destination`, `engine-spec.md` §4.1 | **Enforced**, tested (`a move to a network share asks before anything is deleted`, `the destination filesystem is read from the mount table`). A client cannot see how a share is exported — an `async` NFS export acknowledges an `fsync` before the data is on disk — so the engine does not try to. It reads the destination's filesystem type from the mount table and, for a network filesystem, stops a Move before copying or deleting anything: a needs-attention issue recommends Copy (which never deletes, so it is the one way to guarantee no loss) and the user chooses Copy instead, Move anyway after confirming the share is exported `sync`, or neither. Copy is never stopped. **Residual, by the maintainer's decision:** a confirmed Move is only as durable as the share's honesty about `fsync`, and a mount table that cannot be read is treated as local. |
 | 15 | A destination file with an unresolved needs-attention issue never authorizes deleting a duplicate source | `ns_db.paths_needing_attention`, `engine-spec.md` §4.2 | **Enforced**, tested (`a_copy_needing_attention_never_authorizes_removing_a_duplicate`, and the database tests for the lookup). Move's duplicate cleanup drops such copies from its candidates before verifying bytes; with none left the source stays, recorded `Skipped` with the reason, and the next Move after the issue is resolved removes it. A matching SHA-1 alone is not enough, because recovery could not establish what is at that path. |
+| 16 | Retained XMP originals round-trip exactly from an intact catalog or a backup containing them; corrupted payloads are never published as verified backups | `xmp_store`, `docs/xmp-metadata.md` | **Enforced for the storage primitive**, tested (`xmp_store_test.py`): bounded decode, size/hash checks, FULL transaction and rollback, backup restoration/refusal, arrival watermark including a concurrent arrival. Index retention and resolved first-import/transfer paths are connected; user restoration is not built; this is not a photo rollback or hardware-loss guarantee. |
+| 17 | A recorded photo/XMP pair verifies and durably records both new members before source deletion or retiring old destination names; recovery never treats the photo alone as complete | `metadata_transfer`, `metadata_relocate`, `docs/xmp-metadata.md` | **Enforced for the internal transfer and recorded-pair relocation paths**, tested (`metadata_transfer_test.py`, `metadata_relocate_test.py`): publication failures keep originals; partial cleanup is observed/retried; missing members prevent completion; failed directory barriers are repeated; retry preserves history. Mutations removing the pair-evidence gate or the old-directory recovery sync fail the regression tests. Resolved first imports and confirmed incoming primary/Return choices are connected; decision screens and web retry remain unfinished; XMP/qualified JPEG edits are connected. Hardware power loss and dishonest network fsync remain documented limitations. |
+| 18 | A source whose organized photo has embedded edits is retired only under explicit consent for this Move job, with verified image history, current files, retained metadata and pre-action backup | `metadata_source_cleanup`, `docs/xmp-metadata.md` | **Enforced in the engine**, tested (`metadata_source_cleanup_test.py`): 19 generated cases cover consent/replay, live hashes, backup/fsync failure, shared XMP, changed/symlinked files, interruption/retry, Rename and Rejects. This deliberate exception retains an edited photo, not exact original photo bytes. Web confirmation is unfinished. |
 
 ### Outstanding
 
