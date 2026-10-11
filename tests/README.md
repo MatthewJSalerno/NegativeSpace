@@ -616,6 +616,38 @@ seed filling during a build, refusals, and the real engine's Index checked again
 manifest, including that an empty file and a text file named `.jpg` are logged as
 **Not an image** and never filed.
 
+### Metadata scenarios — `make_metadata_scenarios.py`
+
+For testing metadata reading, conflicts and sidecar association against cases a real
+library rarely holds all of. `build` makes `OUT/library/<group>/<case>/`, one folder per
+case, each photo generated with its case name drawn on it:
+
+| Group | Cases |
+| :--- | :--- |
+| `agree` | values only in EXIF, only in embedded XMP, only in a sidecar; all three the same; sources that complement each other |
+| `conflict` | the date in EXIF vs sidecar, EXIF vs embedded XMP, embedded vs sidecar, all three apart; one instant in two time zones; month-only precision; a sidecar clearing a title; keywords, rating, orientation, GPS, camera, caption, title languages and creators that differ |
+| `sidecar_names` | `photo.jpg.xmp`, `photo.xmp`, both disagreeing, `.XMP`, a name differing only in letter case, two photos sharing one stem, a declared owner (`crs:RawFileName`), an owner that is not there, an orphan, a sidecar in a subfolder, and with `--raw-dir` a RAW and JPEG sharing one sidecar |
+| `sidecar_broken` | malformed, empty, binary, unrelated XML, an invalid date, rating and orientation, a repeated field, over the reader's size limit, unreadable, a symlink |
+| `real_world` | forms real tools write: `rdf:about` as a UUID, keywords as `rdf:Seq`, a date only in `photoshop:DateCreated`, Lightroom's hierarchical keywords, UTF-16 and UTF-8 BOM sidecars, titles without `x-default`, a rejected rating (-1), Unicode keywords, IPTC-only keywords, a zeroed EXIF date, `CreateDate` only, a PNG with embedded XMP, a Google Takeout `.json`, an orientation already applied to the pixels |
+
+`OUT/manifest.json` is ground truth: for each photo what was written to each source
+(`exif`, `embedded_xmp`, `iptc`), for each sidecar its values and the photo it was written
+for. It also records **`engine_today`**: what this branch's own XMP reader and association
+planner make of each sidecar (state, code, fields taken, whose it became). That is an
+observation, not an expectation, so a gap shows as a gap; the build's last line counts
+the sidecars the reader took.
+
+```bash
+mkdir -p /photos/demos
+docker run --rm --user "$(id -u):$(id -g)" --entrypoint python3 \
+  -v /photos:/photos -v "$PWD":/app -w /app negativespace \
+  tools/make_metadata_scenarios.py build --out /photos/demos/metadata [--raw-dir /photos/raw] [--replace] [--seed N]
+```
+
+Its test, `make_metadata_scenarios_test.py`, runs in CI: every value in every source of
+every photo is read back with ExifTool, every valid sidecar with a plain XML parser, so
+the manifest can be trusted without trusting the code under test.
+
 ## Large-library performance workstream
 
 Representative capacity work is scoped in
