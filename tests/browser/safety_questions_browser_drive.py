@@ -1,5 +1,6 @@
 """NETWORK_FIXTURE=1 DRIVER=safety_questions_browser_drive.py sh tests/browser/webui_browser_test.sh"""
 import shutil
+import re
 import sys
 import tempfile
 import time
@@ -47,6 +48,10 @@ with sync_playwright() as p:
     original = Path('/src/photo-010.jpg')
     refused = start(mode='move', file_ids=[photo['id']])
     page = open_page()
+    page.get_by_role('button', name=re.compile(r'^Notifications,')).click()
+    expect(page.get_by_role('button', name='Notifications, 0 unread', exact=True)).to_be_visible()
+    page.get_by_role('button', name='Close notifications', exact=True).click()
+    expect(page.get_by_role('region', name='Job needs a decision')).to_be_visible()
     # A question alone, dismissal, or cancellation must not answer/start anything.
     page.get_by_role('button', name='Move anyway…', exact=True).click()
     expect(page.get_by_role('alertdialog')).to_contain_text('synchronously')

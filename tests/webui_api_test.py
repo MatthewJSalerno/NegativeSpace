@@ -709,7 +709,7 @@ class JobsAndCatalog(ApiCase):
                          "Select all cannot keep a selection to one place")
         searched = self.client.get("/api/v1/photos", params={"view": "rejects", "q": "IMG_0002"}).json()
         self.assertEqual((searched["matches"]["rejects"], searched["matches"]["all"], searched["matches"]["undated"]),
-                         (1, 0, 1), "the view buttons' counts do not follow the search")
+                         (1, 0, 1), "the places' counts do not follow the search")
 
         again = self.wait_for(self.start(mode="copy"))
         self.assertEqual(again["outcome"]["skip_reasons"], {"already_rejected": 1},
@@ -931,7 +931,7 @@ class JobsAndCatalog(ApiCase):
         only_2023 = photos(date=["2023"])
         self.assertEqual([i["date_taken"][:7] for i in only_2023["items"]], ["2023-11"])
         self.assertEqual((only_2023["counts"]["all"], only_2023["matches"]["all"]), (2, 1),
-                         "the view buttons count the library; matches follow the filters")
+                         "the places count the library; matches follow the filters")
         self.assertEqual(photos(date=["2020-09", "2023"])["total"], 2, "checked dates add up")
         self.assertEqual(photos(date=["none"])["total"], 0)
         self.assertEqual(self.client.get("/api/v1/photos", params={"date": "June"}).status_code, 400)
@@ -958,7 +958,7 @@ class JobsAndCatalog(ApiCase):
         only_png = self.client.get("/api/v1/photos", params={"type": "png"}).json()
         self.assertEqual([i["filename"] for i in only_png["items"]], ["scan.png"])
         self.assertEqual((only_png["counts"]["all"], only_png["matches"]["all"]), (3, 1),
-                         "the view buttons count the library; matches follow the type filter")
+                         "the places count the library; matches follow the type filter")
         ids = self.client.get("/api/v1/photos/ids", params={"type": "jpg"}).json()
         self.assertEqual(ids["total"], 2, "Select all takes exactly the types shown")
         both = self.client.get("/api/v1/photos", params={"type": ["jpg", "png"], "date": "2023"}).json()
@@ -1011,6 +1011,19 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual(after["My_Photos"]["eligible"], {"copy": 1, "move": 1})
         statuses = {i["filename"]: i["status"] for i in self.client.get("/api/v1/photos", params={"page_size": 60}).json()["items"]}
         self.assertEqual({n for n, st in statuses.items() if st == "Completed"}, {"a.jpg", "b.jpg", "c.jpg"})
+
+        # Source folders: what is waiting, everything still in the source, and every folder
+        # kept listed as photos are organized.
+        self.wait_for(self.start(mode="copy", source_subdir="My_Photos"))
+        self.assertEqual(names(view="source", folder="My_Photos"), ["e.jpg"], "a copied photo's original is still in the source")
+        self.assertEqual(names(view="unorganized", folder="My_Photos"), [], "but it is no longer waiting")
+        self.assertEqual(names(view="source", folder="Phone"), [], "a moved photo has left the source")
+        waiting = {f["path"]: f for f in self.client.get(
+            "/api/v1/photos/folders", params={"view": "unorganized", "every": "true"}).json()["folders"]}
+        self.assertEqual((waiting["Phone"]["photos"], waiting["My_Photos"]["photos"], waiting["MyXPhotos"]["photos"]), (0, 0, 1))
+        self.assertEqual(waiting["My_Photos"]["eligible"], {"copy": 0, "move": 1}, "a Move would remove the original")
+        listed = [f["path"] for f in self.client.get("/api/v1/photos/folders", params={"view": "unorganized"}).json()["folders"]]
+        self.assertNotIn("Phone", listed, "without every, an empty folder drops out")
 
     def test_folder_jobs_preserve_literal_names_and_leave_siblings_untouched(self):
         cases = (("album ", "album"), (" album", "album"), (" ", "neighbor"),
@@ -1254,7 +1267,7 @@ class JobsAndCatalog(ApiCase):
         shown = self.client.get("/api/v1/photos", params=scope).json()
         self.assertEqual(sorted(p["id"] for p in shown["items"]), sorted(chosen), "the job view shows other photos")
         self.assertEqual(shown["total"], len(chosen))
-        self.assertEqual(shown["counts"]["all"], len(listed), "the view buttons count only the job's photos")
+        self.assertEqual(shown["counts"]["all"], len(listed), "the places count only the job's photos")
         self.assertEqual(sorted(self.client.get("/api/v1/photos/ids", params=scope).json()["ids"]), sorted(chosen))
         searched = self.client.get("/api/v1/photos", params={**scope, "q": listed[0]["filename"]}).json()
         self.assertEqual([p["id"] for p in searched["items"]], chosen, "search does not find the job's photo")
@@ -1269,6 +1282,20 @@ class JobsAndCatalog(ApiCase):
         found = self.client.post("/api/v1/photos/position", json={"photo_id": chosen[0], **scope}).json()
         self.assertIsNotNone(found["position"], "a job's photo cannot be located in its view")
         self.assertEqual(self.client.get("/api/v1/photos", params={"view": "job", "run": 0}).status_code, 422)
+        # Old job links follow the catalog identity through later relocations; they
+        # must not retain the original Copy path or exclude photos now in Rejects.
+        before = self.client.get(f"/api/v1/photos/{chosen[0]}/inspect").json()["dest_path"]
+        self.wait_for(self.start(mode="reject", file_ids=chosen))
+        rejected = self.client.get("/api/v1/photos", params=scope).json()
+        self.assertEqual([p["id"] for p in rejected["items"]], chosen)
+        detail = self.client.get(f"/api/v1/photos/{chosen[0]}/inspect").json()
+        self.assertNotEqual(detail["dest_path"], before)
+        self.assertIn("/rejects/", detail["dest_path"])
+        self.wait_for(self.start(mode="return", file_ids=chosen))
+        returned = self.client.get("/api/v1/photos", params=scope).json()
+        self.assertEqual([p["id"] for p in returned["items"]], chosen)
+        self.assertEqual(self.client.get(f"/api/v1/photos/{chosen[0]}/inspect").json()["dest_path"], before)
+
 
     def test_a_selection_reaches_the_engine_in_a_private_file_and_is_kept_with_the_job(self):
         import stat

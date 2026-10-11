@@ -55,9 +55,11 @@ with sync_playwright() as p:
     assert abs(styles[0]['top']-styles[1]['top']) < 1 and abs(styles[0]['height']-styles[1]['height']) < 1
 
     # An Inspector -> Logs -> photo round trip preserves the tab's Library filters.
+    # The search closes the open photo, which it no longer shows; reach its log entry in-app.
     page.get_by_role('searchbox', name='Search filenames').fill('photo-010')
     expect(page.locator('.card')).to_have_count(1)
-    page.get_by_role('link', name='Open in the log', exact=True).click()
+    expect(page.locator('.inspector')).to_have_count(0)
+    page.evaluate("id => { history.pushState(null, '', `/logs?photo=${id}`); dispatchEvent(new PopStateEvent('popstate')); }", target)
     page.get_by_role('link', name='Open the photo', exact=True).click()
     expect(page.get_by_role('searchbox', name='Search filenames')).to_have_value('photo-010')
     expect(page.get_by_role('button', name='Show in gallery', exact=True)).to_be_visible()

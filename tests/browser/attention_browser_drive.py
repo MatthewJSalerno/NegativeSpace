@@ -1,6 +1,7 @@
 """File issue controls against generated photos and an opt-in disposable catalog."""
 import json
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -40,8 +41,16 @@ with sync_playwright() as pw:
     page=browser.new_page(viewport={'width':1440,'height':1000})
     errors=[]; page.on('pageerror',lambda e:errors.append(str(e)))
     page.goto(f'{base}/?view=review&reason=issues')
-    expect(page.get_by_role('button',name='File issues',exact=False)).to_have_attribute('aria-pressed','true')
+    expect(page.get_by_role('button',name=re.compile('^File issues'))).to_have_attribute('aria-pressed','true')
     assert get('photos?view=review&reason=issues')['total']==2
+    sidebar=page.get_by_role('navigation',name='Main',exact=True)
+    sidebar.get_by_role('button',name='Pin File issues',exact=True).click()
+    expect(sidebar.get_by_role('button',name=re.compile('^Small images'))).to_have_attribute('aria-disabled','true')
+    page.reload()
+    expect(sidebar.get_by_role('button',name='Unpin File issues',exact=True)).to_have_attribute('aria-pressed','true')
+    expect(sidebar.get_by_role('button',name=re.compile('^File issues')).locator('.sidebar-count')).to_have_text('2')
+    sidebar.get_by_role('button',name='Clear all filters',exact=True).click()
+    expect(sidebar.get_by_role('button',name='Pin File issues',exact=True)).to_have_attribute('aria-pressed','false')
     page.goto(f'{base}/?view=unorganized&photo={source}')
     panel=page.get_by_role('region',name='File issues',exact=True)
     expect(panel.get_by_role('button',name='Check it now')).to_be_visible()

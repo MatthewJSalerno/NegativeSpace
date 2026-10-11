@@ -415,3 +415,57 @@ Deferred performance work — the unchanged-file check loading every settled row
 Stalled read-only workers now support user-requested cancellation of decoder process
 groups, with a no-progress reminder and Keep waiting. Kernel-blocked storage remains
 an explicit limitation in engine-spec §8; automatic file skipping is not planned.
+
+## Navigation refinement
+
+- [ ] Future UX discussion: the full-screen view opened by clicking the large Inspector
+  preview feels visually cluttered, particularly the photo information displayed with
+  it. Review the photo/metadata layout and shared styling before deciding changes.
+  Discussion only; no redesign approved yet.
+
+- [x] Phase 2 navigation (date scrubber and Source folders): maintainer accepted navigation.
+- [x] Shared notification bell with catalog-backed per-job read state; ordinary completed
+  jobs move out of banners, while active progress and actionable safety warnings remain.
+- [x] Stable selection/action count widths based on catalog capacity, with no selection cap.
+- [x] Automated validation: 155 notification/database/API tests; full browser workflow,
+  notification persistence/retry/geometry, safety decisions, job-refresh requests and
+  both Reject workflows passed. Shared light/dark and narrow-window screenshots inspected;
+  spec/schema/API checks passed. No claim of full UI acceptance from automated checks.
+- [x] Maintainer validated the bell options, new-job updates and stationary selection actions.
+- [x] Maintainer validated the Details disclosure replacing notification hovers that covered links.
+- [x] Final local checks: navigation, preview refresh, mixed/all-failed transfers and
+  stalled-job cancellation passed; oversized notification IDs are rejected before SQLite,
+  and old job-photo links follow subsequent Reject/Return operations. Contract checks passed.
+- [x] Subtle date-scrubber ticks between year labels, preserving year positions and
+  click targets; spacing follows photo counts, not equal time intervals.
+- [x] Maintainer validated date-scrubber ticks.
+- [x] Gallery-card clicks reset the Inspector to Photo information, including in Has
+  similar photos. Explicit match links and Inspector previous/next keep their intended tab.
+  Generated filter-pin and similarity browser suites passed, including tab restoration.
+- [x] Maintainer validated the Inspector tab reset when clicking gallery photos.
+- [x] Inspector tabs use gallery status while details load, preventing the single-tab
+  flash during gallery clicks and Previous/Next navigation. Held-response browser
+  checks verify both labels, selection and widths before details arrive; the full
+  similarity browser flow passes. Maintainer confirmed the tabs look good.
+- [x] Filter pins: click to replace unpinned Look into filters, pin to retain; pins survive
+  refresh in the browser. Clear all filters removes pins. Small images/Review later stay
+  exclusive, with an Unpin explanation. Existing gallery queries supply next-click counts.
+- [x] Final automated validation: 116 API/review tests, focused pin browser flow, full
+  browser/shared UI and review workflows, spec/API/schema checks and light/dark/narrow
+  screenshot review passed. Clear action geometry and source-folder reset are covered.
+- [x] Review later and its count are available in Library and Needs review; the same
+  pin, replacement and reminder-exclusion rules apply in both. Validated with 20
+  API/review tests and the generated-photo browser flow (zero/nonzero counts, filtering,
+  navigation, refresh, pins and desktop reflow).
+- [x] Maintainer validated Review later in Library and Needs review.
+- [x] Maintainer validated filter pins.
+- [x] Move Clear all filters beside Look into, reserve its space, and clear search,
+  folder/date/type restrictions and saved pins while retaining place and selection.
+- [ ] Maintainer visual check of the final Clear all filters placement.
+- [x] Consolidate page-frame/date-scrubber/refinement into the gallery UX PR. Metadata
+  is merged; combined schema 28 preserves metadata tables and notification receipts.
+- [x] Validate the combined metadata/navigation integration locally: 195 database/API
+  tests, six browser workflows, frontend build and spec/API/schema checks passed.
+  File issues uses the sidebar and its pin rules; older schema-26/27 catalogs are
+  refused without modification.
+- [ ] Finish combined GitHub checks and merge the UI PR.

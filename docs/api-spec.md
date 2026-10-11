@@ -166,7 +166,7 @@ browser, so clearing a browser's data or opening another does not bring it back:
 
     {"dismissed_run": 12}
 
-`dismissed_run` is the newest job whose finished banner was dismissed; it covers that job
+`dismissed_run` is the newest job whose safety-decision banner was dismissed; it covers that job
 and every earlier one. A value that is not a recorded run id is `400 invalid_request`.
 Not a setting: settings configure jobs and are copied into each run's configuration.
 
@@ -183,7 +183,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 
 | Parameter | Values | Default |
 | :--- | :--- | :--- |
-| `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed), `similar` (destination photos with visual matches at `match_min` or higher), `suspicious` (recorded date outside review bounds), `rejects` (Rejected, Rejected_Copied, whose file is still in `dest/rejects`) | `all` |
+| `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed), `similar` (destination photos with visual matches at `match_min` or higher), `suspicious` (recorded date outside review bounds), `rejects` (Rejected, Rejected_Copied, whose file is still in `dest/rejects`), `source` (every photo whose original is still in the source: `unorganized` plus Copied and Rejected_Copied, for Source folders) | `all` |
 | `sort` | `newest`, `oldest`, `largest`, `smallest`, `name`, `matches` (`view=similar` only) | `newest` |
 | `match_min` | integer percentage 75–100, applies to similarity membership/counts | 75 |
 | `q` | filename search: current and original names, including removed duplicates' names; never folder names | none |
@@ -217,7 +217,7 @@ whose latest delivery was a Move that could not delete the original, why (a run'
 capture date. `total` is what this request shows, every filter applied. `matches` counts
 each view’s individual photos with every filter applied, even when `group_sets` makes
 `total` count representative sets. `matches.undated` counts this view’s photos with no
-capture date under the other filters: the view buttons show these (`webui-spec.md` §2),
+capture date under the other filters: the sidebar's places show these on the Library (`webui-spec.md` §2),
 and they offer another view when a search finds nothing in this one. The date sorts put undatable rows last.
 
 For `view=similar`, each item includes `similar_count`, and the response includes
@@ -232,6 +232,17 @@ recompute pHashes or pair distances. Counts, items and coverage share one snapsh
 `match_min` also applies to `/photos/timeline`, `/photos/types`, `/photos/folders`,
 `/photos/ids` and the JSON body of `/photos/position`, so facets, selection and
 navigation agree. Invalid query/position percentages return 422.
+
+### `GET /api/v1/photos/places`
+
+The navigation sidebar's counts (`webui-spec.md` §2, the page frame): each place whole,
+before any gallery filter, and each **Look into** filter where its link from Logs or Stats
+opens it: Library with only that filter on, or Needs review for Review later. On the
+Library page the Look into counts come from `chips` and `reasons` instead, for the place
+shown. `match_min` (default 90) sets Has similar photos:
+
+    {"places": {"unorganized": 0, "organized": 4499, "review": 31, "rejects": 4},
+     "look_into": {"similar": 167, "suspicious": 8, "undated": 1356, "small": 9, "later": 3, "issues": 1}}
 
 ### `GET /api/v1/photos/timeline`
 
@@ -265,7 +276,9 @@ disk listing, so every folder offered holds photos a job can act on:
 
 *   **`photos`** counts a folder's photos, subfolders included, for the same `view`, `q`,
     `undated`, `date` and `type`; `folder` does not narrow it, so an unticked folder keeps
-    its count. A folder named in `folder` stays listed at 0, so it can be unticked.
+    its count. A folder named in `folder` stays listed at 0, so it can be unticked; with
+    `every=true`, every catalogued folder stays listed, at 0 where nothing is shown
+    (Source folders).
 *   **`eligible`** is what a Copy or a Move of the folder would take (`--source-subdir`,
     `ns_db.TRANSFER_ELIGIBLE`), whatever the filters: Jobs' "this folder".
 *   **`name`** folds a chain of folders, each holding one folder and no photos of its own,
@@ -949,7 +962,7 @@ set membership. Different neighborhoods with equal counts stay separate.
 
 List `total` and returned IDs/positions describe representatives; per-photo
 `similar_count` still counts direct matches. `counts` remain uncollapsed library photo counts; filter-aware `matches`
-supply the view buttons. Sidebar queries count representatives in their normal filter
+supply the sidebar's places. Filter-panel queries count representatives in their normal filter
 scope. `matches` for other views retains normal photo-filter semantics. No photo,
 EXIF, persisted group, or catalog schema is changed. Without `group_sets`, existing
 API behavior is unchanged.
@@ -992,8 +1005,19 @@ reload before retrying. Success is shown only after acknowledgement.
 Gallery listing, IDs, position, types, folders and timeline accept `similar` and
 `suspicious` booleans and `reason` (all/small/later/issues). These combine with existing
 filters. `view=review` selects distinct active Library photos with an unresolved supported reason. Reminders on source/rejected files do not contribute. History remains readable; new decisions require a delivered active photo.
+`GET /photos` optionally accepts `filter_pins`, a comma-separated subset of similar,
+suspicious, undated, small, later and issues (empty string means no pins). Unknown keys or
+multiple reason pins (small/later/issues) return 400. File issues pins apply only in Needs review. This changes only sidebar counts, not gallery membership:
+an inactive filter's count replaces unpinned Look into conditions, while active counts
+retain the current intersection. Place, search, date, type, folder and run constraints
+remain; pins unavailable in the place do not apply. Omit the parameter for existing
+combining-filter count behavior. No server-side preference or schema change is added.
+
 Listings include `chips` (similar/suspicious/undated/small), `reasons` and filename-only
-`elsewhere` location counts. `reason=small` filters Library as well as the inbox, using
+`elsewhere` location counts. Library and job listings also include `reasons.later`,
+scoped to the current browsing constraints; the inbox includes all reason counts.
+`reason=later` filters Library as well as the inbox to active review reminders.
+`reason=small` filters Library as well as the inbox, using
 unacknowledged destination size reminders; it never restricts imports. Chip counts
 apply the other current filters; the small count evaluates that reminder scope.
 Review and organized/similar cards include compact location and current reason details
@@ -1054,3 +1078,27 @@ These are designed in `webui-spec.md` and will be described here when they exist
 *   The curation actions: rename, the destination check (offered from a lineage
     tree's copy), thumbnail cache controls, and later metadata editing, all of which
     the engine already supports or is specified to (`engine-spec.md` §9).
+
+## Job notifications
+
+### `GET /api/v1/notifications/unread`
+
+Returns `{"unread": 3}`: finished jobs without an individual read marker. This count
+query does not derive detailed outcomes or scan per-photo operation results.
+
+### `GET /api/v1/notifications`
+
+Optional `before` (run ID from 1 through 2^63−1) and `limit` (1–50, default 20) provide descending
+run-ID pagination. Returns `{"items": [{"run": <run response>, "read": false}],
+"next_before": <id or null>}`. Only Completed, Cancelled, Failed and Interrupted jobs
+appear. This read does not acknowledge any notices. Invalid query parameters return 422.
+
+### `PUT /api/v1/notifications/read`
+
+Accepts `{"run_ids": [1, 2]}` (1–100 integer IDs of finished jobs, each from 1 through 2^63−1), returns
+`{"read_ids": [1, 2]}`. Writes independent `read_notification:<id>` keys in `ui_state`;
+replays are idempotent and concurrent browsers add rather than replace acknowledgments.
+The whole batch is refused for invalid/unknown/active jobs (`400 invalid_request`).
+A write blocked by catalog availability returns `503 catalog_busy`. This changes no
+job outcome, safety decision, file issue, file or selection. Counts decrease only after
+acknowledgment; clients must not mark unseen older entries read.

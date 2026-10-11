@@ -9,6 +9,7 @@ import sys
 import time
 from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
+from ui_browser_checks import finished_notice, close_notifications
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
@@ -46,9 +47,9 @@ with sync_playwright() as p:
         # Move's good photo is copied-only because this harness mounts source :ro.
         page = browser.new_page(viewport={'width':1400, 'height':900})
         page.goto(sys.argv[1])
-        banner = page.locator('.finished-banner')
-        expect(banner).to_contain_text(f"{outcome['failed']} failed")
-        expect(banner).to_contain_text("finished, nothing succeeded" if all_failed else "finished with failures")
+        banner = page.locator('.notification-item').first
+        expect(finished_notice(page)).to_contain_text(f"{outcome['failed']} failed")
+        expect(finished_notice(page)).to_contain_text("finished, nothing succeeded" if all_failed else "finished with failures")
         link = banner.get_by_role('link', name='View failures', exact=True)
         expect(link).to_be_visible()
         link.click()

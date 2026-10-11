@@ -133,7 +133,7 @@ volumes:
 Save it in `docker/`, beside the Dockerfiles. The shipped
 [`docker/compose.yml`](docker/compose.yml) adds a check that every folder exists.
 
-To show the exact build beside the version number at the top right of every page,
+To show the exact build beside the version number at the foot of every page's sidebar,
 build with `NS_BRANCH=$(git branch --show-current) NS_COMMIT=$(git rev-parse --short HEAD) docker compose up -d --build`.
 
 ## Security

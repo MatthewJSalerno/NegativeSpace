@@ -225,11 +225,12 @@ service. Built and tested:
     *   the first-run screens, landing in the Library to Index;
     *   settings as a window over the page, with catalog backups (list, Back up now,
         download);
-    *   the top row: the logo, Library, the **Jobs** menu on the Library page (Index;
-        Copy and Move for the one folder shown or all), Logs, the selection bar (Copy, Move,
-        Reject or Return to library for the ticked photos, only what applies), and the
-        build beside Settings;
-    *   the gallery, with its views, sorts and search, a resizable left panel with
+    *   the page frame: a top bar with the filename search and the **Jobs** menu on the
+        Library page (Index; Copy and Move for the one folder shown or all), and a sidebar
+        on every page with the places and their counts, Look into shortcuts, Logs, Stats
+        and the build; the selection bar (Copy, Move, Reject or Return to library for the
+        ticked photos, only what applies) takes the top bar while photos are ticked;
+    *   the gallery, with its places, sorts and search, a **Filters** panel with
         **Types** (folded by default) and, by choice, the source's **Folders** (the
         default) or a **Dates** tree, to show only file types, folders, years and months
         or jump to a date, and continuous scrolling whose page number follows; the
@@ -239,7 +240,7 @@ service. Built and tested:
         place per selection (library photos or photos in Rejects, never both), and Copy,
         Move, Reject and Return of a selection reviewed on screen before they run;
     *   the job drawer, with live counts, elapsed time and Cancel; after a job, the gallery
-        stays where it was and the finished banner names the job ("Copy #8 finished",
+        stays where it was and the notification names the job ("Job #8 · Copy finished",
         never "failed" for a job that ran to its end) with **Show these photos**: the
         job's photos, wherever they are now, which search and the filters narrow;
     *   the split Inspector, with a movable divider, the 1024px preview, the file's own
@@ -277,12 +278,12 @@ service. Built and tested:
     the library** for each job that acted on photos; and CSV/JSON export.
 
 Built review workflow: Library, Not organized and Rejects are location views; Needs review
-is an overlapping inbox of organized Library photos. Each location has one row of filter toggles; Small images
-filters Library in place, and the inbox adds Review later to the same row. Active chips
+is an overlapping inbox of organized Library photos. The sidebar holds the Look into filters; Small images
+and Review later filter both Library and the inbox in place, with counts in both. Active filters
 clear on a second click. The Inspector groups information and actions, while the dedicated
 review workspace puts a large photo beside its reasons, decision buttons and matching clues.
 Place changes close stale previews; source previews temporarily collapse the Index summary.
-Filter chips combine, reminder chips choose one scope, and
+Filter clicks replace unpinned conditions, pinned conditions combine, reminder filters choose one scope, and
 filename searches offer matches in other locations. Small-image cleanup is opt-in at
 first run and never blocks transfers. Mark reviewed acknowledges only the size concern;
 Review later / Done records a separate reminder. Both persist in the catalog with review
@@ -312,7 +313,7 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 26; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
+at schema version 28; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
 It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its

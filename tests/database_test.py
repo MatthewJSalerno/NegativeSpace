@@ -386,6 +386,24 @@ class DatabaseTests(unittest.TestCase):
             self.conn.execute("SELECT presence_state FROM file_states WHERE file_id=?",
                               (first,)).fetchone()[0], 'missing')
 
+    def test_combined_metadata_and_notification_schema(self):
+        db.require_schema(self.conn)
+        for table in ('xmp_versions', 'xmp_arrivals', 'xmp_arrival_files', 'metadata_captures', 'metadata_decisions'):
+            self.assertIsNotNone(self.conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone())
+        with db.transaction(self.conn):
+            self.conn.execute("INSERT INTO ui_state VALUES('read_notification:1','true','generated')")
+        self.assertEqual(self.conn.execute("SELECT value_json FROM ui_state WHERE key='read_notification:1'").fetchone(), ('true',))
+        for version in (26, 27):
+            old = Path(self.tmp.name) / f'branch-{version}.db'
+            with sqlite3.connect(old) as c:
+                c.execute('CREATE TABLE catalog_schema(version INTEGER NOT NULL)')
+                c.execute('INSERT INTO catalog_schema VALUES(?)', (version,))
+                c.commit()
+            before = old.read_bytes()
+            with self.assertRaises(db.SchemaError):
+                db.initialize(old)
+            self.assertEqual(old.read_bytes(), before)
+
     def test_no_implicit_creation_or_old_schema_conversion(self):
         missing=Path(self.tmp.name)/'missing.db'
         with self.assertRaises(sqlite3.OperationalError):db.connect(missing)

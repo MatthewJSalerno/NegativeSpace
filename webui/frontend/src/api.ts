@@ -32,7 +32,14 @@ export interface Status {
   active_job: Run | null;
 }
 
-export type View = "review" | "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects";
+// The navigation sidebar's counts (GET /photos/places): each place whole, and each Look
+// into shortcut as Library with only that filter on.
+export type PlaceView = "unorganized" | "organized" | "review" | "rejects";
+export type LookInto = "similar" | "suspicious" | "undated" | "small" | "later" | "issues";
+export interface Places { places: Record<PlaceView, number>; look_into: Record<LookInto, number> }
+
+// "source": every photo whose original is still in the source (Source folders).
+export type View = "review" | "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects" | "source";
 // A job acting on photos; Reject and Return to library need a selection or a folder.
 export type ActionMode = "copy" | "move" | "reject" | "return";
 // Where a photo is, for selecting: a selection holds library photos or photos in Rejects,
@@ -79,7 +86,7 @@ export interface PhotoPage {
   // Unfiltered totals per view (and No capture date within the current view).
   counts: Record<View | "undated", number>;
   similarity: { threshold: number; pending: number; unavailable: number } | null;
-  // Each view under every filter now on, for the view buttons and for suggesting another
+  // Each view under every filter now on, for the sidebar's places and for suggesting another
   // view; `undated` is No capture date within this view under the other filters.
   matches: Record<View | "undated", number>;
   // What Rejects holds now, with the Rejects view.
@@ -108,6 +115,8 @@ export interface BrowseFilters {
   dates?: string[];
   types?: string[];
   folders?: string[];
+  // The folder tree only: list every catalogued folder, at 0 where nothing is shown.
+  every?: boolean;
 }
 
 // A source folder in the Folders tree (GET /photos/folders): its path relative to the
@@ -140,6 +149,7 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
   (f.dates ?? []).forEach((d) => query.append("date", d));
   (f.types ?? []).forEach((t) => query.append("type", t));
   (f.folders ?? []).forEach((d) => query.append("folder", d));
+  if (f.every) query.set("every", "true");
   return query;
 }
 
@@ -578,6 +588,14 @@ export interface MatchPage {
 }
 
 export const MATCH_THRESHOLDS = [75, 80, 85, 90, 95, 100];
+// The gallery percentage this browser last chose (ns.matchMin), 90 until one is chosen.
+export function savedMatchMinimum(): number {
+  try {
+    const value = Number(localStorage.getItem("ns.matchMin"));
+    if (MATCH_THRESHOLDS.includes(value)) return value;
+  } catch { /* Storage is optional. */ }
+  return 90;
+}
 type SetPhoto = Pick<PhotoItem, "id" | "filename" | "file_size" | "date_taken" | "date_source" | "date_warning" | "status">;
 export interface ReferenceSetsPage {
   reference: SetPhoto;
@@ -609,7 +627,12 @@ export type SimilarityRecoveryPage = {
   total: number; retryable: number; generatable: number; state: { unavailable: number; pending: number }; page: number; page_size: number;
 };
 
+export interface NotificationPage { items: { run: Run; read: boolean }[]; next_before: number | null }
+
 export const api = {
+  unreadNotifications: () => request<{ unread: number }>("GET", "/api/v1/notifications/unread"),
+  notifications: (before?: number) => request<NotificationPage>("GET", `/api/v1/notifications${before ? `?before=${before}` : ""}`),
+  readNotifications: (run_ids: number[]) => request<{ read_ids: number[] }>("PUT", "/api/v1/notifications/read", { run_ids }),
   access: () => request<AccessSettings>("GET", "/api/v1/access"),
   saveAccess: (hosts: string[], revision: number, confirm_current_host = false) =>
     request<AccessSettings>("PUT", "/api/v1/access", { hosts, revision, confirm_current_host }),
@@ -640,16 +663,18 @@ export const api = {
     request<Settings>("PUT", "/api/v1/settings", { values, revisions }),
   validateExtension: (extension: string) =>
     request<ExtensionSupport>("POST", "/api/v1/settings/validate-extension", { extension }),
-  photos: (params: BrowseFilters & { sort: Sort; page: number; page_size: number }) => {
+  photos: (params: BrowseFilters & { sort: Sort; page: number; page_size: number; filter_pins?: string }) => {
     const query = browseQuery(params);
     query.set("sort", params.sort);
     query.set("page", String(params.page));
     query.set("page_size", String(params.page_size));
+    if (params.filter_pins !== undefined) query.set("filter_pins", params.filter_pins);
     return request<PhotoPage>("GET", `/api/v1/photos?${query}`);
   },
   photoPosition: (params: BrowseFilters & { photo_id: number; sort: Sort; page_size: number; ids?: number[] }) =>
     request<PhotoPosition>("POST", "/api/v1/photos/position", params),
   // Without `dates` for the date tree's counts; with them for the page a jump lands on.
+  places: (matchMin: number) => request<Places>("GET", `/api/v1/photos/places?match_min=${matchMin}`),
   timeline: (params: BrowseFilters) => request<Timeline>("GET", `/api/v1/photos/timeline?${browseQuery(params)}`),
   types: (params: BrowseFilters) =>
     request<{ types: { type: string; photos: number }[] }>("GET", `/api/v1/photos/types?${browseQuery(params)}`),

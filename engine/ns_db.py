@@ -17,7 +17,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 26
+SCHEMA_VERSION = 28
 
 # --- Status vocabularies -----------------------------------------------------
 #
@@ -796,7 +796,7 @@ FOUNDATION_DDL = (
     # another one does not bring back what was dismissed. Not settings: settings
     # configure jobs and are copied into each run's configuration.
     """CREATE TABLE ui_state (
-        key TEXT PRIMARY KEY CHECK(key IN ('dismissed_run')),
+        key TEXT PRIMARY KEY CHECK(key = 'dismissed_run' OR key GLOB 'read_notification:[0-9]*'),
         value_json TEXT NOT NULL, updated_at TEXT NOT NULL)""",
     """CREATE TABLE backup_artifacts (
         artifact_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -862,7 +862,7 @@ def require_schema(conn):
 
 def read_ui_state(conn):
     """The web interface's remembered state: {'dismissed_run': run id or None}."""
-    rows = dict(conn.execute("SELECT key, value_json FROM ui_state").fetchall())
+    rows = dict(conn.execute("SELECT key, value_json FROM ui_state WHERE key='dismissed_run'").fetchall())
     return {'dismissed_run': json.loads(rows['dismissed_run']) if 'dismissed_run' in rows else None}
 
 

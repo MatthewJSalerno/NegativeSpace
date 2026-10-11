@@ -95,6 +95,9 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, sortedByDate
         </button>
         <Tip text="Check years or months to show only those. Uncheck them all to show everything."><span className="dates-show-only">Show only</span></Tip>
       </div>
+      <p className="dates-status muted">
+        {dates.length === 0 ? "Showing all dates" : <>Showing only {dates.map(dateLabel).join(", ")} · <button className="link" onClick={() => onDates([])}>Show all</button></>}
+      </p>
       <ul className="dates-tree">
         {years.map(([year, months]) => {
           const ticked = months.filter((m) => monthOn(m.month)).length;
@@ -139,9 +142,6 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, sortedByDate
           </li>
         )}
       </ul>
-      <p className="dates-foot muted">
-        {dates.length === 0 ? "Showing all dates" : <>Showing only {dates.map(dateLabel).join(", ")} · <button className="link" onClick={() => onDates([])}>Show all</button></>}
-      </p>
     </nav>
   );
 }

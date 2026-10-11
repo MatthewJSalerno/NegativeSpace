@@ -114,11 +114,11 @@ Users can select individual files or multiple files across grid views to run tar
   become the only ones. *Why disabled, not cleared:* a selection built across pages is
   never lost to one stray tick. *Why keep Move for Rejects:* a source that ends empty
   should not need deleting in two places; the warning makes the consequence plain.
-* **Grouping and facet requests:** Turning similar-photo grouping on or off reloads gallery results and grouped date-jump positions, but reuses the unchanged per-photo Dates, Types and Folders sidebar counts.
-* **Selection across views:** retain explicit photo selections when changing pages
-  or filters. The top row, after **Logs**, shows the total and the number outside the
-  displayed view, for example **“25 selected · 10 outside this view”**, with **Show
-  only selected** and **Clear**; clearing while showing only the selection returns to
+* **Grouping and facet requests:** Turning similar-photo grouping on or off reloads gallery results and grouped date-jump positions, but reuses the unchanged per-photo Dates, Types and Folders counts in the Filters panel.
+* **Selection across views:** retain explicit photo selections when changing pages,
+  places or filters. The selection bar, in place of the top bar, shows the total and the
+  number outside the displayed view, for example **“25 selected · 10 outside this view”**,
+  with **✕** (Clear selection) and **Show only selected**; clearing while showing only the selection returns to
   the results. Show only selected temporarily shows only the selected
   photos, including those hidden by prior filters or pagination, and allows inspection
   and deselection; the photos shown are fixed on entry, so one unticked there stays on
@@ -141,11 +141,14 @@ Users can select individual files or multiple files across grid views to run tar
   returns to the view it came from, and so does committing. Copy all and Move all still
   confirm in a dialog: there is no selection to review.
 * **After a job, stay where you were** (decided 2026-10-06). Starting a job clears the
-  selection and leaves the gallery where it was. The finished banner of a job that acted
+  selection and leaves the gallery where it was. The notification of a job that acted
   on photos (Copy, Move, Reject, Return to library, Rename) offers **Show these photos**,
   on every page, and so does each such job in Logs (**Show these photos in the library**,
   beside Retry): the gallery then shows the photos that job recorded, wherever they are
-  now, library or Rejects (`view=job&run=<id>`, in the address). Its line reads "The 400
+  now, library or Rejects (`view=job&run=<id>`, in the address). Membership uses catalog
+  photo IDs, not historical paths: later app-managed relocations retain the link and
+  show current state. It is not a historical file snapshot; removed duplicate copies
+  are excluded, and an empty result remains possible. Logs retain recorded outcomes. Its line reads "The 400
   photos in Job #3 · Copy · 398 of 400 files copied · 2 skipped · Back to results" ("their status
   updates when the job ends" while it runs), and each photo's badge shows where it stands.
   It opens with no search, dates, types or folders, so none of the job's photos is hidden
@@ -153,11 +156,11 @@ Users can select individual files or multiple files across grid views to run tar
   Select all, ticking and the selection bar work as anywhere. **Back to results** restores
   the filters it opened over; a view button leaves it with the filters as they are. A
   job started from a job's photos takes the view with it when it ends ("The 2 photos in
-  Job #8 · Return to library"), so the line above them and the finished banner, which names
+  Job #8 · Return to library"), so the line above them and the notification, which names
   its job too ("Job #8 · Return to library finished"), describe the same job. With nothing
   ticked, the selection bar is hidden. *Why not land on the job's photos:* it
   took you from where you were after every job, with the page's controls greyed out,
-  while most jobs need no follow-up. *Why not a tab or chip for the job:* the banner and
+  while most jobs need no follow-up. *Why not a tab or chip for the job:* the notification and
   Logs already lead there.
 * **Date tree:** a **Dates** panel left of the gallery lists years and their months with
   counts for the current view and search, every year unfolded to start, every month with
@@ -178,8 +181,8 @@ Users can select individual files or multiple files across grid views to run tar
   dates”**; **Select these**
   selects what the filter shows, as Select all in this view does. The boxes themselves only filter: unchecking a month to look
   elsewhere must never change the selection). The tree's own counts ignore it, so an
-  unticked month keeps its number. On a
-  narrow screen the panel opens from a **Browse** button.
+  unticked month keeps its number. Types, Folders and Dates are in the **Filters** panel
+  beside Sort (the page frame, below).
 * **Browse by Folders or Dates:** under Types, **Browse by [Folders | Dates]** chooses the
   tree below it; **Folders** is the default, and the choice is remembered per browser (a
   filter in the address for the other tree shows that one). The **Folders** tree is the
@@ -194,8 +197,7 @@ Users can select individual files or multiple files across grid views to run tar
   tree, not the destination's:* the destination is `YYYY/MM/DD` and `Undated/<year>`, which
   the Dates tree already shows; the source's folders are what the user knows, every photo
   has one (a moved photo under the folder it came from), and they are what a job can act
-  on. The left panel's edge can be dragged, or moved with the arrow keys, since folder
-  paths can be wide; a name wider than the panel ends in "…", whole on hover.
+  on. A name wider than the Filters panel ends in "…", whole on hover.
 * **A folder's Copy or Move:** with exactly one folder shown, **Jobs ▾ → Copy ▸ / Move ▸
   → this folder: Family scans (318)** takes that folder and its subfolders, however many
   photos: the engine is given the folder (`--source-subdir`), not a list of photos. The count
@@ -212,13 +214,14 @@ Users can select individual files or multiple files across grid views to run tar
   Types and dates combine, and the filter line names both (**"Showing 42 of 1,160 photos
   · only 2019, HEIC · Select these 42 · Show all dates · Show all types"**). **All
   photos** clears them too.
-* **The view buttons count what the filters find; the filter line names the library.**
-  With a search, dates, types, folders or No capture date on, each view's number is how
-  many photos that view would show under them, so the number on a button always matches
-  what clicking it shows, and the line above the gallery gives the library's size:
-  **"Showing 9 of 1,160 photos · only 2022, 2023"**. **Why not the whole library on the
-  buttons:** a search for one name still read "Rejects (1)" or "Organized (1,160)", and a
-  view opened from that number then looked empty or wrong (maintainer, 2026-10-01).
+* **The sidebar's places count what they hold; the filter line says what is shown.**
+  Each place's number is how many photos it holds, whatever the search or filters; with
+  any on, the line above the gallery says what they find of it: **"Showing 9 of 1,160
+  photos · only 2022, 2023"**. *Why not counts that follow the filters* (maintainer,
+  2026-10-09, replacing the 2026-10-01 rule): after 4 photos were rejected, a Rejects count
+  following the search read 0, and under Has similar photos it read 0 though choosing
+  Rejects turns that filter off and shows all 4. A place's number now always says what it
+  holds.
   The Stats page's formats open the Library filtered to that type. Going to a date the filter hides
   says so and offers the fixes as buttons that apply them and then go there: **“December
   2016 is outside the dates shown. Show December 2016 too · Show all dates”**.
@@ -250,24 +253,53 @@ a go-to-page box), and 60, 120 or 240 photos load at a time (**Load 60 at a time
 Selecting in bulk speaks of the screen and the view, not pages. **Why not separate pages any more:** they were chosen
 because selection was defined per page; the selection is now an explicit list kept
 across pages, and a page count that the grid's columns did not divide left gaps. The date
-tree jumps to a year or month by the page it starts on (`GET /api/v1/photos/timeline`).
+tree, and the **date scrubber** at the gallery's right edge (years given room by their
+photos; point for the month, click or drag to go there), jump to a year or month by the
+page it starts on (`GET /api/v1/photos/timeline`). Subtle ticks fill the scrubber's gaps
+without adding click targets or implying equal time intervals; labels retain clear space.
 The page, page size, sort, view, search, dates and open photo live in the URL.
 In-app links and browser Back/Forward apply the destination URL even on the same
-screen. The Library link resets browsing filters and closes the Inspector; within
-the mounted Library it keeps the explicit selection but exits selection-only or
-transfer-review mode. History restores the recorded page and photo, not an exact
+screen. The logo link (the Library at its last place) resets browsing filters and
+closes the Inspector; a sidebar place keeps the search and filters and closes the
+Inspector. Within the mounted Library
+both keep the explicit selection but leave selection-only or transfer-review mode. History restores the recorded page and photo, not an exact
 scroll pixel position or a transient review. Logs links replace the log's filters
 and expand the single linked job. Recording local control or scroll changes in the
 address does not itself count as navigation or reset the current selection.
 
-**No capture date** is a quick filter beside the views, with its count and no adjacent
+**No capture date** is a Look into filter, with its count and no adjacent
 information icon. It shows the
 photos whose EXIF has no date taken, which are filed under Undated by their file's
 modification date, counted in the current view. It combines with the view and the
-search; the view counts show photos matching the active filters, and the filter line says
-how many are shown. A review reason narrows only the inbox, not other locations. Each view button keeps its width whatever its count, with room for
-**(999,999)** in even-width digits, so switching views never moves them. Every location preserves the search and filter chips. **Clear filters** removes
-restrictions without changing the location or explicit selection.
+search, and the filter line says how many are shown. A review reason narrows Library or the
+Needs review inbox, not Not organized or Rejects. The sidebar's counts sit in their own right-aligned column in
+even-width digits, so a count changing never moves a label. Every location preserves the
+search and filters. **Clear all filters**, beside the sidebar's **Look into** heading,
+removes search, folder (including Source folders), date, type and review restrictions
+and saved pins without changing the location or explicit selection. Its space remains
+reserved when hidden so the filters below do not move.
+
+**The page frame** (decided 2026-10-08, after Immich; built). Library, Logs and Stats
+share one frame: a sticky top bar (the logo, the filename search and **Jobs ▾** on the
+Library, the Dark mode switch, Settings) and a navigation sidebar on every page: the four
+places with what each holds (`GET /photos/places`); **Look into**, the gallery's filters
+(Has similar photos, Suspicious dates, No capture date, Small images, Review later);
+**Activity** (Logs, Stats); the build at the foot. On the Library a place keeps the search
+and filters, and leaves Show only selected or a review first. Look into's filters replace
+unpinned filters within the place shown; separate Pin buttons retain filters while
+browsing others. File issues from operation recovery uses the same sidebar controls in
+Needs review; it shares the exclusive reason scope with Small images and Review later. Filters stay dimmed where they do not apply. From Logs or Stats
+a place opens whole, and a filter opens Library (Review later: Needs review) with only it
+on. While photos are selected, the selection bar takes the top bar, grouped at its start
+and keeping the search (§4). Types, Folders and Dates
+are in the **Filters** panel beside Sort, opened over the photos. Under Not organized,
+**Source folders** (`?view=unorganized&tree=1`) shows the source's folder tree beside
+the gallery, every catalogued folder listed (`GET /photos/folders?every=true`), with
+**Waiting | Still in source** (`view=source`: photos whose original is still in the
+source, so the originals of copied photos can be found and moved off by folder) and, for
+one ticked folder, **Copy this folder (n)…** / **Move this folder (n)…**. Below 800px the
+sidebar hides behind a **☰ Menu** button and opens over the page. The design rules are
+in `ui-design.md`, "Page frame".
 
 **Views and the review inbox** (implemented; decisions updated 2026-10-07). The gallery has three locations and a review inbox.
 Its four entry points:
@@ -283,15 +315,18 @@ A copied photo belongs to the Library; its untouched original in the source is n
 counted again. **All photos** is removed from navigation. Old links remain readable. Needs review overlaps the location views: its count is distinct photos awaiting decisions, not additional files, and the four counts must never be added together. Each reviewed photo names its location.
 **Has similar photos**, **Suspicious dates** and **No capture date** stop being views and
 become filters within a place ("Library · has similar photos"), as No capture date
-already is. *Why:* the view buttons then answer one question, where is it, and drop from
+already is. *Why:* the places then answer one question, where is it, and drop from
 six to four. Settled 2026-10-07:
 
-* **The filters are a row of chips** under the four view buttons, each with its count in
-  the place shown ("Has similar photos (167) · Suspicious dates (8) · No capture date
-  (1,356)"), as Needs review's reasons are (§7.9): one pattern for narrowing a place.
+* **The filters are the sidebar's Look into** (maintainer, 2026-10-09; they were a chip
+  row above the photos, which repeated Look into), each with its count in the place shown
+  ("Has similar photos 167 · Suspicious dates 8 · No capture date 1,356"), with Needs
+  review's reasons (§7.9): one pattern for narrowing a place.
 * **Small images** stays beside **No capture date** as a toggle in Library and
-  Needs review. Click again to clear it; it never changes location. Needs review adds
-  Review later to this same row, with no second reason row or All reasons control.
+  Needs review. Click again to clear it; it never changes location. Review later follows
+  it in both Library and Needs review, with a count (including zero), and no second
+  reason list or All reasons control. Switching between these places retains the
+  reminder filter; switching to Not organized or Rejects clears it.
   Review photo… explicitly enters the dedicated workspace.
 * **The first visit opens on Not organized** while the library is empty. Once it holds a photo, an unscoped visit restores the browser’s last location (`ns.place`), defaulting to Library. Explicit URLs and refreshes preserve the requested view. *Why:* a default view with nothing in it tells a newcomer
   nothing; Not organized is where the first job starts.
@@ -351,13 +386,23 @@ in the other view, show its count and a link rather than implying no matches exi
 
 ### Filter and search behavior
 
-Filter chips combine with AND: Has similar photos plus No capture date finds photos
-meeting both conditions. Dates, types, folders and filename search also apply. The
-visible filter summary names every active restriction; Clear filters preserves the
-location and explicit photo selection. Small images and Review later choose one
-reminder scope at a time; clicking it again clears it. Other chips combine with that
-scope. No active chips means all photos in the current location/inbox. Sidebar filters
-continue to apply. Counts count photos, not notes; overlapping reasons do not duplicate a photo.
+Clicking an inactive Look into filter replaces the unpinned Look into filters. Pin a
+filter to keep it while choosing another: pinned Has similar photos plus No capture date
+finds photos meeting both conditions (AND). Pinning enables it; unpinning leaves it
+applied until the next choice. Clicking an active filter turns it off and removes its pin.
+Dates, types, folders and filename search continue to apply independently. Counts on
+inactive filters predict the results of choosing them with eligible pins; active counts
+reflect the current intersection. This reuses the gallery response's count queries.
+
+Pins are saved per browser, with an in-memory fallback when storage is blocked. The URL
+remains authoritative on refresh, shared links and Back/Forward: saved pins do not narrow
+explicit photo/job links. A bare start page and sidebar place/filter choices reapply
+eligible pins; pins unavailable in a place remain removable. Preference changes sync
+across tabs without silently changing another tab's current results. The filter summary
+names every active restriction; Clear all filters clears pins too and preserves location
+and explicit photo selection. Small images, Review later and File issues share an exclusive reason scope: pinning
+one disables the others with an explanation and an Unpin route. None active means all photos in the current location/inbox. The Filters panel's
+types, folders and dates continue to apply. Counts count photos, not notes; overlapping reasons do not duplicate a photo.
 
 When a filename search finds nothing in the current location, offer matches in the
 other locations. These escape links retain the filename search and clear narrowing
@@ -559,19 +604,21 @@ wrong for every such file that does carry a date.
 
 ### 4.1 Real-Time Operations Drawer
 When a job is active, its progress shows at the top of the page, under the toolbar. When
-it finishes, its result replaces it there as a banner until dismissed.
+it finishes, its result appears in the Notifications bell. Only jobs requiring a safety
+decision retain an actionable banner. Opening notifications never answers those decisions.
 
-**A failure count says why on hover.** Hovering (or focusing) a finished job's result
-lists why its files failed, each reason with its count, the file paths removed so reasons
-group (**"Why they failed: Permission denied: 2"**); the Logs page's job lines do
-the same, and a Failed photo's badge in the gallery gives its own latest reason.
+**A failure count has an explanation.** A notification's **Details** disclosure below
+its links lists why its files failed, each reason with its count, the file paths removed
+so reasons group (**"Why they failed: Permission denied: 2"**). Long explanations expand
+inside the panel instead of covering its links. The Logs page's job lines retain
+hover/focus explanations, and a Failed photo's badge gives its own latest reason.
 
 **A Move that could only copy says so, without stopping to ask.** When a Move cannot
 delete an original (a read-only source, a permission), the engine records the verified
 copy it made (`engine-spec.md` §4.2) and the screens name it **Copied only**, in the
 warning colour: never Moved, never Failed. The result reads **"Move finished, originals
 kept · 0 of 4,836 files moved · 4,836 copied only: the original could not be removed"**,
-and its hover gives the reasons (**"Why originals were kept: Read-only file system:
+and its details give the reasons (**"Why originals were kept: Read-only file system:
 4,836"**). The log has a **Copied only** status with its own filter, a hint that the copy
 is at the destination, and **Move the n copied-only photos again** to finish the job once
 the source can be written. The gallery badge reads **Copied only**, with the reason
@@ -579,14 +626,14 @@ on hover; the Inspector's history and the lineage tree say **original kept**. *W
 ask on the first failure:* nothing is lost either way, and a question nobody is there to
 answer would stall an overnight job; a clear account afterwards serves better.
 
-A finished job's banner explains its skips, grouped by the reason each photo recorded,
+A finished job's notification explains its skips, grouped by the reason each photo recorded,
 for example **"5 skipped (3 copied by an earlier job, 2 duplicates: the same content is
 copied once)"**. The API groups them from the engine's reason text (`webui/outcomes.py`).
 
 Stats retains warning/failure accent borders and consistent folder-table cell spacing
 as specified in `ui-design.md`.
 
-**Which build is running** shows at the top right, beside Settings, on every page and on
+**Which build is running** shows at the foot of the sidebar on every page and on
 the first-run and catalog-problem screens: **"v0.1.0 · main · 2c4728f"**, the release in
 `VERSION` and the branch and commit the image was built from, so a report names the
 exact code. `VERSION` is raised with each merged change that alters behaviour.
@@ -594,8 +641,9 @@ exact code. `VERSION` is raised with each merged change that alters behaviour.
 Actions are in two places (decided 2026-10-05), the pattern of Google Photos, Apple Photos
 and Gmail, so that no menu has to adapt to what is selected:
 
-* **The selection bar**, in the sticky top bar while photos are selected: "4 photos
-  selected", then only the actions that apply to them, each with its count:
+* **The selection bar**, taking the sticky top bar while photos are selected, grouped
+  at its start: **✕** (Clear selection), "4 photos selected" in the accent, Show only
+  selected (or Back to results), then only the actions that apply to them, each with its count:
   **Copy (n)…** and **Move (n)…** by the engine's rule (`ns_db.TRANSFER_ELIGIBLE`),
   **Reject (n)…** for photos in the library, **Return to library (n)…** for photos in
   Rejects (§7.8). A selection is one place (§2): library photos get Copy, Move and Reject;
@@ -604,20 +652,19 @@ and Gmail, so that no menu has to adapt to what is selected:
   If another job has moved only some selected photos into or out of Rejects, the
   whole new request is refused with a reason and nothing is changed; choose photos
   from one location and submit again. Replaying an accepted request keeps its original run.
-  Then Show only selected (or Back to results) and Clear. An action that
-  takes none of them is absent, not disabled; each asks first, through the same review.
-  While a job runs the actions wait, saying why.
-* **Jobs ▾**, after **Library** on the Library page only: the library-wide jobs,
+  An action that takes none of them is absent, not disabled; each asks first, through the same review.
+  While a job runs the actions wait, saying why. The search follows the actions and stays
+  usable: a selection is built across searches.
+* **Jobs ▾**, in the top bar on the Library page only: the library-wide jobs,
   **Index**, and **Copy ▸** / **Move ▸** of **this folder** (the one folder the Folders tree
   shows) and **all (n)**. *Why "Jobs":* it holds exactly the jobs, and pairs with Logs,
   which lists them; "Organize" sat over the Organized view and would clash with To
-  organize, and "Actions" would overlap the selection bar. Logs and Stats have no menu; Logs offers
-  **Run an Index** where a failure needs it. The shared page navigation reserves the
-  Jobs slot on these pages so Logs stays in the same position; there is no disabled Jobs button.
+  organize, and "Actions" would overlap the selection bar. Logs and Stats have no menu, and no disabled one; Logs offers
+  **Run an Index** where a failure needs it.
 * *Why the top bar, not a floating bottom bar:* the selection count is already read there,
   the bar stays in view, and a bottom bar would cover the last row of photos.
-The toolbar's second row holds the views,
-search and sort. Every item carries a one-line explanation, and one that cannot run
+The search is in the top bar; Filters and Sort end
+the place's heading row. Every Jobs item carries a one-line explanation, and one that cannot run
 replaces it with why: a job is running, nothing is indexed, nothing is selected, or
 nothing is left (**"Nothing to copy - every photo is copied or organized."**). The
 **all** counts are the whole catalog's, by the engine's own rule
@@ -795,10 +842,14 @@ Failed lookups offer a retry while leaving the Inspector open.
 History's **Open in the log** and **View lineage tree** actions share text size and
 alignment, retaining their link and button semantics respectively.
 Clicking an image opens a right-side 50% detail panel. **Photo information** is the
-default tab outside Has similar photos; opening a gallery card in that view selects
-**Similar photos**, which holds the matching controls and thumbnails (§7.4).
-Both tabs share the reference preview and its resize divider. The active tab and
-chosen match threshold remain selected when navigating to another photo.
+default on every gallery-card click, including Has similar photos, even when the
+previous photo showed Similar photos. **Similar photos** holds matching controls and
+thumbnails (§7.4). Both tabs share the reference preview and its resize divider.
+The Inspector's previous/next controls retain the active tab and chosen match threshold.
+Explicit match links/comparison actions still open their requested view; reload and
+browser history restore the tab recorded in the URL. While details load, the gallery
+status preserves the tab layout; an unknown status reserves space rather than flashing
+a single tab. Actions continue to depend on loaded details.
 
 **The file's modification time** is the time the file carried when the first Index read
 it, not a date the photo was scanned; its label says so on hover (**"As recorded when
@@ -1220,22 +1271,20 @@ always occupies its row, showing **Showing all log entries** when unrestricted.
 Status **only** shortcuts retain their space when unavailable, and the job summary
 retains control height without Expand all. See the shared layout contract in
 `ui-design.md`, "Stable navigation and filtering".
-**Built** (`api-spec.md` §5a). The Library and Logs pages are switched from the toolbar. The
+**Built** (`api-spec.md` §5a). Logs is in the sidebar's **Activity**, on every page. The
 log is grouped by job, newest first: each job is one line (its summary and how many
 entries match) until opened, and its entries page on their own. Filters apply inside
 every job; while any is set, a job with nothing matching is left out. A finished
-job's banner links to its log, opened on that job, and, when it failed, to **View failures**.
-A dismissed banner stays dismissed on every page, in every browser, and after the
-browser's data is cleared: the dismissal is kept with the catalog (`PUT /api/v1/ui-state`),
-and covers that job and every earlier one. Dismiss keeps the banner visible with a disabled
-**Saving…** button until the server acknowledges the write. A failed write shows
-**Could not save the dismissal. Try again.** and **Retry dismissal**. Pending/error
-state follows in-app navigation across Library, Logs and Stats. Reloading before a
-write is acknowledged may interrupt it; an unsaved dismissal then remains visible.
-After acknowledgment, clearing browser storage or reloading does not bring it back.
-The catalog is authoritative; an old browser dismissal ID never hides a new catalog's
-banners. No browser-only dismissal is saved or replayed. The Logs page has the Library's top row
-without **Jobs**, whose jobs belong with the photos; the page links never move. The
+job's notification links to its log, opened on that job, and to **View failures** when
+appropriate. The shared bell lists completed, cancelled, failed and interrupted jobs,
+newest first, in pages of 20. Opening it or loading older entries marks only those
+entries read. Per-job receipts live in `ui_state`; they survive reload, cleared browser
+storage and navigation, and concurrent reads are additive. A failed save leaves the
+count unchanged and exposes Retry marking read. Read status never resolves failures,
+starts jobs or dismisses safety questions. Active progress and actionable safety banners
+remain separate. Safety-banner dismissal retains its acknowledged catalog-backed
+`dismissed_run` contract. The Logs page has the Library's frame
+without the search and **Jobs**, whose jobs belong with the photos; the sidebar never moves. The
 active filters are named in one line with one reset (**"Showing: job #3 · Failed ·
 “photo-00” · Clear all filters"**). An open job's entries load in batches of 100 as the
 list scrolls, and the job's header line, with its collapse arrow, stays at the top
@@ -1257,7 +1306,7 @@ A searchable table logging every operation performed by the engine:
   CSV/JSON export. The photo info page opens this view scoped to the selected
   photo's full history, with access to the surrounding run.
 
-**Filtering by run is what two other screens link into**, so it is a first-class filter rather than a search convenience: the failure banner links here scoped to the most recent run, and the Dashboard's coverage message (§5.9) links here scoped to *every run since the last complete scan*. The filter therefore accepts a set of run ids, not only one.
+**Filtering by run is what two other screens link into**, so it is a first-class filter rather than a search convenience: a job notification links here scoped to its run, and the Dashboard's coverage message (§5.9) links here scoped to *every run since the last complete scan*. The filter therefore accepts a set of run ids, not only one.
 
 ### 5.5 Job Outcome Is Derived, Not Read From `runs.status`
 
@@ -1524,7 +1573,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 25 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 28 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -1594,7 +1643,7 @@ ORDER BY r.ended_at DESC LIMIT 1;
 **Return the excluded runs, not just the date.** Suppressing a scan silently would trade a wrong date for a missing one. Alongside `last_indexed_at`, report how many Index runs since then failed to establish coverage, and the run ids the UI needs to link into Logs (§5.4):
 
 * `coverage.established_by_run` — the run the date came from, or `null`
-* `coverage.scans_with_issues_since` — count of untargeted Index runs after it that recorded a run-level failure. Deliberately **Index runs only**: a failed Move says nothing about scan coverage, and the failure banner already covers that case. Conflating them would make a delivery problem read as a staleness problem.
+* `coverage.scans_with_issues_since` — count of untargeted Index runs after it that recorded a run-level failure. Deliberately **Index runs only**: a failed Move says nothing about scan coverage, and the job notification already covers that case. Conflating them would make a delivery problem read as a staleness problem.
 * `coverage.run_ids_since` — every run after that date, whatever its mode, since the user clicking through wants to see the whole gap rather than only its failures.
 
 **Extension scope counts too.** An Index run with a narrowed `--exts` scans the full tree, succeeds completely at a smaller job, and records no failure, having examined only some file types. Its effective extension set is recorded in `run_configs` (`engine-spec.md` §6.5), so the API can see it: an Index whose effective extensions omit a supported type does not advance the coverage date, and is listed in `run_ids_since` like any other later run.
@@ -1820,12 +1869,12 @@ scope. Equal visual hashes count, exact byte copies are represented once, and th
 reference itself is excluded. No new image comparisons run when controls change.
 
 The URL saves `match_min` separately from Inspector `match`, alongside `sort=matches`.
-Changes reset gallery paging to one but retain explicit selection; sidebar counts,
+Changes reset gallery paging to one but retain explicit selection; filter-panel counts,
 Select all and photo positioning use the same membership. Show only selected keeps
 all selected files even without qualifying matches, with the percentage disabled;
 known counts sort first, then zero and unavailable counts. The initial sort is Most matches first. Remember explicit sort choices per view
 in browser storage; restore them on return. Explicit URL sorts take precedence. Clicking a gallery card carries the gallery
-percentage into its matches and opens the Similar photos tab. Later Inspector
+percentage into its matches and opens Photo information. Later Inspector
 threshold changes remain local; previous/next retains that Inspector choice.
 Photos without qualifying recorded matches are omitted. A coverage note appears
 when destination hashes are unavailable or comparisons unfinished; absence from this
@@ -2424,7 +2473,7 @@ The current comparison requires both destination files to be recorded present.
 
 ### 7.9 Needs review
 
-**Built for Small images and Review later**; the remaining reasons below are planned. **Needs review** lists organized Library photos waiting for a decision. Each carries a **note**: a reason, the job that raised it, when, and optionally a
+**Built for Small images, Review later and File issues**; additional decision workflows below remain planned. **Needs review** lists organized Library photos waiting for a decision. Each carries a **note**: a reason, the job that raised it, when, and optionally a
 related photo, opened side by side in comparison. **Notes are for decisions only**, not a
 general tagging system: personal labels (people, albums) belong to gallery applications.
 
@@ -2442,10 +2491,10 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   Library (filters, selection, bulk answers), and working through them reuses the
   workspace built for such tasks.
 * **Filter by reason; bulk within one reason** (planned for review answers; existing bulk Reject is available with preview and confirmation). A mixed
-  selection offers only shared actions. One filter row beneath location navigation
-  includes the review-reason toggles and their counts; **Review one by one** stays above
-  the photos. Folders and Dates remain in the sidebar. Active chips toggle off, and no
-  active chips means the whole inbox. Do not duplicate Small images in another row.
+  selection offers only shared actions. The sidebar's Look into holds the review-reason
+  toggles and their counts; **Review one by one** stays above the photos. Types, Folders
+  and Dates are in the Filters panel. Active filters toggle off, and none active means the
+  whole inbox. Do not duplicate Small images elsewhere.
   Switching reminders keeps controls and results stable; explanations share a content-sized
   area, with only the current explanation accessible.
 * **A note exists only when a person must decide.** Facts the catalog can compute (every
@@ -2615,7 +2664,7 @@ abandons the pending action without changing files.
 
 If a post-job
 backup fails, preserve the job's actual result, show a separate backup warning and
-offer **Retry backup**: its own line in the finished-job banner. Do not describe
+offer **Retry backup** in a separate persistent backup notice. Do not describe
 completed file work as failed merely because its backup failed.
 
 **Where backups live:** in Settings, not on a page of their own; the top row is full, and
@@ -2739,7 +2788,7 @@ conflicting EXIF tags are outside this first policy. Never infer an offset or re
 a recorded value. Legitimate historical material may still be flagged.
 
 Use existing gallery controls, card geometry, selection, pagination and URL state
-(`view=suspicious`). Counts, sidebar filters and Select all use the same membership.
+(`view=suspicious`). Counts, the Filters panel and Select all use the same membership.
 Explain the policy beside results. The Inspector shows the reason, recorded value,
 source and a link to the affected view. Similar photos offer clues, not automatic
 corrections. The comparison Capture information table includes a Date review row

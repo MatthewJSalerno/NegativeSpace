@@ -270,7 +270,7 @@ also test writable-source removal, selected/folder/whole-source targeting, stale
 answers, changed roots, busy engine and unsupported input. No real network share
 or maintainer data is needed; network durability itself is not tested.
 
-`DRIVER=transfer_outcome_browser_drive.py` checks mixed and all-failed prerequisite scans for Copy and Move, including banner
+`DRIVER=transfer_outcome_browser_drive.py` checks mixed and all-failed prerequisite scans for Copy and Move, including notification
 counts and View failures links. It modifies only the harness's disposable photos.
 The API suite also runs all four cases with a writable source to verify successful
 Move alongside scan failures. Existing verdict cases cover cancellation, copied-only,
@@ -724,7 +724,7 @@ Manual review before merging: choose On and Off on separate fresh catalogs, revi
 mixed-size delivered photos, verify a useful small photo disappears only from Small
 images after Mark reviewed, and verify unwanted photos follow the existing Reject
 confirmation. Inspect the workspace and first-run Files at desktop zoom. This branch
-uses schema 26 and requires a fresh development catalog; it does not migrate schema 20.
+uses the current schema and requires a fresh development catalog; it does not migrate older catalogs.
 
 The review browser driver also covers first-step navigation, source Index summary,
 Copy confirmation, Library review markers, focused inbox entry and return with search,
@@ -823,13 +823,14 @@ Fresh-start/source eligibility checks:
 
 A terminal run record does not mean the engine has released its lock: the catalog
 backup runs after settlement. Before starting another job or asserting a finished
-banner, wait for both a terminal run status and `GET /api/v1/jobs/active` returning
+notification, wait for both a terminal run status and `GET /api/v1/jobs/active` returning
 `active: null`. Do not retry a refused start to hide an unexpected refusal.
 
-`DRIVER=dismissal_browser_drive.py` checks delayed and failed catalog dismissal writes,
-Library/Logs navigation while saving, visible retry at narrow desktop width, interrupted
-reload before acknowledgment, storage clearing after acknowledgment, and stale browser
-IDs versus catalog authority. It deliberately holds the PUT instead of relying on timing.
+`DRIVER=notifications_browser_drive.py` checks delayed and failed notification-read writes,
+failed saves with retry, interrupted reload before acknowledgment, storage clearing after
+acknowledgment, new-job unread counts, result links and selection geometry. It deliberately
+holds the PUT instead of relying on timing; pagination and concurrent acknowledgments are
+also covered by the API suite.
 
 The source-scope browser check starts Copy from the Index summary and verifies that
 completion replaces the photo facts with a compact failure notice, without reloading.
@@ -865,6 +866,46 @@ completion message, and the URL no longer points to that photo/review. With othe
 queue items remaining, Back closes only a preview that no longer matches the view;
 a still-matching preview and checkbox selection remain intact.
 
+## Notification bell and selection stability
+
+Run `notifications_test.py` inside the app Docker image. It verifies per-job read state,
+strict/atomic refusal (including IDs outside SQLite’s integer range), cursor pagination,
+concurrent acknowledgments, idempotence and
+badge queries that do not derive outcomes. Run `notifications_browser_drive.py` with the
+standard browser harness: it checks failed/delayed saves, reload and navigation, new jobs,
+result links, inline failure details without covering actions, count-width stability
+across digit changes, dark/light and narrow reflow.
+Existing job workflows use the shared `finished_notice` helper to inspect their result
+through the bell. Safety questions remain in actionable banners independently of read state.
+
+Manual: open the bell after Index/Copy; verify each job, result and links; close/reload
+and confirm the unread count stays cleared. Run another job and check that it creates
+one new unread notice. Select 1, 9, 10 and more photos: the adjacent actions should stay
+in place. Opening the bell must not move the gallery. Check Logs/Stats and desktop zoom.
+
+## Gallery filter pins
+
+Run `filter_pins_test.py` inside the app image with `PYTHONPATH=/app/tests:/app` for
+replacement-versus-intersection counts, unchanged gallery membership, search scope and
+invalid/exclusive pins. `DRIVER=filter_pins_browser_drive.py` in the normal generated
+browser harness covers replacement, pin persistence, exclusive reminders, exact job
+links, retained selection, keyboard access and light/dark desktop reflow. It checks
+Clear all filters in the sidebar, stable filter-row positions, and clearing Source
+folders/search without changing place. It also
+holds Inspector detail responses to check that gallery clicks and arrow navigation
+keep both tab labels and widths stable while loading.
+
+Manual: in Library, click No capture date then Suspicious dates; only the latter stays
+active. Pin Small images and try those date filters again: Small images stays applied.
+Review later should show its count immediately in Library, including zero. Filter by
+it, switch to Needs review and back, and confirm the same reminder remains applied.
+Refresh, then check the Small images/Review later restriction in both places and
+its unpin explanation. Clear all filters, beside Look into, should remove saved pins,
+search and folder/date/type restrictions without clearing photo selection or changing
+place. The filter rows should stay still when that action appears or disappears. No Index or Copy
+is needed when the demo is already populated. Open a photo, choose Similar photos,
+then click a different gallery photo: Photo information should open. Check this in
+Library and Has similar photos; reloading an explicit Similar photos tab should retain it.
 
 ## Uncertain-operation recovery
 
@@ -1341,3 +1382,13 @@ pending implementation of the metadata API and UI.** Command-line test reruns do
 replace that walkthrough. Validate source choice, editing previews, save/recovery feedback
 and the Move confirmation through the eventual screens before claiming end-to-end UX
 acceptance. No metadata screens were implemented as part of this engine delivery.
+
+### Combined metadata and navigation schema
+
+Schema 28 includes both metadata provenance and notification read receipts. The database
+contract suite checks the combined tables and receipts, and verifies that schema-26/27
+catalogs are refused without modification. The filter-pin API and recovery browser
+suites cover File issues in the shared sidebar, including pin exclusivity, counts,
+refresh and recovery. Local integration validation passed 195 database/API tests and
+six browser workflows: main UI, filters, notifications, review, file-issue recovery and
+externally removed copied originals. GitHub runs the complete combined suite before merge.

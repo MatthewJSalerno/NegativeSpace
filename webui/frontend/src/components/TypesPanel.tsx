@@ -40,6 +40,9 @@ export function TypesPanel({ types, selected, onTypes }: {
         )}
       </div>
       {open && <>
+      <p className="dates-status muted">
+        {selected.length === 0 ? "Showing every type" : <>Showing only {selected.map(typeLabel).join(", ")} · <button className="link" onClick={() => onTypes([])}>Show all</button></>}
+      </p>
       <ul className="dates-tree">
         {rows.map((r) => (
           <li key={r.type} className="dates-row month type-row">
@@ -50,9 +53,6 @@ export function TypesPanel({ types, selected, onTypes }: {
           </li>
         ))}
       </ul>
-      <p className="dates-foot muted">
-        {selected.length === 0 ? "Showing every type" : <>Showing only {selected.map(typeLabel).join(", ")} · <button className="link" onClick={() => onTypes([])}>Show all</button></>}
-      </p>
       </>}
     </nav>
   );

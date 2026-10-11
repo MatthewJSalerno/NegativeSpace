@@ -3,6 +3,7 @@ import os
 import sys
 import time
 from playwright.sync_api import expect, sync_playwright
+from ui_browser_checks import finished_notice, close_notifications
 
 with sync_playwright() as p:
     browser = p.chromium.launch()
@@ -31,7 +32,7 @@ with sync_playwright() as p:
     if os.environ.get('SHOTS'):
         page.screenshot(path=f"{os.environ['SHOTS']}/stalled-job-warning.png", full_page=True)
     page.get_by_role('button', name='Cancel job', exact=True).click()
-    expect(page.locator('.finished-banner')).to_contain_text('was cancelled', timeout=30000)
+    expect(finished_notice(page)).to_contain_text('was cancelled', timeout=30000)
     assert request.get('/api/v1/jobs/active').json()['active'] is None
     assert request.get('/api/v1/status').json()['library_photos'] == 0
     browser.close()

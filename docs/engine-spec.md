@@ -341,7 +341,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 26 and refuses incompatible catalogs before processing.
+initializes schema version 28 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -815,10 +815,12 @@ CREATE TABLE backup_artifacts (
 
 -- What the web interface remembers for its user, kept with the catalog so clearing a
 -- browser's data does not bring back what was dismissed (webui-spec 4.1). Written by
--- the API through ns_db.save_ui_state. Not settings: settings configure jobs and are
+-- the API through ns_db.save_ui_state and webui.notifications.mark_read. Each
+-- read_notification:<run_id> key stores true for one finished job; these acknowledgments
+-- never alter job outcomes or resolve file issues. Not settings: settings configure jobs and are
 -- copied into each run's configuration.
 CREATE TABLE ui_state (
-    key TEXT PRIMARY KEY CHECK(key IN ('dismissed_run')),
+    key TEXT PRIMARY KEY CHECK(key = 'dismissed_run' OR key GLOB 'read_notification:[0-9]*'),
     value_json TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 
@@ -1796,7 +1798,7 @@ photo/review revisions are refused. Small-image eligibility is a query over deli
 content dimensions and `small_image_min` (positive integer pixels, null for off).
 Acknowledgements survive re-indexing unchanged content and rule changes. Review later
 is independently resolved by Done. Review events are included in catalog backups and
-unbacked-change accounting. Development catalogs require schema 26; no migration.
+unbacked-change accounting. Development catalogs require schema 28; no migration.
 
 
 ## 11. Explicit uncertain-outcome verification
