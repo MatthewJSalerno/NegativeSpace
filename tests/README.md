@@ -1523,7 +1523,7 @@ latest metadata holds, deduplication, clearing after reindex, pagination, select
 IDs, position, facets, search and pin-aware counts. Source holds never enter Library
 or its Needs review inbox. The scenario browser checks the summary shortcut clears
 an unrelated search, URL refresh, pin restoration, unavailable-place behavior and
-Clear all filters. Maintainer acceptance of this filtering follow-up is pending.
+Clear all filters. Maintainer acceptance of this filtering follow-up passed.
 
 Local validation passed: 14 metadata-view/filter API tests, 4 filter-pin tests and
 98 existing API regressions. The scenario browser passed with 20 manifest date

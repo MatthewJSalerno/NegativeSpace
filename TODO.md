@@ -311,7 +311,7 @@ Saved orientation stays a separate action from temporary preview rotation.
   Maintainer validation passed, including broken-sidecar source-attention guidance.
 - [x] Needs attention filter in Not organized: processing failures and metadata holds,
   shared counts/pins, and a summary shortcut to the full affected list. Maintainer
-  acceptance of this filtering follow-up is pending.
+  acceptance of this filtering follow-up passed.
 - [ ] First date editor: manual Date taken or Copy to primary from another source of
   the photo; complete date/companion handling, explicit clear, previewed target and
   before/after date/path, one Save/refile confirmation and verified failure recovery.
