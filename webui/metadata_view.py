@@ -8,7 +8,7 @@ from . import catalog
 
 
 def _load(value):
-    return json.loads(value or '{}')
+    return json.loads(value or '{}') or {}
 
 
 def inspect(db_path, photo_id):
@@ -87,6 +87,20 @@ def inspect(db_path, photo_id):
                 fields=fields, tags=_load(version['tags_json']), available=not problems, issues=problems))
             if is_primary:
                 primary = key
+        # A refused/unreadable sidecar may have no archived version. Its tab must
+        # still say why it is unavailable, rather than claiming there was no source.
+        retained_digests = {v['sha256'] for v in versions}
+        unretained = {}
+        for issue in issues:
+            source = issue.get('source', '')
+            if not source.startswith('sidecar:'):
+                continue
+            observed = next((s for s in sidecars if 'sidecar:'+s['path'] == source), {})
+            if observed.get('sha256') not in retained_digests:
+                unretained.setdefault(source, []).append(issue)
+        for source, problems in unretained.items():
+            result.append(dict(id='unretained:'+source, kind='sidecar_xmp', label='XMP Sidecar',
+                fields={}, tags={}, available=False, issues=problems))
         if not any(s['kind']=='sidecar_xmp' for s in result):
             result.append(dict(id='xmp:none',kind='sidecar_xmp',label='XMP Sidecar',fields={},tags={},available=False,issues=[]))
         return dict(photo_id=photo_id, primary_id=primary, sources=result, issues=issues,

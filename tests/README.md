@@ -1469,3 +1469,34 @@ and full shared-UI/main browser walkthrough passed; light/dark and narrow screen
 were inspected. Spec checks passed (476 section references, 51 API routes). Maintainer
 visual acceptance of the new source viewer remains pending; these results do not claim
 validation of the future date-editing controls.
+
+### Metadata scenario viewer acceptance
+
+After Index and Copy of the metadata scenario library, run
+`tests/browser/metadata_scenarios_browser_drive.py BASE_URL MANIFEST` inside the
+Playwright image, mounting the generated manifest read-only. The instance's source
+must be mounted at `/data/source`. This driver reads an existing test catalog; it does
+not create one or start jobs. Optional `SHOTS` saves rendered screenshots.
+
+It checks 20 source-date values against the manifest's written values, then exercises
+all-source agreement, a three-way date conflict, explicit empty versus absent values,
+missing and malformed sidecars, and light/dark narrow reflow. It verifies all metadata
+responses remain unchanged. Unsupported reader cases are not treated as passing support
+simply because they appear in `engine_today`.
+
+For manual acceptance, use Source folders to locate these generated cases, open Photo
+information, and scroll to Metadata sources:
+
+| Case | What to verify |
+| --- | --- |
+| `conflict/date_three_way` | Primary sidecar date is 2021; embedded XMP is 2020; EXIF is 2019. Compare on either alternative tab, then filter to date. |
+| `agree/all_three_agree` | Embedded XMP compared with primary has no differing fields. Default-language wrapping alone is not a difference. |
+| `conflict/sidecar_clears_title` | Primary title is Empty; embedded XMP has Beach day. |
+| `agree/complementary` | EXIF has a date; the sidecar does not. Comparison says Not recorded; it does not fill the sidecar with EXIF data. |
+| `agree/exif_only` | EXIF is Primary; the sidecar tab reports no metadata recorded. |
+| `sidecar_broken/malformed_xml` | Remains Not organized; the sidecar tab explains the read problem and links to photo logs without crashing. |
+
+Local validation: 61 photos indexed, 44 copied, 17 left at source with metadata holds.
+The manifest browser check passed and all 61 metadata responses stayed unchanged.
+The 12 source-view API tests passed. Screenshots inspected in light and dark/narrow
+layouts. Maintainer acceptance remains pending; date-editing controls remain unbuilt.

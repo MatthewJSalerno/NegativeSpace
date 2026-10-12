@@ -1,5 +1,7 @@
 """Actual generated EXIF/embedded-XMP/sidecar browsing; reads must not mutate."""
 import os
+import copy
+import json
 import sys
 import time
 from playwright.sync_api import sync_playwright, expect
@@ -58,6 +60,25 @@ with sync_playwright() as p:
     page.unroute(f'**/api/v1/photos/{pid}/metadata')
     viewer.get_by_role('button',name='Retry metadata').click()
     expect(viewer.get_by_role('tab',name='XMP Sidecar Primary')).to_be_visible()
+    # A language wrapper alone is not a metadata difference. Additional languages are.
+    wrapped=copy.deepcopy(before)
+    primary=next(s for s in wrapped['sources'] if s['id']==wrapped['primary_id'])
+    primary['fields']={'title':{'x-default':'Same title'}}
+    other=next(s for s in wrapped['sources'] if s['id']=='embedded_xmp')
+    other['fields']={'title':'Same title'}
+    page.route(f'**/api/v1/photos/{pid}/metadata',lambda route:route.fulfill(status=200,content_type='application/json',body=json.dumps(wrapped)))
+    page.reload()
+    viewer.get_by_role('tab',name='Embedded XMP',exact=True).click()
+    viewer.get_by_label('Compare with primary',exact=True).check()
+    viewer.get_by_label('Show differences only').check()
+    expect(viewer).to_contain_text('No differing fields match this filter.')
+    primary['fields']['title']['fr']='Un autre titre'
+    page.reload()
+    viewer.get_by_role('tab',name='Embedded XMP',exact=True).click()
+    viewer.get_by_label('Compare with primary',exact=True).check()
+    viewer.get_by_label('Show differences only').check()
+    expect(viewer.get_by_role('rowheader',name='Title Different')).to_be_visible()
+    page.unroute(f'**/api/v1/photos/{pid}/metadata')
     assert request.get(f'/api/v1/photos/{pid}/metadata').json()==before
     assert not errors,errors
     browser.close()

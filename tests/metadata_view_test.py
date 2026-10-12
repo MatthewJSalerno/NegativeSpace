@@ -112,3 +112,25 @@ class MetadataViewTests(ApiCase):
             xmp_store.retain_capture(conn,data=data,run_id=self.run,source_relative_path='alternative.xmp',file_ids=[self.fid])
         values=[s['fields'].get('date_taken') for s in self.get()['sources'] if s['kind']=='sidecar_xmp']
         self.assertIn('2020-01-02T03:04:05+00:00',values)
+
+    def test_unretained_unreadable_sidecar_is_not_reported_as_missing(self):
+        self.report['issues']=[{'source':'sidecar:broken.jpg.xmp','code':'read_error'}]
+        self.report['sidecars'].append({'path':'broken.jpg.xmp','state':'needs_attention'})
+        with ns_db.connect(self.cfg.db_path) as conn:
+            run=ns_db.create_run(conn,mode='INDEX',source=str(self.cfg.source),destination=str(self.cfg.dest))[0]
+            conn.execute('INSERT INTO metadata_captures(run_id,file_id,source_relative_path,catalog_sha1,embedded_json,report_json,observed_at) VALUES(?,?,?,?,?,?,?)',
+                (run,self.fid,'generated.jpg','a'*40,'{}',json.dumps(self.report),ns_db.utc_now()))
+        sources=self.get()['sources']
+        unavailable=[s for s in sources if s['kind']=='sidecar_xmp' and not s['available']]
+        self.assertEqual(len(unavailable),1)
+        self.assertEqual(unavailable[0]['issues'][0]['code'],'read_error')
+        self.assertTrue(any(s['kind']=='sidecar_xmp' and s['available'] for s in sources))
+
+    def test_malformed_retained_sidecar_has_empty_tag_object_and_error(self):
+        data=b'<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:'
+        with ns_db.connect(self.cfg.db_path,synchronous='FULL') as conn, ns_db.transaction(conn):
+            xmp_store.retain_capture(conn,data=data,run_id=self.run,source_relative_path='malformed.xmp',file_ids=[self.fid])
+        broken=next(s for s in self.get()['sources'] if s['kind']=='sidecar_xmp' and not s['available'])
+        self.assertEqual(broken['tags'],{})
+        self.assertEqual(broken['fields'],{})
+        self.assertEqual(broken['issues'][0]['code'],'malformed_xml')

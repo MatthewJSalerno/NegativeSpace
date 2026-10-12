@@ -11,6 +11,12 @@ function stable(value: unknown): string {
   if (value !== null && typeof value === "object") return JSON.stringify(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, stable(v)]));
   return JSON.stringify(value);
 }
+// Plain default-language text and its XMP language wrapper mean the same value.
+// Keep additional languages, missing fields, arrays and date precision distinct.
+function comparable(value: unknown, key: string) {
+  return ["title", "caption", "rights"].includes(key) && typeof value === "string"
+    ? { "x-default": value } : value;
+}
 function display(values: Record<string, unknown>, key: string) {
   if (!own(values, key)) return "Not recorded";
   const value = values[key];
@@ -45,7 +51,7 @@ export function MetadataSources({ photoId, refreshKey }: { photoId: number; refr
   const choices = data.sources.filter(s => s.kind === kind);
   const comparing = compare && !!primary && source.id !== primary.id && primary.available && source.available;
   const fields = [...new Set([...Object.keys(source.fields), ...(comparing ? Object.keys(primary.fields) : [])])].sort((a, b) => a === "date_taken" ? -1 : b === "date_taken" ? 1 : a.localeCompare(b));
-  const differs = (key: string) => !!primary && (own(source.fields, key) !== own(primary.fields, key) || stable(source.fields[key]) !== stable(primary.fields[key]));
+  const differs = (key: string) => !!primary && (own(source.fields, key) !== own(primary.fields, key) || stable(comparable(source.fields[key], key)) !== stable(comparable(primary.fields[key], key)));
   const shown = fields.filter(k => (!comparing || !differences || differs(k)) && `${LABELS[k] ?? k} ${display(source.fields,k)} ${comparing ? display(primary.fields,k) : ""}`.toLowerCase().includes(query.toLowerCase()));
   return <section className="info-section metadata-sources">
     <h3>Metadata sources</h3>
@@ -57,9 +63,9 @@ export function MetadataSources({ photoId, refreshKey }: { photoId: number; refr
       setSelected(target.id); setQuery("");
     }} tabs={kinds.map(k => ({ value:k, label:<>{k === "sidecar_xmp" ? "XMP Sidecar" : k === "embedded_xmp" ? "Embedded XMP" : "EXIF"}{primary?.kind === k && <> <span className="badge">Primary</span></>}</> }))} />
     <div role="tabpanel" {...tabPanel(id, kind, kind)}>
-      {choices.length > 1 && <label>Sidecar version <select value={source.id} onChange={e => setSelected(e.target.value)}>{choices.map(s => <option key={s.id} value={s.id}>Version {s.version_id}{s.id === data.primary_id ? " · Primary" : " · Alternative"}</option>)}</select></label>}
+      {choices.length > 1 && <label>Sidecar version <select value={source.id} onChange={e => setSelected(e.target.value)}>{choices.map((s, i) => <option key={s.id} value={s.id}>{s.version_id != null ? `Version ${s.version_id}` : `Unreadable sidecar ${i + 1}`}{s.id === data.primary_id ? " · Primary" : " · Alternative"}</option>)}</select></label>}
       {source.issues.map((issue, i) => <p key={i} className="notice">{issue.detail || issue.code.replaceAll("_", " ")}</p>)}
-      {!source.available ? <p className="muted">{source.issues.length ? "This source could not be interpreted. Recorded details remain available below." : "No metadata recorded for this source."}</p> : <>
+      {!source.available ? <p className="muted">{source.issues.length ? "This source could not be interpreted. See the recorded issue and photo logs." : "No metadata recorded for this source."}</p> : <>
         <div className="metadata-source-options">
           <label className="checkbox-row" style={{ visibility: primary?.available && primary.id !== source.id ? undefined : "hidden" }}><input type="checkbox" disabled={!primary?.available || primary.id === source.id} checked={compare} onChange={e => setCompare(e.target.checked)} />Compare with primary</label>
           <label className="checkbox-row" style={{ visibility: comparing ? undefined : "hidden" }}><input type="checkbox" disabled={!comparing} checked={differences} onChange={e => setDifferences(e.target.checked)} />Show differences only</label>

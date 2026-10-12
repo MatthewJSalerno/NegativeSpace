@@ -1023,7 +1023,9 @@ On an alternative source tab, **Compare with primary** reveals the shared table:
 **Field | Primary value | This source**. Keep row order stable and mark differences
 neutrally. Offer **Show differences only** within comparison. Display **Empty** for
 an explicitly empty field and **Not recorded** for an absent one. Compare source
-values, not filename/file-time fallback dates. Neither checkbox writes metadata or
+values, not filename/file-time fallback dates. For title, caption and copyright,
+plain default-language text compares equal to an otherwise identical single
+`x-default` value; additional languages remain significant. Neither checkbox writes metadata or
 changes primary. Reuse shared table headings, focus behavior and stable panel geometry.
 
 Only Date taken offers **Copy to primary…**. Selecting it prepares a draft; it does

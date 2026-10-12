@@ -13,6 +13,9 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
   tabs, identifies the applied Primary source, and compares alternative values with
   it. Empty values remain distinct from missing fields; retained sidecar versions
   and captured source tags remain inspectable. Date-editing controls are still pending.
+- Metadata comparison treats matching plain text and a single XMP default-language
+  entry as equal. Unreadable sidecars retain their explanations even without an
+  archived version, and malformed retained sidecars no longer crash the source tab.
 
 - Look into filters can be pinned while browsing other filters. Clear all filters now
   sits beside Look into and clears search and folder/date/type restrictions as well.
