@@ -237,7 +237,7 @@ export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto,
           </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", activeTab)}>
             {detail && activeTab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
-              review={inLibrary ? <ReviewNote key={id} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto}
+              review={inLibrary ? <ReviewNote key={`review:${id}`} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto}
                 concerns={detail.date_warning ? [{label:"Suspicious date",message:`${detail.date_warning} Date editing is not available yet.`}]
                   : !detail.exif_dates?.some(d => d.field === "taken") ? [{label:"No capture date",message:"No date taken is recorded in the photo’s EXIF."}] : []}
                 actions={IN_LIBRARY.includes(detail.status) && onReject
@@ -307,7 +307,7 @@ function Details({ detail: d, onLineage, refreshKey, review }: { detail: PhotoDe
   const fallback = isFallbackDate(d.date_source);
   return (
     <div className="inspector-body">
-      <FileIssues key={d.id} photoId={d.id} initialIssues={d.issues ?? []} />
+      <FileIssues key={`issues:${d.id}`} photoId={d.id} initialIssues={d.issues ?? []} />
       {d.metadata_attention && <section className="notice" aria-label="Metadata needs attention">
         <strong>Metadata needs attention</strong>
         <p>This photo has not been organized. The photo and associated sidecars remain at source.</p>
@@ -338,7 +338,7 @@ function Details({ detail: d, onLineage, refreshKey, review }: { detail: PhotoDe
           {fallback && <div className="muted">* Files it under Undated: no EXIF date taken.</div>}
         </Row>
       </Section>
-      <MetadataSources key={d.id} photoId={d.id} refreshKey={refreshKey} />
+      <MetadataSources key={`metadata:${d.id}`} photoId={d.id} refreshKey={refreshKey} />
       <Section title="Additional file information" note="Recorded file properties and other extracted details. Compare EXIF and XMP in Metadata sources.">
         <tr className="meta-row"><td colSpan={2}><AllMetadata tags={d.metadata ?? []} /></td></tr>
       </Section>

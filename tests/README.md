@@ -1560,3 +1560,7 @@ Local validation passed: 14 metadata-view/filter API tests, 4 filter-pin tests a
 assertions and all 61 metadata responses unchanged; the new filter was inspected
 in light/dark themes and narrow reflow. Specification checks passed (476 section
 references, 51 API routes). This does not claim a large-catalog performance benchmark.
+
+Inspector refresh regression: the review browser workflow dispatches repeated review
+updates and asserts one metadata section, review section and Photo actions row.
+Sibling sections use distinct keys so refreshing does not leave orphan controls.
