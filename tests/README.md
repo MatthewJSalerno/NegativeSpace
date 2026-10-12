@@ -1406,11 +1406,12 @@ remaining source names, and verify that omitting the flag preserves edited origi
 The web confirmation remains a separate implementation; no manual UI validation is
 required for this engine-only change.
 
-### Metadata UI acceptance still pending
+### Metadata editing UI acceptance still pending
 
 The metadata engine has automated generated-fixture coverage, including verified saves,
 date refiling, recovery and job-confirmed source cleanup. **Full user validation remains
-pending implementation of the metadata API and UI.** Command-line test reruns do not
+pending implementation of the editing API and UI.** The read-only viewer is accepted
+separately below. Command-line test reruns do not
 replace that walkthrough. Validate source choice, editing previews, save/recovery feedback
 and the Move confirmation through the eventual screens before claiming end-to-end UX
 acceptance. No metadata screens were implemented as part of this engine delivery.
@@ -1425,7 +1426,7 @@ refresh and recovery. Local integration validation passed 195 database/API tests
 six browser workflows: main UI, filters, notifications, review, file-issue recovery and
 externally removed copied originals. GitHub runs the complete combined suite before merge.
 
-### First metadata UI acceptance — planned, not yet run
+### First metadata editing UI acceptance — pending
 
 The agreed first web editor changes only Date taken; broad metadata viewing does not
 imply general field editing. When the API/screens exist, validate:
@@ -1441,8 +1442,8 @@ imply general field editing. When the API/screens exist, validate:
   uses one confirmation for the date and any refiling; failures retain actionable details.
 - Keyboard tabs, focus, stable layout, both themes and desktop zoom follow shared checks.
 
-This checklist is future acceptance work, not a claim of implemented controls or passing
-browser tests. Saved rotation and general composition remain separate scope. Reconcile
+The read-only viewing checks are accepted as recorded below; editing and save checks
+remain future acceptance work. Saved rotation and general composition remain separate scope. Reconcile
 this record with the specs, TODO and private handoff before the next merge.
 
 ### Read-only metadata source viewer
@@ -1467,8 +1468,8 @@ Local generated-fixture validation for this viewer: 10 source-view API tests and
 98-test existing API regression suite passed in Docker. The source-view browser check
 and full shared-UI/main browser walkthrough passed; light/dark and narrow screenshots
 were inspected. Spec checks passed (476 section references, 51 API routes). Maintainer
-visual acceptance of the new source viewer remains pending; these results do not claim
-validation of the future date-editing controls.
+visual acceptance of the source viewer is complete, including the scenario follow-up
+below; these results do not claim validation of future date-editing controls.
 
 ### Metadata scenario viewer acceptance
 
@@ -1499,17 +1500,18 @@ information, and scroll to Metadata sources:
 Local validation: 61 photos indexed, 44 copied, 17 left at source with metadata holds.
 The manifest browser check passed and all 61 metadata responses stayed unchanged.
 The 12 source-view API tests passed. Screenshots inspected in light and dark/narrow
-layouts. Maintainer acceptance remains pending; date-editing controls remain unbuilt.
+layouts. Maintainer acceptance is complete; date-editing controls remain unbuilt.
 
 Maintainer acceptance: source tabs, primary identity, agreeing/conflicting values,
-comparison/filtering, empty/missing values and layouts passed. Broken-sidecar guidance
-was the exception: follow-up now adds a visible Not organized card marker, source file
-path, explanation and correction/reindex instructions at the top of Photo information.
-That follow-up still needs maintainer acceptance. Reindex-clearing and organized-photo
-exclusion have API coverage; the scenario browser checks the marker and notice.
+comparison/filtering, empty/missing values and layouts passed. The broken-sidecar
+follow-up also passed maintainer acceptance: a visible Not organized card marker,
+source file path, explanation and correction/reindex instructions at the top of Photo
+information. Reindex-clearing and organized-photo exclusion have API coverage; the
+scenario browser checks the marker and notice.
 
 Source-attention follow-up validation: 13 metadata-view API tests and 98 existing API
 regressions passed. The full scenario viewer browser check passed, including the
 Not organized marker, visible sidecar path, explanation and photo-log link. Metadata
 responses remained unchanged. Specs passed (476 references, 51 routes). The source
-warning was visually inspected; maintainer broken-sidecar recheck remains pending.
+warning was visually inspected; the maintainer accepted the broken-sidecar recheck.
+Read-only metadata viewer manual validation is complete.

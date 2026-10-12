@@ -308,6 +308,7 @@ Saved orientation stays a separate action from temporary preview rotation.
   tabs, textual Primary badge and stable captured-field tables. Alternative tabs offer
   Compare with primary and Show differences only; distinguish Empty, Not recorded and
   unreadable/request failures. Follow `docs/ui-design.md` for the shared controls.
+  Maintainer validation passed, including broken-sidecar source-attention guidance.
 - [ ] First date editor: manual Date taken or Copy to primary from another source of
   the photo; complete date/companion handling, explicit clear, previewed target and
   before/after date/path, one Save/refile confirmation and verified failure recovery.
