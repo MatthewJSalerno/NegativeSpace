@@ -5,6 +5,7 @@ scenarios exist to test, so the library can serve as ground truth.
     docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app \\
       negativespace python3 -m unittest discover -s tests -p make_metadata_scenarios_test.py -v
 """
+import hashlib
 import json
 import os
 import re
@@ -199,6 +200,17 @@ class MakeMetadataScenarios(unittest.TestCase):
             for tag in ("ExifIFD:DateTimeOriginal", "XMP-dc:Title", "XMP-dc:Subject", "IPTC:Keywords"):
                 self.assertNotIn(tag, entry, f"{entry['SourceFile']} kept the seed's {tag}")
         check_sources(self, lib, manifest)
+
+    def test_a_motion_photo_carries_its_video_last_as_recorded(self):
+        tag = {"google_legacy": "File:EmbeddedVideo", "pixel": "Google:MotionPhotoVideo",
+               "samsung": "Samsung:EmbeddedVideoFile"}
+        motions = [p for c in self.cases("real_world") for p in c["photos"] if "embedded_video" in p]
+        self.assertEqual({p["embedded_video"]["variant"] for p in motions}, set(tag))
+        for p in motions:
+            v = p["embedded_video"]
+            video = subprocess.run(["exiftool", "-b", "-ee", f"-{tag[v['variant']]}", str(self.lib / p["path"])],
+                                   capture_output=True, check=True).stdout
+            self.assertEqual((len(video), hashlib.sha1(video).hexdigest()), (v["length"], v["sha1"]), p["path"])
 
     def test_it_refuses_a_folder_it_did_not_make(self):
         foreign = self.root / "foreign"

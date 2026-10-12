@@ -17,7 +17,8 @@ The groups:
                    rdf:about UUID, keywords as rdf:Seq, a date only in photoshop:DateCreated,
                    Lightroom's hierarchical keywords, UTF-16 and BOM sidecars, IPTC-only
                    keywords, a zeroed EXIF date, PNG with embedded XMP, a Google Takeout
-                   .json sidecar, an orientation already applied to the pixels
+                   .json sidecar, an orientation already applied to the pixels, and motion
+                   photos (Google legacy, Pixel, Samsung) whose video a save must keep
 
 The manifest is ground truth: for every photo, what this script wrote to each source
 (`exif`, `embedded_xmp`, `iptc`), and for every sidecar, its name, the photo it was
@@ -41,6 +42,7 @@ reproducible. Run it in the app image, which has Pillow and ExifTool:
       tools/make_metadata_scenarios.py build --out /photos/demos/metadata [--seed-dir /photos/seed]
 """
 import argparse
+import hashlib
 import json
 from io import BytesIO
 import random
@@ -235,7 +237,8 @@ class Case:
         self.folder = builder.lib / group / name
         self.photos, self.sidecars, self.others = [], [], []
 
-    def photo(self, filename="photo.jpg", *, exif=None, embedded_xmp=None, iptc=None, fmt=None, rotate_pixels=False):
+    def photo(self, filename="photo.jpg", *, exif=None, embedded_xmp=None, iptc=None, fmt=None, rotate_pixels=False,
+              motion=None):
         path = self.folder / filename
         fmt = fmt or ("PNG" if path.suffix.lower() == ".png" else "JPEG")
         src = self.b.seeds.take()
@@ -249,8 +252,12 @@ class Case:
                 turned = im.rotate(-90, expand=True)
             turned.save(path, fmt)
         embed(path, exif, embedded_xmp, iptc)
+        # A motion photo's video goes after everything else: it must stay last in the file.
+        video = make_scenarios.motion_photo(path, motion) if motion else None
         sources = {k: v for k, v in (("exif", exif), ("embedded_xmp", embedded_xmp), ("iptc", iptc)) if v}
         self.photos.append({"path": path, "sources": sources, "pixels_rotated": rotate_pixels,
+                            **({"embedded_video": {"variant": motion, "length": len(video),
+                                                   "sha1": hashlib.sha1(video).hexdigest()}} if video else {}),
                             **({"from": str(src.relative_to(self.b.seeds.root))} if src else {})})
         return path
 
@@ -485,6 +492,15 @@ def real_world(b: Builder):
     path.write_text(json.dumps(takeout, indent=2) + "\n")
     make_scenarios.record_altered(path)
     c.others.append({"path": path, "kind": "google_takeout_json", "written_for": p.name, "values": takeout})
+    # Motion photos: a JPEG with a video after the picture. A metadata write must keep the
+    # video byte for byte (the manifest has its length and SHA-1): ExifTool's writes do, while
+    # re-encoding the picture through an image library drops it.
+    for variant, name in make_scenarios.MOTION_PHOTOS:
+        c = b.case("real_world", f"motion_photo_{variant}", f"A {variant.replace('_', ' ')} motion photo with "
+                   "metadata in it and a sidecar that disagrees: a save must keep its video.")
+        p = c.photo(name, exif={"date": "2019:06:15 12:00:00"},
+                    embedded_xmp={"title": "Moving picture", "keywords": ["motion"]}, motion=variant)
+        c.xmp(f"{name}.xmp", {"title": "Sidecar title", "rating": "4"}, written_for=p.name)
     c = b.case("real_world", "orientation_already_applied", "The pixels are already turned upright, yet "
                                                             "EXIF still says orientation 6: shown as told, it "
                                                             "lies on its side.")
