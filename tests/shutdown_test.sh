@@ -10,7 +10,9 @@
 set -eu
 
 IMAGE=${IMAGE:-negativespace}
-WORK=$(mktemp -d /tmp/ns-shutdown-XXXXXX)
+WORK=$(mktemp -d "${NS_TEST_OUTPUT_ROOT:-/tmp}/ns-shutdown-XXXXXX")
+DEST="$WORK/dest"
+if [ -n "${NS_TEST_DESTINATION_ROOT:-}" ]; then DEST=$(mktemp -d "$NS_TEST_DESTINATION_ROOT/ns-shutdown-XXXXXX"); fi
 NET=ns-shutdown-$$
 APP=ns-shutdown-app-$$
 TAB=ns-shutdown-tab-$$
@@ -19,15 +21,18 @@ FAILED=0
 cleanup() {
     docker rm -f "$APP" "$TAB" >/dev/null 2>&1 || true
     docker network rm "$NET" >/dev/null 2>&1 || true
-    docker run --rm --entrypoint rm -v "$WORK":/w "$IMAGE" -rf /w/src /w/dest /w/appdata /w/backups /w/cache >/dev/null 2>&1 || true
+    if [ "${NS_TEST_KEEP:-0}" = 1 ]; then echo "Generated shutdown artifacts retained."; return; fi
+    docker run --rm --entrypoint rm -v "$WORK":/w "$IMAGE" -rf /w/src /w/appdata /w/backups /w/cache >/dev/null 2>&1 || true
+    docker run --rm --entrypoint find -v "$DEST":/test-dest "$IMAGE" /test-dest -mindepth 1 -delete >/dev/null 2>&1 || true
+    if [ "$DEST" != "$WORK/dest" ]; then rmdir "$DEST"; fi
     rm -rf "$WORK"
 }
 trap cleanup EXIT
 
-mkdir -p "$WORK/src" "$WORK/dest" "$WORK/appdata" "$WORK/backups" "$WORK/cache"
+mkdir -p "$WORK/src" "$DEST" "$WORK/appdata" "$WORK/backups" "$WORK/cache"
 docker network create "$NET" >/dev/null
 docker run -d --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" -e NS_ALLOWED_HOSTS="localhost,127.0.0.1,app" \
-    -v "$WORK/src":/data/source -v "$WORK/dest":/data/dest -v "$WORK/appdata":/appdata \
+    -v "$WORK/src":/data/source -v "$DEST":/data/dest -v "$WORK/appdata":/appdata \
     -v "$WORK/backups":/backups -v "$WORK/cache":/cache "$IMAGE" >/dev/null
 for _ in $(seq 60); do
     docker exec "$APP" python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/status')" \
