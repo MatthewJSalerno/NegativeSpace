@@ -358,7 +358,7 @@ with sync_playwright() as p:
     page.goto(base+'/?view=unorganized')
     summary=page.get_by_role('region',name='Index summary')
     expect(summary.get_by_role('heading',name='3 files need attention',exact=True)).to_be_visible()
-    expect(summary.get_by_role('link',name='View failures',exact=True)).to_have_attribute('href','/logs?status=Failed')
+    expect(summary.get_by_role('link',name='View 3 files needing attention',exact=True)).to_have_attribute('href','/?view=unorganized&reason=attention')
     expect(summary.get_by_role('button',name='Copy all photos…',exact=True)).to_have_count(0)
     expect(summary).not_to_contain_text('Copy or move them to build your library.')
     page.unroute('**/api/v1/photos?*',failures_only)
