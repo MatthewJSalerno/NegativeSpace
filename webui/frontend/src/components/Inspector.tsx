@@ -308,6 +308,17 @@ function Details({ detail: d, onLineage, refreshKey, review }: { detail: PhotoDe
   return (
     <div className="inspector-body">
       <FileIssues key={d.id} photoId={d.id} initialIssues={d.issues ?? []} />
+      {d.metadata_attention && <section className="notice" aria-label="Metadata needs attention">
+        <strong>Metadata needs attention</strong>
+        <p>This photo has not been organized. The photo and associated sidecars remain at source.</p>
+        {d.metadata_attention.issues.map((issue, i) => <div key={i}>
+          <p>{issue.reason}</p>
+          {issue.files.map(file => <p key={file}>File relative to your source folder:<br /><code>{file}</code></p>)}
+          {issue.detail && <p className="section-note">Recorded detail: {issue.detail}</p>}
+        </div>)}
+        <p>{d.metadata_attention.action}</p>
+        <a href={logUrl({photo:d.id})} onClick={follow}>View photo logs</a>
+      </section>}
       {review}
       {!review && IN_LIBRARY.includes(d.status) && d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. The value is unchanged; date editing is not yet available. <a href="/?view=suspicious">View suspicious dates</a></p>}
       {IN_LIBRARY.includes(d.status) && d.visual_issue && <p className="section-note"><strong>Visual matching unavailable:</strong> {d.visual_issue} The catalogued file is retained. Missing EXIF alone is not evidence of damage.</p>}

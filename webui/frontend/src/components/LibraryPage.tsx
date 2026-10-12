@@ -914,8 +914,9 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const galleryNoun = grouped ? "set" : view === "unorganized" && (data?.index_summary?.failed ?? 0) > 0 ? "file" : "photo";
   const indexSummaryKey = JSON.stringify(data?.index_summary?.last_index ?? null);
   const indexSummaryClosed = closedIndexSummary === indexSummaryKey || (openId != null && !previewSummaryExpanded);
-  const indexNeedsAttention = !!data?.index_summary && data.index_summary.failed === data.index_summary.photos
-    && data.index_summary.failed > 0;
+  const indexAttentionCount = (data?.index_summary?.failed ?? 0) + (data?.index_summary?.metadata_held ?? 0);
+  const indexNeedsAttention = !!data?.index_summary && indexAttentionCount === data.index_summary.photos
+    && indexAttentionCount > 0;
 
   const placeShown = jobRun == null && (PLACE_VIEWS as View[]).includes(view) ? view as PlaceView : null;
   // Click a filter to browse; pins retain compatible filters while choosing another.
@@ -1098,12 +1099,12 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           {!focus && view === "unorganized" && !sourceTree && data?.index_summary && data.index_summary.photos > 0 && (indexSummaryClosed
             ? <button ref={summaryToggle} onClick={() => { setPreviewSummaryExpanded(true); toggleIndexSummary(null); }}>Show index summary</button>
             : <section className="notice index-summary" aria-label="Index summary">
-            <div className="index-summary-heading"><h3>{indexNeedsAttention ? `${plural(data.index_summary.failed, "file")} ${data.index_summary.failed === 1 ? "needs" : "need"} attention` : "Index summary"}</h3>
+            <div className="index-summary-heading"><h3>{indexNeedsAttention ? `${plural(indexAttentionCount, "file")} ${indexAttentionCount === 1 ? "needs" : "need"} attention` : "Index summary"}</h3>
               <button ref={summaryToggle} className="icon" aria-label="Close index summary" title="Close index summary"
                 onClick={() => toggleIndexSummary(indexSummaryKey)}>✕</button>
             </div>
-            <p>{indexNeedsAttention ? "The remaining files have processing errors. Review the failures to see what needs fixing." : "Your photos are indexed. Copy or move them to build your library."}</p>
-            {indexNeedsAttention ? <p><a href="/logs?status=Failed" onClick={follow}>View failures</a></p> : <>
+            <p>{indexNeedsAttention ? "The remaining files have processing errors or metadata issues. Open a marked photo below to see the affected source files and next steps." : "Your photos are indexed. Copy or move them to build your library."}</p>
+            {indexNeedsAttention ? <p><a href={(data.index_summary.metadata_held ?? 0) > 0 ? "/logs" : "/logs?status=Failed"} onClick={follow}>{(data.index_summary.metadata_held ?? 0) > 0 ? "View job details" : "View failures"}</a></p> : <>
             <p className="section-note">Photo facts below cover successfully indexed photos, before gallery filters. Failed files are counted separately. Size and date findings do not prevent Copy or Move.</p>
             <dl>
               <div><dt>Photos ready to organize</dt><dd>{count(data.index_summary.ready)}</dd></div>
@@ -1112,10 +1113,10 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               <div><dt>Suspicious dates</dt><dd>{count(data.index_summary.suspicious)}</dd></div>
               <div><dt>No capture date</dt><dd>{count(data.index_summary.undated)}</dd></div>
               <div><dt><Tip text="No usable width and height were recorded. The format may be unsupported, the file may be unreadable, or processing may be incomplete. This alone does not mean the file is damaged or is not a photo. These files are not counted as small images.">Image size unavailable</Tip></dt><dd>{count(data.index_summary.unknown_dimensions)}</dd></div>
-              <div><dt>Files needing attention</dt><dd>{count(data.index_summary.failed)}</dd></div>
+              <div><dt>Files needing attention</dt><dd>{count(indexAttentionCount)}</dd></div>
               {data.index_summary.unfinished > 0 && <div><dt>Unfinished processing</dt><dd>{count(data.index_summary.unfinished)}</dd></div>}
             </dl>
-            <p className="section-note">Similar photos compares organized photos in Library only. Identical content is organized once. Files with processing errors: {count(data.index_summary.failed)}. <a href={data.index_summary.failed > 0 ? "/logs?status=Failed" : "/logs"} onClick={follow}>{data.index_summary.failed > 0 ? "View failures" : "View job details"}</a></p>
+            <p className="section-note">Similar photos compares organized photos in Library only. Identical content is organized once. Files with processing errors: {count(data.index_summary.failed)}. Metadata holds: {count(data.index_summary.metadata_held ?? 0)}. <a href={data.index_summary.failed > 0 ? "/logs?status=Failed" : "/logs"} onClick={follow}>{data.index_summary.failed > 0 ? "View failures" : "View job details"}</a></p>
             <button className="primary" disabled={jobRunning || !status.eligible.copy} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.copy ? "No photos are eligible for Copy." : undefined} onClick={() => askTransfer("copy")}>Copy all photos…</button>{" "}
             <button disabled={jobRunning || !status.eligible.move} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.move ? "No photos are eligible for Move." : undefined} onClick={() => askTransfer("move")}>Move all photos…</button>
             </>}

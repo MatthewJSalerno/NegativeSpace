@@ -870,6 +870,13 @@ a failed step opens to its recorded reason and **Retry this photo**; hovering or
 a path shows its size, content fingerprint and whether it matches, and when it was
 recorded. Escape closes the window only, not the panel behind it.
 
+**Source metadata holds.** Not organized cards mark recorded metadata issues as
+Needs attention · Metadata. Opening a card shows the affected source-relative files,
+plain-language reason, available technical detail, external correction/reindex guidance
+and photo logs at the top of Photo information. The photo and sidecars remain at source.
+The summary counts these holds as needing attention rather than ready to organize.
+This does not add source photos to Library's Needs review or implement choice controls.
+
 **Metadata sources.** Separate XMP Sidecar, Embedded XMP and EXIF tabs show captured
 source values. A textual Primary badge identifies verified activation, not the viewed
 tab or an unexecuted decision. Other tabs compare canonical fields against primary,

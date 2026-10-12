@@ -134,3 +134,31 @@ class MetadataViewTests(ApiCase):
         self.assertEqual(broken['tags'],{})
         self.assertEqual(broken['fields'],{})
         self.assertEqual(broken['issues'][0]['code'],'malformed_xml')
+
+    def test_source_attention_has_path_explanation_and_clears_on_reindex(self):
+        def capture(report):
+            with ns_db.connect(self.cfg.db_path) as conn:
+                run=ns_db.create_run(conn,mode='INDEX',source=str(self.cfg.source),destination=str(self.cfg.dest))[0]
+                conn.execute('INSERT INTO metadata_captures(run_id,file_id,source_relative_path,catalog_sha1,embedded_json,report_json,observed_at) VALUES(?,?,?,?,?,?,?)',
+                    (run,self.fid,'generated.jpg','a'*40,'{}',json.dumps(report),ns_db.utc_now()))
+        broken=dict(self.report,state='needs_attention',issues=[{'source':'sidecar:generated.jpg.xmp','code':'malformed_xml','detail':'unclosed token'}])
+        capture(broken)
+        page=self.client.get('/api/v1/photos?view=unorganized').json()
+        note=next(p for p in page['items'] if p['id']==self.pid)['metadata_attention']
+        self.assertEqual(note['issues'][0]['files'],['generated.jpg.xmp'])
+        self.assertIn('malformed XML',note['issues'][0]['reason'])
+        self.assertIn('Index again',note['action'])
+        self.assertEqual(page['index_summary']['metadata_held'],1)
+        self.assertEqual(page['index_summary']['ready'],0)
+        detail=self.client.get(f'/api/v1/photos/{self.pid}/inspect').json()
+        self.assertEqual(detail['metadata_attention'],note)
+        capture(dict(self.report,state='captured',issues=[]))
+        page=self.client.get('/api/v1/photos?view=unorganized').json()
+        self.assertEqual(page['index_summary']['metadata_held'],0)
+        self.assertEqual(page['index_summary']['ready'],1)
+        self.assertIsNone(page['items'][0]['metadata_attention'])
+        # Source observations never mark an organized photo as a held import.
+        capture(broken)
+        with ns_db.connect(self.cfg.db_path) as conn:
+            conn.execute("UPDATE photos SET status='Copied' WHERE id=?",(self.pid,))
+        self.assertIsNone(self.client.get(f'/api/v1/photos/{self.pid}/inspect').json()['metadata_attention'])

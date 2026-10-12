@@ -323,6 +323,10 @@ Saved orientation stays a separate action from temporary preview rotation.
   Settings. The source viewer is tracked above, not a duplicate implementation task.
 - [ ] Prominent active-job Settings notice (`webui-spec.md` §3); generic future-jobs
   notice/save confirmation already exist.
+- [x] Source metadata attention markers and photo-information explanations: affected
+  source-relative sidecar paths, external correction/reindex guidance and job logs.
+  Latest-capture holds count as attention, not ready-to-organize photos. No source
+  photo is added to Library's Needs review. Broader decisions remain below.
 - [ ] Metadata-choice job notices and linked Not organized queue; metadata-difference
   review for edited Library photos and combined metadata/location choices for rejected
   matches. Retained alternatives already have engine preservation notices/history.

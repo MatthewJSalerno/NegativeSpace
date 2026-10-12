@@ -1060,3 +1060,16 @@ The engine's broader composition
 and earlier-state reproduction capabilities remain built; exposing their general field
 controls is deferred. Before merge, reconcile specs, backlog, validation evidence and
 private handoff with implemented behavior and explicit remaining scope.
+
+### Source metadata attention
+
+A latest Index metadata issue on a Not organized photo gets a visible **Needs attention
+· Metadata** card control opening Photo information. A shared notice at the top names
+the affected source-relative sidecar, explains the issue in plain language, includes
+recorded technical detail when available, and links to that photo's logs. Explain that
+the pair remains at source; correcting metadata/access outside the app requires a new
+Index. Unsupported formats and choices may be left at source pending support. These
+are source import issues, separate from Library's Needs review. Do not label the photo
+itself corrupt or provide an ineffective retry. A successful later Index clears the
+notice; organized photos do not inherit this source-only hold. Index summary excludes
+recorded metadata holds from Photos ready to organize and counts them under attention.

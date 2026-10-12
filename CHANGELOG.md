@@ -9,6 +9,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Not organized marks source metadata issues as Needs attention and explains the
+  affected sidecar path and external correction/reindex steps in Photo information.
+  Index summary excludes recorded metadata holds from photos ready to organize.
+
 - Photo information now separates XMP Sidecar, Embedded XMP and EXIF into read-only
   tabs, identifies the applied Primary source, and compares alternative values with
   it. Empty values remain distinct from missing fields; retained sidecar versions

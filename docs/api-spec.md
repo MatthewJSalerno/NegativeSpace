@@ -375,6 +375,13 @@ ExifTool's full set (or Pillow's when ExifTool found nothing for the file), not 
 subset. The engine's own `date_taken` and `date_source` are left out; they are above.
 Read from the catalog, so it shows the photo as last indexed.
 
+Photo listing items and photo inspection include nullable `metadata_attention` for
+Not organized photos with issues in their latest metadata capture. Its `issues` list
+contains `code`, readable `reason`, source-relative `files` and optional `detail`;
+`action` explains source correction/reindexing. It does not establish a failed photo
+or a Library review task. The Not organized `index_summary.metadata_held` count excludes
+failed photos already counted in `failed`; `ready` excludes recorded metadata holds.
+
 ### `GET /api/v1/photos/{id}/metadata`
 
 Read-only catalog snapshots for the metadata source viewer. Returns `photo_id`,

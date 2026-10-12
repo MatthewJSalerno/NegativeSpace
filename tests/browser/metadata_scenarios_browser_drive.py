@@ -108,9 +108,25 @@ with sync_playwright() as p:
     viewer.get_by_role('tab', name='XMP Sidecar', exact=True).click()
     expect(viewer).to_contain_text('No metadata recorded for this source.')
     viewer = open_case('malformed_xml')
+    notice=page.get_by_role('region',name='Metadata needs attention',exact=True)
+    expect(notice).to_be_visible()
+    expect(notice).to_contain_text('malformed XML')
+    expect(notice).to_contain_text('sidecar_broken/malformed_xml/photo.jpg.xmp')
+    expect(notice).to_contain_text('remain at source')
+    expect(notice).to_contain_text('Index again')
+    expect(notice.get_by_role('link',name='View photo logs')).to_be_visible()
     viewer.get_by_role('tab', name='XMP Sidecar', exact=True).click()
     expect(viewer).to_contain_text('This source could not be interpreted.')
     expect(viewer.get_by_role('link', name='View photo logs')).to_be_visible()
+    page.set_viewport_size({'width':1440,'height':1000})
+    page.goto(base+'/?view=unorganized')
+    broken_id=photos[cases['malformed_xml']['photos'][0]['path']]['id']
+    marker=page.locator(f'.card[data-id="{broken_id}"]').get_by_role('button',name='Needs attention · Metadata')
+    marker.scroll_into_view_if_needed()
+    marker.click()
+    expect(page.get_by_role('region',name='Metadata needs attention',exact=True)).to_be_visible()
+    if os.environ.get('SHOTS'):
+        page.get_by_role('region',name='Metadata needs attention',exact=True).screenshot(path=os.environ['SHOTS']+'/metadata-attention.png')
     assert not errors, errors
     for photo_id, data in before.items():
         assert get(f'/photos/{photo_id}/metadata') == data, photo_id

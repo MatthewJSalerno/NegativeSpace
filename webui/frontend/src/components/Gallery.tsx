@@ -101,6 +101,7 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
                           : undefined}>{STATUS_BADGE[item.status]}</span>
                 )}
                 {item.status === "Failed" && <a href={`/logs?photo=${item.id}&status=Failed`}>File needs attention</a>}
+                {item.metadata_attention && <button className="link" onClick={() => onOpen(item.id)}>Needs attention · Metadata</button>}
                 {item.duplicates > 0 && <span className="badge">{plural(item.duplicates, "duplicate")}</span>}
               </span>
             </div>

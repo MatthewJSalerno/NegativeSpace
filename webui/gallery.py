@@ -9,7 +9,7 @@ from typing import Optional
 from engine import ns_db, review, attention
 from engine import ns_similarity_cache
 from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
-from . import catalog
+from . import catalog, metadata_view
 
 
 # An uncorrelated settings lookup is evaluated once per statement, not per photo.
@@ -240,7 +240,8 @@ def _index_summary(conn):
     """Facts about remaining indexed source photos; no destination review eligibility."""
     where = _view_clause('unorganized')
     row = conn.execute(f"""SELECT COUNT(*) AS photos,
-        COALESCE(SUM(p.status='Pending'),0) AS ready,
+        COALESCE(SUM(p.status='Pending' AND NOT ({metadata_view.source_attention_predicate()})),0) AS ready,
+        COALESCE(SUM(p.status!='Failed' AND ({metadata_view.source_attention_predicate()})),0) AS metadata_held,
         COALESCE(SUM(p.status='Processing'),0) AS unfinished,
         COALESCE(SUM(p.status='Pending' AND ({_date_warning_sql()}) IS NOT NULL),0) AS suspicious,
         COALESCE(SUM(p.status='Pending' AND {_UNDATED}),0) AS undated,
@@ -262,8 +263,10 @@ def _index_summary(conn):
 def _items(conn, rows, *, include_review=False) -> list:
     items = []
     review_cards = _review_cards(conn, rows) if include_review else {}
+    metadata_notes = metadata_view.source_attention(conn, [r["id"] for r in rows])
     for r in rows:
         item = dict(r)
+        item["metadata_attention"] = metadata_notes.get(r["id"])
         sha1 = item.pop("sha1_hash")
         item["duplicates"] = conn.execute(
             "SELECT COUNT(*) FROM photos WHERE sha1_hash = ? AND id != ?", (sha1, r["id"])
@@ -664,6 +667,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
             "SELECT s.file_mtime FROM photo_files pf JOIN source_snapshots s USING(file_id) "
             "WHERE pf.photo_id = ?", (photo_id,)).fetchone()
         issues = attention.for_photo(conn, photo_id)
+        metadata_attention = metadata_view.source_attention(conn, [photo_id]).get(photo_id)
         failure = None
         if p["status"] == PhotoStatus.FAILED:
             last = conn.execute("SELECT error_message FROM operations WHERE photo_id = ? AND status = ? ORDER BY id DESC LIMIT 1",
@@ -686,7 +690,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         "file_modified": snapshot["file_mtime"] if snapshot else p["file_mtime"],
         "date_taken": meta.get("date_taken"), "date_source": meta.get("date_source"),
         "date_warning": p["date_warning"],
-        "camera": camera, "visual_issue": visual_issue, "failure": failure, "issues": issues,
+        "camera": camera, "visual_issue": visual_issue, "failure": failure, "issues": issues, "metadata_attention": metadata_attention,
         # A capture time's offset, when the camera recorded one; without it the
         # time zone is unknown and must not be shown as UTC (webui-spec 10).
         "date_offset": meta.get("OffsetTimeOriginal"),

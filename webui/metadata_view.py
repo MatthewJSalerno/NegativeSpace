@@ -107,3 +107,51 @@ def inspect(db_path, photo_id):
             recorded=bool(capture or receipt), applied=bool(receipt),
             field_sources=resolution.get('field_sources', {}),
             notice=None if receipt else 'Index observations only; no primary source has been activated.')
+
+
+def source_attention_predicate():
+    """Latest recorded metadata hold for the gallery's internal photo alias p."""
+    return """COALESCE((SELECT json_extract(m.report_json,'$.state')='needs_attention'
+        FROM photo_files pf JOIN metadata_captures m ON m.file_id=pf.file_id
+        WHERE pf.photo_id=p.id ORDER BY m.capture_id DESC LIMIT 1),0)"""
+
+
+def source_attention(conn, photo_ids):
+    """One bounded query for source-only cards; never read files or resolve choices."""
+    if not photo_ids:
+        return {}
+    rows = conn.execute(f"""SELECT p.id,m.source_relative_path,m.report_json
+        FROM photos p JOIN photo_files pf ON pf.photo_id=p.id
+        JOIN metadata_captures m ON m.capture_id=(SELECT MAX(last.capture_id)
+            FROM metadata_captures last WHERE last.file_id=pf.file_id)
+        WHERE p.id IN (SELECT value FROM json_each(?))
+        AND p.status IN ({','.join('?' for _ in catalog.NOT_ORGANIZED)})
+        AND json_extract(m.report_json,'$.state')='needs_attention'""",
+        (json.dumps(photo_ids), *catalog.NOT_ORGANIZED)).fetchall()
+    reasons = {
+        'malformed_xml': 'The XMP sidecar contains malformed XML.',
+        'read_error': 'The source metadata file could not be read. Check its permissions and file type.',
+        'size_limit': 'The XMP sidecar exceeds the supported size limit.',
+        'invalid_date_taken': 'A recorded capture date is invalid.',
+        'invalid_rating': 'A recorded rating is invalid.',
+        'invalid_orientation': 'A recorded orientation is invalid.',
+        'repeated_field': 'The XMP sidecar repeats a field that must have a single value.',
+        'metadata_choice_needed': 'Multiple sidecars require a metadata choice.',
+    }
+    result = {}
+    for row in rows:
+        report = _load(row['report_json'])
+        problems = []
+        for issue in report.get('issues', []):
+            source = issue.get('source', '')
+            code = issue.get('code', 'metadata_issue')
+            reason = reasons.get(code, 'This metadata needs attention: ' + code.replace('_', ' ') + '.')
+            if code.startswith('unsupported_'):
+                reason = 'The sidecar contains XMP this version cannot interpret.'
+            paths = ([source[len('sidecar:'):]] if source.startswith('sidecar:') else
+                     [s['path'] for s in report.get('sidecars', [])] if source == 'sidecars' else
+                     [row['source_relative_path']])
+            problems.append(dict(code=code, reason=reason, files=paths, detail=issue.get('detail')))
+        result[row['id']] = dict(issues=problems,
+            action='Check the listed source files with an external metadata tool. After correcting the metadata or file access, run Index again. You can also leave these files at source until the issue can be resolved.')
+    return result

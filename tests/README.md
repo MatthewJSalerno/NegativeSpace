@@ -1500,3 +1500,16 @@ Local validation: 61 photos indexed, 44 copied, 17 left at source with metadata 
 The manifest browser check passed and all 61 metadata responses stayed unchanged.
 The 12 source-view API tests passed. Screenshots inspected in light and dark/narrow
 layouts. Maintainer acceptance remains pending; date-editing controls remain unbuilt.
+
+Maintainer acceptance: source tabs, primary identity, agreeing/conflicting values,
+comparison/filtering, empty/missing values and layouts passed. Broken-sidecar guidance
+was the exception: follow-up now adds a visible Not organized card marker, source file
+path, explanation and correction/reindex instructions at the top of Photo information.
+That follow-up still needs maintainer acceptance. Reindex-clearing and organized-photo
+exclusion have API coverage; the scenario browser checks the marker and notice.
+
+Source-attention follow-up validation: 13 metadata-view API tests and 98 existing API
+regressions passed. The full scenario viewer browser check passed, including the
+Not organized marker, visible sidecar path, explanation and photo-log link. Metadata
+responses remained unchanged. Specs passed (476 references, 51 routes). The source
+warning was visually inspected; maintainer broken-sidecar recheck remains pending.

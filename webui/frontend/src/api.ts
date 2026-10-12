@@ -60,7 +60,13 @@ export interface MetadataView {
   notice: string | null; field_sources: Record<string, string>;
 }
 
+export interface MetadataAttention {
+  issues: {code: string; reason: string; files: string[]; detail: string | null}[];
+  action: string;
+}
+
 export interface PhotoItem {
+  metadata_attention?: MetadataAttention | null;
   id: number;
   status: string;
   file_size: number | null;
@@ -86,7 +92,7 @@ export interface ReviewDetail {
 }
 export interface PhotoPage {
   date_min_year: number;
-  index_summary?: { last_index: { id: number; started_at: string } | null; photos: number; ready: number; unfinished: number; duplicates: number; small: number; minimum: number | null; unknown_dimensions: number; suspicious: number; undated: number; failed: number; similar: null } | null;
+  index_summary?: { last_index: { id: number; started_at: string } | null; photos: number; ready: number; unfinished: number; metadata_held?: number; duplicates: number; small: number; minimum: number | null; unknown_dimensions: number; suspicious: number; undated: number; failed: number; similar: null } | null;
   elsewhere?: Record<string, number>;
   chips?: Record<string, number>;
   reasons?: Record<string, number>;
@@ -206,6 +212,7 @@ export interface FileIssue {
 }
 
 export interface PhotoDetail {
+  metadata_attention?: MetadataAttention | null;
   issues: FileIssue[];
   failure: string | null;
   visual_issue: string | null;
