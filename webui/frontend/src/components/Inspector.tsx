@@ -6,9 +6,10 @@ import type { ComparisonState } from "../comparisonState";
 import { Modal } from "./ui/Modal";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { api, ApiError, type PhotoDetail } from "../api";
+import { api, ApiError, type PhotoDetail, type MetadataSourceView } from "../api";
 import { bytes, epoch, isFallbackDate } from "../format";
 import { follow, logUrl } from "../nav";
+import { DateEditor } from "./DateEditor";
 import { MetadataSources } from "./MetadataSources";
 import { LineageDialog } from "./LineageDialog";
 import { jobLabel } from "../jobs";
@@ -61,6 +62,8 @@ export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto,
   matchView: MatchView;
   onMatchView: (view: MatchView) => void;
 }) {
+  const [dateEdit, setDateEdit] = useState<{ photoId: number; donor?: MetadataSourceView } | null>(null);
+  const editDate = (donor?: MetadataSourceView) => setDateEdit({ photoId:id, donor });
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 800px)").matches);
   useEffect(() => {
     const media = window.matchMedia("(max-width: 800px)");
@@ -236,9 +239,9 @@ export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto,
               tabs={layoutCanCompare ? [{ value: "information", label: layoutInLibrary ? "Photo information" : "File information" }, { value: "similar", label: layoutInLibrary ? "Similar photos" : "Similar photos in Library" }] : [{ value: "information", label: "File information" }]} />
           </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", activeTab)}>
-            {detail && activeTab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
+            {detail && activeTab === "information" && <Details onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
               review={inLibrary ? <ReviewNote key={id} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto}
-                concerns={detail.date_warning ? [{label:"Suspicious date",message:`${detail.date_warning} Date editing is not available yet.`}]
+                concerns={detail.date_warning ? [{label:"Suspicious date",message:`${detail.date_warning} Use Edit Date taken in Metadata sources to correct the date.`}]
                   : !detail.exif_dates?.some(d => d.field === "taken") ? [{label:"No capture date",message:"No date taken is recorded in the photo’s EXIF."}] : []}
                 actions={IN_LIBRARY.includes(detail.status) && onReject
                   ? <button onClick={() => onReject(detail.filename)} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Move this photo to Rejects. Nothing is deleted."}>Reject…</button>
@@ -265,7 +268,7 @@ export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto,
           <button className="lightbox-close" onClick={() => setEnlarged(false)} aria-label="Close the enlarged photo">✕</button>
           <div className="lightbox-body">
             <div className="lightbox-image">{photo}</div>
-            {detail && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />}
+            {detail && <Details onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />}
           </div>
         </Modal>,
         document.body,
@@ -273,6 +276,7 @@ export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto,
     </section>
   );
   return <>
+    {dateEdit && <DateEditor photoId={dateEdit.photoId} donor={dateEdit.donor} onClose={() => setDateEdit(null)} onSaved={() => window.dispatchEvent(new Event("ns-review-changed"))} />}
     {narrow && comparison == null && !coveredByDialog ? <Modal deferWhileCovered className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
     {canCompare && comparison != null && <MatchReviewDialog reference={id} candidate={candidate} jobRunning={jobRunning} onNotice={onNotice} onKeep={onKeep}
       workspace={comparison} onWorkspace={onComparison} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet}
@@ -303,7 +307,7 @@ function Section({ title, note, children }: { title: string; note?: ReactNode; c
   );
 }
 
-function Details({ detail: d, onLineage, refreshKey, review }: { detail: PhotoDetail; onLineage: () => void; refreshKey: number; review?: ReactNode }) {
+function Details({ detail: d, onLineage, refreshKey, review, jobRunning, onEdit }: { onEdit: (donor?: MetadataSourceView) => void; jobRunning: boolean; detail: PhotoDetail; onLineage: () => void; refreshKey: number; review?: ReactNode }) {
   const fallback = isFallbackDate(d.date_source);
   return (
     <div className="inspector-body">
@@ -320,7 +324,7 @@ function Details({ detail: d, onLineage, refreshKey, review }: { detail: PhotoDe
         <a href={logUrl({photo:d.id})} onClick={follow}>View photo logs</a>
       </section>}
       {review}
-      {!review && IN_LIBRARY.includes(d.status) && d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. The value is unchanged; date editing is not yet available. <a href="/?view=suspicious">View suspicious dates</a></p>}
+      {!review && IN_LIBRARY.includes(d.status) && d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. Use Edit Date taken in Metadata sources to correct it. <a href="/?view=suspicious">View suspicious dates</a></p>}
       {IN_LIBRARY.includes(d.status) && d.visual_issue && <p className="section-note"><strong>Visual matching unavailable:</strong> {d.visual_issue} The catalogued file is retained. Missing EXIF alone is not evidence of damage.</p>}
       {d.status === "Failed" && !d.issues?.length && <p className="notice"><strong>File needs attention.</strong> {d.failure ?? "No failure reason was recorded."} This file is not in Library. Fix the source file or its access outside the app, then run Index again. <a href={logUrl({photo:d.id,status:"Failed"})} onClick={follow}>View failure details</a></p>}
       <Section title="File">
@@ -338,7 +342,7 @@ function Details({ detail: d, onLineage, refreshKey, review }: { detail: PhotoDe
           {fallback && <div className="muted">* Files it under Undated: no EXIF date taken.</div>}
         </Row>
       </Section>
-      <MetadataSources key={d.id} photoId={d.id} refreshKey={refreshKey} />
+      <MetadataSources onEdit={onEdit} key={d.id} photoId={d.id} refreshKey={refreshKey} editable={IN_LIBRARY.includes(d.status)} jobRunning={jobRunning} />
       <Section title="Additional file information" note="Recorded file properties and other extracted details. Compare EXIF and XMP in Metadata sources.">
         <tr className="meta-row"><td colSpan={2}><AllMetadata tags={d.metadata ?? []} /></td></tr>
       </Section>

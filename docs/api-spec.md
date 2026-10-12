@@ -398,7 +398,39 @@ source activation, job submission or catalog writes occur. Verified saved values
 precedence over later source Index observations. Content mismatch suppresses the Primary
 claim and exposes an issue; capture-only observations do not imply activation.
 Unknown, nonpositive or oversized IDs return 404 `unknown_photo`; noninteger IDs return
-422. No editing or primary-change endpoint is introduced.
+422. Viewing never writes metadata or changes primary.
+
+### `GET /api/v1/photos/{id}/date-edit`
+
+Read the organized Library photo's current date write target. Returns `capture_id`,
+`target` (`source_id`, `kind`, `create`), `date` (`present`, `value`),
+`current_path` and `can_clear`. The date belongs to the target itself, never a fallback.
+First-sidecar creation starts with an absent date. Verified primary/source receipts win
+over later source observations. Unknown/ineligible photos or unresolved state return
+409 `metadata_unavailable`; noninteger IDs return 422. Reads do not verify live files.
+
+### `POST /api/v1/photos/{id}/date-preview`
+
+Body: `{"capture_id": 12, "value": "2020-06-15T14:30:00.123+02:00"}` or
+`{"capture_id": 12, "donor_id": "exif"}`. An explicit empty string proposes a clear;
+absent donor dates cannot be copied. A donor must be a recorded source of this photo.
+Return `edit`, `token`, `target`, `before` (`present`, `value`), `after`, `filing`
+(`current`, `proposed`, `change`), and `no_change`. The bounded engine preview validates
+writer support and retains source provenance; it does not write or check live destination
+collisions. Unsupported values/invalid shape return 400 `invalid_request`; stale catalog
+state returns 409 `metadata_changed`. The app never changes primary automatically.
+
+### `POST /api/v1/photos/{id}/date-save`
+
+Body: the preview's `edit` and `token`, plus a required `request_id`. Only Date taken
+and a same-photo date donor are allowed. Returns 202 with the accepted run; its actual
+outcome is polled through the existing run/job APIs. One engine `METADATA` apply job
+covers the confirmed edit and any refiling. The request is bounded JSON via a private
+anonymous input file, never a shell string or client-selected filesystem path.
+Normal job locking/refusal rules apply. Identical request-ID replay returns the original
+run; changed input returns 409 `request_conflict`. Invalid input returns 400. Engine
+revalidation can fail an accepted job if its token, settings, files or destination changed.
+No automatic resubmission, primary switch, source deletion or bypass of verified saves.
 
 ### `GET /api/v1/photos/{id}/lineage`
 

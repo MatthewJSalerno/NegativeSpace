@@ -1805,7 +1805,7 @@ exact-copy mode: Copy and Move already avoid writing exact duplicates to the
 destination. Exact-copy counts and recorded outcomes remain in photo details,
 history and Stats. Visual review includes destination photos only. The workflow is
 **Index → Copy or Move → review and curate destination photos**. Reject and Keep
-are built (§7.8); EXIF editing remains planned. Before delivery, the Inspector explains the Copy or
+are built (§7.8); single-photo Date taken editing is built (§7.5). Before delivery, the Inspector explains the Copy or
 Move step. Old `/similar` bookmarks redirect into the gallery; an existing reference
 opens its Inspector matches. There is no exact-copy matching dropdown.
 
@@ -2039,7 +2039,7 @@ and remain recognizable by content. Detected destination mismatches follow §7.6
 
 ### 7.5 Editing metadata
 
-**First UI scope (agreed 2026-10-11; read-only viewer built, editing pending):** inspect captured EXIF,
+**First UI scope (agreed 2026-10-11; viewer and single-photo date editor built):** inspect captured EXIF,
 embedded XMP and sidecar XMP broadly, but edit/copy only **Date taken**. NegativeSpace
 organizes photos; general metadata editors are outside this first UI. Other fields
 are read-only, including camera/lens, title, caption, keywords, rating, creator,
@@ -2049,7 +2049,7 @@ a separate future action. Broader donor/bulk composition and date-shift workflow
 below are deferred designs, not acceptance requirements for the first date UI.
 The authoritative tab/comparison presentation is in `ui-design.md`, Metadata source tabs.
 
-**Field scope (agreed; editing UI pending):** Save changes only explicitly selected
+**Field scope:** Save changes only explicitly selected
 fields and their required companions. The editor shows the primary source's own values,
 not effective fallback values: an absent XMP date stays absent unless the user explicitly
 types or copies a value. Distinguish Not set from Explicitly cleared; an explicit clear
@@ -2059,12 +2059,19 @@ components. Show deliberate removals in the preview. First XMP creation defaults
 and contains only changed fields; no sidecar is created merely by Index. Other fields
 continue to read from the embedded sources. Establish primary only after verified Save.
 The engine has verified sidecar and qualified embedded JPEG publication, refiling,
-history and recovery. The source-view API is read-only; metadata mutation routes and editing remain unimplemented. Web
-Save must use those verified paths, not a preview or working-copy writer alone.
+history and recovery. The source-view API stays read-only. Date context/preview/save routes expose only Date taken
+and use those verified paths. Save launches a request-bound metadata job, with the existing
+lock, backup, file verification and stale-preview checks. An accepted job can still fail
+its live checks; show its actual outcome and Logs rather than assuming success.
 
-**Editing controls are planned, not implemented.** The read-only source viewer is built.
-This section specifies the shared editor and its
-write behavior. Temporary comparison rotation is implemented separately below.
+**Built:** Edit Date taken and Copy Date taken to primary in an organized Library
+photo’s Metadata sources section. The modal starts from the write target’s own date,
+shows any fraction/offset, and requires Preview change before Save. Copy uses a
+recorded source of the same photo without changing primary. Empty donor dates propose
+an explicit clear; unsupported EXIF empties/partial dates refuse. A matching date/path
+disables Save as No changes needed. Controls are disabled during an active job.
+Broader editing and primary-choice controls below remain planned. Temporary comparison
+rotation is implemented separately below.
 
 **Leaving an editor with unsaved changes:** when in-app navigation or closing the
 editor would discard changed input, ask **“Discard your unsaved changes?”** with
@@ -2100,7 +2107,7 @@ confirmation (§7.8). A catalog hash match never authorizes source deletion with
 the engine's live verification.
 
 **Verified metadata editing can modify delivered photo bytes.** The engine supports
-qualified JPEG writes and XMP sidecars; this section specifies their future web controls.
+qualified JPEG writes and XMP sidecars; the first web controls expose Date taken only.
 
 Three shapes of one operation, differing only in where the value comes from and
 how many targets it lands on: a date the user types for a single photo with no
@@ -2615,7 +2622,7 @@ changes, and move a row out once it is built.
 | Run in the cloud, or sync between machines | Never | It works on mounted folders |
 | Published container images | Never | Users build the images from a clone, so what runs is the code they can read (decided 2026-10-05) |
 | Videos and other non-photo files | Not yet | Deferred until photo organizing is complete; until then they are left untouched |
-| Edit dates and other metadata | Not yet | Planned: the editor (§7.5), with XMP sidecars for RAW (`engine-spec.md` §9.6) |
+| Edit dates and other metadata | Date taken only | Single-photo date editor (§7.5); other field and bulk controls remain deferred |
 | Mobile and touch | Not yet | Built for desktop browsers; phones are not tested |
 | Mac and Windows hosts | Not yet | Tested on Linux only |
 
@@ -2820,7 +2827,8 @@ Use existing gallery controls, card geometry, selection, pagination and URL stat
 Explain the policy beside results. The Inspector shows the reason, recorded value,
 source and a link to the affected view. Similar photos offer clues, not automatic
 corrections. The comparison Capture information table includes a Date review row
-when either photo is flagged. State clearly that date editing is not yet available.
+when either photo is flagged. Direct corrections to Edit Date taken in the Library
+photo’s Metadata sources section; the comparison itself does not edit dates.
 Changing the rule updates counts, filters and inspection immediately without
 reindexing or changing photo bytes/metadata. The gallery names the saved boundary
 and links to Settings. The setting is revision-checked and backed up with the catalog.

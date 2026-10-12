@@ -60,6 +60,16 @@ export interface MetadataView {
   notice: string | null; field_sources: Record<string, string>;
 }
 
+export interface DateEditContext {
+  capture_id: number; target: { source_id: string; kind: string; create: boolean };
+  date: { present: boolean; value: string | null }; current_path: string; can_clear: boolean;
+}
+export interface DateEditPreview {
+  edit: Record<string, unknown>; token: string; target: DateEditContext["target"];
+  before: DateEditContext["date"]; after: string; no_change: boolean;
+  filing: { current: string; proposed: string; change: boolean };
+}
+
 export interface MetadataAttention {
   issues: {code: string; reason: string; files: string[]; detail: string | null}[];
   action: string;
@@ -726,6 +736,9 @@ export const api = {
   lineage: (id: number) => request<Lineage>("GET", `/api/v1/photos/${id}/lineage`),
   fileIssues: (id: number) => request<{items: FileIssue[]}>("GET", `/api/v1/photos/${id}/issues`),
   checkIssue: (issue_id: number, request_id: string) => request<Run>("POST", "/api/v1/issues/check", {issue_id,request_id}),
+  dateContext: (id: number) => request<DateEditContext>("GET", `/api/v1/photos/${id}/date-edit`),
+  datePreview: (id: number, body: { capture_id: number; value?: string; donor_id?: string }) => request<DateEditPreview>("POST", `/api/v1/photos/${id}/date-preview`, body),
+  saveDate: (id: number, preview: DateEditPreview) => submitJob(`/api/v1/photos/${id}/date-save`, { edit: preview.edit, token: preview.token }),
   metadata: (id: number) => request<MetadataView>("GET", `/api/v1/photos/${id}/metadata`),
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   answerQuestion: (id: number, question: SafetyQuestion, answer: SafetyAnswer) =>

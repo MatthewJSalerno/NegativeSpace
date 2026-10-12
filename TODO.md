@@ -130,7 +130,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] UX consistency batch: one toggle row per place, in-place Small images filter,
   closed Inspector on place changes, contextual/collapsible source summary, grouped
   photo actions and the dedicated review layout. Date flags remain informational;
-  persistent date acknowledgments and editing are still unbuilt.
+  persistent date acknowledgments remain unbuilt. Single-photo date editing is tracked below.
 
 - [x] The in-tray for Small images and Review later (`docs/webui-spec.md` §7.9).
 - [x] Library-only review decisions, source exclusion from similarity, backend eligibility, separate source
@@ -196,8 +196,8 @@ This is the authoritative countdown for the current metadata engine work. Keep t
 numbers fixed, report progress as **Task X of 7**, and disclose any scope change. Tests
 and documentation belong to each task. Final regression/review, commit and push are
 release gates, not additional feature tasks. API/UI work and deferred ideas below are
-outside this countdown. The read-only viewer is built; date edits and decisions below
-remain pending.
+outside this countdown. The source viewer and single-photo date editor are built; manual editor acceptance
+and the decision controls below remain pending.
 
 | Task | Status | Remaining scope / completed boundary |
 | --- | --- | --- |
@@ -224,12 +224,11 @@ is granted by this correction. The original failing browser suite now passes, as
 117 API/source-cleanup tests and specification/API checks. The full GitHub run passed
 and the fix is merged.
 
-**Full user validation is pending the metadata UI.** These automated engine results
-are not acceptance of the future editing experience. Once the API and screens exist,
+**Full user validation is pending.** The read-only viewer is accepted; the first date
+editor now needs maintainer validation. Automated engine results do not establish
+acceptance of the editing experience. As the remaining controls are built,
 validate metadata-source selection, date edits and destination previews, save/recovery
-feedback, and the one-job confirmation for removing edited originals. No metadata UI
-walkthrough is required or possible for this engine-only delivery; GitHub CI and code
-review remain separate merge checks.
+feedback, and the one-job confirmation for removing edited originals. GitHub CI and code review remain separate merge checks.
 
 For tasks 4–5, donor choice never changes the write target. Logical fields carry their
 related tags together, with no invented or mixed components. See
@@ -297,7 +296,7 @@ These are completed capabilities, not additional open closeout tasks.
   see [jpeg-content-hash-experiment.md](docs/jpeg-content-hash-experiment.md).
   No production image-only hashing or duplicate consolidation is enabled.
 
-### API/UI work — source viewer built; editing and decisions pending
+### API/UI work — source viewer/date editor built; decisions pending
 
 First UI scope agreed: show metadata broadly, edit/copy **Date taken only**. The
 common-field engine remains intact. General metadata editors, whole-source composition,
@@ -312,10 +311,11 @@ Saved orientation stays a separate action from temporary preview rotation.
 - [x] Needs attention filter in Not organized: processing failures and metadata holds,
   shared counts/pins, and a summary shortcut to the full affected list. Maintainer
   acceptance of this filtering follow-up passed.
-- [ ] First date editor: manual Date taken or Copy to primary from another source of
+- [x] First date editor: manual Date taken or Copy to primary from another source of
   the photo; complete date/companion handling, explicit clear, previewed target and
   before/after date/path, one Save/refile confirmation and verified failure recovery.
   Other fields remain read-only. Copying never activates the donor source.
+  Maintainer validation of editing/saving is pending; broad recovery/primary UI is separate.
 
 - [ ] One Move-job confirmation for edited-source originals: affected count/list,
   **Include these originals** or **Leave these originals at source**; explain that exact

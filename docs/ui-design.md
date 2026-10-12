@@ -628,7 +628,8 @@ Use existing gallery controls, card geometry, selection, pagination and URL stat
 Explain the policy beside results. The Inspector shows the reason, recorded value,
 source and a link to the affected view. Similar photos offer clues, not automatic
 corrections. The comparison Capture information table includes a Date review row
-when either photo is flagged. State clearly that date editing is not yet available.
+when either photo is flagged. Direct corrections to Edit Date taken in the Library
+photo’s Metadata sources section; the comparison itself does not edit dates.
 Changing the rule updates counts, filters and inspection immediately without
 reindexing or changing photo bytes/metadata. The gallery names the saved boundary
 and links to Settings. The setting is revision-checked and backed up with the catalog.
@@ -1056,7 +1057,11 @@ primary-choice and recovery screens remain separately tracked work.
 comparison, differences-only, field filtering and recorded-tag disclosure. The photo
 and file tag disclosure remains under Additional file information. The viewer reads
 catalog snapshots; it does not reread files or imply destination verification.
-**Pending:** date copying/editing, primary changes, setup guidance and decision controls.
+**Built:** single-photo Date taken editing and copying to primary from a recorded source
+of that same photo. The shared modal preserves drafts across responsive layout changes,
+validates calendar components, previews date/refiling and submits one verified engine job.
+Unsupported writer values stop at preview; completed/failed jobs link to Logs.
+**Pending:** primary changes, setup guidance and decision/retry controls.
 The engine's broader composition
 and earlier-state reproduction capabilities remain built; exposing their general field
 controls is deferred. Before merge, reconcile specs, backlog, validation evidence and

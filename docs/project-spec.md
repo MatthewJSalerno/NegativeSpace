@@ -145,14 +145,11 @@ files under `Undated/<year>/`, the year taken from the source's modification tim
 as captured at its original Index; `CreateDate` and `DateTime` are kept as review
 evidence but never place a file. See `engine-spec.md` §4.2.
 
-**A capability the web UI depends on does not exist yet**, each specified
-with what it needs:
+Verified metadata writing is built for XMP sidecars and qualified JPEG embedded
+metadata (`engine-spec.md` §9.6). The first web editor exposes Date taken only;
+primary-choice, broader import decisions and recovery controls remain tracked in TODO.
 
-| Gap | Where | Blocks |
-| :--- | :--- | :--- |
-| Writing metadata: in the file, or an XMP sidecar (the default for RAW; decided) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
-
-The agreed XMP import/source-precedence contract and the deferred metadata-tab UI are
+The agreed XMP import/source-precedence contract and the metadata-source UI are
 tracked in [xmp-metadata.md](xmp-metadata.md). Pure resolution, bounded sidecar reading
 and ownership-planning helpers plus immutable compressed version/arrival storage are
 built. Supported field-value validation and independent ExifTool compatibility tests

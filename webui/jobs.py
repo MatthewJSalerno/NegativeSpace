@@ -9,6 +9,7 @@ import re
 import signal
 import stat
 import subprocess
+import tempfile
 import threading
 import time
 import uuid
@@ -226,6 +227,23 @@ class JobRunner:
                 raise JobRefused(409 if result.returncode == 3 else 400, answer)
             return answer
 
+    def save_date(self, photo_id, body):
+        from . import metadata_dates
+        from engine import metadata_command
+        if not isinstance(body,dict) or set(body) != {'edit','token','request_id'}:
+            raise JobRefused(400,{'error':'invalid_request','message':'Supply the confirmed date preview and request ID.'})
+        validate_request_id(body['request_id'])
+        if not body['request_id']:
+            raise JobRefused(400,{'error':'invalid_request','message':'A request ID is required.'})
+        try:
+            metadata_dates.validate_edit(photo_id,body['edit'])
+            request = {'edits':[{**body['edit'],'token':body['token']}]}
+            metadata_command.validate(request,'apply')
+        except (ValueError,TypeError) as exc:
+            raise JobRefused(400,{'error':'invalid_request','message':str(exc)}) from exc
+        with self._start_lock:
+            return self._launch(['--metadata','apply'],body['request_id'],metadata_request=request)
+
     def check_issue(self, issue_id, request_id=None):
         validate_request_id(request_id)
         if type(issue_id) is not int or not 1 <= issue_id <= MAX_PHOTO_ID:
@@ -298,7 +316,7 @@ class JobRunner:
                 raise JobRefused(409, {"error": "stale_question", "message": "This question is no longer current. Refresh the job status."})
             return self._launch(flags, request_id, selection)
 
-    def _replay(self, flags, request_id, selection=None):
+    def _replay(self, flags, request_id, selection=None, metadata_request=None):
         if request_id is None:
             return None
         record = outcomes.request_record(self.cfg.db_path, request_id)
@@ -330,15 +348,22 @@ class JobRunner:
             expected = {'mode':'CHECK','source':None,'destination':None,'targeting':None,'overrides':{},
                         'submitted':{'issue_id':int(argument('--check-issue')),
                                      'source':str(self.cfg.source.resolve()),'dest':str(self.cfg.dest.resolve())}}
+        if metadata_request is not None:
+            ids = [edit['photo_id'] for edit in metadata_request['edits']]
+            expected = {'mode':'METADATA','source':str(self.cfg.source.resolve()),
+                'destination':str(self.cfg.dest.resolve()),
+                'targeting':{'selection':len(ids),'sha256':ns_db.selection_digest(ids)},
+                'overrides':{},'submitted':{'action':'apply','request':metadata_request,
+                                         'destination':str(self.cfg.dest.resolve())}}
         if record["request"] != expected:
             raise JobRefused(409, {"error": "request_conflict", "message": "This request ID was already used for different input."})
         return record["run_id"]
 
-    def _launch(self, flags, request_id=None, selection=None):
+    def _launch(self, flags, request_id=None, selection=None, metadata_request=None):
         """Start with the API start lock held; the engine owns the filesystem lock. A
         selection goes to the engine in a file named by the request ID (never by the
         client), removed once the engine has recorded it with the run or stopped."""
-        replay = self._replay(flags, request_id, selection)
+        replay = self._replay(flags, request_id, selection, metadata_request)
         if replay is not None:
             return replay
         if self._probe_lock():
@@ -354,7 +379,7 @@ class JobRunner:
                             raise self._busy()
                         # Reclaim files abandoned since startup, before reusing a request ID.
                         self._cleanup_selections()
-                        replay = self._replay(flags, request_id, selection)
+                        replay = self._replay(flags, request_id, selection, metadata_request)
                         if replay is not None:
                             return replay
                         selection_file = ns_db.write_selection_file(self._selections(), request_id, selection)
@@ -364,20 +389,26 @@ class JobRunner:
                                        "This attempt did not start the engine. Check application-data storage "
                                        "and any pending submission before retrying the same request."}) from exc
                     flags = [*flags, "--file-ids-from", str(selection_file)]
-                return self._spawn(flags, request_id, selection, selection_lease=lease)
+                return self._spawn(flags, request_id, selection, selection_lease=lease, metadata_request=metadata_request)
             finally:
                 if selection_file is not None:
                     selection_file.unlink(missing_ok=True)
 
-    def _spawn(self, flags, request_id, selection, *, selection_lease=None):
+    def _spawn(self, flags, request_id, selection, *, selection_lease=None, metadata_request=None):
         log = self.cfg.base / "logs" / "engine-console.log"
         proc = None
         try:
             log.parent.mkdir(parents=True, exist_ok=True)
-            with open(log, "w") as out:
+            with contextlib.ExitStack() as streams:
+                out = streams.enter_context(open(log, "w"))
+                input_file = subprocess.DEVNULL
+                if metadata_request is not None:
+                    input_file = streams.enter_context(tempfile.TemporaryFile(dir=self.cfg.base))
+                    input_file.write(json.dumps(metadata_request).encode('utf-8'))
+                    input_file.seek(0)
                 # The engine releases the inherited lock once it has read its selection.
                 proc = subprocess.Popen(self.cfg.engine_argv("--request-id", request_id, *flags), cwd=ENGINE_CWD,
-                                        stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT,
+                                        stdin=input_file, stdout=out, stderr=subprocess.STDOUT,
                                         pass_fds=(() if selection_lease is None else (selection_lease,)),
                                         env=(None if selection_lease is None else
                                              {**os.environ, "NS_SELECTION_LEASE_FD": str(selection_lease)}))
@@ -408,7 +439,7 @@ class JobRunner:
         # The engine refuses mismatched reuse; do not return that other payload's
         # run merely because its ID has appeared in the acceptance table.
         try:
-            self._replay(flags, request_id, selection)
+            self._replay(flags, request_id, selection, metadata_request)
         except JobRefused:
             threading.Thread(target=proc.wait, daemon=True).start()
             raise

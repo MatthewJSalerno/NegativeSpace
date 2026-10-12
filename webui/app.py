@@ -21,7 +21,7 @@ from engine import ns_db, review, attention
 from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, oplog, outcomes, stats
-from . import access, matching, notifications, security, metadata_view
+from . import access, matching, notifications, security, metadata_view, metadata_dates
 from . import config, jobs as job_commands
 from .config import Config
 from .jobs import JobRefused, JobRunner
@@ -377,6 +377,27 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(400, {'error':'invalid_request','message':'Send the issue ID and optional request ID only.'})
         run_id = jobs.check_issue(body.get('issue_id'), body.get('request_id'))
         return outcomes.get_run(cfg.db_path, run_id)
+
+    @app.get("/api/v1/photos/{photo_id}/date-edit")
+    def date_edit_context(photo_id: int):
+        try:
+            return metadata_dates.context(cfg,photo_id)
+        except (ValueError,ns_db.RevisionConflict) as exc:
+            raise HTTPException(409,{'error':'metadata_unavailable','message':str(exc)})
+
+    @app.post("/api/v1/photos/{photo_id}/date-preview")
+    def date_edit_preview(photo_id: int, body: dict = Body(...)):
+        try:
+            return metadata_dates.preview(cfg,photo_id,body)
+        except ns_db.RevisionConflict as exc:
+            raise HTTPException(409,{'error':'metadata_changed','message':str(exc)})
+        except (ValueError,TypeError) as exc:
+            raise _bad_request(exc)
+
+    @app.post("/api/v1/photos/{photo_id}/date-save", status_code=202)
+    def date_edit_save(photo_id: int, body: dict = Body(...)):
+        run = jobs.save_date(photo_id,body)
+        return outcomes.get_run(cfg.db_path,run)
 
     @app.get("/api/v1/photos/{photo_id}/metadata")
     def photo_metadata(photo_id: int):

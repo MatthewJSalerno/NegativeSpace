@@ -158,6 +158,35 @@ def _folder(fields, original_year):
     return PurePosixPath('library','Undated',f'{original_year:04d}')
 
 
+def write_target(sources, *, primary_id, settings, photo_name):
+    """Resolve the qualified write target without proposing any field changes."""
+    preferences = {**ns_db.METADATA_DEFAULTS, **{k:v for k,v in settings.items() if k in ns_db.METADATA_DEFAULTS}}
+    ns_db.validate_settings(preferences)
+    extension = Path(photo_name).suffix.lower()
+    raw = extension in ns_db.RAW_EXTENSIONS
+    if extension not in ns_db.SUPPORTED_EXTENSIONS:
+        raise ValueError('Metadata writes for this file format are not specified')
+    order = [key for key in ('embedded_xmp','exif') if key in sources]
+    if primary_id is not None:
+        if primary_id not in sources:
+            raise ValueError('The established primary source is unavailable')
+        target = primary_id
+    else:
+        if any(source.get('kind') == 'sidecar_xmp' for source in sources.values()):
+            raise ValueError('Resolve the existing sidecar primary before planning an edit')
+        preference = preferences['metadata_write_raw' if raw else 'metadata_write_non_raw']
+        target = NEW_SIDECAR if preference == 'xmp' else (order[0] if order else 'exif')
+    creating = target == NEW_SIDECAR
+    kind = 'sidecar_xmp' if creating else sources.get(target,{}).get('kind','embedded_exif')
+    if kind not in ('sidecar_xmp','embedded_xmp','embedded_exif'):
+        raise ValueError('Unknown primary source kind')
+    if raw and kind != 'sidecar_xmp':
+        raise ValueError('Embedded RAW editing requires a separately implemented consent and verified-write path')
+    if kind != 'sidecar_xmp' and extension not in ('.jpg','.jpeg','.jpe','.jfif'):
+        raise ValueError('Embedded writing is qualified for JPEG only; choose a sidecar primary explicitly')
+    return target, kind, creating
+
+
 def plan(sources, *, primary_id, changes, settings, photo_name, original_year, current_relative_path, remove_fields=()):
     """Plan changes against captured sources, never mutate them or choose a new donor.
 
@@ -178,32 +207,8 @@ def plan(sources, *, primary_id, changes, settings, photo_name, original_year, c
         raise ValueError('Expected captured source fields')
     remove_fields = _removals(remove_fields, changes)
     changes = _changes(changes) if changes or not remove_fields else {}
-    preferences = {**ns_db.METADATA_DEFAULTS, **{k:v for k,v in settings.items() if k in ns_db.METADATA_DEFAULTS}}
-    ns_db.validate_settings(preferences)
-    extension = name.suffix.lower()
-    raw = extension in ns_db.RAW_EXTENSIONS
-    if extension not in ns_db.SUPPORTED_EXTENSIONS:
-        raise ValueError('Metadata writes for this file format are not specified')
-    order = [key for key in ('embedded_xmp','exif') if key in sources]
-    if primary_id is not None:
-        if primary_id not in sources:
-            raise ValueError('The established primary source is unavailable')
-        before = metadata_capture.resolve(sources,list(sources),primary_id=primary_id)
-        target = primary_id
-    else:
-        if any(source.get('kind') == 'sidecar_xmp' for source in sources.values()):
-            raise ValueError('Resolve the existing sidecar primary before planning an edit')
-        before = metadata_capture.resolve(sources,order)
-        preference = preferences['metadata_write_raw' if raw else 'metadata_write_non_raw']
-        target = NEW_SIDECAR if preference == 'xmp' else (order[0] if order else 'exif')
-    creating = target == NEW_SIDECAR
-    kind = 'sidecar_xmp' if creating else sources.get(target,{}).get('kind','embedded_exif')
-    if kind not in ('sidecar_xmp','embedded_xmp','embedded_exif'):
-        raise ValueError('Unknown primary source kind')
-    if raw and kind != 'sidecar_xmp':
-        raise ValueError('Embedded RAW editing requires a separately implemented consent and verified-write path')
-    if kind != 'sidecar_xmp' and extension not in ('.jpg','.jpeg','.jpe','.jfif'):
-        raise ValueError('Embedded writing is qualified for JPEG only; choose a sidecar primary explicitly')
+    target, kind, creating = write_target(sources, primary_id=primary_id, settings=settings, photo_name=name)
+    before = metadata_capture.resolve(sources, list(sources) if primary_id else [key for key in ('embedded_xmp','exif') if key in sources], primary_id=primary_id)
     removal_edits = _removal_edits(kind, remove_fields)
     if creating and remove_fields:
         raise ValueError('Cannot remove fields from a sidecar that does not exist')

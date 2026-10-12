@@ -1426,10 +1426,10 @@ refresh and recovery. Local integration validation passed 195 database/API tests
 six browser workflows: main UI, filters, notifications, review, file-issue recovery and
 externally removed copied originals. GitHub runs the complete combined suite before merge.
 
-### First metadata editing UI acceptance — pending
+### First metadata editing UI acceptance — manual validation pending
 
 The agreed first web editor changes only Date taken; broad metadata viewing does not
-imply general field editing. When the API/screens exist, validate:
+imply general field editing. The date editor is built; validate:
 
 - Separate sidecar XMP, embedded XMP and EXIF fixtures; mixed/conflicting sources and
   alternate versions. Primary remains visibly identified when another tab is selected.
@@ -1443,7 +1443,7 @@ imply general field editing. When the API/screens exist, validate:
 - Keyboard tabs, focus, stable layout, both themes and desktop zoom follow shared checks.
 
 The read-only viewing checks are accepted as recorded below; editing and save checks
-remain future acceptance work. Saved rotation and general composition remain separate scope. Reconcile
+remain pending maintainer acceptance. Saved rotation and general composition remain separate scope. Reconcile
 this record with the specs, TODO and private handoff before the next merge.
 
 ### Read-only metadata source viewer
@@ -1530,3 +1530,40 @@ Local validation passed: 14 metadata-view/filter API tests, 4 filter-pin tests a
 assertions and all 61 metadata responses unchanged; the new filter was inspected
 in light/dark themes and narrow reflow. Specification checks passed (476 section
 references, 51 API routes). This does not claim a large-catalog performance benchmark.
+
+
+### Date editor automation and manual walkthrough
+
+Run `tests/metadata_dates_test.py` in the app image with unittest discovery. It uses
+generated photos and actual engine jobs for preview/save/refile, unchanged sources,
+request replay, stale preview refusal, first-sidecar creation and qualified JPEG EXIF.
+Run `METADATA_VIEW_FIXTURE=1 DRIVER=metadata_dates_browser_drive.py sh tests/browser/webui_browser_test.sh`
+with your own image tags. The generated browser fixture covers invalid dates, draft
+retention/discard, responsive reflow, lost acceptance lookup, repeat editing, explicit
+clear and same-photo donor copying. Both checks run in CI.
+
+For maintainer acceptance, use disposable destination copies:
+
+1. Open a Library photo, Photo information → Metadata sources → Edit Date taken.
+   Verify the target and its own recorded date. Change a date; Cancel → Keep editing
+   must preserve the draft, while Discard must leave the file unchanged.
+2. Preview a different date. Check before/after values and current/resulting paths.
+   Save once; wait for Date saved, then verify the date, folder and refreshed metadata.
+3. On a nonprimary source with Date taken, choose Copy Date taken to primary.
+   Preview its date and confirm primary stays the same; Save and inspect the result.
+4. On an XMP target, explicitly clear the date. Preview must say Undated. After Save,
+   the primary date is Empty, rather than silently borrowing the embedded date.
+5. Reopen the editor. An unchanged date/location disables Save. Invalid calendar dates
+   cannot preview; a qualified EXIF target refuses empty/partial values without switching.
+6. Check light/dark, keyboard access and resized/zoomed layout. A draft must survive reflow.
+
+The viewer PR's source-failure browser regression also follows the summary's Needs
+attention shortcut, rather than the superseded direct Logs link.
+
+Local date-editor validation: 431 metadata tests (including seven date API cases),
+98 existing API tests, the generated date-editor browser workflow and the full main
+browser walkthrough passed. Browser
+checks include Back/Keep editing, width changes while a draft is open, and acceptance
+lost after job submission. Light/dark desktop and narrow preview screenshots were
+inspected. Spec checks passed for 475 section references and 54 API routes. Manual
+date-editor acceptance remains pending; read-only viewer acceptance is already complete.

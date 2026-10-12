@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { api, type MetadataView } from "../api";
+import { api, type MetadataView, type MetadataSourceView } from "../api";
 import { TabList, tabPanel } from "./ui/Tabs";
 import { logUrl, follow } from "../nav";
 import { SearchField } from "./ui/SearchField";
@@ -23,7 +23,7 @@ function display(values: Record<string, unknown>, key: string) {
   if (value === null || value === "" || (typeof value === "object" && Object.keys(value).length === 0)) return "Empty";
   return typeof value === "string" ? (key === "date_taken" ? value.replace("T", " ") : value) : JSON.stringify(value);
 }
-export function MetadataSources({ photoId, refreshKey }: { photoId: number; refreshKey: number }) {
+export function MetadataSources({ photoId, refreshKey, editable = false, jobRunning = false, onEdit }: { photoId: number; refreshKey: number; editable?: boolean; jobRunning?: boolean; onEdit?: (donor?: MetadataSourceView) => void }) {
   const [data, setData] = useState<MetadataView | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -55,6 +55,8 @@ export function MetadataSources({ photoId, refreshKey }: { photoId: number; refr
   const shown = fields.filter(k => (!comparing || !differences || differs(k)) && `${LABELS[k] ?? k} ${display(source.fields,k)} ${comparing ? display(primary.fields,k) : ""}`.toLowerCase().includes(query.toLowerCase()));
   return <section className="info-section metadata-sources">
     <h3>Metadata sources</h3>
+    {editable && onEdit && <div className="photo-actions"><button disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined} onClick={() => onEdit()}>Edit Date taken…</button>
+      {source.id !== primary?.id && source.available && own(source.fields,"date_taken") && <button disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined} onClick={() => onEdit(source)}>Copy Date taken to primary…</button>}</div>}
     <p className="section-note">Recorded metadata. Viewing and comparing leave files and the primary source unchanged.</p>
     {data.notice && <p className="section-note">{data.notice}</p>}
     {data.issues.length > 0 && <p className="notice">Metadata needs attention: {data.issues.map(i => i.detail || i.code.replaceAll("_", " ")).join("; ")} <a href={logUrl({photo:photoId})} onClick={follow}>View photo logs</a></p>}

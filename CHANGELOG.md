@@ -9,6 +9,12 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Library photos now offer Edit Date taken and Copy Date taken to primary from their
+  recorded metadata sources. A draft/preview shows the write target, date and resulting
+  location; one confirmation saves and refiles through the verified engine job.
+  XMP clears are explicit, untouched metadata/source files stay unchanged, and unsupported
+  writer values refuse without changing primary. Broader metadata editing is deferred.
+
 - Not organized has a Needs attention filter for processing failures and metadata
   holds. The Index summary links directly to all affected source files; the filter
   supports counts, pins and existing search/folder/date/type restrictions.
@@ -20,7 +26,7 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 - Photo information now separates XMP Sidecar, Embedded XMP and EXIF into read-only
   tabs, identifies the applied Primary source, and compares alternative values with
   it. Empty values remain distinct from missing fields; retained sidecar versions
-  and captured source tags remain inspectable. Date-editing controls are still pending.
+  and captured source tags remain inspectable. Date controls are limited to the workflow above.
 - Metadata comparison treats matching plain text and a single XMP default-language
   entry as equal. Unreadable sidecars retain their explanations even without an
   archived version, and malformed retained sidecars no longer crash the source tab.
