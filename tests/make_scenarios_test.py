@@ -13,6 +13,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import unicodedata
 import unittest
 from pathlib import Path
 
@@ -55,9 +56,8 @@ class MakeScenarios(unittest.TestCase):
     def tearDown(self):
         if os.environ.get('NS_TEST_KEEP') == '1':
             return
-        for p in self.root.rglob("*"):
-            if p.is_file() and not p.is_symlink():
-                p.chmod(0o644)
+        from tools import make_scenarios
+        make_scenarios.unlock(self.root)
         shutil.rmtree(self.root, ignore_errors=True)
 
     def manifest(self):
@@ -116,13 +116,37 @@ class MakeScenarios(unittest.TestCase):
         lib = self.out / "library"
         for f in files:
             path = lib / f["path"]
+            if f["scenario"] == "edge_locked_folder":
+                # Nothing inside can be looked at, by design: the folder itself is there, locked.
+                self.assertEqual(path.parent.lstat().st_mode & 0o777, 0, f["path"])
+                continue
             self.assertTrue(path.is_symlink() or path.exists(), f["path"])
         scenarios = {f["scenario"] for f in files}
         for wanted in ("exact_duplicate", "duplicate_without_exif", "resized_with_exif", "resized_without_exif",
                        "format_converted", "date_no_date", "date_with_offset", "date_conflicting", "orientation",
                        "name_same_name", "name_case_only", "edge_zero_bytes", "edge_truncated", "edge_symlink",
-                       "same_picture_2024", "same_picture_1969"):
+                       "same_picture_2024", "same_picture_1969", "nas_synology_thumbnail", "nas_qnap_thumbnail",
+                       "nas_recycle_bin", "live_photo_still", "live_photo_video", "motion_photo", "date_in_name_only",
+                       "clock_off_camera", "clock_off_phone", "day_boundary", "burst_same_second",
+                       "look_alike_rotated_90", "look_alike_cropped", "large_image", "format_cmyk_jpeg",
+                       "format_multi_page_tiff", "unicode_nfc", "unicode_nfd", "case_at_destination",
+                       "edge_locked_folder"):
             self.assertIn(wanted, scenarios)
+        # The two Unicode names look the same and are two names.
+        nfc, nfd = (next(f["path"] for f in files if f["scenario"] == s) for s in ("unicode_nfc", "unicode_nfd"))
+        self.assertNotEqual(nfc, nfd)
+        self.assertEqual(unicodedata.normalize("NFC", nfd), nfc)
+        # Each motion photo's video is found by ExifTool where its phone puts it, and is the
+        # video the manifest records.
+        tag = {"google_legacy": "File:EmbeddedVideo", "pixel": "Google:MotionPhotoVideo",
+               "samsung": "Samsung:EmbeddedVideoFile"}
+        motions = [f for f in files if f["scenario"] == "motion_photo"]
+        self.assertEqual({f["variant"] for f in motions}, set(tag))
+        for f in motions:
+            video = subprocess.run(["exiftool", "-b", "-ee", f"-{tag[f['variant']]}", str(lib / f["path"])],
+                                   capture_output=True, check=True).stdout
+            self.assertEqual((len(video), hashlib.sha1(video).hexdigest()), (f["video_length"], f["video_sha1"]),
+                             f["variant"])
         dups = [f for f in files if f["scenario"] == "exact_duplicate"]
         self.assertGreaterEqual(len(dups), 20)
         for d in dups:
@@ -202,6 +226,44 @@ class MakeScenarios(unittest.TestCase):
                                     (f"%/{name}",)).fetchone()
             self.assertTrue(pair[year][0].startswith(year), f"{name} was filed {pair[year][0]}")
         self.assertEqual(pair["2024"][1], pair["1969"][1], "the same pixels should give the same pHash")
+        # What the engine does today with the harder cases (gaps are reported, not asserted).
+        statuses = {Path(p).relative_to(self.out / "library").as_posix(): s
+                    for p, s in db.execute("SELECT source_path, status FROM photos")}
+        by = lambda scenario: [f["path"] for f in files if f["scenario"] == scenario]   # noqa: E731
+        for path in by("nas_qnap_thumbnail") + by("live_photo_video"):
+            self.assertNotIn(path, statuses, f"{path} should not be catalogued")
+        for scenario in ("format_16_bit_png", "format_cmyk_jpeg", "format_multi_page_tiff", "format_animated_gif",
+                         "format_progressive_jpeg", "unicode_nfc", "unicode_nfd", "case_at_destination", "motion_photo"):
+            for path in by(scenario):
+                self.assertEqual(statuses.get(path), "Pending", f"{scenario}: {path}")
+        boundary = {Path(p).name: json.loads(m)["date_taken"] for p, m in db.execute(
+            "SELECT source_path, metadata_json FROM photos WHERE source_path LIKE '%/day-boundary/%'")}
+        self.assertTrue(boundary["before-midnight-new-york.jpg"].startswith("2019-12-31"), "filed by its local date")
+        if os.geteuid() != 0:
+            self.assertFalse(by("edge_locked_folder")[0] in statuses, "a locked folder's photo cannot be read")
+            scan_failed = db.execute("SELECT COUNT(*) FROM operations WHERE status = 'Failed' "
+                                     "AND source_path LIKE '%locked-folder%'").fetchone()[0]
+            self.assertGreaterEqual(scan_failed, 1, "a folder the Index cannot open is recorded, not skipped")
+
+    def test_photos_a_move_took_or_the_user_rejected_come_back(self):
+        run("build", "--seed-dir", str(self.seed), "--out", str(self.out))
+        dest = self.root / "dest"
+        (dest / "library" / "2019" / "06" / "15").mkdir(parents=True)
+        (dest / "rejects").mkdir()
+        # One copy whose original is gone from the source (a Move took it), one in Rejects.
+        Image.new("RGB", (64, 48), (1, 2, 3)).save(dest / "library" / "2019" / "06" / "15" / "moved.jpg")
+        Image.new("RGB", (64, 48), (9, 8, 7)).save(dest / "rejects" / "turned-down.jpg")
+        before = fingerprint(dest)
+        done = run("change", "--out", str(self.out), "--dest", str(dest))
+        kinds = {c["kind"]: c for c in self.manifest()["changes"]}
+        for kind, original in (("returned_after_move", "library/2019/06/15/moved.jpg"),
+                               ("returned_after_reject", "rejects/turned-down.jpg")):
+            self.assertIn(kind, kinds, done.stdout)
+            back = self.out / "library" / kinds[kind]["path"]
+            self.assertEqual(back.read_bytes(), (dest / original).read_bytes(), kind)
+        after = fingerprint(dest)
+        for name in ("library/2019/06/15/moved.jpg", "rejects/turned-down.jpg"):
+            self.assertEqual(after[name], before[name], f"{name} at the destination must be left as it was")
 
 class ScenarioIdentityTests(unittest.TestCase):
     """File identity includes its filesystem and must stay live until comparison."""

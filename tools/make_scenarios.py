@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Builds a sample library of deliberate scenarios, for showing and testing what the
-engine and the web interface do: duplicates and near-duplicates, dates the engine must
-file, names that collide, files that must fail, and a round of changes between runs
-that gives a photo's lineage something to show.
+engine and the web interface do: duplicates and near-duplicates, look-alikes, dates the
+engine must file (in the name only, across midnight, a camera's clock a year off, a burst
+in one second), names that collide or look alike, a NAS share's own folders, Live and
+motion photos, formats and sizes that strain a reader, files and folders that must fail,
+and a round of changes between runs that gives a photo's lineage something to show.
 
     build   Hard-links every photo in a seed folder into OUT/library, then adds the
             scenarios beside them. Run again as the seed folder grows: it replaces its
             own earlier output, and refuses any other non-empty folder.
     change  One round of every kind of change, applied to a built library (and, with
-            --dest, to the destination a Copy filled): run it after an Index and a
+            --dest, to the destination a Copy filled, and from it: a photo a Move took and
+            one the user rejected come back to the source): run it after an Index and a
             Copy, then Index and Copy again.
 
 The seed folder is never written to. Hard links share the original's bytes AND its
@@ -37,20 +40,23 @@ seed and OUT on one filesystem AND one mount, so mount their common parent once:
         [--exif-donors /photos/seed/exiftool-samples]
 """
 import argparse
+import hashlib
 import json
 import os
 import random
 import shutil
+import struct
 import subprocess
 import sys
 import time
 import tempfile
+import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from engine.ns_db import RASTER_EXTENSIONS, RAW_EXTENSIONS, SUPPORTED_EXTENSIONS  # noqa: E402
 
-from PIL import Image, ImageDraw, ImageFile  # noqa: E402
+from PIL import Image, ImageDraw, ImageEnhance, ImageFile, ImageOps  # noqa: E402
 
 # A seed folder may be filling while this runs: a photo caught half-downloaded is used
 # as far as it goes rather than stopping the build.
@@ -67,6 +73,9 @@ MARKER = ".ns-scenarios"          # in OUT: this folder is ours to replace
 LIBRARY = "library"               # OUT/library is the source to index
 EDITABLE = {".jpg", ".jpeg"}      # EXIF is rewritten on JPEG copies only
 GENERATED = 60                    # photos made when there is no seed folder
+# Stand-in videos: a container's opening box, enough for a file to identify as one.
+QUICKTIME = b"\x00\x00\x00\x14ftypqt  \x00\x00\x00\x00qt  "
+MP4 = b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom" + b"\x00" * 1024
 
 
 # --- Safety -----------------------------------------------------------------------
@@ -255,12 +264,65 @@ class Manifest:
         entry = {"path": str(path.relative_to(self.out / LIBRARY)), "scenario": scenario, "expect": expect}
         if source is not None:
             entry["from"] = str(source.relative_to(self.out / LIBRARY)) if source.is_relative_to(self.out / LIBRARY) else source.name
-        entry.update(extra)
+        entry.update({k: v for k, v in extra.items() if v is not None})
         self.files.append(entry)
 
     def save(self, **meta):
         (self.out / "manifest.json").write_text(json.dumps(
             {**meta, "files": self.files, "changes": self.changes}, indent=2, ensure_ascii=False) + "\n")
+
+
+# Motion photos: a JPEG with a short video after the picture, in the three forms phones
+# write. The file names are the phones' own.
+MOTION_PHOTOS = (("google_legacy", "MVIMG_20190615_120000.jpg"), ("pixel", "PXL_20190615_120000123.MP.jpg"),
+                 ("samsung", "20190615_120000.jpg"))
+
+
+def motion_photo(path: Path, variant: str) -> bytes:
+    """Makes the JPEG at `path` a motion photo of `variant`; returns the video appended.
+    google_legacy: Google Camera's MVIMG (GCamera:MicroVideo, MicroVideoOffset).
+    pixel: Motion Photo format 1.0 (GCamera:MotionPhoto and a GContainer directory whose
+    MotionPhoto item's Length is the video's). samsung: "MotionPhoto_Data" and the video,
+    then Samsung's SEF trailer (SEFH index, length, SEFT), as ExifTool reads it.
+    The metadata is written first: the video must stay last in the file."""
+    video = MP4
+    if variant == "google_legacy":
+        exiftool(path, "-XMP-GCamera:MicroVideo=1", "-XMP-GCamera:MicroVideoVersion=1",
+                 f"-XMP-GCamera:MicroVideoOffset={len(video)}", "-XMP-GCamera:MicroVideoPresentationTimestampUs=0")
+        trailer = video
+    elif variant == "pixel":
+        exiftool(path, "-XMP-GCamera:MotionPhoto=1", "-XMP-GCamera:MotionPhotoVersion=1",
+                 "-XMP-GCamera:MotionPhotoPresentationTimestampUs=0",
+                 "-XMP-GContainer:ContainerDirectory=[{Item={Mime=image/jpeg,Semantic=Primary,Length=0,Padding=0}},"
+                 f"{{Item={{Mime=video/mp4,Semantic=MotionPhoto,Length={len(video)},Padding=0}}}}]")
+        trailer = video
+    elif variant == "samsung":
+        name = b"MotionPhoto_Data"
+        block = struct.pack("<HHI", 0, 0x0A30, len(name)) + name + video
+        # An SEF entry's offset counts back from the SEFH index to its block.
+        sefh = b"SEFH" + struct.pack("<II", 106, 1) + struct.pack("<HHII", 0, 0x0A30, len(block), len(block))
+        trailer = block + sefh + struct.pack("<I", len(sefh)) + b"SEFT"
+    else:
+        raise ValueError(variant)
+    with open(path, "ab") as fh:
+        fh.write(trailer)
+    return video
+
+
+def unlock(root: Path):
+    """Gives back the permissions an earlier build took away (a locked folder, an
+    unreadable file), so it can be replaced."""
+    if not root.is_dir():
+        return
+    for dirpath, dirnames, filenames in os.walk(root, onerror=None):
+        for d in dirnames:
+            full = Path(dirpath) / d
+            if not full.is_symlink():
+                full.chmod(0o755)
+        for f in filenames:
+            full = Path(dirpath) / f
+            if not full.is_symlink():
+                full.chmod(0o644)
 
 
 def prepare_out(out: Path, replace: bool):
@@ -271,6 +333,7 @@ def prepare_out(out: Path, replace: bool):
             sys.exit(f"FATAL: {out} is not empty and was not made by this script; nothing was changed.")
         if not replace:
             sys.exit(f"FATAL: {out} holds an earlier build. Pass --replace to rebuild it.")
+        unlock(out / LIBRARY)
         shutil.rmtree(out / LIBRARY, ignore_errors=True)
         (out / "manifest.json").unlink(missing_ok=True)
     out.mkdir(exist_ok=True)
@@ -480,6 +543,199 @@ def build(args):
         exiftool(dest, "-ImageDescription=raw pair")
         m.add(dest, "raw_pair", "A JPEG with the RAW's name: both indexed, distinct content")
 
+    # 12. NAS system folders without a leading dot, as a source on a NAS share holds them.
+    # Synology keeps thumbnails of every photo in @eaDir/<photo name>/ and deleted files in
+    # #recycle/; QNAP's .@__thumb/ starts with a dot, which the Index already skips.
+    nas = sc / "nas-share"
+    for src in pick(jpegs, 2):
+        photo = nas / "album" / src.name
+        fresh_copy(src, photo)
+        exiftool(photo, "-ImageDescription=on a NAS share")
+        m.add(photo, "nas_photo", "Indexed: the photo itself", src)
+        for size, name in ((1280, "SYNOPHOTO_THUMB_XL.jpg"), (320, "SYNOPHOTO_THUMB_M.jpg")):
+            for folder, scenario in ((nas / "album" / "@eaDir" / src.name, "nas_synology_thumbnail"),
+                                     (nas / "album" / ".@__thumb" / src.name, "nas_qnap_thumbnail")):
+                dest = folder / name
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                with Image.open(src) as im:
+                    im.convert("RGB").resize((max(1, im.width * size // max(im.size)),
+                                              max(1, im.height * size // max(im.size)))).save(dest, "JPEG", quality=80)
+                m.add(dest, scenario, "Left out: the NAS's own thumbnail of a photo, not a photo", src,
+                      open_question="@eaDir has no leading dot, so the Index's dot rule does not cover it"
+                      if scenario == "nas_synology_thumbnail" else None)
+    for src in pick(jpegs, 1):
+        dest = nas / "#recycle" / "album" / f"deleted-{src.name}"
+        fresh_copy(src, dest)
+        exiftool(dest, "-ImageDescription=in the recycle bin")
+        m.add(dest, "nas_recycle_bin", "Left out: a file the user deleted on the NAS", src,
+              open_question="#recycle has no leading dot; whether a recycle bin is ever a source is undecided")
+
+    # 13. A Live Photo (a still and its video, one name) and a motion photo (the video inside
+    # the JPEG). The videos are stand-ins: a container's opening bytes, not playable footage.
+    live = sc / "live-photo"
+    for src in pick(raster, 1):
+        still = live / ("IMG_0001.HEIC" if HEIF else "IMG_0001.JPG")
+        still.parent.mkdir(parents=True, exist_ok=True)
+        with Image.open(src) as im:
+            im.convert("RGB").save(still, "HEIF" if HEIF else "JPEG")
+        subprocess.run(["exiftool", "-q", "-q", "-overwrite_original", "-DateTimeOriginal=2019:06:15 12:00:00",
+                        str(still)], check=False)
+        m.add(still, "live_photo_still", "Indexed: the still of a Live Photo", src)
+        movie = live / "IMG_0001.MOV"
+        movie.write_bytes(QUICKTIME + b"\0" * 2048)
+        m.add(movie, "live_photo_video", "Its video: left in place unless .mov is among the chosen extensions",
+              stand_in=True, open_question="a Move of the still leaves its video behind, unconnected")
+    for (variant, name), src in zip(MOTION_PHOTOS, pick(jpegs, len(MOTION_PHOTOS)) * 3):
+        dest = live / name
+        fresh_copy(src, dest)
+        video = motion_photo(dest, variant)
+        m.add(dest, "motion_photo", "Indexed as one photo; the video inside travels with it, bytes intact", src,
+              variant=variant, video_length=len(video), video_sha1=hashlib.sha1(video).hexdigest(), stand_in=True,
+              open_question="anything that re-encodes the picture (not an ExifTool metadata write) drops the video")
+
+    # 14. A date only in the name: no EXIF, a file time years off, names cameras and apps write.
+    named_dates = [("IMG_20190615_120000.jpg", "2019-06-15"), ("IMG-20190615-WA0001.jpg", "2019-06-15"),
+                   ("PXL_20190615_120000123.jpg", "2019-06-15"), ("20190615_120000.jpg", "2019-06-15"),
+                   ("Screenshot_2019-06-15-12-00-00.png", "2019-06-15"), ("DSC_0001.JPG", None)]
+    for (name, when), src in zip(named_dates, pick(jpegs, len(named_dates)) * 2):
+        dest = sc / "date-in-name" / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if name.endswith(".png"):
+            with Image.open(src) as im:
+                im.convert("RGB").save(dest, "PNG")
+            record_altered(dest)
+        else:
+            fresh_copy(src, dest)
+            exiftool(dest, "-all=")
+        os.utime(dest, (1_300_000_000, 1_300_000_000))
+        m.add(dest, "date_in_name_only" if when else "date_nowhere",
+              f"Undated, filed by file time (2011); its name says {when}" if when
+              else "Undated, filed by file time (2011); nothing in its name is a date", src,
+              name_date=when, open_question="the planned name-date suggestion (TODO.md, No capture date)"
+              if when else None)
+
+    # 15. A camera clock wrong for a whole trip: the camera a year early, the phone right.
+    trip = sc / "clock-off-by-a-year"
+    for i, src in enumerate(pick(jpegs, 5)):
+        for device, year, make in (("camera", 2008, "Canon"), ("phone", 2009, "Apple")):
+            dest = trip / device / f"{device}-{i + 1:02d}.jpg"
+            fresh_copy(src, dest)
+            exiftool(dest, f"-DateTimeOriginal={year}:07:04 1{i}:00:00", f"-Make={make}",
+                     f"-ImageDescription={device} {i}")
+            m.add(dest, "clock_off_camera" if device == "camera" else "clock_off_phone",
+                  "Filed as recorded (2008/07): the camera's clock was a year early" if device == "camera"
+                  else "Filed 2009/07: the same trip, from a phone with the right clock", src,
+                  open_question="a batch correction for one device's photos" if device == "camera" else None)
+
+    # 16. Time zones at midnight, and a burst inside one second.
+    boundary = [("before-midnight-tokyo", "2019:12:31 23:30:00", "+09:00", "Filed 2019/12/31, its local date"),
+                ("before-midnight-new-york", "2019:12:31 23:30:00", "-05:00",
+                 "Filed 2019/12/31, its local date, though in UTC it is 2020-01-01"),
+                ("midnight", "2020:01:01 00:00:00", "+00:00", "Filed 2020/01/01")]
+    for (name, when, offset, expect), src in zip(boundary, pick(jpegs, len(boundary)) * 2):
+        dest = sc / "day-boundary" / f"{name}.jpg"
+        fresh_copy(src, dest)
+        exiftool(dest, f"-DateTimeOriginal={when}", f"-OffsetTimeOriginal={offset}")
+        m.add(dest, "day_boundary", expect, src)
+    for src in pick(jpegs, 1):
+        for i in range(5):
+            # Named against their order in time: name order and time order disagree.
+            dest = sc / "burst" / f"burst-{5 - i}.jpg"
+            fresh_copy(src, dest)
+            exiftool(dest, "-DateTimeOriginal=2018:05:20 15:42:07", f"-SubSecTimeOriginal={(i + 1) * 15:03d}",
+                     f"-ImageDescription=burst {i}")
+            m.add(dest, "burst_same_second", f"Frame {i + 1} of a burst in one second: ordered by its sub-seconds",
+                  src, subsec=f"{(i + 1) * 15:03d}", open_question="whether sorting uses sub-seconds")
+
+    # 17. Look-alikes the similarity search should pair with their original.
+    looks = sc / "look-alikes"
+    for src in pick(raster, 1):
+        with Image.open(src) as im:
+            base = im.convert("RGB")
+        variants = {
+            "rotated-90": base.rotate(-90, expand=True),
+            "cropped": base.crop((base.width // 10, base.height // 10, base.width * 9 // 10, base.height * 9 // 10)),
+            "black-and-white": ImageOps.grayscale(base).convert("RGB"),
+            "colour-graded": ImageEnhance.Color(ImageEnhance.Brightness(base).enhance(1.15)).enhance(1.6),
+        }
+        marked = base.copy()
+        ImageDraw.Draw(marked).text((marked.width // 20, marked.height * 9 // 10), "(c) Someone 2019", fill=(255, 255, 255))
+        variants["watermarked"] = marked
+        for name, img in variants.items():
+            dest = looks / f"{src.stem}-{name}.jpg"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            img.save(dest, "JPEG", quality=88)
+            record_altered(dest)
+            m.add(dest, f"look_alike_{name.replace('-', '_')}", "Has similar photos pairs it with its original", src,
+                  open_question={"rotated-90": "rotated matches are missed (TODO.md, Similar photos)",
+                             "cropped": "whether a crop should be paired"}.get(name))
+
+    # 18. Formats and sizes that strain a reader: past Pillow's decompression guard (warned
+    # at 89.5 megapixels, refused at twice that), 16-bit, CMYK, multi-page, animated, progressive.
+    odd = sc / "formats"
+    odd.mkdir(parents=True, exist_ok=True)
+    for name, size, expect in (("panorama-96mp.jpg", (12000, 8000), "Indexed; past Pillow's 89.5-megapixel warning"),
+                               ("stitched-200mp.jpg", (20000, 10000),
+                                "Past twice Pillow's limit: a thumbnail cannot be made the ordinary way")):
+        img = Image.new("L", size, 90)
+        ImageDraw.Draw(img).rectangle((size[0] // 3, size[1] // 3, size[0] // 2, size[1] // 2), fill=200)
+        img.save(odd / name, "JPEG", quality=70)
+        del img
+        record_altered(odd / name)
+        m.add(odd / name, "large_image", expect, megapixels=size[0] * size[1] // 1_000_000,
+              open_question="how a picture over Pillow's limit is thumbnailed and hashed" if size[0] > 15000 else None)
+    src = rng.choice(raster)
+    with Image.open(src) as im:
+        base = im.convert("RGB")
+    small = base.resize((max(1, base.width // 2), max(1, base.height // 2)))
+    small.convert("I;16").save(odd / "sixteen-bit.png", "PNG")
+    m.add(odd / "sixteen-bit.png", "format_16_bit_png", "Indexed: a 16-bit greyscale PNG", src)
+    small.convert("CMYK").save(odd / "cmyk.jpg", "JPEG", quality=88)
+    m.add(odd / "cmyk.jpg", "format_cmyk_jpeg", "Indexed: a CMYK JPEG, as print workflows write", src)
+    small.save(odd / "multi-page.tiff", "TIFF", save_all=True,
+               append_images=[ImageOps.grayscale(small), small.rotate(180)])
+    m.add(odd / "multi-page.tiff", "format_multi_page_tiff", "Indexed as one photo: the first of three pages", src)
+    frames = [small.resize((160, 120)).rotate(a) for a in (0, 90, 180, 270)]
+    frames[0].save(odd / "animated.gif", "GIF", save_all=True, append_images=frames[1:], duration=200, loop=0)
+    m.add(odd / "animated.gif", "format_animated_gif", "Indexed as one photo: its first frame", src)
+    small.save(odd / "progressive.jpg", "JPEG", quality=85, progressive=True)
+    m.add(odd / "progressive.jpg", "format_progressive_jpeg", "Indexed: a progressive JPEG", src)
+    for f in odd.iterdir():
+        if f.is_file() and not f.name.startswith("."):
+            record_altered(f)
+
+    # 19. One name in its two Unicode forms: composed (NFC, as Linux and Windows usually
+    # write) and decomposed (NFD, as macOS writes). They look the same; they are two names.
+    for (form, name), src in zip((("NFC", unicodedata.normalize("NFC", "Café au lait.jpg")),
+                                  ("NFD", unicodedata.normalize("NFD", "Café au lait.jpg"))), pick(jpegs, 2) * 2):
+        dest = sc / "unicode-names" / name
+        fresh_copy(src, dest)
+        exiftool(dest, f"-ImageDescription=unicode {form}", "-DateTimeOriginal=2017:08:12 10:00:00")
+        m.add(dest, "unicode_" + form.lower(), f"Indexed; its name is in {form}, and looks identical to the other",
+              src, open_question="a destination or search that normalizes names would see one name twice")
+
+    # 20. Names that differ only in case, from two folders, on one day: one destination
+    # folder, where a case-insensitive filesystem (exFAT, SMB) sees one name twice.
+    for (folder, name), src in zip((("camera", "IMG_0042.JPG"), ("phone", "img_0042.jpg")), pick(jpegs, 2) * 2):
+        dest = sc / "case-at-destination" / folder / name
+        fresh_copy(src, dest)
+        exiftool(dest, "-DateTimeOriginal=2016:04:09 09:00:00", f"-ImageDescription=case {folder}")
+        m.add(dest, "case_at_destination", "Filed 2016/04/09 beside a name differing only in case; "
+              "on a case-insensitive destination the second must get _1", src)
+
+    # 21. A folder the Index cannot open.
+    # Written without record_altered: its guard would sit in the folder this then locks.
+    # A plain copy and ExifTool's own rewrite are new files, never a link into the seed.
+    locked = sc / "edge" / "locked-folder"
+    inside = locked / "inside.jpg"
+    locked.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(rng.choice(jpegs), inside)
+    subprocess.run(["exiftool", "-q", "-q", "-overwrite_original", "-ImageDescription=in a locked folder",
+                    str(inside)], check=True)
+    m.add(inside, "edge_locked_folder", "Not indexed: its folder cannot be opened, which is reported, not skipped silently",
+          open_question="how the Index reports a folder it cannot open")
+    locked.chmod(0)
+
     m.save(seed=args.seed, seed_dir=str(seed) if seed else None, built_at=time.strftime("%Y-%m-%dT%H:%M:%S%z"))
     counts = {}
     for f in m.files:
@@ -573,10 +829,50 @@ def change(args):
         exiftool(p, "-DateTimeOriginal=2020:02:29 12:00:00")
         record("exif_date_changed", p, "A new date taken (2020/02/29): new content, filed by the new date")
 
-    # At the destination, when given: a copy deleted, one altered, and a stranger.
+    # Photos coming back to the source, from the destination: one whose original a Move
+    # removed, and one the user rejected. Copies, so the destination is unchanged.
+    kept = set()
     if args.dest:
         dest_root = Path(args.dest).resolve()
-        copies = sorted(p for p in dest_root.rglob("*") if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS)
+        in_source = {hashlib.sha1(p.read_bytes()).hexdigest() for p in lib.rglob("*")
+                     if p.is_file() and not p.is_symlink() and os.access(p, os.R_OK)}
+        library = sorted(p for p in (dest_root / "library").rglob("*")
+                         if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS)
+        moved = [p for p in library if hashlib.sha1(p.read_bytes()).hexdigest() not in in_source]
+        back = lib / "scenarios" / "came-back"
+        if moved:
+            src = rng.choice(moved)
+            dest = back / f"after-move-{src.name}"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+            record_altered(dest)
+            kept.add(src)
+            log.append({"round": rnd, "kind": "returned_after_move", "path": str(dest.relative_to(lib)),
+                        "expect": "Identical to a photo already moved into the library: a duplicate, not copied again",
+                        "of": str(src.relative_to(dest_root))})
+        else:
+            print("returned: no library copy whose original a Move removed; run a Move first to include one.")
+        rejected = sorted(p for p in (dest_root / "rejects").rglob("*")
+                          if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS)
+        if rejected:
+            src = rng.choice(rejected)
+            dest = back / f"after-reject-{src.name}"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+            record_altered(dest)
+            kept.add(src)
+            log.append({"round": rnd, "kind": "returned_after_reject", "path": str(dest.relative_to(lib)),
+                        "expect": "Identical to a photo you rejected: kept out, as already rejected",
+                        "of": str(src.relative_to(dest_root))})
+        else:
+            print("returned: nothing in Rejects; reject a photo first to include one.")
+
+    # At the destination, when given: a copy deleted, one altered, and a stranger; never a
+    # copy that just came back to the source, whose original must stay as it was.
+    if args.dest:
+        dest_root = Path(args.dest).resolve()
+        copies = sorted(p for p in dest_root.rglob("*")
+                        if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS and p not in kept)
         if len(copies) < 2:
             print("destination: fewer than two copies there; run a Copy first. Destination changes skipped.")
         else:
