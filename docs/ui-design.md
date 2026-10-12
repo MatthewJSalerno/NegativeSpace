@@ -115,8 +115,10 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
 
 - **Top bar**, sticky: the logo and name (a link to the Library's last place), the
   filename search on the Library, **Jobs ▾** on the Library, then the **Dark mode** switch and
-  Settings and **Notifications**. The bell remains available during selection. Logs and Stats have neither search nor Jobs, and no disabled stand-in for
-  them. Active progress, safety questions and Rejects reminders sit under the top bar.
+  Settings and **Notifications**. On narrow layouts, anchor the Menu button to the
+  top padding so wrapping Library controls do not move it between pages. The bell
+  remains available during selection. Logs and Stats have neither search nor Jobs,
+  and no disabled stand-in for them. Active progress, safety questions and Rejects reminders sit under the top bar.
 - **Sidebar** (`Sidebar.tsx`, 240px), on every page: the four places in workflow order
   (Not organized, Library, Needs review, Rejects), each with how many photos it holds,
   whatever the search or filters; **Look into**, the gallery's filters; **Activity**: Logs

@@ -110,7 +110,7 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 @media (forced-colors: active) { .sidebar a[aria-current], .sidebar .sidebar-item[aria-pressed=true] { outline: 2px solid Highlight; outline-offset: -2px; } }
 /* Narrow windows: the sidebar hides behind the menu button and opens over the page. */
 @media (max-width: 800px) {
-  .menu-toggle { display: inline-grid; place-items: center; }
+  .menu-toggle { display: inline-grid; place-items: center; align-self: flex-start; }
   .topbar { gap: var(--space-2); flex-wrap: wrap; }
   .topbar-search { flex: 1 1 160px; }
   .topbar .brand { flex: 0 1 auto; }
