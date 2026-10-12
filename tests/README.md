@@ -572,12 +572,31 @@ its EXIF, resized and format-converted copies, dates the engine must file (none,
 time-zone offset, conflicting, invalid, future, 1958, and one picture dated both 2024 and
 1969), names that collide at the
 destination or are awkward, every EXIF orientation, and edge files (empty, truncated,
-not an image, a sidecar, a symlink, an unreadable file, a deep folder). `change` then
+not an image, a sidecar, a symlink, an unreadable file, a deep folder). It also makes the
+cases a real library on a NAS brings:
+
+| Folder | Cases |
+| :--- | :--- |
+| `nas-share/` | Synology's `@eaDir/` thumbnails and `#recycle/` (no leading dot), QNAP's `.@__thumb/` |
+| `live-photo/` | a Live Photo's HEIC and its `.MOV`; motion photos (a JPEG with its video after the picture) in Google Camera's older MVIMG form, the Pixel's Motion Photo 1.0 and Samsung's, each read by ExifTool as its phone wrote it (the videos are stand-ins) |
+| `date-in-name/` | no EXIF, a file time in 2011, and a date only in the name (`IMG_20190615_…`, WhatsApp, Pixel, Samsung, a screenshot) |
+| `clock-off-by-a-year/` | one trip from a camera a year early and a phone that was right |
+| `day-boundary/`, `burst/` | 23:30 at +09:00 and at −05:00, midnight; five frames in one second, told apart only by sub-seconds |
+| `look-alikes/` | an original rotated in its pixels, cropped, black-and-white, colour-graded, watermarked |
+| `formats/` | 96 and 200 megapixels (past Pillow's decompression limits), 16-bit PNG, CMYK JPEG, multi-page TIFF, animated GIF, progressive JPEG |
+| `unicode-names/`, `case-at-destination/` | one name in NFC and NFD; names differing only in case, one day, two folders |
+| `edge/locked-folder/` | a folder the Index cannot open |
+
+Where the app's answer is not decided yet, the manifest entry says so in
+`open_question` (the NAS folders, a Live Photo's video, dates in names, sub-seconds,
+crops and rotations, the 200-megapixel picture, normalized or case-insensitive
+destinations). `change` then
 applies one round of every kind of change (edited in place, touched, renamed, moved,
 deleted, replaced, new duplicates, a new date taken, and with `--dest` a destination
-copy deleted, altered and a stranger added), which is what gives a photo's lineage
-something to show. `OUT/manifest.json` lists every file, its scenario and what the app
-should show for it. Without `--seed-dir` the photos are generated.
+copy deleted, altered and a stranger added, and two photos coming back to the source:
+one whose original a Move removed and one in Rejects), which is what gives a photo's
+lineage something to show. `OUT/manifest.json` lists every file, its scenario and what
+the app should show for it. Without `--seed-dir` the photos are generated.
 
 `--exif-donors` names a folder of camera files kept for their metadata, such as
 [ExifTool's sample images](https://exiftool.org/sample_images.html): real tags from
@@ -612,15 +631,22 @@ docker run ... tools/make_scenarios.py change --out /photos/demos/demo [--dest <
 ```
 
 Its test, `make_scenarios_test.py`, runs in CI: a seed that must stay byte-identical, a
-seed filling during a build, refusals, and the real engine's Index checked against the
-manifest, including that an empty file and a text file named `.jpg` are logged as
-**Not an image** and never filed.
+seed filling during a build, refusals, the photos that come back, and the real engine's
+Index checked against the manifest, including that an empty file and a text file named
+`.jpg` are logged as **Not an image** and never filed, that a folder it cannot open is
+recorded, and that every format and name case above is indexed. Open questions are not
+asserted.
 
 ### Metadata scenarios — `make_metadata_scenarios.py`
 
 For testing metadata reading, conflicts and sidecar association against cases a real
 library rarely holds all of. `build` makes `OUT/library/<group>/<case>/`, one folder per
-case, each photo generated with its case name drawn on it:
+case. With `--seed-dir`, each case's photo is a copy of one of that folder's JPEGs, each
+used once: its pixels kept, its own EXIF, XMP and IPTC wiped (its colour profile kept) and
+the case's values written instead, so the manifest stays the whole truth. Photos with a
+rotation tag are passed over while others remain, since without the tag they would lie on
+their side. The seed folder is never written to, and the run ends by proving it. Without
+`--seed-dir`, or once its JPEGs run out, the photos are drawn, each showing its case name:
 
 | Group | Cases |
 | :--- | :--- |
@@ -628,7 +654,7 @@ case, each photo generated with its case name drawn on it:
 | `conflict` | the date in EXIF vs sidecar, EXIF vs embedded XMP, embedded vs sidecar, all three apart; one instant in two time zones; month-only precision; a sidecar clearing a title; keywords, rating, orientation, GPS, camera, caption, title languages and creators that differ |
 | `sidecar_names` | `photo.jpg.xmp`, `photo.xmp`, both disagreeing, `.XMP`, a name differing only in letter case, two photos sharing one stem, a declared owner (`crs:RawFileName`), an owner that is not there, an orphan, a sidecar in a subfolder, and with `--raw-dir` a RAW and JPEG sharing one sidecar |
 | `sidecar_broken` | malformed, empty, binary, unrelated XML, an invalid date, rating and orientation, a repeated field, over the reader's size limit, unreadable, a symlink |
-| `real_world` | forms real tools write: `rdf:about` as a UUID, keywords as `rdf:Seq`, a date only in `photoshop:DateCreated`, Lightroom's hierarchical keywords, UTF-16 and UTF-8 BOM sidecars, titles without `x-default`, a rejected rating (-1), Unicode keywords, IPTC-only keywords, a zeroed EXIF date, `CreateDate` only, a PNG with embedded XMP, a Google Takeout `.json`, an orientation already applied to the pixels |
+| `real_world` | forms real tools write: `rdf:about` as a UUID, keywords as `rdf:Seq`, a date only in `photoshop:DateCreated`, Lightroom's hierarchical keywords, UTF-16 and UTF-8 BOM sidecars, titles without `x-default`, a rejected rating (-1), Unicode keywords, IPTC-only keywords, a zeroed EXIF date, `CreateDate` only, a PNG with embedded XMP, a Google Takeout `.json`, an orientation already applied to the pixels, and motion photos (Google's older MVIMG, the Pixel's, Samsung's) with metadata and a disagreeing sidecar, the video's length and SHA-1 in the manifest so a test can prove a save kept it |
 
 `OUT/manifest.json` is ground truth: for each photo what was written to each source
 (`exif`, `embedded_xmp`, `iptc`), for each sidecar its values and the photo it was written
@@ -641,12 +667,16 @@ the sidecars the reader took.
 mkdir -p /photos/demos
 docker run --rm --user "$(id -u):$(id -g)" --entrypoint python3 \
   -v /photos:/photos -v "$PWD":/app -w /app negativespace \
-  tools/make_metadata_scenarios.py build --out /photos/demos/metadata [--raw-dir /photos/raw] [--replace] [--seed N]
+  tools/make_metadata_scenarios.py build --out /photos/demos/metadata \
+    [--seed-dir /photos/seed] [--raw-dir /photos/raw] [--replace] [--seed N]
 ```
 
 Its test, `make_metadata_scenarios_test.py`, runs in CI: every value in every source of
 every photo is read back with ExifTool, every valid sidecar with a plain XML parser, so
-the manifest can be trusted without trusting the code under test.
+the manifest can be trusted without trusting the code under test. A seeded build is
+checked the same way, and also that the seed folder is byte-identical afterwards, that each
+photo is a different seed photo's pixels, and that none keeps the seed's own date, title or
+keywords.
 
 ## Large-library performance workstream
 
