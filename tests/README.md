@@ -1,8 +1,62 @@
 # Tests
 
 Everything here is for developing NegativeSpace; running the engine needs none of it.
-CI runs all of it on every pull request and every push to `main`
-(`.github/workflows/engine-tests.yml`).
+CI coverage is split between two workflows:
+
+- **Every pull request, push to `main`, and manual Engine tests run**:
+  `.github/workflows/engine-tests.yml` runs all 39 Python unit suites
+  (`tests/*_test.py`, except the separately invoked engine smoke suite), the engine
+  smoke suite, the three shell suites, all `tools/check-*.py`, synthetic similarity
+  validation, container CPU/timezone/CLI checks, and the browser drivers listed below.
+  `filter_pins_test.py` and `notifications_test.py` use `PYTHONPATH=/app/tests:/app`.
+  RAW smoke tests require the optional read-only public samples locally; GitHub has
+  no such samples and reports those two skips.
+- **Nightly at 05:37 UTC and manual Extended browser tests runs**:
+  `.github/workflows/extended-browser-tests.yml` runs the ten extended drivers below.
+  They do not add runtime to the PR gate. The nightly schedule starts once the
+  workflow is on the default branch. After merge, use Actions → Extended browser
+  tests → Run workflow to select a branch for a manual run.
+
+All browser entries below are in `tests/browser/`, use `webui_browser_test.sh`, and
+build isolated catalogs from generated photos. Set `DRIVER` to the filename; the
+fixture flags are required where shown. Each workflow builds the app and web images.
+
+| Browser driver | CI schedule | Additional environment |
+| --- | --- | --- |
+| `access_browser_drive.py` | PR / main / manual | — |
+| `appearance_browser_drive.py` | PR / main / manual | — |
+| `attention_browser_drive.py` | PR / main / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
+| `copied_source_browser_drive.py` | PR / main / manual | — |
+| `filter_pins_browser_drive.py` | PR / main / manual | — |
+| `fresh_start_browser_drive.py` | PR / main / manual | — |
+| `gallery_position_browser_drive.py` | PR / main / manual | — |
+| `notifications_browser_drive.py` | PR / main / manual | — |
+| `preview_refresh_browser_drive.py` | PR / main / manual | — |
+| `reject_similar_browser_drive.py` | PR / main / manual | — |
+| `rejects_browser_drive.py` | PR / main / manual | — |
+| `request_freshness_browser_drive.py` | PR / main / manual | — |
+| `review_browser_drive.py` | PR / main / manual | — |
+| `similar_browser_drive.py` | PR / main / manual | — |
+| `source_scope_browser_drive.py` | PR / main / manual | — |
+| `stalled_job_browser_drive.py` | PR / main / manual | `STALLED_FIXTURE=1` |
+| `suspicious_dates_browser_drive.py` | PR / main / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
+| `webui_browser_drive.py` | PR / main / manual | — |
+| `navigation_browser_drive.py` | Nightly / manual | — |
+| `layout_stability_browser_drive.py` | Nightly / manual | — |
+| `date_settings_browser_drive.py` | Nightly / manual | — |
+| `cross_location_browser_drive.py` | Nightly / manual | — |
+| `transfer_outcome_browser_drive.py` | Nightly / manual | — |
+| `large_selection_browser_drive.py` | Nightly / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
+| `reference_sets_browser_drive.py` | Nightly / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
+| `similarity_recovery_browser_drive.py` | Nightly / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
+| `submission_browser_drive.py` | Nightly / manual | `SUBMISSION_FIXTURE=1` |
+| `safety_questions_browser_drive.py` | Nightly / manual | `NETWORK_FIXTURE=1` |
+
+`ui_browser_drive.py` is a developer shortcut for `ui_browser_checks.py`. The default
+`webui_browser_drive.py` already calls those checks, so CI does not invoke the shortcut
+again. Helpers and engine fixture wrappers are not standalone suites. Same-named tests
+in different modules cover different contracts and remain in place.
+
 
 The CI job has a 45-minute limit for the combined serial browser, API, metadata
 and engine suites. The previous 20-minute limit cancelled a run after 56 successful
@@ -377,21 +431,29 @@ and rejects invalid IDs. Clipboard output is only a local generated-fixture link
 
 ## Shell tests
 
-These run on the host, not in the container, because the thing under test is a shell
-script:
+The entrypoint and shutdown harnesses run on the host to start and inspect Docker
+containers. The sampler safety suite uses only generated fixtures and may run in the
+app image (CI invokes its portable shell script on the runner):
 
 ```bash
-sh tests/sampler_test.sh                                   # the sampler never writes to the library
+docker run --rm --entrypoint sh -v "$PWD":/app:ro -w /app negativespace tests/sampler_test.sh
 docker build -f docker/app.Dockerfile -t negativespace . && sh tests/entrypoint_test.sh   # the entrypoint's ownership handling
 sh tests/shutdown_test.sh      # docker stop with a browser tab open: clean, and the app's shutdown runs
 ```
+
+The entrypoint and shutdown harnesses accept `IMAGE`, `NS_TEST_OUTPUT_ROOT`,
+`NS_TEST_DESTINATION_ROOT`, and `NS_TEST_KEEP=1`, as the browser harness does. Create
+output/destination parent folders before running. The destination gets its own
+subfolder; retaining fixtures still stops the shutdown test's containers and network.
+Leave the variables unset for the usual temporary-fixture cleanup on CI.
 
 ## Spec and schema checks — `tools/`
 
 Not tests of the engine, but CI gates on them and they exit non-zero on failure:
 
 ```bash
-python3 tools/check-specs.py          # cross-references resolve, fences balance, tables are whole
+docker run --rm --entrypoint python3 -v "$PWD":/app:ro -w /app negativespace tools/check-specs.py
+                                      # cross-references resolve, fences balance, tables are whole
 docker run --rm -v "$PWD":/app -w /app negativespace python3 tools/check-schema-drift.py
                                       # engine-spec 6.5 matches what the engine creates
 docker run --rm -v "$PWD":/app -w /app negativespace python3 tools/check-api-spec.py
