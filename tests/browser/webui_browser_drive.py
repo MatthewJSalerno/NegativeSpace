@@ -323,7 +323,7 @@ with sync_playwright() as p:
     expect(inspector).to_contain_text("Not yet organized")
     expect(inspector).to_contain_text("Proposed destination path")
     expect(inspector.locator(".inspector-image img:not([style*='none'])")).to_be_visible(timeout=15_000)
-    expect(inspector).to_contain_text("Additional recorded metadata")
+    expect(inspector).to_contain_text("Additional file information")
     expect(inspector).to_contain_text("Metadata sources")
     expect(inspector).not_to_contain_text("File created")
     expect(inspector).to_contain_text("File modified")
@@ -338,19 +338,19 @@ with sync_playwright() as p:
     expect(inspector.get_by_role("link", name="History", exact=True)).to_have_count(0)   # one place, not two
     widths = inspector.locator("table.info").evaluate_all("ts => ts.map(t => Math.round(t.getBoundingClientRect().width))")
     assert len(widths) == 3 and len(set(widths)) == 1, f"the information tables differ in width: {widths}"
-    # Show all metadata: every tag recorded, folded until asked for, with a filter, inside
-    # the additional recorded metadata section.
-    exif = inspector.locator(".info-section", has=page.get_by_role("heading", name="Additional recorded metadata"))
-    exif.get_by_role("button", name=re.compile(r"^Show all metadata \(\d+ tags\)")).click()
+    # Show file details: every tag recorded, folded until asked for, with a filter, inside
+    # the Additional file information section.
+    exif = inspector.locator(".info-section", has=page.get_by_role("heading", name="Additional file information"))
+    exif.get_by_role("button", name=re.compile(r"^Show file details \(\d+ fields\)")).click()
     expect(inspector.locator(".meta-table")).to_contain_text("ImageWidth")
     # Scrolled to the last tag, Hide stays in reach, below the panel's own title bar.
     inspector.locator(".meta-table tr").last.scroll_into_view_if_needed()
-    hide = inspector.get_by_role("button", name="Hide all metadata")
+    hide = inspector.get_by_role("button", name="Hide file details")
     expect(hide).to_be_in_viewport()
     title_bottom = inspector.locator(".inspector-head").bounding_box()
     title_bottom = title_bottom["y"] + title_bottom["height"]
     assert hide.bounding_box()["y"] >= title_bottom - 1, "the metadata header slid under the panel's title bar"
-    inspector.get_by_label("Filter the metadata").fill("ImageWidth")
+    inspector.get_by_label("Filter file details").fill("ImageWidth")
     expect(inspector.locator(".meta-table tr")).to_have_count(1)
     hide.click()
     shot("3-inspector")
@@ -360,7 +360,7 @@ with sync_playwright() as p:
     inspector.locator(".inspector-image").click()
     lightbox = page.locator(".lightbox")
     expect(lightbox).to_be_visible()
-    expect(lightbox).to_contain_text("Additional recorded metadata")
+    expect(lightbox).to_contain_text("Additional file information")
     blur = lightbox.evaluate("e => getComputedStyle(e).backdropFilter")
     assert "blur" in blur, f"the enlarged view does not blur the page behind it: {blur}"
     shot("5-enlarged")

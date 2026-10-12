@@ -328,7 +328,7 @@ function Details({ detail: d, onLineage, refreshKey, review }: { detail: PhotoDe
         </Row>
       </Section>
       <MetadataSources key={d.id} photoId={d.id} refreshKey={refreshKey} />
-      <Section title="Additional recorded metadata" note="Other captured photo and file details. Source comparisons are above.">
+      <Section title="Additional file information" note="Recorded file properties and other extracted details. Compare EXIF and XMP in Metadata sources.">
         <tr className="meta-row"><td colSpan={2}><AllMetadata tags={d.metadata ?? []} /></td></tr>
       </Section>
 
@@ -375,15 +375,15 @@ function AllMetadata({ tags }: { tags: [string, unknown][] }) {
       {/* Stays at the top of the panel while the tags scroll, so Hide is always at hand. */}
       <div className={open ? "meta-head" : undefined}>
         <button className="link" aria-expanded={open} onClick={() => setOpen(!open)}>
-          {open ? "Hide all metadata" : `Show all metadata (${tags.length} tags)`}
+          {open ? "Hide file details" : `Show file details (${tags.length} fields)`}
         </button>
-        {open && <SearchField placeholder="Filter tags" value={filter} onValueChange={setFilter}
-                              aria-label="Filter the metadata" clearLabel="Clear the filter" />}
+        {open && <SearchField placeholder="Filter file details" value={filter} onValueChange={setFilter}
+                              aria-label="Filter file details" clearLabel="Clear the filter" />}
       </div>
       {open && (
         <>
           <p className="muted">Catalogued photo and file tags. These may include computed file properties; use the source tabs above to compare metadata.</p>
-          {shown.length === 0 ? <p className="muted">No tag matches “{filter}”.</p> : (
+          {shown.length === 0 ? <p className="muted">No field matches “{filter}”.</p> : (
             <table className="meta-table">
               <tbody>
                 {shown.map(([k, v]) => <tr key={k}><th>{k}</th><td>{text(v)}</td></tr>)}

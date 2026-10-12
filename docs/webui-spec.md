@@ -878,8 +878,8 @@ Qualified tags stay under each source's All recorded source tags disclosure. Cap
 values are shown without inventing a timezone. Applied save receipts take precedence
 over later source Index observations; this is catalog evidence, not a live file scan.
 
-**Show all metadata.** The folded **Show all metadata (n tags)** inside
-**Additional recorded metadata** retains the broad photo/file tag view, including
+**File details.** The folded **Show file details (n fields)** inside
+**Additional file information** retains the broad photo/file tag view, including
 computed properties outside the source mappings. Its filter and sticky Hide control
 remain. Neither tag disclosure changes files or source selection. Viewing errors expose
 Retry metadata; capture/interpretation issues keep their explanation and a photo-log link.

@@ -244,7 +244,7 @@ service. Built and tested:
         never "failed" for a job that ran to its end) with **Show these photos**: the
         job's photos, wherever they are now, which search and the filters narrow;
     *   the split Inspector, with a movable divider, the 1024px preview, the file's own
-        details apart from the photo's EXIF information, Show all metadata, the
+        details apart from Metadata sources, Additional file information, the
         photo's recent history, its lineage tree in a window of its own, and **Reject…**
         or **Return to library…**.
 

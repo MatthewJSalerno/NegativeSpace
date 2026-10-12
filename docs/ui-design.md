@@ -1053,7 +1053,7 @@ primary-choice and recovery screens remain separately tracked work.
 
 **Built:** read-only source tabs, applied Primary badge, retained-version viewing,
 comparison, differences-only, field filtering and recorded-tag disclosure. The photo
-and file tag disclosure remains under Additional recorded metadata. The viewer reads
+and file tag disclosure remains under Additional file information. The viewer reads
 catalog snapshots; it does not reread files or imply destination verification.
 **Pending:** date copying/editing, primary changes, setup guidance and decision controls.
 The engine's broader composition
