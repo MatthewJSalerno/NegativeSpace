@@ -1564,3 +1564,9 @@ references, 51 API routes). This does not claim a large-catalog performance benc
 Inspector refresh regression: the review browser workflow dispatches repeated review
 updates and asserts one metadata section, review section and Photo actions row.
 Sibling sections use distinct keys so refreshing does not leave orphan controls.
+
+Viewer PR follow-up validation: all workflow steps passed locally, including 745
+unit/API cases across 37 suites, 17 browser workflows, and 154 engine smoke cases
+with the public RAW samples (zero skipped). The scenario builders passed 10 demo
+and 8 metadata cases. Spec checks passed 476 references, schema drift and 51 routes.
+The read-only viewer remains maintainer-accepted; date-editor acceptance is separate.
