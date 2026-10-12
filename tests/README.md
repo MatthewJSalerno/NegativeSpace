@@ -1621,5 +1621,17 @@ Builder update validation: the unchanged metadata builder suite passed all 8 tes
 the demo builder suite all 10 tests, including its Index assertions. A separate seeded
 library contains 60 cases, 64 photos (63 seeded JPEGs and one public RAW copy), including
 three motion photos. The builder verified that every seed file stayed unchanged. This
-library has not replaced the running demo or its catalog/photo IDs. Expanded RAW, DNG,
+library now backs a fresh validation demo: 47 organized photos and 17 intentional
+source metadata holds. Earlier demo photo IDs no longer apply. No date edits were saved
+during preparation; maintainer date-editor acceptance remains pending. Expanded RAW, DNG,
 TIFF, HEIC and extended-XMP cases remain planned in the builder owner's workstream.
+
+Inspector refresh regression: the review browser workflow dispatches repeated review
+updates and asserts one metadata section, review section and Photo actions row.
+Sibling sections use distinct keys so refreshing does not leave orphan controls.
+
+Viewer PR follow-up validation: all workflow steps passed locally, including 745
+unit/API cases across 37 suites, 17 browser workflows, and 154 engine smoke cases
+with the public RAW samples (zero skipped). The scenario builders passed 10 demo
+and 8 metadata cases. Spec checks passed 476 references, schema drift and 51 routes.
+The read-only viewer remains maintainer-accepted; date-editor acceptance is separate.

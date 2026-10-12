@@ -15,6 +15,9 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
   XMP clears are explicit, untouched metadata/source files stay unchanged, and unsupported
   writer values refuse without changing primary. Broader metadata editing is deferred.
 
+- Inspector refreshes keep one instance of each section and photo action row,
+  preventing duplicate controls after review or job updates.
+
 - Not organized has a Needs attention filter for processing failures and metadata
   holds. The Index summary links directly to all affected source files; the filter
   supports counts, pins and existing search/folder/date/type restrictions.
