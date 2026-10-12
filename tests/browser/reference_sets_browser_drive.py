@@ -235,6 +235,8 @@ with sync_playwright() as p:
     expect(page.get_by_role('button',name='Review this set',exact=True).first).to_be_visible()
     expect(page.get_by_role('button',name='Explore related sets',exact=True).first).to_be_visible()
     shot('needs-review-grouping')
+    # Keep similarity applied while browsing other filters; unpinned filters replace it.
+    page.get_by_role('button',name='Pin Has similar photos',exact=True).click()
     # Filters ungroup without changing the explicit saved preference or selection.
     page.locator('.card input[type=checkbox]').first.check()
     for label in ('Suspicious dates','No capture date','Small images','Review later'):
