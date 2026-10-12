@@ -620,7 +620,12 @@ manifest, including that an empty file and a text file named `.jpg` are logged a
 
 For testing metadata reading, conflicts and sidecar association against cases a real
 library rarely holds all of. `build` makes `OUT/library/<group>/<case>/`, one folder per
-case, each photo generated with its case name drawn on it:
+case. With `--seed-dir`, each case's photo is a copy of one of that folder's JPEGs, each
+used once: its pixels kept, its own EXIF, XMP and IPTC wiped (its colour profile kept) and
+the case's values written instead, so the manifest stays the whole truth. Photos with a
+rotation tag are passed over while others remain, since without the tag they would lie on
+their side. The seed folder is never written to, and the run ends by proving it. Without
+`--seed-dir`, or once its JPEGs run out, the photos are drawn, each showing its case name:
 
 | Group | Cases |
 | :--- | :--- |
@@ -641,12 +646,16 @@ the sidecars the reader took.
 mkdir -p /photos/demos
 docker run --rm --user "$(id -u):$(id -g)" --entrypoint python3 \
   -v /photos:/photos -v "$PWD":/app -w /app negativespace \
-  tools/make_metadata_scenarios.py build --out /photos/demos/metadata [--raw-dir /photos/raw] [--replace] [--seed N]
+  tools/make_metadata_scenarios.py build --out /photos/demos/metadata \
+    [--seed-dir /photos/seed] [--raw-dir /photos/raw] [--replace] [--seed N]
 ```
 
 Its test, `make_metadata_scenarios_test.py`, runs in CI: every value in every source of
 every photo is read back with ExifTool, every valid sidecar with a plain XML parser, so
-the manifest can be trusted without trusting the code under test.
+the manifest can be trusted without trusting the code under test. A seeded build is
+checked the same way, and also that the seed folder is byte-identical afterwards, that each
+photo is a different seed photo's pixels, and that none keeps the seed's own date, title or
+keywords.
 
 ## Large-library performance workstream
 

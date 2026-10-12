@@ -1,5 +1,5 @@
 """tools/make_metadata_scenarios.py: every photo and sidecar holds exactly what the manifest
-says was written, read back with ExifTool and a plain XML parser rather than the code the
+says was written, whether drawn or copied from a seed folder that must stay untouched, read back with ExifTool and a plain XML parser rather than the code the
 scenarios exist to test, so the library can serve as ground truth.
 
     docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app \\
@@ -14,6 +14,8 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+from PIL import Image
 
 REPO = Path(__file__).resolve().parent.parent
 SCRIPT = REPO / "tools" / "make_metadata_scenarios.py"
@@ -41,6 +43,38 @@ def digits(value) -> str:
 
 def listed(value) -> list:
     return [str(v) for v in value] if isinstance(value, list) else [str(value)]
+
+
+def check_sources(test, lib: Path, manifest: dict):
+    """Every value the manifest says was written to a photo's EXIF, embedded XMP or IPTC is
+    there, read back with ExifTool, and a date written to EXIF alone is in no other source."""
+    photos = [(c, p) for c in manifest["cases"] for p in c["photos"] if p.get("sources")]
+    test.assertGreaterEqual(len(photos), 20)
+    read = subprocess.run(["exiftool", "-j", "-G1", "-n", *[str(lib / p["path"]) for _, p in photos]],
+                          capture_output=True, text=True, check=True)
+    tags = {Path(entry["SourceFile"]).relative_to(lib).as_posix(): entry for entry in json.loads(read.stdout)}
+    checked = 0
+    for case, p in photos:
+        found = tags[p["path"]]
+        for source, values in p["sources"].items():
+            for field, value in values.items():
+                where = f"{p['path']} {source}.{field}"
+                got = found.get(TAGS[source][field])
+                test.assertIsNotNone(got, f"{where}: not written")
+                if field in ("date", "create_date"):
+                    test.assertEqual(digits(got), digits(value), where)
+                elif field == "gps":
+                    test.assertAlmostEqual(float(got), abs(value[0]), places=3, msg=where)
+                elif field == "creators" and source == "exif":
+                    test.assertEqual(str(got), "; ".join(value), where)
+                elif field in ("keywords", "creators"):
+                    test.assertEqual(listed(got), value, where)
+                else:
+                    test.assertEqual(str(got), str(value), where)
+                checked += 1
+        if set(p["sources"]) == {"exif"} and "date" in p["sources"]["exif"]:
+            test.assertNotIn("XMP-exif:DateTimeOriginal", found, p["path"])
+    test.assertEqual(checked, sum(len(v) for _, p in photos for v in p["sources"].values()))
 
 
 class MakeMetadataScenarios(unittest.TestCase):
@@ -77,34 +111,7 @@ class MakeMetadataScenarios(unittest.TestCase):
         self.assertRegex(self.stdout, r"made \d+ case\(s\)")
 
     def test_each_source_in_each_photo_holds_what_was_written(self):
-        photos = [(c, p) for c in self.cases() for p in c["photos"] if p.get("sources")]
-        self.assertGreaterEqual(len(photos), 20)
-        read = subprocess.run(["exiftool", "-j", "-G1", "-n", *[str(self.lib / p["path"]) for _, p in photos]],
-                              capture_output=True, text=True, check=True)
-        tags = {Path(entry["SourceFile"]).relative_to(self.lib).as_posix(): entry for entry in json.loads(read.stdout)}
-        checked = 0
-        for case, p in photos:
-            found = tags[p["path"]]
-            for source, values in p["sources"].items():
-                for field, value in values.items():
-                    where = f"{p['path']} {source}.{field}"
-                    got = found.get(TAGS[source][field])
-                    self.assertIsNotNone(got, f"{where}: not written")
-                    if field in ("date", "create_date"):
-                        self.assertEqual(digits(got), digits(value), where)
-                    elif field == "gps":
-                        self.assertAlmostEqual(float(got), abs(value[0]), places=3, msg=where)
-                    elif field == "creators" and source == "exif":
-                        self.assertEqual(str(got), "; ".join(value), where)
-                    elif field in ("keywords", "creators"):
-                        self.assertEqual(listed(got), value, where)
-                    else:
-                        self.assertEqual(str(got), str(value), where)
-                    checked += 1
-            # Nothing leaks between sources: a date written to one source only is in no other.
-            if set(p["sources"]) == {"exif"} and "date" in p["sources"]["exif"]:
-                self.assertNotIn("XMP-exif:DateTimeOriginal", found, p["path"])
-        self.assertEqual(checked, sum(len(v) for _, p in photos for v in p["sources"].values()))
+        check_sources(self, self.lib, self.manifest)
 
     def test_conflicts_differ_and_agreements_agree(self):
         by = {c["case"]: c for c in self.cases()}
@@ -147,6 +154,51 @@ class MakeMetadataScenarios(unittest.TestCase):
                     self.assertTrue(c["engine_today"][rel]["state"], s["path"])
         broken = [e for c in self.cases("sidecar_broken") for e in c["engine_today"].values()]
         self.assertTrue(any(e["state"] != "valid" for e in broken))
+
+    def test_a_seed_folder_lends_copies_with_their_metadata_replaced(self):
+        # Seed JPEGs of distinct sizes, each with an EXIF date, title and keywords of its own,
+        # and one turned (orientation 6) that must be passed over while others remain.
+        seed = self.root / "seed"
+        for i in range(90):
+            path = seed / f"album-{i % 3}" / f"seed-{i:02d}.jpg"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            exif = Image.Exif()
+            exif.get_ifd(0x8769)[36867] = "2001:02:03 04:05:06"
+            if i == 0:
+                exif[0x0112] = 6
+            Image.new("RGB", (300 + i, 200), (i * 2, 120, 200 - i)).save(path, "JPEG", exif=exif)
+        subprocess.run(["exiftool", "-q", "-q", "-overwrite_original", "-XMP-dc:Title=Seed title",
+                        "-XMP-dc:Subject=seed-keyword", "-IPTC:Keywords=seed-iptc", "-r", str(seed)], check=True)
+        before = {str(p.relative_to(seed)): (p.read_bytes(), p.stat().st_mtime_ns, p.stat().st_ino)
+                  for p in seed.rglob("*") if p.is_file()}
+        out = self.root / "seeded"
+        done = subprocess.run([sys.executable, str(SCRIPT), "build", "--out", str(out), "--seed-dir", str(seed)],
+                              capture_output=True, text=True)
+        self.assertEqual(done.returncode, 0, done.stderr[-3000:])
+        self.assertIn("untouched by this run", done.stdout)
+        after = {str(p.relative_to(seed)): (p.read_bytes(), p.stat().st_mtime_ns, p.stat().st_ino)
+                 for p in seed.rglob("*") if p.is_file()}
+        self.assertEqual(after, before, "the seed folder changed")
+
+        manifest = json.loads((out / "manifest.json").read_text())
+        lib = out / "library"
+        photos = [p for c in manifest["cases"] for p in c["photos"]]
+        self.assertTrue(photos and all("from" in p for p in photos), "every photo is a seed copy")
+        self.assertEqual(len({p["from"] for p in photos}), len(photos), "each seed photo is used once")
+        self.assertNotIn("album-0/seed-00.jpg", {p["from"] for p in photos}, "a turned photo is passed over")
+        sizes = {(300 + i, 200) for i in range(90)}
+        for p in photos:
+            with Image.open(lib / p["path"]) as im:
+                # Pixels kept: the seed's size (the case that turns them swaps it).
+                self.assertIn(im.size if not p.get("pixels_rotated") else im.size[::-1], sizes, p["path"])
+        # The seed's own metadata is gone wherever the case wrote nothing of that kind.
+        bare = [p for p in photos if not p.get("sources")]
+        read = subprocess.run(["exiftool", "-j", "-G1", *[str(lib / p["path"]) for p in bare]],
+                              capture_output=True, text=True, check=True)
+        for entry in json.loads(read.stdout):
+            for tag in ("ExifIFD:DateTimeOriginal", "XMP-dc:Title", "XMP-dc:Subject", "IPTC:Keywords"):
+                self.assertNotIn(tag, entry, f"{entry['SourceFile']} kept the seed's {tag}")
+        check_sources(self, lib, manifest)
 
     def test_it_refuses_a_folder_it_did_not_make(self):
         foreign = self.root / "foreign"
