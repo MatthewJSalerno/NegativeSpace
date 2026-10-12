@@ -1,4 +1,5 @@
 """Source failures stay outside Library review, including explicit saved URLs."""
+import re
 import os
 import sys
 import time
@@ -82,7 +83,11 @@ with sync_playwright() as p:
     expect(summary_panel).not_to_contain_text('Similar photos')
     expect(summary_panel.get_by_role('button',name='Copy all photos…',exact=True)).to_have_count(0)
     expect(summary_panel.get_by_role('button',name='Move all photos…',exact=True)).to_have_count(0)
-    expect(summary_panel.get_by_role('link',name='View failures',exact=True)).to_have_attribute('href','/logs?status=Failed')
+    attention_link=summary_panel.get_by_role('link',name='View 3 files needing attention',exact=True)
+    expect(attention_link).to_have_attribute('href','/?view=unorganized&reason=attention')
+    attention_link.click()
+    expect(page).to_have_url(re.compile(r'reason=attention'))
+    expect(page.locator('.pager').first).to_contain_text('3 files')
     if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+'/remaining-source-failures.png')
     library=get('photos?view=organized')
     assert library['total']==expected
