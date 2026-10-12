@@ -238,7 +238,7 @@ export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto,
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", activeTab)}>
             {detail && activeTab === "information" && <Details refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
               review={inLibrary ? <ReviewNote key={id} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto}
-                concerns={detail.date_warning ? [{label:"Suspicious date",message:`${detail.date_warning} Date editing is not available yet.`}]
+                concerns={detail.date_warning ? [{label:"Suspicious date",message:`${detail.date_warning} Recorded value: ${detail.date_taken}. Source: ${isFallbackDate(detail.date_source) ? "file modification fallback" : detail.date_source === "exif" ? "photo EXIF" : detail.date_source ?? "unknown"}. Date editing is not available yet.`}]
                   : !detail.exif_dates?.some(d => d.field === "taken") ? [{label:"No capture date",message:"No date taken is recorded in the photo’s EXIF."}] : []}
                 actions={IN_LIBRARY.includes(detail.status) && onReject
                   ? <button onClick={() => onReject(detail.filename)} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Move this photo to Rejects. Nothing is deleted."}>Reject…</button>
