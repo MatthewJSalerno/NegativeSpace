@@ -17,7 +17,8 @@ The groups:
                    rdf:about UUID, keywords as rdf:Seq, a date only in photoshop:DateCreated,
                    Lightroom's hierarchical keywords, UTF-16 and BOM sidecars, IPTC-only
                    keywords, a zeroed EXIF date, PNG with embedded XMP, a Google Takeout
-                   .json sidecar, an orientation already applied to the pixels
+                   .json sidecar, an orientation already applied to the pixels, and motion
+                   photos (Google legacy, Pixel, Samsung) whose video a save must keep
 
 The manifest is ground truth: for every photo, what this script wrote to each source
 (`exif`, `embedded_xmp`, `iptc`), and for every sidecar, its name, the photo it was
@@ -26,19 +27,26 @@ of each sidecar today (`engine_today`: its read state and code, the fields it to
 for an associated sidecar, whose it became), so a gap reads as a gap, not a pass. That
 record is an observation of the current code, never an expectation of it.
 
-The photos are generated, each showing its case name, so a gallery shows which is which;
-nothing is downloaded and no seed folder is read. --seed makes a run reproducible. Run
-it in the app image, which has Pillow and ExifTool:
+With --seed-dir, each case's photo is a copy of one of the JPEGs in that folder, each
+used once: its pixels are kept, its own EXIF, XMP and IPTC are wiped (its colour profile
+stays) and the case's values are written in their place, so the manifest stays the whole
+truth. Photos with a rotation tag are passed over while others remain, since wiping the
+tag would leave them on their side. The seed folder is never written to, and the run ends
+by proving it ("seed: N file(s), untouched"). Without --seed-dir, or once the seed's
+JPEGs run out, the photos are drawn, each showing its case name. --seed makes a run
+reproducible. Run it in the app image, which has Pillow and ExifTool:
 
     mkdir -p /photos/demos                  # before the first run: docker would make it root's
     docker run --rm --user "$(id -u):$(id -g)" --entrypoint python3 \\
       -v /photos:/photos -v "$PWD":/app -w /app negativespace \\
-      tools/make_metadata_scenarios.py build --out /photos/demos/metadata
+      tools/make_metadata_scenarios.py build --out /photos/demos/metadata [--seed-dir /photos/seed]
 """
 import argparse
+import hashlib
 import json
 from io import BytesIO
 import random
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -73,6 +81,50 @@ def photo(path: Path, label: str, rng: random.Random, size=(640, 480), fmt="JPEG
     d.polygon([(size[0] // 2, 80), (size[0] // 2 - 60, 200), (size[0] // 2 + 60, 200)], fill=(255, 255, 255))
     img.save(path, fmt, **({"quality": 85} if fmt == "JPEG" else {}))
     make_scenarios.record_altered(path)
+
+
+class Seeds:
+    """The seed folder's JPEGs a run takes copies of, shuffled, each used once. Those with
+    no rotation tag come first: wiping a tag would turn a photo that needs it sideways."""
+    TRIED = 600   # candidates checked for rotation and readability; a run needs under 100
+
+    def __init__(self, root, rng: random.Random):
+        self.root, self.pool = root, []
+        if root is None:
+            return
+        jpegs = [p for p in make_scenarios.seed_photos(root) if p.suffix.lower() in (".jpg", ".jpeg")]
+        rng.shuffle(jpegs)
+        jpegs = jpegs[: self.TRIED]
+        turned = set()
+        if jpegs:
+            listed = subprocess.run(["exiftool", "-q", "-q", "-if", "$Orientation# and $Orientation# != 1",
+                                     "-p", "$FilePath", "-@", "-"],
+                                    input="\n".join(str(p) for p in jpegs), capture_output=True, text=True)
+            turned = {line for line in listed.stdout.splitlines() if line}
+        upright = [p for p in jpegs if str(p.resolve()) not in turned]
+        # Taken from the end: upright photos first, the turned ones only once those run out.
+        self.pool = [p for p in jpegs if str(p.resolve()) in turned][::-1] + upright[::-1]
+
+    def take(self):
+        """The next seed photo that opens, or None when there are none left."""
+        while self.pool:
+            src = self.pool.pop()
+            if make_scenarios.opens(src):
+                return src
+        return None
+
+
+def from_seed(src: Path, path: Path, fmt: str):
+    """A copy of a seed photo at `path` with no EXIF, XMP or IPTC left (its colour profile
+    kept): a new file, so the seed's bytes and links are never written through."""
+    if fmt == "JPEG":
+        make_scenarios.fresh_copy(src, path)
+        make_scenarios.exiftool(path, "-all=", "--icc_profile:all")
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with Image.open(src) as im:
+            im.convert("RGB").save(path, fmt)
+        make_scenarios.record_altered(path)
 
 
 # What each field is called in EXIF and in embedded XMP, as ExifTool writes them.
@@ -185,18 +237,28 @@ class Case:
         self.folder = builder.lib / group / name
         self.photos, self.sidecars, self.others = [], [], []
 
-    def photo(self, filename="photo.jpg", *, exif=None, embedded_xmp=None, iptc=None, fmt=None, rotate_pixels=False):
+    def photo(self, filename="photo.jpg", *, exif=None, embedded_xmp=None, iptc=None, fmt=None, rotate_pixels=False,
+              motion=None):
         path = self.folder / filename
         fmt = fmt or ("PNG" if path.suffix.lower() == ".png" else "JPEG")
-        photo(path, f"{self.group}/{self.name}", self.b.rng, fmt=fmt)
+        src = self.b.seeds.take()
+        if src is None:
+            photo(path, f"{self.group}/{self.name}", self.b.rng, fmt=fmt)
+        else:
+            from_seed(src, path, fmt)
         if rotate_pixels:
             # Turned upright in the pixels already, as an editor that applies the tag does.
             with Image.open(path) as im:
                 turned = im.rotate(-90, expand=True)
             turned.save(path, fmt)
         embed(path, exif, embedded_xmp, iptc)
+        # A motion photo's video goes after everything else: it must stay last in the file.
+        video = make_scenarios.motion_photo(path, motion) if motion else None
         sources = {k: v for k, v in (("exif", exif), ("embedded_xmp", embedded_xmp), ("iptc", iptc)) if v}
-        self.photos.append({"path": path, "sources": sources, "pixels_rotated": rotate_pixels})
+        self.photos.append({"path": path, "sources": sources, "pixels_rotated": rotate_pixels,
+                            **({"embedded_video": {"variant": motion, "length": len(video),
+                                                   "sha1": hashlib.sha1(video).hexdigest()}} if video else {}),
+                            **({"from": str(src.relative_to(self.b.seeds.root))} if src else {})})
         return path
 
     def sidecar(self, filename, content, *, written_for=None, values=None):
@@ -216,8 +278,8 @@ class Case:
 
 
 class Builder:
-    def __init__(self, out: Path, rng: random.Random):
-        self.out, self.rng = out, rng
+    def __init__(self, out: Path, rng: random.Random, seeds: Seeds):
+        self.out, self.rng, self.seeds = out, rng, seeds
         self.lib = out / LIBRARY
         self.cases = []
 
@@ -430,6 +492,15 @@ def real_world(b: Builder):
     path.write_text(json.dumps(takeout, indent=2) + "\n")
     make_scenarios.record_altered(path)
     c.others.append({"path": path, "kind": "google_takeout_json", "written_for": p.name, "values": takeout})
+    # Motion photos: a JPEG with a video after the picture. A metadata write must keep the
+    # video byte for byte (the manifest has its length and SHA-1): ExifTool's writes do, while
+    # re-encoding the picture through an image library drops it.
+    for variant, name in make_scenarios.MOTION_PHOTOS:
+        c = b.case("real_world", f"motion_photo_{variant}", f"A {variant.replace('_', ' ')} motion photo with "
+                   "metadata in it and a sidecar that disagrees: a save must keep its video.")
+        p = c.photo(name, exif={"date": "2019:06:15 12:00:00"},
+                    embedded_xmp={"title": "Moving picture", "keywords": ["motion"]}, motion=variant)
+        c.xmp(f"{name}.xmp", {"title": "Sidecar title", "rating": "4"}, written_for=p.name)
     c = b.case("real_world", "orientation_already_applied", "The pixels are already turned upright, yet "
                                                             "EXIF still says orientation 6: shown as told, it "
                                                             "lies on its side.")
@@ -469,8 +540,14 @@ def engine_today(case: Case) -> dict:
 def build(args):
     rng = random.Random(args.seed)
     out = Path(args.out).resolve()
+    seed = Path(args.seed_dir).resolve() if args.seed_dir else None
+    if seed and not seed.is_dir():
+        sys.exit(f"FATAL: --seed-dir is not a folder: {seed}")
+    if seed and (out.is_relative_to(seed) or seed.is_relative_to(out)):
+        sys.exit("FATAL: the output and the seed folder must not contain one another.")
     make_scenarios.prepare_out(out, args.replace)
-    b = Builder(out, rng)
+    before = make_scenarios.snapshot(seed) if seed else None
+    b = Builder(out, rng, Seeds(seed, rng))
     raws = sorted(Path(args.raw_dir).rglob("*")) if args.raw_dir else []
     raws = [p for p in raws if p.is_file() and p.suffix.lower() in make_scenarios.RAW_EXTENSIONS]
     agree(b)
@@ -491,7 +568,7 @@ def build(args):
             "engine_today": engine_today(c),
         })
     (out / "manifest.json").write_text(json.dumps(
-        {"tool": "tools/make_metadata_scenarios.py", "seed": args.seed,
+        {"tool": "tools/make_metadata_scenarios.py", "seed": args.seed, "seed_dir": str(seed) if seed else None,
          "built_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "cases": cases},
         indent=2, ensure_ascii=False) + "\n")
     counts = {g: sum(1 for c in cases if c["group"] == g) for g in GROUPS}
@@ -501,6 +578,11 @@ def build(args):
     print(f"made {len(cases)} case(s): " + ", ".join(f"{g} {n}" for g, n in counts.items()))
     print(f"engine today: {read} of {len(sidecars)} sidecar(s) read; the rest held, ignored or refused "
           "(manifest.json, engine_today)")
+    if seed:
+        copied = sum(1 for c in cases for p in c["photos"] if "from" in p)
+        drawn = sum(len(c["photos"]) for c in cases) - copied - sum(1 for c in cases for p in c["photos"] if "from_raw" in p)
+        print(f"photos: {copied} copied from the seed folder" + (f", {drawn} drawn (its JPEGs ran out)" if drawn else ""))
+        make_scenarios.check_untouched(seed, before)
 
 
 def main():
@@ -511,6 +593,8 @@ def main():
     b.add_argument("--out", required=True, help="an empty folder, or one this script made earlier")
     b.add_argument("--replace", action="store_true", help="rebuild over this script's earlier output")
     b.add_argument("--seed", type=int, default=1, help="random seed: the same seed makes the same pictures")
+    b.add_argument("--seed-dir", help="folder of real photos: each case takes a copy of one JPEG, its metadata "
+                                      "replaced; never written to (default: draw the photos)")
     b.add_argument("--raw-dir", help="folder of real RAW files: one is copied (never linked) for the RAW+JPEG case")
     args = parser.parse_args()
     try:
