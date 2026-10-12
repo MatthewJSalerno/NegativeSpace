@@ -310,6 +310,17 @@ These are completed capabilities, not additional open closeout tasks.
   built or required to claim the currently bounded Date taken UI is implemented.
   Request builder changes from the maintainer; do not silently expand writer support.
 
+### Export-service metadata guidance
+
+- [ ] Detect recognized Google Photos/Takeout and Flickr export-sidecar naming/layout
+  evidence and add an Index-result notice: affected count/list, sidecars are not imported,
+  and a working Help route recommending dedicated export-preparation tools followed by
+  reindexing. Verify any named-tool recommendations before publication. Do not parse/apply
+  these sidecars or identify a provider from `.json` alone; label uncertain evidence as
+  possible export metadata. Leave the files untouched and explain Move leaves them behind.
+  This is informational, not a failed photo or Library review reason, and is separate
+  from supported XMP handling. Detection and notice are both unimplemented.
+
 ### API/UI work — source viewer/date editor built; decisions pending
 
 First UI scope agreed: show metadata broadly, edit/copy **Date taken only**. The

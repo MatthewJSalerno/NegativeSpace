@@ -2351,7 +2351,7 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   (Field / Primary value / This source) and **Show differences only**. Distinguish
   Empty from Not recorded, retain per-field origin for effective fallback values,
   and preserve alternate versions. Copy to primary is limited to Date taken in the
-  planned first editing UI; copy and primary-change controls are not built.
+  built first date editor; primary-change controls remain planned.
   Switching primary is a separate previewed, confirmed action; tab changes
   and comparisons never write. See `ui-design.md` and [xmp-metadata.md](xmp-metadata.md).
 * **Where edits are saved** (decided 2026-10-02, `engine-spec.md` §9.6): Settings › Files
@@ -2375,9 +2375,17 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
 * **An unedited original arriving later** (its bytes match an edited photo's earlier
   SHA-1) is not organized again: it goes to Needs review (§7.9) as "old version of a photo
   you fixed", with **Don't keep it** and **Keep it as its own photo**.
-* **Export sidecars:** when Index finds `.json` files paired with photos, its result says
-  how many, that they often hold dates the photos lack and that a Move leaves them behind,
-  and links README guidance naming tools that write them into photos before indexing.
+* **Export sidecars (planned):** recognized Google Photos/Takeout or Flickr export
+  metadata gets one Index-result notice with the affected count and a route to the
+  affected source photos/files. Explain that NegativeSpace does not import this metadata,
+  purpose-built tools are better suited to preparing these exports, and the user should
+  prepare the source externally and Index again. Include a Help link to maintained
+  preparation guidance; verify recommendations before publishing named tools. Move leaves
+  these sidecars in source. Do not call them broken photos, block usable photos, add
+  Library review tasks or offer a retry that cannot import their data. When the provider
+  cannot be identified from supported naming/layout evidence, say **Possible export
+  metadata**; `.json` alone does not establish Flickr or Google Photos. Keep this notice
+  distinct from XMP sidecar support and failures. Detection and guidance are not yet built.
 
 ### 7.6 Re-processing a disordered destination
 
