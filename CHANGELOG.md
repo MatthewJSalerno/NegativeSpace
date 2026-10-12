@@ -9,6 +9,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Not organized has a Needs attention filter for processing failures and metadata
+  holds. The Index summary links directly to all affected source files; the filter
+  supports counts, pins and existing search/folder/date/type restrictions.
+
 - Not organized marks source metadata issues as Needs attention and explains the
   affected sidecar path and external correction/reindex steps in Photo information.
   Index summary excludes recorded metadata holds from photos ready to organize.

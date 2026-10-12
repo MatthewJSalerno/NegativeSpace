@@ -158,7 +158,9 @@ def _filters(q, undated, dates, types=None, folders=None, root=None, *, group_se
         filtered += f" AND p.id IN ({ns_similarity_cache.matched_ids(match_min)})"
     if suspicious:
         filtered += f" AND ({_date_warning_sql()}) IS NOT NULL"
-    if reason != 'all':
+    if reason == 'attention':
+        filtered += f" AND ({_view_clause('unorganized')}) AND (p.status='Failed' OR ({metadata_view.source_attention_predicate()}))"
+    elif reason != 'all':
         filtered += f" AND ({review.predicate(reason)})"
     if set_reference is not None:
         if type(set_reference) is not int or not 1 <= set_reference <= 2**63-1:
@@ -322,18 +324,19 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
     run_sql, run_params = _run_clause(run)
     pins = None if filter_pins is None else set(filter_pins.split(',')) - {''}
     if pins is not None:
-        if pins - {'similar', 'suspicious', 'undated', 'small', 'later', 'issues'} or len(pins & {'small', 'later', 'issues'}) > 1:
+        if pins - {'similar', 'suspicious', 'undated', 'small', 'later', 'issues', 'attention'} or len(pins & {'small', 'later', 'issues', 'attention'}) > 1:
             raise ValueError('Choose valid compatible filter pins.')
         if view not in ('organized', 'review', 'job'): pins -= {'similar', 'small', 'later'}
         if view != 'review': pins.discard('issues')
+        if view != 'unorganized': pins.discard('attention')
     active = {'similar': similar, 'suspicious': suspicious, 'undated': undated,
-              'small': reason == 'small', 'later': reason == 'later', 'issues': reason == 'issues'}
+              'small': reason == 'small', 'later': reason == 'later', 'issues': reason == 'issues', 'attention': reason == 'attention'}
 
     def count_filters(key):
         # Active buttons describe the current intersection. An inactive button will
         # replace the unpinned filters, so count its future intersection with pins.
         kept = active if pins is None or active.get(key) else {name: name in pins for name in active}
-        target_reason = key if key in ('small', 'later', 'issues') else next((name for name in ('small', 'later', 'issues') if kept[name]), 'all')
+        target_reason = key if key in ('small', 'later', 'issues', 'attention') else next((name for name in ('small', 'later', 'issues', 'attention') if kept[name]), 'all')
         return _filters(q, key == 'undated' or kept['undated'], dates, types, folders, root,
                         match_min=match_min, similar=key == 'similar' or kept['similar'],
                         suspicious=key == 'suspicious' or kept['suspicious'], reason=target_reason, run=run)
@@ -366,7 +369,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             for place in ('organized', 'unorganized', 'rejects'):
                 elsewhere[place] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(place, match_min)}"+search_sql, search_params).fetchone()[0]
         chips = {}
-        for chip in ('similar', 'suspicious', 'undated', 'small'):
+        for chip in ('similar', 'suspicious', 'undated', 'small', 'attention'):
             extra, values = count_filters(chip)
             chips[chip] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}"+extra, values).fetchone()[0]
         reasons = {}
@@ -405,11 +408,13 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
 
 
 # The sidebar's places, and its Look into filters as Logs and Stats link to them: Library
-# with only that filter on, or Needs review for Review later (webui-spec 2, the page frame).
+# with only that filter on, Needs review for review reasons, or Not organized for
+# source attention (webui-spec 2, the page frame).
 PLACES = ("unorganized", "organized", "review", "rejects")
 LOOK_INTO = {"similar": ("organized", {"similar": True}), "suspicious": ("organized", {"suspicious": True}),
              "undated": ("organized", {"undated": True}), "small": ("organized", {"reason": "small"}),
-             "later": ("review", {"reason": "later"}), "issues": ("review", {"reason": "issues"})}
+             "later": ("review", {"reason": "later"}), "issues": ("review", {"reason": "issues"}),
+             "attention": ("unorganized", {"reason": "attention"})}
 
 
 def places(db_path: Path, *, match_min=90) -> dict:

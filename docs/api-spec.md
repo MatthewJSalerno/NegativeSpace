@@ -237,12 +237,13 @@ navigation agree. Invalid query/position percentages return 422.
 
 The navigation sidebar's counts (`webui-spec.md` §2, the page frame): each place whole,
 before any gallery filter, and each **Look into** filter where its link from Logs or Stats
-opens it: Library with only that filter on, or Needs review for Review later. On the
+opens it: Library with only that filter on, Needs review for Review later/File issues,
+or Not organized for Needs attention. On the
 Library page the Look into counts come from `chips` and `reasons` instead, for the place
 shown. `match_min` (default 90) sets Has similar photos:
 
     {"places": {"unorganized": 0, "organized": 4499, "review": 31, "rejects": 4},
-     "look_into": {"similar": 167, "suspicious": 8, "undated": 1356, "small": 9, "later": 3, "issues": 1}}
+     "look_into": {"similar": 167, "suspicious": 8, "undated": 1356, "small": 9, "later": 3, "issues": 1, "attention": 0}}
 
 ### `GET /api/v1/photos/timeline`
 
@@ -1027,17 +1028,23 @@ reload before retrying. Success is shown only after acknowledgement.
 ### Composable review browsing
 
 Gallery listing, IDs, position, types, folders and timeline accept `similar` and
-`suspicious` booleans and `reason` (all/small/later/issues). These combine with existing
+`suspicious` booleans and `reason` (all/small/later/issues/attention). These combine with existing
 filters. `view=review` selects distinct active Library photos with an unresolved supported reason. Reminders on source/rejected files do not contribute. History remains readable; new decisions require a delivered active photo.
 `GET /photos` optionally accepts `filter_pins`, a comma-separated subset of similar,
-suspicious, undated, small, later and issues (empty string means no pins). Unknown keys or
-multiple reason pins (small/later/issues) return 400. File issues pins apply only in Needs review. This changes only sidebar counts, not gallery membership:
+suspicious, undated, small, later, issues and attention (empty string means no pins). Unknown keys or
+multiple reason pins (small/later/issues/attention) return 400. File issues pins apply
+only in Needs review; attention pins apply only in Not organized. This changes only sidebar counts, not gallery membership:
 an inactive filter's count replaces unpinned Look into conditions, while active counts
 retain the current intersection. Place, search, date, type, folder and run constraints
 remain; pins unavailable in the place do not apply. Omit the parameter for existing
 combining-filter count behavior. No server-side preference or schema change is added.
 
-Listings include `chips` (similar/suspicious/undated/small), `reasons` and filename-only
+`reason=attention` selects only Not organized photos whose status is Failed or whose
+latest metadata capture records needs_attention. The union counts each photo once;
+older holds do not survive a clean capture. This predicate also applies to IDs,
+position and facets, never to Library's review membership.
+
+Listings include `chips` (similar/suspicious/undated/small/attention), `reasons` and filename-only
 `elsewhere` location counts. Library and job listings also include `reasons.later`,
 scoped to the current browsing constraints; the inbox includes all reason counts.
 `reason=later` filters Library as well as the inbox to active review reminders.

@@ -80,7 +80,7 @@ class FilterPins(webui_api_test.ApiCase):
         self.assertEqual(current['reasons']['issues'], 1)
 
     def test_bad_or_exclusive_pins_are_refused(self):
-        for pins in ('unknown', 'small,later', 'small,issues', 'later,issues', "similar'); SELECT 1;--"):
+        for pins in ('unknown', 'small,later', 'small,issues', 'later,issues', 'attention,small', 'attention,issues', "similar'); SELECT 1;--"):
             response = self.client.get('/api/v1/photos', params={'filter_pins': pins})
             self.assertEqual(response.status_code, 400)
         self.assertEqual(self.photos(filter_pins='later')['total'], 2)

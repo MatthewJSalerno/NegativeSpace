@@ -150,6 +150,7 @@ class MetadataViewTests(ApiCase):
         self.assertIn('Index again',note['action'])
         self.assertEqual(page['index_summary']['metadata_held'],1)
         self.assertEqual(page['index_summary']['ready'],0)
+        self.assertEqual(self.client.get('/api/v1/photos?view=unorganized&reason=attention').json()['total'],1)
         detail=self.client.get(f'/api/v1/photos/{self.pid}/inspect').json()
         self.assertEqual(detail['metadata_attention'],note)
         capture(dict(self.report,state='captured',issues=[]))
@@ -157,8 +158,61 @@ class MetadataViewTests(ApiCase):
         self.assertEqual(page['index_summary']['metadata_held'],0)
         self.assertEqual(page['index_summary']['ready'],1)
         self.assertIsNone(page['items'][0]['metadata_attention'])
+        self.assertEqual(self.client.get('/api/v1/photos?view=unorganized&reason=attention').json()['total'],0)
+        self.assertEqual(self.client.get('/api/v1/photos/places').json()['look_into']['attention'],0)
         # Source observations never mark an organized photo as a held import.
         capture(broken)
         with ns_db.connect(self.cfg.db_path) as conn:
             conn.execute("UPDATE photos SET status='Copied' WHERE id=?",(self.pid,))
         self.assertIsNone(self.client.get(f'/api/v1/photos/{self.pid}/inspect').json()['metadata_attention'])
+
+    def test_attention_filter_paging_facets_selection_and_pin_counts(self):
+        with ns_db.connect(self.cfg.db_path) as conn:
+            self.report['state']='needs_attention'
+            self.run=ns_db.create_run(conn,mode='INDEX',source=str(self.cfg.source),destination=str(self.cfg.dest))[0]
+            conn.execute('INSERT INTO metadata_captures(run_id,file_id,source_relative_path,catalog_sha1,embedded_json,report_json,observed_at) VALUES(?,?,?,?,?,?,?)',
+                (self.run,self.fid,'generated.jpg','a'*40,'{}',json.dumps(self.report),ns_db.utc_now()))
+            conn.execute('UPDATE photos SET metadata_json=?,source_path=? WHERE id=?',
+                         (json.dumps({'date_taken':'2020-01-02T00:00:00','date_source':'exif'}),str(self.cfg.source/'samples/generated.jpg'),self.pid))
+            failed=conn.execute("INSERT INTO photos(source_path,status) VALUES(?,'Failed')",
+                (str(self.cfg.source/'samples/failed.png'),)).lastrowid
+            ready=conn.execute("INSERT INTO photos(source_path,status) VALUES(?,'Pending')",
+                (str(self.cfg.source/'ready.jpg'),)).lastrowid
+            copied=conn.execute("INSERT INTO photos(source_path,status) VALUES(?,'Copied')",
+                (str(self.cfg.source/'copied.jpg'),)).lastrowid
+        scope={'view':'unorganized','reason':'attention'}
+        page=self.client.get('/api/v1/photos',params={**scope,'page_size':1,'filter_pins':''}).json()
+        self.assertEqual(page['total'],2)
+        self.assertEqual(page['chips']['attention'],2)
+        self.assertEqual(page['counts']['unorganized'],3)
+        self.assertEqual(page['index_summary']['failed']+page['index_summary']['metadata_held'],2)
+        second=self.client.get('/api/v1/photos',params={**scope,'page_size':1,'page':2}).json()
+        self.assertEqual({page['items'][0]['id'],second['items'][0]['id']},{self.pid,failed})
+        self.assertEqual(self.client.get('/api/v1/photos/ids',params=scope).json()['ids'],[self.pid,failed])
+        self.assertEqual(self.client.get('/api/v1/photos/types',params=scope).json()['types'],
+                         [{'type':'jpg','photos':1},{'type':'png','photos':1}])
+        self.assertEqual(self.client.get('/api/v1/photos/timeline',params=scope).json(),
+                         {'months':[{'month':'2020-01','count':1}],'undated':1})
+        folders=self.client.get('/api/v1/photos/folders',params=scope).json()['folders']
+        self.assertEqual(folders[0]['photos'],2)
+        position=self.client.post('/api/v1/photos/position',json={**scope,'photo_id':self.pid,'page_size':1}).json()
+        self.assertEqual(position['position'],0)
+        self.assertEqual(position['next_id'],failed)
+        self.assertIsNone(self.client.post('/api/v1/photos/position',json={**scope,'photo_id':ready}).json()['position'])
+        for flags,expected in (({'q':'failed'},[failed]),({'type':'jpg'},[self.pid]),({'date':'2020'},[self.pid])):
+            self.assertEqual(self.client.get('/api/v1/photos/ids',params={**scope,**flags}).json()['ids'],expected)
+        # Inactive counts predict replacing an unpinned condition, or intersecting a pin.
+        # Failed files are deliberately excluded from No capture date.
+        for pins,expected in (('',2),('undated',0)):
+            page=self.client.get('/api/v1/photos',params={'view':'unorganized','undated':True,'filter_pins':pins}).json()
+            self.assertEqual(page['chips']['attention'],expected)
+        active=self.client.get('/api/v1/photos',params={**scope,'undated':True,'filter_pins':''}).json()
+        self.assertEqual(active['total'],0)
+        self.assertEqual(active['chips']['attention'],0)
+        self.assertEqual(self.client.get('/api/v1/photos/places').json()['look_into']['attention'],2)
+        self.assertEqual(self.client.get('/api/v1/photos',params={**scope,'view':'organized'}).json()['total'],0)
+        self.assertEqual(self.client.get('/api/v1/photos',params={**scope,'view':'review'}).json()['total'],0)
+        # A failed photo with a metadata hold is still counted once.
+        with ns_db.connect(self.cfg.db_path) as conn:
+            conn.execute("UPDATE photos SET status='Failed' WHERE id=?",(self.pid,))
+        self.assertEqual(self.client.get('/api/v1/photos',params=scope).json()['total'],2)

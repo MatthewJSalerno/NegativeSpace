@@ -1515,3 +1515,18 @@ Not organized marker, visible sidecar path, explanation and photo-log link. Meta
 responses remained unchanged. Specs passed (476 references, 51 routes). The source
 warning was visually inspected; the maintainer accepted the broken-sidecar recheck.
 Read-only metadata viewer manual validation is complete.
+
+### Source attention filtering
+
+`metadata_view_test.py` covers the Needs attention union of failed source files and
+latest metadata holds, deduplication, clearing after reindex, pagination, selection
+IDs, position, facets, search and pin-aware counts. Source holds never enter Library
+or its Needs review inbox. The scenario browser checks the summary shortcut clears
+an unrelated search, URL refresh, pin restoration, unavailable-place behavior and
+Clear all filters. Maintainer acceptance of this filtering follow-up is pending.
+
+Local validation passed: 14 metadata-view/filter API tests, 4 filter-pin tests and
+98 existing API regressions. The scenario browser passed with 20 manifest date
+assertions and all 61 metadata responses unchanged; the new filter was inspected
+in light/dark themes and narrow reflow. Specification checks passed (476 section
+references, 51 API routes). This does not claim a large-catalog performance benchmark.

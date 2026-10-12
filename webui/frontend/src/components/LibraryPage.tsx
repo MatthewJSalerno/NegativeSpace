@@ -97,7 +97,7 @@ function readUrl(hasLibrary = true) {
     similar,
     groupSets: p.has("group_sets") ? p.get("group_sets") !== "0" : savedGrouping(),
     suspicious: legacy === "suspicious" || p.get("suspicious") === "1" || defaults.includes("suspicious"),
-    reason: ["small", "later", "issues"].includes(p.get("reason") || "") ? p.get("reason")! : defaults.includes("small") ? "small" : defaults.includes("later") ? "later" : defaults.includes("issues") ? "issues" : "all",
+    reason: REASON_KEYS.includes(p.get("reason") as LookInto) ? p.get("reason")! : REASON_KEYS.find(key => defaults.includes(key)) ?? "all",
     reviewPhoto: Number(p.get("review_photo")) || null,
     sort: p.get("sort") === "matches" && !similar ? "newest" as Sort : (p.get("sort") as Sort) || savedSort(similar ? "similar" : view),
     matchMin: MATCH_THRESHOLDS.includes(Number(p.get("match_min"))) ? Number(p.get("match_min")) : savedMatchMinimum(),
@@ -671,7 +671,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     (opener?.querySelector<HTMLElement>(".review-card-notes a") ?? opener?.querySelector<HTMLElement>(".card-image"))?.focus({ preventScroll: true });
     restoringReview.current = null;
   }, [list.ready, flat, view]);
-  const activeLook: Record<LookInto, boolean> = { similar, suspicious, undated, small: reason === "small", later: reason === "later", issues: reason === "issues" };
+  const activeLook: Record<LookInto, boolean> = { similar, suspicious, undated, small: reason === "small", later: reason === "later", issues: reason === "issues", attention: reason === "attention" };
   const applyLook = (keys: LookInto[]) => {
     const nextSimilar = keys.includes("similar");
     if (nextSimilar !== similar) {
@@ -691,7 +691,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     setSort(sortChoices.current[scope] ?? savedSort(scope));
     setPage(1);
     if (v === "unorganized" || v === "rejects" || v === "source") setSimilar(false);
-    if (v !== "review" && (v !== "organized" || reason === "issues")) setReason("all");
+    if (reason !== "all" && !filterApplies(reason as LookInto, v)) setReason("all");
     if (v === "all") { setUndated(false); setDates([]); setTypes([]); setFolders([]); }
     // Reapply eligible pinned filters when choosing a place, keeping unavailable pins
     // remembered without applying them to the wrong location.
@@ -704,6 +704,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     if (eligible.includes("small")) setReason("small");
     else if (eligible.includes("later")) setReason("later");
     else if (eligible.includes("issues")) setReason("issues");
+    else if (eligible.includes("attention")) setReason("attention");
   };
   // Source folders' switch: what is waiting, or everything still in the source.
   const chooseSourceScope = (v: "unorganized" | "source") => { chooseView(v); setSourceTree(true); };
@@ -924,7 +925,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     : view === "rejects" ? "Library photos only: open Library or Needs review." : "Organized photos only: open Library or Needs review.";
   const hasFilters = undated || dates.length > 0 || types.length > 0 || folders.length > 0
     || !!q || !!search || similar || suspicious || reason !== "all" || pins.length > 0;
-  const reasonLabels = { small: "Small images", later: "Review later", issues: "File issues" };
+  const reasonLabels = { small: "Small images", later: "Review later", issues: "File issues", attention: "Needs attention" };
   const reasonWhy = (key: keyof typeof reasonLabels) => {
     const other = REASON_KEYS.find(item => item !== key && pins.includes(item));
     return other ? `Unpin ${reasonLabels[other as keyof typeof reasonLabels]} first; these filters cannot be combined.` : null;
@@ -938,11 +939,12 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     on: activeLook,
     pinned: pins,
     counts: { similar: data?.chips?.similar, suspicious: data?.chips?.suspicious, undated: data?.chips?.undated,
-              small: data?.chips?.small, later: data?.reasons?.later, issues: data?.reasons?.issues },
+              small: data?.chips?.small, later: data?.reasons?.later, issues: data?.reasons?.issues, attention: data?.chips?.attention },
     why: { similar: libraryOnly, suspicious: null, undated: null,
       small: libraryOnly ?? reasonWhy("small"),
       later: libraryOnly ?? reasonWhy("later"),
-      issues: view !== "review" ? "Only in Needs review." : reasonWhy("issues") },
+      issues: view !== "review" ? "Only in Needs review." : reasonWhy("issues"),
+      attention: view !== "unorganized" ? "Only in Not organized." : reasonWhy("attention") },
     onToggle: key => {
       if (focus) backToResults();
       if (activeLook[key]) {
@@ -1006,7 +1008,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           <div className="gallery-context">
             {!focus && <h2>{sourceTree && folderShown ? folderLabel(folderShown.path) : sourceTree ? "Source folders" : VIEW_LABEL[view]}</h2>}
             {!focus && (undated || dates.length > 0 || types.length > 0 || (folders.length > 0 && !sourceTree) || !!q || similar || suspicious || reason !== "all" || pins.length > 0) && <p className="section-note">
-              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", reason === "small" && "Small images", reason === "later" && "Review later", reason === "issues" && "File issues", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
+              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", reason === "small" && "Small images", reason === "later" && "Review later", reason === "issues" && "File issues", reason === "attention" && "Needs attention", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
             </p>}
             <span className="gallery-tools">
               <FiltersButton active={filtersActive} open={filtersOpen && !focus} onOpen={setFiltersOpen} disabled={!!focus}>
@@ -1104,7 +1106,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                 onClick={() => toggleIndexSummary(indexSummaryKey)}>✕</button>
             </div>
             <p>{indexNeedsAttention ? "The remaining files have processing errors or metadata issues. Open a marked photo below to see the affected source files and next steps." : "Your photos are indexed. Copy or move them to build your library."}</p>
-            {indexNeedsAttention ? <p><a href={(data.index_summary.metadata_held ?? 0) > 0 ? "/logs" : "/logs?status=Failed"} onClick={follow}>{(data.index_summary.metadata_held ?? 0) > 0 ? "View job details" : "View failures"}</a></p> : <>
+            {indexNeedsAttention ? <p><a href="/?view=unorganized&reason=attention" onClick={follow}>View {plural(indexAttentionCount, "file")} needing attention</a></p> : <>
             <p className="section-note">Photo facts below cover successfully indexed photos, before gallery filters. Failed files are counted separately. Size and date findings do not prevent Copy or Move.</p>
             <dl>
               <div><dt>Photos ready to organize</dt><dd>{count(data.index_summary.ready)}</dd></div>
@@ -1113,7 +1115,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               <div><dt>Suspicious dates</dt><dd>{count(data.index_summary.suspicious)}</dd></div>
               <div><dt>No capture date</dt><dd>{count(data.index_summary.undated)}</dd></div>
               <div><dt><Tip text="No usable width and height were recorded. The format may be unsupported, the file may be unreadable, or processing may be incomplete. This alone does not mean the file is damaged or is not a photo. These files are not counted as small images.">Image size unavailable</Tip></dt><dd>{count(data.index_summary.unknown_dimensions)}</dd></div>
-              <div><dt>Files needing attention</dt><dd>{count(indexAttentionCount)}</dd></div>
+              <div><dt>Files needing attention</dt><dd><a href="/?view=unorganized&reason=attention" onClick={follow} aria-label={`View ${plural(indexAttentionCount, "file")} needing attention`}>{count(indexAttentionCount)}</a></dd></div>
               {data.index_summary.unfinished > 0 && <div><dt>Unfinished processing</dt><dd>{count(data.index_summary.unfinished)}</dd></div>}
             </dl>
             <p className="section-note">Similar photos compares organized photos in Library only. Identical content is organized once. Files with processing errors: {count(data.index_summary.failed)}. Metadata holds: {count(data.index_summary.metadata_held ?? 0)}. <a href={data.index_summary.failed > 0 ? "/logs?status=Failed" : "/logs"} onClick={follow}>{data.index_summary.failed > 0 ? "View failures" : "View job details"}</a></p>

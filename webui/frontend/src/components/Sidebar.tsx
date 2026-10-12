@@ -26,8 +26,9 @@ const PLACES: { view: PlaceView; label: string }[] = [
   { view: "rejects", label: "Rejects" },
 ];
 // Where each filter opens from Logs and Stats: Library with only it on; Review later is
-// Needs review's.
+// Needs review's; Needs attention opens Not organized.
 const LOOK: { key: LookInto; label: string; href: string }[] = [
+  { key: "attention", label: "Needs attention", href: "/?view=unorganized&reason=attention" },
   { key: "similar", label: "Has similar photos", href: "/?view=organized&similar=1" },
   { key: "suspicious", label: "Suspicious dates", href: "/?view=organized&suspicious=1" },
   { key: "undated", label: "No capture date", href: "/?view=organized&undated=1" },

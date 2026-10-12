@@ -128,7 +128,8 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   ("Showing 2 of 4,738").
 - **Look into is the only place the gallery's filters live** (maintainer, 2026-10-09; no
   chip row above the photos): Has similar photos, Suspicious dates, No capture date,
-  Small images, Review later and File issues. File issues applies only in Needs review;
+  Small images, Review later, File issues and Needs attention. Needs attention applies
+  only in Not organized. File issues applies only in Needs review;
   source/rejected-file recovery remains in Inspector and Logs. On the Library page each is a toggle (`aria-pressed`;
   on, it takes the current-item surface and a bar at its start) that narrows the place
   shown. Clicking an inactive filter replaces unpinned Look into filters; clicking an
@@ -136,7 +137,7 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   **Pin / Unpin** button (`aria-pressed`, named for its filter). Pinning enables the filter
   and keeps it while browsing others; unpinning leaves it applied until replaced or cleared.
   Inactive-filter counts predict the next click with the eligible pins; active-filter
-  counts describe the current intersection. Small images, Review later and File issues share
+  counts describe the current intersection. Needs attention, Small images, Review later and File issues share
   one reason scope and remain exclusive:
   pinning either disables the other with an explanation telling the user which to unpin. A filter that does not apply to the
   place stays in its row, dimmed (`aria-disabled`), saying why on hover: Has similar
@@ -1073,3 +1074,12 @@ are source import issues, separate from Library's Needs review. Do not label the
 itself corrupt or provide an ineffective retry. A successful later Index clears the
 notice; organized photos do not inherit this source-only hold. Index summary excludes
 recorded metadata holds from Photos ready to organize and counts them under attention.
+
+**Needs attention (count)** in Look into filters Not organized to processing failures
+or latest recorded metadata holds, counting each photo once. It uses the shared toggle
+and pin behavior, works with search/folder/date/type filters, and persists in the URL.
+It is unavailable in other places; Logs and Stats link to Not organized with this filter.
+The Index summary's attention count/shortcut opens the whole attention list, clearing
+unrelated browsing restrictions but preserving checkbox selection and saved pins.
+Resolved files leave the list after a successful reindex. These source issues stay
+separate from Library's Needs review; filtering makes no changes to source files.

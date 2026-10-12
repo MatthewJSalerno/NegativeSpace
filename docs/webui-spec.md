@@ -875,6 +875,13 @@ Needs attention · Metadata. Opening a card shows the affected source-relative f
 plain-language reason, available technical detail, external correction/reindex guidance
 and photo logs at the top of Photo information. The photo and sidecars remain at source.
 The summary counts these holds as needing attention rather than ready to organize.
+**Needs attention (count)** in the shared Look into sidebar filters Not organized to
+processing failures and latest metadata holds. A photo with both counts once. Search,
+folders, dates, types, pagination and Select all use the same scope. Toggle/pin and URL
+restoration follow the other filters; other places disable it with an explanation.
+From Logs or Stats it opens Not organized. The summary's attention count/shortcut opens
+all affected source files, clearing unrelated browsing restrictions without clearing
+checkbox selection or saved pins. A clean reindex removes a resolved hold.
 This does not add source photos to Library's Needs review or implement choice controls.
 
 **Metadata sources.** Separate XMP Sidecar, Embedded XMP and EXIF tabs show captured
