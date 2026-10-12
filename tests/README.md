@@ -1597,3 +1597,29 @@ checks include Back/Keep editing, width changes while a draft is open, and accep
 lost after job submission. Light/dark desktop and narrow preview screenshots were
 inspected. Spec checks passed for 475 section references and 54 API routes. Manual
 date-editor acceptance remains pending; read-only viewer acceptance is already complete.
+
+
+### Motion-photo metadata save preservation
+
+`metadata_motion_save_test.py` builds the metadata scenarios with generated photos and
+uses the manifest's `embedded_video` length and SHA-1 as independent expectations.
+All three variants (Google legacy, Pixel and Samsung) are copied into isolated catalogs.
+Actual engine sidecar date saves and refiling must preserve each extracted video exactly;
+ExifTool reads it with `-b -ee` and the variant's qualified video tag. Source files must
+remain unchanged. A negative control re-encodes a disposable copy and demonstrates that
+the video assertion detects the loss.
+
+Embedded EXIF and embedded XMP attempts currently **refuse**, with `metadata_saved=false`
+and unchanged destination bytes/path/video. This is the documented JPEG trailer boundary,
+not evidence of successful embedded motion-photo editing. Qualification of that behavior
+requires separate engine work; the tests retain the refusal and never bypass it.
+Run in the app image with unittest discovery; the suite also runs in CI. All four
+tests passed locally: three successful sidecar saves/refiles, six nonmutating embedded
+refusals, and a video-loss negative control for each variant.
+
+Builder update validation: the unchanged metadata builder suite passed all 8 tests and
+the demo builder suite all 10 tests, including its Index assertions. A separate seeded
+library contains 60 cases, 64 photos (63 seeded JPEGs and one public RAW copy), including
+three motion photos. The builder verified that every seed file stayed unchanged. This
+library has not replaced the running demo or its catalog/photo IDs. Expanded RAW, DNG,
+TIFF, HEIC and extended-XMP cases remain planned in the builder owner's workstream.

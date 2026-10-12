@@ -284,6 +284,10 @@ must remain identical, including encoded scans, color profiles, comments, JFIF a
 Pillow also decodes both copies and compares unrotated pixels. This integrity check is
 not the deferred image-only duplicate hash and authorizes no deletion or consolidation.
 Extended XMP, trailers/multiple images and unsupported marker layouts are refused.
+This includes embedded EXIF/XMP edits to motion-photo JPEGs. Sidecar edits can preserve
+the unchanged photo and video; generated Google legacy, Pixel and Samsung save/refile
+regressions verify extracted video against the manifest. Embedded motion-photo support
+requires separate qualification and is not implied by successful sidecar saves.
 
 Embedded XMP uses the preservation-aware packet writer and exact packet read-back,
 including localized text, linked GPS, partial/empty dates and empty lists. EXIF supports

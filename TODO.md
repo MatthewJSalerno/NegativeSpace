@@ -296,6 +296,20 @@ These are completed capabilities, not additional open closeout tasks.
   see [jpeg-content-hash-experiment.md](docs/jpeg-content-hash-experiment.md).
   No production image-only hashing or duplicate consolidation is enabled.
 
+### Motion-photo and expanded-format qualification
+
+- [ ] Qualify embedded motion-photo editing as a separate workstream (maintainer
+  decision: retain the current refusal for this release). The current JPEG writer
+  deliberately refuses trailers; sidecar saves preserve Google legacy, Pixel and
+  Samsung video bytes. Regression tests assert both successful sidecar preservation
+  and nonmutating embedded refusal. Do not relax the boundary solely because ExifTool
+  can retain the video; verify the complete engine write/publication path first.
+- [ ] Builder-owner planned fixtures: RAW EXIF versus sidecar, DNG embedded XMP,
+  Lightroom RAW/JPEG metadata differences and ownership hints, case-varied RAW
+  sidecar names, TIFF/HEIC embedded XMP, and extended JPEG XMP. These cases are not
+  built or required to claim the currently bounded Date taken UI is implemented.
+  Request builder changes from the maintainer; do not silently expand writer support.
+
 ### API/UI work — source viewer/date editor built; decisions pending
 
 First UI scope agreed: show metadata broadly, edit/copy **Date taken only**. The

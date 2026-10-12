@@ -175,6 +175,9 @@ jobs:
       - name: Metadata source viewer API
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_view_test.py -v
 
+      - name: Motion photo metadata preservation
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_motion_save_test.py -v
+
       - name: Date editing API
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_dates_test.py -v
 
