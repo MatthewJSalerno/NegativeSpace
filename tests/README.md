@@ -578,7 +578,7 @@ cases a real library on a NAS brings:
 | Folder | Cases |
 | :--- | :--- |
 | `nas-share/` | Synology's `@eaDir/` thumbnails and `#recycle/` (no leading dot), QNAP's `.@__thumb/` |
-| `live-photo/` | a Live Photo's HEIC and its `.MOV`; a motion photo with its video after the picture (the videos are stand-ins) |
+| `live-photo/` | a Live Photo's HEIC and its `.MOV`; motion photos (a JPEG with its video after the picture) in Google Camera's older MVIMG form, the Pixel's Motion Photo 1.0 and Samsung's, each read by ExifTool as its phone wrote it (the videos are stand-ins) |
 | `date-in-name/` | no EXIF, a file time in 2011, and a date only in the name (`IMG_20190615_…`, WhatsApp, Pixel, Samsung, a screenshot) |
 | `clock-off-by-a-year/` | one trip from a camera a year early and a phone that was right |
 | `day-boundary/`, `burst/` | 23:30 at +09:00 and at −05:00, midnight; five frames in one second, told apart only by sub-seconds |

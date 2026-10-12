@@ -136,9 +136,17 @@ class MakeScenarios(unittest.TestCase):
         nfc, nfd = (next(f["path"] for f in files if f["scenario"] == s) for s in ("unicode_nfc", "unicode_nfd"))
         self.assertNotEqual(nfc, nfd)
         self.assertEqual(unicodedata.normalize("NFC", nfd), nfc)
-        # A motion photo carries its video after the picture.
-        motion = lib / next(f["path"] for f in files if f["scenario"] == "motion_photo")
-        self.assertIn(b"ftypmp42", motion.read_bytes()[-2000:])
+        # Each motion photo's video is found by ExifTool where its phone puts it, and is the
+        # video the manifest records.
+        tag = {"google_legacy": "File:EmbeddedVideo", "pixel": "Google:MotionPhotoVideo",
+               "samsung": "Samsung:EmbeddedVideoFile"}
+        motions = [f for f in files if f["scenario"] == "motion_photo"]
+        self.assertEqual({f["variant"] for f in motions}, set(tag))
+        for f in motions:
+            video = subprocess.run(["exiftool", "-b", "-ee", f"-{tag[f['variant']]}", str(lib / f["path"])],
+                                   capture_output=True, check=True).stdout
+            self.assertEqual((len(video), hashlib.sha1(video).hexdigest()), (f["video_length"], f["video_sha1"]),
+                             f["variant"])
         dups = [f for f in files if f["scenario"] == "exact_duplicate"]
         self.assertGreaterEqual(len(dups), 20)
         for d in dups:

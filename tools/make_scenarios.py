@@ -45,6 +45,7 @@ import json
 import os
 import random
 import shutil
+import struct
 import subprocess
 import sys
 import time
@@ -269,6 +270,43 @@ class Manifest:
     def save(self, **meta):
         (self.out / "manifest.json").write_text(json.dumps(
             {**meta, "files": self.files, "changes": self.changes}, indent=2, ensure_ascii=False) + "\n")
+
+
+# Motion photos: a JPEG with a short video after the picture, in the three forms phones
+# write. The file names are the phones' own.
+MOTION_PHOTOS = (("google_legacy", "MVIMG_20190615_120000.jpg"), ("pixel", "PXL_20190615_120000123.MP.jpg"),
+                 ("samsung", "20190615_120000.jpg"))
+
+
+def motion_photo(path: Path, variant: str) -> bytes:
+    """Makes the JPEG at `path` a motion photo of `variant`; returns the video appended.
+    google_legacy: Google Camera's MVIMG (GCamera:MicroVideo, MicroVideoOffset).
+    pixel: Motion Photo format 1.0 (GCamera:MotionPhoto and a GContainer directory whose
+    MotionPhoto item's Length is the video's). samsung: "MotionPhoto_Data" and the video,
+    then Samsung's SEF trailer (SEFH index, length, SEFT), as ExifTool reads it.
+    The metadata is written first: the video must stay last in the file."""
+    video = MP4
+    if variant == "google_legacy":
+        exiftool(path, "-XMP-GCamera:MicroVideo=1", "-XMP-GCamera:MicroVideoVersion=1",
+                 f"-XMP-GCamera:MicroVideoOffset={len(video)}", "-XMP-GCamera:MicroVideoPresentationTimestampUs=0")
+        trailer = video
+    elif variant == "pixel":
+        exiftool(path, "-XMP-GCamera:MotionPhoto=1", "-XMP-GCamera:MotionPhotoVersion=1",
+                 "-XMP-GCamera:MotionPhotoPresentationTimestampUs=0",
+                 "-XMP-GContainer:ContainerDirectory=[{Item={Mime=image/jpeg,Semantic=Primary,Length=0,Padding=0}},"
+                 f"{{Item={{Mime=video/mp4,Semantic=MotionPhoto,Length={len(video)},Padding=0}}}}]")
+        trailer = video
+    elif variant == "samsung":
+        name = b"MotionPhoto_Data"
+        block = struct.pack("<HHI", 0, 0x0A30, len(name)) + name + video
+        # An SEF entry's offset counts back from the SEFH index to its block.
+        sefh = b"SEFH" + struct.pack("<II", 106, 1) + struct.pack("<HHII", 0, 0x0A30, len(block), len(block))
+        trailer = block + sefh + struct.pack("<I", len(sefh)) + b"SEFT"
+    else:
+        raise ValueError(variant)
+    with open(path, "ab") as fh:
+        fh.write(trailer)
+    return video
 
 
 def unlock(root: Path):
@@ -547,15 +585,13 @@ def build(args):
         movie.write_bytes(QUICKTIME + b"\0" * 2048)
         m.add(movie, "live_photo_video", "Its video: left in place unless .mov is among the chosen extensions",
               stand_in=True, open_question="a Move of the still leaves its video behind, unconnected")
-    for src in pick(jpegs, 1):
-        dest = live / "MVIMG_20190615_120000.jpg"
+    for (variant, name), src in zip(MOTION_PHOTOS, pick(jpegs, len(MOTION_PHOTOS)) * 3):
+        dest = live / name
         fresh_copy(src, dest)
-        exiftool(dest, "-XMP-GCamera:MicroVideo=1", "-XMP-GCamera:MicroVideoVersion=1",
-                 f"-XMP-GCamera:MicroVideoOffset={len(MP4)}", "-XMP-GCamera:MicroVideoPresentationTimestampUs=0")
-        with open(dest, "ab") as fh:           # the video after the picture, as Google's camera writes it
-            fh.write(MP4)
+        video = motion_photo(dest, variant)
         m.add(dest, "motion_photo", "Indexed as one photo; the video inside travels with it, bytes intact", src,
-              stand_in=True)
+              variant=variant, video_length=len(video), video_sha1=hashlib.sha1(video).hexdigest(), stand_in=True,
+              open_question="anything that re-encodes the picture (not an ExifTool metadata write) drops the video")
 
     # 14. A date only in the name: no EXIF, a file time years off, names cameras and apps write.
     named_dates = [("IMG_20190615_120000.jpg", "2019-06-15"), ("IMG-20190615-WA0001.jpg", "2019-06-15"),
