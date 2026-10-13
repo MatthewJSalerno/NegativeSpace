@@ -2019,3 +2019,7 @@ The date flow verifies a second explicit clear cannot save or start another job;
 folder flow checks tree-relative geometry when choosing one, multiple or no folders.
 Desktop/narrow rendering, completion-dialog screenshots, all three spec checks and
 whitespace checks passed. Engine behavior was unchanged in this presentation batch.
+
+CI follow-up: the request-freshness browser driver checks one gallery request and no
+folder-tree request on the default gallery, then exactly one folder-tree request in
+Source folders. The unchanged-feed and job-completion freshness assertions remain.

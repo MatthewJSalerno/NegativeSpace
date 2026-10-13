@@ -209,7 +209,7 @@ with sync_playwright() as p:
     page.locator(f".card[data-id='{reference}'] .card-image").click()
     inspector.get_by_role('tab',name='Metadata',exact=True).click()
     expect(inspector.locator('.metadata-sources')).to_be_visible()
-    expect(inspector.get_by_role('button',name='Edit Date taken…',exact=True)).to_have_count(0)
+    expect(inspector.get_by_role('button',name='Edit metadata date…',exact=True)).to_have_count(0)
     expect(inspector.get_by_role('button',name='Copy date to primary…',exact=True)).to_have_count(0)
     expect(inspector.get_by_role('tab',name='Similar photos in Library',exact=True)).to_be_visible()
     inspector.get_by_role('button',name='Close',exact=True).click()
