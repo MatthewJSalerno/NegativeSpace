@@ -235,11 +235,14 @@ class Case:
     def __init__(self, builder, group: str, name: str, why: str):
         self.b, self.group, self.name, self.why = builder, group, name, why
         self.folder = builder.lib / group / name
+        # Every file's name starts with this, so a filename search finds the case's files and
+        # nothing else: md-exif-only.jpg, md-exif-only.jpg.xmp.
+        self.stem = "md-" + name.replace("_", "-")
         self.photos, self.sidecars, self.others = [], [], []
 
-    def photo(self, filename="photo.jpg", *, exif=None, embedded_xmp=None, iptc=None, fmt=None, rotate_pixels=False,
+    def photo(self, filename=None, *, exif=None, embedded_xmp=None, iptc=None, fmt=None, rotate_pixels=False,
               motion=None):
-        path = self.folder / filename
+        path = self.folder / (filename or f"{self.stem}.jpg")
         fmt = fmt or ("PNG" if path.suffix.lower() == ".png" else "JPEG")
         src = self.b.seeds.take()
         if src is None:
@@ -302,19 +305,19 @@ def agree(b: Builder):
     c.photo(embedded_xmp={"date": "2019-06-15T12:00:00", **CAMERA, "title": "Beach day", "keywords": TAGS,
                           "rating": "4", "creators": ["Ann Lee"], "rights": "(c) Ann Lee",
                           "gps": (43.2965, 5.3698)})
-    c = b.case("agree", "sidecar_only", "Values only in photo.jpg.xmp; the JPEG carries none.")
+    c = b.case("agree", "sidecar_only", "Values only in the sidecar named photo.jpg.xmp; the JPEG carries none.")
     p = c.photo()
-    c.xmp("photo.jpg.xmp", {"date": "2019-06-15T12:00:00", **CAMERA, "title": "Beach day", "keywords": TAGS,
+    c.xmp(f"{p.name}.xmp", {"date": "2019-06-15T12:00:00", **CAMERA, "title": "Beach day", "keywords": TAGS,
                             "rating": "4", "gps": (43.2965, 5.3698)}, written_for=p.name)
     c = b.case("agree", "all_three_agree", "EXIF, embedded XMP and the sidecar say the same.")
     p = c.photo(exif={"date": "2019:06:15 12:00:00", **CAMERA},
                 embedded_xmp={"date": "2019-06-15T12:00:00", **CAMERA, "title": "Beach day", "keywords": TAGS})
-    c.xmp("photo.jpg.xmp", {"date": "2019-06-15T12:00:00", **CAMERA, "title": "Beach day", "keywords": TAGS},
+    c.xmp(f"{p.name}.xmp", {"date": "2019-06-15T12:00:00", **CAMERA, "title": "Beach day", "keywords": TAGS},
           written_for=p.name)
     c = b.case("agree", "complementary", "No field in two places: EXIF has date and camera, the sidecar "
                                          "title, keywords and rating. Nothing conflicts; both are needed.")
     p = c.photo(exif={"date": "2019:06:15 12:00:00", **CAMERA})
-    c.xmp("photo.jpg.xmp", {"title": "Beach day", "keywords": TAGS, "rating": "5"}, written_for=p.name)
+    c.xmp(f"{p.name}.xmp", {"title": "Beach day", "keywords": TAGS, "rating": "5"}, written_for=p.name)
 
 
 def conflict(b: Builder):
@@ -322,7 +325,7 @@ def conflict(b: Builder):
         c = b.case("conflict", name, why)
         p = c.photo(exif=exif, embedded_xmp=embedded_xmp)
         if side is not None:
-            c.xmp("photo.jpg.xmp", side, written_for=p.name)
+            c.xmp(f"{p.name}.xmp", side, written_for=p.name)
     pair("date_exif_vs_sidecar", "EXIF says 2019-06-15, the sidecar 2021-08-01.",
          exif={"date": "2019:06:15 12:00:00"}, side={"date": "2021-08-01T09:30:00"})
     pair("date_exif_vs_embedded_xmp", "Inside one file: EXIF 2019-06-15, embedded XMP 2020-05-01.",
@@ -362,57 +365,57 @@ def sidecar_names(b: Builder, raws: list):
     fields = {"title": "From the sidecar", "rating": "3"}
     c = b.case("sidecar_names", "full_name", "photo.jpg.xmp: the photo's whole name.")
     p = c.photo()
-    c.xmp("photo.jpg.xmp", fields, written_for=p.name)
+    c.xmp(f"{p.name}.xmp", fields, written_for=p.name)
     c = b.case("sidecar_names", "stem_name", "photo.xmp: the photo's name without its extension.")
     p = c.photo()
-    c.xmp("photo.xmp", fields, written_for=p.name)
+    c.xmp(f"{c.stem}.xmp", fields, written_for=p.name)
     c = b.case("sidecar_names", "both_names_disagree", "photo.xmp and photo.jpg.xmp both, saying different things.")
     p = c.photo()
-    c.xmp("photo.xmp", {"title": "Stem version", "rating": "1"}, written_for=p.name)
-    c.xmp("photo.jpg.xmp", {"title": "Full-name version", "rating": "5"}, written_for=p.name)
+    c.xmp(f"{c.stem}.xmp", {"title": "Stem version", "rating": "1"}, written_for=p.name)
+    c.xmp(f"{p.name}.xmp", {"title": "Full-name version", "rating": "5"}, written_for=p.name)
     c = b.case("sidecar_names", "uppercase_extension", "photo.XMP: the extension in capitals.")
     p = c.photo()
-    c.xmp("photo.XMP", fields, written_for=p.name)
-    c = b.case("sidecar_names", "stem_case_differs", "IMG_0001.JPG with img_0001.xmp: the names differ "
-                                                     "only in letter case.")
-    p = c.photo("IMG_0001.JPG")
-    c.xmp("img_0001.xmp", fields, written_for=p.name)
-    c = b.case("sidecar_names", "shared_stem", "pair.jpg and pair.png share pair.xmp: whose is it?")
-    c.photo("pair.jpg")
-    c.photo("pair.png")
-    c.xmp("pair.xmp", fields, written_for=None)
-    c = b.case("sidecar_names", "declared_owner", "pair.jpg and pair.png share pair.xmp, which names "
-                                                  "pair.jpg in crs:RawFileName.")
-    c.photo("pair.jpg")
-    c.photo("pair.png")
-    c.xmp("pair.xmp", fields, written_for="pair.jpg", owner="pair.jpg")
-    c = b.case("sidecar_names", "owner_conflict", "pair.xmp names other.jpg, which is not here.")
-    c.photo("pair.jpg")
-    c.photo("pair.png")
-    c.xmp("pair.xmp", fields, written_for=None, owner="other.jpg")
-    c = b.case("sidecar_names", "orphan", "lonely.xmp, with no photo of that name.")
-    c.photo("someone-else.jpg")
-    c.xmp("lonely.xmp", fields, written_for=None)
+    c.xmp(f"{c.stem}.XMP", fields, written_for=p.name)
+    c = b.case("sidecar_names", "stem_case_differs", "A photo and a stem-named sidecar whose names differ "
+                                                     "only in letter case (PHOTO.JPG, photo.xmp).")
+    p = c.photo(f"{c.stem.upper()}.JPG")
+    c.xmp(f"{c.stem}.xmp", fields, written_for=p.name)
+    c = b.case("sidecar_names", "shared_stem", "A .jpg and a .png of one name share one stem-named .xmp: whose is it?")
+    c.photo(f"{c.stem}.jpg")
+    c.photo(f"{c.stem}.png")
+    c.xmp(f"{c.stem}.xmp", fields, written_for=None)
+    c = b.case("sidecar_names", "declared_owner", "A .jpg and a .png share one stem-named .xmp, which "
+                                                  "names the .jpg in crs:RawFileName.")
+    c.photo(f"{c.stem}.jpg")
+    c.photo(f"{c.stem}.png")
+    c.xmp(f"{c.stem}.xmp", fields, written_for=f"{c.stem}.jpg", owner=f"{c.stem}.jpg")
+    c = b.case("sidecar_names", "owner_conflict", "A shared stem-named .xmp names a photo that is not here.")
+    c.photo(f"{c.stem}.jpg")
+    c.photo(f"{c.stem}.png")
+    c.xmp(f"{c.stem}.xmp", fields, written_for=None, owner=f"{c.stem}-elsewhere.jpg")
+    c = b.case("sidecar_names", "orphan", "A sidecar with no photo of its name beside it.")
+    c.photo(f"{c.stem}-photo.jpg")
+    c.xmp(f"{c.stem}-lonely.xmp", fields, written_for=None)
     c = b.case("sidecar_names", "sidecar_in_subfolder", "photo.jpg here, its sidecar one folder down "
                                                         "(as some tools keep them).")
     p = c.photo()
-    c.xmp("xmp/photo.jpg.xmp", fields, written_for=f"../{p.name}")
+    c.xmp(f"xmp/{p.name}.xmp", fields, written_for=f"../{p.name}")
     if raws:
         raw = raws[0]
         c = b.case("sidecar_names", "raw_jpeg_pair", "A RAW and a JPEG of one shot with one stem sidecar, "
                                                      "as Lightroom leaves them.")
-        dest = c.folder / f"IMG_0100{raw.suffix}"
+        dest = c.folder / f"{c.stem}{raw.suffix}"
         make_scenarios.fresh_copy(raw, dest)
         c.photos.append({"path": dest, "sources": {}, "pixels_rotated": False, "from_raw": raw.name})
-        c.photo("IMG_0100.jpg")
-        c.xmp("IMG_0100.xmp", {"rating": "4", "keywords": ["raw", "pair"]}, written_for=dest.name)
+        c.photo(f"{c.stem}.jpg")
+        c.xmp(f"{c.stem}.xmp", {"rating": "4", "keywords": ["raw", "pair"]}, written_for=dest.name)
 
 
 def sidecar_broken(b: Builder):
-    def broken(name, why, content, filename="photo.jpg.xmp"):
+    def broken(name, why, content):
         c = b.case("sidecar_broken", name, why)
         p = c.photo()
-        return c, c.sidecar(filename, content, written_for=p.name)
+        return c, c.sidecar(f"{p.name}.xmp", content, written_for=p.name)
     good = packet({"title": "Fine", "rating": "3"})
     broken("malformed_xml", "Cut off mid-element.", good[: len(good) // 2])
     broken("empty_file", "Zero bytes.", b"")
@@ -432,9 +435,9 @@ def sidecar_broken(b: Builder):
     path.chmod(0)
     c = b.case("sidecar_broken", "symlink", "photo.jpg.xmp is a symlink to a valid sidecar elsewhere.")
     p = c.photo()
-    target = c.sidecar("elsewhere/real.xmp", good, written_for=None, values={"title": "Fine", "rating": "3"})
-    link = c.folder / "photo.jpg.xmp"
-    link.symlink_to("elsewhere/real.xmp")
+    target = c.sidecar(f"elsewhere/{c.stem}-real.xmp", good, written_for=None, values={"title": "Fine", "rating": "3"})
+    link = c.folder / f"{p.name}.xmp"
+    link.symlink_to(target.relative_to(c.folder))
     c.sidecars.append({"path": link, "written_for": p.name, "values": None, "symlink_to": str(target.relative_to(c.folder))})
 
 
@@ -442,7 +445,7 @@ def real_world(b: Builder):
     def side(name, why, content, values=None, **photo):
         c = b.case("real_world", name, why)
         p = c.photo(**photo)
-        c.sidecar("photo.jpg.xmp", content, written_for=p.name, values=values)
+        c.sidecar(f"{p.name}.xmp", content, written_for=p.name, values=values)
         return c
     side("about_uuid", "rdf:about=\"uuid:...\", as older Adobe tools wrote it.",
          packet({"title": "Old Adobe", "rating": "4"}, about="uuid:faf5bdd5-ba3d-11da-ad31-d33d75182f1b"),
@@ -475,20 +478,20 @@ def real_world(b: Builder):
     c = b.case("real_world", "exif_date_zeroed", "EXIF DateTimeOriginal 0000:00:00 00:00:00, a camera's "
                                                  "unset clock; the sidecar has a real date.")
     p = c.photo(exif={"date": "0000:00:00 00:00:00"})
-    c.xmp("photo.jpg.xmp", {"date": "2017-07-01T15:00:00"}, written_for=p.name)
+    c.xmp(f"{p.name}.xmp", {"date": "2017-07-01T15:00:00"}, written_for=p.name)
     c = b.case("real_world", "exif_create_date_only", "No DateTimeOriginal; EXIF CreateDate only.")
     c.photo(exif={"create_date": "2016:12:24 18:00:00"})
     c = b.case("real_world", "png_embedded_xmp", "A PNG with XMP inside it (iTXt) and a sidecar that "
                                                  "disagrees.")
-    p = c.photo("photo.png", embedded_xmp={"title": "Inside the PNG", "date": "2015-01-01T00:00:00"})
-    c.xmp("photo.png.xmp", {"title": "In the sidecar", "date": "2016-01-01T00:00:00"}, written_for=p.name)
-    c = b.case("real_world", "google_takeout_json", "A Google Takeout photo.jpg.json beside the photo, "
+    p = c.photo(f"{c.stem}.png", embedded_xmp={"title": "Inside the PNG", "date": "2015-01-01T00:00:00"})
+    c.xmp(f"{p.name}.xmp", {"title": "In the sidecar", "date": "2016-01-01T00:00:00"}, written_for=p.name)
+    c = b.case("real_world", "google_takeout_json", "A Google Takeout photo.jpg.json-style file beside the photo, "
                                                     "its photoTakenTime a year off EXIF.")
     p = c.photo(exif={"date": "2019:06:15 12:00:00"})
-    takeout = {"title": "photo.jpg", "description": "From Takeout",
+    takeout = {"title": p.name, "description": "From Takeout",
                "photoTakenTime": {"timestamp": "1592222400", "formatted": "15 Jun 2020, 12:00:00 UTC"},
                "geoData": {"latitude": 48.8566, "longitude": 2.3522, "altitude": 0.0}}
-    path = c.folder / "photo.jpg.json"
+    path = c.folder / f"{p.name}.json"
     path.write_text(json.dumps(takeout, indent=2) + "\n")
     make_scenarios.record_altered(path)
     c.others.append({"path": path, "kind": "google_takeout_json", "written_for": p.name, "values": takeout})
@@ -498,9 +501,9 @@ def real_world(b: Builder):
     for variant, name in make_scenarios.MOTION_PHOTOS:
         c = b.case("real_world", f"motion_photo_{variant}", f"A {variant.replace('_', ' ')} motion photo with "
                    "metadata in it and a sidecar that disagrees: a save must keep its video.")
-        p = c.photo(name, exif={"date": "2019:06:15 12:00:00"},
+        p = c.photo(make_scenarios.with_token(name, c.stem), exif={"date": "2019:06:15 12:00:00"},
                     embedded_xmp={"title": "Moving picture", "keywords": ["motion"]}, motion=variant)
-        c.xmp(f"{name}.xmp", {"title": "Sidecar title", "rating": "4"}, written_for=p.name)
+        c.xmp(f"{p.name}.xmp", {"title": "Sidecar title", "rating": "4"}, written_for=p.name)
     c = b.case("real_world", "orientation_already_applied", "The pixels are already turned upright, yet "
                                                             "EXIF still says orientation 6: shown as told, it "
                                                             "lies on its side.")

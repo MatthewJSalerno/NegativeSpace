@@ -587,6 +587,12 @@ cases a real library on a NAS brings:
 | `unicode-names/`, `case-at-destination/` | one name in NFC and NFD; names differing only in case, one day, two folders |
 | `edge/locked-folder/` | a folder the Index cannot open |
 
+To find a scenario's file in the app, search its name: every scenario file whose name
+is not itself the case starts `scn-` and a word for its scenario (`scn-burst-3.jpg`,
+`scn-format-cmyk.jpg`, `scn-date-no-date-…`), and no two share a name. The exceptions
+are the name cases themselves (collisions, case, Unicode, dates in names) and the NAS's
+own thumbnail names, which sit in a folder named after the photo they show.
+
 Where the app's answer is not decided yet, the manifest entry says so in
 `open_question` (the NAS folders, a Live Photo's video, dates in names, sub-seconds,
 crops and rotations, the 200-megapixel picture, normalized or case-insensitive
@@ -655,6 +661,13 @@ their side. The seed folder is never written to, and the run ends by proving it.
 | `sidecar_names` | `photo.jpg.xmp`, `photo.xmp`, both disagreeing, `.XMP`, a name differing only in letter case, two photos sharing one stem, a declared owner (`crs:RawFileName`), an owner that is not there, an orphan, a sidecar in a subfolder, and with `--raw-dir` a RAW and JPEG sharing one sidecar |
 | `sidecar_broken` | malformed, empty, binary, unrelated XML, an invalid date, rating and orientation, a repeated field, over the reader's size limit, unreadable, a symlink |
 | `real_world` | forms real tools write: `rdf:about` as a UUID, keywords as `rdf:Seq`, a date only in `photoshop:DateCreated`, Lightroom's hierarchical keywords, UTF-16 and UTF-8 BOM sidecars, titles without `x-default`, a rejected rating (-1), Unicode keywords, IPTC-only keywords, a zeroed EXIF date, `CreateDate` only, a PNG with embedded XMP, a Google Takeout `.json`, an orientation already applied to the pixels, and motion photos (Google's older MVIMG, the Pixel's, Samsung's) with metadata and a disagreeing sidecar, the video's length and SHA-1 in the manifest so a test can prove a save kept it |
+
+Every file is named after its case, so the gallery's filename search finds it:
+`md-exif-only.jpg`, `md-date-three-way.jpg` and its sidecar `md-date-three-way.jpg.xmp`,
+`md-shared-stem.jpg`/`.png`/`.xmp`. Search `md-` plus the case name with dashes. Motion
+photos keep their phone-style names with the token added
+(`PXL_20190615_120000123_md-motion-photo-pixel.MP.jpg`). In the sidecar-name cases the
+token is part of the names being compared, so what each case tests is unchanged.
 
 `OUT/manifest.json` is ground truth: for each photo what was written to each source
 (`exif`, `embedded_xmp`, `iptc`), for each sidecar its values and the photo it was written

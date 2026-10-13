@@ -114,6 +114,18 @@ class MakeMetadataScenarios(unittest.TestCase):
     def test_each_source_in_each_photo_holds_what_was_written(self):
         check_sources(self, self.lib, self.manifest)
 
+    def test_every_file_is_found_by_searching_its_case(self):
+        # A filename search for md-<case> finds that case's photos and sidecars, and no two
+        # photos anywhere share a name.
+        names = []
+        for c in self.cases():
+            token = "md-" + c["case"].replace("_", "-")
+            for item in c["photos"] + c["sidecars"] + c["others"]:
+                name = Path(item["path"]).name
+                self.assertIn(token, name.lower(), item["path"])
+            names += [Path(p["path"]).name.lower() for p in c["photos"]]
+        self.assertEqual(len(set(names)), len(names), "two photos share a name")
+
     def test_conflicts_differ_and_agreements_agree(self):
         by = {c["case"]: c for c in self.cases()}
         three = by["date_three_way"]

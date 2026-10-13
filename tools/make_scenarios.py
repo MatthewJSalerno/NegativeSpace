@@ -278,6 +278,16 @@ MOTION_PHOTOS = (("google_legacy", "MVIMG_20190615_120000.jpg"), ("pixel", "PXL_
                  ("samsung", "20190615_120000.jpg"))
 
 
+def with_token(name: str, token: str) -> str:
+    """A phone-style name with `token` before its extension, so a filename search finds it,
+    keeping a two-part ending such as the Pixel's ".MP.jpg":
+    PXL_20190615_120000123_scn-motion-pixel.MP.jpg."""
+    if name.endswith(".MP.jpg"):
+        return f"{name[:-len('.MP.jpg')]}_{token}.MP.jpg"
+    stem, _, ext = name.rpartition(".")
+    return f"{stem}_{token}.{ext}"
+
+
 def motion_photo(path: Path, variant: str) -> bytes:
     """Makes the JPEG at `path` a motion photo of `variant`; returns the video appended.
     google_legacy: Google Camera's MVIMG (GCamera:MicroVideo, MicroVideoOffset).
@@ -382,7 +392,7 @@ def build(args):
         print(f"exif: {grafted} photo(s) given a sample camera file's tags, from {len(donors)} donor(s)")
         # A few donors as themselves: real camera metadata on a picture a few pixels wide.
         for donor in rng.sample(donors, min(6, len(donors))):
-            dest = lib / "scenarios" / "tiny-camera-files" / donor.name
+            dest = lib / "scenarios" / "tiny-camera-files" / f"scn-tiny-camera-{donor.name}"
             fresh_copy(donor, dest)
             m.add(dest, "tiny_camera_file", "Indexed; a picture a few pixels wide with a real camera's tags")
     raster = [p for p in originals if opens(p)]
@@ -394,14 +404,14 @@ def build(args):
 
     # 2. Exact duplicates: second links under other names and folders.
     for i, src in enumerate(pick(originals, rng.randint(20, 40))):
-        dest = sc / "duplicates" / f"album-{i % 4}" / f"copy of {src.name}"
+        dest = sc / "duplicates" / f"album-{i % 4}" / f"scn-duplicate-{i:02d} copy of {src.name}"
         dest.parent.mkdir(parents=True, exist_ok=True)
         os.link(src, dest)
         m.add(dest, "exact_duplicate", "Duplicate of its original (same content): copied once", src)
 
     # 3. The same photo with its metadata stripped: different bytes, same picture.
     for src in pick(jpegs, 4):
-        dest = sc / "duplicate-no-exif" / src.name
+        dest = sc / "duplicate-no-exif" / f"scn-no-exif-{src.name}"
         fresh_copy(src, dest)
         exiftool(dest, "-all=")
         m.add(dest, "duplicate_without_exif", "Indexed separately (different bytes); Undated by file time", src)
@@ -409,7 +419,7 @@ def build(args):
     # 4-5. Resized copies, with and without the original's EXIF.
     for keep, folder in ((True, "resized-with-exif"), (False, "resized-without-exif")):
         for src in pick(raster, 3):
-            dest = sc / folder / f"{src.stem}-half.jpg"
+            dest = sc / folder / f"scn-{folder}-{src.stem}.jpg"
             dest.parent.mkdir(parents=True, exist_ok=True)
             with Image.open(src) as im:
                 exif = im.info.get("exif") if keep else None
@@ -426,7 +436,7 @@ def build(args):
         ext, fmt = targets[i % len(targets)]
         if src.suffix.lower().lstrip(".") == ext:
             ext, fmt = targets[(i + 1) % len(targets)]
-        dest = sc / "converted" / ext / f"{src.stem}.{ext}"
+        dest = sc / "converted" / ext / f"scn-converted-{src.stem}.{ext}"
         dest.parent.mkdir(parents=True, exist_ok=True)
         with Image.open(src) as im:
             im.convert("RGB").save(dest, fmt)
@@ -449,7 +459,7 @@ def build(args):
         ("old", ["-DateTimeOriginal=1958:05:17 14:00:00"], "Filed 1958/05", {}),
     ]
     for (name, tags, expect, extra), src in zip(dated, pick(jpegs, len(dated)) * 2):
-        dest = sc / "dates" / f"{name}-{src.stem}.jpg"
+        dest = sc / "dates" / f"scn-date-{name}-{src.stem}.jpg"
         fresh_copy(src, dest)
         exiftool(dest, *tags)
         if "mtime" in extra:
@@ -461,7 +471,7 @@ def build(args):
     # the similarity review (engine-spec 9.3) is what should.
     for src in pick(jpegs, 1):
         for year, other in ((2024, 1969), (1969, 2024)):
-            dest = sc / "dates" / f"same-picture-{year}-{src.stem}.jpg"
+            dest = sc / "dates" / f"scn-same-picture-{year}-{src.stem}.jpg"
             fresh_copy(src, dest)
             exiftool(dest, f"-DateTimeOriginal={year}:06:15 12:00:00")
             m.add(dest, f"same_picture_{year}", f"Filed {year}/06; the same picture as the one filed {other}", src)
@@ -489,7 +499,7 @@ def build(args):
     if jpegs:
         src = rng.choice(jpegs)
         for n in range(1, 9):
-            dest = sc / "orientation" / f"orientation-{n}.jpg"
+            dest = sc / "orientation" / f"scn-orientation-{n}.jpg"
             fresh_copy(src, dest)
             exiftool(dest, f"-Orientation#={n}")
             m.add(dest, "orientation", f"EXIF Orientation {n}", src)
@@ -497,35 +507,35 @@ def build(args):
     # 10. Files that must fail or be left out, and awkward folders.
     edge = sc / "edge"
     edge.mkdir(parents=True, exist_ok=True)
-    (edge / "zero-bytes.jpg").write_bytes(b"")
-    m.add(edge / "zero-bytes.jpg", "edge_zero_bytes",
+    (edge / "scn-edge-zero-bytes.jpg").write_bytes(b"")
+    m.add(edge / "scn-edge-zero-bytes.jpg", "edge_zero_bytes",
           "Failed: Not an image (the file is empty); in the log, never copied")
     body = rng.choice(jpegs).read_bytes()
-    (edge / "truncated.jpg").write_bytes(body[: len(body) // 3])
-    m.add(edge / "truncated.jpg", "edge_truncated", "Failed: its picture cannot be decoded; retained at source despite readable EXIF")
-    (edge / "not-a-photo.jpg").write_text("This is text with a photo's extension.\n")
-    m.add(edge / "not-a-photo.jpg", "edge_not_an_image",
+    (edge / "scn-edge-truncated.jpg").write_bytes(body[: len(body) // 3])
+    m.add(edge / "scn-edge-truncated.jpg", "edge_truncated", "Failed: its picture cannot be decoded; retained at source despite readable EXIF")
+    (edge / "scn-edge-not-a-photo.jpg").write_text("This is text with a photo's extension.\n")
+    m.add(edge / "scn-edge-not-a-photo.jpg", "edge_not_an_image",
           "Failed: Not an image (its content is text); in the log, never copied")
     side = rng.choice(jpegs)
-    dest = edge / "with-sidecar.jpg"
+    dest = edge / "scn-edge-with-sidecar.jpg"
     fresh_copy(side, dest)
     exiftool(dest, "-ImageDescription=has a sidecar")
-    (edge / "with-sidecar.xmp").write_text('<x:xmpmeta xmlns:x="adobe:ns:meta/"/>\n')
+    (edge / "scn-edge-with-sidecar.xmp").write_text('<x:xmpmeta xmlns:x="adobe:ns:meta/"/>\n')
     m.add(dest, "edge_sidecar", "Indexed; its .xmp sidecar is not a photo and is left out", side)
-    tiny = edge / "tiny-64x48.jpg"
+    tiny = edge / "scn-edge-tiny-64x48.jpg"
     with Image.open(rng.choice(raster)) as im:
         im.convert("RGB").resize((64, 48)).save(tiny, "JPEG")
     m.add(tiny, "edge_tiny", "Indexed: a low-resolution image")
-    link = edge / "symlink-to-a-photo.jpg"
+    link = edge / "scn-edge-symlink-to-a-photo.jpg"
     link.symlink_to(os.path.relpath(originals[0], edge))
     m.add(link, "edge_symlink", "Left out: symlinks are not followed")
-    locked = edge / "unreadable.jpg"
+    locked = edge / "scn-edge-unreadable.jpg"
     fresh_copy(rng.choice(jpegs), locked)
     exiftool(locked, "-ImageDescription=unreadable")
     locked.chmod(0)
     m.add(locked, "edge_unreadable", "Failed: permission denied (the container's user cannot read it)")
     (sc / "empty-folder").mkdir(exist_ok=True)
-    deep = sc / "deep" / "a" / "b" / "c" / "d" / "e" / "f" / "deep.jpg"
+    deep = sc / "deep" / "a" / "b" / "c" / "d" / "e" / "f" / "scn-edge-deep.jpg"
     fresh_copy(rng.choice(jpegs), deep)
     exiftool(deep, "-ImageDescription=deep")
     m.add(deep, "edge_deep_folder", "Indexed from seven folders down")
@@ -536,9 +546,10 @@ def build(args):
         raw = rng.choice(raws)
         pair = sc / "raw-and-jpeg"
         pair.mkdir(parents=True, exist_ok=True)
-        os.link(raw, pair / raw.name)
-        m.add(pair / raw.name, "raw_pair", "The RAW, indexed", raw)
-        dest = pair / f"{raw.stem}.jpg"
+        twin = pair / f"scn-raw-pair{raw.suffix}"
+        os.link(raw, twin)
+        m.add(twin, "raw_pair", "The RAW, indexed", raw)
+        dest = pair / "scn-raw-pair.jpg"
         fresh_copy(rng.choice(jpegs), dest)
         exiftool(dest, "-ImageDescription=raw pair")
         m.add(dest, "raw_pair", "A JPEG with the RAW's name: both indexed, distinct content")
@@ -548,13 +559,14 @@ def build(args):
     # #recycle/; QNAP's .@__thumb/ starts with a dot, which the Index already skips.
     nas = sc / "nas-share"
     for src in pick(jpegs, 2):
-        photo = nas / "album" / src.name
+        photo = nas / "album" / f"scn-nas-{src.name}"
         fresh_copy(src, photo)
         exiftool(photo, "-ImageDescription=on a NAS share")
         m.add(photo, "nas_photo", "Indexed: the photo itself", src)
         for size, name in ((1280, "SYNOPHOTO_THUMB_XL.jpg"), (320, "SYNOPHOTO_THUMB_M.jpg")):
-            for folder, scenario in ((nas / "album" / "@eaDir" / src.name, "nas_synology_thumbnail"),
-                                     (nas / "album" / ".@__thumb" / src.name, "nas_qnap_thumbnail")):
+            # Named by the NAS, after the photo they show: the photo's name finds them too.
+            for folder, scenario in ((nas / "album" / "@eaDir" / photo.name, "nas_synology_thumbnail"),
+                                     (nas / "album" / ".@__thumb" / photo.name, "nas_qnap_thumbnail")):
                 dest = folder / name
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 with Image.open(src) as im:
@@ -564,7 +576,7 @@ def build(args):
                       open_question="@eaDir has no leading dot, so the Index's dot rule does not cover it"
                       if scenario == "nas_synology_thumbnail" else None)
     for src in pick(jpegs, 1):
-        dest = nas / "#recycle" / "album" / f"deleted-{src.name}"
+        dest = nas / "#recycle" / "album" / f"scn-nas-recycled-{src.name}"
         fresh_copy(src, dest)
         exiftool(dest, "-ImageDescription=in the recycle bin")
         m.add(dest, "nas_recycle_bin", "Left out: a file the user deleted on the NAS", src,
@@ -574,19 +586,19 @@ def build(args):
     # the JPEG). The videos are stand-ins: a container's opening bytes, not playable footage.
     live = sc / "live-photo"
     for src in pick(raster, 1):
-        still = live / ("IMG_0001.HEIC" if HEIF else "IMG_0001.JPG")
+        still = live / ("scn-live-photo.HEIC" if HEIF else "scn-live-photo.JPG")
         still.parent.mkdir(parents=True, exist_ok=True)
         with Image.open(src) as im:
             im.convert("RGB").save(still, "HEIF" if HEIF else "JPEG")
         subprocess.run(["exiftool", "-q", "-q", "-overwrite_original", "-DateTimeOriginal=2019:06:15 12:00:00",
                         str(still)], check=False)
         m.add(still, "live_photo_still", "Indexed: the still of a Live Photo", src)
-        movie = live / "IMG_0001.MOV"
+        movie = live / "scn-live-photo.MOV"
         movie.write_bytes(QUICKTIME + b"\0" * 2048)
         m.add(movie, "live_photo_video", "Its video: left in place unless .mov is among the chosen extensions",
               stand_in=True, open_question="a Move of the still leaves its video behind, unconnected")
     for (variant, name), src in zip(MOTION_PHOTOS, pick(jpegs, len(MOTION_PHOTOS)) * 3):
-        dest = live / name
+        dest = live / with_token(name, f"scn-motion-{variant.replace('_', '-')}")
         fresh_copy(src, dest)
         video = motion_photo(dest, variant)
         m.add(dest, "motion_photo", "Indexed as one photo; the video inside travels with it, bytes intact", src,
@@ -618,7 +630,7 @@ def build(args):
     trip = sc / "clock-off-by-a-year"
     for i, src in enumerate(pick(jpegs, 5)):
         for device, year, make in (("camera", 2008, "Canon"), ("phone", 2009, "Apple")):
-            dest = trip / device / f"{device}-{i + 1:02d}.jpg"
+            dest = trip / device / f"scn-clock-{device}-{i + 1:02d}.jpg"
             fresh_copy(src, dest)
             exiftool(dest, f"-DateTimeOriginal={year}:07:04 1{i}:00:00", f"-Make={make}",
                      f"-ImageDescription={device} {i}")
@@ -633,14 +645,14 @@ def build(args):
                  "Filed 2019/12/31, its local date, though in UTC it is 2020-01-01"),
                 ("midnight", "2020:01:01 00:00:00", "+00:00", "Filed 2020/01/01")]
     for (name, when, offset, expect), src in zip(boundary, pick(jpegs, len(boundary)) * 2):
-        dest = sc / "day-boundary" / f"{name}.jpg"
+        dest = sc / "day-boundary" / f"scn-{name}.jpg"
         fresh_copy(src, dest)
         exiftool(dest, f"-DateTimeOriginal={when}", f"-OffsetTimeOriginal={offset}")
         m.add(dest, "day_boundary", expect, src)
     for src in pick(jpegs, 1):
         for i in range(5):
             # Named against their order in time: name order and time order disagree.
-            dest = sc / "burst" / f"burst-{5 - i}.jpg"
+            dest = sc / "burst" / f"scn-burst-{5 - i}.jpg"
             fresh_copy(src, dest)
             exiftool(dest, "-DateTimeOriginal=2018:05:20 15:42:07", f"-SubSecTimeOriginal={(i + 1) * 15:03d}",
                      f"-ImageDescription=burst {i}")
@@ -662,7 +674,7 @@ def build(args):
         ImageDraw.Draw(marked).text((marked.width // 20, marked.height * 9 // 10), "(c) Someone 2019", fill=(255, 255, 255))
         variants["watermarked"] = marked
         for name, img in variants.items():
-            dest = looks / f"{src.stem}-{name}.jpg"
+            dest = looks / f"scn-look-alike-{name}-{src.stem}.jpg"
             dest.parent.mkdir(parents=True, exist_ok=True)
             img.save(dest, "JPEG", quality=88)
             record_altered(dest)
@@ -674,8 +686,8 @@ def build(args):
     # at 89.5 megapixels, refused at twice that), 16-bit, CMYK, multi-page, animated, progressive.
     odd = sc / "formats"
     odd.mkdir(parents=True, exist_ok=True)
-    for name, size, expect in (("panorama-96mp.jpg", (12000, 8000), "Indexed; past Pillow's 89.5-megapixel warning"),
-                               ("stitched-200mp.jpg", (20000, 10000),
+    for name, size, expect in (("scn-format-panorama-96mp.jpg", (12000, 8000), "Indexed; past Pillow's 89.5-megapixel warning"),
+                               ("scn-format-stitched-200mp.jpg", (20000, 10000),
                                 "Past twice Pillow's limit: a thumbnail cannot be made the ordinary way")):
         img = Image.new("L", size, 90)
         ImageDraw.Draw(img).rectangle((size[0] // 3, size[1] // 3, size[0] // 2, size[1] // 2), fill=200)
@@ -688,18 +700,18 @@ def build(args):
     with Image.open(src) as im:
         base = im.convert("RGB")
     small = base.resize((max(1, base.width // 2), max(1, base.height // 2)))
-    small.convert("I;16").save(odd / "sixteen-bit.png", "PNG")
-    m.add(odd / "sixteen-bit.png", "format_16_bit_png", "Indexed: a 16-bit greyscale PNG", src)
-    small.convert("CMYK").save(odd / "cmyk.jpg", "JPEG", quality=88)
-    m.add(odd / "cmyk.jpg", "format_cmyk_jpeg", "Indexed: a CMYK JPEG, as print workflows write", src)
-    small.save(odd / "multi-page.tiff", "TIFF", save_all=True,
+    small.convert("I;16").save(odd / "scn-format-sixteen-bit.png", "PNG")
+    m.add(odd / "scn-format-sixteen-bit.png", "format_16_bit_png", "Indexed: a 16-bit greyscale PNG", src)
+    small.convert("CMYK").save(odd / "scn-format-cmyk.jpg", "JPEG", quality=88)
+    m.add(odd / "scn-format-cmyk.jpg", "format_cmyk_jpeg", "Indexed: a CMYK JPEG, as print workflows write", src)
+    small.save(odd / "scn-format-multi-page.tiff", "TIFF", save_all=True,
                append_images=[ImageOps.grayscale(small), small.rotate(180)])
-    m.add(odd / "multi-page.tiff", "format_multi_page_tiff", "Indexed as one photo: the first of three pages", src)
+    m.add(odd / "scn-format-multi-page.tiff", "format_multi_page_tiff", "Indexed as one photo: the first of three pages", src)
     frames = [small.resize((160, 120)).rotate(a) for a in (0, 90, 180, 270)]
-    frames[0].save(odd / "animated.gif", "GIF", save_all=True, append_images=frames[1:], duration=200, loop=0)
-    m.add(odd / "animated.gif", "format_animated_gif", "Indexed as one photo: its first frame", src)
-    small.save(odd / "progressive.jpg", "JPEG", quality=85, progressive=True)
-    m.add(odd / "progressive.jpg", "format_progressive_jpeg", "Indexed: a progressive JPEG", src)
+    frames[0].save(odd / "scn-format-animated.gif", "GIF", save_all=True, append_images=frames[1:], duration=200, loop=0)
+    m.add(odd / "scn-format-animated.gif", "format_animated_gif", "Indexed as one photo: its first frame", src)
+    small.save(odd / "scn-format-progressive.jpg", "JPEG", quality=85, progressive=True)
+    m.add(odd / "scn-format-progressive.jpg", "format_progressive_jpeg", "Indexed: a progressive JPEG", src)
     for f in odd.iterdir():
         if f.is_file() and not f.name.startswith("."):
             record_altered(f)
@@ -727,7 +739,7 @@ def build(args):
     # Written without record_altered: its guard would sit in the folder this then locks.
     # A plain copy and ExifTool's own rewrite are new files, never a link into the seed.
     locked = sc / "edge" / "locked-folder"
-    inside = locked / "inside.jpg"
+    inside = locked / "scn-locked-folder.jpg"
     locked.mkdir(parents=True, exist_ok=True)
     shutil.copy2(rng.choice(jpegs), inside)
     subprocess.run(["exiftool", "-q", "-q", "-overwrite_original", "-ImageDescription=in a locked folder",
@@ -791,7 +803,7 @@ def change(args):
 
     # Renamed in its folder, and moved to another folder.
     p = candidates.pop()
-    new = p.with_name(f"renamed-{p.name}")
+    new = p.with_name(f"scn-renamed-{p.name}")
     os.rename(p, new)
     record("renamed", new, "The old path is gone and the new one is indexed; its content is already known",
            was=str(p.relative_to(lib)))
@@ -814,7 +826,7 @@ def change(args):
 
     # New duplicates of photos already copied.
     for i, src in enumerate(candidates[:3]):
-        dest = lib / "scenarios" / "new-duplicates" / f"again-{i}-{src.name}"
+        dest = lib / "scenarios" / "new-duplicates" / f"scn-new-duplicate-{i}-{src.name}"
         dest.parent.mkdir(parents=True, exist_ok=True)
         os.link(src, dest)
         record("new_duplicate", dest, "A new exact duplicate of a photo already copied: skipped",
@@ -842,7 +854,7 @@ def change(args):
         back = lib / "scenarios" / "came-back"
         if moved:
             src = rng.choice(moved)
-            dest = back / f"after-move-{src.name}"
+            dest = back / f"scn-came-back-after-move-{src.name}"
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
             record_altered(dest)
@@ -856,7 +868,7 @@ def change(args):
                           if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS)
         if rejected:
             src = rng.choice(rejected)
-            dest = back / f"after-reject-{src.name}"
+            dest = back / f"scn-came-back-after-reject-{src.name}"
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
             record_altered(dest)
