@@ -496,6 +496,13 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 
 ## Navigation refinement
 
+- [x] UI alignment/stability pass: separate filtered-log exports from filters, align
+  log input edges and shared inline controls, keep small-image settings and preview
+  zoom/rotation controls stationary, and reuse the confirmation action-row spacing.
+- [ ] Maintainer visual acceptance of the alignment/stability pass: Logs, reminder
+  settings, comparison zoom/rotation, and narrow/zoomed layouts. Automated results
+  are recorded in the private handoff; these do not replace visual acceptance.
+
 - [ ] Future UX discussion: the full-screen view opened by clicking the large Inspector
   preview feels visually cluttered, particularly the photo information displayed with
   it. Review the photo/metadata layout and shared styling before deciding changes.

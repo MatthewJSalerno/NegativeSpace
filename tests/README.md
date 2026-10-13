@@ -877,8 +877,40 @@ harness with the built `IMAGE`/`WEB_IMAGE`. Generated photos plus one invalid im
 exercise real job failures. It measures filter, summary and pager positions before and
 after settled status/reason changes (1px tolerance) at 1440, 1000 and 720px; checks the
 Logs navigation position across Library, Logs and Stats; and verifies filtered counts.
-Set `SHOTS` to inspect the reserved spacing. This covers routine filter transitions,
+It also checks separate filtered-log exports, aligned search/date fields, and a stable
+small-image minimum/hint/footer while reminders toggle On/Off in light/dark and narrow
+layouts. The similarity driver checks that zoom/rotation/reset leave preview details
+and Keep controls stationary, with position sliders disabled at 1×. The access driver
+checks spacing/reflow in its nested confirmation. Set `SHOTS` to inspect the reserved
+spacing. This covers routine filter transitions,
 not intentional expansion of jobs, errors, Inspectors or similarity tools.
+
+### UI alignment validation
+
+These are new spot-checks; previously accepted metadata tests do not need repeating.
+
+1. **Logs**
+   - **1a.** Open Logs. CSV/JSON belong beside the heading under **Export filtered log**;
+     the search and From/To fields have aligned edges.
+   - **1b.** Choose **Failed → only**, then **All statuses**. Filters and job-list controls
+     stay in position after the results settle. Export still follows the chosen filters.
+2. **Settings**
+   - **2a.** Open Settings → Files. Toggle Small-image reminders On, Off, then On.
+     The minimum stays visible, disabled while Off; the explanation and controls below
+     do not jump. Close Settings without saving to retain the original setting.
+   - **2b.** Check the file-type input/Add file type row and the Backups tab: buttons and
+     supporting text align and wrap without stretched buttons. No backup is needed.
+3. **Comparison**
+   - **3a.** In Library → Has similar photos, open any matching photo (search
+     `scn-orientation` in the demo scenarios), choose Similar photos, then Review side
+     by side. Change the reference zoom from 1× to 2×: position sliders enable without
+     moving dimensions or Keep. Rotate, then Reset view: the same rows stay in place.
+   - **3b.** The minimum-similarity/Refresh controls stay separate from the photo's
+     Keep and Reject actions. Rotation/zoom apply only to the preview.
+4. **Reflow**
+   - **4a.** Repeat the visual checks in light/dark mode and at 200% browser zoom or a
+     narrower desktop window. Controls may wrap; labels/buttons should not overlap or
+     clip. Reference/candidate headings and previews align when displayed side by side.
 
 Fresh-start/source eligibility checks:
 

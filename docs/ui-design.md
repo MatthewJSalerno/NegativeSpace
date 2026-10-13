@@ -108,6 +108,16 @@ preview and confirmation controls. Navigation goes to its named destination/tab.
 | Supplemental help | `Tip.tsx`: hover/focus plus an explicit information button for touch; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. |
 | Paged loading | `ui/PageBoundary.tsx` and `paged.ts`: idle/load, pending, failed/retry and end states. Keep already-loaded photos and selection on failure. |
 
+Keep filters and viewing controls in their own groups. File-changing actions (Keep,
+Reject, edits) belong with the affected photo; exports belong in the page action group,
+not among search/date/status filters. Refresh comparison is a viewing control. The Logs
+heading carries a labelled **Export filtered log** group; both export formats retain
+all active filters. Shared `page-heading`/`page-actions` rows wrap and align their targets.
+
+Inline field/action rows center their contents and wrap without stretching a button
+against multiline supporting text. Confirmation footers use the shared `settings-actions`
+row, including nested confirmations; do not invent an unstyled action container.
+
 ## Page frame
 
 Decided with the maintainer (2026-10-08), after Immich's web app and drawn in the
@@ -274,6 +284,15 @@ when Expand all disappears. Gallery counts and filter actions share a stable sum
 row; grouping controls have their own wrapping row when similarity is active. Reserve
 space beside the sidebar's Look into heading for Clear all filters, even when hidden. Longer user-entered
 filters may wrap naturally; do not hide meaningful restrictions to force a height.
+
+Dependent controls that will be used repeatedly stay mounted when unavailable:
+Settings keeps the small-image minimum visible but disabled while reminders are off.
+Preview position sliders stay visible but disabled at 1×; zoom and rotation keep the
+recorded dimensions and photo decisions stationary. The rotation note always shows
+the current viewing rotation, including 0°, and says it does not save to the file.
+Preview heading space accounts for the action button at the current text size, so
+reference and candidate images align at 200% text scaling too. These controls size
+naturally and wrap at narrow widths; no fixed-height clipping.
 
 Adding substantive controls (such as similarity tools), opening a job or Inspector,
 and revealing an error can legitimately change content. Routine helper text alone

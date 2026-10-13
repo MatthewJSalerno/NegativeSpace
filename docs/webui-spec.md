@@ -1298,6 +1298,9 @@ Users can view exact system error strings (e.g., `PermissionError`, `ChecksumMis
 
 ### 5.4 Operations Audit Log (`/logs`)
 
+CSV/JSON links live in a labelled **Export filtered log** action group beside the page
+heading, separate from search and date filters. Downloads still use the current filters.
+
 Failure guidance replaces the general introduction in a shared, naturally sized area;
 selecting Failed does not insert a new row above the filters. The active-filter summary
 always occupies its row, showing **Showing all log entries** when unrestricted.
