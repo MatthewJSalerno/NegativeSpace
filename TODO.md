@@ -511,7 +511,7 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
   verification filter Test 5a passed.
 - [x] Suspend Library-only filters and pin highlights in source views; remember the
   Library choices per tab and restore them on sidebar return, without overriding URLs.
-- [ ] Maintainer validation of revised Test 5b: source navigation and restored filters.
+- [x] Maintainer validated revised Test 5b: source navigation and restored filters.
 - [ ] Filter-count UX follow-up: distinguish an actual zero from an unavailable count
   or incompatible filter; explain restrictions without misleading zero totals.
 

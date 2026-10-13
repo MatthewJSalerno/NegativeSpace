@@ -923,8 +923,8 @@ These are new spot-checks; previously accepted metadata tests do not need repeat
      Shared search/date filters retain their existing behavior. Source import failures
      remain under Not organized → Needs attention. Zero is valid; do not create a failure.
 
-Maintainer accepted alignment checks 1a–4a and verification check 5a. The revised
-source-navigation check 5b is the only outstanding manual check for this batch.
+Maintainer accepted alignment checks 1a–4a, verification check 5a, and revised
+source-navigation check 5b. Manual validation is complete for this batch.
 
 Automated source-filter checks passed: filter pins, file-attention recovery, and
 cross-location browser workflows, plus the frontend build and all three contract
