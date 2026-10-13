@@ -26,7 +26,7 @@ const PLACES: { view: PlaceView; label: string }[] = [
   { view: "rejects", label: "Rejects" },
 ];
 // Where each filter opens from Logs and Stats: Library with only it on; Review later is
-// Needs review's.
+// Needs review's. Source attention has its own navigation entry under Not organized.
 const LOOK: { key: LookInto; label: string; href: string }[] = [
   { key: "similar", label: "Has similar photos", href: "/?view=organized&similar=1" },
   { key: "suspicious", label: "Suspicious dates", href: "/?view=organized&suspicious=1" },
@@ -71,6 +71,7 @@ export function Sidebar({ current, version, matchMin, refresh, filters, onPlace,
     if (view && onPlace && plainClick(e)) { e.preventDefault(); onPlace(view); }
     else follow(e);
   };
+  const attentionCurrent = current.place === "unorganized" && filters?.on.attention;
   const content = (label: string, n: number | undefined) => <>
     <span>{label}</span>{" "}
     {n !== undefined && <span className="sidebar-count">{count(n)}</span>}
@@ -92,7 +93,7 @@ export function Sidebar({ current, version, matchMin, refresh, filters, onPlace,
       <button type="button" className="filter-pin" aria-pressed={f.pinned.includes(l.key)}
               aria-label={`${f.pinned.includes(l.key) ? "Unpin" : "Pin"} ${l.label}`}
               aria-disabled={why && !f.pinned.includes(l.key) ? true : undefined}
-              title={f.pinned.includes(l.key) ? why ? `Pinned, unavailable here: ${why} Click to unpin.` : !f.on[l.key] ? "Pinned, not applied to this link. Click the filter to apply; click the pin to unpin." : "Pinned: keep this filter while browsing others. Click to unpin."
+              title={f.pinned.includes(l.key) ? why ? `Pinned, unavailable here: ${why} Click to unpin.` : !f.on[l.key] ? "Pinned, not applied to this link. Click the filter to apply; click the pin to unpin." : "Pinned: keep this filter while browsing others. Click to unpin and turn off this filter."
                 : why ?? "Pin this filter to keep it while browsing others."}
               onClick={() => { if (!why || f.pinned.includes(l.key)) f.onPin(l.key); }}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -105,10 +106,14 @@ export function Sidebar({ current, version, matchMin, refresh, filters, onPlace,
   return (
     <nav id="sidebar" className="sidebar" aria-label="Main">
       {PLACES.map((p) => <Fragment key={p.view}>
-        {link(`/?view=${p.view}`, p.label, current.place === p.view, counts?.places[p.view], p.view)}
+        {link(`/?view=${p.view}`, p.label, current.place === p.view && !attentionCurrent, counts?.places[p.view], p.view)}
         {/* The source's folders, under the place whose photos are still in them. */}
         {p.view === "unorganized" && <a href="/?view=unorganized&tree=1" className="sidebar-sub"
            aria-current={current.sourceFolders ? "page" : undefined} onClick={(e) => go(e)}><span>Source folders</span></a>}
+        {p.view === "unorganized" && <a href="/?view=unorganized&reason=attention" className="sidebar-sub"
+           aria-current={attentionCurrent ? "page" : undefined} onClick={(e) => go(e)}>
+          {content("Needs attention", counts?.look_into.attention)}
+        </a>}
       </Fragment>)}
       <div className="sidebar-filter-heading">
         <h2 className="sidebar-heading" id="look-into">Look into</h2>

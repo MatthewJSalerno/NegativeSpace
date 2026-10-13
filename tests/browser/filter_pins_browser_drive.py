@@ -11,7 +11,7 @@ with sync_playwright() as p:
     request = p.request.new_context(base_url=base)
     assert request.post('/api/v1/catalog').ok
     settings = request.get('/api/v1/settings').json()
-    values = {'small_image_min': 800, 'suspicious_min_year': 2024}
+    values = {'small_image_min': 800, 'suspicious_min_year': 2020}
     response = request.put('/api/v1/settings', data={'values': values,
         'revisions': {key: settings[key]['revision'] for key in values}})
     assert response.ok, response.text()
@@ -39,6 +39,76 @@ with sync_playwright() as p:
     clear = main.get_by_role('button', name='Clear all filters', exact=True)
     expect(clear).not_to_be_visible()
     initial_filter_y = choose('Has similar photos').bounding_box()['y']
+    # The sidebar owns an unfiltered place's total. A filter shows one matching/whole
+    # total, and removing two pins updates the real rows, URL and chip counts each time.
+    whole = request.get('/api/v1/photos?view=organized').json()
+    total = whole['total']
+    summary = page.locator('.gallery-result-count')
+    library_count = main.get_by_role('link', name=re.compile('^Library')).locator('.sidebar-count')
+    expect(library_count).to_have_text(f'{total:,}')
+    expect(page.locator('.card')).to_have_count(min(60, total))
+    expect(summary).to_have_count(0)
+    expect(page.locator('.pager').get_by_text(f'{total:,} photos', exact=True)).to_have_count(0)
+    baseline_gallery_y = page.locator('.gallery-head').bounding_box()['y']
+    if os.environ.get('SHOTS'): page.screenshot(path=f"{os.environ['SHOTS']}/gallery-unfiltered-count.png")
+    pin('Has similar photos').click()
+    pin('Suspicious dates').click()
+    combined = request.get('/api/v1/photos?view=organized&similar=true&suspicious=true&match_min=90&filter_pins=similar,suspicious').json()
+    assert 0 < combined['total'] < total, 'The fixture must exercise a real restriction'
+    expect(summary).to_have_text(f"Showing {combined['total']:,} of {total:,} photos")
+    for label in ('Has similar photos', 'Suspicious dates'):
+        expect(unpin(label)).to_have_attribute('aria-pressed', 'true')
+        expect(choose(label).locator('.sidebar-count')).to_have_text(f"{combined['total']:,}")
+    unpin('Has similar photos').click()
+    suspicious_only = request.get('/api/v1/photos?view=organized&suspicious=true&filter_pins=suspicious').json()
+    expect(choose('Has similar photos')).to_have_attribute('aria-pressed', 'false')
+    expect(choose('Suspicious dates')).to_have_attribute('aria-pressed', 'true')
+    expect(summary).to_have_text(f"Showing {suspicious_only['total']:,} of {total:,} photos")
+    expect(choose('Suspicious dates').locator('.sidebar-count')).to_have_text(f"{suspicious_only['total']:,}")
+    expect(choose('Has similar photos').locator('.sidebar-count')).to_have_text(f"{suspicious_only['chips']['similar']:,}")
+    expect(page).not_to_have_url(re.compile(r'[?&]similar=1'))
+    expect(page).to_have_url(re.compile(r'[?&]suspicious=1'))
+    expect(page.locator('.card')).to_have_count(min(60, suspicious_only['total']))
+    # One-filter gallery position stays stable when its pin turns it off.
+    filtered_gallery_y = page.locator('.gallery-head').bounding_box()['y']
+    unpin('Suspicious dates').click()
+    for label in ('Has similar photos', 'Suspicious dates'):
+        expect(choose(label)).to_have_attribute('aria-pressed', 'false')
+        expect(pin(label)).to_have_attribute('aria-pressed', 'false')
+    expect(choose('Suspicious dates').locator('.sidebar-count')).to_have_text(f"{whole['chips']['suspicious']:,}")
+    expect(page.locator('.card')).to_have_count(min(60, total))
+    expect(summary).to_have_count(0)
+    expect(clear).not_to_be_visible()
+    assert abs(page.locator('.gallery-head').bounding_box()['y'] - filtered_gallery_y) < 1
+    assert abs(page.locator('.gallery-head').bounding_box()['y'] - baseline_gallery_y) < 1
+    expect(library_count).to_have_text(f'{total:,}')
+    page.reload()
+    expect(page.locator('.card')).to_have_count(min(60, total))
+    expect(summary).to_have_count(0)
+    for label in ('Has similar photos', 'Suspicious dates'):
+        expect(choose(label)).to_have_attribute('aria-pressed', 'false')
+        expect(pin(label)).to_have_attribute('aria-pressed', 'false')
+    # Capture-date filtering must not show a misleading file-timestamp year panel.
+    page.goto(base + '/?view=organized&sort=newest')
+    expect(page.locator('.scrubber')).to_be_visible()
+    choose('No capture date').click()
+    expect(page.locator('.scrubber')).to_have_count(0)
+    expected_undated = request.get('/api/v1/photos?view=organized&undated=true').json()['total']
+    expect(summary).to_have_text(f'Showing {expected_undated:,} of {total:,} photos')
+    pin('No capture date').click()
+    choose('Small images').click()
+    expect(choose('No capture date')).to_have_attribute('aria-pressed', 'true')
+    expect(page.locator('.scrubber')).to_have_count(0)
+    page.reload()
+    expect(choose('No capture date')).to_have_attribute('aria-pressed', 'true')
+    expect(page.locator('.scrubber')).to_have_count(0)
+    expect(summary).to_have_text(re.compile(r'^Showing [\d,]+ of [\d,]+ photos$'))
+    expect(page.locator('.card').first).to_be_visible()
+    if os.environ.get('SHOTS'): page.screenshot(path=f"{os.environ['SHOTS']}/no-capture-date.png")
+    unpin('No capture date').click()
+    expect(choose('Small images')).to_have_attribute('aria-pressed', 'true')
+    expect(page.locator('.scrubber')).to_be_visible()
+    clear.click()
     # Review later is available and counted immediately in Library, even at zero.
     expect(choose('Review later')).not_to_have_attribute('aria-disabled', 'true')
     expect(choose('Review later').locator('.sidebar-count')).to_have_text('0')
@@ -75,6 +145,48 @@ with sync_playwright() as p:
     expect(page).not_to_have_url(re.compile(r'folder=|q='))
     expect(page).to_have_url(re.compile('tree=1'))
     page.goto(base + '/?view=organized')
+    # Source attention is always an available child link, counted even at zero.
+    attention = main.get_by_role('link', name=re.compile('^Needs attention'))
+    expect(attention.locator('.sidebar-count')).to_have_text('0')
+    expect(main.get_by_role('button', name='Pin Needs attention', exact=True)).to_have_count(0)
+    attention.click()
+    expect(page).to_have_url(re.compile('view=unorganized&reason=attention'))
+    expect(attention).to_have_attribute('aria-current', 'page')
+    main.get_by_role('link', name=re.compile('^Not organized')).click()
+    expect(attention).not_to_have_attribute('aria-current', 'page')
+    # Old attention pins cannot silently hide source photos now that it is navigation.
+    page.evaluate("localStorage.setItem('ns.filterPins', JSON.stringify(['attention']))")
+    page.goto(base + '/?view=unorganized&tree=1&folder=trip%2Fday+1')
+    tree = page.get_by_role('navigation', name='Source folders', exact=True)
+    page.get_by_role('button', name='Still in source', exact=True).click()
+    expect(page).to_have_url(re.compile('folder='))
+    expect(page.locator('.grid .card')).to_have_count(10)
+    page.get_by_role('button', name='Waiting', exact=True).click()
+    expect(page).to_have_url(re.compile('folder='))
+    expect(page).not_to_have_url(re.compile('reason=attention'))
+    page.get_by_role('button', name='Still in source', exact=True).click()
+    # The source scope controls must not cover the tree, including desktop reflow.
+    for width in (1440, 720):
+        page.set_viewport_size({'width': width, 'height': 1000})
+        switch = page.locator('.source-tree > .segmented').bounding_box()
+        folder_box = tree.bounding_box()
+        assert folder_box['y'] >= switch['y'] + switch['height'], (switch, folder_box)
+        if os.environ.get('SHOTS'): page.screenshot(path=f"{os.environ['SHOTS']}/source-navigation-{width}.png")
+    page.set_viewport_size({'width': 1440, 'height': 1000})
+    main.get_by_role('link', name=re.compile('^Library')).click()
+    expect(page).not_to_have_url(re.compile('folder=|tree=|reason=attention'))
+    expect(page.locator('.source-tree')).to_have_count(0)
+    page.get_by_role('button', name='Filters', exact=True).click()
+    expect(page.get_by_role('navigation', name='Dates', exact=True)).to_be_visible()
+    expect(page.get_by_role('navigation', name='Folders', exact=True)).to_have_count(0)
+    expect(page.get_by_role('button', name='Folders', exact=True)).to_have_count(0)
+    page.get_by_role('button', name='Close filters', exact=True).click()
+    # Explicit old destination links cannot leave an invisible source folder filter.
+    page.goto(base + '/?view=organized&folder=does-not-exist')
+    expect(page).not_to_have_url(re.compile('folder='))
+    expect(page.locator('.card-image').first).to_be_visible()
+    page.reload()
+    expect(page).not_to_have_url(re.compile('folder='))
     # Clicking another gallery photo resets the tab; explicit tab URLs still restore.
     page.locator('.card-image').nth(0).click()
     inspector = page.locator('.inspector')
@@ -88,7 +200,7 @@ with sync_playwright() as p:
     baseline = inspector.get_by_role('tab', name='Photo information', exact=True).bounding_box()
     def check_loading_tabs(selected):
         expect(inspector.locator('.inspector-side')).to_have_attribute('aria-busy', 'true')
-        expect(inspector.get_by_role('tab')).to_have_count(2)
+        expect(inspector.get_by_role('tab')).to_have_count(3)
         expect(inspector.get_by_role('tab', name=selected, exact=True)).to_have_attribute('aria-selected', 'true')
         box = inspector.get_by_role('tab', name='Photo information', exact=True).bounding_box()
         assert abs(box['width'] - baseline['width']) < 2, (box, baseline)
@@ -131,6 +243,8 @@ with sync_playwright() as p:
     expect(choose('Review later')).to_have_attribute('aria-disabled', 'true')
     expect(choose('Review later')).to_have_attribute('title', re.compile('Unpin Small images'))
     unpin('Small images').click()
+    expect(choose('Small images')).to_have_attribute('aria-pressed', 'false')
+    expect(choose('Review later')).not_to_have_attribute('aria-disabled', 'true')
     choose('Review later').click()
     expect(choose('Small images')).to_have_attribute('aria-pressed', 'false')
     pin('Review later').click()
@@ -144,6 +258,12 @@ with sync_playwright() as p:
     page.goto(base + '/?view=organized&run=' + str(copied))
     expect(choose('Small images')).to_have_attribute('aria-pressed', 'false')
     expect(unpin('Small images')).to_have_attribute('aria-pressed', 'true')
+    # A saved pin not applied to this job link can be removed without losing its scope.
+    unpin('Small images').click()
+    expect(page).to_have_url(re.compile(r'[?&]run=' + str(copied) + r'(?:&|$)'))
+    expect(choose('Small images')).to_have_attribute('aria-pressed', 'false')
+    expect(pin('Small images')).to_have_attribute('aria-pressed', 'false')
+    pin('Small images').click()
     main.get_by_role('link', name=re.compile('^Library')).click()
     expect(choose('Small images')).to_have_attribute('aria-pressed', 'true')
     main.get_by_role('link', name=re.compile('^Not organized')).click()

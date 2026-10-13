@@ -32,7 +32,8 @@ with sync_playwright() as p:
     page.on('pageerror', lambda e: errors.append(str(e)))
     for path, target, selector in [('/stats', '/api/v1/stats', '.stat-tile'),
                                    ('/logs', '/api/v1/runs', '.logs'),
-                                   ('/', '/api/v1/photos/folders', '.card')]:
+                                   ('/', '/api/v1/photos', '.card'),
+                                   ('/?view=unorganized&tree=1', '/api/v1/photos/folders', '.folder-row')]:
         counts.clear()
         started = time.monotonic()
         page.goto(sys.argv[1] + path)
@@ -41,6 +42,9 @@ with sync_playwright() as p:
         page.wait_for_timeout(2200)
         print(json.dumps({'page': path, 'counts': dict(counts), 'settled_seconds': round(time.monotonic()-started, 3)}), flush=True)
         assert counts[target] == 1, (path, target, counts)
+        if path == '/':
+            # Source folders has its own view; ordinary galleries do not fetch its tree.
+            assert counts['/api/v1/photos/folders'] == 0, counts
     page.goto(sys.argv[1] + '/stats')
     expect(page.locator('.stat-tile').first).to_be_visible()
     page.wait_for_timeout(1200)

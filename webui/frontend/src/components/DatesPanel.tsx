@@ -96,7 +96,8 @@ export function DatesPanel({ timeline, dates, current, oldestFirst, sortedByDate
         <Tip text="Check years or months to show only those. Uncheck them all to show everything."><span className="dates-show-only">Show only</span></Tip>
       </div>
       <p className="dates-status muted">
-        {dates.length === 0 ? "Showing all dates" : <>Showing only {dates.map(dateLabel).join(", ")} · <button className="link" onClick={() => onDates([])}>Show all</button></>}
+        <span title={dates.length ? `Showing only ${dates.map(dateLabel).join(", ")}` : undefined}>{dates.length === 0 ? "Showing all dates" : `Showing only ${dates.map(dateLabel).join(", ")}`}</span>
+        <button className="link" style={{ visibility: dates.length ? undefined : "hidden" }} disabled={!dates.length} aria-hidden={!dates.length || undefined} onClick={() => onDates([])}>Show all</button>
       </p>
       <ul className="dates-tree">
         {years.map(([year, months]) => {

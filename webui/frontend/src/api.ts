@@ -35,7 +35,7 @@ export interface Status {
 // The navigation sidebar's counts (GET /photos/places): each place whole, and each Look
 // into shortcut as Library with only that filter on.
 export type PlaceView = "unorganized" | "organized" | "review" | "rejects";
-export type LookInto = "similar" | "suspicious" | "undated" | "small" | "later" | "issues";
+export type LookInto = "similar" | "suspicious" | "undated" | "small" | "later" | "issues" | "attention";
 export interface Places { places: Record<PlaceView, number>; look_into: Record<LookInto, number> }
 
 // "source": every photo whose original is still in the source (Source folders).
@@ -49,7 +49,34 @@ export const placeOf = (status: string): Place =>
   status === "Rejected" || status === "Rejected_Copied" ? "rejects" : "library";
 export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name" | "matches";
 
+export interface MetadataSourceView {
+  id: string; kind: string; label: string; version_id?: number;
+  fields: Record<string, unknown>; tags: Record<string, unknown>; available: boolean;
+  issues: { code: string; detail?: string }[];
+}
+export interface MetadataView {
+  photo_id: number; primary_id: string | null; sources: MetadataSourceView[];
+  issues: { code: string; detail?: string }[]; recorded: boolean; applied: boolean;
+  notice: string | null; field_sources: Record<string, string>;
+}
+
+export interface DateEditContext {
+  capture_id: number; target: { source_id: string; kind: string; create: boolean };
+  date: { present: boolean; value: string | null }; current_path: string; can_clear: boolean;
+}
+export interface DateEditPreview {
+  edit: Record<string, unknown>; token: string; target: DateEditContext["target"];
+  before: DateEditContext["date"]; after: string; no_change: boolean;
+  filing: { current: string; proposed: string; change: boolean; collision_renamed?: boolean };
+}
+
+export interface MetadataAttention {
+  issues: {code: string; reason: string; files: string[]; detail: string | null}[];
+  action: string;
+}
+
 export interface PhotoItem {
+  metadata_attention?: MetadataAttention | null;
   id: number;
   status: string;
   file_size: number | null;
@@ -75,7 +102,7 @@ export interface ReviewDetail {
 }
 export interface PhotoPage {
   date_min_year: number;
-  index_summary?: { last_index: { id: number; started_at: string } | null; photos: number; ready: number; unfinished: number; duplicates: number; small: number; minimum: number | null; unknown_dimensions: number; suspicious: number; undated: number; failed: number; similar: null } | null;
+  index_summary?: { last_index: { id: number; started_at: string } | null; photos: number; ready: number; unfinished: number; metadata_held?: number; duplicates: number; small: number; minimum: number | null; unknown_dimensions: number; suspicious: number; undated: number; failed: number; similar: null } | null;
   elsewhere?: Record<string, number>;
   chips?: Record<string, number>;
   reasons?: Record<string, number>;
@@ -195,6 +222,7 @@ export interface FileIssue {
 }
 
 export interface PhotoDetail {
+  metadata_attention?: MetadataAttention | null;
   issues: FileIssue[];
   failure: string | null;
   visual_issue: string | null;
@@ -708,6 +736,10 @@ export const api = {
   lineage: (id: number) => request<Lineage>("GET", `/api/v1/photos/${id}/lineage`),
   fileIssues: (id: number) => request<{items: FileIssue[]}>("GET", `/api/v1/photos/${id}/issues`),
   checkIssue: (issue_id: number, request_id: string) => request<Run>("POST", "/api/v1/issues/check", {issue_id,request_id}),
+  dateContext: (id: number) => request<DateEditContext>("GET", `/api/v1/photos/${id}/date-edit`),
+  datePreview: (id: number, body: { capture_id: number; value?: string; donor_id?: string }) => request<DateEditPreview>("POST", `/api/v1/photos/${id}/date-preview`, body),
+  saveDate: (id: number, preview: DateEditPreview) => submitJob(`/api/v1/photos/${id}/date-save`, { edit: preview.edit, token: preview.token }),
+  metadata: (id: number) => request<MetadataView>("GET", `/api/v1/photos/${id}/metadata`),
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   answerQuestion: (id: number, question: SafetyQuestion, answer: SafetyAnswer) =>
     submitJob(`/api/v1/runs/${id}/answer`, { question, answer }),

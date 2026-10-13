@@ -1,7 +1,7 @@
 """Read-only edit plans and first-sidecar construction; no file publication or edits.
 
-Common-field edits are validated as one request. Catalog previews are not
-filesystem verification, collision reservations or authorization to execute a plan.
+Common-field edits are validated as one request. Catalog previews observe destination
+names for refiling, but do not verify file contents, reserve names or authorize execution.
 """
 import base64
 import contextlib
@@ -9,11 +9,12 @@ import copy
 from datetime import datetime
 import hashlib
 import json
+import os
 from pathlib import PurePosixPath, Path
 import re
 from xml.sax import saxutils
 
-from engine import metadata, metadata_adapter, metadata_capture, metadata_decisions, metadata_gps, metadata_save, ns_db, xmp
+from engine import metadata, metadata_adapter, metadata_capture, metadata_decisions, metadata_gps, metadata_save, metadata_transfer, ns_db, xmp
 from engine.metadata import MetadataSource
 
 EDITABLE = frozenset({'date_taken', 'orientation', 'title', 'caption', 'keywords', 'rating', 'creators', 'rights', 'gps'})
@@ -158,6 +159,35 @@ def _folder(fields, original_year):
     return PurePosixPath('library','Undated',f'{original_year:04d}')
 
 
+def write_target(sources, *, primary_id, settings, photo_name):
+    """Resolve the qualified write target without proposing any field changes."""
+    preferences = {**ns_db.METADATA_DEFAULTS, **{k:v for k,v in settings.items() if k in ns_db.METADATA_DEFAULTS}}
+    ns_db.validate_settings(preferences)
+    extension = Path(photo_name).suffix.lower()
+    raw = extension in ns_db.RAW_EXTENSIONS
+    if extension not in ns_db.SUPPORTED_EXTENSIONS:
+        raise ValueError('Metadata writes for this file format are not specified')
+    order = [key for key in ('embedded_xmp','exif') if key in sources]
+    if primary_id is not None:
+        if primary_id not in sources:
+            raise ValueError('The established primary source is unavailable')
+        target = primary_id
+    else:
+        if any(source.get('kind') == 'sidecar_xmp' for source in sources.values()):
+            raise ValueError('Resolve the existing sidecar primary before planning an edit')
+        preference = preferences['metadata_write_raw' if raw else 'metadata_write_non_raw']
+        target = NEW_SIDECAR if preference == 'xmp' else (order[0] if order else 'exif')
+    creating = target == NEW_SIDECAR
+    kind = 'sidecar_xmp' if creating else sources.get(target,{}).get('kind','embedded_exif')
+    if kind not in ('sidecar_xmp','embedded_xmp','embedded_exif'):
+        raise ValueError('Unknown primary source kind')
+    if raw and kind != 'sidecar_xmp':
+        raise ValueError('Embedded RAW editing requires a separately implemented consent and verified-write path')
+    if kind != 'sidecar_xmp' and extension not in ('.jpg','.jpeg','.jpe','.jfif'):
+        raise ValueError('Embedded writing is qualified for JPEG only; choose a sidecar primary explicitly')
+    return target, kind, creating
+
+
 def plan(sources, *, primary_id, changes, settings, photo_name, original_year, current_relative_path, remove_fields=()):
     """Plan changes against captured sources, never mutate them or choose a new donor.
 
@@ -178,32 +208,8 @@ def plan(sources, *, primary_id, changes, settings, photo_name, original_year, c
         raise ValueError('Expected captured source fields')
     remove_fields = _removals(remove_fields, changes)
     changes = _changes(changes) if changes or not remove_fields else {}
-    preferences = {**ns_db.METADATA_DEFAULTS, **{k:v for k,v in settings.items() if k in ns_db.METADATA_DEFAULTS}}
-    ns_db.validate_settings(preferences)
-    extension = name.suffix.lower()
-    raw = extension in ns_db.RAW_EXTENSIONS
-    if extension not in ns_db.SUPPORTED_EXTENSIONS:
-        raise ValueError('Metadata writes for this file format are not specified')
-    order = [key for key in ('embedded_xmp','exif') if key in sources]
-    if primary_id is not None:
-        if primary_id not in sources:
-            raise ValueError('The established primary source is unavailable')
-        before = metadata_capture.resolve(sources,list(sources),primary_id=primary_id)
-        target = primary_id
-    else:
-        if any(source.get('kind') == 'sidecar_xmp' for source in sources.values()):
-            raise ValueError('Resolve the existing sidecar primary before planning an edit')
-        before = metadata_capture.resolve(sources,order)
-        preference = preferences['metadata_write_raw' if raw else 'metadata_write_non_raw']
-        target = NEW_SIDECAR if preference == 'xmp' else (order[0] if order else 'exif')
-    creating = target == NEW_SIDECAR
-    kind = 'sidecar_xmp' if creating else sources.get(target,{}).get('kind','embedded_exif')
-    if kind not in ('sidecar_xmp','embedded_xmp','embedded_exif'):
-        raise ValueError('Unknown primary source kind')
-    if raw and kind != 'sidecar_xmp':
-        raise ValueError('Embedded RAW editing requires a separately implemented consent and verified-write path')
-    if kind != 'sidecar_xmp' and extension not in ('.jpg','.jpeg','.jpe','.jfif'):
-        raise ValueError('Embedded writing is qualified for JPEG only; choose a sidecar primary explicitly')
+    target, kind, creating = write_target(sources, primary_id=primary_id, settings=settings, photo_name=name)
+    before = metadata_capture.resolve(sources, list(sources) if primary_id else [key for key in ('embedded_xmp','exif') if key in sources], primary_id=primary_id)
     removal_edits = _removal_edits(kind, remove_fields)
     if creating and remove_fields:
         raise ValueError('Cannot remove fields from a sidecar that does not exist')
@@ -292,6 +298,35 @@ def _token(result):
     return result
 
 
+def _resolve_filing(result):
+    """Preview a free photo/pair name; this observation does not reserve it.
+
+    Save re-derives this exact preview under the engine lock. A changed path requires
+    new confirmation; execution/recovery never silently suffixes a recorded target.
+    """
+    filing = result['filing']
+    if not filing['change']:
+        return
+    root = Path(result['binding']['destination_root'])
+    wanted = metadata_transfer._path(root, root / filing['proposed'])
+    candidate = wanted
+    counter = 1
+    while True:
+        metadata_transfer._path(root, candidate)
+        sidecar = metadata_transfer._path(root, str(candidate) + '.xmp')
+        if not os.path.lexists(candidate):
+            if os.path.lexists(sidecar):
+                raise ValueError('An XMP occupies the proposed destination without its photo; resolve that destination pair before editing. Nothing was changed.')
+            break
+        if not candidate.is_file():
+            raise ValueError('The proposed photo name is occupied by a non-file; resolve that destination before editing.')
+        candidate = wanted.with_name(f'{wanted.stem}_{counter}{wanted.suffix}')
+        counter += 1
+    if candidate != wanted:
+        filing['proposed'] = candidate.relative_to(root).as_posix()
+        filing['collision_renamed'] = True
+
+
 def preview_catalog(db_path, *, photo_id, capture_id, changes, destination_root, settings=None, remove_fields=()):
     """Read-only identity-bound preview; never silently changes the primary source."""
     sources, primary, year, relative, binding = _catalog_state(db_path, photo_id=photo_id,
@@ -299,6 +334,7 @@ def preview_catalog(db_path, *, photo_id, capture_id, changes, destination_root,
     result = plan(sources, primary_id=primary, changes=changes, settings=binding['settings'],
         photo_name=Path(relative).name, original_year=year, current_relative_path=relative, remove_fields=remove_fields)
     result['binding'] = binding
+    _resolve_filing(result)
     return _token(result)
 
 

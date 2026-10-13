@@ -38,7 +38,7 @@ export function ReviewNote({ id, refreshKey, disabled = false, reason = "all", o
   };
   const photoActions = detail && detail.location === "Library" && (
       <div className="photo-actions" role="group" aria-label="Photo actions">
-        {compact && onOpenReview && (detail.reasons.length > 0 || concerns.length > 0) && <button onClick={onOpenReview}>Review photo…</button>}
+        {compact && onOpenReview && (detail.reasons.length > 0 || concerns.length > 0) && <button onClick={onOpenReview}>Inspect photo…</button>}
         {!compact && detail.reasons.filter(n => reason === "all" || n.reason === reason).map(n => <button key={n.reason}
           disabled={busy || disabled || !!pending.current} title={disabled ? "Wait for the running job to finish." : undefined}
           onClick={() => void decide(n.reason, n.reason === "small" ? "reviewed" : "done")}>{n.reason === "small" ? "Mark reviewed" : "Done"}</button>)}

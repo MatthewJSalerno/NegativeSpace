@@ -21,7 +21,7 @@ function pageList(page: number, pages: number): (number | "gap")[] {
 // Positions in a large list: first/last, numbered pages, a go-to box, and a size. The
 // gallery scrolls on through pages (`continuous`: the size is how many load at a time);
 // the log shows one page at a time. Either way a page number is a place a refresh returns to.
-export function Pager({ page, pages, total, pageSize, onPage, onPageSize, sizes = PAGE_SIZES, noun = "photo", nouns, continuous }: {
+export function Pager({ page, pages, total, pageSize, onPage, onPageSize, sizes = PAGE_SIZES, noun = "photo", nouns, continuous, showTotal = true }: {
   page: number;
   pages: number;
   total: number;
@@ -33,6 +33,8 @@ export function Pager({ page, pages, total, pageSize, onPage, onPageSize, sizes 
   nouns?: string;
   // The gallery scrolls on through pages: the size is how many load at a time.
   continuous?: boolean;
+  // A parent summary may already provide the relevant total.
+  showTotal?: boolean;
 }) {
   const [goto, setGoto] = useState("");
   const go = () => {
@@ -59,7 +61,7 @@ export function Pager({ page, pages, total, pageSize, onPage, onPageSize, sizes 
               aria-label={continuous ? `${cap(nouns ?? `${noun}s`)} loaded at a time` : `${cap(nouns ?? `${noun}s`)} per page`}>
         {sizes.map((n) => <option key={n} value={n}>{continuous ? `Load ${n} at a time` : `${n} per page`}</option>)}
       </select>
-      <span className="muted">{plural(total, noun, nouns)}</span>
+      {showTotal && <span className="muted">{plural(total, noun, nouns)}</span>}
     </nav>
   );
 }

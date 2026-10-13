@@ -176,37 +176,33 @@ with sync_playwright() as p:
     expect(page).to_have_url(re.compile(r"page=2\b"))
     expect(page.locator(".pager").first.locator("button.current")).to_have_text("2")
     page.goto(BASE + "/?view=all")
-    # Folders, the Filters panel's default: the source's folders as catalogued, a chain of
-    # single folders as one row, and the files directly in the source folder.
-    filters(page)
-    folders_nav = page.get_by_role("navigation", name="Folders")
-    expect(page.get_by_role("button", name="Folders", exact=True)).to_have_attribute("aria-pressed", "true")
+    # Source folder browsing has one home, under Not organized.
+    page.get_by_role("navigation", name="Main").get_by_role("link", name="Source folders").click()
+    folders_nav = page.get_by_role("navigation", name="Source folders")
     trip = folders_nav.locator(".folder-row", has_text="trip / day 1")
     expect(trip.locator(".dates-count")).to_have_text("10")
     expect(folders_nav.locator(".folder-row", has_text="Files in the source folder").locator(".dates-count")).to_have_text(f"{PHOTOS - 10:,}")
     trip.get_by_role("checkbox").check()
     expect(page.locator(".gallery-filters")).to_contain_text(f"Showing 10 of {PHOTOS} photos")
     expect(page).to_have_url(re.compile(r"folder=trip"))
-    # One folder shown: Jobs offers it, however many photos it holds.
     item = open_actions(page, "Copy").get_by_role("menuitem", name=re.compile(r"^Copy this folder: trip \/ day 1 \(10\)"))
     expect(item).to_be_enabled()
     item.click()
     expect(page.get_by_role("alertdialog")).to_contain_text("Copy the photos under trip / day 1?")
     page.keyboard.press("Escape")
     # Two folders: "this folder" waits for one, and says why.
-    filters(page)
     folders_nav.get_by_label("Show only the files in the source folder").check()
     item = open_actions(page, "Copy").get_by_role("menuitem", name=re.compile(r"^Copy this folder"))
     expect(item).to_be_disabled()
     expect(item).to_contain_text("Show one folder to act on it.")
     page.keyboard.press("Escape")
-    close_filters(page)
+    page.keyboard.press("Escape")  # Close the parent Jobs menu after its submenu.
     page.locator(".gallery-filters").get_by_role("button", name="Show all folders").click()
     expect(page).not_to_have_url(re.compile(r"folder="))
-    # Dates, the other way to browse; this browser remembers the choice.
+    page.goto(BASE + "/?view=all")
     filters(page)
-    page.get_by_role("button", name="Dates", exact=True).click()
     expect(page.get_by_role("navigation", name="Dates")).to_be_visible()
+    expect(page.get_by_role("navigation", name="Folders", exact=True)).to_have_count(0)
     page.get_by_role("button", name="Close filters", exact=True).click()
     # Continuous scrolling: past the first page the next loads below it, and the page
     # number and the address follow the photos on top.
@@ -266,12 +262,12 @@ with sync_playwright() as p:
     page.locator(".gallery-filters").get_by_role("button", name=f"Select these {OLDER}").click()
     expect(page.locator(".selection-line")).to_contain_text(f"{OLDER} photos selected")
     page.locator(".selection-line").get_by_role("button", name="Clear selection").click()
-    expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
+    expect(page.locator(".gallery-result-count")).to_have_text(f"Showing {OLDER} of {PHOTOS} photos")
     expect(place_count(page, "Not organized")).to_have_text(f"{PHOTOS:,}")   # the whole place, whatever the filters
     filters(page)
     expect(dates.get_by_role("button", name="2023", exact=True)).to_be_visible()   # counts ignore the filter
     page.reload()
-    expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
+    expect(page.locator(".gallery-result-count")).to_have_text(f"Showing {OLDER} of {PHOTOS} photos")
     # A date outside the filter says so and offers the fixes as buttons that apply them.
     filters(page)
     dates.get_by_role("button", name="2023", exact=True).click()
@@ -310,7 +306,7 @@ with sync_playwright() as p:
     filters(page)
     expect(year_names.first).to_have_accessible_name("2019")
     page.get_by_label("Sort").select_option("newest")
-    expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS} photos")
+    expect(page.locator(".gallery-result-count")).to_have_text(f"{PHOTOS} photos")
     shot("2b-dates")
     page.locator(".pager").first.get_by_label("Photos loaded at a time").select_option("120")
     expect(page).to_have_url(re.compile(r"size=120"))
@@ -323,8 +319,8 @@ with sync_playwright() as p:
     expect(inspector).to_contain_text("Not yet organized")
     expect(inspector).to_contain_text("Proposed destination path")
     expect(inspector.locator(".inspector-image img:not([style*='none'])")).to_be_visible(timeout=15_000)
-    expect(inspector).to_contain_text("Photo EXIF information")
-    expect(inspector).to_contain_text("Not in the photo's EXIF")
+    expect(inspector).to_contain_text("Additional file information")
+    expect(inspector.get_by_role("tab",name="Metadata",exact=True)).to_be_visible()
     expect(inspector).not_to_contain_text("File created")
     expect(inspector).to_contain_text("File modified")
     # The file's time says what it is for, briefly; how it was recorded is on hover.
@@ -336,21 +332,22 @@ with sync_playwright() as p:
     expect(history).to_contain_text("Indexed")
     expect(history.locator("h3")).to_have_text("History (1)")
     expect(inspector.get_by_role("link", name="History", exact=True)).to_have_count(0)   # one place, not two
+    inspector.locator("summary",has_text="Technical details").click()
     widths = inspector.locator("table.info").evaluate_all("ts => ts.map(t => Math.round(t.getBoundingClientRect().width))")
     assert len(widths) == 3 and len(set(widths)) == 1, f"the information tables differ in width: {widths}"
-    # Show all metadata: every tag recorded, folded until asked for, with a filter, inside
-    # the EXIF section it extends.
-    exif = inspector.locator(".info-section", has=page.get_by_role("heading", name="Photo EXIF information"))
-    exif.get_by_role("button", name=re.compile(r"^Show all metadata \(\d+ tags\)")).click()
+    # Show file details: every tag recorded, folded until asked for, with a filter, inside
+    # the Additional file information section.
+    exif = inspector.locator(".info-section", has=page.get_by_role("heading", name="Additional file information"))
+    exif.get_by_role("button", name=re.compile(r"^Show file details \(\d+ fields\)")).click()
     expect(inspector.locator(".meta-table")).to_contain_text("ImageWidth")
     # Scrolled to the last tag, Hide stays in reach, below the panel's own title bar.
     inspector.locator(".meta-table tr").last.scroll_into_view_if_needed()
-    hide = inspector.get_by_role("button", name="Hide all metadata")
+    hide = inspector.get_by_role("button", name="Hide file details")
     expect(hide).to_be_in_viewport()
     title_bottom = inspector.locator(".inspector-head").bounding_box()
     title_bottom = title_bottom["y"] + title_bottom["height"]
     assert hide.bounding_box()["y"] >= title_bottom - 1, "the metadata header slid under the panel's title bar"
-    inspector.get_by_label("Filter the metadata").fill("ImageWidth")
+    inspector.get_by_label("Filter file details").fill("ImageWidth")
     expect(inspector.locator(".meta-table tr")).to_have_count(1)
     hide.click()
     shot("3-inspector")
@@ -360,7 +357,7 @@ with sync_playwright() as p:
     inspector.locator(".inspector-image").click()
     lightbox = page.locator(".lightbox")
     expect(lightbox).to_be_visible()
-    expect(lightbox).to_contain_text("Photo EXIF information")
+    expect(lightbox).to_contain_text("Additional file information")
     blur = lightbox.evaluate("e => getComputedStyle(e).backdropFilter")
     assert "blur" in blur, f"the enlarged view does not blur the page behind it: {blur}"
     shot("5-enlarged")
@@ -444,7 +441,7 @@ with sync_playwright() as p:
     line.get_by_role("button", name="Show only selected").click()
     line.get_by_role("button", name="Clear selection").click()
     expect(page.locator(".focus-head")).to_have_count(0)
-    expect(page.locator(".pager").first).to_contain_text(f"{OLDER} photos")
+    expect(page.locator(".gallery-result-count")).to_have_text(f"Showing {OLDER} of {PHOTOS} photos")
     filters(page)
     only_2019.uncheck()
     checks.nth(0).click()
@@ -760,7 +757,7 @@ with sync_playwright() as p:
     widths = labels.evaluate_all(where)
     undated_filter.click()
     expect(page).to_have_url(re.compile(r"undated=1"))
-    expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS - 2:,} photos")
+    expect(page.locator(".gallery-result-count")).to_have_text(f"Showing {PHOTOS - 2:,} of {PHOTOS:,} photos")
     # The places count the whole place, and their labels stay put.
     expect(undated_filter).to_have_attribute("aria-pressed", "true")
     expect(place_count(page, "Library")).to_have_text(library)
@@ -779,15 +776,16 @@ with sync_playwright() as p:
     expect(page).not_to_have_url(re.compile(r"undated=1|date="))
     expect(page).to_have_url(re.compile(r"q=photo"))
     expect(page.get_by_role("searchbox", name="Search filenames")).to_have_value("photo")
-    expect(page.locator(".pager").first).to_contain_text(f"{PHOTOS:,} photos")
+    expect(page.locator(".gallery-result-count")).to_have_text(f"Showing {PHOTOS:,} of {PHOTOS:,} photos")
 
     # A photo with an EXIF date: shown from EXIF, one note for the missing time zone.
     page.get_by_role("searchbox", name="Search filenames").fill("photo-000")
     expect(page.locator(".card")).to_have_count(1, timeout=5_000)
     page.locator(".card-image").first.click()
     expect(inspector).to_contain_text("2023-01-15 09:30:00")
-    expect(inspector.locator(".info-section", has=page.get_by_role("heading", name="Photo EXIF information"))
-           .locator(".section-note")).to_contain_text("recorded no time zone")
+    inspector.get_by_role("tab",name="Metadata",exact=True).click()
+    expect(inspector.locator(".metadata-sources")).to_contain_text("Dates are shown as recorded; no time zone is assumed.")
+    inspector.get_by_role("tab",name="Photo information",exact=True).click()
     expect(inspector.locator("th", has_text="*")).to_have_count(0)
     # Its lineage has a duplicate branch; the duplicate's path opens that photo.
     inspector.get_by_role("button", name="View lineage tree").click()
@@ -814,7 +812,7 @@ with sync_playwright() as p:
     page.get_by_role("navigation", name="Main").get_by_role("link", name="Source folders").click()
     expect(page).to_have_url(re.compile(r"tree=1"))
     tree = page.get_by_role("navigation", name="Source folders")
-    expect(tree.locator(".folder-row.empty", has_text="trip / day 1")).to_be_visible()
+    expect(tree.locator(".folder-row.folder-empty", has_text="trip / day 1")).to_be_visible()
     page.get_by_role("button", name="Still in source", exact=True).click()
     expect(page).to_have_url(re.compile(r"view=source"))
     expect(tree.locator(".folder-row", has_text="trip / day 1").locator(".dates-count")).to_have_text("10")

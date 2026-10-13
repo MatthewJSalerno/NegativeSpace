@@ -17,7 +17,7 @@ from . import catalog
 # happened, which are failures, and which are deliberate non-actions.
 _SUCCESS = {"indexed", "duplicates", PhotoStatus.COPIED, PhotoStatus.COMPLETED,
             PhotoStatus.FOUND_AT_DESTINATION, PhotoStatus.REMOVED_DUPLICATE, "made", "ok", "Compared", OPERATION_RENAMED,
-            PhotoStatus.REJECTED, PhotoStatus.REJECTED_COPIED, OPERATION_RETURNED}
+            PhotoStatus.REJECTED, PhotoStatus.REJECTED_COPIED, OPERATION_RETURNED, "Metadata_Saved"}
 _FAILURE = {"failed", PhotoStatus.FAILED, "missing", "changed", "unreadable"}
 _SKIPPED = {"unchanged", OPERATION_SKIPPED, "already", "kept", "Already_Gone", "unknown"}
 _REQUESTED_PHASES = {"INDEX": ("scanning", "checking_destination"), "COPY": ("scanning", "transferring"),
@@ -57,7 +57,8 @@ def _outcome(conn, run: dict, progress: list) -> dict:
     earlier work and run-level issues by construction (engine-spec 4.3). For a Copy or
     Move the transfer phases are the requested work, plus prerequisite scan failures
     that prevented a photo from reaching those phases. Successful scans are not
-    deliveries and must not count the same photo twice.
+    deliveries and must not count the same photo twice. Metadata jobs instead use
+    their journaled photo operations and recorded selections, without progress phases.
     """
     phases = {p["phase"]: p for p in progress}
     wanted = _REQUESTED_PHASES.get(run["mode"], ())
@@ -67,6 +68,21 @@ def _outcome(conn, run: dict, progress: list) -> dict:
     for p in main:
         for key, n in p["counts"].items():
             counts[key] = counts.get(key, 0) + n
+    metadata_total = None
+    if run['mode'] == 'METADATA':
+        # Metadata saves journal one requested photo operation rather than scan/
+        # transfer progress. Derive existing and new jobs from that durable evidence.
+        rows = conn.execute("SELECT o.status, (SELECT e.outcome FROM operation_events e "
+            "WHERE e.operation_id=o.id AND e.step='metadata_request' ORDER BY e.event_id DESC LIMIT 1) "
+            "FROM operations o WHERE o.run_id=? AND o.photo_id IS NOT NULL", (run['id'],)).fetchall()
+        counts = {}
+        for status, requested_outcome in rows:
+            if status == 'Completed':
+                status = 'Metadata_Saved' if requested_outcome in (None, 'completed') else 'Skipped'
+            if status in _SUCCESS | _FAILURE | _SKIPPED | {OPERATION_CANCELLED}:
+                counts[status] = counts.get(status, 0) + 1
+        selected = conn.execute('SELECT COUNT(*) FROM run_selections WHERE run_id=?', (run['id'],)).fetchone()[0]
+        metadata_total = max(selected, len(rows))
     scan_failed = 0
     if run["mode"] in ("COPY", "MOVE"):
         # The engine excludes failed scan results from both transfer and duplicate
@@ -88,6 +104,9 @@ def _outcome(conn, run: dict, progress: list) -> dict:
         "AND reconciles_operation_id IS NULL", (run["id"], PhotoStatus.FAILED)).fetchone()[0]
     recovered = conn.execute("SELECT COUNT(*) FROM operations WHERE run_id = ? AND "
                              "reconciles_operation_id IS NOT NULL AND status NOT IN ('Failed','Cancelled')", (run["id"],)).fetchone()[0]
+    if run['mode'] == 'METADATA':
+        # An explicit metadata retry is this job's requested work, not background recovery.
+        recovered = 0
     skip_reasons = {}
     for (message,) in conn.execute("SELECT error_message FROM operations WHERE run_id = ? AND status = ? "
                                    "AND reconciles_operation_id IS NULL", (run["id"], OPERATION_SKIPPED)):
@@ -123,6 +142,8 @@ def _outcome(conn, run: dict, progress: list) -> dict:
     else:
         verdict = "no_change"
     total = sum(p["total"] or 0 for p in main) if main and all(p["total"] is not None for p in main) else None
+    if metadata_total is not None:
+        total = metadata_total
     if total is not None:
         total += scan_failed
     return {"verdict": verdict, "succeeded": succeeded, "failed": failed, "skipped": skipped,

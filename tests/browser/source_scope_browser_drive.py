@@ -1,4 +1,5 @@
 """Source failures stay outside Library review, including explicit saved URLs."""
+import re
 import os
 import sys
 import time
@@ -54,7 +55,7 @@ with sync_playwright() as p:
         expect(panel.get_by_text('File needs attention.',exact=True)).to_be_visible()
         expect(panel.get_by_role('link',name='View failure details',exact=True)).to_have_attribute('href',f'/logs?status=Failed&photo={ident}')
         expect(panel.get_by_role('tab',name='Similar photos',exact=True)).to_have_count(0)
-        expect(panel.get_by_role('button',name='Review photo…',exact=True)).to_have_count(0)
+        expect(panel.get_by_role('button',name='Inspect photo…',exact=True)).to_have_count(0)
         expect(panel.get_by_role('button',name='Review later…',exact=True)).to_have_count(0)
         expect(panel).not_to_contain_text('potential match')
         page.goto(base+f'/?view=unorganized&review_photo={ident}')
@@ -63,7 +64,9 @@ with sync_playwright() as p:
         expect(review.get_by_role('button',name='Review later…',exact=True)).to_have_count(0)
         review.get_by_role('button',name='Back to gallery',exact=False).click()
     page.goto(base+'/?view=unorganized')
-    expect(page.locator('.pager').first).to_contain_text(f'{expected+3} files')
+    expect(page.get_by_role('navigation',name='Main').get_by_role('link',name=re.compile(r'^Not organized\b')).locator('.sidebar-count')).to_have_text(f'{expected+3:,}')
+    expect(page.get_by_role('combobox',name='Files loaded at a time')).to_be_visible()
+    expect(page.locator('.gallery-result-count')).to_have_count(0)
     if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+'/source-failure-summary.png')
     summary_panel=page.get_by_role('region',name='Index summary')
     summary_panel.get_by_role('button',name='Copy all photos…',exact=True).click()
@@ -82,8 +85,21 @@ with sync_playwright() as p:
     expect(summary_panel).not_to_contain_text('Similar photos')
     expect(summary_panel.get_by_role('button',name='Copy all photos…',exact=True)).to_have_count(0)
     expect(summary_panel.get_by_role('button',name='Move all photos…',exact=True)).to_have_count(0)
-    expect(summary_panel.get_by_role('link',name='View failures',exact=True)).to_have_attribute('href','/logs?status=Failed')
+    attention_link=summary_panel.get_by_role('link',name='View 3 files needing attention',exact=True)
+    expect(attention_link).to_have_attribute('href','/?view=unorganized&reason=attention')
+    attention_link.click()
+    expect(page).to_have_url(re.compile(r'reason=attention'))
+    expect(page.locator('.gallery-result-count')).to_have_text('Showing 3 of 3 files')
     if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+'/remaining-source-failures.png')
+    sidebar=page.get_by_role('navigation',name='Main',exact=True)
+    attention=sidebar.get_by_role('link',name=re.compile(r'^Needs attention'))
+    expect(attention.locator('.sidebar-count')).to_have_text('3')
+    expect(attention).to_have_attribute('aria-current','page')
+    sidebar.get_by_role('link',name=re.compile(r'^Library')).click()
+    expect(attention.locator('.sidebar-count')).to_have_text('3')
+    expect(attention).not_to_have_attribute('aria-disabled','true')
+    attention.click()
+    expect(page.locator('.grid .card')).to_have_count(3)
     library=get('photos?view=organized')
     assert library['total']==expected
     matches=get(f"similar/{library['items'][0]['id']}")
@@ -101,6 +117,40 @@ with sync_playwright() as p:
     expect(page.get_by_role('heading',name='Catalog overview',exact=True)).to_be_visible()
     expect(page.get_by_text('3 files · View failure details',exact=True)).to_be_visible()
     if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+'/catalog-scope-stats.png')
+    # Empty folder rows are still tree rows, not whole-gallery empty-state panels.
+    def folder_rows(route):
+        data=get('photos/folders?view=unorganized&every=true')
+        data['folders']=[dict(name=name,path=name,photos=n,folders=[],eligible={'copy':n,'move':n}) for name,n in
+                         [('empty-one',0),('empty-two',0),('populated',3)]]
+        route.fulfill(json=data)
+    page.route('**/api/v1/photos/folders?*',folder_rows)
+    page.goto(base+'/?view=unorganized&tree=1')
+    for width in (1440,1000,720):
+        page.set_viewport_size({'width':width,'height':1000})
+        labels=[page.locator('.folder-name').filter(has_text=name) for name in ('empty-one','empty-two','populated')]
+        for label in labels: expect(label).to_be_visible()
+        boxes=[label.bounding_box() for label in labels]
+        assert max(b['x'] for b in boxes)-min(b['x'] for b in boxes)<=1,boxes
+        rows=page.locator('.folder-row').evaluate_all('els=>els.map(e=>e.getBoundingClientRect().height)')
+        assert max(rows)-min(rows)<=1,rows
+        if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+f'/folder-row-alignment-{width}.png')
+    panel=page.get_by_role('navigation',name='Source folders',exact=True)
+    page.set_viewport_size({'width':1440,'height':1000})
+    first=panel.locator('.folder-row').first
+    page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+    def tree_offset():
+        return first.bounding_box()['y']-panel.bounding_box()['y']
+    origin=tree_offset()
+    panel.get_by_role('checkbox',name='Show only populated',exact=True).check()
+    expect(page.get_by_role('button',name='Copy this folder (3)…',exact=True)).to_be_enabled()
+    assert abs(tree_offset()-origin)<=1,(origin,tree_offset())
+    panel.get_by_role('checkbox',name='Show only empty-one',exact=True).check()
+    expect(page.get_by_role('button',name='Copy this folder…',exact=True)).to_be_disabled()
+    expect(page.get_by_role('button',name='Move this folder…',exact=True)).to_be_disabled()
+    assert abs(tree_offset()-origin)<=1,(origin,tree_offset())
+    panel.get_by_role('button',name='Show all',exact=True).click()
+    assert abs(tree_offset()-origin)<=1,(origin,tree_offset())
+    page.unroute_all(behavior='wait')
     assert not errors,errors
     print('PASS: empty/text/undecodable sources, separate failure counts, no source review through saved links, destination scope and Stats')
     browser.close()

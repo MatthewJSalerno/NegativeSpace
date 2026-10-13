@@ -48,7 +48,7 @@ with sync_playwright() as p:
     page.get_by_role('button', name='Previous photo', exact=True).click()
     visible_card(target)
     # Both history actions have matching type and aligned text containers.
-    links = page.locator('.history-links')
+    links = page.locator('.history-links').filter(has=page.get_by_role('link', name='Open in the log', exact=True))
     expect(links).to_be_visible()
     styles = links.evaluate('el => [...el.children].map(c => ({font:getComputedStyle(c).fontSize, height:c.getBoundingClientRect().height, top:c.getBoundingClientRect().top}))')
     assert styles[0]['font'] == styles[1]['font']
