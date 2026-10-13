@@ -72,9 +72,10 @@ export function Sidebar({ current, version, matchMin, refresh, filters, onPlace,
     else follow(e);
   };
   const attentionCurrent = current.place === "unorganized" && filters?.on.attention;
-  const content = (label: string, n: number | undefined) => <>
+  const content = (label: string, n: number | undefined, reserveCount = false) => <>
     <span>{label}</span>{" "}
-    {n !== undefined && <span className="sidebar-count">{count(n)}</span>}
+    {(n !== undefined || reserveCount) && <span className="sidebar-count" aria-hidden={n === undefined ? true : undefined}
+      style={{ visibility: n === undefined ? "hidden" : undefined }}>{count(n ?? 0)}</span>}
   </>;
   const link = (href: string, label: string, on: boolean, n: number | undefined, view?: PlaceView) => (
     <a key={href} href={href} aria-current={on ? "page" : undefined} onClick={(e) => go(e, view)}>{content(label, n)}</a>
@@ -88,7 +89,7 @@ export function Sidebar({ current, version, matchMin, refresh, filters, onPlace,
       <button type="button" className="sidebar-item" aria-pressed={f.on[l.key]}
               aria-disabled={why ? true : undefined} title={why ?? undefined}
               onClick={() => { if (why) return; onNavigate?.(); f.onToggle(l.key); }}>
-        {content(l.label, why ? undefined : f.counts[l.key])}
+        {content(l.label, why ? undefined : f.counts[l.key], true)}
       </button>
       <button type="button" className="filter-pin" aria-pressed={f.pinned.includes(l.key)}
               aria-label={`${f.pinned.includes(l.key) ? "Unpin" : "Pin"} ${l.label}`}

@@ -63,7 +63,10 @@ with sync_playwright() as pw:
     expect(page.locator('.card')).to_have_count(2)
     sidebar.get_by_role('button',name='Clear all filters',exact=True).click()
     expect(sidebar.get_by_role('button',name='Pin Files needing verification',exact=True)).to_have_attribute('aria-pressed','false')
+    later_y=sidebar.get_by_role('button',name=re.compile('^Review later')).bounding_box()['y']
     page.goto(f'{base}/?view=unorganized&photo={source}')
+    expect(sidebar.get_by_role('button',name=re.compile('^Files needing verification'))).to_have_attribute('aria-disabled','true')
+    assert abs(sidebar.get_by_role('button',name=re.compile('^Review later')).bounding_box()['y']-later_y)<=1
     panel=page.get_by_role('region',name='Files needing verification',exact=True)
     expect(panel.get_by_role('button',name='Check it now')).to_be_visible()
     expect(page.get_by_role('button',name='Review later…',exact=True)).to_have_count(0)

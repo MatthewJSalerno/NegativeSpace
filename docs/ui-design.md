@@ -160,7 +160,8 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   counts describe the current intersection. Small images, Review later and Files needing verification share
   one reason scope and remain exclusive:
   pinning either disables the other with an explanation telling the user which to unpin. A filter that does not apply to the
-  place stays in its row, dimmed (`aria-disabled`), saying why on hover: Has similar
+  place stays in its row, dimmed (`aria-disabled`), reserving a hidden count slot so
+  long labels do not unwrap and move the rows below. It says why on hover: Has similar
   photos, Small images, Files needing verification and Review later are for Library and Needs review.
   On Logs and Stats each is a link that opens Library (Review later: Needs review) with
   only that filter on, counted as it opens. Pins are remembered per browser (`ns.filterPins`),
