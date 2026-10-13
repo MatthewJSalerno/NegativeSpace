@@ -132,6 +132,13 @@ class MakeScenarios(unittest.TestCase):
                        "format_multi_page_tiff", "unicode_nfc", "unicode_nfd", "case_at_destination",
                        "edge_locked_folder"):
             self.assertIn(wanted, scenarios)
+        # Every scenario file whose name is not itself the scenario can be found by a filename
+        # search: its name starts scn- and is its own.
+        exempt = {"original", "name_same_name", "name_names", "name_case_only", "date_in_name_only", "date_nowhere",
+                  "unicode_nfc", "unicode_nfd", "case_at_destination", "nas_synology_thumbnail", "nas_qnap_thumbnail"}
+        searchable = [Path(f["path"]).name for f in files if f["scenario"] not in exempt]
+        self.assertEqual([n for n in searchable if "scn-" not in n], [])
+        self.assertEqual(len({n.lower() for n in searchable}), len(searchable), "a name shared by two scenario files")
         # The two Unicode names look the same and are two names.
         nfc, nfd = (next(f["path"] for f in files if f["scenario"] == s) for s in ("unicode_nfc", "unicode_nfd"))
         self.assertNotEqual(nfc, nfd)
@@ -200,15 +207,15 @@ class MakeScenarios(unittest.TestCase):
         files = self.manifest()["files"]
         self.assertGreaterEqual(status.get("Duplicate", 0), sum(f["scenario"] == "exact_duplicate" for f in files))
         paths = {Path(p).name for (p,) in db.execute("SELECT source_path FROM photos")}
-        self.assertNotIn("symlink-to-a-photo.jpg", paths, "a symlink was followed")
-        self.assertNotIn("with-sidecar.xmp", paths)
+        self.assertNotIn("scn-edge-symlink-to-a-photo.jpg", paths, "a symlink was followed")
+        self.assertNotIn("scn-edge-with-sidecar.xmp", paths)
         failed = {Path(p).name for (p,) in db.execute(
             "SELECT source_path FROM operations WHERE status = 'Failed' AND source_path IS NOT NULL")}
         if os.geteuid() != 0:
-            self.assertIn("unreadable.jpg", failed, "an unreadable file fails with a reason")
+            self.assertIn("scn-edge-unreadable.jpg", failed, "an unreadable file fails with a reason")
         # A photo's name with no image inside: logged as Failed, "Not an image", and left alone.
         reasons = dict(db.execute("SELECT source_path, error_message FROM operations WHERE status = 'Failed'"))
-        for name in ("zero-bytes.jpg", "not-a-photo.jpg"):
+        for name in ("scn-edge-zero-bytes.jpg", "scn-edge-not-a-photo.jpg"):
             self.assertIn(name, failed, f"{name} must be logged as a bad file")
             self.assertTrue(next(r for p, r in reasons.items() if p.endswith(name)).startswith("Not an image"))
         undated = dict(db.execute(
@@ -238,7 +245,7 @@ class MakeScenarios(unittest.TestCase):
                 self.assertEqual(statuses.get(path), "Pending", f"{scenario}: {path}")
         boundary = {Path(p).name: json.loads(m)["date_taken"] for p, m in db.execute(
             "SELECT source_path, metadata_json FROM photos WHERE source_path LIKE '%/day-boundary/%'")}
-        self.assertTrue(boundary["before-midnight-new-york.jpg"].startswith("2019-12-31"), "filed by its local date")
+        self.assertTrue(boundary["scn-before-midnight-new-york.jpg"].startswith("2019-12-31"), "filed by its local date")
         if os.geteuid() != 0:
             self.assertFalse(by("edge_locked_folder")[0] in statuses, "a locked folder's photo cannot be read")
             scan_failed = db.execute("SELECT COUNT(*) FROM operations WHERE status = 'Failed' "

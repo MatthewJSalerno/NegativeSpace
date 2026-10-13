@@ -587,6 +587,12 @@ cases a real library on a NAS brings:
 | `unicode-names/`, `case-at-destination/` | one name in NFC and NFD; names differing only in case, one day, two folders |
 | `edge/locked-folder/` | a folder the Index cannot open |
 
+To find a scenario's file in the app, search its name: every scenario file whose name
+is not itself the case starts `scn-` and a word for its scenario (`scn-burst-3.jpg`,
+`scn-format-cmyk.jpg`, `scn-date-no-date-…`), and no two share a name. The exceptions
+are the name cases themselves (collisions, case, Unicode, dates in names) and the NAS's
+own thumbnail names, which sit in a folder named after the photo they show.
+
 Where the app's answer is not decided yet, the manifest entry says so in
 `open_question` (the NAS folders, a Live Photo's video, dates in names, sub-seconds,
 crops and rotations, the 200-megapixel picture, normalized or case-insensitive
