@@ -81,6 +81,7 @@ export function useJobCompletion(onFinished: () => void) {
 }
 
 const MODE_NAME: Record<string, string> = {
+  METADATA: "Metadata",
   INDEX: "Index", COPY: "Copy", MOVE: "Move", REBUILD: "Thumbnail rebuild", CHECK: "Destination check",
   SIMILARITY: "Similarity recovery", RENAME: "Rename", REJECT: "Reject", RETURN: "Return to library",
 };
@@ -92,7 +93,7 @@ const PHASE: Record<string, string> = {
 // Outcome keys from the engine's progress counts (engine-spec 4.3), as the user reads them.
 const OUTCOME: Record<string, string> = {
   eligible: "found", excluded: "other files", indexed: "new or changed", duplicates: "duplicates",
-  unchanged: "unchanged", failed: "failed", Copied: "copied", Completed: "moved",
+  Metadata_Saved: "metadata saved", unchanged: "unchanged", failed: "failed", Copied: "copied", Completed: "moved",
   Found_At_Destination: "already at destination", Skipped: "skipped", Failed: "failed", Cancelled: "cancelled",
   Removed_Duplicate: "duplicate sources removed", Already_Gone: "already gone", made: "made",
   Compared: "hashes compared", already: "already present", kept: "kept", ok: "intact", missing: "missing", changed: "changed",
@@ -186,6 +187,9 @@ export function summary(run: Run, numbered = true): { headline: string; detail: 
   const name = numbered && run.id != null ? jobLabel(run.id, run.mode) : modeName(run.mode);
   const headline = `${name} ${VERDICT[outcome.verdict] ?? outcome.verdict}`;
   const lead =
+    run.mode === "METADATA" && outcome.total != null
+      ? `${count(outcome.succeeded)} of ${plural(outcome.total, "photo")} updated`
+      :
     run.mode === "COPY" && outcome.total != null
       ? `${count(outcome.counts.Copied ?? 0)} of ${plural(outcome.total, "file")} copied`
       : run.mode === "MOVE" && outcome.total != null
@@ -201,6 +205,7 @@ export function summary(run: Run, numbered = true): { headline: string; detail: 
       !(run.mode === "COPY" && k === "Copied") && !(run.mode === "MOVE" && (k === "Completed" || k === "Copied"))
       && !(run.mode === "REJECT" && k === "Rejected") && !(run.mode === "RETURN" && k === "Returned")
       && !(run.mode === "MOVE" && k === "Rejected_Copied")
+      && !(run.mode === "METADATA" && k === "Metadata_Saved")
       && !(reasons && k === "Skipped"))),
   );
   // A Move that could not delete an original copied it: said as such, never as moved.

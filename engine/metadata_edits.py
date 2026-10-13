@@ -1,7 +1,7 @@
 """Read-only edit plans and first-sidecar construction; no file publication or edits.
 
-Common-field edits are validated as one request. Catalog previews are not
-filesystem verification, collision reservations or authorization to execute a plan.
+Common-field edits are validated as one request. Catalog previews observe destination
+names for refiling, but do not verify file contents, reserve names or authorize execution.
 """
 import base64
 import contextlib
@@ -9,11 +9,12 @@ import copy
 from datetime import datetime
 import hashlib
 import json
+import os
 from pathlib import PurePosixPath, Path
 import re
 from xml.sax import saxutils
 
-from engine import metadata, metadata_adapter, metadata_capture, metadata_decisions, metadata_gps, metadata_save, ns_db, xmp
+from engine import metadata, metadata_adapter, metadata_capture, metadata_decisions, metadata_gps, metadata_save, metadata_transfer, ns_db, xmp
 from engine.metadata import MetadataSource
 
 EDITABLE = frozenset({'date_taken', 'orientation', 'title', 'caption', 'keywords', 'rating', 'creators', 'rights', 'gps'})
@@ -297,6 +298,35 @@ def _token(result):
     return result
 
 
+def _resolve_filing(result):
+    """Preview a free photo/pair name; this observation does not reserve it.
+
+    Save re-derives this exact preview under the engine lock. A changed path requires
+    new confirmation; execution/recovery never silently suffixes a recorded target.
+    """
+    filing = result['filing']
+    if not filing['change']:
+        return
+    root = Path(result['binding']['destination_root'])
+    wanted = metadata_transfer._path(root, root / filing['proposed'])
+    candidate = wanted
+    counter = 1
+    while True:
+        metadata_transfer._path(root, candidate)
+        sidecar = metadata_transfer._path(root, str(candidate) + '.xmp')
+        if not os.path.lexists(candidate):
+            if os.path.lexists(sidecar):
+                raise ValueError('An XMP occupies the proposed destination without its photo; resolve that destination pair before editing. Nothing was changed.')
+            break
+        if not candidate.is_file():
+            raise ValueError('The proposed photo name is occupied by a non-file; resolve that destination before editing.')
+        candidate = wanted.with_name(f'{wanted.stem}_{counter}{wanted.suffix}')
+        counter += 1
+    if candidate != wanted:
+        filing['proposed'] = candidate.relative_to(root).as_posix()
+        filing['collision_renamed'] = True
+
+
 def preview_catalog(db_path, *, photo_id, capture_id, changes, destination_root, settings=None, remove_fields=()):
     """Read-only identity-bound preview; never silently changes the primary source."""
     sources, primary, year, relative, binding = _catalog_state(db_path, photo_id=photo_id,
@@ -304,6 +334,7 @@ def preview_catalog(db_path, *, photo_id, capture_id, changes, destination_root,
     result = plan(sources, primary_id=primary, changes=changes, settings=binding['settings'],
         photo_name=Path(relative).name, original_year=year, current_relative_path=relative, remove_fields=remove_fields)
     result['binding'] = binding
+    _resolve_filing(result)
     return _token(result)
 
 

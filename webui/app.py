@@ -391,7 +391,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             return metadata_dates.preview(cfg,photo_id,body)
         except ns_db.RevisionConflict as exc:
             raise HTTPException(409,{'error':'metadata_changed','message':str(exc)})
-        except (ValueError,TypeError) as exc:
+        except (ValueError,TypeError,OSError) as exc:
             raise _bad_request(exc)
 
     @app.post("/api/v1/photos/{photo_id}/date-save", status_code=202)

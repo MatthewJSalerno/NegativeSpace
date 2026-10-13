@@ -6,33 +6,6 @@ import { count, plural } from "../format";
 // The files directly in the source folder, which no subfolder holds (GET /photos/folders).
 export const TOP_FILES = ".";
 
-export type BrowseBy = "folders" | "dates";
-const BROWSE_KEY = "ns.browseBy";
-
-// Folders or Dates in the Filters panel (webui-spec 2): Folders by default, the choice
-// remembered per browser. A filter in the address for the other tree shows that one.
-export function initialBrowseBy(folders: string[], dates: string[]): BrowseBy {
-  if (dates.length && !folders.length) return "dates";
-  if (folders.length) return "folders";
-  try { return localStorage.getItem(BROWSE_KEY) === "dates" ? "dates" : "folders"; } catch { return "folders"; }
-}
-
-export function BrowseBySwitch({ value, onChange }: { value: BrowseBy; onChange: (v: BrowseBy) => void }) {
-  const pick = (v: BrowseBy) => {
-    onChange(v);
-    try { localStorage.setItem(BROWSE_KEY, v); } catch { /* a convenience only */ }
-  };
-  return (
-    <div className="browse-by">
-      <span className="muted" id="browse-by-label">Browse by</span>
-      <div className="segmented" role="group" aria-labelledby="browse-by-label">
-        <button aria-pressed={value === "folders"} onClick={() => pick("folders")}>Folders</button>
-        <button aria-pressed={value === "dates"} onClick={() => pick("dates")}>Dates</button>
-      </div>
-    </div>
-  );
-}
-
 export function folderLabel(path: string): string {
   return path === TOP_FILES ? "files in the source folder" : path.split("/").join(" / ");
 }
@@ -76,7 +49,7 @@ export function FoldersPanel({ tree, folders, onFolders, heading = "Folders" }: 
     const id = `folder-${node.path}`;
     return (
       <li key={node.path}>
-        <div className={`dates-row folder-row${node.photos === 0 ? " empty" : ""}`} style={{ paddingLeft: 4 + depth * 16 }}>
+        <div className={`dates-row folder-row${node.photos === 0 ? " folder-empty" : ""}`} style={{ paddingLeft: 4 + depth * 16 }}>
           <input type="checkbox" id={id} checked={ticked(node.path)} disabled={!!parent}
                  title={parent ? `Included in ${folderLabel(parent)}` : undefined}
                  ref={(el) => { if (el) el.indeterminate = partly(node.path); }}
@@ -103,8 +76,8 @@ export function FoldersPanel({ tree, folders, onFolders, heading = "Folders" }: 
         <Tip text="Check folders to show only the photos in them, subfolders included. Uncheck them all to show everything."><span className="dates-show-only">Show only</span></Tip>
       </div>
       <p className="dates-status muted">
-        {folders.length === 0 ? "Showing all folders"
-          : <>Showing only {folders.map(folderLabel).join(", ")} · <button className="link" onClick={() => onFolders([])}>Show all</button></>}
+        <span title={folders.length ? `Showing only ${folders.map(folderLabel).join(", ")}` : undefined}>{folders.length === 0 ? "Showing all folders" : `Showing only ${folders.map(folderLabel).join(", ")}`}</span>
+        <button className="link" style={{ visibility: folders.length ? undefined : "hidden" }} disabled={!folders.length} aria-hidden={!folders.length || undefined} onClick={() => onFolders([])}>Show all</button>
       </p>
       <ul className="dates-tree">
         {tree.folders.map((node) => row(node, 0))}

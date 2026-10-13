@@ -94,17 +94,26 @@ export function DateEditor({ photoId, donor, onClose, onSaved }: {
   const change = (next: string) => { setValue(next); setCopy(false); setPreview(null); };
   return <>
     <Modal label="Edit Date taken" onClose={close} busy={busy}>
-      <h2>Edit Date taken</h2>
+      <h2>{run?.status === "Completed" ? "Date saved" : "Edit Date taken"}</h2>
       {!context && !error && <p aria-busy="true">Loading the current write target…</p>}
       {context && !run && <>
         <p>Write to <strong>{targetName(context.target.kind)}</strong>{context.target.create ? " — create a new sidecar containing only this date." : "."}</p>
         <p className="section-note">Current target date: {recorded(context.date)}. Other metadata stays unchanged.</p>
         {donor && <p className="section-note">{copy ? `Copying Date taken from ${donor.label}. This source will not become primary.` : `Started from ${donor.label}; the date below has been adjusted.`}</p>}
-        <Field fullWidth label="Date taken" error={dateError} value={value} maxLength={128} disabled={busy || clear || !!preview}
+        <Field fullWidth type="date" label="Calendar date" min="0001-01-01" max="9999-12-31"
+          value={!clear && /^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value) ? value.slice(0, 10) : ""} disabled={busy || clear || !!preview}
+          hint="Choose a day; any recorded time, fraction and timezone stay unchanged. Use the full value below for partial dates or time changes."
+          onChange={e => {
+            // Work with the recorded text, never a Date that converts through a timezone.
+            const day = e.target.value;
+            if (day) change(day + (value.includes("T") ? value.slice(value.indexOf("T")) : ""));
+          }} />
+        <Field fullWidth label="Date taken" error={dateError} value={clear ? "" : value} maxLength={128} disabled={busy || clear || !!preview}
           hint="Use YYYY-MM-DDTHH:MM:SS, with any recorded fraction and timezone offset. Example: 2020-06-15T14:30:00.123+02:00. No timezone is assumed."
           onChange={e => change(e.target.value)} />
         <label className="checkbox-row"><input type="checkbox" checked={clear} disabled={busy || !!preview || !context.can_clear}
           onChange={e => { setClear(e.target.checked); setCopy(false); setPreview(null); }} />Explicitly clear Date taken</label>
+        {context.can_clear && !context.date.present && <p className="section-note">No date is recorded in this XMP source. A missing date can use a date from another source for filing. Explicitly clearing it records an empty date and files the photo under Undated.</p>}
         {!context.can_clear && <p className="section-note">This EXIF writer cannot preserve an explicitly empty date. Clearing requires a deliberately chosen XMP target; the app will not change primary automatically.</p>}
         <p className="section-note">Changing the filing date may move this photo and its sidecar to another folder. An explicit clear files it under Undated.</p>
         {preview && <section aria-label="Date change preview">
@@ -112,27 +121,33 @@ export function DateEditor({ photoId, donor, onClose, onSaved }: {
           <dl><dt>Before</dt><dd>{recorded(preview.before)}</dd><dt>After</dt><dd>{preview.after === "" ? "Explicitly cleared" : preview.after}</dd>
             <dt>Current location</dt><dd><code>{preview.filing.current}</code></dd>
             <dt>Resulting location</dt><dd><code>{preview.filing.proposed}</code></dd></dl>
+          {preview.filing.collision_renamed && <p>The filename has been numbered to avoid an existing file. Nothing will be overwritten.</p>}
           <p>{preview.no_change ? "The date and filing location already match. Nothing will be written." : "This saves Date taken and its required components only. The engine verifies the files and checks for naming conflicts before changing them."}</p>
         </section>}
-        <div className="dialog-actions">
+        <div className="settings-actions">
           <button disabled={busy} onClick={close}>Cancel</button>
           {preview ? <><button disabled={busy} onClick={() => setPreview(null)}>Back to edit</button>
             <button className="primary" disabled={busy || preview.no_change} onClick={() => void save()}>{busy ? "Submitting…" : preview.filing.change ? "Save date and move file" : "Save date"}</button></>
           : <button className="primary" disabled={busy || !!dateError || (!clear && !value.trim())} onClick={() => void plan()}>{busy ? "Checking…" : "Preview change"}</button>}
         </div>
       </>}
-      {run && <section role="status">
-        <h3>{run.status === "Completed" ? "Date saved" : `Metadata job #${run.id}: ${run.status}`}</h3>
-        {run.status === "Failed" && <p>The save did not complete. Review the job details and any file issue before starting another edit.</p>}
-        <a href={logUrl({run:run.id,photo:photoId})} onClick={follow}>View job details</a>
-        <div className="dialog-actions"><button onClick={onClose}>Close</button></div>
-      </section>}
+      {run && <>
+        <section role="status">
+          {run.status === "Completed" ? <p>Date taken was saved to {context ? targetName(context.target.kind) : "the primary metadata source"}.</p>
+            : <p>Metadata job #{run.id}: {run.status}</p>}
+          {run.status === "Failed" && <p>The save did not complete. Review the job details and any file issue before starting another edit.</p>}
+        </section>
+        <footer className="settings-actions">
+          <a href={logUrl({run:run.id,photo:photoId})} onClick={follow}>View job details</a>
+          <button className="primary" onClick={onClose}>Close</button>
+        </footer>
+      </>}
       {error && <p className="error" role="alert">{error}</p>}
-      {!context && error && <div className="dialog-actions"><button onClick={() => setReload(n => n+1)}>Reload editor</button><button onClick={onClose}>Close</button></div>}
+      {!context && error && <div className="settings-actions"><button onClick={() => setReload(n => n+1)}>Reload editor</button><button onClick={onClose}>Close</button></div>}
     </Modal>
     {discard && <Modal label="Discard your unsaved changes?" onClose={() => { leaving.current=null; setDiscard(false); }} role="alertdialog">
       <h2>Discard your unsaved changes?</h2>
-      <div className="dialog-actions"><button onClick={() => { leaving.current=null; setDiscard(false); }}>Keep editing</button>
+      <div className="settings-actions"><button onClick={() => { leaving.current=null; setDiscard(false); }}>Keep editing</button>
         <button onClick={() => { bypass.current=true; onClose(); if (leaving.current) navigate(leaving.current,true); }}>Discard</button></div>
     </Modal>}
   </>;

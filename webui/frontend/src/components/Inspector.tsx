@@ -57,13 +57,14 @@ export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto,
   onOpenPhoto: (id: number) => void;
   jobRunning: boolean;
   refreshKey: number;
-  tab: "information" | "similar";
-  onTab: (tab: "information" | "similar") => void;
+  tab: "information" | "metadata" | "similar";
+  onTab: (tab: "information" | "metadata" | "similar") => void;
   matchView: MatchView;
   onMatchView: (view: MatchView) => void;
 }) {
   const [dateEdit, setDateEdit] = useState<{ photoId: number; donor?: MetadataSourceView } | null>(null);
-  const editDate = (donor?: MetadataSourceView) => setDateEdit({ photoId:id, donor });
+  const editDate = (donor?: MetadataSourceView) => { setEnlarged(false); onTab("metadata"); setDateEdit({ photoId:id, donor }); };
+  const openMetadata = () => { setEnlarged(false); onTab("metadata"); requestAnimationFrame(() => document.getElementById(`${tabId}-metadata`)?.focus()); };
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 800px)").matches);
   useEffect(() => {
     const media = window.matchMedia("(max-width: 800px)");
@@ -117,10 +118,10 @@ export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto,
   const layoutStatus = detail?.id === id ? detail.status : statusHint;
   const layoutInLibrary = layoutStatus != null && IN_LIBRARY.includes(layoutStatus);
   const layoutCanCompare = layoutStatus == null || layoutInLibrary || IN_REJECTS.includes(layoutStatus);
-  const activeTab = layoutCanCompare ? tab : "information";
+  const activeTab = tab === "similar" && !layoutCanCompare ? "information" : tab;
   useEffect(() => {
     if (detail?.id !== id || canCompare) return;
-    if (tab !== "information") onTab("information");
+    if (tab === "similar") onTab("information");
     if (comparison != null) onComparison(null);
   }, [detail, id, canCompare, tab, comparison, onTab, onComparison]);
   const candidate = comparison?.candidate ?? null;
@@ -236,16 +237,21 @@ export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto,
           {error && <p className="error">{error}</p>}
           <div style={{ flexShrink: 0, visibility: layoutStatus == null ? "hidden" : undefined }} aria-hidden={layoutStatus == null ? true : undefined}>
             <TabList className="inspector-tabs" label="Photo inspector" idBase={tabId} value={activeTab} onChange={onTab}
-              tabs={layoutCanCompare ? [{ value: "information", label: layoutInLibrary ? "Photo information" : "File information" }, { value: "similar", label: layoutInLibrary ? "Similar photos" : "Similar photos in Library" }] : [{ value: "information", label: "File information" }]} />
+              tabs={[{ value: "information", label: layoutInLibrary ? "Photo information" : "File information" }, { value: "metadata", label: "Metadata" }, ...(layoutCanCompare ? [{ value: "similar" as const, label: layoutInLibrary ? "Similar photos" : "Similar photos in Library" }] : [])]} />
           </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", activeTab)}>
-            {detail && activeTab === "information" && <Details onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
+            {detail && activeTab === "information" && <Details onMetadata={openMetadata} onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
               review={inLibrary ? <ReviewNote key={`review:${id}`} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto}
-                concerns={detail.date_warning ? [{label:"Suspicious date",message:`${detail.date_warning} Use Edit Date taken in Metadata sources to correct the date.`}]
+                concerns={detail.date_warning ? [{label:"Suspicious date",message:`${detail.date_warning} Use Edit date or the Metadata tab to correct the date.`}]
                   : !detail.exif_dates?.some(d => d.field === "taken") ? [{label:"No capture date",message:"No date taken is recorded in the photo’s EXIF."}] : []}
                 actions={IN_LIBRARY.includes(detail.status) && onReject
                   ? <button onClick={() => onReject(detail.filename)} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Move this photo to Rejects. Nothing is deleted."}>Reject…</button>
                   : null} /> : IN_REJECTS.includes(detail.status) && onReturn ? <div className="photo-actions"><button onClick={onReturn} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined}>Return to library…</button></div> : null} />}
+          </div>
+          <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "metadata", activeTab)}>
+            {detail && activeTab === "metadata" && <div className="inspector-body">
+              <MetadataSources onEdit={editDate} key={`metadata:${detail.id}`} photoId={detail.id} refreshKey={refreshKey} editable={inLibrary} jobRunning={jobRunning} />
+            </div>}
           </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "similar", activeTab)}>
             {detail && activeTab === "similar" && <div className="inspector-body"><PhotoMatches key={id} id={id} name={detail.filename}
@@ -268,7 +274,7 @@ export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto,
           <button className="lightbox-close" onClick={() => setEnlarged(false)} aria-label="Close the enlarged photo">✕</button>
           <div className="lightbox-body">
             <div className="lightbox-image">{photo}</div>
-            {detail && <Details onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />}
+            {detail && <Details onMetadata={openMetadata} onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />}
           </div>
         </Modal>,
         document.body,
@@ -307,7 +313,7 @@ function Section({ title, note, children }: { title: string; note?: ReactNode; c
   );
 }
 
-function Details({ detail: d, onLineage, refreshKey, review, jobRunning, onEdit }: { onEdit: (donor?: MetadataSourceView) => void; jobRunning: boolean; detail: PhotoDetail; onLineage: () => void; refreshKey: number; review?: ReactNode }) {
+function Details({ detail: d, onLineage, refreshKey, review, jobRunning, onEdit, onMetadata }: { onMetadata: () => void; onEdit: (donor?: MetadataSourceView) => void; jobRunning: boolean; detail: PhotoDetail; onLineage: () => void; refreshKey: number; review?: ReactNode }) {
   const fallback = isFallbackDate(d.date_source);
   return (
     <div className="inspector-body">
@@ -324,11 +330,18 @@ function Details({ detail: d, onLineage, refreshKey, review, jobRunning, onEdit 
         <a href={logUrl({photo:d.id})} onClick={follow}>View photo logs</a>
       </section>}
       {review}
-      {!review && IN_LIBRARY.includes(d.status) && d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. Use Edit Date taken in Metadata sources to correct it. <a href="/?view=suspicious">View suspicious dates</a></p>}
+      {!review && IN_LIBRARY.includes(d.status) && d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. Use Edit date or the Metadata tab to correct it. <a href="/?view=suspicious">View suspicious dates</a></p>}
       {IN_LIBRARY.includes(d.status) && d.visual_issue && <p className="section-note"><strong>Visual matching unavailable:</strong> {d.visual_issue} The catalogued file is retained. Missing EXIF alone is not evidence of damage.</p>}
       {d.status === "Failed" && !d.issues?.length && <p className="notice"><strong>File needs attention.</strong> {d.failure ?? "No failure reason was recorded."} This file is not in Library. Fix the source file or its access outside the app, then run Index again. <a href={logUrl({photo:d.id,status:"Failed"})} onClick={follow}>View failure details</a></p>}
       <Section title="File">
         <Row label="Status">{STATUS[d.status] ?? d.status}</Row>
+        <Row label="Format">{d.filename.includes(".") ? d.filename.split(".").pop()!.toUpperCase() : "Not recorded"}</Row>
+        <Row label="Date taken">
+          {fallback || !d.date_taken ? "Undated — no complete filing date" : d.date_taken.replace("T", " ")}
+          <div className="muted">{fallback ? "File modification year is used for Undated filing." : d.date_source === "exif" ? "Filing date from EXIF" : d.date_source === "xmp" ? "Filing date from XMP" : "Filing date source not recorded"}</div>
+          <div className="history-links"><button className="link" onClick={onMetadata}>View metadata</button>
+            {IN_LIBRARY.includes(d.status) && <button className="link" disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined} onClick={() => onEdit()}>Edit metadata date…</button>}</div>
+        </Row>
         <Row label={d.dest_path_is_projection ? "Proposed destination path" : "Destination path"}>
           <code>{d.dest_path ?? "—"}</code>
           {d.dest_path_is_projection && <div className="muted">Not written yet.</div>}
@@ -341,10 +354,6 @@ function Details({ detail: d, onLineage, refreshKey, review, jobRunning, onEdit 
           {epoch(d.file_modified)}
           {fallback && <div className="muted">* Files it under Undated: no EXIF date taken.</div>}
         </Row>
-      </Section>
-      <MetadataSources onEdit={onEdit} key={`metadata:${d.id}`} photoId={d.id} refreshKey={refreshKey} editable={IN_LIBRARY.includes(d.status)} jobRunning={jobRunning} />
-      <Section title="Additional file information" note="Recorded file properties and other extracted details. Compare EXIF and XMP in Metadata sources.">
-        <tr className="meta-row"><td colSpan={2}><AllMetadata tags={d.metadata ?? []} /></td></tr>
       </Section>
 
       <PhotoHistory refreshKey={refreshKey} id={d.id} onLineage={onLineage} />
@@ -369,16 +378,21 @@ function Details({ detail: d, onLineage, refreshKey, review, jobRunning, onEdit 
           </ul>
         )}
       </section>
+      <details className="info-section"><summary>Technical details</summary>
+      <Section title="Additional file information" note="Recorded file properties and other extracted details. Compare EXIF and XMP in the Metadata tab.">
+        <tr className="meta-row"><td colSpan={2}><AllMetadata tags={d.metadata ?? []} /></td></tr>
+      </Section>
       <Section title="Fingerprints">
         <Row label="SHA-1"><code>{d.sha1 ?? "not recorded"}</code></Row>
         <Row label="Perceptual hash"><code>{d.phash ?? "not recorded"}</code></Row>
       </Section>
+      </details>
     </div>
   );
 }
 
 // Additional catalogued photo/file tags, folded until requested (webui-spec 4.2).
-// Source-specific values and comparisons live in MetadataSources above.
+// Source-specific values and comparisons live in the separate Metadata tab.
 function AllMetadata({ tags }: { tags: [string, unknown][] }) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
@@ -397,7 +411,7 @@ function AllMetadata({ tags }: { tags: [string, unknown][] }) {
       </div>
       {open && (
         <>
-          <p className="muted">Catalogued photo and file tags. These may include computed file properties; use the source tabs above to compare metadata.</p>
+          <p className="muted">Catalogued photo and file tags. These may include computed file properties; use the Metadata tab to compare metadata.</p>
           {shown.length === 0 ? <p className="muted">No field matches “{filter}”.</p> : (
             <table className="meta-table">
               <tbody>

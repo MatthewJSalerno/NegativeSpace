@@ -84,7 +84,7 @@ with sync_playwright() as p:
     expect(show_summary).to_be_visible()
     source_panel=page.locator('.inspector')
     expect(source_panel.get_by_role('tab',name='Similar photos',exact=True)).to_have_count(0)
-    expect(source_panel.get_by_role('button',name='Review photo…',exact=True)).to_have_count(0)
+    expect(source_panel.get_by_role('button',name='Inspect photo…',exact=True)).to_have_count(0)
     expect(source_panel.get_by_role('button',name='Review later…',exact=True)).to_have_count(0)
     expect(source_panel.get_by_role('button',name='Reject…',exact=True)).to_have_count(0)
     if os.environ.get('SHOTS'): page.screenshot(path=os.environ['SHOTS']+'/source-info-only.png')
@@ -150,17 +150,17 @@ with sync_playwright() as p:
     expect(inspector.get_by_role('group',name='Photo actions')).to_be_visible()
     expect(inspector.get_by_role('button',name='Mark reviewed',exact=True)).to_have_count(0)
     expect(inspector.get_by_role('button',name='Change in Settings',exact=True)).to_have_count(0)
-    expect(inspector.get_by_role('button',name='Review photo…',exact=True)).to_be_visible()
+    expect(inspector.get_by_role('button',name='Inspect photo…',exact=True)).to_be_visible()
     # Repeated refreshes must reconcile one instance of each Inspector section.
     # Sibling sections keyed only by the same photo ID previously left orphan controls.
     for _ in range(3):
-        with page.expect_response(lambda r: r.url.endswith('/metadata')):
+        with page.expect_response(lambda r: r.url.endswith('/inspect')):
             page.evaluate("window.dispatchEvent(new Event('ns-review-changed'))")
-        expect(inspector.locator('.metadata-sources [role=tablist]')).to_be_visible()
+        expect(inspector.get_by_role('tab',name='Metadata',exact=True)).to_be_visible()
         expect(inspector.locator('.review-note')).to_have_count(1)
-        expect(inspector.locator('.metadata-sources')).to_have_count(1)
+        expect(inspector.locator('.metadata-sources')).to_have_count(0)
         expect(inspector.get_by_role('group',name='Photo actions')).to_have_count(1)
-        expect(inspector.get_by_role('button',name='Review photo…',exact=True)).to_be_visible()
+        expect(inspector.get_by_role('button',name='Inspect photo…',exact=True)).to_be_visible()
     place(page,'Needs review').click()
     expect(inspector).to_have_count(0)
     look=page.get_by_role('group',name='Look into')
@@ -179,7 +179,12 @@ with sync_playwright() as p:
             with page.expect_response(lambda r: '/api/v1/photos?' in r.url and f'reason={key}' in r.url) as response:
                 reasons.get_by_role('button',name=re.compile('^'+re.escape(label))).click()
             total=response.value.json()['total']
-            expect(page.locator('.gallery-summary').first).to_contain_text(f'{total} photo')
+            if key == 'all':
+                expect(page.locator('.gallery-result-count')).to_have_count(0)
+                expect(page.get_by_role('navigation',name='Main',include_hidden=True).get_by_role('link',name=re.compile(r'^Needs review\b'),include_hidden=True).locator('.sidebar-count')).to_have_text(f'{total:,}')
+            else:
+                whole = response.value.json()['counts']['review']
+                expect(page.locator('.gallery-result-count')).to_have_text(f"Showing {total:,} of {whole:,} photo" + ('' if whole == 1 else 's'))
             positions=page.evaluate("[document.querySelector('.gallery-context'),document.querySelector('.gallery-summary')].map(e=>e.getBoundingClientRect().top+scrollY)")
             if baseline is None: baseline=positions
             assert all(abs(a-b)<2 for a,b in zip(baseline,positions)),f'Reason {key} at {width}px moved layout: {baseline} -> {positions}'
@@ -195,7 +200,7 @@ with sync_playwright() as p:
     card.locator('.review-card-notes .help-trigger').focus()
     page.keyboard.press('Escape')
     if os.environ.get('SHOTS'): page.screenshot(path=os.environ['SHOTS']+'/review-inbox.png',full_page=True)
-    card.get_by_role('button',name='Review photo',exact=True).click()
+    card.get_by_role('button',name='Inspect photo',exact=True).click()
     workspace=page.get_by_role('dialog',name='Review photos',exact=True)
     expect(workspace).to_be_visible()
     expect(workspace.get_by_role('region',name='Photo review',exact=True).get_by_text('Location: Library',exact=True)).to_be_visible()
@@ -263,12 +268,12 @@ with sync_playwright() as p:
     place(page,'Needs review').click()
     page.locator(f'.card[data-id="{first}"] .card-image').click()
     expect(inspector).to_be_visible()
-    inspector.get_by_role('button',name='Review photo…',exact=True).click()
+    inspector.get_by_role('button',name='Inspect photo…',exact=True).click()
     workspace.get_by_role('button',name='Done',exact=True).click()
     expect(workspace).to_have_count(0)
     expect(inspector).to_have_count(0)
     expect(page.get_by_role('status').filter(has_text='Review later reminder cleared. No photos remain in this review.')).to_be_visible()
-    expect(page.locator('.gallery-summary').first).to_contain_text('0 photos')
+    expect(page.locator('.gallery-result-count')).to_have_text(re.compile(r'^Showing 0 of [\d,]+ photos?$'))
     expect(page.get_by_role('group',name='Look into').get_by_role('button',name=re.compile('^Review later'))).to_have_attribute('aria-pressed','true')
     assert 'photo=' not in page.url and 'review_photo=' not in page.url
     for width in (1440,720):
@@ -292,20 +297,20 @@ with sync_playwright() as p:
     reviewed,remaining=queued[0]['id'],queued[1]['id']
     page.goto(base+f'/?view=review&reason=later&photo={reviewed}')
     expect(inspector).to_be_visible()
-    inspector.get_by_role('button',name='Review photo…',exact=True).click()
+    inspector.get_by_role('button',name='Inspect photo…',exact=True).click()
     expect(workspace.locator('.workspace-step')).to_contain_text('Photo 1 of 2')
     workspace.get_by_role('button',name='Back to gallery',exact=True).click()
     expect(inspector).to_be_visible()
     assert f'photo={reviewed}' in page.url
-    inspector.get_by_role('button',name='Review photo…',exact=True).click()
+    inspector.get_by_role('button',name='Inspect photo…',exact=True).click()
     workspace.get_by_role('button',name='Done',exact=True).click()
     expect(workspace.locator('.workspace-step')).to_contain_text('Photo 1 of 1')
     expect(page).to_have_url(re.compile(fr'review_photo={remaining}(?:&|$)'))
     workspace.get_by_role('button',name='Back to gallery',exact=True).click()
     expect(inspector).to_have_count(0)
-    expect(page.locator('.gallery-summary').first).to_contain_text('1 photo')
+    expect(page.locator('.gallery-result-count')).to_have_text(re.compile(r'^Showing 1 of [\d,]+ photos?$'))
     page.locator(f'.card[data-id="{remaining}"] .card-image').click()
-    inspector.get_by_role('button',name='Review photo…',exact=True).click()
+    inspector.get_by_role('button',name='Inspect photo…',exact=True).click()
     workspace.get_by_role('button',name='Done',exact=True).click()
     expect(workspace).to_have_count(0)
     expect(inspector).to_have_count(0)
@@ -313,7 +318,7 @@ with sync_playwright() as p:
     page.goto(base+'/?view=review&reason=small')
     expect(page.locator('.card').first).to_be_visible()
     rejected=int(page.locator('.card').first.get_attribute('data-id'))
-    page.locator('.card').first.get_by_role('button',name='Review photo',exact=True).click()
+    page.locator('.card').first.get_by_role('button',name='Inspect photo',exact=True).click()
     workspace.get_by_role('button',name='Reject…',exact=True).click()
     page.get_by_role('alertdialog').get_by_role('button',name='Reject',exact=True).click()
     expect(workspace.get_by_text('Photo moved to Rejects.',exact=True)).to_be_visible(timeout=60000)

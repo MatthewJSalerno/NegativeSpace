@@ -483,7 +483,7 @@ contains intentional unreadable/invalid files; those are expected test outcomes.
 Before opening a candidate, enter **Has similar photos**, click the visible
 **Most matches first** shortcut (also available in Sort), and
 change **Matches at or above**. Check card counts against the Inspector at that same
-percentage. Search/date/type/folder filters narrow references, not their counted
+percentage. Search/date/type filters narrow references, not their counted
 matches. Zero-match photos disappear; explicit checkbox selection remains. Reload
 and return from Logs: sort and gallery threshold persist. Opening a gallery card
 opens Similar photos at the gallery threshold; later Inspector changes do not reorder
@@ -1449,15 +1449,14 @@ remaining source names, and verify that omitting the flag preserves edited origi
 The web confirmation remains a separate implementation; no manual UI validation is
 required for this engine-only change.
 
-### Metadata editing UI acceptance still pending
+### Metadata engine delivery and later UI acceptance
 
 The metadata engine has automated generated-fixture coverage, including verified saves,
-date refiling, recovery and job-confirmed source cleanup. **Full user validation remains
-pending implementation of the editing API and UI.** The read-only viewer is accepted
-separately below. Command-line test reruns do not
-replace that walkthrough. Validate source choice, editing previews, save/recovery feedback
-and the Move confirmation through the eventual screens before claiming end-to-end UX
-acceptance. No metadata screens were implemented as part of this engine delivery.
+date refiling, recovery and job-confirmed source cleanup. The engine-only delivery did
+not include screens. The later source viewer and Date taken editor have now passed
+maintainer acceptance, including all numbered follow-ups below. Broader source-choice,
+recovery and edited-source Move confirmation screens remain separate work and will need
+their own acceptance; command-line tests do not replace those walkthroughs.
 
 ### Combined metadata and navigation schema
 
@@ -1469,10 +1468,10 @@ refresh and recovery. Local integration validation passed 195 database/API tests
 six browser workflows: main UI, filters, notifications, review, file-issue recovery and
 externally removed copied originals. GitHub runs the complete combined suite before merge.
 
-### First metadata editing UI acceptance — manual validation pending
+### First metadata editing UI acceptance — passed
 
 The agreed first web editor changes only Date taken; broad metadata viewing does not
-imply general field editing. The date editor is built; validate:
+imply general field editing. The date editor is built and accepted; coverage includes:
 
 - Separate sidecar XMP, embedded XMP and EXIF fixtures; mixed/conflicting sources and
   alternate versions. Primary remains visibly identified when another tab is selected.
@@ -1485,9 +1484,9 @@ imply general field editing. The date editor is built; validate:
   uses one confirmation for the date and any refiling; failures retain actionable details.
 - Keyboard tabs, focus, stable layout, both themes and desktop zoom follow shared checks.
 
-The read-only viewing checks are accepted as recorded below; editing and save checks
-remain pending maintainer acceptance. Saved rotation and general composition remain separate scope. Reconcile
-this record with the specs, TODO and private handoff before the next merge.
+Read-only viewing, date editing and save checks passed maintainer acceptance, including
+the final presentation follow-ups below. Saved rotation and general composition remain
+separate scope.
 
 ### Read-only metadata source viewer
 
@@ -1498,7 +1497,8 @@ command. `METADATA_VIEW_FIXTURE=1 DRIVER=metadata_sources_browser_drive.py` uses
 browser harness's generated three-source photo to check real Index/Copy captures,
 conflicting dates, Primary identity, comparison, field search, keyboard navigation,
 light/dark reflow and failed-read retry. Both checks run in CI. The metadata test fixture
-never reads the demo library. Date-copy/edit and primary-change acceptance remain pending.
+never reads the demo library. Date-copy/edit acceptance passed; future primary-change
+controls still require their own implementation and acceptance.
 
 The merged metadata scenario generator also passed all six tests unchanged. A build
 with a public RAW sample produced 57 cases and 61 photos; the branch reader reported
@@ -1587,7 +1587,7 @@ clear and same-photo donor copying. Both checks run in CI.
 
 For maintainer acceptance, use disposable destination copies:
 
-1. Open a Library photo, Photo information → Metadata sources → Edit Date taken.
+1. Open a Library photo, Metadata → Edit Date taken (or Photo information → Edit date).
    Verify the target and its own recorded date. Change a date; Cancel → Keep editing
    must preserve the draft, while Discard must leave the file unchanged.
 2. Preview a different date. Check before/after values and current/resulting paths.
@@ -1609,7 +1609,7 @@ browser walkthrough passed. Browser
 checks include Back/Keep editing, width changes while a draft is open, and acceptance
 lost after job submission. Light/dark desktop and narrow preview screenshots were
 inspected. Spec checks passed for 475 section references and 54 API routes. Manual
-date-editor acceptance remains pending; read-only viewer acceptance is already complete.
+date-editor and read-only viewer acceptance subsequently passed; see the numbered record below.
 
 
 ### Motion-photo metadata save preservation
@@ -1636,11 +1636,12 @@ library contains 60 cases, 64 photos (63 seeded JPEGs and one public RAW copy), 
 three motion photos. The builder verified that every seed file stayed unchanged. This
 library now backs a fresh validation demo: 47 organized photos and 17 intentional
 source metadata holds. Earlier demo photo IDs no longer apply. No date edits were saved
-during preparation; maintainer date-editor acceptance remains pending. Expanded RAW, DNG,
+during that preparation; maintainer date-editor acceptance subsequently passed. Expanded RAW, DNG,
 TIFF, HEIC and extended-XMP cases remain planned in the builder owner's workstream.
 
 Inspector refresh regression: the review browser workflow dispatches repeated review
-updates and asserts one metadata section, review section and Photo actions row.
+updates and asserts one review section and Photo actions row. The source-view workflow separately
+refreshes the Metadata tab and asserts one metadata section.
 Sibling sections use distinct keys so refreshing does not leave orphan controls.
 
 Viewer PR follow-up validation: all workflow steps passed locally, including 745
@@ -1648,3 +1649,373 @@ unit/API cases across 37 suites, 17 browser workflows, and 154 engine smoke case
 with the public RAW samples (zero skipped). The scenario builders passed 10 demo
 and 8 metadata cases. Spec checks passed 476 references, schema drift and 51 routes.
 The read-only viewer remains maintainer-accepted; date-editor acceptance is separate.
+
+Date-editor usability checks: the date browser workflow changes a calendar day while
+retaining fractional seconds/offset, verifies that clearing the picker is not a saved
+clear, and exercises an actual missing-date XMP primary with an EXIF fallback. The
+source-view browser checks multiple versions, tab/filter/table geometry and hidden
+selector accessibility at desktop and narrow widths. Maintainer checks: use the
+calendar, confirm the full timestamp keeps its time/offset, and switch source tabs on
+a photo with multiple sidecar versions without the fields shifting vertically.
+
+Recorded-tag comparison checks cover the union of both sources, changed/equal tags,
+empty versus missing, reordered object keys, differences-only and search, comparison
+off, and a source with no tags of its own. Desktop/narrow screenshots cover the expanded table.
+
+### Inspector Metadata tab: final manual validation
+
+1. Open a Library photo. Photo information shows actions, warnings and basic file/date
+   facts. Technical details starts collapsed; expand it to find hashes and file tags.
+2. Open Metadata. The primary source is marked, source tabs and sidecar versions work,
+   and Compare with primary / Show differences only apply to fields and expanded tags.
+3. Return to Photo information and choose Edit date. Metadata becomes selected behind
+   the editor. Choose a calendar day, check the preserved time/offset, then preview and
+   cancel/discard. Repeat and Save once; confirm the displayed date and filing location
+   refresh. Copy a date from another source and explicitly clear an XMP date separately.
+4. Choose Metadata or Similar photos, then use previous/next: the selected tab stays
+   open. Click another gallery photo: Photo information opens. Refresh a URL with
+   tab=metadata: Metadata is restored.
+5. Source photos and Rejects still offer read-only Metadata; source issues remain on
+   File information. Neither offers date-edit controls. Similar photos remains available
+   for Library and Rejects only.
+6. Check light/dark modes, resized panels and desktop zoom; source tabs, controls and
+   comparisons stay readable. Enlarging a photo retains compact information and its
+   View metadata shortcut returns to the Metadata tab.
+
+The metadata-source browser workflow covers tab/URL restoration, gallery-click reset and arrow-tab retention,
+repeated refresh, collapsed technical details and tag comparisons. The date workflow
+starts through the compact Edit date shortcut. General, filter-pin, review and similarity
+browser workflows cover shared Inspector consumers. Final manual acceptance and GitHub
+checks are required before merge; passing a frontend build alone is insufficient.
+
+Local Inspector-tab validation passed: frontend build; metadata-source, metadata-date,
+filter-pin, review, similarity, reject-from-similarity and general UI browser workflows
+(seven workflows using generated fixtures); 475 spec references and 54 API routes.
+Screenshots cover desktop/narrow layouts. These results do not replace maintainer
+acceptance or the full GitHub checks on the eventual pushed editor commit.
+
+### Full demo plus metadata scenarios: maintainer walkthrough
+
+Use a fresh disposable catalog/destination with the full demo library and the metadata
+scenario library mounted read-only under separate source subfolders. Keep the scenario
+manifest alongside the deployment, outside Git. The full demo includes thousands of
+photos plus intentional edge cases; the metadata builder adds focused source/date cases.
+Source files, catalog photos and organized Library photos are different counts: sidecars,
+exact duplicates and import holds mean they will not match. This walkthrough validates
+real browsing and editing behavior; it is not a 200k/500k performance benchmark.
+
+1. **Setup and Index.** Start from the base URL, create the catalog, finish setup and
+   choose On or Off for small-image reminders. Run Index and wait for completion.
+   Inspect Not organized and the summary; Library remains empty until Copy. Needs
+   attention should explain intentional malformed/unreadable scenarios and link to logs.
+2. **Copy.** Run Copy all photos and wait for completion. Use Copy for read-only test
+   sources. Library should contain thousands of photos; duplicates are organized once,
+   and unsafe/unreadable cases remain at source with explanations. Check notification
+   details and Not organized → Needs attention; record unexpected failures by their
+   generated case, rather than assuming every failure is expected.
+3. **Browse at volume.** In Library, scroll through several loads, use the year scrubber,
+   search, select/unselect photos, and try Look into filters and Clear all filters. Open
+   photos with clicks and previous/next. Gallery clicks reset to Photo information;
+   previous/next retains Metadata/Similar selection, including across page boundaries.
+   Explicit metadata-tab URLs restore on reload.
+4. **Find a metadata case.** Search Library by its unique `md-` case token,
+   for example `md-date-three-way` or `md-exif-only`. Demo scenarios use `scn-`.
+   These tokens remain searchable if a destination collision adds a numbered suffix.
+   For source inspection, use Not organized → Source folders → Still in source.
+   Confirm the case against the manifest. Never reuse photo IDs or a `case-ids.json`
+   mapping from a previous catalog; regenerate mappings after Index if needed.
+
+| Case folder inside metadata fixtures | Expected before editing |
+| :--- | :--- |
+| `conflict/date_three_way` | Sidecar primary date 2021-08-01 09:30:00; embedded XMP 2020-05-01 10:00:00; EXIF 2019-06-15 12:00:00. |
+| `agree/complementary` | Sidecar primary has no date; date editor starts blank, while filing uses the EXIF date 2019-06-15. |
+| `agree/sidecar_only` | Sidecar primary with date 2019-06-15 12:00:00; useful for explicit-clear testing. |
+| `agree/exif_only` | EXIF primary; date 2019-06-15 12:00:00. |
+| `agree/embedded_xmp_only` | Embedded XMP primary; date 2019-06-15 12:00:00. |
+| `sidecar_broken/malformed_xml` | Remains in Not organized; metadata warning identifies its sidecar and gives external repair/reindex guidance. |
+
+5. **Information and comparison.** On the three-way case, Photo information shows a
+   short filing-date summary and its source. Technical details starts collapsed and
+   exposes hashes/file tags when opened. Metadata shows the three captured sources,
+   identifies Primary independently of the selected tab, and defaults to primary.
+   Compare EXIF/embedded XMP against primary, then enable differences-only and search.
+   Expand recorded tags: they follow both controls and distinguish Empty from Not
+   recorded. Raw names/structures can differ across formats even for equivalent common
+   fields. Clear the search and switch source tabs without controls shifting vertically.
+6. **Cancel then save.** From Photo information choose Edit date; Metadata is selected
+   behind the editor. Pick an unused calendar day, checking time/fraction/offset remain
+   unchanged. Preview shows write target, old/new date and old/new destination. Cancel →
+   Keep editing preserves the draft; Cancel → Discard leaves files/date unchanged.
+   Repeat, Save once and wait for Date saved. Clear restrictive date filters if needed
+   to find the refiled photo. Confirm date, destination, primary source, other fields and
+   photo logs. A photo-name collision should offer a numbered filename in Preview,
+   never overwrite. Save must use the confirmed filename; a changed target needs a new preview.
+7. **Copy and clear.** On a nonprimary EXIF tab choose Copy Date taken to primary;
+   preview/save and verify the sidecar stays primary and the donor is unchanged. On
+   the sidecar-only case, explicitly clear Date taken; preview/save should show Undated
+   and Empty. On the complementary case, the initial editor must be blank rather than
+   prefilled from EXIF; its explicit-clear explanation describes suppressing fallback.
+   Keep these tests separate so earlier edits do not invalidate later expectations.
+8. **Other targets and guards.** Test a complete date change on EXIF-only and
+   embedded-XMP-only cases. Invalid dates cannot proceed; EXIF partial/empty values
+   are refused rather than changing primary. No-change previews cannot save. Source
+   photos and Rejects have read-only Metadata, with no date-save controls. Source
+   warnings remain on File information and Similar photos is absent there.
+9. **Layout and accessibility.** Repeat tab switching and a comparison in light/dark
+   mode, with a resized Inspector and 200% desktop zoom. Check labels, buttons, tables
+   and scrolling. Keyboard arrows switch focused tabs without changing the photo.
+   Enlarge a photo; View metadata returns to its Metadata tab. Similar-photo browsing
+   and side-by-side comparison still work on the full demo's matching sets.
+
+Report the step/case, expected versus actual result and screenshot for any issue.
+These manual checks precede commit/push and GitHub validation of the final editor branch;
+they do not establish support for every intentionally unsupported builder scenario.
+
+### Source and destination navigation validation
+
+- Needs attention is indented under Not organized beside Source folders, has a count
+  including zero in Library, Logs and Stats, and opens all affected source files.
+  It has no pin; choosing Not organized leaves attention filtering.
+- Source folders owns the only folder tree. Select a folder and switch Waiting /
+  Still in source: the folder stays selected. Choose Library, Needs review or Rejects:
+  the source-folder restriction disappears, including from the URL.
+- Filters contains file types and Dates in each gallery. Date checkboxes narrow results;
+  the date scrubber jumps within them. No second folder selector remains.
+- Refresh and browser Back restore source scope; old destination folder URLs cannot
+  leave an invisible filter. Source scope controls must not cover folder rows at desktop
+  size or narrow reflow. Checkbox photo selections remain independent of navigation.
+
+Maintainer reports Create, Index and Copy passed on the combined demo/scenario library.
+Metadata and navigation acceptance subsequently passed, including all follow-ups below.
+
+Source/destination navigation checks passed locally: frontend build; generated-fixture
+filter-pin, source-scope, general UI and reference-set browser workflows; 475 spec
+references and diff whitespace checks. Live read-only checks and inspected screenshots
+cover desktop/narrow source navigation, attention counts and Library date filters.
+The grouping test now explicitly pins similarity before combining other filters; its
+old folder-popup expectations were replaced with the current source-only contract.
+No engine change or catalog reset was needed for those navigation checks. Final editor
+acceptance passed; GitHub checks remain a separate merge gate.
+
+### Filter pin and gallery count follow-up
+
+`filter_pins_browser_drive.py` covers pinning two filters and unpinning each one:
+active states, URL restrictions, chip counts and gallery rows update, and refresh keeps
+both off. Removing an unapplied pin preserves an explicit job link. The unfiltered
+place total appears in the sidebar, without another total above the gallery or in its
+pager. Filtered results show matching and whole-place counts; set, selection and job
+scopes retain their own totals. `layout_stability_browser_drive.py` checks unchanged
+control positions as the count summary appears/disappears at desktop and narrow widths.
+`review_browser_drive.py` retains zero/one-result and reminder-clearing coverage.
+
+Manual acceptance: in Library, pin Has similar photos and Suspicious dates; unpin each
+in turn and confirm the gallery/counts broaden, then refresh. Verify Library keeps its
+sidebar total, and only filtered results show “Showing N of M photos” above the gallery.
+
+Automated follow-up validation: generated-photo filter-pin, layout-stability, review,
+reference-set, gallery-position, source-scope and full browser workflows all pass.
+The pin fixture uses a date boundary that excludes some photos, so clearing pins must
+actually broaden results. Desktop/narrow light/dark screenshots inspected; build and
+specification checks pass. Maintainer acceptance passed (Test 1).
+
+
+### Completed date-editor branch acceptance after review-control cleanup
+
+**Acceptance complete (2026-10-13).** Tests 1–6 and follow-up checks 3b, 4f,
+5a, 5c, 5d and 5e passed. No further manual checks are requested for this batch.
+The numbered steps below remain as the regression checklist.
+
+**Maintainer results (latest review):**
+
+| Test | Status |
+| :--- | :--- |
+| 1 | Passed. |
+| 2 | Passed, including comparison tags layout. |
+| 3 | Passed, including folder layout/actions follow-up 3b. |
+| 4 | Passed, including corrected job counts and lineage follow-up 4f. |
+| 5 | Passed, including follow-ups 5a, 5c, 5d and 5e. |
+| 6 | Passed. |
+
+The searchable-fixture refresh passed both Docker builder suites (9 metadata tests
+and 10 demo-scenario tests). It includes 60 metadata cases. The maintainer completed
+the follow-up validation after the refresh. Do not reuse IDs from an older catalog.
+
+The maintainer authorized the reported-fix batch after finishing the other tests.
+The searchable scenario update requires freshly generated fixtures and a fresh catalog;
+keep previous validation data separately. Do not run retry/edit jobs on the maintainer's
+behalf. Earlier acceptance results remain recorded above.
+
+Search by the filename tokens below in the refreshed scenario library. Dates are the
+initial values, before editing. A collision can add a filename suffix, so searching
+without the extension is useful. Clear Library filters before searching.
+
+| Steps | Destination filename to search | Initial filing date | Metadata case |
+| :--- | :--- | :--- | :--- |
+| 3e, 4a–f, 5a–b | `md-date-three-way.jpg` | 2021-08-01 | Three sources; sidecar primary |
+| 5c–d | `md-sidecar-only.jpg` | 2019-06-15 | Sidecar-only |
+| 5e–f | `md-complementary.jpg` | 2019-06-15 | Sidecar missing date; EXIF fallback |
+| 6a, 6c–e, 6g | `md-exif-only.jpg` | 2019-06-15 | EXIF-only |
+| 6b | `md-embedded-xmp-only.jpg` | 2019-06-15 | Embedded-XMP-only |
+
+Create, Index and Copy have passed maintainer validation. A fresh fixture catalog
+needs its own Index and Copy before these checks; earlier viewer acceptance still stands. These checks cover the remaining
+layout/navigation changes and date-save workflow. Automated checks do not replace
+maintainer acceptance.
+
+**All Tests 1–6 and the following comment follow-ups passed maintainer validation:**
+
+- **Test 3b:** Selecting/unselecting folders keeps the tree in place. Copy/Move stay
+  visible but disabled with guidance unless exactly one folder is chosen.
+- **Test 4f:** Lineage omits repeated selection-job links already represented in the
+  tree; jobs without a recorded file step remain in a collapsed disclosure.
+- **Test 5a:** On an alternative source's Date taken row, Copy date to primary is a
+  link beside the date. It opens the same preview/save workflow, never copies all fields.
+- **Test 5c:** The primary date and Photo information shortcut read Edit metadata date.
+  A repeated clear of an already-empty primary date in Undated previews No changes
+  needed with Save disabled. An absent date and an explicit empty are still distinct.
+- **Test 5d:** The Date saved dialog has one heading and a shared footer containing
+  View job details and Close, with consistent spacing.
+- **Test 5e:** A primary missing Date taken points to another source with a recorded
+  date; its link opens that source for review. No value is copied automatically.
+  An explicitly cleared primary date does not get this suggestion.
+
+Two non-blocking discussion items were recorded with the final passes: whether folder
+handling can happen behind the scenes (3b; behavior still to define), and whether
+the existing photo-filtered Open in the log link could have a clearer label (4f).
+It already shows associated operations across jobs; no new log filtering is needed. Neither
+requires another validation pass now. Copying all metadata also remains a separate
+post-validation discussion, not part of this batch.
+
+#### Test 1 — Filters and totals
+
+- **a.** Hard-refresh Library, then Clear all filters. The whole-library count should
+  appear in the sidebar without being repeated above the gallery or beside pagination.
+- **b.** Pin Has similar photos and Suspicious dates. Both should be active, with one
+  “Showing N of M photos” summary reflecting their intersection.
+- **c.** Unpin each in turn. Each filter should turn off, and the photos, counts and URL
+  should update. Refresh; both should remain off.
+- **d.** Choose Newest first or Oldest first, then No capture date. The year controls
+  should disappear without making the gallery jump.
+- **e.** Pin No capture date and enable another available filter. The year controls
+  should remain hidden, including after refreshing.
+- **f.** Unpin No capture date. The other filter should remain active, and the year
+  controls should return while sorted by date. Clear all filters before Test 2.
+
+#### Test 2 — Inspection and comparison
+
+- **a.** Open a Library photo with a review reason. Its action row should read Inspect
+  photo, Review later and Reject, with consistent button styling.
+- **b.** Choose Inspect photo. It should open the existing review workspace. Return
+  to the gallery afterward.
+- **c.** Open a photo with matches, choose Similar photos, then Review side by side.
+  Refresh comparison should be outlined and aligned with the Minimum similarity
+  dropdown. Keep should be beneath the reference preview's controls and dimensions.
+- **d.** Choose Keep. The existing rejection-review screen should identify the correct
+  keeper and other photos. Cancel/back out without rejecting any photos.
+- **e.** Reopen the comparison and choose Use as reference on a candidate. Keep should
+  now name that photo. Refresh comparison should retain the current reference.
+- **f.** Check these controls in both themes and at 200% desktop zoom. They should
+  remain readable and reachable. The recorded-tags layout recheck has passed.
+
+#### Test 3 — Navigation and metadata viewing
+
+- **a.** Open Not organized → Needs attention. It should have a sidebar count and show
+  the affected source files.
+- **b.** Open Source folders and select a folder. Switch Waiting / Still in source:
+  the selection should remain, and the scope controls must not overlap folder rows.
+  Please check at the window size where you originally saw the overlap.
+- **c.** Choose Library. The source-folder restriction should disappear from results
+  and the URL. Types and Dates should remain available in Filters, with no folder tree.
+- **d.** Click a gallery photo, choose Metadata, then use previous/next. The Metadata
+  tab should stay selected. Clicking a different gallery card should instead select
+  Photo information. Repeat with Similar photos.
+- **e.** On `md-date-three-way.jpg` (three-source case), switch among
+  XMP Sidecar, Embedded XMP and EXIF. Primary should remain clearly identified even
+  when another source is selected. Find the case by its supplied destination
+  filename and date; filenames alone may not be unique across the generated fixtures.
+- **f.** Enable Compare with primary, differences-only and a field search. Expand
+  recorded source tags in the Metadata tab: those controls should also apply there.
+  Empty and Not recorded must remain distinct. The separate side-by-side layout recheck has passed.
+- **g.** Repeat tab switching in light/dark mode and at 200% desktop zoom. Labels and
+  controls should stay readable and stable.
+
+#### Test 4 — Cancel and save a date
+
+- **a.** On `md-date-three-way.jpg`, note the current primary, date, destination and
+  another recorded field. Open Edit date and pick an unused calendar day. Any recorded
+  time and timezone offset should remain unchanged.
+- **b.** Preview. Confirm the primary write target, old/new date and old/new destination
+  before saving. No file change should have happened yet.
+- **c.** Choose Cancel → Keep editing. Your draft should remain. Then Cancel → Discard:
+  the saved date and destination should be unchanged.
+- **d.** Repeat the edit, preview and Save once. Wait for Date saved.
+- **e.** Check Photo information and Metadata: date/path should match the preview;
+  primary identity and unrelated fields should be unchanged. Clear any restrictive
+  date filters if the photo leaves the current view.
+- **f.** Open its log and confirm the date-edit operation is recorded. Refresh the
+  page and confirm the saved date remains.
+
+#### Test 5 — Copy and clear a date
+
+- **a.** On `md-date-three-way.jpg`, select its nonprimary EXIF source tab.
+  Choose Copy Date taken to primary. Preview must name the primary as the write target
+  and show an available numbered filename if the proposed photo name is occupied.
+- **b.** Save once. The primary date should match the chosen donor date; the donor
+  and primary identity must remain unchanged.
+- **c.** On `md-sidecar-only.jpg` (sidecar-only), open Edit date and explicitly
+  clear Date taken. Preview should show the clear and an Undated destination.
+- **d.** Save. Confirm Empty in the primary metadata and Undated in the destination.
+- **e.** On `md-complementary.jpg` (complementary), the sidecar has no date
+  while EXIF has one. Its editor should start blank, even if the filing date used EXIF.
+- **f.** Explicitly clear that missing sidecar date, preview and save. This should
+  suppress fallback and file the photo under Undated. Earlier edits can change a case's
+  starting state; use an unmodified case or report that it is no longer suitable.
+
+#### Test 6 — Other writers and guards
+
+- **a.** On `md-exif-only.jpg` (EXIF-only), save a complete Date taken value. Confirm the resulting
+  date/path and that EXIF remains primary.
+- **b.** On `md-embedded-xmp-only.jpg` (embedded-XMP-only), do the same. Embedded XMP should remain primary.
+- **c.** On `md-exif-only.jpg`, enter an invalid date, such as February 31. It should not proceed to saving.
+- **d.** On `md-exif-only.jpg`, preview an unchanged date. Saving should be disabled with no changes needed.
+- **e.** Search Library for `md-exif-only.jpg`, open Metadata, and confirm EXIF is marked
+  Primary. Choose Edit Date taken, enter `2020` in the Date taken text field (not the
+  calendar), and attempt Preview change if enabled. It must refuse the partial date
+  with an explanation and must not switch primary. Cancel without saving.
+- **f.** Open a source photo in Not organized and a photo in Rejects, if one is present.
+  Their Metadata tabs should be read-only for date editing. Report Rejects as not
+  exercised if empty; no need to reject a photo just for this check.
+- **g.** On `md-exif-only.jpg`, repeat an edit/preview at 200% desktop zoom. All confirmation and cancel
+  controls should remain reachable; cancel if you do not want another date change.
+
+After acceptance: reconcile docs/backlog, commit and push this branch, require GitHub
+checks to pass, then review and merge. The reported-fix batch also changes engine preview
+name selection and API outcomes; metadata/API regressions supplement the browser checks.
+
+Automated review-control cleanup checks: frontend build; nine generated Docker browser
+workflows (filter pins, layout stability, similarity comparison, Reject/Keep, review,
+cross-location, source scope, metadata sources and date editing); all three spec checkers
+and whitespace checks pass. Comparison checks assert dropdown/refresh alignment and
+reference-only Keep placement at desktop and narrow widths. Layout checks retain the
+1px limit. A comparison-test mock cleanup race was corrected by waiting for in-flight
+handlers before removing them; no assertions were removed or loosened. The year controls
+leave an empty gutter so hiding them does not rewrap the gallery guidance.
+
+
+Reported-fix regression results: all 439 metadata tests, 98 API tests and 5 notification
+tests passed in Docker (317 s, 88 s and under 1 s respectively). Five generated browser
+workflows passed: date editing (24 s), source scope/folder alignment (12 s), similarity
+comparison (14 s), notifications (22 s), and layout stability (21 s). Tests verify
+numbered-name saves for sidecar and embedded EXIF, preservation of occupied files and
+source bytes, stale-target/orphan/symlink refusal, saved/failed/no-change counts, blank
+explicit-clear inputs and draft restoration, stable candidate positioning when tags
+expand, and aligned empty-folder rows at three widths. All three spec/schema checkers
+and whitespace checks passed. These automated results supplement the maintainer acceptance recorded above.
+
+
+Post-acceptance comment checks: all five generated Docker browser workflows passed
+(date editing, metadata sources, source scope, layout stability and the full web UI).
+The date flow verifies a second explicit clear cannot save or start another job; the
+folder flow checks tree-relative geometry when choosing one, multiple or no folders.
+Desktop/narrow rendering, completion-dialog screenshots, all three spec checks and
+whitespace checks passed. Engine behavior was unchanged in this presentation batch.

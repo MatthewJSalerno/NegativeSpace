@@ -70,7 +70,7 @@ with sync_playwright() as p:
     def open_case(name):
         photo = photos[cases[name]['photos'][0]['path']]
         view = 'organized' if photo['status'] == 'Copied' else 'unorganized'
-        page.goto(base + f"/?view={view}&photo={photo['id']}")
+        page.goto(base + f"/?view={view}&photo={photo['id']}&tab=metadata")
         viewer = page.locator('.metadata-sources')
         expect(viewer.get_by_role('tab', name='EXIF', exact=False)).to_be_visible()
         return viewer
@@ -108,20 +108,22 @@ with sync_playwright() as p:
     viewer.get_by_role('tab', name='XMP Sidecar', exact=True).click()
     expect(viewer).to_contain_text('No metadata recorded for this source.')
     viewer = open_case('malformed_xml')
+    page.get_by_role('tab',name='File information',exact=True).click()
     notice=page.get_by_role('region',name='Metadata needs attention',exact=True)
     expect(notice).to_be_visible()
     expect(notice).to_contain_text('malformed XML')
-    expect(notice).to_contain_text('sidecar_broken/malformed_xml/photo.jpg.xmp')
+    expect(notice).to_contain_text(cases['malformed_xml']['sidecars'][0]['path'])
     expect(notice).to_contain_text('remain at source')
     expect(notice).to_contain_text('Index again')
     expect(notice.get_by_role('link',name='View photo logs')).to_be_visible()
+    page.get_by_role('tab',name='Metadata',exact=True).click()
     viewer.get_by_role('tab', name='XMP Sidecar', exact=True).click()
     expect(viewer).to_contain_text('This source could not be interpreted.')
     expect(viewer.get_by_role('link', name='View photo logs')).to_be_visible()
     page.set_viewport_size({'width':1440,'height':1000})
     page.goto(base+'/?view=unorganized')
     sidebar=page.get_by_role('navigation',name='Main')
-    attention=sidebar.get_by_role('button',name=re.compile(r'^Needs attention'))
+    attention=sidebar.get_by_role('link',name=re.compile(r'^Needs attention'))
     attention_count=get('/photos?view=unorganized&reason=attention')['total']
     expect(attention).to_contain_text(str(attention_count))
     # The whole-summary shortcut clears an unrelated search, so it cannot hide holds.
@@ -130,22 +132,22 @@ with sync_playwright() as p:
     if show_summary.is_visible():
         show_summary.click()
     page.get_by_role('link',name=f'View {attention_count} files needing attention',exact=True).click()
-    expect(attention).to_have_attribute('aria-pressed','true')
+    expect(attention).to_have_attribute('aria-current','page')
     expect(page).to_have_url(re.compile(r'reason=attention'))
     assert 'q=' not in page.url
     expect(page.locator('.grid .card')).to_have_count(attention_count)
     page.reload()
-    expect(attention).to_have_attribute('aria-pressed','true')
-    sidebar.get_by_role('button',name='Pin Needs attention',exact=True).click()
+    expect(attention).to_have_attribute('aria-current','page')
     sidebar.get_by_role('link',name=re.compile(r'^Library ')).click()
-    expect(attention).to_have_attribute('aria-disabled','true')
+    expect(attention).not_to_have_attribute('aria-disabled','true')
+    expect(attention).to_contain_text(str(attention_count))
     assert 'reason=attention' not in page.url
-    sidebar.get_by_role('link',name=re.compile(r'^Not organized ')).click()
-    expect(attention).to_have_attribute('aria-pressed','true')
-    sidebar.get_by_role('button',name='Clear all filters',exact=True).click()
-    expect(attention).to_have_attribute('aria-pressed','false')
     attention.click()
-    expect(attention).to_have_attribute('aria-pressed','true')
+    expect(attention).to_have_attribute('aria-current','page')
+    sidebar.get_by_role('link',name=re.compile(r'^Not organized ')).click()
+    expect(attention).not_to_have_attribute('aria-current','page')
+    attention.click()
+    expect(attention).to_have_attribute('aria-current','page')
     if os.environ.get('SHOTS'):
         page.screenshot(path=os.environ['SHOTS']+'/attention-filter.png')
     broken_id=photos[cases['malformed_xml']['photos'][0]['path']]['id']
@@ -162,7 +164,7 @@ with sync_playwright() as p:
         if width < 800:
             page.get_by_role('button',name='Menu',exact=True).click()
         expect(attention).to_be_visible()
-        expect(attention).to_have_attribute('aria-pressed','true')
+        expect(attention).to_have_attribute('aria-current','page')
         expect(attention).to_contain_text(str(attention_count))
         if os.environ.get('SHOTS'):
             page.screenshot(path=os.environ['SHOTS']+f'/attention-filter-{width}.png')

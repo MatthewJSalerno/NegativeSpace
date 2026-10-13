@@ -111,7 +111,7 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
                 Needs review · {item.review.reasons.map(n => n.label).join(", ")}
               </a>
             </div>}
-            {onReview && item.review && <div className="review-card-notes"><span className="section-note">Location: {item.review.location}</span>{item.review.reasons.map(n=><p key={n.reason}>{n.reason === "small" ? <Tip text={n.message}><span>Below minimum image size</span></Tip> : `${n.label}: ${n.message}`}</p>)}<button onClick={()=>onReview(item.id)}>Review photo</button></div>}
+            {onReview && item.review && <div className="review-card-notes"><span className="section-note">Location: {item.review.location}</span>{item.review.reasons.map(n=><p key={n.reason}>{n.reason === "small" ? <Tip text={n.message}><span>Below minimum image size</span></Tip> : `${n.label}: ${n.message}`}</p>)}<button onClick={()=>onReview(item.id)}>Inspect photo</button></div>}
             {onExploreSet && <div className="set-card-actions">
               <strong>Reference set · {plural((item.similar_count ?? 0) + 1, "photo")}</strong>
               <span className="section-note">Identical sets shown once. Explore members and related sets.</span>

@@ -70,7 +70,8 @@ with sync_playwright() as p:
         for place in ('organized','review'):
             page.goto(sys.argv[1]+f'/?view={place}')
             expect(page.locator('.card')).to_have_count(60)
-            expect(page.locator('.gallery-summary > span').first).to_have_text('130 photos')
+            expect(page.locator('.gallery-result-count')).to_have_count(0)
+            expect(page.get_by_role('navigation',name='Main',include_hidden=True).get_by_role('link',name=re.compile(r'^' + ('Library' if place == 'organized' else 'Needs review') + r'\b'),include_hidden=True).locator('.sidebar-count')).to_have_text('130')
             before=anchors(('.gallery-summary','.gallery-filter-summary','.gallery-head','.pager'))
             chips=page.get_by_role('group',name='Look into',include_hidden=True)  # narrow, the menu closes after a choice
             for name in ('Suspicious dates','No capture date','Small images'):
@@ -78,12 +79,12 @@ with sync_playwright() as p:
                 if width<=800: page.get_by_role('button',name='Menu',exact=True).click()
                 button.click()
                 expect(button).to_have_attribute('aria-pressed','true')
-                expect(page.locator('.gallery-summary > span').first).to_have_text({'Suspicious dates':'60 photos','No capture date':'128 photos','Small images':'130 photos'}[name])
+                expect(page.locator('.gallery-result-count')).to_have_text({'Suspicious dates':'Showing 60 of 130 photos','No capture date':'Showing 128 of 130 photos','Small images':'Showing 130 of 130 photos'}[name])
                 unchanged(before)
                 if width<=800: page.get_by_role('button',name='Menu',exact=True).click()
                 button.click()
                 expect(button).to_have_attribute('aria-pressed','false')
-                expect(page.locator('.gallery-summary > span').first).to_have_text('130 photos')
+                expect(page.locator('.gallery-result-count')).to_have_count(0)
                 expect(page.locator('.card')).to_have_count(60)
                 unchanged(before)
             if os.environ.get('SHOTS'):page.screenshot(path=os.path.join(os.environ['SHOTS'],f'gallery-stable-{place}-{width}.png'))

@@ -415,9 +415,14 @@ Body: `{"capture_id": 12, "value": "2020-06-15T14:30:00.123+02:00"}` or
 `{"capture_id": 12, "donor_id": "exif"}`. An explicit empty string proposes a clear;
 absent donor dates cannot be copied. A donor must be a recorded source of this photo.
 Return `edit`, `token`, `target`, `before` (`present`, `value`), `after`, `filing`
-(`current`, `proposed`, `change`), and `no_change`. The bounded engine preview validates
-writer support and retains source provenance; it does not write or check live destination
-collisions. Unsupported values/invalid shape return 400 `invalid_request`; stale catalog
+(`current`, `proposed`, `change`, optional `collision_renamed`), and `no_change`. The
+read-only engine preview validates writer support and retains source provenance. For
+refiling it checks destination names and offers the next available numbered photo name
+when a photo occupies the requested name, keeping its sidecar paired. It refuses an
+orphan sidecar, unsafe path or non-file obstruction; it never overwrites or reserves a
+name. Save re-derives the preview under the engine lock; a different chosen path requires
+a fresh preview and confirmation. Unsupported values, invalid shape and filesystem
+refusals return 400 `invalid_request`; stale catalog
 state returns 409 `metadata_changed`. The app never changes primary automatically.
 
 ### `POST /api/v1/photos/{id}/date-save`
@@ -787,7 +792,8 @@ the run entered, in order, with the last being the current one. Each entry is
 `{"phase", "total" (null while unknown), "done", "counts", "started_at", "updated_at"}`,
 and `done` is always the sum of `counts`.
 
-**`outcome`** is derived from classified progress, never from `status` alone: a run
+**`outcome`** is derived from classified progress (or journaled photo operations for
+METADATA jobs), never from `status` alone: a run
 where every file failed still ends `Completed` (`webui-spec.md` §5.5).
 
     {"verdict": "success" | "partial" | "originals_kept" | "none_succeeded" | "no_change" |
@@ -806,6 +812,11 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
     count again as transfers. An unfinished phase may still leave `total` unknown.
     Recovery of earlier runs is `recovered_earlier_work`, and failures with no photo,
     such as an unreadable folder, are `run_level_issues`.
+*   **Metadata jobs.** Saves use journaled operations rather than scan/transfer progress.
+    Completed edits count as `Metadata_Saved`; no-change/abandoned/already-finished requests
+    count as skips; refused or failed saves count as failures. The total covers the recorded
+    selection or operation count, including unfinished work. Explicit metadata retry is
+    requested work rather than background recovery. Existing jobs use the same derivation.
 *   **Verdict:** an active status is `running`. A terminal Cancelled, Interrupted or
     Failed wins (`cancelled`, `interrupted`, `stopped`: an error ended the job).
     Otherwise: a Move with copied-only photos and no failures or issues is

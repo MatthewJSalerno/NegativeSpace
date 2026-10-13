@@ -41,7 +41,8 @@ export function TypesPanel({ types, selected, onTypes }: {
       </div>
       {open && <>
       <p className="dates-status muted">
-        {selected.length === 0 ? "Showing every type" : <>Showing only {selected.map(typeLabel).join(", ")} · <button className="link" onClick={() => onTypes([])}>Show all</button></>}
+        <span title={selected.length ? `Showing only ${selected.map(typeLabel).join(", ")}` : undefined}>{selected.length === 0 ? "Showing every type" : `Showing only ${selected.map(typeLabel).join(", ")}`}</span>
+        <button className="link" style={{ visibility: selected.length ? undefined : "hidden" }} disabled={!selected.length} aria-hidden={!selected.length || undefined} onClick={() => onTypes([])}>Show all</button>
       </p>
       <ul className="dates-tree">
         {rows.map((r) => (

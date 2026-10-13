@@ -181,23 +181,20 @@ Users can select individual files or multiple files across grid views to run tar
   dates”**; **Select these**
   selects what the filter shows, as Select all in this view does. The boxes themselves only filter: unchecking a month to look
   elsewhere must never change the selection). The tree's own counts ignore it, so an
-  unticked month keeps its number. Types, Folders and Dates are in the **Filters** panel
+  unticked month keeps its number. Types and Dates are in the **Filters** panel
   beside Sort (the page frame, below).
-* **Browse by Folders or Dates:** under Types, **Browse by [Folders | Dates]** chooses the
-  tree below it; **Folders** is the default, and the choice is remembered per browser (a
-  filter in the address for the other tree shows that one). The **Folders** tree is the
-  **source's** folders, built from catalogued paths (`GET /api/v1/photos/folders`), with
-  counts for the current view, search, dates and types, and the same **Show only** boxes: a
-  ticked folder takes its subfolders, which show ticked and cannot be unticked on their
-  own; a folder with only some subfolders ticked shows a dash. A chain of folders each
-  holding one folder and no photos is one row (**"Camera / Nikon D750"**); the photos
-  directly in the source folder are a last row, **Files in the source folder**. Folders
-  combine with dates and types and are named in the filter line (**"Showing 318 of 3,366
-  photos · only Family scans · Select these 318 · Show all folders"**). *Why the source
-  tree, not the destination's:* the destination is `YYYY/MM/DD` and `Undated/<year>`, which
-  the Dates tree already shows; the source's folders are what the user knows, every photo
-  has one (a moved photo under the folder it came from), and they are what a job can act
-  on. A name wider than the Filters panel ends in "…", whole on hover.
+* **Source folders:** the tree lives only under Not organized → Source folders. It is
+  built from catalogued source paths (`GET /api/v1/photos/folders`), with counts for the
+  current source scope, search, dates and types. A ticked folder includes its subfolders;
+  descendants cannot be unticked individually, and partial parents show a dash. Chains
+  of folders without their own photos collapse into one row; root files have a separate
+  **Files in the source folder** row. Long names end in “…” with the whole path on hover.
+  Library, Needs review and Rejects offer no source-folder selector. Choosing a place
+  clears source-folder restrictions; Waiting / Still in source retains the chosen folder.
+  Old source URLs with folder parameters open this tree; destination URLs discard those
+  parameters so an invisible source restriction cannot hide Library photos. Date and
+  file-type filters remain available everywhere. The date bar jumps; date checkboxes
+  narrow the results.
 * **A folder's Copy or Move:** with exactly one folder shown, **Jobs ▾ → Copy ▸ / Move ▸
   → this folder: Family scans (318)** takes that folder and its subfolders, however many
   photos: the engine is given the folder (`--source-subdir`), not a list of photos. The count
@@ -215,6 +212,10 @@ Users can select individual files or multiple files across grid views to run tar
   · only 2019, HEIC · Select these 42 · Show all dates · Show all types"**). **All
   photos** clears them too.
 * **The sidebar's places count what they hold; the filter line says what is shown.**
+  Unfiltered places do not repeat that number above the gallery or beside pagination.
+  Preserve summary-row space so controls stay put when filtering. Filtered results
+  show one summary, including zero results or when all photos match; grouped similarity
+  labels its set count. Selected/set/job/source scopes keep their own totals.
   Each place's number is how many photos it holds, whatever the search or filters; with
   any on, the line above the gallery says what they find of it: **"Showing 9 of 1,160
   photos · only 2022, 2023"**. *Why not counts that follow the filters* (maintainer,
@@ -257,6 +258,10 @@ tree, and the **date scrubber** at the gallery's right edge (years given room by
 photos; point for the month, click or drag to go there), jump to a year or month by the
 page it starts on (`GET /api/v1/photos/timeline`). Subtle ticks fill the scrubber's gaps
 without adding click targets or implying equal time intervals; labels retain clear space.
+Hide the year panel while No capture date is active, also in pinned combinations;
+restore it on clearing that filter when sorted by date. Retain its empty gutter to
+prevent gallery reflow, with no hidden focusable controls. This does not change filing
+dates, ordering or filter results.
 The page, page size, sort, view, search, dates and open photo live in the URL.
 In-app links and browser Back/Forward apply the destination URL even on the same
 screen. The logo link (the Library at its last place) resets browsing filters and
@@ -291,13 +296,14 @@ browsing others. File issues from operation recovery uses the same sidebar contr
 Needs review; it shares the exclusive reason scope with Small images and Review later. Filters stay dimmed where they do not apply. From Logs or Stats
 a place opens whole, and a filter opens Library (Review later: Needs review) with only it
 on. While photos are selected, the selection bar takes the top bar, grouped at its start
-and keeping the search (§4). Types, Folders and Dates
+and keeping the search (§4). Types and Dates
 are in the **Filters** panel beside Sort, opened over the photos. Under Not organized,
 **Source folders** (`?view=unorganized&tree=1`) shows the source's folder tree beside
 the gallery, every catalogued folder listed (`GET /photos/folders?every=true`), with
 **Waiting | Still in source** (`view=source`: photos whose original is still in the
 source, so the originals of copied photos can be found and moved off by folder) and, for
-one ticked folder, **Copy this folder (n)…** / **Move this folder (n)…**. Below 800px the
+one ticked folder, **Copy this folder (n)…** / **Move this folder (n)…**. With zero or
+multiple folders, those controls stay visible but disabled with an explanation. Below 800px the
 sidebar hides behind a **☰ Menu** button and opens over the page. The design rules are
 in `ui-design.md`, "Page frame".
 
@@ -327,7 +333,7 @@ six to four. Settled 2026-10-07:
   it in both Library and Needs review, with a count (including zero), and no second
   reason list or All reasons control. Switching between these places retains the
   reminder filter; switching to Not organized or Rejects clears it.
-  Review photo… explicitly enters the dedicated workspace.
+  Inspect photo… explicitly enters the dedicated workspace.
 * **The first visit opens on Not organized** while the library is empty. Once it holds a photo, an unscoped visit restores the browser’s last location (`ns.place`), defaulting to Library. Explicit URLs and refreshes preserve the requested view. *Why:* a default view with nothing in it tells a newcomer
   nothing; Not organized is where the first job starts.
 
@@ -388,8 +394,9 @@ in the other view, show its count and a link rather than implying no matches exi
 
 Clicking an inactive Look into filter replaces the unpinned Look into filters. Pin a
 filter to keep it while choosing another: pinned Has similar photos plus No capture date
-finds photos meeting both conditions (AND). Pinning enables it; unpinning leaves it
-applied until the next choice. Clicking an active filter turns it off and removes its pin.
+finds photos meeting both conditions (AND). Pinning enables it; unpinning turns it off
+and updates the results and counts immediately, keeping the other active filters.
+Unpinning an unapplied saved pin on an explicit link removes only that preference. Clicking an active filter turns it off and removes its pin.
 Dates, types, folders and filename search continue to apply independently. Counts on
 inactive filters predict the results of choosing them with eligible pins; active counts
 reflect the current intersection. This reuses the gallery response's count queries.
@@ -843,9 +850,11 @@ History's **Open in the log** and **View lineage tree** actions share text size 
 alignment, retaining their link and button semantics respectively.
 Clicking an image opens a right-side 50% detail panel. **Photo information** is the
 default on every gallery-card click, including Has similar photos, even when the
-previous photo showed Similar photos. **Similar photos** holds matching controls and
-thumbnails (§7.4). Both tabs share the reference preview and its resize divider.
-The Inspector's previous/next controls retain the active tab and chosen match threshold.
+previous photo showed Metadata or Similar photos. **Metadata** holds recorded source
+tabs, comparisons and date editing. **Similar photos** holds matching controls and
+thumbnails (§7.4). All tabs share the reference preview and its resize divider.
+The Inspector's previous/next controls retain the active tab and chosen match threshold,
+including across page boundaries.
 Explicit match links/comparison actions still open their requested view; reload and
 browser history restore the tab recorded in the URL. While details load, the gallery
 status preserves the tab layout; an unknown status reserves space rather than flashing
@@ -875,25 +884,37 @@ Needs attention · Metadata. Opening a card shows the affected source-relative f
 plain-language reason, available technical detail, external correction/reindex guidance
 and photo logs at the top of Photo information. The photo and sidecars remain at source.
 The summary counts these holds as needing attention rather than ready to organize.
-**Needs attention (count)** in the shared Look into sidebar filters Not organized to
-processing failures and latest metadata holds. A photo with both counts once. Search,
-folders, dates, types, pagination and Select all use the same scope. Toggle/pin and URL
-restoration follow the other filters; other places disable it with an explanation.
-From Logs or Stats it opens Not organized. The summary's attention count/shortcut opens
+**Needs attention (count)** is a child navigation link under Not organized, beside
+Source folders, available on every page with the whole affected-source count, including
+zero. It opens Not organized's processing failures and latest metadata holds; a photo
+with both counts once. Search, dates, types, pagination and Select all use that scope.
+URL restoration retains it, and choosing Not organized clears it. It is not a pinnable
+Look into filter; old attention pins are ignored. Folder selection is confined to Source
+folders and cannot carry into destination views. The summary's attention count/shortcut opens
 all affected source files, clearing unrelated browsing restrictions without clearing
 checkbox selection or saved pins. A clean reindex removes a resolved hold.
 This does not add source photos to Library's Needs review or implement choice controls.
 
-**Metadata sources.** Separate XMP Sidecar, Embedded XMP and EXIF tabs show captured
+**Metadata sources.** Inside the dedicated Metadata inspector tab, separate XMP Sidecar, Embedded XMP and EXIF tabs show captured
 source values. A textual Primary badge identifies verified activation, not the viewed
 tab or an unexecuted decision. Other tabs compare canonical fields against primary,
-with differences-only and field filtering. Empty and Not recorded are distinct.
+with differences-only and field filtering. Empty and Not recorded are distinct. Multiple sidecar
+versions reserve the same selector row across tabs, with the selector hidden and
+disabled outside the sidecar tab. Copy-date action space and date guidance also stay
+stable when switching available sources.
+The expanded recorded-tag table also follows comparison, differences-only and field
+filtering, using the union of exact recorded keys and distinguishing empty from absent.
+It labels structural/name differences across formats and directs users to common fields
+for semantic comparison. Its disclosure reports filtered/total counts when narrowed.
 Qualified tags stay under each source's All recorded source tags disclosure. Captured
 values are shown without inventing a timezone. Applied save receipts take precedence
 over later source Index observations; this is catalog evidence, not a live file scan.
 
-**File details.** The folded **Show file details (n fields)** inside
-**Additional file information** retains the broad photo/file tag view, including
+**File details.** Photo information keeps warnings, actions, file facts and the filing
+date with its recorded EXIF/XMP origin (or Undated fallback). View metadata opens the
+Metadata tab; Edit date opens its editor for Library photos only. Technical details
+starts collapsed and holds fingerprints and Additional file information.
+The folded **Show file details (n fields)** inside **Additional file information** retains the broad photo/file tag view, including
 computed properties outside the source mappings. Its filter and sticky Hide control
 remain. Neither tag disclosure changes files or source selection. Viewing errors expose
 Retry metadata; capture/interpretation issues keep their explanation and a photo-log link.
@@ -1867,7 +1888,7 @@ asks for naming decisions before the library is organized.
 **Built:** the ordinary gallery has a **Has similar photos** view alongside its
 existing view controls. It contains destination photos with at least one recorded
 visual match at the selected gallery percentage (90% by default), with the gallery's
-existing search, date, type, folder and selection behavior. The top navigation has
+existing search, date, type and selection behavior. The top navigation has
 no Similar button. **Most matches first** in the sort dropdown orders qualifying
 match counts highest first, with ascending photo ID as the tie-breaker, before
 pagination. The gallery summary also exposes a **Most matches first** shortcut.
@@ -2053,7 +2074,12 @@ The authoritative tab/comparison presentation is in `ui-design.md`, Metadata sou
 fields and their required companions. The editor shows the primary source's own values,
 not effective fallback values: an absent XMP date stays absent unless the user explicitly
 types or copies a value. Distinguish Not set from Explicitly cleared; an explicit clear
-suppresses fallback and previews Undated filing. Prefill an existing complete Date taken value, including
+suppresses fallback and previews Undated filing. A Calendar date picker changes just the day,
+retaining recorded time/fraction/offset without timezone conversion; the full date
+field remains available. No missing time is invented. Clearing the picker does not
+clear metadata. The explicit-clear checkbox blanks/disables both visible inputs and
+unchecking restores the draft. An absent XMP date retains the explicit-clear option with an explanation
+of missing-value fallback versus intentional Undated filing. Prefill an existing complete Date taken value, including
 recorded fraction/offset, so changing its calendar portion does not silently drop other
 components. Show deliberate removals in the preview. First XMP creation defaults for RAW
 and contains only changed fields; no sidecar is created merely by Index. Other fields
@@ -2063,9 +2089,18 @@ history and recovery. The source-view API stays read-only. Date context/preview/
 and use those verified paths. Save launches a request-bound metadata job, with the existing
 lock, backup, file verification and stale-preview checks. An accepted job can still fail
 its live checks; show its actual outcome and Logs rather than assuming success.
+A photo-name collision at preview offers an available numbered filename for the photo
+and its sidecar. Save rechecks that exact preview under the lock; a changed target needs
+new confirmation. Orphan sidecars, symlinks and non-file obstructions still refuse.
+Metadata job summaries count journaled photo edits, failures and skips even without
+scan/transfer progress; a successful edit must not read “No files were processed.”
 
 **Built:** Edit Date taken and Copy Date taken to primary in an organized Library
-photo’s Metadata sources section. The modal starts from the write target’s own date,
+photo’s Metadata sources section. Edit metadata date is a text link beside the primary source's
+Date taken value (including Empty/Not recorded), not a separate toolbar button.
+Alternate source tabs place Copy date to primary beside their recorded date. Missing
+primary dates can link to recorded alternatives for deliberate inspection/copy; explicit
+empty values do not receive that suggestion. The modal starts from the write target’s own date,
 shows any fraction/offset, and requires Preview change before Save. Copy uses a
 recorded source of the same photo without changing primary. Empty donor dates propose
 an explicit clear; unsupported EXIF empties/partial dates refuse. A matching date/path
@@ -2487,10 +2522,12 @@ source against the copy in Rejects (or puts it there, when Rejects was emptied).
     too**). Rejecting the look-alike shows the next one ("Rejected IMG_0412.jpg · next
     look-alike shown" with **Return it to the library**); rejecting the photo you started
     from closes the comparison with the same note. One reject at a time: the button reads
-    "Rejecting…" meanwhile. No keyboard shortcut. Beside the threshold, **Keep
+    "Rejecting…" meanwhile. No keyboard shortcut. Beneath the reference preview’s controls and dimensions, **Keep
     copy-of-001.jpg, reject the other 128…** opens the same review as in Similar photos,
     keeping the photo on the left; to keep the other one, **Use as reference** first. The
     candidate strip stays for moving between look-alikes, with no Reject of its own.
+    Minimum similarity and the outlined Refresh comparison button align at their
+    bottom edges, separate from file decisions.
 
 **Built:** manual cross-location comparison, with separate rejected matches in the
 Library Inspector and Library matches from a rejected photo. Location-specific Reject
@@ -2529,7 +2566,7 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   photo's card and in the Inspector. **Review one by one** opens the workspace (§7.7),
   which steps through the photos with ‹ › and shows relevant evidence and
   reason-specific buttons. Cards currently show reasons and Open review; direct
-  answers are in the dedicated workspace; the Inspector offers Review photo… and
+  answers are in the dedicated workspace; the Inspector offers Inspect photo… and
   one consistent row of photo actions at the top of the information pane, before review reasons and File/capture information. *Why not a page of its own:* finding notes then works like the rest of the
   Library (filters, selection, bulk answers), and working through them reuses the
   workspace built for such tasks.
@@ -2567,7 +2604,7 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   Delivered photos whose shorter side is below the configured minimum appear in
   Needs review → Small images. Unknown dimensions are not treated as small. Gallery cards say **Below minimum image size**, with the dimensions and configured minimum
   available through hover/focus help and its information button.
-  The Inspector gives the short reason and Review photo…; the workspace explains
+  The Inspector gives the short reason and Inspect photo…; the workspace explains
   dimensions and the rule, e.g. "640 × 480 — below your 800-pixel minimum on the shorter
   side". Change in Settings belongs in the inbox's size guidance and opens Files directly.
 * **The user chooses at first run.** Files labels the choice **Small-image reminders (required)** and asks whether to enable reminders;

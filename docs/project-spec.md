@@ -228,9 +228,10 @@ service. Built and tested:
         and the build; the selection bar (Copy, Move, Reject or Return to library for the
         ticked photos, only what applies) takes the top bar while photos are ticked;
     *   the gallery, with its places, sorts and search, a **Filters** panel with
-        **Types** (folded by default) and, by choice, the source's **Folders** (the
-        default) or a **Dates** tree, to show only file types, folders, years and months
-        or jump to a date, and continuous scrolling whose page number follows; the
+        **Types** (folded by default) and a **Dates** tree to narrow file types, years
+        and months or jump to a date. **Source folders** and counted **Needs attention**
+        are child links under Not organized; source-folder restrictions clear on leaving
+        that view. The gallery has continuous scrolling whose page number follows; the
         **Rejects** view with what Rejects holds and how to empty it, its tile on Stats,
         and a reminder on every page once it passes a size or age limit set in Settings;
     *   selection across views (shift-click, the Select menu, Show only selected), one
@@ -249,7 +250,7 @@ service. Built and tested:
         duplicate space with its coverage, activity, catalog health), each leading to
         the photos or log entries behind it.
     *   gallery **Has similar photos** and Inspector matching: visual review of
-        destination photos after Copy or Move, separate Photo information/Similar photos Inspector tabs, cumulative
+        destination photos after Copy or Move, separate Photo information/Metadata/Similar photos Inspector tabs, cumulative
         75/80/85/90/95/100% counts and a responsive, paged match grid. Index precomputes comparisons and resumes interrupted work.
         The expanded side-by-side workspace provides independent temporary rotation,
         linked zoom/position, candidate promotion to reference, file/image and metadata

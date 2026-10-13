@@ -95,7 +95,8 @@ with sync_playwright() as p:
     expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_text(
         f'Has similar photos {photo_count:,}')
     page.get_by_role('button', name=re.compile('^Filters')).click()
-    expect(page.get_by_text('trip / day 1', exact=True)).to_be_visible()  # Hidden members remain filterable.
+    expect(page.get_by_role('navigation', name='Dates', exact=True)).to_be_visible()
+    expect(page.get_by_role('navigation', name='Folders', exact=True)).to_have_count(0)
     page.get_by_role('button', name='Close filters', exact=True).click()
     page.wait_for_load_state('networkidle')
     grouping_requests = []
@@ -235,6 +236,8 @@ with sync_playwright() as p:
     expect(page.get_by_role('button',name='Review this set',exact=True).first).to_be_visible()
     expect(page.get_by_role('button',name='Explore related sets',exact=True).first).to_be_visible()
     shot('needs-review-grouping')
+    # Pin similarity so choosing another filter combines with it rather than replacing it.
+    page.get_by_role("button", name="Pin Has similar photos", exact=True).click()
     # Filters ungroup without changing the explicit saved preference or selection.
     page.locator('.card input[type=checkbox]').first.check()
     for label in ('Suspicious dates','No capture date','Small images','Review later'):
@@ -249,7 +252,7 @@ with sync_playwright() as p:
         chip.click()
         expect(group).to_be_checked()
         expect(group).to_be_enabled()
-    for query in ('q=photo', 'type=jpg', 'date=2023', 'folder=.'):
+    for query in ('q=photo', 'type=jpg', 'date=2023'):
         page.goto(sys.argv[1]+'/?view=review&similar=1&group_sets=1&'+query)
         expect(group).not_to_be_checked()
         expect(group).to_be_disabled()

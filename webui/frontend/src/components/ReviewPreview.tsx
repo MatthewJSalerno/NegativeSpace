@@ -6,11 +6,13 @@ import { Thumb } from "./Thumb";
 export type PreviewView = { rotation: number; zoom: number; x: number; y: number };
 export const DEFAULT_VIEW: PreviewView = { rotation: 0, zoom: 1, x: 50, y: 50 };
 
-export function ReviewPreview({ photo, label, view, onChange, refreshKey, isReference = false, onUseAsReference, referenceDisabled, action, prominent = false }: {
+export function ReviewPreview({ photo, label, view, onChange, refreshKey, isReference = false, onUseAsReference, referenceDisabled, action, footerAction, prominent = false }: {
   photo: MatchPhoto; label: string; view: PreviewView; onChange: (next: PreviewView) => void; refreshKey: number; isReference?: boolean;
   onUseAsReference?: () => void; referenceDisabled?: boolean;
   // The photo's own action beside its name (Reject…), so it is clear which photo it acts on.
-  action?: ReactNode; prominent?: boolean;
+  action?: ReactNode;
+  // An optional decision action below the preview controls and recorded dimensions.
+  footerAction?: ReactNode; prominent?: boolean;
 }) {
   const viewport = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 1, height: 1 });
@@ -54,5 +56,6 @@ export function ReviewPreview({ photo, label, view, onChange, refreshKey, isRefe
         : "Dimensions unknown"} · {bytes(photo.file_size)}
         {view.rotation !== 0 && <span className="review-rotation-note">Viewing rotation: {view.rotation}° · not saved to file</span>}</p>
     </div>
+    {footerAction && <div className="photo-actions">{footerAction}</div>}
   </figure>;
 }

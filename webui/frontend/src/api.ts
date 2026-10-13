@@ -67,7 +67,7 @@ export interface DateEditContext {
 export interface DateEditPreview {
   edit: Record<string, unknown>; token: string; target: DateEditContext["target"];
   before: DateEditContext["date"]; after: string; no_change: boolean;
-  filing: { current: string; proposed: string; change: boolean };
+  filing: { current: string; proposed: string; change: boolean; collision_renamed?: boolean };
 }
 
 export interface MetadataAttention {

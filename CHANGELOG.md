@@ -9,6 +9,40 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Filter summaries no longer shift their trees; folder Copy/Move controls explain when
+  unavailable. Metadata date copying sits beside the donor date; missing primary dates
+  link to recorded alternatives. Completion dialogs reuse the shared action footer,
+  and lineage avoids repeating jobs already represented by file steps.
+
+- Metadata editing is a text link beside Date taken on the primary source tab, including
+  empty or missing dates, so the action is found where the date is read.
+
+- Date-change previews offer a numbered filename for occupied photo names, keeping
+  existing files untouched and requiring a new preview if that target changes.
+  Metadata job summaries count saved photos, skips and failures from the journal.
+- Explicit date clearing blanks both date inputs and restores the draft if unchecked.
+  Empty source folders keep normal tree alignment; expanded comparison tags no longer
+  push the candidate strip down in side-by-side layouts.
+
+- No capture date hides the year panel. Inspect photo distinguishes immediate inspection
+  from Review later. Comparison refresh aligns with the threshold control; Keep
+  sits beneath the reference preview instead of beside the filter.
+
+- Unpinning a filter now turns it off and refreshes the gallery and counts while
+  retaining other active filters. Unfiltered galleries use the sidebar total; filtered
+  results show one matching/whole-place count, with set and focused-view totals retained.
+
+- The Inspector separates Metadata from Photo information, folds technical details,
+  and keeps a filing-date summary with an editing shortcut. Gallery clicks return to
+  Photo information; previous/next retains the active tab, and explicit tab links restore.
+
+- Expanded recorded source tags now compare against primary, including differences-only
+  and field filtering, with explicit empty and missing values.
+
+- Date editing adds a calendar picker that preserves recorded time and timezone,
+  and explains why a missing XMP date can still be explicitly cleared. Metadata tabs
+  reserve sidecar-version and copy-date controls so switching sources stays stable.
+
 - Library photos now offer Edit Date taken and Copy Date taken to primary from their
   recorded metadata sources. A draft/preview shows the write target, date and resulting
   location; one confirmation saves and refiles through the verified engine job.
@@ -18,9 +52,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 - Inspector refreshes keep one instance of each section and photo action row,
   preventing duplicate controls after review or job updates.
 
-- Not organized has a Needs attention filter for processing failures and metadata
-  holds. The Index summary links directly to all affected source files; the filter
-  supports counts, pins and existing search/folder/date/type restrictions.
+- Not organized owns Source folders and Needs attention navigation, separating source
+  import problems from Library review. Needs attention shows a count on every screen.
+  Folder browsing lives only in Source folders; leaving it clears that restriction.
+  Gallery Filters retains dates and file types.
 
 - Not organized marks source metadata issues as Needs attention and explains the
   affected sidecar path and external correction/reindex steps in Photo information.

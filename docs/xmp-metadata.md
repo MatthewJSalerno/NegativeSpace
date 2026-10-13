@@ -1119,7 +1119,12 @@ whole-source composition control is required. The broader engine remains support
 
 Preview the exact primary write target, before/after date and filing paths, including
 first-sidecar creation or Undated filing when applicable. One confirmation covers
-Save and required refiling. Missing XMP dates are never prefilled from another source.
+Save and required refiling. Ordinary edit/copy-field previews observe destination names
+and suffix photo-name collisions before confirmation. This read-only check reserves
+nothing: Save re-derives the preview under the engine lock, and a changed target requires
+new confirmation. Orphan sidecars, unsafe paths and non-file obstructions still refuse;
+execution/recovery never silently changes the confirmed target. Missing XMP dates are
+never prefilled from another source.
 **Make this source primary…** remains a separate deliberate preview/confirmation of
 effective-value changes, future edit target and any refiling; copying does not activate
 the donor. UI details live in `ui-design.md`; source reads are built; mutation routes and controls remain unbuilt.
@@ -1163,7 +1168,8 @@ measurements are built. They must not be described as unimplemented integration 
 Broader destination scans, production image-only hashing and external sidecar-change
 handling remain deferred; none relaxes verification or source-deletion safety gates.
 
-Full user validation is pending the metadata API and UI. Automated engine tests establish
-coverage of the implemented engine paths, not acceptance of the future editing experience.
-The later UI work must validate source selection, date/refiling previews, save and recovery
-feedback, and job-scoped edited-source cleanup confirmation with the maintainer.
+The source viewer and Date taken editor API/UI have passed maintainer validation,
+including source comparison, date/refiling previews and save feedback. Broader source
+selection, recovery controls and job-scoped edited-source cleanup confirmation remain
+future UI work requiring their own validation. Automated engine tests establish engine
+coverage, not acceptance of those future screens.
