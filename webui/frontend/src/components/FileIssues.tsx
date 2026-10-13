@@ -43,7 +43,7 @@ export function FileIssues({ photoId, initialIssues, operationId, onResolved }: 
     } catch(e) {setBusy(false);setError(e instanceof Error ? e.message : "The check was not confirmed.");}
   };
   if (!issues.length && !message && !error) return null;
-  return <section className="notice" aria-label="File issues">
+  return <section className="notice" aria-label="Files needing verification">
     {issues.length > 0 && <>
       <h3>File needs checking</h3>
       <p>An earlier operation could not be verified. Checking updates the catalog; it does not move, overwrite or delete photos.</p>

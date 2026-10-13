@@ -496,6 +496,10 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 
 ## Navigation refinement
 
+- [x] Rename File issues to Files needing verification and expose the same filter,
+  counts and pins in Library and Needs review. Source import failures remain under
+  Not organized → Needs attention.
+
 - [x] UI alignment/stability pass: separate filtered-log exports from filters, align
   log input edges and shared inline controls, keep small-image settings and preview
   zoom/rotation controls stationary, and reuse the confirmation action-row spacing.

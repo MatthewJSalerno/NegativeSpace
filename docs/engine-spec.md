@@ -1822,7 +1822,7 @@ For Rename/Reject/Return, exactly one verified location permits a catalog-only r
 two remaining names are ambiguous and neither is removed, even if hard-linked.
 For recorded photo/XMP relocations, both new members must verify and both old names
 must be absent before Check it now repairs the catalog. Partial pairs and unfinished
-old-name cleanup remain File issues; repeat the original action after restoring access.
+old-name cleanup remain Files needing verification; repeat the original action after restoring access.
 Startup recovery may finish verified old-name cleanup, but never publishes a missing
 member. Ordinary photo-only recovery is not used for pair intents.
 

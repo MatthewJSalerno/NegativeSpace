@@ -912,6 +912,13 @@ These are new spot-checks; previously accepted metadata tests do not need repeat
      narrower desktop window. Controls may wrap; labels/buttons should not overlap or
      clip. Reference/candidate headings and previews align when displayed side by side.
 
+5. **Files needing verification**
+   - **5a.** In Library, confirm the renamed filter has a count (including zero).
+     Choose it, then switch to Needs review: the same organized files/count appear.
+   - **5b.** Pin it and switch between Library and Needs review; the filter stays on.
+     Unpin it and confirm the gallery refreshes. Source import failures remain under
+     Not organized → Needs attention. A zero count is valid; do not create a real failure.
+
 Fresh-start/source eligibility checks:
 
 - `python3 -m unittest discover -s tests -p import_decode_test.py -v` in the app image

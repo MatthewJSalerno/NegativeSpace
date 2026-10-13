@@ -17,7 +17,7 @@ export function savedFilterPins(): LookInto[] {
 
 export function filterApplies(key: LookInto, view: string): boolean {
   if (key === "attention") return view === "unorganized";
-  if (key === "issues") return view === "review";
+  if (key === "issues") return view === "organized" || view === "review";
   if (key === "later" || key === "similar" || key === "small") return view === "organized" || view === "review";
   return true;
 }

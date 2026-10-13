@@ -40,7 +40,7 @@ with sync_playwright() as pw:
     page.goto(f"{base}/?view=organized&photo={photo['id']}")
     panel = page.locator('.inspector')
     expect(panel).to_contain_text('Found at the destination')
-    expect(panel.get_by_role('region', name='File issues')).to_have_count(0)
+    expect(panel.get_by_role('region', name='Files needing verification')).to_have_count(0)
     history = panel.locator('.photo-history')
     expect(history).to_contain_text('Found at destination')
     if os.environ.get('SHOTS'):

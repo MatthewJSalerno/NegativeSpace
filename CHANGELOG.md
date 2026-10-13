@@ -9,6 +9,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Rename File issues to Files needing verification and expose the same filter,
+  counts and pins in Library and Needs review. Source import failures remain under
+  Not organized → Needs attention.
+
 - Log exports sit beside the page heading, separate from aligned search/date filters.
   Small-image settings and preview zoom/rotation no longer move the controls below
   them. Comparison headings align at enlarged text sizes; shared inline controls and

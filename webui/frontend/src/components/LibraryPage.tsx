@@ -932,7 +932,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     : grouped ? `${count(gallerySummary.total)} sets matching filters`
     : hasResultFilters ? `Showing ${count(gallerySummary.total)} of ${plural((data?.counts as Record<string, number> | undefined)?.[browseView] ?? 0, galleryNoun)}`
     : placeShown == null ? plural(gallerySummary.total, galleryNoun) : null;
-  const reasonLabels = { small: "Small images", later: "Review later", issues: "File issues", attention: "Needs attention" };
+  const reasonLabels = { small: "Small images", later: "Review later", issues: "Files needing verification", attention: "Needs attention" };
   const reasonWhy = (key: keyof typeof reasonLabels) => {
     const other = REASON_KEYS.find(item => item !== key && pins.includes(item));
     return other ? `Unpin ${reasonLabels[other as keyof typeof reasonLabels]} first; these filters cannot be combined.` : null;
@@ -950,7 +950,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     why: { similar: libraryOnly, suspicious: null, undated: null,
       small: libraryOnly ?? reasonWhy("small"),
       later: libraryOnly ?? reasonWhy("later"),
-      issues: view !== "review" ? "Only in Needs review." : reasonWhy("issues"),
+      issues: libraryOnly ?? reasonWhy("issues"),
       attention: view !== "unorganized" ? "Only in Not organized." : reasonWhy("attention") },
     onToggle: key => {
       if (focus) backToResults();
@@ -1024,7 +1024,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           <div className="gallery-context">
             {!focus && <h2>{sourceTree && folderShown ? folderLabel(folderShown.path) : sourceTree ? "Source folders" : VIEW_LABEL[view]}</h2>}
             {!focus && (undated || dates.length > 0 || types.length > 0 || (folders.length > 0 && !sourceTree) || !!q || similar || suspicious || reason !== "all" || pins.length > 0) && <p className="section-note">
-              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", reason === "small" && "Small images", reason === "later" && "Review later", reason === "issues" && "File issues", reason === "attention" && "Needs attention", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
+              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", reason === "small" && "Small images", reason === "later" && "Review later", reason === "issues" && "Files needing verification", reason === "attention" && "Needs attention", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
             </p>}
             <span className="gallery-tools">
               <FiltersButton active={filtersActive} open={filtersOpen && !focus} onOpen={setFiltersOpen} disabled={!!focus}>
