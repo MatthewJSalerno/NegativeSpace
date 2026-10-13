@@ -662,6 +662,13 @@ their side. The seed folder is never written to, and the run ends by proving it.
 | `sidecar_broken` | malformed, empty, binary, unrelated XML, an invalid date, rating and orientation, a repeated field, over the reader's size limit, unreadable, a symlink |
 | `real_world` | forms real tools write: `rdf:about` as a UUID, keywords as `rdf:Seq`, a date only in `photoshop:DateCreated`, Lightroom's hierarchical keywords, UTF-16 and UTF-8 BOM sidecars, titles without `x-default`, a rejected rating (-1), Unicode keywords, IPTC-only keywords, a zeroed EXIF date, `CreateDate` only, a PNG with embedded XMP, a Google Takeout `.json`, an orientation already applied to the pixels, and motion photos (Google's older MVIMG, the Pixel's, Samsung's) with metadata and a disagreeing sidecar, the video's length and SHA-1 in the manifest so a test can prove a save kept it |
 
+Every file is named after its case, so the gallery's filename search finds it:
+`md-exif-only.jpg`, `md-date-three-way.jpg` and its sidecar `md-date-three-way.jpg.xmp`,
+`md-shared-stem.jpg`/`.png`/`.xmp`. Search `md-` plus the case name with dashes. Motion
+photos keep their phone-style names with the token added
+(`PXL_20190615_120000123_md-motion-photo-pixel.MP.jpg`). In the sidecar-name cases the
+token is part of the names being compared, so what each case tests is unchanged.
+
 `OUT/manifest.json` is ground truth: for each photo what was written to each source
 (`exif`, `embedded_xmp`, `iptc`), for each sidecar its values and the photo it was written
 for. It also records **`engine_today`**: what this branch's own XMP reader and association
