@@ -168,7 +168,14 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   synchronized as preferences across tabs, and remain usable for the visit if storage fails.
   Refresh preserves the URL's actual filters. Explicit links/history, including job photos,
   are never narrowed by saved pins. A bare start page and sidebar place/filter choices
-  apply eligible pins; unavailable pins remain visible and removable. Clear all filters clears
+  apply eligible pins. Entering Not organized, Source folders (Waiting or Still in source),
+  or Needs attention suspends Library-only filters and shows their pins as inactive.
+  Saved pins remain removable, with help explaining they are saved for Library.
+  The tab remembers the last Library-only filter choices, including unpinned choices,
+  across source navigation and refresh; choosing Library or Needs review restores them.
+  Explicit destination URLs and Back/Forward still use only their stated filters.
+  Shared search/date/type rules are unchanged. Forgetting a suspended pin also forgets
+  its remembered filter. Clear all filters clears this remembered state and
   all pins as well as search, date, type and folder restrictions (including Source folders),
   retaining the location and photo selection. The action sits beside **Look into**, with
   its space reserved when nothing can be cleared or while reviewing a selection. Logs

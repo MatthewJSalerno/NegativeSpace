@@ -915,9 +915,21 @@ These are new spot-checks; previously accepted metadata tests do not need repeat
 5. **Files needing verification**
    - **5a.** In Library, confirm the renamed filter has a count (including zero).
      Choose it, then switch to Needs review: the same organized files/count appear.
-   - **5b.** Pin it and switch between Library and Needs review; the filter stays on.
-     Unpin it and confirm the gallery refreshes. Source import failures remain under
-     Not organized → Needs attention. A zero count is valid; do not create a real failure.
+   - **5b.** Pin Files needing verification. Visit Not organized, Source folders, and
+     Needs attention: the filter and pin highlight are inactive, with no destination
+     filter restricting source results. Return to Library or Needs review: the filter
+     and pin return. Repeat with an unpinned Small images filter; its choice also returns.
+     A source-page refresh keeps that remembered choice. Clear all filters cancels it.
+     Shared search/date filters retain their existing behavior. Source import failures
+     remain under Not organized → Needs attention. Zero is valid; do not create a failure.
+
+Maintainer accepted alignment checks 1a–4a and verification check 5a. The revised
+source-navigation check 5b is the only outstanding manual check for this batch.
+
+Automated source-filter checks passed: filter pins, file-attention recovery, and
+cross-location browser workflows, plus the frontend build and all three contract
+checks. Generated fixtures cover source entry points, refresh, pinned/unpinned
+restoration, clearing/forgetting preferences, and exact cross-location search links.
 
 Fresh-start/source eligibility checks:
 

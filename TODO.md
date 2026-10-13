@@ -402,6 +402,10 @@ Saved orientation stays a separate action from temporary preview rotation.
 
 ### Deferred work and open discussions
 
+- [ ] **Future discussion: Similar photos and metadata.** Revisit how similarity review
+  and metadata workflows should work together, alongside the deferred cross-photo
+  metadata controls above. Scope and behavior are undecided; discussion only.
+
 - [ ] Extend date review to malformed/raw EXIF, conflicting capture tags and acknowledgment
   of known-valid dates if needed. Current flags use the recorded gallery date;
   the configurable earliest suspicious year is already built.
@@ -503,9 +507,13 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 - [x] UI alignment/stability pass: separate filtered-log exports from filters, align
   log input edges and shared inline controls, keep small-image settings and preview
   zoom/rotation controls stationary, and reuse the confirmation action-row spacing.
-- [ ] Maintainer visual acceptance of the alignment/stability pass: Logs, reminder
-  settings, comparison zoom/rotation, and narrow/zoomed layouts. Automated results
-  are recorded in the private handoff; these do not replace visual acceptance.
+- [x] Maintainer visual acceptance: alignment/stability Tests 1a–4a and the renamed
+  verification filter Test 5a passed.
+- [x] Suspend Library-only filters and pin highlights in source views; remember the
+  Library choices per tab and restore them on sidebar return, without overriding URLs.
+- [ ] Maintainer validation of revised Test 5b: source navigation and restored filters.
+- [ ] Filter-count UX follow-up: distinguish an actual zero from an unavailable count
+  or incompatible filter; explain restrictions without misleading zero totals.
 
 - [ ] Future UX discussion: the full-screen view opened by clicking the large Inspector
   preview feels visually cluttered, particularly the photo information displayed with

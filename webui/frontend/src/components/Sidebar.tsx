@@ -15,6 +15,7 @@ export interface SidebarFilters {
   why: Record<LookInto, string | null>;
   onToggle: (key: LookInto) => void;
   pinned: LookInto[];
+  suspended?: LookInto[];
   onPin: (key: LookInto) => void;
   onClear?: () => void;
 }
@@ -91,10 +92,10 @@ export function Sidebar({ current, version, matchMin, refresh, filters, onPlace,
               onClick={() => { if (why) return; onNavigate?.(); f.onToggle(l.key); }}>
         {content(l.label, why ? undefined : f.counts[l.key], true)}
       </button>
-      <button type="button" className="filter-pin" aria-pressed={f.pinned.includes(l.key)}
+      <button type="button" className="filter-pin" aria-pressed={f.pinned.includes(l.key) && !f.suspended?.includes(l.key)}
               aria-label={`${f.pinned.includes(l.key) ? "Unpin" : "Pin"} ${l.label}`}
               aria-disabled={why && !f.pinned.includes(l.key) ? true : undefined}
-              title={f.pinned.includes(l.key) ? why ? `Pinned, unavailable here: ${why} Click to unpin.` : !f.on[l.key] ? "Pinned, not applied to this link. Click the filter to apply; click the pin to unpin." : "Pinned: keep this filter while browsing others. Click to unpin and turn off this filter."
+              title={f.pinned.includes(l.key) ? why ? `Saved for Library, inactive here. ${why} Click to forget this pin.` : !f.on[l.key] ? "Pinned, not applied to this link. Click the filter to apply; click the pin to unpin." : "Pinned: keep this filter while browsing others. Click to unpin and turn off this filter."
                 : why ?? "Pin this filter to keep it while browsing others."}
               onClick={() => { if (!why || f.pinned.includes(l.key)) f.onPin(l.key); }}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">

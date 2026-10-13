@@ -12,7 +12,7 @@ import { AppFrame } from "./AppFrame";
 import type { SidebarFilters } from "./Sidebar";
 import { FiltersButton } from "./FiltersButton";
 import { YearScrubber } from "./YearScrubber";
-import { LOOK_KEYS, REASON_KEYS, filterApplies, savedFilterPins, useFilterPins } from "../filterPins";
+import { LOOK_KEYS, REASON_KEYS, LIBRARY_KEYS, filterApplies, savedFilterPins, useFilterPins, savedLibraryFilters, saveLibraryFilters } from "../filterPins";
 import { api, ApiError, savedMatchMinimum, submissionSnapshot, subscribeSubmission, MATCH_THRESHOLDS, type ActionMode, type LookInto, type PlaceView, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
 import { count, plural } from "../format";
 import { jobLabel, summary, useJobCompletion, useJobFeed } from "../jobs";
@@ -97,7 +97,7 @@ function readUrl(hasLibrary = true) {
     similar,
     groupSets: p.has("group_sets") ? p.get("group_sets") !== "0" : savedGrouping(),
     suspicious: legacy === "suspicious" || p.get("suspicious") === "1" || defaults.includes("suspicious"),
-    reason: REASON_KEYS.includes(p.get("reason") as LookInto) ? p.get("reason")! : REASON_KEYS.find(key => defaults.includes(key)) ?? "all",
+    reason: REASON_KEYS.includes(p.get("reason") as LookInto) && filterApplies(p.get("reason") as LookInto, view) ? p.get("reason")! : REASON_KEYS.find(key => defaults.includes(key)) ?? "all",
     reviewPhoto: Number(p.get("review_photo")) || null,
     sort: p.get("sort") === "matches" && !similar ? "newest" as Sort : (p.get("sort") as Sort) || savedSort(similar ? "similar" : view),
     matchMin: MATCH_THRESHOLDS.includes(Number(p.get("match_min"))) ? Number(p.get("match_min")) : savedMatchMinimum(),
@@ -148,6 +148,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [reason, setReason] = useState(initial.reason);
   const [reviewPhoto, setReviewPhoto] = useState<number | null>(initial.reviewPhoto);
   const reviewFilter = reason;
+  const libraryFilters = useRef(savedLibraryFilters());
+
   const [sort, setSort] = useState<Sort>(initial.sort);
   const [matchMin, setMatchMin] = useState(initial.matchMin);
   const galleryMinimum = matchMin;
@@ -166,6 +168,12 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   // A job's photos (webui-spec 2, after a job): a scope over the gallery, opened from the
   // finished banner; every filter narrows it, and a view button or Back to results leaves it.
   const [jobRun, setJobRun] = useState<number | null>(initial.run);
+  useEffect(() => {
+    if ((view === "organized" || view === "review") && jobRun == null) {
+      libraryFilters.current = LIBRARY_KEYS.filter(key => key === "similar" ? similar : key === reason);
+      saveLibraryFilters(libraryFilters.current);
+    }
+  }, [view, similar, reason, jobRun]);
   // A job started from a job's photos, which the view moves to when it ends, so the line
   // above them and the finished banner describe the same job.
   const [followJob, setFollowJob] = useState<number | null>(null);
@@ -681,7 +689,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     setReason(REASON_KEYS.find(key => keys.includes(key)) ?? "all");
     setPage(1);
   };
-  const chooseView = (v: View, keepSourceFolder = false) => {
+  const chooseView = (v: View, keepSourceFolder = false, restoreFilters = true) => {
     if (!keepSourceFolder) setFolders([]);
     setJobRun(null); jobFilters.current = null; setFollowJob(null); setSourceTree(false);
     sortChoices.current[similar ? "similar" : view] = sort;
@@ -695,7 +703,14 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     if (v === "all") { setUndated(false); setDates([]); setTypes([]); setFolders([]); }
     // Reapply eligible pinned filters when choosing a place, keeping unavailable pins
     // remembered without applying them to the wrong location.
-    const eligible = pins.filter(key => filterApplies(key, v));
+    const returning = restoreFilters && (view === "unorganized" || view === "source") && (v === "organized" || v === "review");
+    const eligible = restoreFilters ? pins.filter(key => filterApplies(key, v)) : [];
+    if (returning) {
+      const remembered = libraryFilters.current;
+      setSimilar(remembered.includes("similar"));
+      setReason(REASON_KEYS.find(key => remembered.includes(key)) ?? "all");
+      setSort(sortChoices.current[remembered.includes("similar") ? "similar" : v] ?? savedSort(remembered.includes("similar") ? "similar" : v));
+    }
     if (eligible.includes("similar")) {
       setSimilar(true); setSort(sortChoices.current.similar ?? savedSort("similar"));
     }
@@ -924,7 +939,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const libraryOnly = view === "organized" || view === "review" ? null
     : view === "rejects" ? "Library photos only: open Library or Needs review." : "Organized photos only: open Library or Needs review.";
   const hasFilters = undated || dates.length > 0 || types.length > 0 || folders.length > 0
-    || !!q || !!search || similar || suspicious || reason !== "all" || pins.length > 0;
+    || !!q || !!search || similar || suspicious || reason !== "all" || pins.length > 0 || libraryFilters.current.length > 0;
   const hasResultFilters = undated || dates.length > 0 || types.length > 0 || folders.length > 0
     || !!q || similar || suspicious || reason !== "all";
   const resultCount = !gallerySummary ? "Loading photos…"
@@ -939,12 +954,14 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   };
   const lookFilters: SidebarFilters = {
     onClear: !focus && hasFilters ? () => {
+      libraryFilters.current = []; saveLibraryFilters([]);
       savePins([]); setSimilar(false); setSuspicious(false); setUndated(false); setReason("all");
       if (sort === "matches") setSort("newest");
       setQ(""); setSearch(""); setDates([]); setTypes([]); setFolders([]); setPage(1);
     } : undefined,
     on: activeLook,
     pinned: pins,
+    suspended: LIBRARY_KEYS.filter(key => !filterApplies(key, view)),
     counts: { similar: data?.chips?.similar, suspicious: data?.chips?.suspicious, undated: data?.chips?.undated,
               small: data?.chips?.small, later: data?.reasons?.later, issues: data?.reasons?.issues, attention: data?.chips?.attention },
     why: { similar: libraryOnly, suspicious: null, undated: null,
@@ -964,6 +981,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     },
     onPin: key => {
       if (pins.includes(key)) {
+        libraryFilters.current = libraryFilters.current.filter(item => item !== key);
+        saveLibraryFilters(libraryFilters.current);
         savePins(pins.filter(pin => pin !== key));
         // A pin toggles the filter as well as its persistence. An unapplied pin on
         // an explicit link only changes the preference, not that link's results.
@@ -1219,7 +1238,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                 <>
                   <p>No {VIEW_LABEL[view].toLowerCase()} match “{q}”.</p>
                   {PLACE_VIEWS.filter((v) => v !== view && v !== "review" && (data.elsewhere?.[v] ?? 0) > 0).map((v) => (
-                    <button key={v} onClick={() => { setSimilar(false); setSuspicious(false); setUndated(false); setDates([]); setTypes([]); setFolders([]); setReason("all"); chooseView(v); }}>{count(data.elsewhere?.[v] ?? 0)} matches in {VIEW_LABEL[v]}</button>
+                    <button key={v} onClick={() => { setSimilar(false); setSuspicious(false); setUndated(false); setDates([]); setTypes([]); setFolders([]); setReason("all"); chooseView(v, false, false); }}>{count(data.elsewhere?.[v] ?? 0)} matches in {VIEW_LABEL[v]}</button>
                   ))}
                 </>
               ) : view === "organized" && data.counts.organized === 0 ? <><h2>No photos organized yet</h2><p>Copy or move your indexed photos into Library.</p><button onClick={() => chooseView("unorganized")}>Go to Not organized</button></> : view === "unorganized" && data.counts.unorganized === 0 ? <><h2>No photos waiting to be organized</h2>{data.counts.organized > 0 && <><p>Your organized photos are in Library.</p><button className="primary" onClick={() => chooseView("organized")}>Go to Library</button></>}</> : <p>Nothing in this view.</p>}

@@ -9,6 +9,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Source views suspend Library-only filters and their pin highlights. Returning to
+  Library or Needs review restores the tab's previous choices, including unpinned
+  filters; explicit links remain exact and Clear all filters forgets the saved choices.
+
 - Rename File issues to Files needing verification and expose the same filter,
   counts and pins in Library and Needs review. Source import failures remain under
   Not organized → Needs attention.

@@ -404,7 +404,14 @@ reflect the current intersection. This reuses the gallery response's count queri
 Pins are saved per browser, with an in-memory fallback when storage is blocked. The URL
 remains authoritative on refresh, shared links and Back/Forward: saved pins do not narrow
 explicit photo/job links. A bare start page and sidebar place/filter choices reapply
-eligible pins; pins unavailable in a place remain removable. Preference changes sync
+eligible pins. Library-only filters (similar, small, later, issues) and their pin highlights
+are inactive in Not organized, Source folders (both scopes), and Needs attention.
+Their last active choices are remembered per browser tab, including unpinned choices
+and across a source-page refresh, and restored by sidebar Library/Needs review navigation.
+Explicit URLs/history remain authoritative; source URLs discard incompatible reasons.
+Shared search/date/type behavior is unchanged. Saved pins stay removable with an
+explanation; forgetting one also cancels its remembered filter. Clear all filters clears
+the remembered choices too. Preference changes sync
 across tabs without silently changing another tab's current results. The filter summary
 names every active restriction; Clear all filters clears pins too and preserves location
 and explicit photo selection. Small images, Review later and Files needing verification share an exclusive reason scope: pinning

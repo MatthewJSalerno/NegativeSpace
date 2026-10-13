@@ -3,6 +3,20 @@ import type { LookInto } from "./api";
 
 export const LOOK_KEYS: LookInto[] = ["similar", "suspicious", "undated", "small", "later", "issues"];
 export const REASON_KEYS: LookInto[] = ["small", "later", "issues", "attention"];
+// Destination-only filters are suspended while browsing source files.
+export const LIBRARY_KEYS: LookInto[] = ["similar", "small", "later", "issues"];
+const LIBRARY_STORAGE_KEY = "ns.libraryFilters";
+export function savedLibraryFilters(): LookInto[] {
+  try {
+    const value: unknown = JSON.parse(sessionStorage.getItem(LIBRARY_STORAGE_KEY) ?? "[]");
+    if (!Array.isArray(value)) return [];
+    const reason = REASON_KEYS.find(key => value.includes(key));
+    return LIBRARY_KEYS.filter(key => value.includes(key) && (!REASON_KEYS.includes(key) || key === reason));
+  } catch { return []; }
+}
+export function saveLibraryFilters(keys: LookInto[]) {
+  try { sessionStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(keys)); } catch { /* Remembered in the page when storage is blocked. */ }
+}
 const STORAGE_KEY = "ns.filterPins";
 let fallback: LookInto[] = [];
 
