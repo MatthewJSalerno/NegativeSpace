@@ -62,6 +62,14 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Save settings", exact=True).click()
     confirm = page.get_by_role("dialog", name="Remove the address you are using?", exact=True)
     expect(confirm).to_be_visible()
+    for width in (1440,720):
+        page.set_viewport_size({"width":width,"height":1000})
+        buttons=confirm.get_by_role('button')
+        expect(buttons).to_have_count(2)
+        left,right=[buttons.nth(i).bounding_box() for i in range(2)]
+        assert right['x'] >= left['x']+left['width']+11 or right['y'] >= left['y']+left['height']+11,(left,right)
+        assert confirm.evaluate('e => e.scrollWidth <= e.clientWidth + 1')
+        if os.environ.get('SHOTS'):page.screenshot(path=f"{os.environ['SHOTS']}/access-confirm-{width}.png")
     expect(confirm.get_by_role("button", name="Cancel", exact=True)).to_be_focused()
     confirm.get_by_role("button", name="Cancel", exact=True).click()
     assert "review.example" in request.get("/api/v1/access").json()["hosts"]

@@ -21,10 +21,25 @@ export function navigate(url: string, replace = false) {
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
+// Every subscriber must honor a draft guard before consuming the changed URL.
+// A native popstate is dispatched at Window itself, so capture registration alone
+// does not reliably precede listeners registered before the editor was opened.
+const navigationGuards = new Set<() => boolean>();
+const navigationDecisions = new WeakMap<Event, boolean>();
+export function guardNavigation(check: () => boolean) {
+  navigationGuards.add(check);
+  return () => { navigationGuards.delete(check); };
+}
+function navigationAllowed(event: Event) {
+  if (!navigationDecisions.has(event)) navigationDecisions.set(event,
+    [...navigationGuards].reverse().every(check => check()));
+  return navigationDecisions.get(event)!;
+}
+
 export function usePath(): string {
   const [path, setPath] = useState(window.location.pathname);
   useEffect(() => {
-    const onPop = () => setPath(window.location.pathname);
+    const onPop = (event: PopStateEvent) => { if (navigationAllowed(event)) setPath(window.location.pathname); };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
@@ -36,8 +51,9 @@ export function usePath(): string {
 // not reset selection, interrupt scrolling, or feed stale state back into the URL.
 export function useNavigation(onNavigate: () => void) {
   useEffect(() => {
-    window.addEventListener("popstate", onNavigate);
-    return () => window.removeEventListener("popstate", onNavigate);
+    const onPop = (event: PopStateEvent) => { if (navigationAllowed(event)) onNavigate(); };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
   }, [onNavigate]);
 }
 

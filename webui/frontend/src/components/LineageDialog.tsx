@@ -56,6 +56,8 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
   const roots = (tree?.files ?? []).filter((f) => f.origin_kind !== "copy")
     .sort((a, b) => Number(b.photo_id === photoId) - Number(a.photo_id === photoId));
 
+  const unrepresentedSelections = tree?.selected_by.filter(selection => !tree.operations.some(op => op.run_id === selection.run_id && op.photo_id === photoId && home(op) != null)) ?? [];
+
   const node = (file: LineageFile) => {
     const own = file.photo_id === photoId;
     const kind = file.origin_kind === "copy" ? "Copy" : file.origin_kind === "observed_destination" ? "Found at the destination"
@@ -101,17 +103,14 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
         {error && <p className="error">{error}</p>}
         {!tree && !error && <p className="muted">Loading…</p>}
         {tree && <ul className="lineage-tree">{roots.map((f) => node(f))}</ul>}
-        {tree && tree.selected_by.length > 0 && (
-          <p className="lineage-selected">
-            Selected by hand for{" "}
-            {tree.selected_by.map((s, i) => (
-              <span key={s.run_id}>{i > 0 && " · "}
-                <a href={logUrl({ run: s.run_id })} onClick={(e) => { onClose(); follow(e); }}>
-                  {jobLabel(s.run_id, s.mode)} · {instant(s.started_at)}
-                </a>
-              </span>
-            ))}
-          </p>
+        {unrepresentedSelections.length > 0 && (
+          <details>
+            <summary>Jobs without a recorded file step ({unrepresentedSelections.length})</summary>
+            <p className="section-note">This photo was selected for these jobs, but no file step appears in the tree. Open the job for its outcome.</p>
+            <ul>{unrepresentedSelections.map(s => <li key={s.run_id}>
+              <a href={logUrl({run:s.run_id})} onClick={e => {onClose(); follow(e);}}>{jobLabel(s.run_id,s.mode)} · {instant(s.started_at)}</a>
+            </li>)}</ul>
+          </details>
         )}
         <p><a href={logUrl({ photo: photoId })} onClick={(e) => { onClose(); follow(e); }}>Open in the log</a></p>
     </Modal>

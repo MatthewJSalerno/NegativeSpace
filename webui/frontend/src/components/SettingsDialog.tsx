@@ -225,9 +225,9 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
         <select id="settings-small-choice" required={firstRun} value={smallChoice} disabled={saving} aria-invalid={smallChoice !== "on" && !!fieldErrors.small} aria-describedby={[firstRun && "small-required", "small-hint", smallChoice !== "on" && fieldErrors.small && "small-error"].filter(Boolean).join(" ")} onChange={e => setSmallChoice(e.target.value)}>
           <option value="" disabled>Choose…</option><option value="on">On — suggest small images</option><option value="off">Off</option>
         </select>
-        {smallChoice === "on" && <Field id="settings-small" label="Minimum shorter side (pixels)" type="number" min={1} step={1} value={smallMin} disabled={saving} onChange={e => setSmallMin(e.target.value)} error={fieldErrors.small} />}
+        <Field id="settings-small" label="Minimum shorter side (pixels)" type="number" min={1} step={1} value={smallMin} disabled={saving || smallChoice !== "on"} onChange={e => setSmallMin(e.target.value)} error={smallChoice === "on" ? fieldErrors.small : undefined} />
         {smallChoice !== "on" && fieldErrors.small && <p id="small-error" className="error" role="alert">{fieldErrors.small}</p>}
-        <p id="small-hint" className="muted">For example, 640 × 480 is below an 800-pixel minimum. Changing or disabling this rule updates Needs review without moving files. Photos already marked reviewed stay reviewed.</p>
+        <p id="small-hint" className="muted">Turn reminders on to change the minimum. For example, 640 × 480 is below an 800-pixel minimum. Changing or disabling this rule updates Needs review without moving files. Photos already marked reviewed stay reviewed.</p>
       </section>
   );
 
@@ -391,7 +391,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     {confirmAddress && <Modal labelledBy="remove-address-title" onClose={() => setConfirmAddress(false)}>
       <h2 id="remove-address-title">Remove the address you are using?</h2>
       <p>After saving, this page and its live updates will stop working at {access?.current_host}. Open another allowed address to continue. Local and Docker-configured addresses remain available.</p>
-      <div className="dialog-actions"><button autoFocus onClick={() => setConfirmAddress(false)}>Cancel</button>
+      <div className="settings-actions"><button autoFocus onClick={() => setConfirmAddress(false)}>Cancel</button>
         <button className="danger" onClick={() => save(true)}>Remove this address and save</button></div>
     </Modal>}
   </>;

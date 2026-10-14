@@ -100,6 +100,8 @@ with sync_playwright() as p:
     expect(inspector.locator('.photo-matches')).to_have_count(0)
     information_tab.focus()
     page.keyboard.press('ArrowRight')
+    expect(inspector.get_by_role('tab',name='Metadata',exact=True)).to_be_focused()
+    page.keyboard.press('ArrowRight')
     expect(similar_tab).to_be_focused()
     expect(similar_tab).to_have_attribute('aria-selected', 'true')
     assert f'photo={reference}' in page.url
@@ -159,6 +161,52 @@ with sync_playwright() as p:
     expect(dialog.get_by_text('Different bytes (different SHA-1).', exact=False)).to_be_visible()
     reference_preview = dialog.get_by_role('figure', name='Reference preview')
     candidate_preview = dialog.get_by_role('figure', name='Candidate preview')
+    # Comparison tools align with one another; file decisions belong to the reference.
+    toolbar = dialog.locator('.review-toolbar')
+    expect(toolbar.locator('.review-keep')).to_have_count(0)
+    expect(reference_preview.locator('.review-keep')).to_be_visible()
+    expect(candidate_preview.locator('.review-keep')).to_have_count(0)
+    for width in (1440, 720):
+        page.set_viewport_size({'width': width, 'height': 1000})
+        toolbar.scroll_into_view_if_needed()
+        select_box = toolbar.get_by_role('combobox', name='Minimum similarity').bounding_box()
+        refresh = toolbar.get_by_role('button', name='Refresh comparison', exact=True)
+        refresh_box = refresh.bounding_box()
+        assert abs(select_box['y'] + select_box['height'] - refresh_box['y'] - refresh_box['height']) < 1, (select_box, refresh_box)
+        assert refresh.evaluate('e => getComputedStyle(e).borderTopStyle') == 'solid'
+        keep_box = reference_preview.locator('.review-keep').bounding_box()
+        details_box = reference_preview.locator('.review-preview-controls').bounding_box()
+        assert keep_box['y'] >= details_box['y'] + details_box['height'], (keep_box, details_box)
+        assert dialog.evaluate('e => e.scrollWidth <= e.clientWidth + 1')
+        # Viewing controls must not push dimensions or file decisions down.
+        def preview_positions():
+            return reference_preview.evaluate("""e => {
+                const origin=e.getBoundingClientRect().top;
+                return ['.review-preview-controls > .section-note','.photo-actions'].map(s =>
+                    e.querySelector(s).getBoundingClientRect().top-origin);
+            }""")
+        zoom=dialog.get_by_role('slider',name='Zoom reference',exact=True)
+        pan=dialog.get_by_role('slider',name='Reference horizontal position',exact=True)
+        expect(pan).to_be_disabled()
+        before=preview_positions()
+        zoom.fill('2')
+        expect(pan).to_be_enabled()
+        dialog.get_by_role('button',name='Rotate reference right',exact=True).click()
+        after=preview_positions()
+        assert all(abs(a-b)<=1 for a,b in zip(before,after)),(width,before,after)
+        dialog.get_by_role('button',name='Reset reference view',exact=True).click()
+        expect(pan).to_be_disabled()
+        assert all(abs(a-b)<=1 for a,b in zip(before,preview_positions()))
+        shot(f'comparison-controls-{width}')
+    page.set_viewport_size({'width': 1440, 'height': 1000})
+    # A candidate-only heading action must not offset the two previews at text zoom.
+    for scale in ('100%','200%'):
+        page.evaluate('value => {document.documentElement.style.fontSize=value}',scale)
+        reference_top=reference_preview.locator('.review-viewport').bounding_box()['y']
+        candidate_top=candidate_preview.locator('.review-viewport').bounding_box()['y']
+        assert abs(reference_top-candidate_top)<=1,(scale,reference_top,candidate_top)
+        shot(f'comparison-text-{scale[:-1]}')
+    page.evaluate("document.documentElement.style.fontSize=''")
     dialog.get_by_role('button', name='Rotate reference right', exact=True).click()
     dialog.get_by_role('button', name='Rotate candidate left', exact=True).click()
     expect(reference_preview).to_contain_text('Viewing rotation: 90°')
@@ -189,7 +237,7 @@ with sync_playwright() as p:
     expect(dialog.get_by_role('slider', name='Candidate horizontal position', exact=True)).to_have_value('75')
     assert json.loads(parse_qs(urlsplit(page.url).query)['review'][0]) == json.loads(saved_workspace)
     shot('comparison-restored')
-    # Expanded pan controls and details grow the comparison rather than creating
+    # Preview controls and details remain fully visible rather than creating
     # a second vertical scroll area inside the review window.
     def full_comparison():
         assert dialog.locator('.review-previews, .review-comparison').evaluate_all('''els => els.every(e => {
@@ -205,7 +253,7 @@ with sync_playwright() as p:
         assert dialog.locator('.review-previews').evaluate('e => e.scrollTop') == 0
         assert dialog.locator('.match-review-dialog').evaluate('e => e.scrollTop') > 0
     dialog.get_by_role('button', name='Next candidate', exact=True).click()
-    expect(candidate_preview).not_to_contain_text('Viewing rotation:')
+    expect(candidate_preview).to_contain_text('Viewing rotation: 0°')
     expect(reference_preview).to_contain_text('Viewing rotation: 90°')
     dialog.get_by_role('button', name='Previous candidate', exact=True).click()
     expect(candidate_preview).to_contain_text('Viewing rotation: 270°')
@@ -269,10 +317,15 @@ with sync_playwright() as p:
     expect(file_table.get_by_role('row', name=re.compile('^Format'))).to_contain_text('NEF (extension only)')
     expect(file_table.get_by_role('row', name=re.compile('^Pixel dimensions')).get_by_role('cell').first).to_have_text('Not recorded')
     expect(file_table.get_by_role('row', name=re.compile('^Aspect ratio')).get_by_role('cell').last).to_have_text('Not recorded')
-    page.unroute('**/api/v1/photos/*/inspect', inspect_properties)
+    # Inspector refreshes can still have intercepted reads in flight. Finish those
+    # handlers before removing the mock; otherwise unroute handles a route twice.
+    page.unroute_all(behavior='wait')
     dialog.get_by_role('button', name='Refresh comparison', exact=True).click()
     expect(file_table.get_by_role('row', name=re.compile('^Format'))).to_contain_text('JPEG')
+    before_candidates = dialog.locator('.review-candidates').evaluate('e => e.offsetTop')
     metadata.get_by_role('checkbox', name='All recorded tags').check()
+    assert abs(dialog.locator('.review-candidates').evaluate('e => e.offsetTop') - before_candidates) <= 1
+    assert dialog.locator('.review-information').evaluate('e => e.clientHeight') > 100
     expect(file_table.get_by_role('row', name=re.compile('^Pixel dimensions')).get_by_role('cell').first).to_have_text('320 × 240')
     # Column context remains visible while scrolling each section. In narrow
     # reflow the containing review window takes over scrolling from the pane.
@@ -445,7 +498,7 @@ with sync_playwright() as p:
     # This fixture is one identical set. Ungroup before stepping between photos.
     page.get_by_role('checkbox', name='Group similar photos', exact=True).uncheck()
     expect(page.locator('.card')).to_have_count(60)
-    # Browsing photos retains the tab and threshold, with match paging reset.
+    # Arrow navigation retains the active tab and threshold, with match paging reset.
     old_title = inspector.locator('.inspector-head h2').inner_text()
     inspector.get_by_role('button', name='Next photo', exact=True).click()
     expect(inspector.locator('.inspector-head h2')).not_to_have_text(old_title)

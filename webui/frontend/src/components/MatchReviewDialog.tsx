@@ -218,6 +218,13 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
   const position = matches && index >= 0 ? (page - 1) * PAGE_SIZE + index + 1 : null;
   const progress = matches?.availability === "available"
     ? `${count(matches.total)} look-alikes at ${threshold}% or higher` : "Loading look-alikes…";
+  const keepAction = onKeep && scope === "library" && lastReference?.id === reference && !isRejected(lastReference) && remaining > 0 && <button className="photo-action review-keep"
+        disabled={rejecting != null || jobRunning}
+        title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : `Keep ${lastReference.filename}. The look-alikes are reviewed before any is rejected. To keep the other photo, use it as the reference first.`}
+        aria-label={`Keep ${lastReference.filename}, reject the other ${count(remaining)}…`}
+        onClick={() => { const name = lastReference.filename; close(); onKeep(reference, name, threshold); }}>
+        Keep <span className="keep-name">{lastReference.filename}</span>, reject the other {count(remaining)}…
+      </button>;
   return <Workspace label="Review photo match" className="match-review-dialog" onBack={close}
     title="Review similar photos"
     subject={review?.reference.id === reference ? `Reference: ${review.reference.filename}` : "Compare destination photos side by side."}
@@ -237,14 +244,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       <label>Minimum similarity<select aria-label="Minimum similarity" value={threshold} onChange={e => {
         setThreshold(Number(e.target.value)); setPage(1); setActive(null);
       }}>{MATCH_THRESHOLDS.map(t => <option key={t} value={t}>{t}% or higher</option>)}</select></label>
-      {onKeep && scope === "library" && lastReference?.id === reference && !isRejected(lastReference) && remaining > 0 && <button className="photo-action review-keep"
-        disabled={rejecting != null || jobRunning}
-        title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : `Keep ${lastReference.filename}. The look-alikes are reviewed before any is rejected. To keep the other photo, use it as the reference first.`}
-        aria-label={`Keep ${lastReference.filename}, reject the other ${count(remaining)}…`}
-        onClick={() => { const name = lastReference.filename; close(); onKeep(reference, name, threshold); }}>
-        Keep <span className="keep-name">{lastReference.filename}</span>, reject the other {count(remaining)}…
-      </button>}
-      <button onClick={() => setReload(n => n + 1)}>Refresh comparison</button>
+      <button className="photo-action" onClick={() => setReload(n => n + 1)}>Refresh comparison</button>
     </div>
     <p className="section-note">Scores measure visual similarity, not confidence. Even 100% can describe different pictures.
       {threshold < 90 && " Below 90%, results are more likely to be unrelated. Review photos before using them as metadata clues."}</p>
@@ -271,7 +271,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
           <div className="review-pair">
             <ReviewPreview label="Reference" isReference photo={review.reference} view={referenceView}
               onChange={next => changeView(reference, next)} refreshKey={reload}
-              action={rejectButton(review.reference, true)} />
+              action={rejectButton(review.reference, true)} footerAction={keepAction} />
             <ReviewPreview label="Candidate" photo={review.candidate} view={displayedCandidateView}
               onUseAsReference={useAsReference} referenceDisabled={!!error}
               onChange={next => changeView(active, next)} refreshKey={reload}

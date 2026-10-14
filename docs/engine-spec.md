@@ -1447,11 +1447,16 @@ rollback of completed photos or resumption of the remaining batch is permitted.
 
 Dates inferred from filenames or file attributes are reference information, not
 embedded EXIF. **Export sidecars are not read** (decided 2026-10-01): JSON files from
-services such as Google Takeout often hold dates a photo lacks, but mature tools exist to
-write them into the photos (Google Photos Takeout Helper, immich-go, ExifTool recipes),
-and each service's format keeps changing. Index detects `.json` files paired with photos
-and tells the user to run such a tool before indexing (`webui-spec.md` §7.5). Export
-sidecars are a different thing from the XMP sidecars an edit may write.
+services such as Google Photos/Takeout and Flickr can hold metadata a photo lacks.
+Purpose-built export-preparation tools are the intended resolution; NegativeSpace does
+not implement their changing service-specific formats. **Detection and user guidance
+remain planned.** When recognized export-sidecar naming/layout evidence is found, report
+it with the Index result and direct the user to prepare the source export with a dedicated
+tool, then Index again (`webui-spec.md` §7.5). A `.json` extension alone must not identify
+a provider; uncertain evidence is labelled possible export metadata. Detection does not
+parse or apply export-sidecar contents. Leave these files untouched, explain that Move
+leaves them behind, and do not fail an otherwise usable photo just for their presence.
+Export sidecars are separate from supported XMP metadata sidecars.
 
 An edit and any required refile are one user action recording before/after values,
 paths and content identities. **A failed write leaves the file unchanged. A failed
@@ -1817,7 +1822,7 @@ For Rename/Reject/Return, exactly one verified location permits a catalog-only r
 two remaining names are ambiguous and neither is removed, even if hard-linked.
 For recorded photo/XMP relocations, both new members must verify and both old names
 must be absent before Check it now repairs the catalog. Partial pairs and unfinished
-old-name cleanup remain File issues; repeat the original action after restoring access.
+old-name cleanup remain Files needing verification; repeat the original action after restoring access.
 Startup recovery may finish verified old-name cleanup, but never publishes a missing
 member. Ordinary photo-only recovery is not used for pair intents.
 

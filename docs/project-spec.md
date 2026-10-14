@@ -145,14 +145,11 @@ files under `Undated/<year>/`, the year taken from the source's modification tim
 as captured at its original Index; `CreateDate` and `DateTime` are kept as review
 evidence but never place a file. See `engine-spec.md` §4.2.
 
-**A capability the web UI depends on does not exist yet**, each specified
-with what it needs:
+Verified metadata writing is built for XMP sidecars and qualified JPEG embedded
+metadata (`engine-spec.md` §9.6). The first web editor exposes Date taken only;
+primary-choice, broader import decisions and recovery controls remain tracked in TODO.
 
-| Gap | Where | Blocks |
-| :--- | :--- | :--- |
-| Writing metadata: in the file, or an XMP sidecar (the default for RAW; decided) | `engine-spec.md` §9.6 | Metadata corrections a gallery can actually see |
-
-The agreed XMP import/source-precedence contract and the deferred metadata-tab UI are
+The agreed XMP import/source-precedence contract and the metadata-source UI are
 tracked in [xmp-metadata.md](xmp-metadata.md). Pure resolution, bounded sidecar reading
 and ownership-planning helpers plus immutable compressed version/arrival storage are
 built. Supported field-value validation and independent ExifTool compatibility tests
@@ -231,9 +228,10 @@ service. Built and tested:
         and the build; the selection bar (Copy, Move, Reject or Return to library for the
         ticked photos, only what applies) takes the top bar while photos are ticked;
     *   the gallery, with its places, sorts and search, a **Filters** panel with
-        **Types** (folded by default) and, by choice, the source's **Folders** (the
-        default) or a **Dates** tree, to show only file types, folders, years and months
-        or jump to a date, and continuous scrolling whose page number follows; the
+        **Types** (folded by default) and a **Dates** tree to narrow file types, years
+        and months or jump to a date. **Source folders** and counted **Needs attention**
+        are child links under Not organized; source-folder restrictions clear on leaving
+        that view. The gallery has continuous scrolling whose page number follows; the
         **Rejects** view with what Rejects holds and how to empty it, its tile on Stats,
         and a reminder on every page once it passes a size or age limit set in Settings;
     *   selection across views (shift-click, the Select menu, Show only selected), one
@@ -244,7 +242,7 @@ service. Built and tested:
         never "failed" for a job that ran to its end) with **Show these photos**: the
         job's photos, wherever they are now, which search and the filters narrow;
     *   the split Inspector, with a movable divider, the 1024px preview, the file's own
-        details apart from the photo's EXIF information, Show all metadata, the
+        details apart from Metadata sources, Additional file information, the
         photo's recent history, its lineage tree in a window of its own, and **Reject…**
         or **Return to library…**.
 
@@ -252,7 +250,7 @@ service. Built and tested:
         duplicate space with its coverage, activity, catalog health), each leading to
         the photos or log entries behind it.
     *   gallery **Has similar photos** and Inspector matching: visual review of
-        destination photos after Copy or Move, separate Photo information/Similar photos Inspector tabs, cumulative
+        destination photos after Copy or Move, separate Photo information/Metadata/Similar photos Inspector tabs, cumulative
         75/80/85/90/95/100% counts and a responsive, paged match grid. Index precomputes comparisons and resumes interrupted work.
         The expanded side-by-side workspace provides independent temporary rotation,
         linked zoom/position, candidate promotion to reference, file/image and metadata
@@ -291,6 +289,10 @@ history. The common review workspace preserves gallery selection and uses the ex
 Reject flow. EXIF/XMP changes and the additional reason-specific recovery flows remain
 separate work.
 
+The read-only metadata source viewer is built: separate XMP Sidecar, Embedded XMP and
+EXIF tabs, an applied Primary badge, retained versions, field comparison/filtering and
+recorded-tag disclosure. Catalog reads do not activate sources or modify files.
+
 Specified but not yet on screen:
 *   The unbacked-changes line on every page, and Retry backup in the finished-job banner.
 *   Each folder's last-scanned time in the Folders tree.
@@ -300,8 +302,11 @@ Specified but not yet on screen:
     rebuild grid thumbnails (the engine jobs exist; `webui-spec.md` §4.2.1).
 *   The Index file-type summary (files found, eligible and excluded by type), which the
     engine records per full Index (`webui-spec.md` §5.1).
-*   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built), undated photos as a Needs review reason with suggested dates, and metadata editing (`webui-spec.md` §7.5, with its
-    decided details).
+*   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built),
+    undated photos with suggested dates, and Date taken editing/copying
+    with a filing preview (`webui-spec.md` §7.5). Other fields remain read-only; broader
+    engine capabilities do not imply a general-purpose web editor. Saved orientation is
+    separately planned.
 *   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file resolution, and the similar-to-a-reject check
     (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);

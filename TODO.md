@@ -6,8 +6,9 @@ Open work, open design questions and the durability claims ledger. Designs live 
 
 Maintenance: update this backlog in the same change that implements and validates work.
 Mark completed scope accurately, split partial engine/API/UI completion, and remove
-duplicate open entries. Keep the component specs and handoff consistent; do not leave
-finished work unchecked or count it again.
+duplicate open entries. Before every merge, reconcile component specs, this backlog,
+validation notes and the private handoff against what is built and what remains pending.
+Do not leave finished work unchecked or count it again.
 
 ## Uncertain file outcomes
 
@@ -55,10 +56,6 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Views
 
-- [ ] Discuss resetting the Inspector to Photo information when clicking a different
-  gallery photo. Decide whether Has similar photos keeps its Similar photos
-  default, and distinguish card clicks from previous/next navigation, which
-  retains the chosen tab. Discussion only; current behavior is unchanged.
 - [ ] Check Library/Jobs/Logs spacing and alignment in a future UI batch; preserve
   the reserved Jobs position so Logs does not shift when Jobs is unavailable.
 - [ ] Refresh user-guide screenshots for the current setup and review workflows.
@@ -133,7 +130,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] UX consistency batch: one toggle row per place, in-place Small images filter,
   closed Inspector on place changes, contextual/collapsible source summary, grouped
   photo actions and the dedicated review layout. Date flags remain informational;
-  persistent date acknowledgments and editing are still unbuilt.
+  persistent date acknowledgments remain unbuilt. Single-photo date editing is tracked below.
 
 - [x] The in-tray for Small images and Review later (`docs/webui-spec.md` §7.9).
 - [x] Library-only review decisions, source exclusion from similarity, backend eligibility, separate source
@@ -199,7 +196,8 @@ This is the authoritative countdown for the current metadata engine work. Keep t
 numbers fixed, report progress as **Task X of 7**, and disclose any scope change. Tests
 and documentation belong to each task. Final regression/review, commit and push are
 release gates, not additional feature tasks. API/UI work and deferred ideas below are
-outside this countdown; no metadata UI work is authorized yet.
+outside this countdown. The source viewer and single-photo date editor are built and passed manual acceptance.
+The decision controls below remain pending.
 
 | Task | Status | Remaining scope / completed boundary |
 | --- | --- | --- |
@@ -215,21 +213,22 @@ Closeout validation (2026-10-10): 409 metadata regression tests passed; the fina
 source-cleanup suite passed all 19 cases. The engine smoke suite passed 154 tests,
 including both public RAW checks, with zero failures/skips. Specification references,
 schema/API documentation and whitespace checks passed. The engine branch is committed
-and pushed in PR #105; passing GitHub CI and merge review remain release gates.
+and merged through PR #105 after passing CI. PR #107 combined it with navigation
+and schema 28; all 68 combined CI steps passed before merge.
 The API/UI checklist below is separate.
 
 PR #105 follow-up: corrected the web job-identity check to include the engine’s
 edited-source consent field as false. This prevents accepted jobs from appearing
 refused. Request replay and explicit CLI consent remain distinct; no cleanup consent
 is granted by this correction. The original failing browser suite now passes, as do
-117 API/source-cleanup tests and specification/API checks. GitHub CI still gates merge.
+117 API/source-cleanup tests and specification/API checks. The full GitHub run passed
+and the fix is merged.
 
-**Full user validation is pending the metadata UI.** These automated engine results
-are not acceptance of the future editing experience. Once the API and screens exist,
+**The read-only viewer and first date editor have passed maintainer validation.**
+Follow-up presentation spot-checks passed; future controls still need acceptance. Automated engine results do not establish
+acceptance of the editing experience. As the remaining controls are built,
 validate metadata-source selection, date edits and destination previews, save/recovery
-feedback, and the one-job confirmation for removing edited originals. No metadata UI
-walkthrough is required or possible for this engine-only delivery; GitHub CI and code
-review remain separate merge checks.
+feedback, and the one-job confirmation for removing edited originals. GitHub CI and code review remain separate merge checks.
 
 For tasks 4–5, donor choice never changes the write target. Logical fields carry their
 related tags together, with no invented or mixed components. See
@@ -297,32 +296,115 @@ These are completed capabilities, not additional open closeout tasks.
   see [jpeg-content-hash-experiment.md](docs/jpeg-content-hash-experiment.md).
   No production image-only hashing or duplicate consolidation is enabled.
 
-### API/UI work — separate, not started in this engine closeout
+### Motion-photo and expanded-format qualification
+
+- [ ] Qualify embedded motion-photo editing as a separate workstream (maintainer
+  decision: retain the current refusal for this release). The current JPEG writer
+  deliberately refuses trailers; sidecar saves preserve Google legacy, Pixel and
+  Samsung video bytes. Regression tests assert both successful sidecar preservation
+  and nonmutating embedded refusal. Do not relax the boundary solely because ExifTool
+  can retain the video; verify the complete engine write/publication path first.
+- [ ] Builder-owner planned fixtures: RAW EXIF versus sidecar, DNG embedded XMP,
+  Lightroom RAW/JPEG metadata differences and ownership hints, case-varied RAW
+  sidecar names, TIFF/HEIC embedded XMP, and extended JPEG XMP. These cases are not
+  built or required to claim the currently bounded Date taken UI is implemented.
+  Request builder changes from the maintainer; do not silently expand writer support.
+
+### Export-service metadata guidance
+
+- [ ] Detect recognized Google Photos/Takeout and Flickr export-sidecar naming/layout
+  evidence and add an Index-result notice: affected count/list, sidecars are not imported,
+  and a working Help route recommending dedicated export-preparation tools followed by
+  reindexing. Verify any named-tool recommendations before publication. Do not parse/apply
+  these sidecars or identify a provider from `.json` alone; label uncertain evidence as
+  possible export metadata. Leave the files untouched and explain Move leaves them behind.
+  This is informational, not a failed photo or Library review reason, and is separate
+  from supported XMP handling. Detection and notice are both unimplemented.
+
+### API/UI work — source viewer/date editor built; decisions pending
+
+First UI scope agreed: show metadata broadly, edit/copy **Date taken only**. The
+common-field engine remains intact. General metadata editors, whole-source composition,
+cross-photo/bulk copying and date shifts are deferred controls, not prerequisites.
+Saved orientation stays a separate action from temporary preview rotation.
+
+- [x] Read-only source viewer in Photo information: separate XMP Sidecar / Embedded XMP / EXIF
+  tabs, textual Primary badge and stable captured-field tables. Alternative tabs offer
+  Compare with primary and Show differences only; distinguish Empty, Not recorded and
+  unreadable/request failures. Follow `docs/ui-design.md` for the shared controls.
+  Maintainer validation passed, including broken-sidecar source-attention guidance.
+- [x] Source attention for processing failures and metadata holds, with a summary shortcut.
+  Initial filtering acceptance passed. Updated navigation puts counted Needs attention
+  beside Source folders under Not organized; only Source folders has a folder selector,
+  and destination navigation clears its scope. Maintainer revalidation passed (Test 3).
+- [x] Unpinning deactivates the filter and updates results/counts; unfiltered places
+  use the sidebar total without repeating it in the gallery or pager. Filtered, grouped,
+  selected and job/source scopes retain meaningful counts. Seven generated browser
+  workflows pass, including filter reset and layout stability. Maintainer validation passed (Test 1).
+- [x] Hide the year panel while No capture date is active (including pinned
+  combinations), restoring it when cleared and sorted by date. No filing/filter change.
+- [x] Rename the photo-opening action Inspect photo to distinguish it from Review
+  later. Align Refresh comparison with Minimum similarity and place Keep below the
+  reference preview’s details, separate from filtering. Maintainer validation passed (Test 2).
+- [x] Expanding All recorded tags uses independent metadata scrolling on desktop,
+  keeping candidate navigation in place; narrow layouts retain the outer scroll.
+- [x] Maintainer passed acceptance Tests 1–6 and all follow-up checks (3b, 4f,
+  5a, 5c–e) on 2026-10-13. No manual acceptance remains for this batch.
+- [x] Empty source-folder rows use their own class, avoiding whole-screen empty-state
+  styling; sibling label alignment is checked at desktop and narrow widths.
+- [x] Explicitly clear Date taken blanks/disables visible date inputs. Unchecking
+  restores the unsaved draft; preview and Save are still required.
+- [x] Copy Date taken to primary: diagnosed a destination-name collision, not lost
+  donor data. Preview now offers a numbered filename (maintainer-approved); Save
+  revalidates it and preserves existing photos/sidecars. Race/orphan/symlink guards stay.
+- [x] Metadata job outcomes derive saved/skipped/failed photo counts from journaled
+  operations, including previous jobs without progress phases. Maintainer validation
+  passed for the previous job and new copy-date workflow.
+- [x] Separate Metadata inspector tab; compact file/date summary, Edit date shortcut,
+  collapsed technical details, gallery-click reset and tab retention on previous/next.
+- [x] Recorded-tag disclosure shares primary comparison, differences-only and field filtering.
+- [x] Primary metadata Date taken row has an inline Edit date link, including missing/empty
+  dates; alternate sources retain Copy Date taken to primary.
+- [x] Date-editor usability: calendar day picker preserving recorded time/offset,
+  explicit missing-XMP clear guidance, and stable version/action rows across source tabs.
+- [x] First date editor: manual Date taken or Copy to primary from another source of
+  the photo; complete date/companion handling, explicit clear, previewed target and
+  before/after date/path, one Save/refile confirmation and verified failure recovery.
+  Other fields remain read-only. Copying never activates the donor source.
+  Maintainer validation of editing/saving passed; broad recovery/primary UI is separate.
 
 - [ ] One Move-job confirmation for edited-source originals: affected count/list,
   **Include these originals** or **Leave these originals at source**; explain that exact
   original photo bytes are not retained. Bind the displayed selection to the job.
   No per-photo prompts or permanent consent. Engine preview and confirmed cleanup exist.
 
-- [ ] Retained-source tabs and deliberate association/primary-choice controls, with the
-  same priority explanation in setup and Settings and a clearly marked active source.
+- [ ] Deliberate association/primary-choice controls, separate from viewing and copying,
+  with effective-value/refiling previews and the same priority explanation in setup and
+  Settings. The source viewer is tracked above, not a duplicate implementation task.
 - [ ] Prominent active-job Settings notice (`webui-spec.md` §3); generic future-jobs
   notice/save confirmation already exist.
+- [x] Source metadata attention markers and photo-information explanations: affected
+  source-relative sidecar paths, external correction/reindex guidance and job logs.
+  Latest-capture holds count as attention, not ready-to-organize photos. No source
+  photo is added to Library's Needs review. Broader decisions remain below.
 - [ ] Metadata-choice job notices and linked Not organized queue; metadata-difference
   review for edited Library photos and combined metadata/location choices for rejected
   matches. Retained alternatives already have engine preservation notices/history.
 - [ ] **Before release: expose pair retry**, with eligible selections/counts, issue details,
   explicit same-mode retry and browser validation. Engine CLI retries are built.
-- [ ] Source-specific editing and explicit field copying between photos: controls for
-  Clear value, no-ops, previews, batch outcomes and failed-edit abandonment. Engine
-  support exists for qualified writers. Reference, donor and targets remain distinct;
-  selection/navigation never chooses a primary implicitly (`webui-spec.md` §7.5).
+- [ ] Deferred broader composition/cross-photo and bulk date controls. Engine support
+  exists for qualified common fields; exposing it is outside the first date UI. Preserve
+  explicit donor/target roles and never choose primary implicitly (`webui-spec.md` §7.5).
 - [ ] Saved orientation controls, separate from temporary viewing rotation: an
   end-of-review decision in comparison/photo panels and Rotate… for a selection,
   with no thumbnail control. Qualified engine Orientation writes are built;
   UI eligibility must respect format/writer limits.
 
 ### Deferred work and open discussions
+
+- [ ] **Future discussion: Similar photos and metadata.** Revisit how similarity review
+  and metadata workflows should work together, alongside the deferred cross-photo
+  metadata controls above. Scope and behavior are undecided; discussion only.
 
 - [ ] Extend date review to malformed/raw EXIF, conflicting capture tags and acknowledgment
   of known-valid dates if needed. Current flags use the recorded gallery date;
@@ -418,6 +500,21 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 
 ## Navigation refinement
 
+- [x] Rename File issues to Files needing verification and expose the same filter,
+  counts and pins in Library and Needs review. Source import failures remain under
+  Not organized → Needs attention.
+
+- [x] UI alignment/stability pass: separate filtered-log exports from filters, align
+  log input edges and shared inline controls, keep small-image settings and preview
+  zoom/rotation controls stationary, and reuse the confirmation action-row spacing.
+- [x] Maintainer visual acceptance: alignment/stability Tests 1a–4a and the renamed
+  verification filter Test 5a passed.
+- [x] Suspend Library-only filters and pin highlights in source views; remember the
+  Library choices per tab and restore them on sidebar return, without overriding URLs.
+- [x] Maintainer validated revised Test 5b: source navigation and restored filters.
+- [ ] Filter-count UX follow-up: distinguish an actual zero from an unavailable count
+  or incompatible filter; explain restrictions without misleading zero totals.
+
 - [ ] Future UX discussion: the full-screen view opened by clicking the large Inspector
   preview feels visually cluttered, particularly the photo information displayed with
   it. Review the photo/metadata layout and shared styling before deciding changes.
@@ -468,4 +565,21 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
   tests, six browser workflows, frontend build and spec/API/schema checks passed.
   File issues uses the sidebar and its pin rules; older schema-26/27 catalogs are
   refused without modification.
-- [ ] Finish combined GitHub checks and merge the UI PR.
+- [x] Combined GitHub checks passed (68 steps); PR #107 merged after #105. Superseded
+  PRs #104/#106 closed. Main includes the full navigation and metadata engine stack.
+
+
+- [x] Validation follow-up: stable folder/date/type filter summaries; persistent disabled
+  folder actions when a single-folder operation is unavailable; inline Copy date to primary;
+  Edit metadata date wording; absent-primary-date links to alternatives; shared completion
+  footer; suppress duplicated lineage selection links while retaining unmatched jobs.
+  Focused spot-checks passed: Tests 3b, 4f, 5a, 5c–e in tests/README.md.
+- [ ] Post-validation discussion: whether/how to expose copying all metadata or a broader
+  field selection. Date-only copying remains the current UI scope; no implementation yet.
+
+- [ ] Future discussion (accepted Test 3b): could source-folder handling happen behind
+  the scenes? Clarify the desired behavior before changing selection or action rules.
+- [ ] Optional wording discussion (accepted Test 4f): Open in the log already opens
+  the photo-filtered operations history across jobs, including linked file identities
+  and exact duplicates. Consider a clearer label such as View all photo logs; no new
+  filtering feature is needed and no wording change is approved yet.

@@ -75,7 +75,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
     return ()=>{live=false;};
   }, [rejectRun, jobs.last?.id, jobs.active]);
   const changed = (message: string) => {setNotice(message); setRevision(n=>n+1);};
-  const title = filters.reason === "issues" ? "File issue review" : filters.reason === "small" ? "Small-image review" : filters.reason === "later" ? "Review later"
+  const title = filters.reason === "issues" ? "File verification" : filters.reason === "small" ? "Small-image review" : filters.reason === "later" ? "Review later"
     : filters.suspicious ? "Suspicious-date review" : filters.undated ? "Missing-date review" : "Photo review";
   const matchLink = new URLSearchParams(window.location.search);
   matchLink.delete("review_photo");
@@ -93,8 +93,8 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
       <aside className="review-decision-panel" aria-label="Review decision">
         <FileIssues key={photo.id} photoId={photo.id} initialIssues={photo.issues ?? []} onResolved={()=>changed("File issue resolved.")} />
         <ReviewNote key={photo.id} id={photo.id} refreshKey={revision} reason={filters.reason} disabled={!!jobs.active} onBusy={setBusy} onResolved={changed}
-          concerns={photo.date_warning ? [{label:"Suspicious date",message:`${photo.date_taken ?? "Unknown date"}. ${photo.date_warning} Date editing is not available yet.`}]
-            : !photo.exif_dates?.some(d => d.field === "taken") ? [{label:"No capture date",message:"No date taken is recorded in the photo’s EXIF. Date editing is not available yet."}] : []}
+          concerns={photo.date_warning ? [{label:"Suspicious date",message:`${photo.date_taken ?? "Unknown date"}. ${photo.date_warning} Date correction is available in the photo information pane under Metadata sources.`}]
+            : !photo.exif_dates?.some(d => d.field === "taken") ? [{label:"No capture date",message:"No date taken is recorded in the photo’s EXIF. Date correction is available in the photo information pane under Metadata sources."}] : []}
           actions={["Completed","Copied","Found_At_Destination"].includes(photo.status) && <button disabled={busy||!!jobs.active} title={jobs.active ? "Wait for the running job to finish." : "Moves this photo to Rejects after confirmation."} onClick={()=>setConfirm(transferConfirm("reject",status,[photo.id],async()=>{
             const run=await api.startJob({mode:"reject",file_ids:[photo.id]});if (run.id == null) throw new Error("The Reject job was not accepted. Reload before trying again."); setRejectRun({run:run.id,photo:photo.id});setBusy(true);
           },undefined,photo.filename))}>Reject…</button>} />

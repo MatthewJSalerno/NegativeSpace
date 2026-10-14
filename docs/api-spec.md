@@ -237,12 +237,13 @@ navigation agree. Invalid query/position percentages return 422.
 
 The navigation sidebar's counts (`webui-spec.md` §2, the page frame): each place whole,
 before any gallery filter, and each **Look into** filter where its link from Logs or Stats
-opens it: Library with only that filter on, or Needs review for Review later. On the
+opens it: Library with only that filter on, Needs review for Review later,
+or Not organized for Needs attention. On the
 Library page the Look into counts come from `chips` and `reasons` instead, for the place
 shown. `match_min` (default 90) sets Has similar photos:
 
     {"places": {"unorganized": 0, "organized": 4499, "review": 31, "rejects": 4},
-     "look_into": {"similar": 167, "suspicious": 8, "undated": 1356, "small": 9, "later": 3, "issues": 1}}
+     "look_into": {"similar": 167, "suspicious": 8, "undated": 1356, "small": 9, "later": 3, "issues": 1, "attention": 0}}
 
 ### `GET /api/v1/photos/timeline`
 
@@ -374,6 +375,67 @@ it (`OffsetTimeOriginal`, `OffsetTimeDigitized`, `OffsetTime`).
 ExifTool's full set (or Pillow's when ExifTool found nothing for the file), not a curated
 subset. The engine's own `date_taken` and `date_source` are left out; they are above.
 Read from the catalog, so it shows the photo as last indexed.
+
+Photo listing items and photo inspection include nullable `metadata_attention` for
+Not organized photos with issues in their latest metadata capture. Its `issues` list
+contains `code`, readable `reason`, source-relative `files` and optional `detail`;
+`action` explains source correction/reindexing. It does not establish a failed photo
+or a Library review task. The Not organized `index_summary.metadata_held` count excludes
+failed photos already counted in `failed`; `ready` excludes recorded metadata holds.
+
+### `GET /api/v1/photos/{id}/metadata`
+
+Read-only catalog snapshots for the metadata source viewer. Returns `photo_id`,
+`primary_id` (null until verified activation), `applied`, `recorded`, `notice`,
+`field_sources`, `issues`, and `sources`. Each source has `id`, `kind`, `label`,
+`available`, canonical `fields`, qualified `tags`, and interpretation `issues`;
+sidecars also carry `version_id`. EXIF and embedded XMP are distinct. Retained sidecar
+versions remain alternatives unless a verified receipt identifies them as primary.
+Empty JSON values and absent keys remain distinct. No raw XMP payload is returned.
+
+Reads use a single catalog transaction; no filesystem reads, XMP decompression,
+source activation, job submission or catalog writes occur. Verified saved values take
+precedence over later source Index observations. Content mismatch suppresses the Primary
+claim and exposes an issue; capture-only observations do not imply activation.
+Unknown, nonpositive or oversized IDs return 404 `unknown_photo`; noninteger IDs return
+422. Viewing never writes metadata or changes primary.
+
+### `GET /api/v1/photos/{id}/date-edit`
+
+Read the organized Library photo's current date write target. Returns `capture_id`,
+`target` (`source_id`, `kind`, `create`), `date` (`present`, `value`),
+`current_path` and `can_clear`. The date belongs to the target itself, never a fallback.
+First-sidecar creation starts with an absent date. Verified primary/source receipts win
+over later source observations. Unknown/ineligible photos or unresolved state return
+409 `metadata_unavailable`; noninteger IDs return 422. Reads do not verify live files.
+
+### `POST /api/v1/photos/{id}/date-preview`
+
+Body: `{"capture_id": 12, "value": "2020-06-15T14:30:00.123+02:00"}` or
+`{"capture_id": 12, "donor_id": "exif"}`. An explicit empty string proposes a clear;
+absent donor dates cannot be copied. A donor must be a recorded source of this photo.
+Return `edit`, `token`, `target`, `before` (`present`, `value`), `after`, `filing`
+(`current`, `proposed`, `change`, optional `collision_renamed`), and `no_change`. The
+read-only engine preview validates writer support and retains source provenance. For
+refiling it checks destination names and offers the next available numbered photo name
+when a photo occupies the requested name, keeping its sidecar paired. It refuses an
+orphan sidecar, unsafe path or non-file obstruction; it never overwrites or reserves a
+name. Save re-derives the preview under the engine lock; a different chosen path requires
+a fresh preview and confirmation. Unsupported values, invalid shape and filesystem
+refusals return 400 `invalid_request`; stale catalog
+state returns 409 `metadata_changed`. The app never changes primary automatically.
+
+### `POST /api/v1/photos/{id}/date-save`
+
+Body: the preview's `edit` and `token`, plus a required `request_id`. Only Date taken
+and a same-photo date donor are allowed. Returns 202 with the accepted run; its actual
+outcome is polled through the existing run/job APIs. One engine `METADATA` apply job
+covers the confirmed edit and any refiling. The request is bounded JSON via a private
+anonymous input file, never a shell string or client-selected filesystem path.
+Normal job locking/refusal rules apply. Identical request-ID replay returns the original
+run; changed input returns 409 `request_conflict`. Invalid input returns 400. Engine
+revalidation can fail an accepted job if its token, settings, files or destination changed.
+No automatic resubmission, primary switch, source deletion or bypass of verified saves.
 
 ### `GET /api/v1/photos/{id}/lineage`
 
@@ -730,7 +792,8 @@ the run entered, in order, with the last being the current one. Each entry is
 `{"phase", "total" (null while unknown), "done", "counts", "started_at", "updated_at"}`,
 and `done` is always the sum of `counts`.
 
-**`outcome`** is derived from classified progress, never from `status` alone: a run
+**`outcome`** is derived from classified progress (or journaled photo operations for
+METADATA jobs), never from `status` alone: a run
 where every file failed still ends `Completed` (`webui-spec.md` §5.5).
 
     {"verdict": "success" | "partial" | "originals_kept" | "none_succeeded" | "no_change" |
@@ -749,6 +812,11 @@ where every file failed still ends `Completed` (`webui-spec.md` §5.5).
     count again as transfers. An unfinished phase may still leave `total` unknown.
     Recovery of earlier runs is `recovered_earlier_work`, and failures with no photo,
     such as an unreadable folder, are `run_level_issues`.
+*   **Metadata jobs.** Saves use journaled operations rather than scan/transfer progress.
+    Completed edits count as `Metadata_Saved`; no-change/abandoned/already-finished requests
+    count as skips; refused or failed saves count as failures. The total covers the recorded
+    selection or operation count, including unfinished work. Explicit metadata retry is
+    requested work rather than background recovery. Existing jobs use the same derivation.
 *   **Verdict:** an active status is `running`. A terminal Cancelled, Interrupted or
     Failed wins (`cancelled`, `interrupted`, `stopped`: an error ended the job).
     Otherwise: a Move with copied-only photos and no failures or issues is
@@ -1003,17 +1071,23 @@ reload before retrying. Success is shown only after acknowledgement.
 ### Composable review browsing
 
 Gallery listing, IDs, position, types, folders and timeline accept `similar` and
-`suspicious` booleans and `reason` (all/small/later/issues). These combine with existing
+`suspicious` booleans and `reason` (all/small/later/issues/attention). These combine with existing
 filters. `view=review` selects distinct active Library photos with an unresolved supported reason. Reminders on source/rejected files do not contribute. History remains readable; new decisions require a delivered active photo.
 `GET /photos` optionally accepts `filter_pins`, a comma-separated subset of similar,
-suspicious, undated, small, later and issues (empty string means no pins). Unknown keys or
-multiple reason pins (small/later/issues) return 400. File issues pins apply only in Needs review. This changes only sidebar counts, not gallery membership:
+suspicious, undated, small, later, issues and attention (empty string means no pins). Unknown keys or
+multiple reason pins (small/later/issues/attention) return 400. Files needing verification pins apply
+in Library and Needs review; attention pins apply only in Not organized. This changes only sidebar counts, not gallery membership:
 an inactive filter's count replaces unpinned Look into conditions, while active counts
 retain the current intersection. Place, search, date, type, folder and run constraints
 remain; pins unavailable in the place do not apply. Omit the parameter for existing
 combining-filter count behavior. No server-side preference or schema change is added.
 
-Listings include `chips` (similar/suspicious/undated/small), `reasons` and filename-only
+`reason=attention` selects only Not organized photos whose status is Failed or whose
+latest metadata capture records needs_attention. The union counts each photo once;
+older holds do not survive a clean capture. This predicate also applies to IDs,
+position and facets, never to Library's review membership.
+
+Listings include `chips` (similar/suspicious/undated/small/attention), `reasons` and filename-only
 `elsewhere` location counts. Library and job listings also include `reasons.later`,
 scoped to the current browsing constraints; the inbox includes all reason counts.
 `reason=later` filters Library as well as the inbox to active review reminders.

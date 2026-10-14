@@ -87,7 +87,7 @@ class ReviewTests(ApiCase):
         for name in ('unorganized','organized','review','rejects'):
             self.assertEqual(got['places'][name],self.client.get('/api/v1/photos?view='+name).json()['total'],name)
         for name,query in (('similar','view=organized&similar=true&match_min=90'),('suspicious','view=organized&suspicious=true'),
-                           ('undated','view=organized&undated=true'),('small','view=organized&reason=small'),('later','view=review&reason=later'),('issues','view=review&reason=issues')):
+                           ('undated','view=organized&undated=true'),('small','view=organized&reason=small'),('later','view=review&reason=later'),('issues','view=organized&reason=issues')):
             self.assertEqual(got['look_into'][name],self.client.get('/api/v1/photos?'+query).json()['total'],name)
         self.assertEqual(got['look_into']['suspicious'],1)
         self.assertEqual(self.client.get('/api/v1/photos/places?match_min=50').status_code,422)
@@ -149,7 +149,7 @@ class ReviewTests(ApiCase):
             c.execute("INSERT INTO photos(source_path,status) VALUES(?,'Failed')",(str(self.cfg.source/'broken.jpg'),))
             c.commit()
         summary=self.client.get('/api/v1/photos?view=unorganized&q=absent').json()['index_summary']
-        self.assertEqual(summary,dict(photos=2,ready=1,unfinished=0,duplicates=1,small=1,minimum=800,unknown_dimensions=0,suspicious=0,undated=1,failed=1,similar=None,last_index=None))
+        self.assertEqual(summary,dict(photos=2,ready=1,metadata_held=0,unfinished=0,duplicates=1,small=1,minimum=800,unknown_dimensions=0,suspicious=0,undated=1,failed=1,similar=None,last_index=None))
         self.assertEqual(self.client.get('/api/v1/photos?view=review').json()['total'],1)
         self.assertIsNone(self.client.get('/api/v1/photos?view=organized').json()['index_summary'])
         self.enable(None)

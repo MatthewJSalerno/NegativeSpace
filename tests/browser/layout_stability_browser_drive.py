@@ -40,6 +40,14 @@ with sync_playwright() as p:
         page.evaluate('document.fonts.ready')
         expect(page.locator('.job-list-head')).to_be_visible()
         expect(page.get_by_role('button',name='Show only Failed',exact=True)).to_be_visible()
+        export=page.get_by_role('group',name='Export filtered log')
+        expect(export.get_by_role('link',name='CSV',exact=True)).to_be_visible()
+        expect(page.locator('.log-filters a')).to_have_count(0)
+        fields=page.locator('.log-filters input').evaluate_all('els => els.map(e => {const r=e.getBoundingClientRect(); return {y:r.y,h:r.height};})')
+        for a in fields:
+            for b in fields:
+                if abs(a['y']-b['y'])<4:
+                    assert abs(a['y']-b['y'])<=1 and abs(a['h']-b['h'])<=1,fields
         all_entries=page.locator('.job-list-head > span').inner_text()
         before=anchors(('.log-filters','.status-checks','.log-filter-summary','.job-list-head'))
         failed=page.get_by_role('checkbox',name=re.compile('^Failed '))
@@ -47,6 +55,7 @@ with sync_playwright() as p:
         page.get_by_role('button',name='Show only Failed',exact=True).click()
         expect(page.get_by_role('heading',name='Failures',exact=True)).to_be_visible()
         unchanged(before)
+        expect(export.get_by_role('link',name='CSV',exact=True)).to_have_attribute('href',re.compile(r'status=Failed'))
         assert abs(failed.bounding_box()['x']-x)<=1
         page.get_by_role('checkbox',name='All statuses',exact=True).check()
         expect(page.get_by_role('heading',name='Log',exact=True)).to_be_visible()
@@ -70,7 +79,8 @@ with sync_playwright() as p:
         for place in ('organized','review'):
             page.goto(sys.argv[1]+f'/?view={place}')
             expect(page.locator('.card')).to_have_count(60)
-            expect(page.locator('.gallery-summary > span').first).to_have_text('130 photos')
+            expect(page.locator('.gallery-result-count')).to_have_count(0)
+            expect(page.get_by_role('navigation',name='Main',include_hidden=True).get_by_role('link',name=re.compile(r'^' + ('Library' if place == 'organized' else 'Needs review') + r'\b'),include_hidden=True).locator('.sidebar-count')).to_have_text('130')
             before=anchors(('.gallery-summary','.gallery-filter-summary','.gallery-head','.pager'))
             chips=page.get_by_role('group',name='Look into',include_hidden=True)  # narrow, the menu closes after a choice
             for name in ('Suspicious dates','No capture date','Small images'):
@@ -78,15 +88,44 @@ with sync_playwright() as p:
                 if width<=800: page.get_by_role('button',name='Menu',exact=True).click()
                 button.click()
                 expect(button).to_have_attribute('aria-pressed','true')
-                expect(page.locator('.gallery-summary > span').first).to_have_text({'Suspicious dates':'60 photos','No capture date':'128 photos','Small images':'130 photos'}[name])
+                expect(page.locator('.gallery-result-count')).to_have_text({'Suspicious dates':'Showing 60 of 130 photos','No capture date':'Showing 128 of 130 photos','Small images':'Showing 130 of 130 photos'}[name])
                 unchanged(before)
                 if width<=800: page.get_by_role('button',name='Menu',exact=True).click()
                 button.click()
                 expect(button).to_have_attribute('aria-pressed','false')
-                expect(page.locator('.gallery-summary > span').first).to_have_text('130 photos')
+                expect(page.locator('.gallery-result-count')).to_have_count(0)
                 expect(page.locator('.card')).to_have_count(60)
                 unchanged(before)
             if os.environ.get('SHOTS'):page.screenshot(path=os.path.join(os.environ['SHOTS'],f'gallery-stable-{place}-{width}.png'))
+    # Ordinary On/Off choices retain the minimum field and the controls beneath it.
+    # Measure relative to the dialog, independent of browser focus scrolling.
+    for width,theme in ((1440,'light'),(1000,'dark'),(720,'light')):
+        page.set_viewport_size({'width':width,'height':1100})
+        page.evaluate("theme => {localStorage.setItem('ns.theme',theme)}",theme)
+        page.goto(sys.argv[1]+'/logs')
+        page.get_by_role('button',name='Settings',exact=True).click()
+        page.get_by_role('tab',name=re.compile('^Files')).click()
+        choice=page.get_by_label('Small-image reminders',exact=True)
+        minimum=page.get_by_label('Minimum shorter side (pixels)',exact=True)
+        def settings_positions():
+            return page.locator('.settings-body').evaluate("""e => {
+                const origin=e.getBoundingClientRect().top;
+                return ['#settings-small','#small-hint','.settings-actions'].map(s =>
+                    e.querySelector(s).getBoundingClientRect().top-origin);
+            }""")
+        choice.select_option('on')
+        expect(minimum).to_be_enabled()
+        before=settings_positions()
+        choice.select_option('off')
+        expect(minimum).to_be_disabled()
+        after=settings_positions()
+        assert all(abs(a-b)<=1 for a,b in zip(before,after)),(width,before,after)
+        choice.select_option('on')
+        expect(minimum).to_be_enabled()
+        assert all(abs(a-b)<=1 for a,b in zip(before,settings_positions()))
+        choice.scroll_into_view_if_needed()
+        if os.environ.get('SHOTS'):page.screenshot(path=os.path.join(os.environ['SHOTS'],f'settings-stable-{width}.png'))
+        page.get_by_role('button',name='Close settings',exact=True).click()
     assert not errors,errors
     browser.close()
 print('Navigation, Logs filters/statuses, and gallery filter anchors stayed within 1px at desktop and narrow widths')
