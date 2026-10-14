@@ -3013,7 +3013,7 @@ DNS, network binding, port publishing, or sign-in. Catalog settings and access s
 are separate writes: if the second fails, show which settings were saved and offer
 Reload settings, never claim all-or-nothing persistence across them.
 New catalogs and backup files use owner-only permissions under the configured UID/GID;
-this does not change photo permissions or add sign-in. See README Security.
+this does not change photo permissions or add sign-in. See [Network access](install.md#network-access).
 
 The shipped web container sends `Content-Security-Policy: frame-ancestors 'self'`
 and `X-Frame-Options: SAMEORIGIN` on its responses, including API and asset errors.

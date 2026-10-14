@@ -29,6 +29,13 @@ not an optional example. Read the relevant behavior in
   alongside the implementation so future work follows the same decision. Keep the
   detailed rules in that document rather than copying them into agent-specific files.
 
+## User documentation is a shared contract
+
+Before changing README.md, docs/install.md, docs/user-guide.md or docs/recovery.md, read
+[docs/user-docs-standard.md](docs/user-docs-standard.md): who each document is for, voice,
+wording, safety claims and screenshots. Record a changed decision there, not in
+agent-specific files.
+
 ## Code layout
 
 The engine is the `engine/` package (run as `python -m engine`); the API is `webui/`; the

@@ -866,6 +866,29 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual(self.client.get('/api/v1/stats').json()['library'], expected)
         self.assertEqual(self.client.get(f'/api/v1/photos/{photo}').json(), inspector)
 
+    def test_stats_tolerate_wal_disappearing_during_size_measurement(self):
+        self.create_catalog()
+        original_stat = Path.stat
+        wal = Path(f"{self.cfg.db_path}-wal")
+        observed = []
+
+        def changing_stat(path, *args, **kwargs):
+            if path == wal:
+                observed.append(path)
+                # The old exists()/stat() sequence saw the file first, then
+                # failed. A single stat may either measure it or find it gone.
+                if len(observed) == 1:
+                    return original_stat(self.cfg.db_path)
+                raise FileNotFoundError(str(path))
+            return original_stat(path, *args, **kwargs)
+
+        with patch.object(Path, "stat", changing_stat):
+            for _ in range(2):
+                response = self.client.get("/api/v1/stats")
+                self.assertEqual(response.status_code, 200)
+                self.assertGreater(response.json()["health"]["catalog_bytes"], 0)
+        self.assertGreaterEqual(len(observed), 2)
+
     def test_stats_accept_numeric_camera_and_lens_metadata(self):
         self.index_library()
         for make, model, lens, camera, lens_name in (

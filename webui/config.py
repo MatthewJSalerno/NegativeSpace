@@ -16,7 +16,7 @@ ENGINE_CWD = REPO
 class Config:
     """The same paths the engine takes as flags, so every engine the API starts
     works on exactly the volumes the API reads. Defaults are the container's mount
-    points (README); each can be overridden by environment for development and tests."""
+    points (docs/install.md); each can be overridden by environment for development and tests."""
     base: Path = Path("/appdata")
     source: Path = Path("/data/source")
     dest: Path = Path("/data/dest")

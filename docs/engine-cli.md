@@ -25,7 +25,7 @@ NegativeSpace has three mutually exclusive modes. `--move` and `--copy` cannot b
 
 **Rejecting** a photo you do not want (a website download, a blurry shot) moves it from `library/` to the same folders under `rejects/` in the destination (`--reject` with `--file-ids`, `--file-ids-from` or `--source-subdir`; in the web interface, the selection bar's Reject or **Reject…** on a photo). NegativeSpace never deletes it: look through the Rejects view, use Return to library for any you want back, then empty `rejects/` yourself. Identical copies stay out of the library: Copy skips them and Move removes their sources only against the verified copy in Rejects.
 
-The Destination column describes `/data/dest` only. Every mode begins with a scan, and the scan generates thumbnails into `/cache` (see the volume notes in the [README](../README.md#notes-and-details)) unless `--no-thumbnails` is passed — so "nothing written" above means nothing written *to the destination tree*, not that Index writes nothing at all.
+The Destination column describes `/data/dest` only. Every mode begins with a scan, and the scan generates thumbnails into `/cache` (see [Thumbnails](install.md#thumbnails)) unless `--no-thumbnails` is passed — so "nothing written" above means nothing written *to the destination tree*, not that Index writes nothing at all.
 
 ## Index
 

@@ -190,9 +190,14 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
                         for s in [_seconds(r["started_at"], r["ended_at"])] if s)
     moved_run_bytes = sum(b for rid, b in transfer_bytes.items() if b)
 
-    status_path = db_path
-    catalog_bytes = sum(Path(f"{status_path}{suffix}").stat().st_size
-                        for suffix in ("", "-wal") if Path(f"{status_path}{suffix}").exists())
+    catalog_bytes = 0
+    for suffix in ("", "-wal"):
+        try:
+            catalog_bytes += Path(f"{db_path}{suffix}").stat().st_size
+        except FileNotFoundError:
+            # SQLite can remove the WAL as the last connection closes. An
+            # existence check followed by stat races with that normal cleanup.
+            pass
     backup = catalog_backups.backups(db_path, backups_dir, appdata_dir)
     return {
         "library": {"failed_source": failed_source, "photos": len(photos), "bytes": total_bytes,

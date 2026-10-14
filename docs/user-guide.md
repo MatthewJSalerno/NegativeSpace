@@ -4,11 +4,40 @@ A first session with NegativeSpace, start to finish. The screenshots use NASA's 
 image library. Screenshots show an earlier interface; navigation and setup details below
 describe the current app.
 
-> **Before you start:** NegativeSpace is not a backup of your photos. It backs up its
-> catalog, never the photos themselves; keeping your own backups of your photos is your
-> responsibility. See [If something goes wrong](recovery.md).
+Install it first: the [README](../README.md#install) takes four commands.
 
-Install it first: the [README's quick start](../README.md#quick-start) takes four commands.
+## How your photos are protected
+
+NegativeSpace is designed to be careful with your files.
+
+**You can run it without it ever changing your originals.** Mount your source folder
+read-only, which is the default in the included compose file, and use Copy. NegativeSpace
+reads your photos and builds an organized library from them in a separate folder. Your
+originals stay exactly as they were, and you can check the library your own way before
+deciding what to do with them. Move, which deletes originals once they are safely in
+your library, only works if you make the source writable yourself.
+
+- **Every photo is verified in its new place.** After writing a photo into your library,
+  NegativeSpace reads it back and confirms it is identical to the original. Move deletes
+  the original only after that check passes.
+- **Existing files are not replaced.** If a name is already taken in your library, the
+  new photo gets a numbered name.
+- **Rejected photos are set aside, not deleted.** They go to a Rejects folder, and you
+  decide when to empty it.
+- **You see what will happen first.** Copy, Move and Reject each show what they will do
+  and ask before they start.
+- **Interrupted jobs are finished safely.** If a job is stopped partway, the next start
+  checks what it left unfinished before doing anything else.
+- **Its records are backed up.** After each job that changes something, it saves a
+  backup of its catalog to a separate folder.
+
+**It runs with ordinary permissions.** Neither container needs privileged mode or extra
+permissions. The part that reads and writes your photos runs as your own user (the
+`PUID`/`PGID` you set), so every file it creates belongs to you. The web container that
+serves the pages has no access to your photo folders at all.
+
+**NegativeSpace is not a backup of your photos.** It backs up its catalog, never the
+photos themselves. Keep your own backups. See [If something goes wrong](recovery.md).
 
 ## 1. First start
 
@@ -53,7 +82,7 @@ years down the right edge jump through the gallery: point to see the month, clic
 at a time, and with **Still in source**, find the originals of photos you have already
 copied and move them off the source.
 
-![The gallery, showing one year](images/gallery.png)
+![The gallery, showing one year](images/library.png)
 
 Click a photo to open it in the panel on the right: its file, its dates and where they came
 from, and its history.
@@ -118,6 +147,22 @@ in **Settings › Files** to suit your collection. These are clues to investigat
 of a wrong date; NegativeSpace changes no date by itself.
 
 ![Photos with suspicious dates](images/suspicious-dates.png)
+
+**No capture date** lists photos with no usable date in their metadata. They are filed
+under `library/Undated/<year>/`, where the year comes from the file's modification time,
+rather than among photos the camera dated. A file's time is often when it was downloaded
+or exported, not when the photo was taken. Filing it with camera-dated photos would make
+a guess look like a fact. In a real library, roughly 8% of photos have no usable date.
+The photo's original path and filename are kept with it, and they often hold the real
+date.
+
+**Small images.** If you turned on small-image reminders in setup, photos whose shorter
+side is below your minimum appear in **Needs review › Small images**, with their size.
+They are still copied and moved like any other photo. **Mark reviewed** stops the
+reminder for a photo you want to keep; select the ones you don't want and use
+**Reject…**. A larger look-alike is a hint, not an automatic choice. **Review later**
+takes an optional note, and **Done** clears it. **Review one by one** steps through them;
+**Next** moves on without deciding. Change or turn off the rule in **Settings › Files**.
 
 ## 8. History, logs and stats
 
