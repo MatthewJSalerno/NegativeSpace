@@ -1,4 +1,4 @@
-"""Recovery UI with generated files and an opt-in disposable catalog mount."""
+"""Suspicious-date warning details with generated files and a disposable catalog."""
 import os
 import re
 import sqlite3
@@ -31,15 +31,25 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={'width':1440,'height':1000})
     errors=[]
     page.on('pageerror',lambda e: errors.append(str(e)))
-    page.goto(sys.argv[1])
+    page.goto(sys.argv[1]+'/?view=organized')
     page.get_by_role('button',name=re.compile('^Suspicious dates')).click()
     expect(page.locator('.card')).to_have_count(2)
     expect(page).to_have_url(re.compile('suspicious=1'))
     page.reload()
     expect(page.locator('.card')).to_have_count(2)
     page.locator(f'.card[data-id="{ids[0]}"] .card-image').click()
-    expect(page.get_by_text('Suspicious date:',exact=False)).to_be_visible()
-    expect(page.get_by_text('Source: photo EXIF',exact=False)).to_be_visible()
+    panel = page.locator('.inspector')
+    warning = panel.locator('.review-reason').filter(has=page.get_by_text('Suspicious date',exact=True))
+    expect(warning).to_be_visible()
+    expect(warning).to_contain_text('Recorded year is before your earliest expected year (1800).')
+    expect(warning).to_contain_text('Recorded value: 0001-01-01 12:00:00')
+    expect(warning).to_contain_text('Source: photo EXIF')
+    # The second source is a file-time fallback, never mislabeled as camera EXIF.
+    page.locator(f'.card[data-id="{ids[1]}"] .card-image').click()
+    expect(warning).to_contain_text('Recorded value: 2218-01-01 12:00:00')
+    expect(warning).to_contain_text('Source: file modification fallback')
+    page.locator(f'.card[data-id="{ids[0]}"] .card-image').click()
+    expect(warning).to_contain_text('Source: photo EXIF')
     if os.environ.get('SHOTS'):
         page.screenshot(path=os.path.join(os.environ['SHOTS'],'suspicious-date-inspector.png'))
     page.get_by_role('tab',name='Similar photos',exact=True).click()

@@ -1,0 +1,60 @@
+name: Extended browser tests
+
+# Extra workflows run outside the PR gate; the maintainer chose nightly/manual
+# coverage to avoid adding their serial runtime to every pull request.
+on:
+  schedule:
+    - cron: '37 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browsers:
+    name: Extended browser workflows (in containers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PLAYWRIGHT_IMAGE: negativespace-ci-browser
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the app image
+        run: docker build -f docker/app.Dockerfile -t negativespace .
+
+      - name: Build the web image
+        run: docker build -f docker/web.Dockerfile -t negativespace-web .
+
+      - name: Build the browser test image once
+        run: docker build -f docker/browser-test.Dockerfile -t negativespace-ci-browser .
+
+      - name: Navigation and restoration
+        run: DRIVER=navigation_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Stable layout across filters
+        run: DRIVER=layout_stability_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Date settings
+        run: DRIVER=date_settings_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Cross-location navigation
+        run: DRIVER=cross_location_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Transfer outcomes
+        run: DRIVER=transfer_outcome_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Large selections
+        run: SIMILARITY_RECOVERY_FIXTURE=1 DRIVER=large_selection_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Reference-based similarity sets
+        run: SIMILARITY_RECOVERY_FIXTURE=1 DRIVER=reference_sets_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Similarity hash recovery
+        run: SIMILARITY_RECOVERY_FIXTURE=1 DRIVER=similarity_recovery_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Submission identity and retry
+        run: SUBMISSION_FIXTURE=1 DRIVER=submission_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Network safety questions
+        run: NETWORK_FIXTURE=1 DRIVER=safety_questions_browser_drive.py sh tests/browser/webui_browser_test.sh

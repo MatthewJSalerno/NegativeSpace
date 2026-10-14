@@ -1,13 +1,100 @@
 # Tests
 
 Everything here is for developing NegativeSpace; running the engine needs none of it.
-CI runs all of it on every pull request and every push to `main`
-(`.github/workflows/engine-tests.yml`).
+CI coverage is split between two workflows:
 
-The CI job has a 45-minute limit for the combined serial browser, API, metadata
-and engine suites. The previous 20-minute limit cancelled a run after 56 successful
-steps, before the final recovery/review and smoke checks could finish. This is an
-overall job budget; individual test timeouts and assertions remain unchanged.
+- **Every pull request, push to `main`, and manual Engine tests run**:
+  `.github/workflows/engine-tests.yml` runs all 43 Python unit suites
+  (`tests/*_test.py`, except the separately invoked engine smoke suite), the engine
+  smoke suite, the three shell suites, all `tools/check-*.py`, synthetic similarity
+  validation, container CPU/timezone/CLI checks, and the browser drivers listed below.
+  `filter_pins_test.py` and `notifications_test.py` use `PYTHONPATH=/app/tests:/app`.
+  RAW smoke tests require the optional read-only public samples locally; GitHub has
+  no such samples and reports those two skips.
+- **Nightly at 05:37 UTC and manual Extended browser tests runs**:
+  `.github/workflows/extended-browser-tests.yml` runs the ten extended drivers below.
+  They do not add runtime to the PR gate. The nightly schedule starts once the
+  workflow is on the default branch. After merge, use Actions → Extended browser
+  tests → Run workflow to select a branch for a manual run.
+
+All browser entries below are in `tests/browser/`, use `webui_browser_test.sh`, and
+build isolated catalogs from generated photos. Set `DRIVER` to the filename; the
+fixture flags are required where shown. Each browser job builds the app, web and browser-test images.
+CI sets `PLAYWRIGHT_IMAGE` to the browser-test image, installing the matching
+Playwright package once per job. Standalone harness runs still install it unless
+you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolated.
+
+| Browser driver | CI schedule | Additional environment |
+| --- | --- | --- |
+| `access_browser_drive.py` | PR / main / manual | — |
+| `appearance_browser_drive.py` | PR / main / manual | — |
+| `attention_browser_drive.py` | PR / main / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
+| `copied_source_browser_drive.py` | PR / main / manual | — |
+| `filter_pins_browser_drive.py` | PR / main / manual | — |
+| `fresh_start_browser_drive.py` | PR / main / manual | — |
+| `gallery_position_browser_drive.py` | PR / main / manual | — |
+| `metadata_dates_browser_drive.py` | PR / main / manual | `METADATA_VIEW_FIXTURE=1` |
+| `metadata_sources_browser_drive.py` | PR / main / manual | `METADATA_VIEW_FIXTURE=1` |
+| `notifications_browser_drive.py` | PR / main / manual | — |
+| `preview_refresh_browser_drive.py` | PR / main / manual | — |
+| `reject_similar_browser_drive.py` | PR / main / manual | — |
+| `rejects_browser_drive.py` | PR / main / manual | — |
+| `request_freshness_browser_drive.py` | PR / main / manual | — |
+| `review_browser_drive.py` | PR / main / manual | — |
+| `similar_browser_drive.py` | PR / main / manual | — |
+| `source_scope_browser_drive.py` | PR / main / manual | — |
+| `stalled_job_browser_drive.py` | PR / main / manual | `STALLED_FIXTURE=1` |
+| `suspicious_dates_browser_drive.py` | PR / main / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
+| `webui_browser_drive.py` | PR / main / manual | — |
+| `navigation_browser_drive.py` | Nightly / manual | — |
+| `layout_stability_browser_drive.py` | Nightly / manual | — |
+| `date_settings_browser_drive.py` | Nightly / manual | — |
+| `cross_location_browser_drive.py` | Nightly / manual | — |
+| `transfer_outcome_browser_drive.py` | Nightly / manual | — |
+| `large_selection_browser_drive.py` | Nightly / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
+| `reference_sets_browser_drive.py` | Nightly / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
+| `similarity_recovery_browser_drive.py` | Nightly / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
+| `submission_browser_drive.py` | Nightly / manual | `SUBMISSION_FIXTURE=1` |
+| `safety_questions_browser_drive.py` | Nightly / manual | `NETWORK_FIXTURE=1` |
+
+`ui_browser_drive.py` is a developer shortcut for `ui_browser_checks.py`. The default
+`webui_browser_drive.py` already calls those checks, so CI does not invoke the shortcut
+again. `metadata_scenarios_browser_drive.py` is a read-only acceptance tool for an
+indexed/copied scenario library and its manifest; it is run manually, outside CI.
+Helpers and engine fixture wrappers are not standalone suites. Same-named tests
+in different modules cover different contracts and remain in place.
+
+
+PR/main CI runs four independent jobs: engine smoke tests, metadata tests,
+other Python/contract tests, and browser tests. Each has a 30-minute budget;
+individual test timeouts and assertions are unchanged. The existing required check,
+**Smoke suite (in container)**, is now a final gate: every group must succeed,
+including when another group fails, is skipped, or is cancelled. Do not require
+only one of the four groups in branch protection. New suites must be added to the
+appropriate group. Superseded runs on the same PR are cancelled; main and manual
+runs are independent. The ten nightly/manual drivers keep their existing schedule.
+
+Before this split, successful GitHub run `38505467509` took 26m15s: engine smoke
+7m49s, browser/shell shutdown checks 5m28s, other checks 12m19s, and builds 36s
+(step timestamps, rounded to seconds). Parallel jobs reduce elapsed waiting, not
+the amount of test coverage. First parallel run `38590119552` passed every group
+and the required gate in **12m26s** (first job start to final gate completion),
+versus **26m15s** serial: about **53% less elapsed time**. Group durations were:
+
+| Group | Duration |
+| --- | --- |
+| Engine smoke | 11m44s |
+| Metadata | 12m19s |
+| Other Python/contracts | 8m00s |
+| Browser | 7m13s |
+| Final gate | 4s |
+
+Combined job time was 39m20s rather than 26m15s. Hosted runner speeds vary; this
+is one measured comparison, not a guaranteed runtime or compute saving. Each group
+builds its own images; browser dependencies are installed once per browser job.
+No test commands or assertions were dropped. The Stats WAL-size race that failed
+the previous main run is covered by a new API regression: the old implementation
+fails deterministically, while the fixed implementation and browser check pass.
 The file-issue browser fixture fixes its review order by filename and waits for the
 refreshed queue before using Previous. A resolution notice alone does not mean the
 follow-up gallery request has finished.
@@ -377,21 +464,29 @@ and rejects invalid IDs. Clipboard output is only a local generated-fixture link
 
 ## Shell tests
 
-These run on the host, not in the container, because the thing under test is a shell
-script:
+The entrypoint and shutdown harnesses run on the host to start and inspect Docker
+containers. The sampler safety suite uses only generated fixtures and may run in the
+app image (CI invokes its portable shell script on the runner):
 
 ```bash
-sh tests/sampler_test.sh                                   # the sampler never writes to the library
+docker run --rm --entrypoint sh -v "$PWD":/app:ro -w /app negativespace tests/sampler_test.sh
 docker build -f docker/app.Dockerfile -t negativespace . && sh tests/entrypoint_test.sh   # the entrypoint's ownership handling
 sh tests/shutdown_test.sh      # docker stop with a browser tab open: clean, and the app's shutdown runs
 ```
+
+The entrypoint and shutdown harnesses accept `IMAGE`, `NS_TEST_OUTPUT_ROOT`,
+`NS_TEST_DESTINATION_ROOT`, and `NS_TEST_KEEP=1`, as the browser harness does. Create
+output/destination parent folders before running. The destination gets its own
+subfolder; retaining fixtures still stops the shutdown test's containers and network.
+Leave the variables unset for the usual temporary-fixture cleanup on CI.
 
 ## Spec and schema checks — `tools/`
 
 Not tests of the engine, but CI gates on them and they exit non-zero on failure:
 
 ```bash
-python3 tools/check-specs.py          # cross-references resolve, fences balance, tables are whole
+docker run --rm --entrypoint python3 -v "$PWD":/app:ro -w /app negativespace tools/check-specs.py
+                                      # cross-references resolve, fences balance, tables are whole
 docker run --rm -v "$PWD":/app -w /app negativespace python3 tools/check-schema-drift.py
                                       # engine-spec 6.5 matches what the engine creates
 docker run --rm -v "$PWD":/app -w /app negativespace python3 tools/check-api-spec.py
