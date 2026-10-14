@@ -642,14 +642,23 @@ def photo_exists(conn, photo_id: int) -> bool:
 
 
 # The EXIF date fields and the offset tag each one pairs with (EXIF 2.31).
-_EXIF_DATES = (("taken", "DateTimeOriginal", "OffsetTimeOriginal"),
-               ("digitized", "CreateDate", "OffsetTimeDigitized"),
-               ("modified", "ModifyDate", "OffsetTime"))
+_EXIF_DATES = (("taken", "ExifIFD", "DateTimeOriginal", "OffsetTimeOriginal"),
+               ("digitized", "ExifIFD", "CreateDate", "OffsetTimeDigitized"),
+               ("modified", "IFD0", "ModifyDate", "OffsetTime"))
 
 
 # Keys the engine adds to a photo's metadata beside ExifTool's tags: its own reading of
 # the date, and where that reading came from.
 _ENGINE_KEYS = {"date_taken", "date_source"}
+
+
+def _exif_tag(meta, group, name):
+    """Index records bare tags; embedded edits record family-qualified tags.
+
+    Prefer the qualified EXIF tag, including an explicit empty value. Never borrow
+    the same tag name from XMP or a different metadata family.
+    """
+    return meta.get(f"{group}:{name}", meta.get(name))
 
 
 def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
@@ -698,10 +707,11 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         "camera": camera, "visual_issue": visual_issue, "failure": failure, "issues": issues, "metadata_attention": metadata_attention,
         # A capture time's offset, when the camera recorded one; without it the
         # time zone is unknown and must not be shown as UTC (webui-spec 10).
-        "date_offset": meta.get("OffsetTimeOriginal"),
+        "date_offset": _exif_tag(meta, "ExifIFD", "OffsetTimeOriginal"),
         # Every EXIF date the photo carries, each with the offset recorded for it, if any.
-        "exif_dates": [{"field": field, "value": meta[key], "offset": meta.get(offset_key)}
-                       for field, key, offset_key in _EXIF_DATES if meta.get(key)],
+        "exif_dates": [{"field": field, "value": _exif_tag(meta, group, key),
+                        "offset": _exif_tag(meta, "ExifIFD", offset_key)}
+                       for field, group, key, offset_key in _EXIF_DATES if _exif_tag(meta, group, key)],
         "iso": meta.get("ISO"), "aperture": meta.get("FNumber"), "shutter": meta.get("ExposureTime"),
         "width": content["width"] if content else None, "height": content["height"] if content else None,
         "sha1": p["sha1_hash"], "phash": p["phash"],

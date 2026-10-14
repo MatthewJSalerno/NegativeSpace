@@ -15,8 +15,9 @@ from engine import (durable, metadata_decisions, metadata_incoming, metadata_rel
 
 KIND = 'metadata_source_cleanup'
 NOTICE = ('The organized copy has saved embedded edits. Its source original is preserved. '
-          'To remove originals while keeping edited copies, confirm this Move job with '
-          '--confirm-edited-sources. Metadata history is retained, but exact original photo bytes are not.')
+          'To remove originals while keeping edited copies, start a new Move and choose to include '
+          'these originals (CLI: --confirm-edited-sources). Metadata history is retained, '
+          'but exact original photo bytes are not.')
 
 
 def needed(conn, photo_id):

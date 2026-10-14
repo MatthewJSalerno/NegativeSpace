@@ -14,7 +14,7 @@ from typing import List
 
 from engine.ns_db import PhotoStatus, RunStatus, SUPPORTED_EXTENSIONS
 from engine import (
-    backups, constants, deps, destinations, maintenance, metadata_index, ns_db, ns_similarity, reconcile,
+    backups, constants, deps, destinations, maintenance, metadata_index, move_confirmation, ns_db, ns_similarity, reconcile,
     relocate, runtime, scan, store, targeting, thumbnails, transfer, workers)
 
 
@@ -201,7 +201,13 @@ def main():
                             help='Metadata engine request as bounded JSON on stdin: edit/source-cleanup previews, verified XMP/JPEG save, explicit retry or discard of an unchanged edit.')
     parser.add_argument('--confirm-edited-sources', action='store_true',
                         help='With --move and --request-id: confirm removal of selected source originals whose Library copies have verified embedded edits. Applies only to this job; exact original photo bytes are not retained.')
+    parser.add_argument('--move-preview-token', default=None,
+                        help='With --move or its --copy alternative, --file-ids-from and --request-id: refuse a changed Move confirmation snapshot before processing files.')
     args = parser.parse_args()
+    if args.move_preview_token is not None:
+        if (not (args.move or args.copy) or not args.file_ids_from or not args.request_id or
+                len(args.move_preview_token) != 64 or any(c not in '0123456789abcdef' for c in args.move_preview_token)):
+            parser.error('--move-preview-token requires a SHA-256 token, --move or --copy, --file-ids-from and --request-id.')
     if args.confirm_edited_sources and (not args.move or not args.request_id):
         parser.error('--confirm-edited-sources requires --move and --request-id.')
     if args.metadata:
@@ -447,6 +453,8 @@ def main():
                  "confirm_edited_sources": args.confirm_edited_sources,
                  "thumbnails": not args.no_thumbnails,
                  "cache": str(Path(args.cache).resolve())}
+    if args.move_preview_token is not None:
+        submitted['move_preview_token'] = args.move_preview_token
     try:
         run_id, created = store.start_run(
             str(db_path), mode_label, str(source_path), str(dest_path), args.file_ids, args.source_subdir,
@@ -504,7 +512,15 @@ def main():
     # Outside the try/finally below, so a raised failure would otherwise leave
     # the run Preparing forever. Settle it here instead of swallowing the error.
     try:
+        if args.move_preview_token is not None:
+            with contextlib.closing(store.get_db_connection(str(db_path))) as conn:
+                move_confirmation.check(conn, args.move_preview_token, source=source_path,
+                                        destination=dest_path, photo_ids=args.file_ids)
         reconcile.reconcile_interrupted_state(db_path, run_id)
+        if args.move_preview_token is not None:
+            with contextlib.closing(store.get_db_connection(str(db_path))) as conn:
+                move_confirmation.check(conn, args.move_preview_token, source=source_path,
+                                        destination=dest_path, photo_ids=args.file_ids)
     except Exception as exc:
         runtime.logger.error(f"FATAL: could not reconcile interrupted work: {exc}")
         runtime.await_cancelling_record(cancel_watcher)

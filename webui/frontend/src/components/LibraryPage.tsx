@@ -842,10 +842,10 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   };
   const currentWidth = () => widthNow.current;
 
-  const start = (mode: "index" | ActionMode, fileIds?: number[]) => async () => {
+  const start = (mode: "index" | ActionMode, fileIds?: number[]) => async (move?: import("../api").MoveSubmission) => {
     setActionError(null);
     try {
-      const run = await api.startJob(fileIds ? { mode, file_ids: fileIds } : { mode });
+      const run = await api.startJob(move ?? (fileIds ? { mode, file_ids: fileIds } : { mode }));
       if (fileIds) {
         // Back where the user was (webui-spec 2, after a job): the review or the selection
         // shown closes; the finished banner opens the job's photos.
@@ -856,6 +856,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       }
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : "The job could not be started.");
+      if (move) throw e;
     }
   };
 
@@ -883,6 +884,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [committing, setCommitting] = useState(false);
   const commit = async () => {
     if (!review) return;
+    if (review.move) { setConfirm(review); return; }
     setCommitting(true);
     try { await review.run(); } finally { setCommitting(false); }
   };
@@ -908,19 +910,19 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       setActionError(e instanceof ApiError ? e.message : "The look-alikes could not be loaded.");
     }
   };
-  // A folder's Copy or Move: the engine takes the folder itself (--source-subdir), and
-  // Retry offers the same folder again.
+  // Copy targets the folder; Move freezes its catalogued selection in the confirmation.
   const folderShown = sourceTree ? shownFolder(folderTree, folders) : null;
   const askFolder = (mode: ActionMode) => {
     if (!folderShown) return;
-    setConfirm(transferConfirm(mode, status, { folder: folderLabel(folderShown.path) }, async () => {
+    setConfirm(transferConfirm(mode, status, { folder: folderLabel(folderShown.path) }, async (move) => {
       setActionError(null);
       try {
-        await api.startJob({ mode, source_subdir: folderShown.path });
+        await api.startJob(move ?? { mode, source_subdir: folderShown.path });
       } catch (e) {
         setActionError(e instanceof ApiError ? e.message : "The job could not be started.");
+        if (move) throw e;
       }
-    }));
+    }, undefined, undefined, false, folderShown.path));
   };
 
   const noPhotos = status.photos === 0;
@@ -1231,7 +1233,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               ) : noPhotos ? (
                 <>
                   <h2>{view === "unorganized" ? "Index your source to find photos" : view === "organized" ? "No photos organized yet" : view === "review" ? "Nothing needs review yet" : "No rejected photos"}</h2>
-                  {view === "unorganized" ? <><p>Indexing reads your source photos; nothing is moved or copied.</p><button className="primary" onClick={start("index")} disabled={jobRunning} aria-live="polite">{submission.pending?.body.mode === "index" ? "Starting…" : "Index source"}</button></>
+                  {view === "unorganized" ? <><p>Indexing reads your source photos; nothing is moved or copied.</p><button className="primary" onClick={() => void start("index")()} disabled={jobRunning} aria-live="polite">{submission.pending?.body.mode === "index" ? "Starting…" : "Index source"}</button></>
                     : <button onClick={() => chooseView("unorganized")}>Go to Not organized</button>}
                 </>
               ) : q ? (
@@ -1285,7 +1287,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                    if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() + 40); }
                    if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() - 40); }
                  }} />
-            <Inspector onReviewPhoto={() => setReviewPhoto(openId!)} setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && similar && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} statusHint={flat.items.find(item => item.id === openId)?.status} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
+            <Inspector sourceView={view === "source"} onReviewPhoto={() => setReviewPhoto(openId!)} setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && similar && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} statusHint={flat.items.find(item => item.id === openId)?.status} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
                        onReject={(name) => askTransfer("reject", [openId], undefined, name)} onReturn={() => askTransfer("return", [openId])}
                        onRejectMatch={(id, name) => askTransfer("reject", [id], undefined, name)} onKeep={(keep, name, threshold) => void keepAndReview(keep, name, threshold)}

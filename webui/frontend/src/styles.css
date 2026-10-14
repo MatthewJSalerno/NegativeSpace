@@ -453,6 +453,10 @@ body.dragging { cursor: col-resize; user-select: none; }
 .settings-page .settings-panel { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
 .settings-head { display: flex; justify-content: space-between; align-items: center; }
 .settings section { display: grid; gap: var(--space-3); }
+/* Shared groups of related choices use the same dialog spacing and text roles. */
+.dialog fieldset { border: 0; padding: 0; margin: var(--space-4) 0; min-width: 0; display: grid; gap: var(--space-3); }
+.dialog legend { font-weight: 600; margin-bottom: var(--space-3); }
+.dialog li { overflow-wrap: anywhere; }
 .field { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
 .field input { width: 100px; }
 .field-inline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-1); }

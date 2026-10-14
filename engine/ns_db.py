@@ -958,7 +958,9 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
     run_selections with the run, in one transaction; the run's targeting is its count
     and checksum. With `strict_selection` (a selection passed in a file) every id must
     be catalogued under `source`, or SelectionRefused and nothing is recorded.
-    Explicit Copy/Move/Reject/Return selections cannot mix Library and Rejects.
+    Ordinary Copy/Move/Reject/Return selections cannot mix Library and Rejects.
+    A snapshot-confirmed Move or its Copy alternative can span both; its token
+    is validated in this transaction before granting that exception.
     Accepted request replay precedes this check and keeps its original outcome.
     """
     require_schema(conn)
@@ -999,7 +1001,14 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
                     raise SelectionRefused(
                         f"{len(selection) - held:,} of the {len(selection):,} selected photos are no longer "
                         f"catalogued in this source. Nothing was changed; choose the photos again.")
-            if mode in ('COPY', 'MOVE', 'REJECT', 'RETURN'):
+            previewed_transfer = mode in ('MOVE', 'COPY') and (submitted or {}).get('move_preview_token')
+            if previewed_transfer:
+                from engine import move_confirmation
+                try:
+                    move_confirmation.check(conn, previewed_transfer, source=source, destination=destination, photo_ids=selection)
+                except ValueError as exc:
+                    raise SelectionRefused(str(exc)) from exc
+            if mode in ('COPY', 'MOVE', 'REJECT', 'RETURN') and not previewed_transfer:
                 # Runs are accepted only with the engine lock held. Check here,
                 # not at API preflight, so another tab/engine cannot change a
                 # selected photo's place between validation and acceptance.

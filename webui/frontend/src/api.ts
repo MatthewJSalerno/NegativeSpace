@@ -743,7 +743,8 @@ export const api = {
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   answerQuestion: (id: number, question: SafetyQuestion, answer: SafetyAnswer) =>
     submitJob(`/api/v1/runs/${id}/answer`, { question, answer }),
-  startJob: (body: { mode: "index" | ActionMode; file_ids?: number[]; source_subdir?: string }) =>
+  previewMove: (body: MoveScope) => request<MovePreview>("POST", "/api/v1/jobs/move-preview", body),
+  startJob: (body: { mode: "index" | ActionMode; file_ids?: number[]; source_subdir?: string; confirm_edited_sources?: boolean; move_preview_token?: string }) =>
     submitJob("/api/v1/jobs/start", body),
   cancelJob: (id: number) => request<{ id: number }>("POST", `/api/v1/jobs/${id}/cancel`),
   thumbnailUrl: (id: number, size: "grid" | "preview" = "grid") =>
@@ -759,3 +760,8 @@ export const api = {
     }
   },
 };
+
+export type MoveScope = { file_ids?: number[]; source_subdir?: string };
+export type MovePreview = { file_ids: number[]; token: string; rejected_originals: number;
+  edited_originals: { photo_id: number; source: string; filename: string; in_rejects: boolean }[] };
+export type MoveSubmission = { mode: "move"; file_ids: number[]; move_preview_token: string; confirm_edited_sources: boolean };
