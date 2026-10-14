@@ -8,7 +8,7 @@ describe the current app.
 > catalog, never the photos themselves; keeping your own backups of your photos is your
 > responsibility. See [If something goes wrong](recovery.md).
 
-Install it first: the [README's quick start](../README.md#quick-start) takes four commands.
+Install it first: the [README](../README.md#install) takes four commands.
 
 ## 1. First start
 
@@ -118,6 +118,22 @@ in **Settings › Files** to suit your collection. These are clues to investigat
 of a wrong date; NegativeSpace changes no date by itself.
 
 ![Photos with suspicious dates](images/suspicious-dates.png)
+
+**No capture date** lists photos with no usable date in their metadata. They are filed
+under `library/Undated/<year>/`, where the year comes from the file's modification time,
+rather than among photos the camera dated. A file's time is often when it was downloaded
+or exported, not when the photo was taken. Filing it with camera-dated photos would make
+a guess look like a fact. In a real library, roughly 8% of photos have no usable date.
+The photo's original path and filename are kept with it, and they often hold the real
+date.
+
+**Small images.** If you turned on small-image reminders in setup, photos whose shorter
+side is below your minimum appear in **Needs review › Small images**, with their size.
+They are still copied and moved like any other photo. **Mark reviewed** stops the
+reminder for a photo you want to keep; select the ones you don't want and use
+**Reject…**. A larger look-alike is a hint, not an automatic choice. **Review later**
+takes an optional note, and **Done** clears it. **Review one by one** steps through them;
+**Next** moves on without deciding. Change or turn off the rule in **Settings › Files**.
 
 ## 8. History, logs and stats
 

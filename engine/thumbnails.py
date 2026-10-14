@@ -66,7 +66,7 @@ def thumbnail_cache_path(cache_root, sha1_hash: str, size: int = constants.THUMB
     or path — so byte-identical duplicates share one file, and the cache
     survives a catalog rebuild where row ids would not.
 
-    The grid size keeps the bare `<sha1>.jpg` name the README documents; any
+    The grid size keeps the bare `<sha1>.jpg` name docs/install.md documents; any
     other size is suffixed. Without that, the 320px grid thumbnail and the
     1024px detail preview — separate rows, since thumbnail_cache is keyed on
     (content_id, size) — would collide on a single filename.
