@@ -294,7 +294,8 @@ EXIF tabs, an applied Primary badge, retained versions, field comparison/filteri
 recorded-tag disclosure. Catalog reads do not activate sources or modify files.
 Date taken editing/copying with a filing preview is built and validated. A later Move
 now offers one job-scoped Include/Leave confirmation for edited originals, with a bound
-selection and engine recheck; maintainer acceptance of this confirmation is pending.
+selection and engine recheck; maintainer acceptance of this confirmation passed
+on 2026-10-14 (tests M1–M3).
 
 Specified but not yet on screen:
 *   The unbacked-changes line on every page, and Retry backup in the finished-job banner.
