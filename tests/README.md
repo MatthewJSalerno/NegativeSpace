@@ -77,9 +77,24 @@ runs are independent. The ten nightly/manual drivers keep their existing schedul
 Before this split, successful GitHub run `38505467509` took 26m15s: engine smoke
 7m49s, browser/shell shutdown checks 5m28s, other checks 12m19s, and builds 36s
 (step timestamps, rounded to seconds). Parallel jobs reduce elapsed waiting, not
-the amount of test coverage. They rebuild their own images, so runner-minutes may
-increase slightly. Hosted after-change timings must be measured on the new workflow;
-local concurrent runs are not a substitute for that comparison.
+the amount of test coverage. First parallel run `38590119552` passed every group
+and the required gate in **12m26s** (first job start to final gate completion),
+versus **26m15s** serial: about **53% less elapsed time**. Group durations were:
+
+| Group | Duration |
+| --- | --- |
+| Engine smoke | 11m44s |
+| Metadata | 12m19s |
+| Other Python/contracts | 8m00s |
+| Browser | 7m13s |
+| Final gate | 4s |
+
+Combined job time was 39m20s rather than 26m15s. Hosted runner speeds vary; this
+is one measured comparison, not a guaranteed runtime or compute saving. Each group
+builds its own images; browser dependencies are installed once per browser job.
+No test commands or assertions were dropped. The Stats WAL-size race that failed
+the previous main run is covered by a new API regression: the old implementation
+fails deterministically, while the fixed implementation and browser check pass.
 The file-issue browser fixture fixes its review order by filename and waits for the
 refreshed queue before using Previous. A resolution notice alone does not mean the
 follow-up gallery request has finished.
