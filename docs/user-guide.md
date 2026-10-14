@@ -53,7 +53,7 @@ years down the right edge jump through the gallery: point to see the month, clic
 at a time, and with **Still in source**, find the originals of photos you have already
 copied and move them off the source.
 
-![The gallery, showing one year](images/gallery.png)
+![The gallery, showing one year](images/library.png)
 
 Click a photo to open it in the panel on the right: its file, its dates and where they came
 from, and its history.
