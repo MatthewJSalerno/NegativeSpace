@@ -1,13 +1,15 @@
 # NegativeSpace
 
 NegativeSpace puts a large, messy photo collection in order. It reads each photo's date
-and files it under `YYYY/MM/DD`, keeps one copy of exact duplicates, finds look-alikes,
-and lets you set aside the photos you don't want. It runs in Docker on your own machine,
-and you use it from a browser.
+and files it under `YYYY/MM/DD`, files exact duplicates once, finds look-alikes, and
+lets you set aside the photos you don't want. It runs in Docker on your own machine, and
+you use it from a browser.
 
-**Your originals stay safe.** Index and Copy never write to your source, so it can stay
-mounted read-only. Move deletes an original only after its copy has been verified at the
-destination. Rejected photos are moved aside, never deleted.
+**Your originals stay safe.** NegativeSpace can run without ever changing your photos:
+mount your source read-only and use Copy. Every photo is verified in its new place
+before Move deletes an original, and rejected photos are set aside, never deleted.
+[How your photos are protected](docs/user-guide.md#how-your-photos-are-protected)
+explains each safeguard.
 
 > **NegativeSpace is not a backup.** It backs up its own catalog, never your photos. Keep
 > your own backups of your photos. See [If something goes wrong](docs/recovery.md).
