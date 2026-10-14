@@ -100,7 +100,7 @@ the reasons.
 | --- | --- |
 | Using it | [User guide](docs/user-guide.md) · [Installation details](docs/install.md) · [If something goes wrong](docs/recovery.md) |
 | What changed | [CHANGELOG.md](CHANGELOG.md) |
-| Developing it | [project-spec.md](docs/project-spec.md) (start here) · [webui-spec.md](docs/webui-spec.md) · [engine-spec.md](docs/engine-spec.md) · [api-spec.md](docs/api-spec.md) · [ui-design.md](docs/ui-design.md) · [engine-cli.md](docs/engine-cli.md) · [tests/README.md](tests/README.md) · [TODO.md](TODO.md) |
+| Developing it | [project-spec.md](docs/project-spec.md) (start here) · [webui-spec.md](docs/webui-spec.md) · [engine-spec.md](docs/engine-spec.md) · [api-spec.md](docs/api-spec.md) · [ui-design.md](docs/ui-design.md) · [user-docs-standard.md](docs/user-docs-standard.md) · [engine-cli.md](docs/engine-cli.md) · [tests/README.md](tests/README.md) · [TODO.md](TODO.md) |
 
 ## License
 
