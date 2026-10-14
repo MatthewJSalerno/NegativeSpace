@@ -35,7 +35,7 @@ def validate_request_id(value):
 # as failed. It creates the run right after taking its lock, before any file work.
 RUN_APPEAR_SECONDS = 30.0
 # What the API waits for a job to stop after SIGTERM when the server shuts down.
-# Inside the 300 s stop timeout the README and compose file set: a cancel finishes
+# Inside the 300 s stop timeout the compose file sets (docs/install.md): a cancel finishes
 # the file being copied, and one large file over a network share can take minutes.
 SHUTDOWN_GRACE_SECONDS = 290.0
 # How long a check for a running engine waits on another check before concluding a

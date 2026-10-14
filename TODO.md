@@ -18,6 +18,17 @@ Do not leave finished work unchecked or count it again.
   history and the deletion gate while uncertainty remains.
 - [ ] Broader destination inventory UI and external restoration guidance beyond the
   recorded operation pair remain separate from this scoped verification.
+- [ ] **Discussion only; no development until the maintainer decides: repairing a
+  rearranged library without losing lineage.** If files in `library/` are moved, renamed
+  or deleted outside the app, the destination check (engine built, no UI) can report it
+  but nothing repairs it in place. The documented repair (`engine-spec.md` §9.2) indexes
+  the old library as a source into a fresh destination with a fresh catalog: photo IDs
+  and run history do not carry over, and each photo's history restarts at its old library
+  path. Reusing the same catalog does not work, because the catalog still records every
+  photo as delivered at `/data/dest`, so the re-indexed files are treated as duplicates
+  and nothing is written. The option to discuss is reorganizing in place: match each
+  file to the catalog by content, put it back where it belongs, and record that as a
+  step in its existing lineage. Until decided, `recovery.md` gets no entry for this case.
 
 ## Copy, then delete the originals yourself
 
