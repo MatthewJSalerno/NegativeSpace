@@ -19,7 +19,10 @@ CI coverage is split between two workflows:
 
 All browser entries below are in `tests/browser/`, use `webui_browser_test.sh`, and
 build isolated catalogs from generated photos. Set `DRIVER` to the filename; the
-fixture flags are required where shown. Each workflow builds the app and web images.
+fixture flags are required where shown. Each browser job builds the app, web and browser-test images.
+CI sets `PLAYWRIGHT_IMAGE` to the browser-test image, installing the matching
+Playwright package once per job. Standalone harness runs still install it unless
+you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolated.
 
 | Browser driver | CI schedule | Additional environment |
 | --- | --- | --- |
@@ -62,10 +65,21 @@ Helpers and engine fixture wrappers are not standalone suites. Same-named tests
 in different modules cover different contracts and remain in place.
 
 
-The CI job has a 45-minute limit for the combined serial browser, API, metadata
-and engine suites. The previous 20-minute limit cancelled a run after 56 successful
-steps, before the final recovery/review and smoke checks could finish. This is an
-overall job budget; individual test timeouts and assertions remain unchanged.
+PR/main CI runs four independent jobs: engine smoke tests, metadata tests,
+other Python/contract tests, and browser tests. Each has a 30-minute budget;
+individual test timeouts and assertions are unchanged. The existing required check,
+**Smoke suite (in container)**, is now a final gate: every group must succeed,
+including when another group fails, is skipped, or is cancelled. Do not require
+only one of the four groups in branch protection. New suites must be added to the
+appropriate group. Superseded runs on the same PR are cancelled; main and manual
+runs are independent. The ten nightly/manual drivers keep their existing schedule.
+
+Before this split, successful GitHub run `38505467509` took 26m15s: engine smoke
+7m49s, browser/shell shutdown checks 5m28s, other checks 12m19s, and builds 36s
+(step timestamps, rounded to seconds). Parallel jobs reduce elapsed waiting, not
+the amount of test coverage. They rebuild their own images, so runner-minutes may
+increase slightly. Hosted after-change timings must be measured on the new workflow;
+local concurrent runs are not a substitute for that comparison.
 The file-issue browser fixture fixes its review order by filename and waits for the
 refreshed queue before using Previous. A resolution notice alone does not mean the
 follow-up gallery request has finished.
