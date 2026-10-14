@@ -74,6 +74,12 @@ jobs:
       - name: Similar photo review in a browser
         run: DRIVER=similar_browser_drive.py sh tests/browser/webui_browser_test.sh
 
+      - name: Preview refresh after completed jobs
+        run: DRIVER=preview_refresh_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Suspicious dates in a browser
+        run: SIMILARITY_RECOVERY_FIXTURE=1 DRIVER=suspicious_dates_browser_drive.py sh tests/browser/webui_browser_test.sh
+
       - name: Rejects in a browser
         run: DRIVER=rejects_browser_drive.py sh tests/browser/webui_browser_test.sh
 
@@ -132,13 +138,25 @@ jobs:
         run: DRIVER=access_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Gallery filter pin counts
-        run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest filter_pins_test -v
+        run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p filter_pins_test.py -v
 
       - name: Gallery filter pins in a browser
         run: DRIVER=filter_pins_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Notification read receipts
-        run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest notifications_test -v
+        run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p notifications_test.py -v
+
+      - name: Reference-based similarity sets
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p reference_sets_test.py -v
+
+      - name: Similarity hash recovery
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p similarity_recovery_test.py -v
+
+      - name: Suspicious date policy
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p suspicious_dates_test.py -v
+
+      - name: Synthetic query benchmark contracts
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p synthetic_queries_test.py -v
 
       - name: Database contracts
         run: |
