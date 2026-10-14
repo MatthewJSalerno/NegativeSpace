@@ -18,8 +18,13 @@ explains each safeguard.
 
 ## Install
 
-You need Linux with Docker and the Compose plugin, and a desktop browser. Everything else
-is inside the images, which you build from this repository.
+You need Docker with the Compose plugin, and a desktop browser. Everything else is inside
+the images, which you build from this repository.
+
+NegativeSpace is tested on Linux. On Mac or Windows,
+[Rancher Desktop](https://rancherdesktop.io/) (free and open source, with its container
+engine set to dockerd) may work, but it is untested. Use Copy rather than Move there until
+you have checked the results.
 
 ```bash
 git clone https://github.com/MatthewJSalerno/NegativeSpace.git
