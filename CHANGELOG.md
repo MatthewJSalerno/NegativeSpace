@@ -9,6 +9,19 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Source views suspend Library-only filters and their pin highlights. Returning to
+  Library or Needs review restores the tab's previous choices, including unpinned
+  filters; explicit links remain exact and Clear all filters forgets the saved choices.
+
+- Rename File issues to Files needing verification and expose the same filter,
+  counts and pins in Library and Needs review. Source import failures remain under
+  Not organized → Needs attention.
+
+- Log exports sit beside the page heading, separate from aligned search/date filters.
+  Small-image settings and preview zoom/rotation no longer move the controls below
+  them. Comparison headings align at enlarged text sizes; shared inline controls and
+  the address-removal confirmation reuse consistent spacing.
+
 - Filter summaries no longer shift their trees; folder Copy/Move controls explain when
   unavailable. Metadata date copying sits beside the donor date; missing primary dates
   link to recorded alternatives. Completion dialogs reuse the shared action footer,

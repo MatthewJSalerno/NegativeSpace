@@ -15,6 +15,7 @@ export interface SidebarFilters {
   why: Record<LookInto, string | null>;
   onToggle: (key: LookInto) => void;
   pinned: LookInto[];
+  suspended?: LookInto[];
   onPin: (key: LookInto) => void;
   onClear?: () => void;
 }
@@ -32,7 +33,7 @@ const LOOK: { key: LookInto; label: string; href: string }[] = [
   { key: "suspicious", label: "Suspicious dates", href: "/?view=organized&suspicious=1" },
   { key: "undated", label: "No capture date", href: "/?view=organized&undated=1" },
   { key: "small", label: "Small images", href: "/?view=organized&reason=small" },
-  { key: "issues", label: "File issues", href: "/?view=review&reason=issues" },
+  { key: "issues", label: "Files needing verification", href: "/?view=organized&reason=issues" },
   { key: "later", label: "Review later", href: "/?view=review&reason=later" },
 ];
 
@@ -72,9 +73,10 @@ export function Sidebar({ current, version, matchMin, refresh, filters, onPlace,
     else follow(e);
   };
   const attentionCurrent = current.place === "unorganized" && filters?.on.attention;
-  const content = (label: string, n: number | undefined) => <>
+  const content = (label: string, n: number | undefined, reserveCount = false) => <>
     <span>{label}</span>{" "}
-    {n !== undefined && <span className="sidebar-count">{count(n)}</span>}
+    {(n !== undefined || reserveCount) && <span className="sidebar-count" aria-hidden={n === undefined ? true : undefined}
+      style={{ visibility: n === undefined ? "hidden" : undefined }}>{count(n ?? 0)}</span>}
   </>;
   const link = (href: string, label: string, on: boolean, n: number | undefined, view?: PlaceView) => (
     <a key={href} href={href} aria-current={on ? "page" : undefined} onClick={(e) => go(e, view)}>{content(label, n)}</a>
@@ -88,12 +90,12 @@ export function Sidebar({ current, version, matchMin, refresh, filters, onPlace,
       <button type="button" className="sidebar-item" aria-pressed={f.on[l.key]}
               aria-disabled={why ? true : undefined} title={why ?? undefined}
               onClick={() => { if (why) return; onNavigate?.(); f.onToggle(l.key); }}>
-        {content(l.label, why ? undefined : f.counts[l.key])}
+        {content(l.label, why ? undefined : f.counts[l.key], true)}
       </button>
-      <button type="button" className="filter-pin" aria-pressed={f.pinned.includes(l.key)}
+      <button type="button" className="filter-pin" aria-pressed={f.pinned.includes(l.key) && !f.suspended?.includes(l.key)}
               aria-label={`${f.pinned.includes(l.key) ? "Unpin" : "Pin"} ${l.label}`}
               aria-disabled={why && !f.pinned.includes(l.key) ? true : undefined}
-              title={f.pinned.includes(l.key) ? why ? `Pinned, unavailable here: ${why} Click to unpin.` : !f.on[l.key] ? "Pinned, not applied to this link. Click the filter to apply; click the pin to unpin." : "Pinned: keep this filter while browsing others. Click to unpin and turn off this filter."
+              title={f.pinned.includes(l.key) ? why ? `Saved for Library, inactive here. ${why} Click to forget this pin.` : !f.on[l.key] ? "Pinned, not applied to this link. Click the filter to apply; click the pin to unpin." : "Pinned: keep this filter while browsing others. Click to unpin and turn off this filter."
                 : why ?? "Pin this filter to keep it while browsing others."}
               onClick={() => { if (!why || f.pinned.includes(l.key)) f.onPin(l.key); }}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">

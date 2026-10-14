@@ -108,6 +108,16 @@ preview and confirmation controls. Navigation goes to its named destination/tab.
 | Supplemental help | `Tip.tsx`: hover/focus plus an explicit information button for touch; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. |
 | Paged loading | `ui/PageBoundary.tsx` and `paged.ts`: idle/load, pending, failed/retry and end states. Keep already-loaded photos and selection on failure. |
 
+Keep filters and viewing controls in their own groups. File-changing actions (Keep,
+Reject, edits) belong with the affected photo; exports belong in the page action group,
+not among search/date/status filters. Refresh comparison is a viewing control. The Logs
+heading carries a labelled **Export filtered log** group; both export formats retain
+all active filters. Shared `page-heading`/`page-actions` rows wrap and align their targets.
+
+Inline field/action rows center their contents and wrap without stretching a button
+against multiline supporting text. Confirmation footers use the shared `settings-actions`
+row, including nested confirmations; do not invent an unstyled action container.
+
 ## Page frame
 
 Decided with the maintainer (2026-10-08), after Immich's web app and drawn in the
@@ -134,10 +144,10 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   views retain their own result totals because the sidebar does not count that scope.
 - **Look into is the only place the gallery's filters live** (maintainer, 2026-10-09; no
   chip row above the photos): Has similar photos, Suspicious dates, No capture date,
-  Small images, Review later and File issues. Source import issues have a separate
+  Small images, Review later and Files needing verification. Source import issues have a separate
   **Needs attention** child link under Not organized, beside Source folders, with a whole
   source-attention count (including zero) on every screen. It opens the full attention
-  list, not a disabled destination filter, and has no pin. File issues applies only in Needs review;
+  list, not a disabled destination filter, and has no pin. Files needing verification applies in Library and Needs review;
   source/rejected-file recovery remains in Inspector and Logs. On the Library page each is a toggle (`aria-pressed`;
   on, it takes the current-item surface and a bar at its start) that narrows the place
   shown. Clicking an inactive filter replaces unpinned Look into filters; clicking an
@@ -147,17 +157,25 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   gallery and counts, retaining the other active filters. Unpinning a saved filter
   that is not applied to an explicit link only removes the saved pin.
   Inactive-filter counts predict the next click with the eligible pins; active-filter
-  counts describe the current intersection. Small images, Review later and File issues share
+  counts describe the current intersection. Small images, Review later and Files needing verification share
   one reason scope and remain exclusive:
   pinning either disables the other with an explanation telling the user which to unpin. A filter that does not apply to the
-  place stays in its row, dimmed (`aria-disabled`), saying why on hover: Has similar
-  photos, Small images and Review later are for Library and Needs review.
+  place stays in its row, dimmed (`aria-disabled`), reserving a hidden count slot so
+  long labels do not unwrap and move the rows below. It says why on hover: Has similar
+  photos, Small images, Files needing verification and Review later are for Library and Needs review.
   On Logs and Stats each is a link that opens Library (Review later: Needs review) with
   only that filter on, counted as it opens. Pins are remembered per browser (`ns.filterPins`),
   synchronized as preferences across tabs, and remain usable for the visit if storage fails.
   Refresh preserves the URL's actual filters. Explicit links/history, including job photos,
   are never narrowed by saved pins. A bare start page and sidebar place/filter choices
-  apply eligible pins; unavailable pins remain visible and removable. Clear all filters clears
+  apply eligible pins. Entering Not organized, Source folders (Waiting or Still in source),
+  or Needs attention suspends Library-only filters and shows their pins as inactive.
+  Saved pins remain removable, with help explaining they are saved for Library.
+  The tab remembers the last Library-only filter choices, including unpinned choices,
+  across source navigation and refresh; choosing Library or Needs review restores them.
+  Explicit destination URLs and Back/Forward still use only their stated filters.
+  Shared search/date/type rules are unchanged. Forgetting a suspended pin also forgets
+  its remembered filter. Clear all filters clears this remembered state and
   all pins as well as search, date, type and folder restrictions (including Source folders),
   retaining the location and photo selection. The action sits beside **Look into**, with
   its space reserved when nothing can be cleared or while reviewing a selection. Logs
@@ -274,6 +292,15 @@ when Expand all disappears. Gallery counts and filter actions share a stable sum
 row; grouping controls have their own wrapping row when similarity is active. Reserve
 space beside the sidebar's Look into heading for Clear all filters, even when hidden. Longer user-entered
 filters may wrap naturally; do not hide meaningful restrictions to force a height.
+
+Dependent controls that will be used repeatedly stay mounted when unavailable:
+Settings keeps the small-image minimum visible but disabled while reminders are off.
+Preview position sliders stay visible but disabled at 1×; zoom and rotation keep the
+recorded dimensions and photo decisions stationary. The rotation note always shows
+the current viewing rotation, including 0°, and says it does not save to the file.
+Preview heading space accounts for the action button at the current text size, so
+reference and candidate images align at 200% text scaling too. These controls size
+naturally and wrap at narrow widths; no fixed-height clipping.
 
 Adding substantive controls (such as similarity tools), opening a job or Inspector,
 and revealing an error can legitimately change content. Routine helper text alone
@@ -823,7 +850,7 @@ Look into filters; pinned conditions combine with it. Small images uses the exis
 size-reminder predicate in Library or Needs review; Review later is also available with
 its count in both places, including zero. Switching between them retains the reminder
 filter; switching to Not organized or Rejects clears it.
-Small images, Review later and File issues share an exclusive reason scope; unpin the active reason before choosing another. Clicking an active filter clears it; none active means the whole
+Small images, Review later and Files needing verification share an exclusive reason scope; unpin the active reason before choosing another. Clicking an active filter clears it; none active means the whole
 current location/inbox. Do not repeat these controls above the photos or add All reasons. Use native buttons with aria-pressed, shared
 text roles and visible focus. Types, Folders and Dates are in
 the Filters panel. Name active restrictions visibly and provide Clear all filters without changing
@@ -996,7 +1023,7 @@ photo and position in the review queue. This is navigation, not a photo action.
 
 ## Uncertain file outcomes
 
-Use one shared File issues panel in the Inspector, the affected Logs operation and
+Use one shared Files needing verification panel in the Inspector, the affected Logs operation and
 Photo Review. It shows **File needs checking**, the recorded reason, expandable
 **Recorded evidence**, and **Check it now**. Explain that the check updates the catalog
 but never moves, overwrites or deletes photo files. Disable the action while a job runs,
@@ -1005,14 +1032,14 @@ result, not success merely because a job was accepted. Unresolved checks retain 
 explanation and external correction guidance. There is no mark-resolved bypass.
 
 Issues remain visible in Not organized and Rejects. Active Library photos also enter
-**Needs review → File issues** using the shared Look into sidebar and review workspace.
+**Needs review → Files needing verification** using the shared Look into sidebar and review workspace.
 Other locations never enter the Library inbox. A successful check refreshes counts and
 photo state; an emptied review queue follows the standard return-to-gallery behavior.
 Checks with two remaining relocation names do not remove either name automatically.
 
 An externally missing original with a verified Library copy is a normal observation,
 not a failed Move. Keep it in Library, record what was observed in history, and update
-Move counts. If the copy cannot be verified, use the shared File issues explanation and
+Move counts. If the copy cannot be verified, use the shared Files needing verification explanation and
 Check it now action. A disconnected/empty source retains the existing safety question.
 
 

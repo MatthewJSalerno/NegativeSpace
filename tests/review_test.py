@@ -87,7 +87,7 @@ class ReviewTests(ApiCase):
         for name in ('unorganized','organized','review','rejects'):
             self.assertEqual(got['places'][name],self.client.get('/api/v1/photos?view='+name).json()['total'],name)
         for name,query in (('similar','view=organized&similar=true&match_min=90'),('suspicious','view=organized&suspicious=true'),
-                           ('undated','view=organized&undated=true'),('small','view=organized&reason=small'),('later','view=review&reason=later'),('issues','view=review&reason=issues')):
+                           ('undated','view=organized&undated=true'),('small','view=organized&reason=small'),('later','view=review&reason=later'),('issues','view=organized&reason=issues')):
             self.assertEqual(got['look_into'][name],self.client.get('/api/v1/photos?'+query).json()['total'],name)
         self.assertEqual(got['look_into']['suspicious'],1)
         self.assertEqual(self.client.get('/api/v1/photos/places?match_min=50').status_code,422)

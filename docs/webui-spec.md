@@ -292,8 +292,8 @@ places with what each holds (`GET /photos/places`); **Look into**, the gallery's
 **Activity** (Logs, Stats); the build at the foot. On the Library a place keeps the search
 and filters, and leaves Show only selected or a review first. Look into's filters replace
 unpinned filters within the place shown; separate Pin buttons retain filters while
-browsing others. File issues from operation recovery uses the same sidebar controls in
-Needs review; it shares the exclusive reason scope with Small images and Review later. Filters stay dimmed where they do not apply. From Logs or Stats
+browsing others. Files needing verification from operation recovery uses the same sidebar controls and counts in
+Library and Needs review; it shares the exclusive reason scope with Small images and Review later. Filters stay dimmed where they do not apply. From Logs or Stats
 a place opens whole, and a filter opens Library (Review later: Needs review) with only it
 on. While photos are selected, the selection bar takes the top bar, grouped at its start
 and keeping the search (§4). Types and Dates
@@ -404,10 +404,17 @@ reflect the current intersection. This reuses the gallery response's count queri
 Pins are saved per browser, with an in-memory fallback when storage is blocked. The URL
 remains authoritative on refresh, shared links and Back/Forward: saved pins do not narrow
 explicit photo/job links. A bare start page and sidebar place/filter choices reapply
-eligible pins; pins unavailable in a place remain removable. Preference changes sync
+eligible pins. Library-only filters (similar, small, later, issues) and their pin highlights
+are inactive in Not organized, Source folders (both scopes), and Needs attention.
+Their last active choices are remembered per browser tab, including unpinned choices
+and across a source-page refresh, and restored by sidebar Library/Needs review navigation.
+Explicit URLs/history remain authoritative; source URLs discard incompatible reasons.
+Shared search/date/type behavior is unchanged. Saved pins stay removable with an
+explanation; forgetting one also cancels its remembered filter. Clear all filters clears
+the remembered choices too. Preference changes sync
 across tabs without silently changing another tab's current results. The filter summary
 names every active restriction; Clear all filters clears pins too and preserves location
-and explicit photo selection. Small images, Review later and File issues share an exclusive reason scope: pinning
+and explicit photo selection. Small images, Review later and Files needing verification share an exclusive reason scope: pinning
 one disables the others with an explanation and an Unpin route. None active means all photos in the current location/inbox. The Filters panel's
 types, folders and dates continue to apply. Counts count photos, not notes; overlapping reasons do not duplicate a photo.
 
@@ -1297,6 +1304,9 @@ Users can view exact system error strings (e.g., `PermissionError`, `ChecksumMis
 **No dedicated retry subsystem.** There is no "Retry Item" / "Retry All Failed" backend endpoint and no `retry_count` tracking. A failed file's `photos.status` is reset to `Pending` automatically the next time it's re-indexed (a plain re-scan, full or `--file-ids`-scoped), so retrying means explicitly submitting a new operation. Successfully copied files remain in source; successfully moved files normally do not. Do not promise that rerunning requires no scanning or verification. The web UI's equivalent of "retry" is selecting the photos associated with failed attempts and re-issuing the same Move/Copy operation via `POST /api/v1/jobs/start` with their IDs in `file_ids` — no new endpoint required. Take those IDs from the failed `operations` rows rather than from `photos.status`, deduplicating when several attempts reference one photo, and do not require the photo's current status to be `Failed`: a duplicate-verification failure stays `Duplicate` and is retried by Move's duplicate cleanup on the next run. Retrying does not by itself fix a content mismatch or an unreadable file, so the UI should not promise that it will.
 
 ### 5.4 Operations Audit Log (`/logs`)
+
+CSV/JSON links live in a labelled **Export filtered log** action group beside the page
+heading, separate from search and date filters. Downloads still use the current filters.
 
 Failure guidance replaces the general introduction in a shared, naturally sized area;
 selecting Failed does not insert a new row above the filters. The active-filter summary
@@ -2553,7 +2563,7 @@ The current comparison requires both destination files to be recorded present.
 
 ### 7.9 Needs review
 
-**Built for Small images, Review later and File issues**; additional decision workflows below remain planned. **Needs review** lists organized Library photos waiting for a decision. Each carries a **note**: a reason, the job that raised it, when, and optionally a
+**Built for Small images, Review later and Files needing verification**; additional decision workflows below remain planned. **Needs review** lists organized Library photos waiting for a decision. Each carries a **note**: a reason, the job that raised it, when, and optionally a
 related photo, opened side by side in comparison. **Notes are for decisions only**, not a
 general tagging system: personal labels (people, albums) belong to gallery applications.
 
@@ -3067,7 +3077,7 @@ reason directly, a fallback when none was recorded, and the existing failure-log
 
 Built: open `unestablished_outcome` issues appear in photo information and their original
 Logs operation, including source and rejected records. Library photos also contribute
-to Needs review and its **File issues** filter. The shared panel shows the reason and
+to Needs review and its **Files needing verification** filter. The shared panel shows the reason and
 recorded evidence, with **Check it now** launching a scoped, cancellable CHECK job.
 It does not run generic startup file reconciliation or mutate photo files.
 

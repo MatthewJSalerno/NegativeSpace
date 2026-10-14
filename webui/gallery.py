@@ -327,7 +327,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
         if pins - {'similar', 'suspicious', 'undated', 'small', 'later', 'issues', 'attention'} or len(pins & {'small', 'later', 'issues', 'attention'}) > 1:
             raise ValueError('Choose valid compatible filter pins.')
         if view not in ('organized', 'review', 'job'): pins -= {'similar', 'small', 'later'}
-        if view != 'review': pins.discard('issues')
+        if view not in ('organized', 'review'): pins.discard('issues')
         if view != 'unorganized': pins.discard('attention')
     active = {'similar': similar, 'suspicious': suspicious, 'undated': undated,
               'small': reason == 'small', 'later': reason == 'later', 'issues': reason == 'issues', 'attention': reason == 'attention'}
@@ -373,9 +373,9 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             extra, values = count_filters(chip)
             chips[chip] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}"+extra, values).fetchone()[0]
         reasons = {}
-        # Library and job galleries also expose the Review later filter; only the
-        # inbox needs the additional reason totals.
-        reason_keys = ('all', 'issues', *review.REASONS) if view == 'review' else ('later',) if view in ('organized', 'job') else ()
+        # Library exposes verification and Review later counts, too. Job galleries
+        # retain their existing Review later count; other reasons belong to the inbox.
+        reason_keys = ('all', 'issues', *review.REASONS) if view == 'review' else ('issues', 'later') if view == 'organized' else ('later',) if view == 'job' else ()
         for key in reason_keys:
             extra, values = _filters(q, undated, dates, types, folders, root, match_min=match_min,
                                     similar=similar, suspicious=suspicious, reason=key, run=run)
@@ -413,7 +413,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
 PLACES = ("unorganized", "organized", "review", "rejects")
 LOOK_INTO = {"similar": ("organized", {"similar": True}), "suspicious": ("organized", {"suspicious": True}),
              "undated": ("organized", {"undated": True}), "small": ("organized", {"reason": "small"}),
-             "later": ("review", {"reason": "later"}), "issues": ("review", {"reason": "issues"}),
+             "later": ("review", {"reason": "later"}), "issues": ("organized", {"reason": "issues"}),
              "attention": ("unorganized", {"reason": "attention"})}
 
 

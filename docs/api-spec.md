@@ -237,7 +237,7 @@ navigation agree. Invalid query/position percentages return 422.
 
 The navigation sidebar's counts (`webui-spec.md` §2, the page frame): each place whole,
 before any gallery filter, and each **Look into** filter where its link from Logs or Stats
-opens it: Library with only that filter on, Needs review for Review later/File issues,
+opens it: Library with only that filter on, Needs review for Review later,
 or Not organized for Needs attention. On the
 Library page the Look into counts come from `chips` and `reasons` instead, for the place
 shown. `match_min` (default 90) sets Has similar photos:
@@ -1075,8 +1075,8 @@ Gallery listing, IDs, position, types, folders and timeline accept `similar` and
 filters. `view=review` selects distinct active Library photos with an unresolved supported reason. Reminders on source/rejected files do not contribute. History remains readable; new decisions require a delivered active photo.
 `GET /photos` optionally accepts `filter_pins`, a comma-separated subset of similar,
 suspicious, undated, small, later, issues and attention (empty string means no pins). Unknown keys or
-multiple reason pins (small/later/issues/attention) return 400. File issues pins apply
-only in Needs review; attention pins apply only in Not organized. This changes only sidebar counts, not gallery membership:
+multiple reason pins (small/later/issues/attention) return 400. Files needing verification pins apply
+in Library and Needs review; attention pins apply only in Not organized. This changes only sidebar counts, not gallery membership:
 an inactive filter's count replaces unpinned Look into conditions, while active counts
 retain the current intersection. Place, search, date, type, folder and run constraints
 remain; pins unavailable in the place do not apply. Omit the parameter for existing

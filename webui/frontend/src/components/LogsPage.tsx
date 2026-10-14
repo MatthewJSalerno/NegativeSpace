@@ -245,7 +245,14 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
       </>}>
 
       <main id="main-content" tabIndex={-1} className="logs">
-        <h2>{failuresOnly ? "Failures" : "Log"}{filters.photo != null ? ` for photo #${filters.photo}` : ""}</h2>
+        <div className="page-heading">
+          <h2>{failuresOnly ? "Failures" : "Log"}{filters.photo != null ? ` for photo #${filters.photo}` : ""}</h2>
+          <div className="page-actions" role="group" aria-label="Export filtered log">
+            <span className="muted">Export filtered log</span>
+            <a href={api.exportUrl(apiFilters, "csv")} download>CSV</a>
+            <a href={api.exportUrl(apiFilters, "json")} download>JSON</a>
+          </div>
+        </div>
         <StableContent active={failuresOnly ? "failed" : "all"} variants={{
           all: <p className="muted">Browse recorded work across jobs. Filter by status, date, photo or message; expand a job for its file details.</p>,
           failed: <p className="muted">
@@ -270,9 +277,6 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
           <label className="field-inline"><span>To</span>
             <input type="date" value={dates.to} onChange={(e) => setDates((d) => ({ ...d, to: e.target.value }))} aria-label="To date" />
           </label>
-          <span className="export">
-            Export: <a href={api.exportUrl(apiFilters, "csv")} download>CSV</a> · <a href={api.exportUrl(apiFilters, "json")} download>JSON</a>
-          </span>
         </div>
 
         <div className="status-checks" role="group" aria-label="Statuses">

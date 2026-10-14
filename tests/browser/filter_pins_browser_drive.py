@@ -137,6 +137,69 @@ with sync_playwright() as p:
     page.get_by_role('button', name='Clear all filters', exact=True).click()
     expect(clear).not_to_be_visible()
     assert abs(choose('Has similar photos').bounding_box()['y'] - initial_filter_y) < 1
+    # Library-only filters pause at every source entry; both unpinned choices and
+    # saved pins return on a sidebar Library/Needs review visit. Explicit URLs stay exact.
+    for pinned in (False, True):
+        choose('Review later').click()
+        if pinned: pin('Review later').click()
+        for source_entry in ('Not organized', 'Source folders', 'Needs attention'):
+            main.get_by_role('link', name=re.compile('^' + source_entry + r'\b')).click()
+            expect(choose('Review later')).to_have_attribute('aria-pressed', 'false')
+            expect(choose('Review later')).to_have_attribute('aria-disabled', 'true')
+            expect(main.get_by_role('button', name=('Unpin ' if pinned else 'Pin ') + 'Review later', exact=True)).to_have_attribute('aria-pressed', 'false')
+            expect(page).not_to_have_url(re.compile(r'reason=later|similar=1'))
+            if source_entry == 'Source folders':
+                page.get_by_role('button', name='Still in source', exact=True).click()
+                expected_source = request.get('/api/v1/photos?view=source').json()['total']
+                expect(page.locator('.grid .card')).to_have_count(min(60, expected_source))
+            page.reload()
+            expect(choose('Review later')).to_have_attribute('aria-pressed', 'false')
+            main.get_by_role('link', name=re.compile('^Library')).click()
+            expect(choose('Review later')).to_have_attribute('aria-pressed', 'true')
+            expect(page.locator('.grid .card')).to_have_count(1)
+            if pinned: expect(unpin('Review later')).to_have_attribute('aria-pressed', 'true')
+        clear.click()
+    # Similarity is also suspended and restored, including the related sort.
+    pin('Has similar photos').click()
+    main.get_by_role('link', name='Source folders', exact=True).click()
+    expect(choose('Has similar photos')).to_have_attribute('aria-pressed', 'false')
+    expect(unpin('Has similar photos')).to_have_attribute('aria-pressed', 'false')
+    main.get_by_role('link', name=re.compile('^Needs review')).click()
+    expect(choose('Has similar photos')).to_have_attribute('aria-pressed', 'true')
+    clear.click()
+    main.get_by_role('link', name=re.compile('^Library')).click()
+    pin('Small images').click()
+    main.get_by_role('link', name=re.compile('^Not organized')).click()
+    # Forgetting a saved pin at source must also cancel its remembered filter.
+    unpin('Small images').click()
+    main.get_by_role('link', name=re.compile('^Library')).click()
+    expect(choose('Small images')).to_have_attribute('aria-pressed', 'false')
+    choose('Small images').click()
+    main.get_by_role('link', name='Source folders', exact=True).click()
+    clear.click()
+    main.get_by_role('link', name=re.compile('^Library')).click()
+    expect(choose('Small images')).to_have_attribute('aria-pressed', 'false')
+    # Source URLs cannot activate a destination-only reason, even on refresh.
+    for source_view in ('unorganized', 'source'):
+        page.goto(base + '/?view=' + source_view + '&reason=issues')
+        expect(page).not_to_have_url(re.compile('reason=issues'))
+        expect(choose('Files needing verification')).to_have_attribute('aria-pressed', 'false')
+    # Shared search/date filters still apply on a normal Not organized navigation.
+    page.goto(base + '/?view=organized&undated=1&q=photo')
+    main.get_by_role('link', name=re.compile('^Not organized')).click()
+    expect(page).to_have_url(re.compile('undated=1'))
+    expect(page).to_have_url(re.compile('q=photo'))
+    clear.click()
+    # A cross-location search link promises the search results, not saved filters.
+    main.get_by_role('link', name=re.compile('^Library')).click()
+    pin('Review later').click()
+    main.get_by_role('link', name=re.compile('^Not organized')).click()
+    page.get_by_role('searchbox', name='Search filenames', exact=True).fill('photo')
+    page.get_by_role('button', name=re.compile(r'matches in Library$')).click()
+    expect(choose('Review later')).to_have_attribute('aria-pressed', 'false')
+    expect(page.locator('.grid .card')).to_have_count(60)
+    expect(page).to_have_url(re.compile('q=photo'))
+    clear.click()
     # Clear all includes source folder restrictions, preserves the place, and clears search.
     page.goto(base + '/?view=unorganized&tree=1&folder=generated&q=missing')
     expect(clear).to_be_visible()

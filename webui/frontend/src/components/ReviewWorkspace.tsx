@@ -75,7 +75,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
     return ()=>{live=false;};
   }, [rejectRun, jobs.last?.id, jobs.active]);
   const changed = (message: string) => {setNotice(message); setRevision(n=>n+1);};
-  const title = filters.reason === "issues" ? "File issue review" : filters.reason === "small" ? "Small-image review" : filters.reason === "later" ? "Review later"
+  const title = filters.reason === "issues" ? "File verification" : filters.reason === "small" ? "Small-image review" : filters.reason === "later" ? "Review later"
     : filters.suspicious ? "Suspicious-date review" : filters.undated ? "Missing-date review" : "Photo review";
   const matchLink = new URLSearchParams(window.location.search);
   matchLink.delete("review_photo");

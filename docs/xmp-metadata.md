@@ -982,7 +982,7 @@ Stable storage-directory assumptions and documented filesystem limits still appl
 
 Startup recognizes pair relocation intents before photo-only recovery. It can finish
 old-name cleanup only after both new members verify. Partial publication is never filled
-in automatically: File issues explains that the original action needs repeating after
+in automatically: Files needing verification explains that the original action needs repeating after
 storage access is restored. Retry uses the recorded target and resolves only its own
 issue chain, preserving the earlier failed attempt. A different action/name is refused
 until that pair is settled. It does not silently create a suffixed second pair.
@@ -992,7 +992,7 @@ Both new members verified and old names absent allow catalog repair; both origin
 verified and both new names absent establish that nothing moved. Partial pairs, remaining
 old names, cancellation and stale catalog bindings keep the issue. Directory sync is
 repeated even after an earlier unlink, so a failed barrier cannot be skipped by recovery.
-This uses the existing File issues route; the internal import-pair retry UI remains unbuilt.
+This uses the existing Files needing verification route; the internal import-pair retry UI remains unbuilt.
 
 Generated tests cover the full Rename/Reject/Return cycle, bytes and identity preservation,
 collisions/orphans, symlinks, unsupported hard links, racing publication, catalog/fsync
@@ -1044,7 +1044,7 @@ report completed/no-change/failed/not-started outcomes separately. Never silentl
 XMP or switch primary to bypass an unsupported writer or permission failure.
 
 A failed edit is flagged with its cause in photo information and Logs; Library photos
-also appear in Needs review → File issues. Distinguish a verified unchanged original
+also appear in Needs review → Files needing verification. Distinguish a verified unchanged original
 from an uncertain interrupted operation. Successful retry clears only the relevant issue.
 Discard requested edit is permitted only when the original is verified unchanged;
 uncertain outcomes require verification/recovery. Other review reasons remain intact.

@@ -64,7 +64,7 @@ class FilterPins(webui_api_test.ApiCase):
         self.assertEqual(self.photos(filter_pins='')['reasons']['later'], 0)
         self.assertEqual(self.photos(reason='later', filter_pins='')['total'], 0)
 
-    def test_file_issue_counts_follow_pins_in_the_review_sidebar(self):
+    def test_verification_counts_follow_pins_in_library_and_review(self):
         pid = next(p['id'] for p in self.photos()['items'] if p['filename'] == 'undated.jpg')
         with ns_db.connect(self.cfg.db_path) as c:
             op = c.execute("SELECT id FROM operations WHERE photo_id=? ORDER BY id DESC LIMIT 1", (pid,)).fetchone()[0]
@@ -72,12 +72,13 @@ class FilterPins(webui_api_test.ApiCase):
             c.execute("INSERT INTO attention_issues(operation_id,file_id,category,summary,opened_at) VALUES(?,?,'unestablished_outcome','Generated issue','2026-01-01')", (op,fid))
             c.commit()
         self.assertEqual(self.client.get('/api/v1/photos/places').json()['look_into']['issues'], 1)
-        self.assertEqual(self.photos(view='review', suspicious=True, filter_pins='')['reasons']['issues'], 1)
-        self.assertEqual(self.photos(view='review', suspicious=True, filter_pins='suspicious')['reasons']['issues'], 0)
-        current = self.photos(view='review', reason='issues', filter_pins='issues')
-        self.assertEqual([p['id'] for p in current['items']], [pid])
-        self.assertEqual(current['chips']['suspicious'], 0)
-        self.assertEqual(current['reasons']['issues'], 1)
+        for view in ('organized', 'review'):
+            self.assertEqual(self.photos(view=view, suspicious=True, filter_pins='')['reasons']['issues'], 1)
+            self.assertEqual(self.photos(view=view, suspicious=True, filter_pins='suspicious')['reasons']['issues'], 0)
+            current = self.photos(view=view, reason='issues', filter_pins='issues')
+            self.assertEqual([p['id'] for p in current['items']], [pid])
+            self.assertEqual(current['chips']['suspicious'], 0)
+            self.assertEqual(current['reasons']['issues'], 1)
 
     def test_bad_or_exclusive_pins_are_refused(self):
         for pins in ('unknown', 'small,later', 'small,issues', 'later,issues', 'attention,small', 'attention,issues', "similar'); SELECT 1;--"):

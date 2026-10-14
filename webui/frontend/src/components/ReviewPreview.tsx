@@ -45,16 +45,16 @@ export function ReviewPreview({ photo, label, view, onChange, refreshKey, isRefe
       </div>
       <label>Zoom: {view.zoom}×<input aria-label={`Zoom ${label.toLowerCase()}`} type="range" min="1" max="4" step="0.25"
         value={view.zoom} onChange={(e) => onChange({ ...view, zoom: Number(e.target.value) })} /></label>
-      {view.zoom > 1 && <div className="review-pan-controls">
-        <label>Horizontal<input aria-label={`${label} horizontal position`} type="range" min="0" max="100" value={view.x}
+      <div className="review-pan-controls" role="group" aria-label="Preview position" title="Zoom in to adjust position.">
+        <label>Horizontal<input aria-label={`${label} horizontal position`} type="range" min="0" max="100" disabled={view.zoom === 1} value={view.x}
           onChange={(e) => onChange({ ...view, x: Number(e.target.value) })} /></label>
-        <label>Vertical<input aria-label={`${label} vertical position`} type="range" min="0" max="100" value={view.y}
+        <label>Vertical<input aria-label={`${label} vertical position`} type="range" min="0" max="100" disabled={view.zoom === 1} value={view.y}
           onChange={(e) => onChange({ ...view, y: Number(e.target.value) })} /></label>
-      </div>}
+      </div>
       <p className="section-note">{photo.width && photo.height
         ? `${view.rotation !== 0 ? "Displayed: " : ""}${sideways ? photo.height : photo.width} × ${sideways ? photo.width : photo.height}`
         : "Dimensions unknown"} · {bytes(photo.file_size)}
-        {view.rotation !== 0 && <span className="review-rotation-note">Viewing rotation: {view.rotation}° · not saved to file</span>}</p>
+        <span className="review-rotation-note">Viewing rotation: {view.rotation}° · not saved to file</span></p>
     </div>
     {footerAction && <div className="photo-actions">{footerAction}</div>}
   </figure>;
