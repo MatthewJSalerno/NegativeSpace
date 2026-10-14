@@ -47,7 +47,8 @@ Set four folders on the host in `docker/.env`:
 
 - Keep source and destination separate, with neither inside the other. The same goes for
   app data and backups; put backups on different storage if you can.
-- Point a gallery app such as Immich at `DEST_DIR/library`, not at `DEST_DIR`.
+- `library/` is laid out by date for your gallery app of choice, such as Immich, to
+  read. `rejects/` sits beside it, so photos you turn down stay out of your gallery.
 - Set `PUID` and `PGID` to your own user (`id -u`, `id -g`) so the files it writes belong
   to you, and `TZ` to your time zone (for example `America/New_York`).
 

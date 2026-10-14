@@ -37,8 +37,10 @@ does not empty the source folder. Expect those leftovers.
 
 Organized photos go to `library/YYYY/MM/DD/`. A photo with no usable date goes to
 `library/Undated/<year>/` instead, where the year comes from the file's modification time.
-Rejected photos go to `rejects/`, which you empty yourself. **Point a gallery app such as
-Immich at `library/`**, not at the whole destination.
+Rejected photos go to `rejects/`, which you empty yourself.
+
+`library/` is laid out for your gallery app of choice, such as Immich, to read. `rejects/`
+sits beside it rather than inside it, so photos you turn down stay out of your gallery.
 
 ### App data
 
