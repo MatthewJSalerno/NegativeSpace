@@ -1,3 +1,4 @@
+import { PairRetryButton } from "./PairRetry";
 import type { ReactNode } from "react";
 import type { ActionMode, Place } from "../api";
 import { count, plural } from "../format";
@@ -13,7 +14,9 @@ export type SelectionCounts = Record<ActionMode, number>;
 // the actions wait, saying why. A selection in Rejects offers Return to library first,
 // and its Move says what it deletes.
 export function SelectionBar({ selected, capacity, outside, focused, reviewing, counts, place, jobRunning, search, onAction, onShowSelected,
-                               onBack, onClear }: {
+                               onBack, onClear, pairRetryIds, pairRetryCount = 0 }: {
+  pairRetryIds?: number[];
+  pairRetryCount?: number;
   selected: number;
   capacity: number;
   outside: number;
@@ -69,6 +72,7 @@ export function SelectionBar({ selected, capacity, outside, focused, reviewing, 
           ))}
         </span>
       )}
+      {!reviewing && pairRetryIds && pairRetryCount > 0 && <PairRetryButton ids={pairRetryIds} count={pairRetryCount} />}
       {search && <div className="topbar-search">{search}</div>}
     </div>
   );

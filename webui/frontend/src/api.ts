@@ -57,6 +57,7 @@ export interface MetadataSourceView {
 export interface MetadataView {
   photo_id: number; primary_id: string | null; sources: MetadataSourceView[];
   issues: { code: string; detail?: string }[]; recorded: boolean; applied: boolean;
+  warnings?: { code: string; detail?: string; reason: string }[];
   notice: string | null; field_sources: Record<string, string>;
 }
 
@@ -110,11 +111,11 @@ export interface PhotoPage {
   page: number;
   page_size: number;
   total: number;
-  // Unfiltered totals per view (and No capture date within the current view).
+  // Unfiltered totals per view (and No usable capture date within the current view).
   counts: Record<View | "undated", number>;
   similarity: { threshold: number; pending: number; unavailable: number } | null;
   // Each view under every filter now on, for the sidebar's places and for suggesting another
-  // view; `undated` is No capture date within this view under the other filters.
+  // view; `undated` is No usable capture date within this view under the other filters.
   matches: Record<View | "undated", number>;
   // What Rejects holds now, with the Rejects view.
   rejects?: RejectsSummary | null;
@@ -127,7 +128,7 @@ export interface PhotoPosition {
   next_id: number | null;
 }
 
-// What narrows the gallery: the view, the search, No capture date, and the date tree's
+// What narrows the gallery: the view, the search, No usable capture date, and the date tree's
 // "Show only" years and months ("2023", "2023-06", "none").
 export interface BrowseFilters {
   similar?: boolean; suspicious?: boolean; reason?: string;
@@ -181,6 +182,7 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
 }
 
 export interface SelectionPage {
+  pair_retries?: number;
   items: PhotoItem[];
   page: number;
   page_size: number;
@@ -216,7 +218,16 @@ export interface AccessSettings {
   current_removed?: boolean;
 }
 
+export interface PairRetryGroup { mode: "copy" | "move"; file_ids: number[]; token: string }
+export interface PairRetryPreview {
+  items: { photo_id: number; issue_id: number; operation_id: number; filename: string; mode: "copy" | "move";
+    delivery: { photo: "verified" | "incomplete" | "unknown"; xmp: "verified" | "incomplete" | "unknown" };
+    failure_context: { stage: string; paths: string[] } | null;
+    summary: string; blocked: string | null; source: string; destination: string; sidecar_source: string; sidecar_destination: string }[];
+  groups: PairRetryGroup[];
+}
 export interface FileIssue {
+  category?: "unestablished_outcome" | "metadata_pair_incomplete";
   issue_id: number; operation_id: number; summary: string; opened_at: string;
   evidence: {location: string; path: string; kind: string; result: string; observed_at: string; details: string | null}[];
 }
@@ -291,6 +302,7 @@ export interface Run {
   ended_at?: string | null;
   targeting?: Record<string, unknown> | null;
   questions?: SafetyQuestion[];
+  same_mode_retry?: boolean;
   progress?: Phase[];
   outcome?: Outcome;
   presented_status?: string;
@@ -319,7 +331,13 @@ export interface ExtensionSupport {
   warning: string | null;
 }
 
+export type XmpAssociation = "ask" | "raw_only" | "non_raw_only" | "all";
+export type MetadataWriteTarget = "xmp" | "embedded";
+
 export interface Settings {
+  xmp_association: Setting<XmpAssociation>;
+  metadata_write_raw: Setting<MetadataWriteTarget>;
+  metadata_write_non_raw: Setting<MetadataWriteTarget>;
   suspicious_min_year: Setting<number>;
   small_image_min: Setting<number | null>;
   workers: Setting<number> & { detected: number; host: number; limited_by: "cpu_quota" | "cpu_set" | null };
@@ -735,6 +753,8 @@ export const api = {
   runs: (limit = 100) => request<{ runs: Run[] }>("GET", `/api/v1/runs?limit=${limit}`),
   lineage: (id: number) => request<Lineage>("GET", `/api/v1/photos/${id}/lineage`),
   fileIssues: (id: number) => request<{items: FileIssue[]}>("GET", `/api/v1/photos/${id}/issues`),
+  pairRetryPreview: (file_ids: number[]) => request<PairRetryPreview>("POST", "/api/v1/pair-retries/preview", {file_ids}),
+  retryPairs: (group: PairRetryGroup, request_id: string) => request<Run>("POST", "/api/v1/pair-retries/start", {...group,request_id}),
   checkIssue: (issue_id: number, request_id: string) => request<Run>("POST", "/api/v1/issues/check", {issue_id,request_id}),
   dateContext: (id: number) => request<DateEditContext>("GET", `/api/v1/photos/${id}/date-edit`),
   datePreview: (id: number, body: { capture_id: number; value?: string; donor_id?: string }) => request<DateEditPreview>("POST", `/api/v1/photos/${id}/date-preview`, body),

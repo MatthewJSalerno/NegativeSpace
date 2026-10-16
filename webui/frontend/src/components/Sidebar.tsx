@@ -31,7 +31,7 @@ const PLACES: { view: PlaceView; label: string }[] = [
 const LOOK: { key: LookInto; label: string; href: string }[] = [
   { key: "similar", label: "Has similar photos", href: "/?view=organized&similar=1" },
   { key: "suspicious", label: "Suspicious dates", href: "/?view=organized&suspicious=1" },
-  { key: "undated", label: "No capture date", href: "/?view=organized&undated=1" },
+  { key: "undated", label: "No usable capture date", href: "/?view=organized&undated=1" },
   { key: "small", label: "Small images", href: "/?view=organized&reason=small" },
   { key: "issues", label: "Files needing verification", href: "/?view=organized&reason=issues" },
   { key: "later", label: "Review later", href: "/?view=review&reason=later" },

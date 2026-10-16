@@ -148,7 +148,7 @@ of a wrong date; NegativeSpace changes no date by itself.
 
 ![Photos with suspicious dates](images/suspicious-dates.png)
 
-**No capture date** lists photos with no usable date in their metadata. They are filed
+**No usable capture date** lists photos with no usable date in their metadata. A missing date alone does not prevent **Copy** or **Move**. A photo can also appear under **Not organized › Needs attention** if a separate issue prevents organizing it; open its information pane for the specific reason. They are filed
 under `library/Undated/<year>/`, where the year comes from the file's modification time,
 rather than among photos the camera dated. A file's time is often when it was downloaded
 or exported, not when the photo was taken. Filing it with camera-dated photos would make

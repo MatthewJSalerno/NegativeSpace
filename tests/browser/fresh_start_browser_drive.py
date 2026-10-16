@@ -38,7 +38,9 @@ with sync_playwright() as p:
     assert page.evaluate('history.length')==length
     page.get_by_role('button',name='Create new catalog',exact=True).click()
     for step in range(5):
-        if step==1:page.get_by_label('Small-image reminders',exact=False).select_option('off')
+        if step==1:
+            page.get_by_label('Small-image reminders',exact=False).select_option('off')
+            page.get_by_label('When an XMP sidecar matches multiple photos',exact=False).select_option('ask')
         page.get_by_role('button',name='Next' if step<4 else 'Save and continue',exact=True).click()
     index=page.get_by_role('button',name='Index source',exact=True)
     expect(index).to_be_visible()

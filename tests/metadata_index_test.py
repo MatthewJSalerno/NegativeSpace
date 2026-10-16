@@ -96,6 +96,19 @@ class CaptureTests(unittest.TestCase):
                 forced=metadata_capture.capture_photo(root,'photo.jpg',info.st_size,info.st_mtime,previous,True)
                 self.assertEqual(forced['sources']['exif']['fields']['camera_make'],'Refreshed')
 
+    def test_reader_warnings_are_notes_but_errors_and_unstable_reads_still_block(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d); photo=root/'generated.jpg'; photo.write_bytes(b'fixture'); info=photo.stat()
+            for tag in ('ExifTool:Warning','ExifTool:Copy1:Warning','ExifTool:Error'):
+                with self.subTest(tag=tag), mock.patch.object(fileinfo, '_worker_exiftool') as reader:
+                    reader.get_metadata.return_value=[{'ExifIFD:DateTimeOriginal':'2020:01:02 03:04:05',tag:'Generated reader diagnostic'}]
+                    capture=metadata_capture.capture_photo(root,photo.name,info.st_size,info.st_mtime)
+                    report=metadata_index.build_report(photo.name,capture,[])
+                    self.assertEqual(report['state'],'needs_attention' if tag.endswith(':Error') else 'captured')
+                    self.assertEqual(bool(report['warnings']),tag.endswith(':Warning'))
+                    self.assertEqual(bool(report['issues']),tag.endswith(':Error'))
+                    self.assertEqual(capture['tags'][tag],'Generated reader diagnostic')
+
     def test_unknown_and_localized_embedded_fields_keep_evidence(self):
         result=metadata_capture.interpret({'XMP-dc:Description':'Default','XMP-dc:Description-fr':'Français',
             'XMP-dc:Subject':['two','one'],'XMP-custom:Unknown':{'nested':'retained'}})
@@ -128,6 +141,24 @@ class IndexTests(unittest.TestCase):
         path=next((self.root/'base/db').glob('*.db'))
         conn=ns_db.connect(path,synchronous='FULL'); self.addCleanup(conn.close)
         return conn
+
+    def test_reindex_reclassifies_legacy_reader_warning_without_rewriting_history(self):
+        exif=Image.Exif(); exif[34665]={36867:'2020:01:02 03:04:05',37500:bytes(range(64))}
+        Image.new('RGB',(48,32)).save(self.photo,exif=exif)
+        self.run_engine(); conn=self.conn()
+        embedded,report=self.latest(conn)
+        self.assertTrue(report['warnings'])
+        embedded['version']=2; embedded['issues']=embedded.pop('warnings')
+        report['issues']=report.pop('warnings'); report['state']='needs_attention'; report.pop('resolution',None)
+        run=ns_db.create_run(conn,mode='INDEX',source=str(self.root/'source'),destination=str(self.root/'dest'))[0]
+        old=conn.execute('INSERT INTO metadata_captures(run_id,file_id,source_relative_path,catalog_sha1,embedded_json,report_json,observed_at) '
+            'SELECT ?,file_id,source_relative_path,catalog_sha1,?,?,? FROM metadata_captures ORDER BY capture_id DESC LIMIT 1',
+            (run,json.dumps(embedded),json.dumps(report),ns_db.utc_now())).lastrowid
+        conn.commit(); self.run_engine()
+        latest=self.latest(conn)[1]
+        self.assertEqual(latest['state'],'captured'); self.assertEqual(latest['issues'],[])
+        self.assertIn('Unrecognized MakerNotes',latest['warnings'][0]['detail'])
+        self.assertEqual(json.loads(conn.execute('SELECT report_json FROM metadata_captures WHERE capture_id=?',(old,)).fetchone()[0]),report)
 
     def latest(self,conn):
         row=conn.execute('SELECT embedded_json,report_json FROM metadata_captures ORDER BY capture_id DESC LIMIT 1').fetchone()

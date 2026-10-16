@@ -9,6 +9,20 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Retry incomplete photo/XMP imports from photo information, Logs or a selection.
+  Confirmation preserves the original Copy/Move mode; changed catalog state requires
+  a fresh preview, and files are verified before reuse or source removal. Failure details
+  distinguish source and destination paths and show recorded delivery status per file.
+- Setup requires a shared-XMP association choice. Settings exposes association and
+  write defaults, explains metadata priority, and shows that processing changes apply
+  to future jobs while the current job keeps its accepted settings.
+- Metadata-reader warnings, including unrecognized MakerNotes, remain informational
+  and no longer block unchanged Copy/Move. Reader errors and unresolved sidecars still
+  require attention. Reindex refreshes earlier warning-only holds.
+- Rename No capture date to No usable capture date and explain its distinction from
+  source files needing attention. Consolidate repeated date errors and recognize usable
+  XMP dates when EXIF has no Date taken.
+
 - Source views suspend Library-only filters and their pin highlights. Returning to
   Library or Needs review restores the tab's previous choices, including unpinned
   filters; explicit links remain exact and Clear all filters forgets the saved choices.

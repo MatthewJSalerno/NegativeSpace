@@ -1,3 +1,4 @@
+import { FileLocations } from "./ui/FileLocations";
 import { FileIssues } from "./FileIssues";
 import { useDismissedRun } from "../dismissal";
 import { StableContent } from "./ui/StableContent";
@@ -425,8 +426,8 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
                       {op.run_level && op.status === "Failed" && <div><span className="badge">Folder or job</span></div>}
                     </td>
                     <td>
-                      {op.source_path && <div><code>{op.source_path}</code></div>}
-                      {op.dest_path && op.mode !== "SIMILARITY" && <div className="muted">→ <code>{op.dest_path}</code></div>}
+                      <FileLocations source={op.source_path ? [{label:"File",path:op.source_path}] : []}
+                        destination={op.dest_path && op.mode !== "SIMILARITY" ? [{label:"File",path:op.dest_path}] : []} />
                       {op.photo_id != null && (
                         <div className="row-links">
                           <a href={photoUrl(op.photo_id)} onClick={follow}>Photo #{op.photo_id}</a>

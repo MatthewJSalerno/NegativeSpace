@@ -35,7 +35,10 @@ with sync_playwright() as p:
         for palette in ('cool','warm'):
             page.get_by_role('button', name='Settings', exact=True).click()
             panel = page.locator('.modal-shell > .settings')
-            expect(panel.locator('section').first).to_have_class('appearance-settings')
+            expect(panel.get_by_role('tab', name='Appearance', exact=True)).to_have_attribute('aria-selected', 'true')
+            appearance = panel.get_by_role('tabpanel', name='Appearance', exact=True)
+            expect(appearance).to_be_visible()
+            expect(appearance.locator('section').first).to_have_class('appearance-settings')
             # In a short window the Files tab, the tallest, scrolls: a cue says there is more
             # below, then above.
             page.set_viewport_size({'width':1600,'height':600})

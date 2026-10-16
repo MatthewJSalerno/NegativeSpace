@@ -36,6 +36,12 @@ Before changing README.md, docs/install.md, docs/user-guide.md or docs/recovery.
 wording, safety claims and screenshots. Record a changed decision there, not in
 agent-specific files.
 
+## Maintainer validation
+
+When requesting manual checks, follow the [validation instructions](tests/README.md#manual-validation-instructions).
+Provide numbered tests, lettered steps and verified searchable filenames for photo-specific
+checks. Do not make the maintainer find a suitable photo or infer it from a source path.
+
 ## Code layout
 
 The engine is the `engine/` package (run as `python -m engine`); the API is `webui/`; the

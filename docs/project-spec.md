@@ -174,15 +174,17 @@ does not restore exact photo bytes or implement whole-job undo.
 Confirmed incoming XMP/Return choices use verified metadata
 jobs; late sidecars beside an already Copied original use the same decision path. Other
 embedded writer formats are explicitly deferred for this release; JPEG EXIF mapped-field
-removal is qualified, and decision/retry UI remains planned. Copy preserves source originals;
+removal is qualified. Confirmed incomplete photo/XMP transfer retry and metadata
+setup/Settings preferences are built and have passed maintainer validation; per-file
+association/primary and incoming-choice screens remain planned. Copy preserves source originals;
 Move can remove originals whose retained photo was embedded-edited only with one explicit
 confirmation for that job and verified image history, hashes, sidecars and a pre-action
 backup. No exact-original-photo reconstruction is promised. Without that consent, those
 sources stay while the remaining Move work proceeds; see the metadata contract.
 
 Metadata field-level before/after history, a batch job identity and verified pre-action
-catalog backups are built for the qualified engine editing paths; their editing UI
-remains unfinished. The fixed engine closeout is tracked in
+catalog backups are built for the qualified engine editing paths. The Date taken editor
+is built and validated; broader field-editing controls remain unfinished. The fixed engine closeout is tracked in
 [TODO.md — Dates and metadata](../TODO.md#dates-and-metadata).
 
 Further gaps between the documented web workflows and what the engine can answer

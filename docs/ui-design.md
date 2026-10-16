@@ -114,6 +114,25 @@ not among search/date/status filters. Refresh comparison is a viewing control. T
 heading carries a labelled **Export filtered log** group; both export formats retain
 all active filters. Shared `page-heading`/`page-actions` rows wrap and align their targets.
 
+File locations share labelled **Source** and **Destination** groups with a token-colored
+hairline and spacing between them (`ui/FileLocations.tsx`). Apply this to information
+panes, retry details and Logs; never leave two adjacent bare paths distinguished only
+by an arrow. Preserve proposed-versus-recorded destination wording. In retry details,
+show the recorded failed step and filenames, followed by the file locations without
+requiring a disclosure. Destination paths are intended locations, not proof of arrival.
+Give each destination file a text status and shared semantic color: green **Verified at
+destination** only for recorded verification; amber **Delivery incomplete — file may be
+partial** when its attempt did not finish; amber **Delivery not confirmed — no recorded
+result** otherwise. Color its path to match. Keep source originals neutral: a failed
+copy does not make the source file damaged. Explain that these are the last job's
+recorded results, not a live check; Retry verifies again. Older records without delivery
+or file/step evidence say so explicitly; never guess from a generic error.
+
+A photo's incomplete-transfer notice shows the latest failure once, without repeating
+the heading or boilerplate around its cause. Earlier attempts stay in photo Logs;
+a log operation shows its own failure. The shared notice links there and offers Retry.
+Confirmation says the retry **resumes** the original Copy or Move.
+
 Inline field/action rows center their contents and wrap without stretching a button
 against multiline supporting text. Confirmation footers use the shared `settings-actions`
 row, including nested confirmations; do not invent an unstyled action container.
@@ -143,7 +162,7 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   similarity counts sets explicitly. Focused selections, set members and job/source
   views retain their own result totals because the sidebar does not count that scope.
 - **Look into is the only place the gallery's filters live** (maintainer, 2026-10-09; no
-  chip row above the photos): Has similar photos, Suspicious dates, No capture date,
+  chip row above the photos): Has similar photos, Suspicious dates, No usable capture date,
   Small images, Review later and Files needing verification. Source import issues have a separate
   **Needs attention** child link under Not organized, beside Source folders, with a whole
   source-attention count (including zero) on every screen. It opens the full attention
@@ -198,8 +217,8 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   and two columns of controls before the photos crowded the gallery.
 - **Date scrubber** (`YearScrubber.tsx`), down the gallery's right edge and in view as it
   scrolls, while the gallery is sorted by date (not in Show only selected, a review, or
-  grouped similar photos, or while **No capture date** is active, including pinned
-  combinations). Clearing No capture date restores it when the sort allows it.
+  grouped similar photos, or while **No usable capture date** is active, including pinned
+  combinations). Clearing No usable capture date restores it when the sort allows it.
   Keep its empty gutter to prevent gallery reflow; no year controls remain focusable.
   This changes presentation only, not dates, ordering or filing. Otherwise its column
   stays while it loads or a filter leaves one year,
@@ -408,8 +427,8 @@ Photos with no qualifying recorded match are excluded; incomplete comparisons an
 unavailable hashes are reported separately, not presented as proof of uniqueness.
 
 Keep the same card geometry and shared summary row in All photos, Has similar
-photos and No capture date. Match badges must not add a metadata row to cards.
-Use the same active-view surface for No capture date. Its filter has no adjacent
+photos and No usable capture date. Match badges must not add a metadata row to cards.
+Use the same active-view surface for No usable capture date. Its filter has no adjacent
 information icon. Put long filter descriptions
 and count-scope explanations in shared help, keeping filter-reset/selection actions
 visible. Similarity controls and essential below-90% guidance may wrap at smaller
@@ -619,12 +638,15 @@ selection before saving. It keeps drafts, marks affected fields, describes their
 errors and focuses the first invalid control. Server errors remain visible. Success
 uses a polite status, not an urgent alert. Loading failures offer an explicit retry.
 
-Planned Settings active-job notice: use the shared neutral informational treatment near
+Settings active-job notice: use the shared neutral informational treatment near
 the top, outside tab panels, to explain that saved processing settings affect future
 jobs only. It is not an error, requires no dismissal, and does not disable Save. Keep
-job-active/idle explanations in a shared stable-content area so background completion
+job-active/idle/unknown explanations in a shared stable-content area so background completion
 cannot move form controls. Preserve the immediate behavior of appearance and review
-reminders and the clarification near Save (`webui-spec.md` §3).
+reminders/access and the clarification near Save (`webui-spec.md` §3). Use the shared
+job feed without reloading form drafts or adding a separate poll. Setup and Settings use
+the same metadata preference controls and visible read-priority guidance. First run marks
+the shared-sidecar choice required; unsupported embedded writers remain visibly unavailable.
 
 Warnings that require user action must have a working resolution path. Say what is
 affected, what the user can do, and provide the action or a direct link to the
@@ -690,7 +712,7 @@ year ahead of the current UTC year. Setup and Settings › Files offer this year
 1999 and earlier. Allow for older scans and family photos. This is a
 conservative review heuristic, not proof of an error. It includes EXIF-derived dates
 and file-modification fallbacks, with their source identified in the Inspector and
-comparison pane. Missing dates remain covered by No capture date; raw malformed or
+comparison pane. Missing dates remain covered by No usable capture date; raw malformed or
 conflicting EXIF tags are outside this first policy. Never infer an offset or replace
 a recorded value. Legitimate historical material may still be flagged.
 
@@ -714,7 +736,7 @@ percentage, Most matches first and set exploration/comparison. A group's represe
 must belong to the current location/inbox before identical sets collapse.
 
 Grouping is available when Has similar photos is the only explicit filter. Adding
-Suspicious dates, No capture date, Small images, Review later, search, dates or
+Suspicious dates, No usable capture date, Small images, Review later, search, dates or
 file types shows every photo satisfying all active filters individually. Leave the
 checkbox visible, unchecked and disabled, with a visible explanation and description
 relationship: clear the other filters to group. Clearing them restores the user's
@@ -892,7 +914,7 @@ the detailed dimensions and configured rule in the Inspector and review workspac
 The short card reason also exposes that rule through shared `Tip` help on hover,
 keyboard focus or the information button.
 
-Keep **Small images** beside **No capture date** as a filter toggle in Library and
+Keep **Small images** beside **No usable capture date** as a filter toggle in Library and
 Needs review. It preserves location, search, pinned filters and checkbox selection.
 **Inspect photo…** opens the dedicated review workspace; filtering never opens it.
 
@@ -1040,6 +1062,17 @@ photo and position in the review queue. This is navigation, not a photo action.
 
 ## Uncertain file outcomes
 
+Incomplete photo/XMP imports use the same issue placement but a distinct action:
+**Photo/XMP transfer incomplete**, recorded reason, then **Retry photo/XMP transfers**.
+The shared dialog serves Inspector, Logs and eligible selections, showing recorded
+paths on demand and blocked reasons. Confirm original Copy and Move groups separately;
+never silently switch mode. Explain external correction and verification before
+source deletion. Keep the dialog outside responsive panes so resizing cannot discard
+its confirmation. Use shared Modal, ConfirmDialog, Pager and action styles; Cancel is
+initially focused in the confirmation. Busy jobs disable retry with a reason.
+A successful submission closes the dialog and follows normal job reporting; only
+verified completion clears the issue. Uncertain submissions preserve their request ID.
+
 Use one shared Files needing verification panel in the Inspector, the affected Logs operation and
 Photo Review. It shows **File needs checking**, the recorded reason, expandable
 **Recorded evidence**, and **Check it now**. Explain that the check updates the catalog
@@ -1171,13 +1204,31 @@ catalog snapshots; it does not reread files or imply destination verification.
 of that same photo. The shared modal preserves drafts across responsive layout changes,
 validates calendar components, previews date/refiling and submits one verified engine job.
 Unsupported writer values stop at preview; completed/failed jobs link to Logs.
-**Pending:** primary changes, setup guidance and decision/retry controls.
+**Built:** shared metadata guidance/preferences in setup and Settings, with a stable
+live job notice. Incomplete first-import photo/XMP pairs have a separate confirmed retry.
+**Pending:** per-file ownership/primary changes and incoming-alternative decision controls.
 The engine's broader composition
 and earlier-state reproduction capabilities remain built; exposing their general field
 controls is deferred. Before merge, reconcile specs, backlog, validation evidence and
 private handoff with implemented behavior and explicit remaining scope.
 
 ### Source metadata attention
+
+**Needs attention** identifies a blocker to organizing a source photo. **No usable
+capture date** describes its filing date; missing dates alone do not block Copy/Move.
+A photo can appear in both. Show its specific date problem once in the source-attention
+notice, with the Date taken row referring to it instead of repeating a generic missing
+EXIF message. Group identical issues while retaining all affected file paths. Review
+concerns use the effective filing date from any supported metadata source, not EXIF
+presence alone. Do not invent a second problem for a usable XMP date.
+
+Reader warnings such as unrecognized MakerNotes are informational **Metadata notes**,
+not source-attention holds. Show a plain-language explanation once in the Metadata
+viewer and retain the exact diagnostic under Technical details. State that these notes
+alone do not prevent Copy/Move; transferring preserves original metadata bytes. Unknown
+warning text stays available without claiming corruption or asking for unnecessary repair.
+Actual reader errors, unstable files and unresolved/unreadable sidecar associations keep
+their blocking guidance. Embedded-edit preservation checks remain separate from import.
 
 A latest Index metadata issue on a Not organized photo gets a visible **Needs attention
 · Metadata** card control opening Photo information. A shared notice at the top names

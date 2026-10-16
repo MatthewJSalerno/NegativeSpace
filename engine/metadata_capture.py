@@ -14,7 +14,7 @@ import stat
 from engine import fileinfo, metadata_adapter, metadata_gps, xmp
 from engine.metadata import MetadataSource
 
-VERSION = 2
+VERSION = 3
 _EXIF_KEYS = set(metadata_adapter._EMBEDDED) | metadata_adapter.GPS_KEYS | {
     'ExifIFD:DateTimeOriginal', 'ExifIFD:SubSecTimeOriginal', 'ExifIFD:OffsetTimeOriginal'}
 _XMP_KEYS = {'XMP-exif:DateTimeOriginal': 'date_taken', 'XMP-tiff:Make': 'camera_make',
@@ -159,9 +159,14 @@ def capture_photo(root, relative_name, expected_size, expected_mtime, previous=N
                 tags = {k:v for k,v in records[0].items()
                         if ':' in k and k.split(':')[0] not in ('File', 'System', 'SourceFile')}
                 result = interpret(tags)
+                # Reader warnings describe metadata we may not understand, not an
+                # inability to transfer the original bytes. Keep errors blocking.
+                result['warnings'] = []
                 for key, value in tags.items():
-                    if key.startswith('ExifTool:') and key.endswith((':Error', ':Warning')):
-                        result['issues'].append({'source': 'photo', 'code': 'embedded_reader_warning', 'detail': str(value)})
+                    if key.startswith('ExifTool:') and key.endswith(':Warning'):
+                        result['warnings'].append({'source': 'photo', 'code': 'embedded_reader_warning', 'detail': str(value)})
+                    elif key.startswith('ExifTool:') and key.endswith(':Error'):
+                        result['issues'].append({'source': 'photo', 'code': 'embedded_reader_error', 'detail': str(value)})
                 result['signature'] = signature(info)
         return result
     except Exception as exc:

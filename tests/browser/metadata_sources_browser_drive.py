@@ -82,6 +82,32 @@ with sync_playwright() as p:
         expect(viewer.get_by_role('tab',name='XMP Sidecar Primary')).to_be_visible()
         viewer.scroll_into_view_if_needed()
         if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+f'/metadata-sources-{width}.png')
+    # Informational reader notes are not source-attention failures or repeated
+    # under every source tab. Technical wording stays available on request.
+    noted=copy.deepcopy(before)
+    noted['warnings']=[{'code':'embedded_reader_warning','reason':'Some camera-specific metadata (MakerNotes) could not be interpreted.',
+                        'detail':'[minor] Unrecognized MakerNotes'}]
+    pattern=f'**/api/v1/photos/{pid}/metadata'
+    page.route(pattern,lambda route:route.fulfill(json=noted))
+    page.reload()
+    notes=viewer.get_by_role('region',name='Metadata notes',exact=True)
+    expect(notes).to_contain_text('These notes alone do not prevent Copy or Move.')
+    expect(viewer).not_to_contain_text('Metadata needs attention:')
+    expect(notes.get_by_text('[minor] Unrecognized MakerNotes',exact=True)).not_to_be_visible()
+    notes.get_by_text('Technical details',exact=True).click()
+    expect(notes.get_by_text('[minor] Unrecognized MakerNotes',exact=True)).to_be_visible()
+    for width,height in ((1440,1000),(720,500),(640,1000)):
+        page.set_viewport_size({'width':width,'height':height})
+        # The responsive Inspector remounts when crossing its modal breakpoint.
+        page.reload()
+        expect(notes).to_be_visible()
+        notes.get_by_text('Technical details',exact=True).click()
+        notes.scroll_into_view_if_needed()
+        assert notes.evaluate('(e)=>e.scrollWidth<=e.clientWidth+1')
+        if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+f'/metadata-notes-{width}.png')
+    viewer.get_by_role('tab',name='EXIF',exact=True).click()
+    expect(viewer.get_by_role('region',name='Metadata notes',exact=True)).to_have_count(1)
+    page.unroute(pattern)
     # A failed read is explicit and retry restores the viewer without a write.
     page.route(f'**/api/v1/photos/{pid}/metadata',lambda route:route.fulfill(status=503,content_type='application/json',body='{"detail":{"message":"Generated read failure"}}'))
     page.reload()
@@ -188,6 +214,34 @@ with sync_playwright() as p:
                 expect(viewer.get_by_role('combobox',name='Sidecar version',exact=True)).to_have_count(0)
             if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+f'/metadata-stable-{width}-{tab.split()[0]}.png')
     page.unroute(f'**/api/v1/photos/{pid}/metadata')
+    # A usable XMP filing date is not a missing-date concern when EXIF has none.
+    info=request.get(f'/api/v1/photos/{pid}/inspect').json()
+    info.update(exif_dates=[],date_source='xmp',date_taken='2021-02-03T04:05:06',date_warning=None)
+    inspect_pattern=f'**/api/v1/photos/{pid}/inspect'
+    page.route(inspect_pattern,lambda route:route.fulfill(json=info))
+    page.set_viewport_size({'width':1440,'height':1000})
+    page.goto(base+f'/?view=organized&photo={pid}')
+    inspector=page.locator('.inspector')
+    expect(inspector).to_contain_text('Filing date from XMP')
+    expect(inspector.get_by_text('No usable capture date',exact=True)).to_have_count(0)
+    # Source attention supplies one date explanation; the file row refers to it.
+    info.update(status='Pending',date_source='file_mtime',date_taken='2020-01-01T00:00:00',
+        metadata_attention={'issues':[{'code':'invalid_date_taken','reason':'The recorded Date taken is invalid.',
+                            'files':['generated.jpg'],'detail':None}],
+                            'action':'Correct the source date, then run Index again.'})
+    page.goto(base+f'/?view=unorganized&photo={pid}')
+    notice=inspector.get_by_role('region',name='Metadata needs attention',exact=True)
+    expect(notice).to_contain_text('Needs attention before organizing')
+    expect(inspector.get_by_text('The recorded Date taken is invalid.',exact=True)).to_have_count(1)
+    expect(inspector).to_contain_text('See the date issue above.')
+    expect(inspector).not_to_contain_text('No date taken is recorded')
+    expect(inspector).not_to_contain_text('no EXIF date taken')
+    for width,height in ((1440,1000),(720,500)):
+        page.set_viewport_size({'width':width,'height':height});page.reload()
+        expect(notice).to_be_visible()
+        assert notice.evaluate('(e)=>e.scrollWidth<=e.clientWidth+1')
+        if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+f'/date-attention-{width}.png')
+    page.unroute(inspect_pattern)
     assert request.get(f'/api/v1/photos/{pid}/metadata').json()==before
     assert not errors,errors
     browser.close()

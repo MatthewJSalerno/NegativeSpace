@@ -16,10 +16,10 @@ def for_operations(conn, ids):
     if not ids:
         return {}
     result = {}
-    for row in conn.execute("SELECT issue_id,operation_id,summary,opened_at FROM attention_issues "
-                            "WHERE resolved_at IS NULL AND category='unestablished_outcome' "
+    for row in conn.execute("SELECT issue_id,operation_id,summary,opened_at,category FROM attention_issues "
+                            "WHERE resolved_at IS NULL AND category IN ('unestablished_outcome','metadata_pair_incomplete') "
                             "AND operation_id IN (SELECT value FROM json_each(?)) ORDER BY issue_id", (json.dumps(ids),)):
-        issue = dict(zip(('issue_id','operation_id','summary','opened_at'), row))
+        issue = dict(zip(('issue_id','operation_id','summary','opened_at','category'), row))
         issue['evidence'] = [dict(zip(('location','path','kind','result','observed_at','details'), e)) for e in conn.execute(
             "SELECT e.location_role,e.observed_path,e.observation_kind,e.result,e.observed_at,e.details_json "
             "FROM operation_evidence e WHERE e.operation_id=? OR e.evidence_id IN "

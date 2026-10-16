@@ -1001,6 +1001,13 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
                     raise SelectionRefused(
                         f"{len(selection) - held:,} of the {len(selection):,} selected photos are no longer "
                         f"catalogued in this source. Nothing was changed; choose the photos again.")
+            if (submitted or {}).get('pair_retry_token'):
+                from engine import pair_retry
+                try:
+                    pair_retry.check(conn, submitted['pair_retry_token'], source=source, destination=destination,
+                                     photo_ids=selection, mode=mode.lower())
+                except ValueError as exc:
+                    raise SelectionRefused(str(exc)) from exc
             previewed_transfer = mode in ('MOVE', 'COPY') and (submitted or {}).get('move_preview_token')
             if previewed_transfer:
                 from engine import move_confirmation

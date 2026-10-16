@@ -45,6 +45,9 @@ jobs:
       - name: Build image
         run: docker build -f docker/app.Dockerfile -t negativespace .
 
+      - name: Incomplete photo and XMP retry
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p pair_retry_test.py -v
+
       - name: Move confirmation API and engine
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p move_confirmation_test.py -v
 
@@ -356,6 +359,12 @@ jobs:
 
       - name: Date editing in a browser
         run: METADATA_VIEW_FIXTURE=1 DRIVER=metadata_dates_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Incomplete photo and XMP retry browser
+        run: PAIR_RETRY_FIXTURE=1 DRIVER=pair_retry_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Metadata setup and frozen settings in browser
+        run: METADATA_SETTINGS_FIXTURE=1 DRIVER=metadata_settings_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Move confirmation browser
         run: MOVE_CONFIRMATION_FIXTURE=1 DRIVER=move_confirmation_browser_drive.py sh tests/browser/webui_browser_test.sh

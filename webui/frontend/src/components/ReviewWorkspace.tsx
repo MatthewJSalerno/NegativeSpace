@@ -1,3 +1,4 @@
+import { captureDateMessage } from "../photoDates";
 import { FileIssues } from "./FileIssues";
 import { follow } from "../nav";
 import { SimilarityRecovery } from "./SimilarityRecovery";
@@ -94,7 +95,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
         <FileIssues key={photo.id} photoId={photo.id} initialIssues={photo.issues ?? []} onResolved={()=>changed("File issue resolved.")} />
         <ReviewNote key={photo.id} id={photo.id} refreshKey={revision} reason={filters.reason} disabled={!!jobs.active} onBusy={setBusy} onResolved={changed}
           concerns={photo.date_warning ? [{label:"Suspicious date",message:`${photo.date_taken ?? "Unknown date"}. ${photo.date_warning} Date correction is available in the photo information pane under Metadata sources.`}]
-            : !photo.exif_dates?.some(d => d.field === "taken") ? [{label:"No capture date",message:"No date taken is recorded in the photo’s EXIF. Date correction is available in the photo information pane under Metadata sources."}] : []}
+            : captureDateMessage(photo) ? [{label:"No usable capture date",message:captureDateMessage(photo)!}] : []}
           actions={["Completed","Copied","Found_At_Destination"].includes(photo.status) && <button disabled={busy||!!jobs.active} title={jobs.active ? "Wait for the running job to finish." : "Moves this photo to Rejects after confirmation."} onClick={()=>setConfirm(transferConfirm("reject",status,[photo.id],async()=>{
             const run=await api.startJob({mode:"reject",file_ids:[photo.id]});if (run.id == null) throw new Error("The Reject job was not accepted. Reload before trying again."); setRejectRun({run:run.id,photo:photo.id});setBusy(true);
           },undefined,photo.filename))}>Reject…</button>} />

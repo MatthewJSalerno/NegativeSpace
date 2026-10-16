@@ -297,6 +297,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     return () => { live = false; };
   }, [refreshKey]);
   // What each action would take of the selection, for the selection bar.
+  const [pairRetryCount, setPairRetryCount] = useState(0);
   const [selectionActions, setSelectionActions] = useState<SelectionCounts>(NO_ACTIONS);
   const [dismissedId, dismissRun, dismissal] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
@@ -396,9 +397,9 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   useEffect(() => {
     let live = true;
     const ids = [...selected];
-    if (ids.length === 0) setSelectionActions(NO_ACTIONS);
+    if (ids.length === 0) { setSelectionActions(NO_ACTIONS); setPairRetryCount(0); }
     else api.selection(ids, "newest", 1, 1, galleryMinimum)
-      .then((s) => live && setSelectionActions(s.actions ?? NO_ACTIONS), () => live && setSelectionActions(NO_ACTIONS));
+      .then((s) => { if(live) { setSelectionActions(s.actions ?? NO_ACTIONS); setPairRetryCount(s.pair_retries ?? 0); } }, () => { if(live) { setSelectionActions(NO_ACTIONS); setPairRetryCount(0); } });
     return () => { live = false; };
   }, [selected, galleryMinimum, refreshKey]);
   useEffect(() => {
@@ -811,7 +812,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   // and recalculate when the window resizes.
   // The date scrubber, beside the gallery while it is sorted by date: the timeline under the
   // date filter when one is on, as a jump uses. Its column stays while the timeline loads or
-  // a filter leaves one year. No capture date hides it because file-timestamp years
+  // a filter leaves one year. No usable capture date hides it because file-timestamp years
   // do not describe capture dates; retain the gutter so controls and cards stay put.
   const scrubTimeline = dates.length ? jumpTimeline : timeline;
   const scrubber = !focus && !grouped && (browseSort === "newest" || browseSort === "oldest");
@@ -1018,7 +1019,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               onIndex={start("index")}
               onTransfer={(mode, scope) => (scope === "folder" ? askFolder(mode) : askTransfer(mode))} />}
       selection={selected.size > 0 ? (
-        <SelectionBar capacity={status.photos} selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
+        <SelectionBar pairRetryIds={[...selected]} pairRetryCount={pairRetryCount} capacity={status.photos} selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
                       counts={selectionActions} place={place} jobRunning={jobRunning} search={searchField} onAction={transferSelected}
                       onShowSelected={showSelected} onBack={backToResults} onClear={clearSelection} />
       ) : undefined}
@@ -1045,7 +1046,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           <div className="gallery-context">
             {!focus && <h2>{sourceTree && folderShown ? folderLabel(folderShown.path) : sourceTree ? "Source folders" : VIEW_LABEL[view]}</h2>}
             {!focus && (undated || dates.length > 0 || types.length > 0 || (folders.length > 0 && !sourceTree) || !!q || similar || suspicious || reason !== "all" || pins.length > 0) && <p className="section-note">
-              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No capture date", reason === "small" && "Small images", reason === "later" && "Review later", reason === "issues" && "Files needing verification", reason === "attention" && "Needs attention", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
+              {[similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No usable capture date", reason === "small" && "Small images", reason === "later" && "Review later", reason === "issues" && "Files needing verification", reason === "attention" && "Needs attention", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
             </p>}
             <span className="gallery-tools">
               <FiltersButton active={filtersActive} open={filtersOpen && !focus} onOpen={setFiltersOpen} disabled={!!focus}>
@@ -1148,7 +1149,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               <div><dt>Additional identical copies</dt><dd>{count(data.index_summary.duplicates)}</dd></div>
               <div><dt>Small images</dt><dd>{data.index_summary.minimum == null ? "Rule disabled" : `${count(data.index_summary.small)} below ${count(data.index_summary.minimum)} pixels on the shorter side`}</dd></div>
               <div><dt>Suspicious dates</dt><dd>{count(data.index_summary.suspicious)}</dd></div>
-              <div><dt>No capture date</dt><dd>{count(data.index_summary.undated)}</dd></div>
+              <div><dt>No usable capture date</dt><dd>{count(data.index_summary.undated)}</dd></div>
               <div><dt><Tip text="No usable width and height were recorded. The format may be unsupported, the file may be unreadable, or processing may be incomplete. This alone does not mean the file is damaged or is not a photo. These files are not counted as small images.">Image size unavailable</Tip></dt><dd>{count(data.index_summary.unknown_dimensions)}</dd></div>
               <div><dt>Files needing attention</dt><dd><a href="/?view=unorganized&reason=attention" onClick={follow} aria-label={`View ${plural(indexAttentionCount, "file")} needing attention`}>{count(indexAttentionCount)}</a></dd></div>
               {data.index_summary.unfinished > 0 && <div><dt>Unfinished processing</dt><dd>{count(data.index_summary.unfinished)}</dd></div>}
@@ -1173,7 +1174,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           <div className="gallery-summary">
             <div className="gallery-filter-summary">
               {resultCount && <span className="gallery-filters">
-                {!focus && hasResultFilters ? <Tip text={`Only ${[...folders.map(folderLabel), ...dates.map(dateLabel), ...types.map(typeLabel), ...(q ? [`filenames matching “${q}”`] : []), ...(undated ? ["photos without a capture date"] : []), ...(similar ? ["photos with similar photos"] : []), ...(suspicious ? ["suspicious dates"] : []), ...(reason !== "all" ? [(reasonLabels[reason as keyof typeof reasonLabels] ?? reason).toLowerCase()] : [])].join(", ")}`}>
+                {!focus && hasResultFilters ? <Tip text={`Only ${[...folders.map(folderLabel), ...dates.map(dateLabel), ...types.map(typeLabel), ...(q ? [`filenames matching “${q}”`] : []), ...(undated ? ["photos without a usable capture date"] : []), ...(similar ? ["photos with similar photos"] : []), ...(suspicious ? ["suspicious dates"] : []), ...(reason !== "all" ? [(reasonLabels[reason as keyof typeof reasonLabels] ?? reason).toLowerCase()] : [])].join(", ")}`}>
                   <span className="gallery-result-count">{resultCount}</span>
                 </Tip> : <span className="gallery-result-count">{resultCount}</span>}
                 {!focus && hasResultFilters && data && data.total > 0 && (
@@ -1209,8 +1210,11 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             {" "}{plural(data.similarity.unavailable, "photo without a usable visual hash", "photos without a usable visual hash")}.
           </p>}
           {!focus && <StableContent id="gallery-guidance" className="gallery-guidance" active={suspicious ? (similar && hasAdditionalFilters ? "filtered-dates" : "dates")
-           : grouped ? "groups" : similar && hasAdditionalFilters ? "filtered" : "browse"} variants={{
+           : reason === "attention" ? (undated ? "attention-undated" : "attention") : undated ? "undated" : grouped ? "groups" : similar && hasAdditionalFilters ? "filtered" : "browse"} variants={{
            browse: <p className="section-note">Filters narrow the gallery. Checkboxes select photos for actions.</p>,
+           undated: <p className="section-note">No complete date is available for filing. Missing dates alone do not prevent Copy or Move.</p>,
+           attention: <p className="section-note">These source files have an issue that prevents organizing them. Open a file for the specific reason.</p>,
+           "attention-undated": <p className="section-note">These photos lack a usable filing date and have an issue preventing organization. Open a photo for the specific reason; appearing in both lists does not mean two separate problems.</p>,
            dates: <p className="section-note">Date review: before {data?.date_min_year ?? "your earliest expected year"} or more than one year ahead. Dates are unchanged. <button className="link" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>,
            groups: <p className="section-note">Identical sets appear once; partially overlapping sets remain separate. Set members come from the full destination library. Checkboxes select only the reference photo. Turn grouping off to see every photo.</p>,
            filtered: <p className="section-note">Showing every photo that matches all active filters. Clear the other filters to group similar photos.</p>,

@@ -105,6 +105,7 @@ with sync_playwright() as p:
             expect(page.get_by_role("button", name="Back", exact=True)).to_have_count(0)
         if n == 2:
             page.get_by_label("Small-image reminders (required)", exact=True).select_option("off")
+            page.get_by_label('When an XMP sidecar matches multiple photos',exact=False).select_option('ask')
             # Next checks only this step: with no file type it stays, and says why.
             boxes = page.locator("#settings-exts input[type=checkbox]")
             ticked = [i for i in range(boxes.count()) if boxes.nth(i).is_checked()]
@@ -326,7 +327,8 @@ with sync_playwright() as p:
     # The file's time says what it is for, briefly; how it was recorded is on hover.
     expect(inspector.locator(".row-tip", has_text="File modified")).to_have_attribute(
         "title", "As recorded when NegativeSpace first indexed this file.")
-    expect(inspector).to_contain_text("* Files it under Undated: no EXIF date taken.")
+    expect(inspector).to_contain_text("File modification year is used for Undated filing.")
+    expect(inspector).not_to_contain_text("no EXIF date taken")
     # History, in a section of its own near the top, with the latest events.
     history = inspector.locator(".photo-history")
     expect(history).to_contain_text("Indexed")
@@ -696,7 +698,7 @@ with sync_playwright() as p:
                 re.search(r"([\d,]+) of ([\d,]+)", organized.locator(".tile-sub").inner_text()).groups())
     shown = organized.locator(".tile-value").inner_text()
     assert (shown == "100%") == (done == of) and (shown == "0%") == (done == 0), f"Organized {shown} for {done} of {of}"
-    undated_tile = tile("No capture date")
+    undated_tile = tile("No usable capture date")
     expect(undated_tile).to_have_attribute("href", "/?view=all&undated=1")
     expect(page.locator(".stat-panel h3")).to_have_count(6)
     expect(page.locator(".stat-panel", has_text="Duplicates")).to_contain_text("Extra copies")
@@ -749,7 +751,7 @@ with sync_playwright() as p:
     expect(page.get_by_role("dialog")).to_have_count(0)
 
     # The quick filter for photos with no capture date in their EXIF.
-    undated_filter = page.get_by_role("button", name=re.compile(r"^No capture date"))
+    undated_filter = page.get_by_role("button", name=re.compile(r"^No usable capture date"))
     expect(undated_filter.locator(".sidebar-count")).to_have_text(f"{PHOTOS - 2:,}")
     library = place_count(page, "Library").inner_text()
     labels = page.get_by_role("navigation", name="Main").locator("a > span:first-child")

@@ -1,3 +1,5 @@
+import { blockingDateIssue, captureDateMessage } from "../photoDates";
+import { FileLocations } from "./ui/FileLocations";
 import { FileIssues } from "./FileIssues";
 import { ReviewNote } from "./ReviewNote";
 import { TabList, tabPanel } from "./ui/Tabs";
@@ -247,7 +249,7 @@ export function Inspector({ id, statusHint, sourceView = false, width, onClose, 
             {detail && activeTab === "information" && <Details onMetadata={openMetadata} onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
               review={inLibrary ? <ReviewNote key={`review:${id}`} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto}
                 concerns={detail.date_warning ? [{label:"Suspicious date",message:`${detail.date_warning} Recorded value: ${detail.date_taken}. Source: ${isFallbackDate(detail.date_source) ? "file modification fallback" : detail.date_source === "exif" ? "photo EXIF" : detail.date_source ?? "unknown"}. Use Edit date or the Metadata tab to correct the date.`}]
-                  : !detail.exif_dates?.some(d => d.field === "taken") ? [{label:"No capture date",message:"No date taken is recorded in the photo’s EXIF."}] : []}
+                  : captureDateMessage(detail) ? [{label:"No usable capture date",message:captureDateMessage(detail)!}] : []}
                 actions={IN_LIBRARY.includes(detail.status) && onReject
                   ? <button onClick={() => onReject(detail.filename)} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Move this photo to Rejects. Nothing is deleted."}>Reject…</button>
                   : null} /> : IN_REJECTS.includes(detail.status) && onReturn ? <div className="photo-actions"><button onClick={onReturn} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined}>Return to library…</button></div> : null} />}
@@ -323,8 +325,8 @@ function Details({ detail: d, onLineage, refreshKey, review, jobRunning, onEdit,
     <div className="inspector-body">
       <FileIssues key={`issues:${d.id}`} photoId={d.id} initialIssues={d.issues ?? []} />
       {d.metadata_attention && <section className="notice" aria-label="Metadata needs attention">
-        <strong>Metadata needs attention</strong>
-        <p>This photo has not been organized. The photo and associated sidecars remain at source.</p>
+        <strong>Needs attention before organizing</strong>
+        <p>The issue below prevents organizing this photo. The photo and associated sidecars remain at source.</p>
         {d.metadata_attention.issues.map((issue, i) => <div key={i}>
           <p>{issue.reason}</p>
           {issue.files.map(file => <p key={file}>File relative to your source folder:<br /><code>{file}</code></p>)}
@@ -341,22 +343,21 @@ function Details({ detail: d, onLineage, refreshKey, review, jobRunning, onEdit,
         <Row label="Status">{STATUS[d.status] ?? d.status}</Row>
         <Row label="Format">{d.filename.includes(".") ? d.filename.split(".").pop()!.toUpperCase() : "Not recorded"}</Row>
         <Row label="Date taken">
-          {fallback || !d.date_taken ? "Undated — no complete filing date" : d.date_taken.replace("T", " ")}
+          {fallback || !d.date_taken ? (blockingDateIssue(d) ? "See the date issue above." : "No usable capture date") : d.date_taken.replace("T", " ")}
           <div className="muted">{fallback ? "File modification year is used for Undated filing." : d.date_source === "exif" ? "Filing date from EXIF" : d.date_source === "xmp" ? "Filing date from XMP" : "Filing date source not recorded"}</div>
           <div className="history-links"><button className="link" onClick={onMetadata}>View metadata</button>
             {IN_LIBRARY.includes(d.status) && <button className="link" disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined} onClick={() => onEdit()}>Edit metadata date…</button>}</div>
         </Row>
-        <Row label={d.dest_path_is_projection ? "Proposed destination path" : "Destination path"}>
-          <code>{d.dest_path ?? "—"}</code>
-          {d.dest_path_is_projection && <div className="muted">Not written yet.</div>}
-          {d.has_collision_rename && <div className="muted">Renamed: another file already had this name.</div>}
-        </Row>
-        <Row label="Source path"><code>{d.source_path ?? "—"}</code></Row>
+        <tr><td colSpan={2}><FileLocations
+          source={[{label:"Source path",path:d.source_path ?? "—"}]}
+          destinationLabel={d.dest_path_is_projection ? "Proposed destination" : "Destination"}
+          destination={[{label:d.dest_path_is_projection ? "Proposed destination path" : "Destination path",path:d.dest_path ?? "—",
+            note:<>{d.dest_path_is_projection && <div>Not written yet.</div>}{d.has_collision_rename && <div>Renamed: another file already had this name.</div>}</>}]} />
+        </td></tr>
         <Row label="Size">{bytes(d.file_size)}{d.width && d.height ? ` · ${d.width} × ${d.height}` : ""}</Row>
         <Row label={<span className="row-tip" title="As recorded when NegativeSpace first indexed this file.">
                       File modified <span aria-hidden="true">ⓘ</span></span>}>
           {epoch(d.file_modified)}
-          {fallback && <div className="muted">* Files it under Undated: no EXIF date taken.</div>}
         </Row>
       </Section>
 
@@ -373,10 +374,8 @@ function Details({ detail: d, onLineage, refreshKey, review, jobRunning, onEdit,
             {d.duplicates.map((c) => (
               <li key={c.id}>
                 <span className="badge">{STATUS[c.status] ?? c.status}</span>
-                <code>{c.source_path}</code>
-                {c.status === "Duplicate" && c.dest_path && (
-                  <div className="muted">Its content is recorded at <code>{c.dest_path}</code> (from the catalog, not re-checked).</div>
-                )}
+                <FileLocations source={[{label:"Photo",path:c.source_path ?? "—"}]}
+                  destination={c.status === "Duplicate" && c.dest_path ? [{label:"Recorded content",path:c.dest_path,note:"From the catalog, not re-checked."}] : []} />
               </li>
             ))}
           </ul>

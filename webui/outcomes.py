@@ -184,6 +184,9 @@ def _run_dict(conn, row) -> dict:
     run["progress"] = ns_db.read_progress(conn, run["id"])
     run["outcome"] = _outcome(conn, run, run["progress"])
     run["questions"] = safety_questions(conn, run)
+    if "network_destination" in run["questions"]:
+        prior = conn.execute("SELECT submitted_request_json FROM job_requests WHERE run_id=?", (run["id"],)).fetchone()
+        run["same_mode_retry"] = bool(prior and (json.loads(prior[0]).get("submitted") or {}).get("pair_retry_token"))
     return run
 
 

@@ -14,7 +14,7 @@ from typing import List
 
 from engine.ns_db import PhotoStatus, RunStatus, SUPPORTED_EXTENSIONS
 from engine import (
-    backups, constants, deps, destinations, maintenance, metadata_index, move_confirmation, ns_db, ns_similarity, reconcile,
+    backups, constants, deps, destinations, maintenance, metadata_index, move_confirmation, pair_retry, ns_db, ns_similarity, reconcile,
     relocate, runtime, scan, store, targeting, thumbnails, transfer, workers)
 
 
@@ -203,7 +203,13 @@ def main():
                         help='With --move and --request-id: confirm removal of selected source originals whose Library copies have verified embedded edits. Applies only to this job; exact original photo bytes are not retained.')
     parser.add_argument('--move-preview-token', default=None,
                         help='With --move or its --copy alternative, --file-ids-from and --request-id: refuse a changed Move confirmation snapshot before processing files.')
+    parser.add_argument('--pair-retry-token', default=None,
+                        help='With --copy or --move, --file-ids-from and --request-id: retry only the confirmed incomplete photo/XMP transfers.')
     args = parser.parse_args()
+    if args.pair_retry_token is not None:
+        if (not (args.move or args.copy) or not args.file_ids_from or not args.request_id or
+                len(args.pair_retry_token) != 64 or any(c not in '0123456789abcdef' for c in args.pair_retry_token)):
+            parser.error('--pair-retry-token requires Copy/Move, a selection file, request ID and SHA-256 token.')
     if args.move_preview_token is not None:
         if (not (args.move or args.copy) or not args.file_ids_from or not args.request_id or
                 len(args.move_preview_token) != 64 or any(c not in '0123456789abcdef' for c in args.move_preview_token)):
@@ -453,6 +459,8 @@ def main():
                  "confirm_edited_sources": args.confirm_edited_sources,
                  "thumbnails": not args.no_thumbnails,
                  "cache": str(Path(args.cache).resolve())}
+    if args.pair_retry_token is not None:
+        submitted['pair_retry_token'] = args.pair_retry_token
     if args.move_preview_token is not None:
         submitted['move_preview_token'] = args.move_preview_token
     try:
@@ -516,7 +524,15 @@ def main():
             with contextlib.closing(store.get_db_connection(str(db_path))) as conn:
                 move_confirmation.check(conn, args.move_preview_token, source=source_path,
                                         destination=dest_path, photo_ids=args.file_ids)
+        if args.pair_retry_token is not None:
+            with contextlib.closing(store.get_db_connection(str(db_path))) as conn:
+                pair_retry.check(conn, args.pair_retry_token, source=source_path, destination=dest_path,
+                                 photo_ids=args.file_ids, mode='move' if args.move else 'copy')
         reconcile.reconcile_interrupted_state(db_path, run_id)
+        if args.pair_retry_token is not None:
+            with contextlib.closing(store.get_db_connection(str(db_path))) as conn:
+                pair_retry.check(conn, args.pair_retry_token, source=source_path, destination=dest_path,
+                                 photo_ids=args.file_ids, mode='move' if args.move else 'copy')
         if args.move_preview_token is not None:
             with contextlib.closing(store.get_db_connection(str(db_path))) as conn:
                 move_confirmation.check(conn, args.move_preview_token, source=source_path,

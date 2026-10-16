@@ -43,6 +43,14 @@ def inspect(db_path, photo_id):
         sources = receipt.get('sources', report.get('sources', {}))
         primary = receipt.get('primary_id') or receipt.get('resolution', {}).get('proposed_primary')
         issues = list(report.get('issues', [])) if not receipt else []
+        # Notes describe the captured bytes, not a later edited version.
+        warnings = [{**note, 'reason': (
+            'Some camera-specific metadata (MakerNotes) could not be interpreted.'
+            if 'unrecognized makernotes' in note.get('detail', '').lower() else
+            'The metadata reader reported a warning while reading embedded metadata.')}
+            for note in report.get('warnings', [])]
+        if not capture or capture['catalog_sha1'] != photo['sha1_hash']:
+            warnings = []
         recorded_hash = receipt.get('sha1_hash') or (capture['catalog_sha1'] if receipt and capture else None)
         if recorded_hash and recorded_hash != photo['sha1_hash']:
             issues.append({'code':'content_changed', 'detail':'Recorded metadata belongs to an earlier photo version. Review photo history before using it.'})
@@ -103,7 +111,7 @@ def inspect(db_path, photo_id):
                 fields={}, tags={}, available=False, issues=problems))
         if not any(s['kind']=='sidecar_xmp' for s in result):
             result.append(dict(id='xmp:none',kind='sidecar_xmp',label='XMP Sidecar',fields={},tags={},available=False,issues=[]))
-        return dict(photo_id=photo_id, primary_id=primary, sources=result, issues=issues,
+        return dict(photo_id=photo_id, primary_id=primary, sources=result, issues=issues, warnings=warnings,
             recorded=bool(capture or receipt), applied=bool(receipt),
             field_sources=resolution.get('field_sources', {}),
             notice=None if receipt else 'Index observations only; no primary source has been activated.')
@@ -129,10 +137,14 @@ def source_attention(conn, photo_ids):
         AND json_extract(m.report_json,'$.state')='needs_attention'""",
         (json.dumps(photo_ids), *catalog.NOT_ORGANIZED)).fetchall()
     reasons = {
+        'embedded_reader_error': 'The metadata reader could not complete reading this photo. See the recorded error.',
         'malformed_xml': 'The XMP sidecar contains malformed XML.',
         'read_error': 'The source metadata file could not be read. Check its permissions and file type.',
         'size_limit': 'The XMP sidecar exceeds the supported size limit.',
-        'invalid_date_taken': 'A recorded capture date is invalid.',
+        'invalid_date_taken': 'The recorded Date taken is invalid.',
+        'invalid_date_fraction': 'The recorded Date taken has an invalid fractional second.',
+        'invalid_date_offset': 'The recorded Date taken has an invalid time-zone offset.',
+        'date_components_without_date': 'Time details are recorded without a Date taken.',
         'invalid_rating': 'A recorded rating is invalid.',
         'invalid_orientation': 'A recorded orientation is invalid.',
         'repeated_field': 'The XMP sidecar repeats a field that must have a single value.',
@@ -151,7 +163,13 @@ def source_attention(conn, photo_ids):
             paths = ([source[len('sidecar:'):]] if source.startswith('sidecar:') else
                      [s['path'] for s in report.get('sidecars', [])] if source == 'sidecars' else
                      [row['source_relative_path']])
-            problems.append(dict(code=code, reason=reason, files=paths, detail=issue.get('detail')))
+            # Several metadata sources may report the same problem for one file.
+            # Explain the problem once while retaining every affected source path.
+            existing = next((p for p in problems if p['code']==code and p['detail']==issue.get('detail')), None)
+            if existing:
+                existing['files'] = list(dict.fromkeys([*existing['files'], *paths]))
+            else:
+                problems.append(dict(code=code, reason=reason, files=paths, detail=issue.get('detail')))
         result[row['id']] = dict(issues=problems,
             action='Check the listed source files with an external metadata tool. After correcting the metadata or file access, run Index again. You can also leave these files at source until the issue can be resolved.')
     return result
