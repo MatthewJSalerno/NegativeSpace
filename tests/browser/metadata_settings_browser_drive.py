@@ -14,6 +14,8 @@ with sync_playwright() as p:
     errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
     page.goto(sys.argv[1]);page.get_by_role('button',name='Next',exact=True).click()
     page.get_by_label('Small-image reminders',exact=False).select_option('off')
+    page.get_by_role('button',name='Next',exact=True).click()
+    expect(page.locator('.settings-step')).to_have_text('Step 3 of 6 Metadata')
     association=page.get_by_label('When an XMP sidecar matches multiple photos',exact=False)
     expect(association).to_have_value('');expect(association).to_have_attribute('required','')
     page.get_by_role('button',name='Next',exact=True).click()
@@ -33,7 +35,7 @@ with sync_playwright() as p:
     assert original['xmp_association']['revision']==0
     assert original['metadata_write_non_raw']['value']=='embedded'
     metadata=page.get_by_role('region',name='Metadata preferences',exact=True)
-    expect(metadata).to_contain_text('Only a missing field falls through')
+    expect(metadata).to_contain_text('If a field is missing, NegativeSpace checks the next source.')
     for width,zoom in ((1440,1),(1440,2),(640,1)):
         # Browser zoom reduces the CSS viewport; CSS zoom alone does not resize vh.
         page.set_viewport_size({'width':round(width/zoom),'height':round(1000/zoom)})
@@ -62,13 +64,13 @@ with sync_playwright() as p:
     wait(start('index'));page.reload()
     page.get_by_role('button',name='Settings',exact=True).click()
     dialog=page.get_by_role('dialog',name='Settings',exact=True)
-    dialog.get_by_role('tab',name='Files',exact=True).click()
+    dialog.get_by_role('tab',name='Metadata',exact=True).click()
     expect(association).to_have_value('ask')
     association.select_option('non_raw_only')
-    expect(dialog.get_by_role('tab',name='Files')).to_contain_text('Files')
-    expect(dialog.get_by_role('tab',name='Files').get_by_role('img',name='unsaved changes')).to_be_visible()
+    expect(dialog.get_by_role('tab',name='Metadata')).to_contain_text('Metadata')
+    expect(dialog.get_by_role('tab',name='Metadata').get_by_role('img',name='unsaved changes')).to_be_visible()
     dialog.get_by_role('tab',name='Performance',exact=True).click()
-    dialog.get_by_role('tab',name='Files').click()
+    dialog.get_by_role('tab',name='Metadata').click()
     expect(association).to_have_value('non_raw_only')
     dialog.get_by_role('button',name='Reset',exact=True).click()
     expect(association).to_have_value('ask')
@@ -93,7 +95,7 @@ with sync_playwright() as p:
     try:
         for width,zoom in ((1440,1),(1440,2),(640,1)):
             page.set_viewport_size({'width':round(width/zoom),'height':round(1000/zoom)})
-            dialog.get_by_role('tab',name='Files',exact=True).click()
+            dialog.get_by_role('tab',name='Metadata',exact=True).click()
             association.select_option('all')
             page.get_by_label('Other photo formats',exact=True).select_option('embedded')
             dialog.get_by_role('tab',name='Appearance',exact=True).click()
@@ -103,7 +105,7 @@ with sync_playwright() as p:
             frozen=snapshot(run)
             expect(visible_notice()).to_contain_text('A job is running.')
             assert abs(top()-baseline)<=1,(top(),baseline)
-            dialog.get_by_role('tab',name='Files').click()
+            dialog.get_by_role('tab',name='Metadata').click()
             expect(association).to_have_value('all')
             expect(visible_notice()).to_contain_text('not this one')
             if os.environ.get('SHOTS'):page.screenshot(path=f"{os.environ['SHOTS']}/metadata-active-{width}-{zoom}.png")
@@ -120,7 +122,7 @@ with sync_playwright() as p:
             assert abs(top()-baseline)<=1,(top(),baseline)
             gate.write_text('hold generated Copy')
         page.set_viewport_size({'width':1440,'height':1000})
-        dialog.get_by_role('tab',name='Files').click()
+        dialog.get_by_role('tab',name='Metadata').click()
         expect(association).to_have_value('all')
         dialog.get_by_role('button',name='Close settings',exact=True).click()
         gate.unlink();next_run=start('index');wait(next_run)

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type PairRetryGroup, type PairRetryPreview } from "../api";
 import { useJobFeed } from "../jobs";
-import { plural } from "../format";
+import { pairFailureReason, plural } from "../format";
 import { Modal } from "./ui/Modal";
 import { ConfirmDialog } from "./Confirm";
 import { FileLocations } from "./ui/FileLocations";
@@ -64,7 +64,7 @@ function PairRetryDialog({ ids, onClose }: { ids: number[]; onClose: () => void 
   }} onClose={()=>{setChoice(null);}} />;
   return <Modal label="Retry photo/XMP transfers" onClose={onClose}>
     <h2>Retry photo/XMP transfers</h2>
-    <p>These imports did not finish. Retry keeps the recorded destination and original Copy or Move mode. Other selected photos are left alone.</p>
+    <p>Resume these incomplete imports using their original destination and Copy or Move mode. Other selected photos are left alone.</p>
     {!preview && !error && <p role="status">Checking recorded transfers…</p>}
     {error && <p className="error" role="alert">{error}</p>}
     {preview && <>
@@ -73,10 +73,10 @@ function PairRetryDialog({ ids, onClose }: { ids: number[]; onClose: () => void 
         <h3>{item.filename} · {item.mode === "move" ? "Move" : "Copy"}</h3>
         {item.failure_context ? <p className="warning"><strong>Failed step: {item.failure_context.stage}.</strong>{" "}
           {Array.from(new Set(item.failure_context.paths.map(path=>path.split("/").pop()))).join(", ")}</p>
-          : <p className="muted">The earlier log did not identify the exact file or step that failed. The paths below identify the pair, not which file failed.</p>}
-        <p>{item.summary}</p>
+          : <p className="muted">The earlier log does not say which file or step failed. Both files are listed below.</p>}
+        <p>{pairFailureReason(item.summary)}</p>
         {item.blocked && <p className="warning">{item.blocked}</p>}
-        <p className="muted">Destination paths show where each file should go. Statuses describe the last recorded job, not a live check; Retry verifies files again.</p>
+        <p className="muted">Destination paths show where the files should go. Statuses come from the last job, not a live check. Retry checks the files again.</p>
         <FileLocations
           source={[{label:"Photo",path:item.source}, {label:"XMP",path:item.sidecar_source}]}
           destination={[{label:"Photo",path:item.destination,status:deliveryStatus(item.delivery.photo)},

@@ -64,8 +64,8 @@ export function PhotoMatches({ id, name, delivered, rejected = false, view, onVi
             <strong>{c.threshold === 100 ? "100%" : `${c.threshold}%+`}</strong><span>{count(c.count)}</span>
           </button>)}
         </div>
-        <p className="section-note">Counts include all matches at or above each percentage. These measure visual hash similarity, not confidence; even 100% can be different pictures.</p>
-        <p className="section-note">Below 90%, results are more likely to be unrelated. Review photos side by side before using them as clues for dates or other details.</p>
+        <p className="section-note">Each count includes matches at that percentage or higher. The percentage measures visual similarity, not certainty: even 100% can show different pictures.</p>
+        <p className="section-note">Below 90%, matches are more likely to be unrelated. Compare the photos before using their dates or other details.</p>
         {summary.pending > 0 && <p className="muted">Results are partial: {plural(summary.pending, "destination photo")} awaiting comparison. </p>}
       </>}
       <SimilarityRecovery visible={!rejected && (summary?.availability === "hash_unavailable" || (summary?.pending ?? 0) > 0)}

@@ -95,14 +95,14 @@ export function DateEditor({ photoId, donor, onClose, onSaved }: {
   return <>
     <Modal label="Edit Date taken" onClose={close} busy={busy}>
       <h2>{run?.status === "Completed" ? "Date saved" : "Edit Date taken"}</h2>
-      {!context && !error && <p aria-busy="true">Loading the current write target…</p>}
+      {!context && !error && <p aria-busy="true">Loading the metadata source…</p>}
       {context && !run && <>
         <p>Write to <strong>{targetName(context.target.kind)}</strong>{context.target.create ? " — create a new sidecar containing only this date." : "."}</p>
-        <p className="section-note">Current target date: {recorded(context.date)}. Other metadata stays unchanged.</p>
+        <p className="section-note">Current date in this source: {recorded(context.date)}. Other metadata stays unchanged.</p>
         {donor && <p className="section-note">{copy ? `Copying Date taken from ${donor.label}. This source will not become primary.` : `Started from ${donor.label}; the date below has been adjusted.`}</p>}
         <Field fullWidth type="date" label="Calendar date" min="0001-01-01" max="9999-12-31"
           value={!clear && /^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value) ? value.slice(0, 10) : ""} disabled={busy || clear || !!preview}
-          hint="Choose a day; any recorded time, fraction and timezone stay unchanged. Use the full value below for partial dates or time changes."
+          hint="Choose a day. The recorded time and time zone stay unchanged, including fractions of a second. Use Date taken below to change them or enter a partial date."
           onChange={e => {
             // Work with the recorded text, never a Date that converts through a timezone.
             const day = e.target.value;
@@ -113,8 +113,8 @@ export function DateEditor({ photoId, donor, onClose, onSaved }: {
           onChange={e => change(e.target.value)} />
         <label className="checkbox-row"><input type="checkbox" checked={clear} disabled={busy || !!preview || !context.can_clear}
           onChange={e => { setClear(e.target.checked); setCopy(false); setPreview(null); }} />Explicitly clear Date taken</label>
-        {context.can_clear && !context.date.present && <p className="section-note">No date is recorded in this XMP source. A missing date can use a date from another source for filing. Explicitly clearing it records an empty date and files the photo under Undated.</p>}
-        {!context.can_clear && <p className="section-note">This EXIF writer cannot preserve an explicitly empty date. Clearing requires a deliberately chosen XMP target; the app will not change primary automatically.</p>}
+        {context.can_clear && !context.date.present && <p className="section-note">This XMP has no date. Another source may still supply the filing date. Explicitly clearing Date taken prevents that fallback and files the photo under Undated.</p>}
+        {!context.can_clear && <p className="section-note">An explicitly empty date is supported only in XMP. The app will not switch your primary source automatically.</p>}
         <p className="section-note">Changing the filing date may move this photo and its sidecar to another folder. An explicit clear files it under Undated.</p>
         {preview && <section aria-label="Date change preview">
           <h3>{preview.no_change ? "No changes needed" : "Confirm date and location"}</h3>
@@ -122,7 +122,7 @@ export function DateEditor({ photoId, donor, onClose, onSaved }: {
             <dt>Current location</dt><dd><code>{preview.filing.current}</code></dd>
             <dt>Resulting location</dt><dd><code>{preview.filing.proposed}</code></dd></dl>
           {preview.filing.collision_renamed && <p>The filename has been numbered to avoid an existing file. Nothing will be overwritten.</p>}
-          <p>{preview.no_change ? "The date and filing location already match. Nothing will be written." : "This saves Date taken and its required components only. The engine verifies the files and checks for naming conflicts before changing them."}</p>
+          <p>{preview.no_change ? "The date and filing location already match. Nothing will be written." : "Only Date taken and its time details are saved. Files and naming conflicts are checked before any changes."}</p>
         </section>}
         <div className="settings-actions">
           <button disabled={busy} onClick={close}>Cancel</button>

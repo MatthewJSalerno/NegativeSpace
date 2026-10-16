@@ -1143,7 +1143,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             </div>
             <p>{indexNeedsAttention ? "The remaining files have processing errors or metadata issues. Open a marked photo below to see the affected source files and next steps." : "Your photos are indexed. Copy or move them to build your library."}</p>
             {indexNeedsAttention ? <p><a href="/?view=unorganized&reason=attention" onClick={follow}>View {plural(indexAttentionCount, "file")} needing attention</a></p> : <>
-            <p className="section-note">Photo facts below cover successfully indexed photos, before gallery filters. Failed files are counted separately. Size and date findings do not prevent Copy or Move.</p>
+            <p className="section-note">These totals cover all successfully indexed photos, regardless of filters. Failed files are counted separately. Small sizes and suspicious dates do not prevent Copy or Move.</p>
             <dl>
               <div><dt>Photos ready to organize</dt><dd>{count(data.index_summary.ready)}</dd></div>
               <div><dt>Additional identical copies</dt><dd>{count(data.index_summary.duplicates)}</dd></div>
@@ -1161,7 +1161,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           </section>)}
           {!focus && view === "review" && <>
             {reviewReturn && <button onClick={backToLibrary}>← Back to Library</button>}
-            <p className="notice">Organized photos in Library awaiting a decision. These photos also appear in Library; the counts do not add together.</p>
+            <p className="notice">Library photos that need a closer look. They are included in the Library count.</p>
             <div className="photo-actions"><button disabled={!data?.total} title={!data?.total ? "No photos match these review filters." : undefined}
               onClick={() => setReviewPhoto(data!.items[0].id)}>Review one by one</button></div>
             <StableContent active={reason} variants={{
@@ -1214,7 +1214,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
            browse: <p className="section-note">Filters narrow the gallery. Checkboxes select photos for actions.</p>,
            undated: <p className="section-note">No complete date is available for filing. Missing dates alone do not prevent Copy or Move.</p>,
            attention: <p className="section-note">These source files have an issue that prevents organizing them. Open a file for the specific reason.</p>,
-           "attention-undated": <p className="section-note">These photos lack a usable filing date and have an issue preventing organization. Open a photo for the specific reason; appearing in both lists does not mean two separate problems.</p>,
+           "attention-undated": <p className="section-note">These photos have no usable filing date and cannot be organized yet. Open a photo to see why. The same issue may explain both.</p>,
            dates: <p className="section-note">Date review: before {data?.date_min_year ?? "your earliest expected year"} or more than one year ahead. Dates are unchanged. <button className="link" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>,
            groups: <p className="section-note">Identical sets appear once; partially overlapping sets remain separate. Set members come from the full destination library. Checkboxes select only the reference photo. Turn grouping off to see every photo.</p>,
            filtered: <p className="section-note">Showing every photo that matches all active filters. Clear the other filters to group similar photos.</p>,

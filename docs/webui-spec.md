@@ -440,9 +440,8 @@ must not reset saved preferences. The browser uses the API, never SQLite directl
 One consistent database backup includes photo-processing settings and lineage. Instance access settings (§11) are stored separately so catalog recovery cannot change network access. The settings writer
 boundary is defined in §6.1; no second database is required.
 
-**Settings are in five groups:** **Appearance** (palette and System/Light/Dark mode), **Files** (file types;
-the earliest expected year for suspicious dates; the Rejects reminder, §7.8; with Needs review, the small-image size, §7.9; with the
-editor, where edits are saved, §7.5), **Backups** (how many to keep, the list, Back up now, how to
+**Settings are in six groups:** **Appearance** (palette and System/Light/Dark mode), **Files** (file types;
+the earliest expected year for suspicious dates; the Rejects reminder, §7.8; with Needs review, the small-image size, §7.9), **Metadata** (reading priority, shared-sidecar association and where edits are saved, §7.5), **Backups** (how many to keep, the list, Back up now, how to
 restore) and **Performance** (worker processes; the thumbnail cache, §4.2.1, not yet on screen), plus **Access** (allowed hostnames/IP addresses). In Settings they are tabs with one **Save
 settings** for all of them, so switching tabs loses nothing; a tab with unsaved changes
 shows a dot, and a save with an error on another tab opens that tab at the field.
@@ -451,13 +450,13 @@ shows a dot, and a save with an error on another tab opens that tab at the field
 NegativeSpace name at the top left of the wizard header on every step. It appears before the library exists, and
 says prominently that these are starting values, changeable at any time from the gear
 icon in Settings. Without that, a user can take the screen for the only chance to set
-them. It steps through the same five groups ("Step 2 of 5 Files", **Back**, **Next**),
+them. It steps through the same six groups ("Step 2 of 6 Files", **Back**, **Next**),
 one per page, with scrolling when its contents exceed the viewport; Next checks only that step, and nothing is
 saved until **Save and continue** on the last. Saving lands in Not organized, where **Index
 source** waits, whatever page an earlier session left in the address bar. After
 first run, Settings opens as a window over the current view.
 
-**Metadata preferences:** the Files step and Settings › Files show the same visible **Which metadata is used?** explanation beside
+**Metadata preferences:** the Metadata step and Settings › Metadata show the same visible **Which metadata is used?** explanation beside
 association and write preferences. Show the default order: **XMP sidecar** (a separate
 file beside the photo), **Embedded XMP** (inside the photo), then **Embedded EXIF** (inside
 the photo, often written by the camera). Explain that only a missing field falls through;
@@ -514,8 +513,9 @@ value stays until changed, even if the container's limit changes later.
 **Settings changes never affect an already-running operation.** Users may save
 settings while a job is active; saved values apply only to jobs started after the
 save. Each job retains its starting configuration, available in its job details.
-Display a persistent notice in the job settings section, near Save:
-**“Changes apply to future jobs. Active jobs will continue with their existing settings.”**
+Display a persistent notice above the tabs explaining when settings apply.
+Near Save, say that it saves changes from every tab and does not move photos; do not
+repeat the processing notice.
 Opening Settings while a job runs also shows an
 informational notice near the top, outside the tab panels: **“A job is running.
 Processing changes you save now will apply to future jobs, not this one.”** Keep this
@@ -2460,7 +2460,7 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   built first date editor; primary-change controls remain planned.
   Switching primary is a separate previewed, confirmed action; tab changes
   and comparisons never write. See `ui-design.md` and [xmp-metadata.md](xmp-metadata.md).
-* **Where edits are saved** (decided 2026-10-02, `engine-spec.md` §9.6): Settings › Files
+* **Where edits are saved** (decided 2026-10-02, `engine-spec.md` §9.6): Settings › Metadata
   sets it for RAW formats (default **XMP sidecar**) and other formats (default **In the
   file**). These defaults apply when no primary write target is established; an existing
   primary overrides them. A primary change requires an explicit preview and confirmation,

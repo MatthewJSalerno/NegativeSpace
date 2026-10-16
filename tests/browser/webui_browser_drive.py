@@ -95,9 +95,9 @@ with sync_playwright() as p:
     expect(page.locator(".notice-first-run")).to_contain_text("change any of them at any time in the app's Settings")
     # One group per step, as Settings' tabs; the step's buttons in view without scrolling.
     step = page.locator(".settings-step")
-    for n, name in enumerate(("Appearance", "Files", "Backups", "Performance", "Access"), 1):
-        expect(step).to_have_text(f"Step {n} of 5 {name}")
-        action = page.get_by_role("button", name="Next" if n < 5 else "Save and continue", exact=True)
+    for n, name in enumerate(("Appearance", "Files", "Metadata", "Backups", "Performance", "Access"), 1):
+        expect(step).to_have_text(f"Step {n} of 6 {name}")
+        action = page.get_by_role("button", name="Next" if n < 6 else "Save and continue", exact=True)
         box = action.bounding_box()
         assert box and box["y"] + box["height"] <= page.viewport_size["height"], (name, box)
         if n == 1:
@@ -105,28 +105,29 @@ with sync_playwright() as p:
             expect(page.get_by_role("button", name="Back", exact=True)).to_have_count(0)
         if n == 2:
             page.get_by_label("Small-image reminders (required)", exact=True).select_option("off")
-            page.get_by_label('When an XMP sidecar matches multiple photos',exact=False).select_option('ask')
             # Next checks only this step: with no file type it stays, and says why.
             boxes = page.locator("#settings-exts input[type=checkbox]")
             ticked = [i for i in range(boxes.count()) if boxes.nth(i).is_checked()]
             for i in ticked:
                 boxes.nth(i).uncheck()
             action.click()
-            expect(step).to_have_text("Step 2 of 5 Files")
+            expect(step).to_have_text("Step 2 of 6 Files")
             expect(page.locator("#settings-exts-error")).to_contain_text("at least one file type")
             for i in ticked:
                 boxes.nth(i).check()
             # Explained for someone seeing the app for the first time.
-            expect(page.locator(".settings")).to_contain_text("moves it out of your library into a separate Rejects folder")
+            expect(page.locator(".settings")).to_contain_text("Reject moves a photo out of Library")
             shot("1b-welcome-files")
         if n == 3:
-            expect(page.locator(".settings")).to_contain_text("not of your photos")
-            expect(page.locator(".settings")).to_contain_text("Backing up your photos is up to you")
-            shot("1c-welcome-backups")
+            page.get_by_label('When an XMP sidecar matches multiple photos',exact=False).select_option('ask')
         if n == 4:
+            expect(page.locator(".settings")).to_contain_text("not of your photos")
+            expect(page.locator(".settings")).to_contain_text("Keep separate backups of your photo files")
+            shot("1c-welcome-backups")
+        if n == 5:
             expect(page.locator(".settings")).to_contain_text(re.compile(r"This container may use (all )?\d+"))
             page.get_by_role("button", name="Back", exact=True).click()
-            expect(step).to_have_text("Step 3 of 5 Backups")
+            expect(step).to_have_text("Step 4 of 6 Backups")
             page.get_by_role("button", name="Next", exact=True).click()
         action.click()
     # Saved, the first run lands in the Library, where the Index waits, whatever the address was.

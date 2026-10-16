@@ -326,10 +326,10 @@ function Details({ detail: d, onLineage, refreshKey, review, jobRunning, onEdit,
       <FileIssues key={`issues:${d.id}`} photoId={d.id} initialIssues={d.issues ?? []} />
       {d.metadata_attention && <section className="notice" aria-label="Metadata needs attention">
         <strong>Needs attention before organizing</strong>
-        <p>The issue below prevents organizing this photo. The photo and associated sidecars remain at source.</p>
+        <p>This photo cannot be organized yet. It and its associated sidecars stay in the source.</p>
         {d.metadata_attention.issues.map((issue, i) => <div key={i}>
           <p>{issue.reason}</p>
-          {issue.files.map(file => <p key={file}>File relative to your source folder:<br /><code>{file}</code></p>)}
+          {issue.files.map(file => <p key={file}>File in your source folder:<br /><code>{file}</code></p>)}
           {issue.detail && <p className="section-note">Recorded detail: {issue.detail}</p>}
         </div>)}
         <p>{d.metadata_attention.action}</p>
@@ -414,7 +414,7 @@ function AllMetadata({ tags }: { tags: [string, unknown][] }) {
       </div>
       {open && (
         <>
-          <p className="muted">Catalogued photo and file tags. These may include computed file properties; use the Metadata tab to compare metadata.</p>
+          <p className="muted">Recorded file details, including properties calculated by the app. To compare EXIF and XMP, use the Metadata tab.</p>
           {shown.length === 0 ? <p className="muted">No field matches “{filter}”.</p> : (
             <table className="meta-table">
               <tbody>

@@ -268,7 +268,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
     cancellation always lets the file currently being copy-verified finish.
     """
     action_verb = "Moving" if args.move else "Copying"
-    runtime.logger.info(f"{'Move' if args.move else 'Copy'} Mode enabled. Initiating Pre-flight Space Checks...")
+    runtime.logger.info(f"{'Move' if args.move else 'Copy'}: checking available destination space.")
     # This run's durability barriers start unestablished: directories left by
     # an earlier run prove only that mkdir returned, not that their entries
     # reached disk (see _mkdir_durable).
@@ -347,12 +347,13 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
                        f"({constants.sql_values(eligible + (PhotoStatus.DUPLICATE,))})" + predicate,
                        predicate_params)
         selected = cursor.fetchall()
-        summary = (f"The destination {dest_path} is on a network share ({fstype}). A Move deletes "
-                   f"each source once the share says its copy is saved, and a share can say so "
-                   f"before the data is really on its disk; NegativeSpace cannot check how the "
-                   f"share is set up. Nothing was copied or deleted. Recommended: run Copy "
-                   f"instead, which never deletes a source. To Move anyway, confirm the share is "
-                   f"exported 'sync' and run the Move with --confirm-network-destination.")
+        summary = (f"Move needs confirmation: {dest_path} is on a network share ({fstype}). "
+                   "Nothing was copied or deleted.\n"
+                   "The share may report a save before the data reaches its disk. Move deletes "
+                   "source originals after verifying the destination, so this could risk data loss. "
+                   "NegativeSpace cannot check the share's configuration.\n"
+                   "Use Copy to keep your originals (recommended). To Move, confirm the share "
+                   "is exported 'sync' and honors durable writes, then use --confirm-network-destination.")
         already = conn.execute("SELECT 1 FROM attention_issues WHERE category = ? AND resolved_at IS NULL",
                                (NETWORK_DESTINATION_ISSUE,)).fetchone()
         runtime.run_progress.start("transferring", len(selected))

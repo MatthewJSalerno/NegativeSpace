@@ -61,9 +61,12 @@ export function MetadataSources({ photoId, refreshKey, editable = false, jobRunn
   const shownTags = tags.filter(k => (!comparing || !differences || tagDiffers(k)) && `${k} ${display(source.tags,k)} ${comparing ? display(primary.tags,k) : ""}`.toLowerCase().includes(query.toLowerCase()));
   return <section className="info-section metadata-sources">
     <h3>Metadata sources</h3>
-    <p className="section-note">Recorded metadata. Viewing and comparing leave files and the primary source unchanged.</p>
+    <p className="section-note">Viewing or comparing metadata does not change the photo or its primary source.</p>
     {data.notice && <p className="section-note">{data.notice}</p>}
-    {data.issues.length > 0 && <p className="notice">Metadata needs attention: {data.issues.map(i => i.detail || i.code.replaceAll("_", " ")).join("; ")} <a href={logUrl({photo:photoId})} onClick={follow}>View photo logs</a></p>}
+    {data.issues.length > 0 && <div className="notice"><strong>Metadata needs attention</strong>
+      <ul>{data.issues.map((issue, i) => <li key={i}>{issue.detail || issue.code.replaceAll("_", " ")}</li>)}</ul>
+      <a href={logUrl({photo:photoId})} onClick={follow}>View photo logs</a>
+    </div>}
     {!!data.warnings?.length && <section className="info-section" aria-label="Metadata notes">
       <h3>Metadata notes</h3>
       <p className="section-note">These notes alone do not prevent Copy or Move. Original metadata is preserved when transferring the file.</p>
@@ -82,7 +85,7 @@ export function MetadataSources({ photoId, refreshKey, editable = false, jobRunn
           onChange={e => setSelected(e.target.value)}>{sidecars.map((s, i) => <option key={s.id} value={s.id}>{s.version_id != null ? `Version ${s.version_id}` : `Unreadable sidecar ${i + 1}`}{s.id === data.primary_id ? " · Primary" : " · Alternative"}</option>)}</select></label>
       </div>}
       {source.issues.map((issue, i) => <p key={i} className="notice">{issue.detail || issue.code.replaceAll("_", " ")}</p>)}
-      {!source.available ? <p className="muted">{source.issues.length ? "This source could not be interpreted. See the recorded issue and photo logs." : "No metadata recorded for this source."}</p> : <>
+      {!source.available ? <p className="muted">{source.issues.length ? "This metadata could not be read. See the issue above or open the photo logs." : "No metadata recorded for this source."}</p> : <>
         <div className="metadata-source-options">
           <label className="checkbox-row" style={{ visibility: primary?.available && primary.id !== source.id ? undefined : "hidden" }}><input type="checkbox" disabled={!primary?.available || primary.id === source.id} checked={compare} onChange={e => setCompare(e.target.checked)} />Compare with primary</label>
           <label className="checkbox-row" style={{ visibility: comparing ? undefined : "hidden" }}><input type="checkbox" disabled={!comparing} checked={differences} onChange={e => setDifferences(e.target.checked)} />Show differences only</label>
@@ -100,7 +103,7 @@ export function MetadataSources({ photoId, refreshKey, editable = false, jobRunn
         {!shown.length && <p className="muted">{comparing && differences ? "No differing fields match this filter." : "No comparable fields recorded or matching this filter."}</p>}
       </>}
       {tags.length > 0 && <details><summary>All recorded source tags ({shownTags.length}{shownTags.length !== tags.length ? ` of ${tags.length}` : ""})</summary>
-        {comparing && <p className="section-note">Comparing recorded tag names and values. EXIF and XMP can use different names or structures for the same information; compare their common fields above.</p>}
+        {comparing && <p className="section-note">These are the recorded tag names and values. EXIF and XMP may name or store the same detail differently. Use the common fields above to compare them.</p>}
         <table className="review-metadata-table"><caption>{comparing ? `Recorded tags: ${source.label} compared with ${primary.label}` : `Recorded tags: ${source.label}`}</caption>
           <thead><tr><th scope="col">Tag</th>{comparing && <th scope="col">Primary value</th>}<th scope="col">{comparing ? "This source" : "Value"}</th></tr></thead>
           <tbody>{shownTags.map(k => <tr key={k} data-different={comparing && tagDiffers(k)}><th scope="row">{k}{comparing && tagDiffers(k) && <small>Different</small>}</th>{comparing && <td>{display(primary.tags,k)}</td>}<td>{display(source.tags,k)}</td></tr>)}</tbody>

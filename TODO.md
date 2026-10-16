@@ -411,11 +411,16 @@ Saved orientation stays a separate action from temporary preview rotation.
   date errors once, retain affected paths, and recognize usable XMP dates in the
   Inspector. Viewer tests and three browser workflows passed; maintainer D1 acceptance
   passed, including D1.c (XMP date without EXIF Date taken).
-- [ ] Metadata grouping follow-up (S1/S3 feedback): move metadata questions out of
-  Files into a dedicated Metadata setup step and a dedicated Metadata tab in Settings.
-  The current Settings page is too long and wordy. Keep setup and Settings grouping
-  consistent with the shared design contract; update the specs and browser navigation
-  checks when implementing. S1–S3 behavior passed; these layout changes are not built.
+- [x] Metadata grouping (S1/S3 feedback): dedicated Metadata setup step and Settings
+  tab, shared controls, required association choice and per-tab unsaved indicators.
+  Specs and setup browser checks follow the six-step flow. Maintainer acceptance
+  Tests 1–4 passed on 2026-10-16.
+- [x] Message readability acceptance: project-wide pass covers Settings/setup, gallery,
+  metadata, matching, recovery, job submission and logs. Keep specific causes and safety
+  consequences, simplify prose and separate multiple issues. Validation and
+  maintainer readability review are tracked in tests/README.md; follow `ui-design.md`,
+  Writing messages. Targeted automated checks and maintainer Tests 1–4 passed
+  on 2026-10-16.
 - [ ] Deliberate per-file association/primary-choice controls, separate from viewing and
   copying, with effective-value/refiling previews. Settings defaults do not replace this
   workflow. The source viewer is tracked above, not a duplicate implementation task.

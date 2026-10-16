@@ -81,7 +81,7 @@ with sync_playwright() as p:
     # Update in place without a reload: only failed source files remain.
     expect(summary_panel.get_by_role('heading',name='3 files need attention',exact=True)).to_be_visible(timeout=15000)
     expect(summary_panel.locator('dl')).to_have_count(0)
-    expect(summary_panel).not_to_contain_text('Photo facts below')
+    expect(summary_panel).not_to_contain_text('These totals cover all successfully indexed photos')
     expect(summary_panel).not_to_contain_text('Similar photos')
     expect(summary_panel.get_by_role('button',name='Copy all photos…',exact=True)).to_have_count(0)
     expect(summary_panel.get_by_role('button',name='Move all photos…',exact=True)).to_have_count(0)

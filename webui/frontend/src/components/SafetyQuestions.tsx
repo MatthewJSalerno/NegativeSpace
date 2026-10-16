@@ -28,11 +28,11 @@ export function SafetyQuestions({ run, onLeave }: { run: Run; onLeave: () => voi
       <button disabled={submitted} onClick={() => ask("source_empty", "retry", "Retry after reconnecting?",
         ["Check that the intended source storage is connected. No empty-source confirmation will be added."])}>I reconnected it — retry</button>{" "}
       <button disabled={submitted} onClick={() => ask("source_empty", "confirm_empty", "Confirm the source is really empty?",
-        ["Confirm only after checking the intended source folder. This updates catalog observations; existing history is retained."])}>It really is empty</button>
+        ["Check the source folder before confirming. The catalog will record which files are missing and keep their history."])}>It really is empty</button>
     </div>}
     {run.questions.includes("network_destination") && <div>
       <strong>The destination is on network storage. Choose how to continue.</strong>
-      <p>{run.same_mode_retry ? "This interrupted transfer must continue its original Move. Leave it unchanged until the storage is suitable for Move." : "Network storage may acknowledge a save before it is durable. Copy keeps the originals and is recommended."}</p>
+      <p>{run.same_mode_retry ? "This interrupted Move must resume as a Move. Leave it unchanged until the storage is safe to use." : "Network storage may report a save before the data reaches its disk. Copy keeps your originals and is recommended."}</p>
       {!run.same_mode_retry && <button className="primary" disabled={submitted} onClick={() => ask("network_destination", "copy", "Copy instead of Move?",
         ["Copy verifies the destination and keeps every original."])}>Copy instead (recommended)</button>}{" "}
       <button disabled={submitted} onClick={() => ask("network_destination", "confirm_move", "Confirm network storage before Move",

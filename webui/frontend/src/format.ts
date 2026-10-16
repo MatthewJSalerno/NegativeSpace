@@ -78,3 +78,11 @@ export function duration(ms: number): string {
   const two = (v: number) => String(v).padStart(2, "0");
   return `${two(h)}:${two(m)}:${two(sec)}`;
 }
+
+// Remove only the transfer wrapper; retain the actual failure and its system details.
+export function pairFailureReason(summary: string) {
+  return summary
+    .replace(/^Photo\/XMP transfer incomplete(?: while [^:]+)?: /, "")
+    .replace(/^PairRefused: /, "")
+    .replace(/\. Published files were preserved; review the pair before retrying\.$/, "");
+}

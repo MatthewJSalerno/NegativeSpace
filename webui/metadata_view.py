@@ -137,8 +137,8 @@ def source_attention(conn, photo_ids):
         AND json_extract(m.report_json,'$.state')='needs_attention'""",
         (json.dumps(photo_ids), *catalog.NOT_ORGANIZED)).fetchall()
     reasons = {
-        'embedded_reader_error': 'The metadata reader could not complete reading this photo. See the recorded error.',
-        'malformed_xml': 'The XMP sidecar contains malformed XML.',
+        'embedded_reader_error': 'Some metadata could not be read. See the recorded error.',
+        'malformed_xml': 'The XMP sidecar is not valid XML.',
         'read_error': 'The source metadata file could not be read. Check its permissions and file type.',
         'size_limit': 'The XMP sidecar exceeds the supported size limit.',
         'invalid_date_taken': 'The recorded Date taken is invalid.',
@@ -171,5 +171,5 @@ def source_attention(conn, photo_ids):
             else:
                 problems.append(dict(code=code, reason=reason, files=paths, detail=issue.get('detail')))
         result[row['id']] = dict(issues=problems,
-            action='Check the listed source files with an external metadata tool. After correcting the metadata or file access, run Index again. You can also leave these files at source until the issue can be resolved.')
+            action='Check the listed files with a metadata tool outside NegativeSpace. Fix the metadata or file access, then run Index again. You can leave the files in the source until you are ready.')
     return result

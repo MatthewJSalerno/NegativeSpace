@@ -96,7 +96,7 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
           <button onClick={onClose} aria-label="Close">✕</button>
         </header>
         <p className="muted">
-          Every file this photo has been, and every copy of the same content: what happened to each, in which job.
+          This photo’s file history, including identical copies and the jobs that worked on them.
           Use the information button beside a path for its details.
         </p>
         {notice && <p className="notice" role="status">{notice}</p>}

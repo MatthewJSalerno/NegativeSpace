@@ -37,11 +37,12 @@ with sync_playwright() as p:
     expect(page).to_have_url(base+'/')
     assert page.evaluate('history.length')==length
     page.get_by_role('button',name='Create new catalog',exact=True).click()
-    for step in range(5):
+    for step in range(6):
         if step==1:
             page.get_by_label('Small-image reminders',exact=False).select_option('off')
+        if step==2:
             page.get_by_label('When an XMP sidecar matches multiple photos',exact=False).select_option('ask')
-        page.get_by_role('button',name='Next' if step<4 else 'Save and continue',exact=True).click()
+        page.get_by_role('button',name='Next' if step<5 else 'Save and continue',exact=True).click()
     index=page.get_by_role('button',name='Index source',exact=True)
     expect(index).to_be_visible()
     page.evaluate('document.fonts.ready')

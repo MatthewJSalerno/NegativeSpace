@@ -53,7 +53,7 @@ export function SimilarityRecovery({ photoId, onRecovered, visible = true }: { p
     {visible && <button className="photo-action" onClick={() => { setScopePhoto(photoId); setPage(1); setOpen(true); }}>Review matching status</button>}
     {open && <Modal label="Matching status" className="dialog" onClose={() => setOpen(false)} busy={starting}>
       <h2>Matching status</h2>
-      <p>Generate hashes that have not been created, or resume unfinished comparisons. Files with recorded failures need the correction described below before rechecking. Photo files stay unchanged. Missing EXIF alone does not mean a file is damaged.</p>
+      <p>Create missing visual hashes or resume unfinished comparisons. Your photo files stay unchanged.</p>
       {error && <p className="error" role="alert">{error} <button onClick={() => setRetry(n => n + 1)}>Retry status</button></p>}
       {!data && !error && <p role="status">Loading affected photos…</p>}
       {data && <>
@@ -64,7 +64,8 @@ export function SimilarityRecovery({ photoId, onRecovered, visible = true }: { p
             Generate missing hashes</button>
           <button disabled={busy || starting || data.state.pending === 0} onClick={() => start("comparisons")}>Resume comparisons</button>
         </div>
-        <p className="section-note">Hash recovery verifies each file’s SHA-1 before and after decoding. Unsupported formats need decoder support; files that cannot be decoded need external review. They remain excluded from visual matching. Read the reason below and retry only after fixing its cause.</p>
+        <p className="section-note">Recovery checks each file’s SHA-1 before and after reading it.</p>
+        <p className="section-note">Failed files stay out of matching. Read each reason below and fix the cause before retrying; retry cannot repair a file or add format support. Missing EXIF alone does not mean a file is damaged.</p>
         {data.total === 0 ? <p>No matching issues in this scope.</p> : <ul className="recovery-photos">
           {data.items.map(item => <li key={item.id}>
             <a href={`/?photo=${item.id}&tab=similar`}>{item.filename}</a>

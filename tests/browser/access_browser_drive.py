@@ -12,12 +12,13 @@ with sync_playwright() as p:
     page.on("pageerror", lambda e: errors.append(str(e)))
     assert request.post("/api/v1/catalog").ok
     page.goto(sys.argv[1])
-    for n in range(4):
+    for n in range(5):
         if n == 1:
             page.get_by_label("Small-image reminders (required)").select_option("off")
+        if n == 2:
             page.get_by_label('When an XMP sidecar matches multiple photos',exact=False).select_option('ask')
         page.get_by_role("button", name="Next", exact=True).click()
-    expect(page.locator(".settings-step")).to_have_text("Step 5 of 5 Access")
+    expect(page.locator(".settings-step")).to_have_text("Step 6 of 6 Access")
     field = page.get_by_label("Additional allowed addresses", exact=True)
     field.fill("https://invalid.example")
     page.get_by_role("button", name="Save and continue", exact=True).click()

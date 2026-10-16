@@ -61,7 +61,7 @@ Tabs are one shared control (`ui/Tabs.tsx`, WAI-ARIA "Tabs with automatic activa
 one tab stop, ← → move and choose, Home/End go to the ends. The Inspector and Settings
 use it. The setup wizard places the shared logo and NegativeSpace name at the top left of
 its header on every step, with the step title below; do not repeat a welcome heading.
-Settings' tabs and first-run steps are the same five groups (`webui-spec.md` §3);
+Settings' tabs and first-run steps are the same six groups (`webui-spec.md` §3);
 a tab with unsaved changes shows a dot, named "unsaved changes" to assistive technology.
 
 The first Settings tab, Appearance, offers Cool neutral (default) and Warm neutral palettes. The choice applies
@@ -625,6 +625,31 @@ at least 320px. Saved widths and desktop window
 resizing obey those limits. Very narrow desktop windows scroll horizontally rather
 than compressing these areas below their minimums.
 
+## Writing messages
+
+Apply this contract to every user-facing message: screens, dialogs, help, job results,
+logs, API errors shown in the app, and command-line guidance.
+
+- Lead with what happened or what the user needs to decide. For a problem, say what is
+  affected and what can be done next. Use short, direct sentences and familiar words.
+- Keep one idea per paragraph. Use a list for multiple problems, choices or steps;
+  give each affected file or reason its own readable entry. Avoid semicolon chains.
+- Explain a warning once. Do not repeat its heading, cause and next step in adjacent
+  notices. Preserve precise counts, filenames, source/destination labels and outcomes.
+- Keep safety consequences and required actions visible. Put supporting technical
+  evidence in labelled details when it is lengthy; never hide the only explanation
+  of a failure or make hover the only way to read it.
+- Keep raw diagnostic evidence intact. Improve the explanation around it rather than
+  guessing a cause, suppressing errors or changing recorded history. Machine-readable
+  codes and refusal rules are independent of prose.
+- Use the shared body/supporting text roles and spacing. Messages wrap naturally;
+  do not clip them or reduce their type size to fit. Shared dialog grid gaps provide
+  paragraph/heading spacing without stacking native margins; related explanation
+  paragraphs use the shared message-copy spacing. Reserve space for predictable
+  state changes using the existing stable-content control.
+- A successful save uses a calm status. Do not promise recovery, a successful transfer,
+  or deletion safety beyond what the recorded verification actually establishes.
+
 ## Validation and feedback
 
 The shared job drawer reports two minutes without recorded progress as an observation,
@@ -643,7 +668,7 @@ the top, outside tab panels, to explain that saved processing settings affect fu
 jobs only. It is not an error, requires no dismissal, and does not disable Save. Keep
 job-active/idle/unknown explanations in a shared stable-content area so background completion
 cannot move form controls. Preserve the immediate behavior of appearance and review
-reminders/access and the clarification near Save (`webui-spec.md` §3). Use the shared
+reminders/access. Near Save, explain that it saves changes from every tab (`webui-spec.md` §3). Use the shared
 job feed without reloading form drafts or adding a separate poll. Setup and Settings use
 the same metadata preference controls and visible read-priority guidance. First run marks
 the shared-sidecar choice required; unsupported embedded writers remain visibly unavailable.
@@ -1095,7 +1120,7 @@ Check it now action. A disconnected/empty source retains the existing safety que
 
 ## Metadata source tabs
 
-Setup's Files step and Settings › Files share a visible **Which metadata is used?**
+Setup's Metadata step and Settings › Metadata share a visible **Which metadata is used?**
 explanation beside the metadata questions. Use normal shared body/supporting text and
 a short ordered list: XMP sidecar (separate file), embedded XMP (inside the photo), then
 embedded EXIF (inside the photo). Keep this essential guidance out of tooltip-only help.
