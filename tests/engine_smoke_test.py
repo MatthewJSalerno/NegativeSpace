@@ -3325,7 +3325,8 @@ def a_move_to_a_network_share_asks_before_anything_is_deleted():
           "an unconfirmed Move to a network share wrote to the destination")
     issues = rows(case, "SELECT category, summary, resolved_at FROM attention_issues")
     check(len(issues) == 1 and issues[0]["category"] == "network_destination_unconfirmed"
-          and "Recommended: run Copy" in issues[0]["summary"] and issues[0]["resolved_at"] is None,
+          and "Use Copy to keep your originals (recommended)" in issues[0]["summary"]
+          and issues[0]["resolved_at"] is None,
           f"expected one open question recommending Copy, got {issues}")
     skipped = rows(case, "SELECT COUNT(*) c FROM operations WHERE status = 'Skipped' "
                          "AND error_message LIKE 'Not attempted: the destination is a network share%'")[0]["c"]
