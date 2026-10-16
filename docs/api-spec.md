@@ -187,7 +187,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 | `sort` | `newest`, `oldest`, `largest`, `smallest`, `name`, `matches` (`view=similar` only) | `newest` |
 | `match_min` | integer percentage 75–100, applies to similarity membership/counts | 75 |
 | `q` | filename search: current and original names, including removed duplicates' names; never folder names | none |
-| `undated` | `true` for only photos with no EXIF date taken, the ones filed under Undated | `false` |
+| `undated` | `true` for only photos without a usable effective capture date, including missing/partial/empty dates filed under Undated | `false` |
 | `date` | repeatable: a year (`2023`), a month (`2023-06`) or `none` (no date at all); the date tree's "Show only". Several add up | none: every date |
 | `type` | repeatable: a file extension, lower case, no dot (`jpg`, `heic`); the Types section's "Show only". Several add up | none: every type |
 | `folder` | repeatable: a folder relative to the source (`Phone/2019`), taking its subfolders, or `.` for the files directly in the source folder; the Folders tree's "Show only". Several add up. Matched as a literal path, never a wildcard or case-blind; a path outside the source is `400` | none: every folder |
@@ -342,6 +342,9 @@ action takes, for its review (any other action is 400). `actions` counts
 what each action would take of the whole selection, for the selection bar: Copy and Move by
 the engine's own rule (`ns_db.TRANSFER_ELIGIBLE`, as `eligible` in `GET /status`), Reject
 (photos in the library) and Return to library (photos in Rejects).
+`pair_retries` separately counts selected incomplete photo/XMP imports eligible for
+confirmed same-mode retry at the configured roots. Failed pairs do not enter the
+ordinary Copy/Move action counts.
 `sort=matches` with optional integer `match_min` (default 75) orders an explicit
 selection by library-wide counts without filtering out selected files. This also
 works for `/photos/position` when `ids` is supplied. Items without an available
@@ -387,7 +390,10 @@ failed photos already counted in `failed`; `ready` excludes recorded metadata ho
 
 Read-only catalog snapshots for the metadata source viewer. Returns `photo_id`,
 `primary_id` (null until verified activation), `applied`, `recorded`, `notice`,
-`field_sources`, `issues`, and `sources`. Each source has `id`, `kind`, `label`,
+`field_sources`, `issues`, `warnings`, and `sources`. Informational `warnings` carry
+`code`, `source`, `detail` and plain-language `reason`; they do not block transfer. They
+describe the captured photo bytes and are omitted from the list after a content change.
+Each source has `id`, `kind`, `label`,
 `available`, canonical `fields`, qualified `tags`, and interpretation `issues`;
 sidecars also carry `version_id`. EXIF and embedded XMP are distinct. Retained sidecar
 versions remain alternatives unless a verified receipt identifies them as primary.
@@ -1147,15 +1153,47 @@ Changing the setting changes browse/inspection results, never recorded metadata.
 ### `GET /api/v1/photos/{photo_id}/issues`
 
 Returns `{items}` for open uncertain-operation issues belonging to this photo, in
-any catalog location. Each item has `issue_id`, `operation_id`, `summary`, `opened_at`
+any catalog location, including incomplete photo/XMP imports. Each item has `issue_id`,
+`operation_id`, `summary`, `opened_at`, `category` (`unestablished_outcome` or
+`metadata_pair_incomplete`)
 and up to 20 newest evidence observations (location, path, kind, result, timestamp,
 and recorded details). Unknown photos return 404. Reads do not examine the filesystem
 or modify the catalog. Inspector responses include the same `issues`; operation log
 items include issues attached to that operation.
 
+### `POST /api/v1/pair-retries/preview`
+
+Accepts `{file_ids?: [...]}` (positive 64-bit photo IDs, no other keys). Omission
+previews all open latest import-pair failures. Returns `{items, groups}`. Each item
+has `issue_id`, `operation_id`, `photo_id`, `filename`, original `mode`, `summary`,
+`blocked` (reason or null), `source`, `destination`, `sidecar_source` and
+`sidecar_destination`, plus `failure_context` (`{stage, paths}` or null for older or
+unlocalized failures), and `delivery: {photo, xmp}`. Each delivery value is `verified`,
+`incomplete`, or `unknown`: recorded destination verification, an uncompleted destination
+attempt, or no confirmed result. Older records return unknown. These are historical
+observations, not fresh filesystem checks or proof that an incomplete file is absent.
+Context identifies the attempted step and involved paths, not which file is corrupt. Paths are recorded evidence, never request inputs. Catalog
+state/root changes make an item blocked. No filesystem checks or mutations run.
+Each eligible mode group has `{mode, file_ids, token}`; mixed selections separate
+Copy and Move. Invalid selections return 400; unrelated IDs are not eligible items.
+
+### `POST /api/v1/pair-retries/start`
+
+Accepts exactly `{mode, file_ids, token, request_id}` from a preview, with original
+`copy` or `move` mode and a 64-character lowercase hex token. Returns an accepted
+run with 202 through the ordinary engine runner and validated selection file.
+Malformed requests return 400; changed eligibility/token returns `409 pair_retry_changed`.
+Engine acceptance rechecks under its lock and can refuse with the normal selection
+error. Busy/replay/conflict rules are unchanged. Replay of identical accepted input
+returns its original job even after resolution. Live file checks remain mandatory.
+Safety answers carry the guard and IDs; switching an incomplete Move to Copy returns
+`409 pair_retry_mode`. A network safety question on this run includes
+`same_mode_retry: true`, so the UI offers original Move or Leave unchanged.
+
 ### `POST /api/v1/issues/check`
 
-Accepts `{issue_id, request_id?}` and returns the accepted run with 202. The issue ID
+Accepts `{issue_id, request_id?}` for an `unestablished_outcome` issue and returns the
+accepted run with 202. Import-pair issues use the separate confirmed retry above. The issue ID
 is a positive 64-bit integer; unknown fields or invalid IDs return 400. A missing or
 resolved issue returns `409 issue_changed`; an active engine job returns the existing
 busy refusal. Request IDs follow the normal replay/conflict rules, including replay

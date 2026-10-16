@@ -26,6 +26,7 @@ metadata_incoming (incoming XMP alternatives, choices and verified duplicate cle
 metadata_incoming_apply (verified combined incoming primary/Return choices),
 metadata_source_cleanup (job-confirmed edited-source retirement with image-history proof),
 move_confirmation (read-only Move scope snapshots and stale-confirmation checks),
+pair_retry (catalog-only incomplete import eligibility and confirmed retry guards),
 metadata_decisions (saved choices and preview/confirmation),
 metadata_capture/metadata_index (read-only source
 observations and proposed priority, never activation), and the ns_similarity modules.
@@ -62,6 +63,11 @@ deletion and are not reliably detected by the engine.
   the web confirmation's SHA-256 catalog snapshot. Refuse a changed scope before
   processing files, under the engine lock. Included in request identity; replay
   still returns the original run. Grants no consent without --confirm-edited-sources.
+
+- --pair-retry-token (Optional) With --copy or --move, --file-ids-from and
+  --request-id: SHA-256 snapshot of selected incomplete photo/XMP imports. Binds
+  recorded pair intent, roots and original mode; checked under the engine lock
+  before acceptance and around startup recovery. It grants no verification bypass.
 
 - --review-decision (Optional) Record one catalog-only review decision from JSON stdin,
   under the engine lock. Returns JSON; never changes photo bytes or transfer status.

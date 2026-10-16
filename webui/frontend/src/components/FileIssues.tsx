@@ -1,6 +1,17 @@
+import { FileLocations } from "./ui/FileLocations";
+import { PairRetryButton } from "./PairRetry";
 import { useEffect, useRef, useState } from "react";
 import { api, type FileIssue } from "../api";
 import { useJobFeed } from "../jobs";
+import { follow, logUrl } from "../nav";
+
+// Remove only the transfer wrapper; retain the actual failure and its system details.
+function pairFailureReason(summary: string) {
+  return summary
+    .replace(/^Photo\/XMP transfer incomplete(?: while [^:]+)?: /, "")
+    .replace(/^PairRefused: /, "")
+    .replace(/\. Published files were preserved; review the pair before retrying\.$/, "");
+}
 
 // One recovery control in Inspector, Logs and the Library review workspace.
 export function FileIssues({ photoId, initialIssues, operationId, onResolved }: {
@@ -43,22 +54,41 @@ export function FileIssues({ photoId, initialIssues, operationId, onResolved }: 
     } catch(e) {setBusy(false);setError(e instanceof Error ? e.message : "The check was not confirmed.");}
   };
   if (!issues.length && !message && !error) return null;
-  return <section className="notice" aria-label="Files needing verification">
-    {issues.length > 0 && <>
+  const pairs=issues.filter(i=>i.category === "metadata_pair_incomplete");
+  const latestPair=pairs.filter(i=>operationId == null || i.operation_id === operationId)
+    .reduce<FileIssue | null>((latest, issue)=>!latest || issue.operation_id > latest.operation_id
+      || (issue.operation_id === latest.operation_id && issue.issue_id > latest.issue_id) ? issue : latest, null);
+  const checks=issues.filter(i=>i.category !== "metadata_pair_incomplete");
+  return <>
+    {latestPair && <section className="notice" aria-label="Incomplete photo/XMP transfer">
+      <h3>Photo/XMP transfer incomplete</h3>
+      <p>{pairFailureReason(latestPair.summary)}</p>
+      <p>Check the destination files and fix the reported problem before retrying.</p>
+      <div className="settings-actions">
+        <PairRetryButton ids={[photoId]} />
+        <a href={logUrl({photo:photoId})} onClick={follow}>View photo logs</a>
+      </div>
+    </section>}
+    {(checks.length > 0 || message || error) && <section className="notice" aria-label="Files needing verification">
+    {checks.length > 0 && <>
       <h3>File needs checking</h3>
       <p>An earlier operation could not be verified. Checking updates the catalog; it does not move, overwrite or delete photos.</p>
-      {issues.map(issue => <div key={issue.issue_id}>
+      {checks.map(issue => <div key={issue.issue_id}>
         <p>{issue.summary}</p>
         <button className="photo-action" disabled={busy || !!jobs.active} title={jobs.active ? "Wait for the running job to finish." : undefined}
           onClick={()=>void check(issue.issue_id)}>{busy ? "Checking…" : pending.current ? "Retry check" : "Check it now"}</button>
         <details><summary>Recorded evidence</summary>
           {issue.evidence.length === 0 ? <p>No detailed observations were recorded for this operation.</p>
-          : <ul>{issue.evidence.map((e,i)=><li key={i}><strong>{e.location}</strong>: {e.result} ({e.kind}) · {e.observed_at}<br/><code>{e.path}</code></li>)}</ul>}
+          : <><FileLocations
+              source={issue.evidence.filter(e=>e.location === "source").map(e=>({label:e.result,path:e.path,note:`${e.kind} · ${e.observed_at}`}))}
+              destination={issue.evidence.filter(e=>e.location === "destination").map(e=>({label:e.result,path:e.path,note:`${e.kind} · ${e.observed_at}`}))} />
+            {issue.evidence.some(e=>!["source","destination"].includes(e.location)) && <ul>{issue.evidence.filter(e=>!["source","destination"].includes(e.location)).map((e,i)=><li key={i}><strong>{e.location}</strong>: {e.result} ({e.kind}) · {e.observed_at}<br/><code>{e.path}</code></li>)}</ul>}</>}
         </details>
       </div>)}
     </>}
     {busy && <p role="status">Checking the recorded files. You can follow or cancel this job in the job panel.</p>}
     {message && <p role="status">{message}</p>}
     {error && <p className="error" role="alert">{error} <button onClick={()=>void reload().then(()=>setError(""),e=>setError(e.message))}>Reload issues</button></p>}
-  </section>;
+  </section>}
+  </>;
 }

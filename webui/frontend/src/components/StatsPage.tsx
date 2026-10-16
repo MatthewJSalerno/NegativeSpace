@@ -84,7 +84,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: (group?: "
         <Tile label="Catalog photos" value={count(lib.photos)} sub={bytes(lib.bytes)} href={lib.failed_source ? undefined : "/?view=all"} />
         <Tile label="In Library" value={share(lib.organized, lib.photos)}
               sub={`${count(lib.organized)} of ${count(lib.photos)}`} href="/?view=organized" />
-        <Tile label="No capture date" value={count(s.dates.undated)}
+        <Tile label="No usable capture date" value={count(s.dates.undated)}
               sub={`${share(s.dates.undated, lib.photos)} of photos`} href="/?view=all&undated=1" />
         <Tile label="Duplicate copies" value={count(s.duplicates.extra_copies)}
               sub={`${bytes(s.duplicates.bytes)} in extra copies`} />
@@ -132,7 +132,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: (group?: "
             ["Oldest photo", s.dates.oldest ? photoDate(s.dates.oldest, false) : "–"],
             ["Newest photo", s.dates.newest ? photoDate(s.dates.newest, false) : "–"],
             ["Busiest day", s.dates.busiest_day ? `${photoDate(s.dates.busiest_day.day, false)} · ${plural(s.dates.busiest_day.photos, "photo")}` : "–"],
-            ["No capture date", <a key="u" href="/?view=all&undated=1" onClick={follow}>{count(s.dates.undated)}</a>],
+            ["No usable capture date", <a key="u" href="/?view=all&undated=1" onClick={follow}>{count(s.dates.undated)}</a>],
             ["  no date in the EXIF", count(s.dates.undated_no_date)],
             ["  an unusable date (e.g. 0000:00:00)", count(s.dates.undated_unusable)],
             ["Recorded a time zone", count(s.dates.with_time_zone)],

@@ -28,6 +28,43 @@ class Imports(unittest.TestCase):
         args=SimpleNamespace(move=move,copy=not move,source=str(self.root/'source'),source_subdir=None,file_ids=None)
         return transfer._run_move_or_copy(args,db,self.root/'dest',run)
 
+    def warning_photo(self):
+        exif=Image.Exif()
+        exif[34665]={36867:'2020:01:02 03:04:05',37500:bytes(range(64))}
+        Image.new('RGB',(48,32),(10,20,30)).save(self.photo,exif=exif)
+
+    def test_reader_warning_allows_verified_copy_and_move_with_or_without_sidecar(self):
+        for sidecar in (False,True):
+            for mode in ('copy','move'):
+                with self.subTest(sidecar=sidecar,mode=mode):
+                    self.setUp(); self.warning_photo()
+                    if not sidecar:self.sidecar.unlink()
+                    photo_bytes=self.photo.read_bytes()
+                    side_bytes=self.sidecar.read_bytes() if sidecar else None
+                    self.run_engine('--'+mode)
+                    row=self.photo_row()
+                    self.assertEqual(row[2],'Copied' if mode=='copy' else 'Completed')
+                    self.assertIn('/2005/03/04/' if sidecar else '/2020/01/02/',row[1])
+                    self.assertEqual(Path(row[1]).read_bytes(),photo_bytes)
+                    if sidecar:self.assertEqual(Path(row[1]+'.xmp').read_bytes(),side_bytes)
+                    self.assertEqual(self.photo.exists(),mode=='copy')
+                    if mode=='copy':self.assertEqual(self.photo.read_bytes(),photo_bytes)
+                    if sidecar:self.assertEqual(self.sidecar.exists(),mode=='copy')
+                    report=json.loads(self.conn().execute('SELECT report_json FROM metadata_captures ORDER BY capture_id DESC LIMIT 1').fetchone()[0])
+                    self.assertEqual(report['state'],'captured'); self.assertEqual(report['issues'],[])
+                    self.assertIn('Unrecognized MakerNotes',report['warnings'][0]['detail'])
+
+    def test_reader_note_does_not_override_broken_sidecar_hold(self):
+        self.warning_photo(); self.sidecar.write_bytes(b'not XMP')
+        before=self.photo.read_bytes(); self.run_engine('--move')
+        self.assertEqual(self.photo_row()[2],'Pending')
+        self.assertEqual(self.photo.read_bytes(),before)
+        self.assertEqual(self.sidecar.read_bytes(),b'not XMP')
+        self.assertEqual(list((self.root/'dest').iterdir()),[])
+        report=json.loads(self.conn().execute('SELECT report_json FROM metadata_captures ORDER BY capture_id DESC LIMIT 1').fetchone()[0])
+        self.assertEqual(report['state'],'needs_attention')
+        self.assertTrue(report['warnings']); self.assertTrue(report['issues'])
+
     def test_direct_copy_uses_xmp_filing_and_keeps_source_bytes(self):
         before=self.photo.read_bytes(); side=self.sidecar.read_bytes()
         self.run_engine('--copy'); row=self.photo_row()

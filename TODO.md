@@ -396,11 +396,32 @@ Saved orientation stays a separate action from temporary preview rotation.
   (2026-10-14, tests/README.md, Move confirmation tests M1–M3), including the
   refresh-button and source/destination Inspector follow-ups.
 
-- [ ] Deliberate association/primary-choice controls, separate from viewing and copying,
-  with effective-value/refiling previews and the same priority explanation in setup and
-  Settings. The source viewer is tracked above, not a duplicate implementation task.
-- [ ] Prominent active-job Settings notice (`webui-spec.md` §3); generic future-jobs
-  notice/save confirmation already exist.
+- [x] Metadata setup/Settings preferences: explicit shared-sidecar choice at first run,
+  RAW/non-RAW write defaults with qualified-writer limits, and shared read-priority
+  guidance. Existing primary/ownership decisions remain unchanged. Automated validation
+  covers persistence, revisions and frozen running-job settings; maintainer acceptance
+  passed S1–S3 (tests/README.md). R1–R3 passed.
+- [x] Separate informational metadata-reader warnings from import holds: unrecognized
+  MakerNotes and other reader warnings preserve their diagnostics without blocking
+  unchanged Copy/Move. Reader errors, unstable files and unresolved sidecars remain
+  protected. Metadata viewer shows notes with readable explanations and technical detail.
+  130 targeted tests and the metadata browser passed; maintainer W1 acceptance passed.
+- [x] Clarify date filters versus source blockers: No usable capture date describes
+  the filing date; Needs attention explains what prevents organizing. Show repeated
+  date errors once, retain affected paths, and recognize usable XMP dates in the
+  Inspector. Viewer tests and three browser workflows passed; maintainer D1 acceptance
+  passed, including D1.c (XMP date without EXIF Date taken).
+- [ ] Metadata grouping follow-up (S1/S3 feedback): move metadata questions out of
+  Files into a dedicated Metadata setup step and a dedicated Metadata tab in Settings.
+  The current Settings page is too long and wordy. Keep setup and Settings grouping
+  consistent with the shared design contract; update the specs and browser navigation
+  checks when implementing. S1–S3 behavior passed; these layout changes are not built.
+- [ ] Deliberate per-file association/primary-choice controls, separate from viewing and
+  copying, with effective-value/refiling previews. Settings defaults do not replace this
+  workflow. The source viewer is tracked above, not a duplicate implementation task.
+- [x] Prominent active-job Settings notice (`webui-spec.md` §3): shared live feed, stable
+  geometry across active/idle/unknown states and tabs, no draft reload or separate poll.
+  Generic future-jobs notice/save confirmation remain. Maintainer acceptance S2 passed on 2026-10-15.
 - [x] Source metadata attention markers and photo-information explanations: affected
   source-relative sidecar paths, external correction/reindex guidance and job logs.
   Latest-capture holds count as attention, not ready-to-organize photos. No source
@@ -408,8 +429,18 @@ Saved orientation stays a separate action from temporary preview rotation.
 - [ ] Metadata-choice job notices and linked Not organized queue; metadata-difference
   review for edited Library photos and combined metadata/location choices for rejected
   matches. Retained alternatives already have engine preservation notices/history.
-- [ ] **Before release: expose pair retry**, with eligible selections/counts, issue details,
-  explicit same-mode retry and browser validation. Engine CLI retries are built.
+- [x] Import-pair retry API/UI: eligible selection counts, recorded issue/file details,
+  separate Copy/Move confirmation and original-mode recovery. Snapshot checks bind
+  roots, catalog state and pair intent at acceptance; source deletion still requires
+  verified pair evidence. Automated API/engine and browser checks cover retry/replay,
+  stale/live changes, cancellation, selection and narrow/200% layouts. Maintainer
+  visual acceptance passed on 2026-10-15 (tests/README.md, R1–R3). R1 feedback adds shared
+  Source/Destination groups in information panes and recorded failed-step/file context;
+  older records explicitly identify missing detail rather than guessing a failed file.
+  R1 follow-up adds green verified/amber incomplete-or-unconfirmed destination results,
+  with text labels and intended-path guidance; source originals remain neutral.
+  Photo notices show the latest failure once and link to earlier attempts in Logs;
+  confirmations say the retry resumes the original Copy/Move.
 - [ ] Deferred broader composition/cross-photo and bulk date controls. Engine support
   exists for qualified common fields; exposing it is outside the first date UI. Preserve
   explicit donor/target roles and never choose primary implicitly (`webui-spec.md` §7.5).
@@ -475,8 +506,8 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 | 14 | A Move never deletes a source on the strength of an fsync a network share may acknowledge early | `--confirm-network-destination`, `engine-spec.md` §4.1 | **Enforced**, tested (`a move to a network share asks before anything is deleted`, `the destination filesystem is read from the mount table`). A client cannot see how a share is exported — an `async` NFS export acknowledges an `fsync` before the data is on disk — so the engine does not try to. It reads the destination's filesystem type from the mount table and, for a network filesystem, stops a Move before copying or deleting anything: a needs-attention issue recommends Copy (which never deletes, so it is the one way to guarantee no loss) and the user chooses Copy instead, Move anyway after confirming the share is exported `sync`, or neither. Copy is never stopped. **Residual, by the maintainer's decision:** a confirmed Move is only as durable as the share's honesty about `fsync`, and a mount table that cannot be read is treated as local. |
 | 15 | A destination file with an unresolved needs-attention issue never authorizes deleting a duplicate source | `ns_db.paths_needing_attention`, `engine-spec.md` §4.2 | **Enforced**, tested (`a_copy_needing_attention_never_authorizes_removing_a_duplicate`, and the database tests for the lookup). Move's duplicate cleanup drops such copies from its candidates before verifying bytes; with none left the source stays, recorded `Skipped` with the reason, and the next Move after the issue is resolved removes it. A matching SHA-1 alone is not enough, because recovery could not establish what is at that path. |
 | 16 | Retained XMP originals round-trip exactly from an intact catalog or a backup containing them; corrupted payloads are never published as verified backups | `xmp_store`, `docs/xmp-metadata.md` | **Enforced for the storage primitive**, tested (`xmp_store_test.py`): bounded decode, size/hash checks, FULL transaction and rollback, backup restoration/refusal, arrival watermark including a concurrent arrival. Index retention and resolved first-import/transfer paths are connected; user restoration is not built; this is not a photo rollback or hardware-loss guarantee. |
-| 17 | A recorded photo/XMP pair verifies and durably records both new members before source deletion or retiring old destination names; recovery never treats the photo alone as complete | `metadata_transfer`, `metadata_relocate`, `docs/xmp-metadata.md` | **Enforced for the internal transfer and recorded-pair relocation paths**, tested (`metadata_transfer_test.py`, `metadata_relocate_test.py`): publication failures keep originals; partial cleanup is observed/retried; missing members prevent completion; failed directory barriers are repeated; retry preserves history. Mutations removing the pair-evidence gate or the old-directory recovery sync fail the regression tests. Resolved first imports and confirmed incoming primary/Return choices are connected; decision screens and web retry remain unfinished; XMP/qualified JPEG edits are connected. Hardware power loss and dishonest network fsync remain documented limitations. |
-| 18 | A source whose organized photo has embedded edits is retired only under explicit consent for this Move job, with verified image history, current files, retained metadata and pre-action backup | `metadata_source_cleanup`, `docs/xmp-metadata.md` | **Enforced in the engine**, tested (`metadata_source_cleanup_test.py`): 19 generated cases cover consent/replay, live hashes, backup/fsync failure, shared XMP, changed/symlinked files, interruption/retry, Rename and Rejects. This deliberate exception retains an edited photo, not exact original photo bytes. Web confirmation is unfinished. |
+| 17 | A recorded photo/XMP pair verifies and durably records both new members before source deletion or retiring old destination names; recovery never treats the photo alone as complete | `metadata_transfer`, `metadata_relocate`, `docs/xmp-metadata.md` | **Enforced for the internal transfer and recorded-pair relocation paths**, tested (`metadata_transfer_test.py`, `metadata_relocate_test.py`): publication failures keep originals; partial cleanup is observed/retried; missing members prevent completion; failed directory barriers are repeated; retry preserves history. Mutations removing the pair-evidence gate or the old-directory recovery sync fail the regression tests. Resolved first imports and confirmed incoming primary/Return choices are connected; decision screens remain unfinished; confirmed import-pair web retry is connected; XMP/qualified JPEG edits are connected. Hardware power loss and dishonest network fsync remain documented limitations. |
+| 18 | A source whose organized photo has embedded edits is retired only under explicit consent for this Move job, with verified image history, current files, retained metadata and pre-action backup | `metadata_source_cleanup`, `docs/xmp-metadata.md` | **Enforced in the engine**, tested (`metadata_source_cleanup_test.py`): 19 generated cases cover consent/replay, live hashes, backup/fsync failure, shared XMP, changed/symlinked files, interruption/retry, Rename and Rejects. This deliberate exception retains an edited photo, not exact original photo bytes. Web confirmation is built and maintainer-validated; `move_confirmation_test.py` and its browser driver cover consent, stale scope and replay. |
 
 ### Outstanding
 

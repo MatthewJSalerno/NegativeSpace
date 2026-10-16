@@ -4183,7 +4183,14 @@ def the_detail_preview_is_made_on_request_from_a_catalogued_copy():
 
     # The only copy edited outside the engine. A cached preview is still served — it was
     # made from the catalogued content — but none can be made from the changed file.
-    dest = next((case / "dest").rglob("big.jpg"))
+    # Either identical source can finish indexing first and become the retained
+    # copy. Assert the Move result, then change that actual copy, not a fixed name.
+    retained = dest_files(case)
+    check(len(retained) == 1, f"Move should retain exactly one identical photo: {retained}")
+    check(not src_files(case), "Move left an original or duplicate at source")
+    dest = case / "dest" / retained[0]
+    recorded = {r["dest_path"] for r in rows(case, "SELECT dest_path FROM photos WHERE dest_path IS NOT NULL")}
+    check(str(dest) in recorded, f"retained copy is not catalogued: {dest}")
     make_photo(dest, "someone else's pixels", size=(1600, 1200))
     kept, rc = _preview(case, big)
     check(rc == 0 and kept["reused"], f"a cached preview was not served once no copy was usable: {kept}")

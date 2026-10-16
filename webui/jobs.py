@@ -15,7 +15,7 @@ import time
 import uuid
 from typing import Optional
 
-from engine import move_confirmation, ns_db
+from engine import move_confirmation, pair_retry, ns_db
 from . import catalog, catalog_backups, outcomes
 from .config import ENGINE_CWD, Config
 
@@ -277,6 +277,29 @@ class JobRunner:
         with self._start_lock:
             return self._launch(['--metadata','apply'],body['request_id'],metadata_request=request)
 
+    def retry_pairs(self, body):
+        if set(body) != {'mode','file_ids','token','request_id'}:
+            raise JobRefused(400, {'error':'invalid_request','message':'Send the confirmed mode, photos, token and request ID.'})
+        mode = body['mode']
+        if mode not in ('copy','move') or not isinstance(body['token'],str) or not re.fullmatch('[0-9a-f]{64}',body['token']):
+            raise JobRefused(400, {'error':'invalid_request','message':'Choose an original Copy/Move retry and its preview token.'})
+        validate_request_id(body['request_id'])
+        if not body['request_id'] or body['file_ids'] is None:
+            raise JobRefused(400, {'error':'invalid_request','message':'A selected retry and request ID are required.'})
+        flags, selection = validate_request(self.cfg,mode,body['file_ids'])
+        flags += ['--pair-retry-token',body['token']]
+        with self._start_lock:
+            replay = self._replay(flags,body['request_id'],selection)
+            if replay is not None:
+                return replay
+            with catalog.connect(self.cfg.db_path) as conn:
+                try:
+                    pair_retry.check(conn,body['token'],source=self.cfg.source,destination=self.cfg.dest,
+                                     photo_ids=selection,mode=mode)
+                except ValueError as exc:
+                    raise JobRefused(409, {'error':'pair_retry_changed','message':str(exc)}) from exc
+            return self._launch(flags,body['request_id'],selection)
+
     def check_issue(self, issue_id, request_id=None):
         validate_request_id(request_id)
         if type(issue_id) is not int or not 1 <= issue_id <= MAX_PHOTO_ID:
@@ -342,6 +365,10 @@ class JobRunner:
                 flags.append("--confirm-source-empty")
             if mode == "move" and (answer == "confirm_move" or submitted.get("confirm_network_destination") is True):
                 flags.append("--confirm-network-destination")
+            if submitted.get('pair_retry_token'):
+                if answer == 'copy':
+                    raise JobRefused(409, {'error':'pair_retry_mode','message':'This incomplete pair must finish its original Move. Restore suitable storage and retry Move; its mode cannot change to Copy.'})
+                flags += ['--pair-retry-token',submitted['pair_retry_token']]
             if mode == 'move' and submitted.get('confirm_edited_sources') is True:
                 flags.append('--confirm-edited-sources')
             if mode in ('move', 'copy') and submitted.get('move_preview_token'):
@@ -371,6 +398,8 @@ class JobRunner:
                                   "confirm_source_empty": "--confirm-source-empty" in flags,
                                   "confirm_network_destination": "--confirm-network-destination" in flags,
                                   "confirm_edited_sources": "--confirm-edited-sources" in flags}}
+        if '--pair-retry-token' in flags:
+            expected['submitted']['pair_retry_token'] = argument('--pair-retry-token')
         if '--move-preview-token' in flags:
             expected['submitted']['move_preview_token'] = argument('--move-preview-token')
         for flag, mode in (("--reject", "REJECT"), ("--return-to-library", "RETURN")):

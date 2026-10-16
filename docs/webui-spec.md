@@ -258,7 +258,7 @@ tree, and the **date scrubber** at the gallery's right edge (years given room by
 photos; point for the month, click or drag to go there), jump to a year or month by the
 page it starts on (`GET /api/v1/photos/timeline`). Subtle ticks fill the scrubber's gaps
 without adding click targets or implying equal time intervals; labels retain clear space.
-Hide the year panel while No capture date is active, also in pinned combinations;
+Hide the year panel while No usable capture date is active, also in pinned combinations;
 restore it on clearing that filter when sorted by date. Retain its empty gutter to
 prevent gallery reflow, with no hidden focusable controls. This does not change filing
 dates, ordering or filter results.
@@ -272,10 +272,11 @@ scroll pixel position or a transient review. Logs links replace the log's filter
 and expand the single linked job. Recording local control or scroll changes in the
 address does not itself count as navigation or reset the current selection.
 
-**No capture date** is a Look into filter, with its count and no adjacent
+**No usable capture date** is a Look into filter, with its count and no adjacent
 information icon. It shows the
-photos whose EXIF has no date taken, which are filed under Undated by their file's
-modification date, counted in the current view. It combines with the view and the
+photos without a usable effective capture date, including missing, empty, partial or
+uninterpretable dates. Undated filing uses the original file's modification year.
+Count these photos in the current view; missing dates alone do not block organization. It combines with the view and the
 search, and the filter line says how many are shown. A review reason narrows Library or the
 Needs review inbox, not Not organized or Rejects. The sidebar's counts sit in their own right-aligned column in
 even-width digits, so a count changing never moves a label. Every location preserves the
@@ -288,7 +289,7 @@ reserved when hidden so the filters below do not move.
 share one frame: a sticky top bar (the logo, the filename search and **Jobs ▾** on the
 Library, the Dark mode switch, Settings) and a navigation sidebar on every page: the four
 places with what each holds (`GET /photos/places`); **Look into**, the gallery's filters
-(Has similar photos, Suspicious dates, No capture date, Small images, Review later);
+(Has similar photos, Suspicious dates, No usable capture date, Small images, Review later);
 **Activity** (Logs, Stats); the build at the foot. On the Library a place keeps the search
 and filters, and leaves Show only selected or a review first. Look into's filters replace
 unpinned filters within the place shown; separate Pin buttons retain filters while
@@ -325,16 +326,16 @@ Its four entry points:
 
 A copied photo belongs to the Library; its untouched original in the source is not
 counted again. **All photos** is removed from navigation. Old links remain readable. Needs review overlaps the location views: its count is distinct photos awaiting decisions, not additional files, and the four counts must never be added together. Each reviewed photo names its location.
-**Has similar photos**, **Suspicious dates** and **No capture date** stop being views and
-become filters within a place ("Library · has similar photos"), as No capture date
+**Has similar photos**, **Suspicious dates** and **No usable capture date** stop being views and
+become filters within a place ("Library · has similar photos"), as No usable capture date
 already is. *Why:* the places then answer one question, where is it, and drop from
 six to four. Settled 2026-10-07:
 
 * **The filters are the sidebar's Look into** (maintainer, 2026-10-09; they were a chip
   row above the photos, which repeated Look into), each with its count in the place shown
-  ("Has similar photos 167 · Suspicious dates 8 · No capture date 1,356"), with Needs
+  ("Has similar photos 167 · Suspicious dates 8 · No usable capture date 1,356"), with Needs
   review's reasons (§7.9): one pattern for narrowing a place.
-* **Small images** stays beside **No capture date** as a toggle in Library and
+* **Small images** stays beside **No usable capture date** as a toggle in Library and
   Needs review. Click again to clear it; it never changes location. Review later follows
   it in both Library and Needs review, with a count (including zero), and no second
   reason list or All reasons control. Switching between these places retains the
@@ -399,7 +400,7 @@ in the other view, show its count and a link rather than implying no matches exi
 ### Filter and search behavior
 
 Clicking an inactive Look into filter replaces the unpinned Look into filters. Pin a
-filter to keep it while choosing another: pinned Has similar photos plus No capture date
+filter to keep it while choosing another: pinned Has similar photos plus No usable capture date
 finds photos meeting both conditions (AND). Pinning enables it; unpinning turns it off
 and updates the results and counts immediately, keeping the other active filters.
 Unpinning an unapplied saved pin on an explicit link removes only that preference. Clicking an active filter turns it off and removes its pin.
@@ -456,16 +457,31 @@ saved until **Save and continue** on the last. Saving lands in Not organized, wh
 source** waits, whatever page an earlier session left in the address bar. After
 first run, Settings opens as a window over the current view.
 
-**Planned metadata guidance:** when metadata questions are added, the Files step and
-Settings › Files show the same visible **Which metadata is used?** explanation beside
+**Metadata preferences:** the Files step and Settings › Files show the same visible **Which metadata is used?** explanation beside
 association and write preferences. Show the default order: **XMP sidecar** (a separate
 file beside the photo), **Embedded XMP** (inside the photo), then **Embedded EXIF** (inside
 the photo, often written by the camera). Explain that only a missing field falls through;
 an explicitly empty field stays empty, all sources remain inspectable, and deliberate or
 established source choices take precedence. This read priority is separate from where
 future edits are saved. It is guidance, not an extra required setup question or a claim
-that the current Index implements the planned priority. Wording and the engine/UI
-handoff are in [xmp-metadata.md](xmp-metadata.md); use the shared design treatment.
+that viewing another source makes it primary. Index records source evidence and priority;
+verified first-import transfer applies filing. Wording and the engine/UI handoff are in
+[xmp-metadata.md](xmp-metadata.md); use the shared design treatment.
+
+First run requires a deliberate choice for shared sidecars: **Ask me**, **Associate
+only with RAW photos**, **Associate only with non-RAW photos**, or **Associate with all
+matching photos**. Mark the question required, focus it on validation failure, and save
+only at the final step. Choosing Ask me explicitly records that choice even though it is
+the engine default. Settings offers the same control with revisions, Reset and unsaved
+indication. Changes apply to new/unresolved associations; saved ownership choices remain.
+Explain that unresolved files stay in Not organized → Needs attention and need another
+Index after a preference change. Per-file ownership decision controls are still pending.
+
+**Where future edits are saved** shows RAW's XMP default and other formats' embedded
+(default) or XMP choice. An established primary target wins over these defaults.
+Embedded RAW is visible as unsupported and cannot be selected; embedded editing remains
+limited to qualified JPEG files. Unsupported formats are refused rather than silently
+switched. Saving preferences alone does not edit, move or change a photo's primary.
 
 **Startup without a usable catalog:** distinguish a missing database from access
 errors and from an invalid or corrupt database. Do not silently replace an existing
@@ -500,11 +516,11 @@ settings while a job is active; saved values apply only to jobs started after th
 save. Each job retains its starting configuration, available in its job details.
 Display a persistent notice in the job settings section, near Save:
 **“Changes apply to future jobs. Active jobs will continue with their existing settings.”**
-**Planned prominence improvement:** opening Settings while a job runs also shows an
+Opening Settings while a job runs also shows an
 informational notice near the top, outside the tab panels: **“A job is running.
 Processing changes you save now will apply to future jobs, not this one.”** Keep this
 notice visible across tabs and update it in place when job state changes. Use the shared
-stable-content pattern to avoid moving the controls while the user edits. Appearance
+stable-content pattern to avoid moving the controls while the user edits. Appearance, access
 and review-reminder preferences still apply immediately; this notice concerns engine
 processing. The existing generic near-Save notice and save confirmation remain.
 Repeat that clarification in the save confirmation when a job is active. Do not
@@ -551,7 +567,7 @@ accepted as capture dates: both are real timestamps that describe the file rathe
 than the photograph.
 
 **Undated photos are a Needs review reason** (decided 2026-10-05, §7.9), not a tab of
-their own: "No capture date", with **Use this date** and **Choose another**, the photo
+their own: "No usable capture date", with **Use this date** and **Choose another**, the photo
 carrying on under `Undated/` meanwhile. Its filters split photos with other date clues
 but no usable capture date, photos with other metadata but no usable date fields, and
 photos with no readable metadata. Classification uses embedded metadata rather than
@@ -875,8 +891,9 @@ a single tab. Actions continue to depend on loaded details.
 
 **The file's modification time** is the time the file carried when the first Index read
 it, not a date the photo was scanned; its label says so on hover (**"As recorded when
-NegativeSpace first indexed this file"**). For a photo with no EXIF date taken, one short
-line says what it is used for: **"* Files it under Undated: no EXIF date taken."**
+NegativeSpace first indexed this file"**). The Date taken row explains when the file
+modification year is used for Undated filing. Do not repeat that explanation under File
+modified or claim EXIF is missing when XMP supplies the date.
 
 **History in the panel, lineage in its own window.** A **History (n)** section under
 **File** shows the latest three events as a small timeline, with two links: **Open in the
@@ -892,7 +909,16 @@ a failed step opens to its recorded reason and **Retry this photo**; hovering or
 a path shows its size, content fingerprint and whether it matches, and when it was
 recorded. Escape closes the window only, not the panel behind it.
 
-**Source metadata holds.** Not organized cards mark recorded metadata issues as
+**Source metadata holds.** Needs attention means the source photo cannot yet be
+organized; No usable capture date is a separate date property, not an import restriction
+by itself. Both may apply to one photo. Show the specific date issue once and refer to
+it from the date row; combine repeated identical problems and retain all affected paths.
+Use effective filing dates for review concerns so a usable XMP date is not described as
+missing just because EXIF has no Date taken. Reader warnings (including unrecognized MakerNotes) are
+informational notes in the Metadata viewer, with plain-language context and expandable
+technical details. They do not count as attention holds or block Copy/Move. Reader
+errors and unresolved/unreadable associations remain holds. Reindex refreshes earlier
+warning-only captures; existing history is retained. Not organized cards mark blocking metadata issues as
 Needs attention · Metadata. Opening a card shows the affected source-relative files,
 plain-language reason, available technical detail, external correction/reindex guidance
 and photo logs at the top of Photo information. The photo and sidecars remain at source.
@@ -1309,6 +1335,28 @@ Users can view exact system error strings (e.g., `PermissionError`, `ChecksumMis
 
 **No dedicated retry subsystem.** There is no "Retry Item" / "Retry All Failed" backend endpoint and no `retry_count` tracking. A failed file's `photos.status` is reset to `Pending` automatically the next time it's re-indexed (a plain re-scan, full or `--file-ids`-scoped), so retrying means explicitly submitting a new operation. Successfully copied files remain in source; successfully moved files normally do not. Do not promise that rerunning requires no scanning or verification. The web UI's equivalent of "retry" is selecting the photos associated with failed attempts and re-issuing the same Move/Copy operation via `POST /api/v1/jobs/start` with their IDs in `file_ids` — no new endpoint required. Take those IDs from the failed `operations` rows rather than from `photos.status`, deduplicating when several attempts reference one photo, and do not require the photo's current status to be `Failed`: a duplicate-verification failure stays `Duplicate` and is retried by Move's duplicate cleanup on the next run. Retrying does not by itself fix a content mismatch or an unreadable file, so the UI should not promise that it will.
 
+**Incomplete photo/XMP imports are a specific exception to the generic retry UI.**
+Their recorded pair intent already contains the original destination and mode. The
+photo issue panel, affected log operation and eligible selected-photo count open the
+shared **Retry photo/XMP transfers** dialog. The photo notice shows only the latest
+recorded failure, with repeated wrapper wording removed, and links to photo Logs for
+earlier attempts; an individual log operation retains its own failure. Confirmation
+says the retry resumes the original operation. Show the recorded failure, visible
+file paths and blocked reasons. Source and Destination have labelled groups and a
+visible divider, shared with Inspector and Logs. Show the recorded failed step and
+filenames above the locations. Destination file rows distinguish green verified content
+from amber incomplete/unconfirmed delivery, with explicit status text alongside color.
+An intended path does not mean the file exists. Results describe the last recorded job,
+not a live check; retries verify files again. Source originals remain neutral. Older
+records without precise context or delivery evidence say so; never infer successful
+delivery or damage from a path alone. Group eligible pairs by original Copy/Move mode, then
+confirm that group separately. Copy keeps originals; Move verifies both destination
+members before removing remaining originals. Cancel changes nothing. Storage/content
+problems still require external correction; acceptance is not proof of completion.
+Use `/pair-retries/preview` and `/pair-retries/start` to bind that confirmation to the
+current intent and roots. IDs still reach the ordinary runner through selection files;
+this is not an automatic retry queue. Preserve request identity on uncertain submission.
+
 ### 5.4 Operations Audit Log (`/logs`)
 
 CSV/JSON links live in a labelled **Export filtered log** action group beside the page
@@ -1514,7 +1562,7 @@ library fed as archives in their own folders, how much each archive duplicated),
 rest of the library in figures (formats,
 cameras, resolution, dates, activity, catalog health), each leading to the photos or log
 entries behind it. Figures that need unbuilt features say so rather than guess. The
-tiles across the top are Photos, Organized, No capture date, Duplicate copies, Failed
+tiles across the top are Photos, Organized, No usable capture date, Duplicate copies, Failed
 attempts, Last backup and, two columns wide, Rejects (§7.8). **A share never rounds to all or nothing:** 100% means every
 photo and 0% none, so 4,681 of 4,684 reads 99.9%, not 100%.
 Camera and lens identifiers are displayed and grouped as text, including numeric
@@ -1697,7 +1745,7 @@ ORDER BY r.ended_at DESC LIMIT 1;
 
 **Extension scope counts too.** An Index run with a narrowed `--exts` scans the full tree, succeeds completely at a smaller job, and records no failure, having examined only some file types. Its effective extension set is recorded in `run_configs` (`engine-spec.md` §6.5), so the API can see it: an Index whose effective extensions omit a supported type does not advance the coverage date, and is listed in `run_ids_since` like any other later run.
 
-`GET /api/v1/photos?status=Failed` remains available for filtering the catalog, but it is not the Error Center's data source: it misses any failure whose photo is not currently `Failed`. "Retrying" is selecting the associated photo IDs and calling `POST /api/v1/jobs/start` again with the same mode — no separate retry endpoint, per the design note in §5.3.
+`GET /api/v1/photos?status=Failed` remains available for filtering the catalog, but it is not the Error Center's data source: it misses any failure whose photo is not currently `Failed`. "Retrying" is selecting the associated photo IDs and calling `POST /api/v1/jobs/start` again with the same mode — except the confirmed photo/XMP import-pair flow described in §5.3.
 
 ---
 
@@ -2886,7 +2934,7 @@ year ahead of the current UTC year. Setup and Settings › Files offer this year
 1999 and earlier. Allow for older scans and family photos. This is a
 conservative review heuristic, not proof of an error. It includes EXIF-derived dates
 and file-modification fallbacks, with their source identified in the Inspector and
-comparison pane. Missing dates remain covered by No capture date; raw malformed or
+comparison pane. Missing dates remain covered by No usable capture date; raw malformed or
 conflicting EXIF tags are outside this first policy. Never infer an offset or replace
 a recorded value. Legitimate historical material may still be flagged.
 
@@ -3041,7 +3089,7 @@ Needs review and new decisions are refused until it is back in Library.
 
 Index summary photo facts cover Pending (successfully indexed) photos only. Failed
 source files and unfinished Processing entries have separate counts. Failed files do
-not appear as ordinary No capture date/Suspicious dates results. Logs keep specific
+not appear as ordinary No usable capture date/Suspicious dates results. Logs keep specific
 causes; Recheck after fixing repeats the job after external repair/access correction,
 without promising to repair a file. Existing decoder-specific recovery remains separate.
 

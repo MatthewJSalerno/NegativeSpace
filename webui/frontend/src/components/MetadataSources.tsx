@@ -64,6 +64,14 @@ export function MetadataSources({ photoId, refreshKey, editable = false, jobRunn
     <p className="section-note">Recorded metadata. Viewing and comparing leave files and the primary source unchanged.</p>
     {data.notice && <p className="section-note">{data.notice}</p>}
     {data.issues.length > 0 && <p className="notice">Metadata needs attention: {data.issues.map(i => i.detail || i.code.replaceAll("_", " ")).join("; ")} <a href={logUrl({photo:photoId})} onClick={follow}>View photo logs</a></p>}
+    {!!data.warnings?.length && <section className="info-section" aria-label="Metadata notes">
+      <h3>Metadata notes</h3>
+      <p className="section-note">These notes alone do not prevent Copy or Move. Original metadata is preserved when transferring the file.</p>
+      {data.warnings.map((note, i) => <div key={i}>
+        <p>{note.reason}</p>
+        {note.detail && <details><summary>Technical details</summary><p>{note.detail}</p></details>}
+      </div>)}
+    </section>}
     <TabList label="Metadata sources" idBase={id} value={kind} className="inspector-tabs" onChange={next => {
       const target = data.sources.find(s => s.kind === next && s.id === data.primary_id) ?? data.sources.find(s => s.kind === next)!;
       setSelected(target.id); setQuery("");

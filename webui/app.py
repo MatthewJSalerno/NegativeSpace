@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
-from engine import ns_db, review, attention
+from engine import ns_db, review, attention, pair_retry
 from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, oplog, outcomes, stats
@@ -339,9 +339,13 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_selection(body: dict = Body(...)):
         """A POST only because a selection's ids are too long for a URL; it reads."""
         try:
-            return gallery.photos_by_ids(cfg.db_path, body.get("ids"), sort=body.get("sort", "newest"),
+            result = gallery.photos_by_ids(cfg.db_path, body.get("ids"), sort=body.get("sort", "newest"),
                                          page=body.get("page", 1), page_size=body.get("page_size", 60), match_min=body.get("match_min", 75),
                                          action=body.get("action"))
+            with catalog.connect(cfg.db_path) as conn:
+                pairs = pair_retry.preview(conn,source=cfg.source,destination=cfg.dest,photo_ids=body.get('ids')) if body.get('ids') else []
+            result['pair_retries'] = sum(not row['blocked'] for row in pairs)
+            return result
         except (ValueError, TypeError) as exc:
             raise _bad_request(ValueError(str(exc)))
 
@@ -370,6 +374,28 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             if not gallery.photo_exists(conn, photo_id):
                 raise HTTPException(404, {"error":"not_found","message":"Photo not found."})
             return {"items":attention.for_photo(conn, photo_id)}
+
+    @app.post("/api/v1/pair-retries/preview")
+    def pair_retry_preview(body: dict = Body(...)):
+        if set(body) - {'file_ids'}:
+            raise _bad_request(ValueError('Choose photos only.'))
+        try:
+            with catalog.connect(cfg.db_path) as conn:
+                conn.execute('BEGIN')
+                items = pair_retry.preview(conn,source=cfg.source,destination=cfg.dest,photo_ids=body.get('file_ids'))
+                groups = []
+                for mode in ('copy','move'):
+                    ids = [r['photo_id'] for r in items if not r['blocked'] and r['mode']==mode]
+                    if ids:
+                        groups.append(dict(mode=mode,file_ids=ids,token=pair_retry.token(conn,
+                            source=cfg.source,destination=cfg.dest,photo_ids=ids,mode=mode)))
+                return dict(items=items,groups=groups)
+        except (ValueError, ns_db.SelectionRefused) as exc:
+            raise _bad_request(exc)
+
+    @app.post("/api/v1/pair-retries/start", status_code=202)
+    def pair_retry_start(body: dict = Body(...)):
+        return outcomes.get_run(cfg.db_path,jobs.retry_pairs(body))
 
     @app.post("/api/v1/issues/check", status_code=202)
     def check_issue(body: dict = Body(...)):

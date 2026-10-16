@@ -85,7 +85,7 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
             <div className="card-meta">
               <span className="card-name" title={item.filename}>{item.filename}</span>
               <span className="card-sub">
-                {item.status !== "Failed" && <span title={isFallbackDate(item.date_source) ? "No capture date: this is the file's modification date" : undefined}>
+                {item.status !== "Failed" && <span title={isFallbackDate(item.date_source) ? "No usable capture date: this is the file's modification date" : undefined}>
                   {photoDate(item.date_taken, false)}
                   {isFallbackDate(item.date_source) ? " (file date)" : ""}
                 </span>}

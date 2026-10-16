@@ -326,7 +326,7 @@ def _shared_cleanup_reason(conn, manifest):
     return None
 
 
-def _settle(conn, op, manifest, *, completed, error=None, source_removed=False, sidecar_note=None, recovery_run_id=None):
+def _settle(conn, op, manifest, *, completed, error=None, source_removed=False, sidecar_note=None, recovery_run_id=None, failure_context=None, delivery=None):
     pid,_,_ = _manifest(conn,op)
     run_id = conn.execute('SELECT run_id FROM operations WHERE id=?',(op,)).fetchone()[0]
     status = (PhotoStatus.COMPLETED if source_removed else PhotoStatus.COPIED) if completed else PhotoStatus.FAILED
@@ -346,7 +346,7 @@ def _settle(conn, op, manifest, *, completed, error=None, source_removed=False, 
         conn.execute('UPDATE photos SET status=? WHERE id=?',(status,pid))
         event = ns_db.settle_operation(conn,op,status=status,step='pair_complete' if completed else 'pair_incomplete',
             outcome='completed' if completed else 'needs_attention',error_message=error or sidecar_note,
-            detail=manifest)
+            detail=dict(manifest, failure_context=failure_context, delivery=delivery) if failure_context or delivery else manifest)
         if completed and manifest.get('activation'):
             metadata_import.activate(conn,op,pid,manifest['activation'])
         if completed:
@@ -388,15 +388,23 @@ def execute(conn, operation_id):
     previous_root = durable._destination_root
     durable._destination_root = Path(m['destination_root'])
     durable._verified_directories.clear()
+    delivery = {'photo':'unknown', 'xmp':'unknown'}
+    failure_context = dict(stage='Checking pair paths', paths=[])
     try:
         src,dst,xsrc,xdst = _paths(m)
+        failure_context = dict(stage='Checking destination pair', paths=[str(dst),str(xdst)])
         if os.path.lexists(xdst) and not os.path.lexists(dst):
             raise PairRefused('Destination XMP exists but its photo is missing; resolve the destination pair')
         # Read-back of retained metadata is also required on a resumed operation.
+        failure_context = dict(stage='Verifying archived XMP', paths=[])
         if hashlib.sha256(xmp_store.original_bytes(conn,m['version_id'])).hexdigest() != m['xmp_sha256']:
             raise PairRefused('The archived XMP version is not verified')
+        failure_context = dict(stage='Verifying alternative XMP sources', paths=[v['source'] for v in _alternatives(m)])
         _verify_alternative_sources(conn,operation_id,m)
         for source,target,digest,is_xmp in ((src,dst,m['sha1_hash'],False),(xsrc,xdst,m['xmp_sha256'],True)):
+            key = 'xmp' if is_xmp else 'photo'
+            member = 'XMP' if is_xmp else 'photo'
+            failure_context = dict(stage=f'Checking source {member}', paths=[str(source)])
             present = reconcile._recovery_observe(source) != 'absent'
             matches = _sidecar_matches if is_xmp else _photo_matches
             if present:
@@ -405,32 +413,45 @@ def execute(conn, operation_id):
                     raise PairRefused('Source no longer matches the pair being transferred')
             elif not m['move'] or not _had_verified_pair(conn,operation_id):
                 raise PairRefused('A source is missing without a durable verified-pair receipt')
+            delivery[key] = 'incomplete'
+            failure_context = dict(stage=f'Checking destination {member}', paths=[str(target)])
             if not matches(target,digest):
                 if not present:
                     raise PairRefused('Both source and destination for a pair member are missing')
+                failure_context = dict(stage=f'Transferring {member}', paths=[str(source),str(target)])
                 ok, reason = durable.copy_verify_delete(str(source),str(target),delete_source=False)
                 if not ok:
                     raise PairRefused(reason)
+            delivery[key] = 'verified'
+        failure_context = dict(stage='Verifying destination pair', paths=[str(dst),str(xdst)])
+        # A final verification failure must not retain an earlier green observation.
+        delivery = {'photo':'unknown', 'xmp':'unknown'}
         _verified(conn,operation_id,m)
+        delivery = {'photo':'verified', 'xmp':'verified'}
         notes = []
         if _alternatives(m):
             notes.append(f"{len(_alternatives(m))} alternative XMP original(s) preserved in lineage; the selected primary is unchanged.")
         if m['move']:
+            failure_context = dict(stage='Removing verified source photo', paths=[str(src)])
             if src.exists():
                 durable._remove_verified_source(src,dst,tuple(m['source_identity']),'Remove verified photo source')
             # Repeat after a prior unlink whose directory sync failed.
             durable._fsync_directory(src.parent)
+            failure_context = dict(stage='Checking shared XMP ownership', paths=[str(xsrc)])
             note = _shared_cleanup_reason(conn,m)
             if note:notes.append(note)
             if note is None:
+                failure_context = dict(stage='Removing verified source XMP', paths=[str(xsrc)])
                 if xsrc.exists():
                     durable._remove_verified_source(xsrc,xdst,tuple(m['sidecar_identity']),'Remove verified XMP source')
                 durable._fsync_directory(xsrc.parent)
+            failure_context = dict(stage='Cleaning up alternative XMP sources', paths=[v['source'] for v in _alternatives(m)])
             notes.extend(_cleanup_alternatives(conn,m))
+        failure_context = dict(stage='Recording completed transfer', paths=[])
         return _settle(conn,operation_id,m,completed=True,source_removed=m['move'],sidecar_note=' '.join(dict.fromkeys(notes)) or None)
     except Exception as exc:
-        return _settle(conn,operation_id,m,completed=False,
-            error=f'Photo/XMP transfer incomplete: {type(exc).__name__}: {exc}. Published files were preserved; review the pair before retrying.')
+        return _settle(conn,operation_id,m,completed=False, failure_context=failure_context, delivery=delivery,
+            error=f"Photo/XMP transfer incomplete while {failure_context['stage'].lower()}: {type(exc).__name__}: {exc}. Published files were preserved; review the pair before retrying.")
     finally:
         durable._destination_root = previous_root
         durable._verified_directories.clear()
@@ -466,11 +487,14 @@ def recover(conn, operation_id, *, run_id=None):
     previous_root = durable._destination_root
     durable._destination_root = Path(m['destination_root'])
     durable._verified_directories.clear()
+    delivery = {'photo':'unknown', 'xmp':'unknown'}
     try:
         src,dst,xsrc,xdst = _paths(m)
         _verify_alternative_sources(conn,operation_id,m)
         photo = _photo_matches(dst,m['sha1_hash'])
+        delivery['photo'] = 'verified' if photo else 'incomplete'
         sidecar = _sidecar_matches(xdst,m['xmp_sha256'])
+        delivery['xmp'] = 'verified' if sidecar else 'incomplete'
         sources = [reconcile._recovery_observe(p) for p in (src,xsrc)]
         if photo and sidecar and ((not m['move'] and sources == ['present','present']) or
                                  (m['move'] and sources[0] == 'absent' and _had_verified_pair(conn,operation_id))):
@@ -484,7 +508,9 @@ def recover(conn, operation_id, *, run_id=None):
                             raise PairRefused('Alternative preservation is verified but source cleanup is unfinished; retry the Move')
                     else:
                         durable._fsync_directory(path.parent)
+            delivery = {'photo':'unknown', 'xmp':'unknown'}
             _verified(conn,operation_id,m)
+            delivery = {'photo':'verified', 'xmp':'verified'}
             if m['move']:
                 durable._fsync_directory(src.parent)
                 if sources[1] == 'absent':
@@ -494,7 +520,7 @@ def recover(conn, operation_id, *, run_id=None):
         raise PairRefused(f'Destination photo verified: {photo}; destination XMP verified: {sidecar}; '
                           f'source photo: {sources[0]}; source XMP: {sources[1]}. Retry after resolving the cause')
     except Exception as exc:
-        return _settle(conn,operation_id,m,completed=False,error=f'Interrupted photo/XMP transfer: {exc}',recovery_run_id=run_id)
+        return _settle(conn,operation_id,m,completed=False,error=f'Interrupted photo/XMP transfer: {exc}',recovery_run_id=run_id,delivery=delivery)
 
     finally:
         durable._destination_root = previous_root

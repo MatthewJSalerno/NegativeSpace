@@ -85,7 +85,8 @@ def build_report(relative_photo, embedded, sidecars, *, policy="ask"):
         else:
             issues.append({'source': 'sidecars', 'code': 'metadata_choice_needed'})
     report = {'version': 1, 'mode': 'capture_only', 'applied': False, 'association_policy': policy,
-              'sources': sources, 'sidecars': observations, 'issues': issues}
+              'sources': sources, 'sidecars': observations, 'issues': issues,
+              'warnings': list(embedded.get('warnings', []))}
     if issues:
         report['state'] = 'needs_attention'
     else:
@@ -200,6 +201,9 @@ def capture_index(db_path, run_id, root, candidates, *, worker_count, log_dir, f
                                   embedded=embedded, report=report, sidecars=sidecars, source_ids=folder_ids):
                             changed += 1
                         metadata_import.restore_delivered(conn,row[0])
+                        for note in report['warnings']:
+                            runtime.logger.info(f'Metadata reader note for {relative_photo}: {note["detail"]}. '
+                                'This note does not block Copy or Move; original metadata is preserved.')
                         if report['issues']:
                             attention += 1
                             codes = ', '.join(sorted({item['code'] + (': ' + item['detail'] if item.get('detail') else '')

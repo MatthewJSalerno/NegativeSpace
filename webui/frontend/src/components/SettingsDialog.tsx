@@ -1,8 +1,9 @@
+import { useJobFeed } from "../jobs";
 import { Logo } from "./Logo";
 import { Modal } from "./ui/Modal";
 import { Field } from "./ui/Field";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
-import { api, ApiError, type AccessSettings, type ExtensionSupport, type Settings } from "../api";
+import { api, ApiError, type AccessSettings, type ExtensionSupport, type Settings, type XmpAssociation, type MetadataWriteTarget } from "../api";
 import { BackupsPanel } from "./BackupsPanel";
 import { setPalette, usePalette, setTheme, useTheme, type Theme } from "../appearance";
 import { TabList, tabPanel } from "./ui/Tabs";
@@ -17,9 +18,11 @@ const GROUPS: { value: Group; label: string }[] = [
 ];
 // Where each field and each saved setting lives.
 const FIELD_GROUP: Record<string, Group> = {
+  association: "files", rawWrite: "files", nonRawWrite: "files",
   workers: "performance", retention: "backups", exts: "files", reminderSize: "files", reminderAge: "files", small: "files", year: "files",
 };
 const SETTING_GROUP: Record<string, Group> = {
+  xmp_association: "files", metadata_write_raw: "files", metadata_write_non_raw: "files",
   workers: "performance", backup_retention: "backups", exts: "files",
   rejects_reminder_bytes: "files", rejects_reminder_days: "files", small_image_min: "files", suspicious_min_year: "files",
 };
@@ -44,6 +47,9 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
   const addressList = addresses.split(",").map(s => s.trim()).filter(Boolean);
   const accessChanged = access != null && JSON.stringify(addressList) !== JSON.stringify(access.hosts);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [association, setAssociation] = useState<XmpAssociation | "">("");
+  const [rawWrite, setRawWrite] = useState<MetadataWriteTarget>("xmp");
+  const [nonRawWrite, setNonRawWrite] = useState<MetadataWriteTarget>("embedded");
   const [workers, setWorkers] = useState("");
   const [retention, setRetention] = useState("");
   const [exts, setExts] = useState<string[]>([]);
@@ -70,12 +76,19 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
       setRetention(String(s.backup_retention.value));
       setExts(s.exts.value);
       showReminder(s);
+      showMetadata(s);
       setSupport(Object.fromEntries(s.exts.support.map((e) => [e.extension, e])));
     }, (e) => setMessage({ kind: "error", text: e instanceof ApiError ? e.message : "Settings could not be loaded." }));
 
   useEffect(() => {
     load();
   }, []);
+
+  function showMetadata(s: Settings) {
+    setAssociation(firstRun && s.xmp_association.revision === 0 ? "" : s.xmp_association.value);
+    setRawWrite(s.metadata_write_raw.value);
+    setNonRawWrite(s.metadata_write_non_raw.value);
+  }
 
   function showReminder(s: Settings) {
     setMinYear(String(s.suspicious_min_year.value));
@@ -99,6 +112,9 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
   const changed = useMemo(() => {
     if (!settings) return {};
     const out: Record<string, unknown> = {};
+    if (association && (association !== settings.xmp_association.value || (firstRun && settings.xmp_association.revision === 0))) out.xmp_association = association;
+    if (rawWrite !== settings.metadata_write_raw.value) out.metadata_write_raw = rawWrite;
+    if (nonRawWrite !== settings.metadata_write_non_raw.value) out.metadata_write_non_raw = nonRawWrite;
     if (Number(workers) !== settings.workers.value) out.workers = Number(workers);
     if (Number(retention) !== settings.backup_retention.value) out.backup_retention = Number(retention);
     if ([...exts].sort().join() !== [...settings.exts.value].sort().join()) out.exts = [...exts].sort();
@@ -108,7 +124,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     const small = smallChoice === "on" ? Number(smallMin) : null;
     if (small !== settings.small_image_min.value || (firstRun && smallChoice && settings.small_image_min.revision === 0)) out.small_image_min = small;
     return out;
-  }, [settings, workers, retention, exts, reminderBytes, reminderDays, smallChoice, smallMin, minYear]);
+  }, [settings, workers, retention, exts, reminderBytes, reminderDays, smallChoice, smallMin, minYear, association, rawWrite, nonRawWrite, firstRun]);
 
   const toggleExt = (ext: string) =>
     setExts((cur) => (cur.includes(ext) ? cur.filter((e) => e !== ext) : [...cur, ext]));
@@ -135,6 +151,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     if (!Number.isInteger(Number(minYear)) || Number(minYear)<1 || Number(minYear)>9999) errors.year = "Enter a whole year from 1 to 9999.";
     if (firstRun && !smallChoice) errors.small = "Choose whether to suggest small images for review.";
     if (smallChoice === "on" && (!Number.isSafeInteger(Number(smallMin)) || Number(smallMin)<1)) errors.small = "Enter a positive whole number of pixels.";
+    if (!["ask", "raw_only", "non_raw_only", "all"].includes(association)) errors.association = "Choose how to associate a shared XMP sidecar.";
     if (!Number.isSafeInteger(Number(workers)) || Number(workers) < 1) errors.workers = "Enter a whole number of workers, at least 1.";
     if (!Number.isSafeInteger(Number(retention)) || Number(retention) < 1) errors.retention = "Enter a whole number of backups, at least 1.";
     if (!exts.length) errors.exts = "Choose at least one file type.";
@@ -173,6 +190,9 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
       return;
     }
     const revisionOf: Record<string, number> = {
+      xmp_association: settings.xmp_association.revision,
+      metadata_write_raw: settings.metadata_write_raw.revision,
+      metadata_write_non_raw: settings.metadata_write_non_raw.revision,
       suspicious_min_year: settings.suspicious_min_year.revision,
       small_image_min: settings.small_image_min.revision, workers: settings.workers.revision, exts: settings.exts.revision, backup_retention: settings.backup_retention.revision,
       rejects_reminder_bytes: settings.rejects_reminder_bytes.revision, rejects_reminder_days: settings.rejects_reminder_days.revision,
@@ -185,6 +205,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
       catalogSaved = Object.keys(changed).length > 0;
       setSettings(saved);
       showReminder(saved);
+      showMetadata(saved);
       if (accessChanged) {
         const savedAccess = await api.saveAccess(addressList, access.revision, confirmCurrent);
         setAccess(savedAccess); setAddresses(savedAccess.hosts.join(", "));
@@ -214,7 +235,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
   };
 
   const reset = () => settings && (setWorkers(String(settings.workers.value)), setRetention(String(settings.backup_retention.value)),
-                                   setExts(settings.exts.value), showReminder(settings), setAddresses(access?.hosts.join(", ") ?? ""), setMessage(null), setFieldErrors({}));
+                                   setExts(settings.exts.value), showReminder(settings), showMetadata(settings), setAddresses(access?.hosts.join(", ") ?? ""), setMessage(null), setFieldErrors({}));
 
   const smallImageSettings = (
     <section className={firstRun ? "notice notice-first-run" : undefined}>
@@ -230,6 +251,57 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
         <p id="small-hint" className="muted">Turn reminders on to change the minimum. For example, 640 × 480 is below an 800-pixel minimum. Changing or disabling this rule updates Needs review without moving files. Photos already marked reviewed stay reviewed.</p>
       </section>
   );
+
+  const metadataSettings = <section aria-label="Metadata preferences">
+    <h3>Which metadata is used?</h3>
+    <p>For a newly organized photo without a saved source choice, the default order is:</p>
+    <ol>
+      <li><strong>XMP sidecar</strong> — a separate file beside the photo.</li>
+      <li><strong>Embedded XMP</strong> — metadata inside the photo.</li>
+      <li><strong>Embedded EXIF</strong> — metadata inside the photo, often written by the camera.</li>
+    </ol>
+    <p>Only a missing field falls through to the next source. An explicitly empty field stays empty.
+      All recorded sources remain available in the photo’s Metadata tab. A saved primary-source choice takes precedence.</p>
+    <h3>Shared XMP sidecars</h3>
+    <p>A short name such as <code>photo.xmp</code> can match both <code>photo.CR2</code> and <code>photo.jpg</code>.
+      A full name such as <code>photo.CR2.xmp</code> identifies one photo.</p>
+    {firstRun && <p id="association-required"><strong>Choose how to handle shared sidecars to continue.</strong> You can change this later in Settings.</p>}
+    <label htmlFor="settings-association">When an XMP sidecar matches multiple photos{firstRun && <strong> (required)</strong>}</label>
+    <select id="settings-association" required={firstRun} disabled={saving} value={association}
+      aria-invalid={!!fieldErrors.association || undefined}
+      aria-describedby={[firstRun && "association-required", "association-hint", fieldErrors.association && "association-error"].filter(Boolean).join(" ")}
+      onChange={e=>setAssociation(e.target.value as XmpAssociation)}>
+      <option value="" disabled>Choose…</option>
+      <option value="ask">Ask me (recommended)</option>
+      <option value="raw_only">Associate only with RAW photos</option>
+      <option value="non_raw_only">Associate only with non-RAW photos</option>
+      <option value="all">Associate with all matching photos</option>
+    </select>
+    {fieldErrors.association && <p id="association-error" className="error" role="alert">{fieldErrors.association}</p>}
+    <p id="association-hint" className="muted">Applies to new or unresolved associations, never to saved choices.
+      If ownership remains unclear, the affected photos stay in Not organized → Needs attention; other photos can proceed.
+      Choosing owners for individual held files is not available yet. Changing this preference requires another Index to reassess unresolved files.</p>
+    <h3>Where future edits are saved</h3>
+    <p>These defaults apply only when a photo has no established primary write target.
+      Existing primary sources take precedence; changing a default does not switch them.</p>
+    <label htmlFor="settings-rawWrite">RAW photos</label>
+    <select id="settings-rawWrite" value={rawWrite} disabled={saving} aria-describedby="raw-write-hint"
+      onChange={e=>setRawWrite(e.target.value as MetadataWriteTarget)}>
+      <option value="xmp">XMP sidecar (default)</option>
+      <option value="embedded" disabled>In the photo (not supported for RAW)</option>
+    </select>
+    <p id="raw-write-hint" className="muted">RAW editing uses a separate XMP file and leaves the photo’s bytes unchanged.
+      Embedded RAW writes are not supported; an existing unsupported preference cannot enable them.</p>
+    <label htmlFor="settings-nonRawWrite">Other photo formats</label>
+    <select id="settings-nonRawWrite" value={nonRawWrite} disabled={saving} aria-describedby="non-raw-write-hint"
+      onChange={e=>setNonRawWrite(e.target.value as MetadataWriteTarget)}>
+      <option value="embedded">In the photo (JPEG only; default)</option>
+      <option value="xmp">XMP sidecar</option>
+    </select>
+    <p id="non-raw-write-hint" className="muted">Embedded editing is limited to supported JPEG files.
+      TIFF, HEIC and motion-photo embedded writes are not supported. Unsupported edits are refused;
+      NegativeSpace never switches the write target automatically. These preferences do not edit or move existing files.</p>
+  </section>;
 
   const panels: Record<Group, ReactNode> = settings ? {
     appearance: (
@@ -250,6 +322,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     ),
     files: (<>
       {firstRun && smallImageSettings}
+      {metadataSettings}
       <section>
         <h3>Suspicious dates</h3>
         <Field id="settings-year" label="Earliest expected year" type="number" min={1} max={9999} step={1}
@@ -345,6 +418,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
         <h2 id="settings-title" className={firstRun ? "brand" : undefined}>{firstRun ? <><Logo />NegativeSpace</> : "Settings"}</h2>
         {!firstRun && <button onClick={onClose} disabled={saving} aria-label="Close settings">✕</button>}
       </header>
+      {!firstRun && <SettingsJobNotice />}
       {!settings ? <div role="status">{message ? <><p className="error">{message.text}</p><button onClick={load}>Retry loading settings</button></> : "Loading…"}</div>
       : firstRun ? (
         <>
@@ -415,4 +489,23 @@ function LimitRow({ id, on, onToggle, value, onValue, before, after, min, step, 
       {error && <p id={`${id}-error`} className="error field-error">{error}</p>}
     </div>
   );
+}
+
+
+// The existing page feed updates this notice without fetching or replacing drafts.
+// Keep every possible message in the shared size-reserving grid to prevent jumps.
+function SettingsJobNotice() {
+  const { jobs, connection } = useJobFeed();
+  const state = connection !== "open" ? "unknown"
+    : jobs.active && jobs.active.presented_status !== "Interrupted" ? "active" : "idle";
+  const messages = {
+    active: <><strong>A job is running.</strong> Processing changes you save now will apply to future jobs, not this one.</>,
+    idle: <><strong>Processing settings apply to future jobs.</strong> Saving here does not change an earlier job’s settings.</>,
+    unknown: <><strong>Job status is unavailable.</strong> Any running job keeps its starting settings. Processing changes apply to future jobs.</>,
+  };
+  return <section className="notice stable-content" role="status" aria-label="When settings apply">
+    {Object.entries(messages).map(([key,text])=><div key={key} aria-hidden={state !== key || undefined}>
+      {text} Appearance, review reminders and access changes still apply immediately.
+    </div>)}
+  </section>;
 }

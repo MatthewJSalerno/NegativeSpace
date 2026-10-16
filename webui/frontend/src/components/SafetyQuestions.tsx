@@ -32,9 +32,9 @@ export function SafetyQuestions({ run, onLeave }: { run: Run; onLeave: () => voi
     </div>}
     {run.questions.includes("network_destination") && <div>
       <strong>The destination is on network storage. Choose how to continue.</strong>
-      <p>Network storage may acknowledge a save before it is durable. Copy keeps the originals and is recommended.</p>
-      <button className="primary" disabled={submitted} onClick={() => ask("network_destination", "copy", "Copy instead of Move?",
-        ["Copy verifies the destination and keeps every original."])}>Copy instead (recommended)</button>{" "}
+      <p>{run.same_mode_retry ? "This interrupted transfer must continue its original Move. Leave it unchanged until the storage is suitable for Move." : "Network storage may acknowledge a save before it is durable. Copy keeps the originals and is recommended."}</p>
+      {!run.same_mode_retry && <button className="primary" disabled={submitted} onClick={() => ask("network_destination", "copy", "Copy instead of Move?",
+        ["Copy verifies the destination and keeps every original."])}>Copy instead (recommended)</button>}{" "}
       <button disabled={submitted} onClick={() => ask("network_destination", "confirm_move", "Confirm network storage before Move",
         ["Confirm that the network share is exported synchronously (sync) and honors durable writes. NegativeSpace cannot verify that configuration.",
          "Move deletes each original after verifying its destination copy. Proceed only if you accept the storage durability risk."], true)}>Move anyway…</button>

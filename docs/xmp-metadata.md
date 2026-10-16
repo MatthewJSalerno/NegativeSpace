@@ -215,16 +215,21 @@ with a snapshot-derived backup watermark so later decisions remain visibly unbac
 The settings API accepts `xmp_association` (`ask`, `raw_only`, `non_raw_only`, `all`),
 `metadata_write_raw` and `metadata_write_non_raw` (`xmp` or `embedded`). Defaults are ask,
 XMP and embedded respectively. A job freezes these and the latest decision ID when accepted.
-Write preferences currently record intent only. Their UI controls and the prominent
-active-job Settings notice remain pending in the separate UI workstream.
+Setup and Settings expose these preferences with read-priority guidance. First run
+requires an explicit association choice; ordinary Settings uses revision-checked saves.
+Write defaults apply only without an established primary target and cannot enable an
+unqualified writer. RAW remains XMP-only; embedded editing is qualified for JPEG only.
+Per-file ownership/primary decision controls remain a separate unfinished workflow.
+A live Settings notice explains that running jobs retain their starting configuration.
 
 The transfer gate records Skipped for unsupported/unresolved cases, leaving source bytes
 intact. Resolved first-import pairs proceed through verified transfer; ambiguous,
 damaged and unresolved multiple-sidecar cases remain held with an explanation.
 The incoming-alternative bridge below handles supported duplicate arrivals.
 This also guards duplicate-source removal and direct Copy/Move without a preceding Index.
-Other ordinary photos proceed. Dedicated Metadata choice needed and pair-retry UI are
-still unfinished; a successful CLI import does not establish the complete web workflow.
+Other ordinary photos proceed. Dedicated Metadata choice needed screens remain
+unfinished. Confirmed import-pair retry is available from the photo issue, Logs and
+eligible selections; see the import recovery contract below.
 
 ## Field-scoped edit plans (built; XMP execution connected)
 
@@ -946,7 +951,15 @@ Publication uses the existing durable copy protocol and inherits its documented
 filesystem limitations; this is not a stronger guarantee for unsupported/network storage.
 
 Failure leaves published files for inspection/reuse, settles an incomplete operation and
-records its specific reason. A photo-only arrival does not enter Library. An explicit
+records its specific reason and the attempted step with its involved paths in the
+settled event, plus per-member destination verification results. A successful photo
+publication followed by XMP failure records verified photo and incomplete XMP. A final
+pair-verification failure clears earlier green results conservatively; verified pairs
+remain recorded as such when later source cleanup fails. Read-only interrupted recovery
+records its observed destination results too. No additional file reads or commits are
+needed for execute's diagnostic progress. This does not change publication/cleanup rules.
+Older/unlocalized failures retain null context rather than an inferred file diagnosis.
+A photo-only arrival does not enter Library. An explicit
 retry creates linked new intent, checks the catalog binding and existing bytes, and
 reuses verified output. A successful retry clears only its own pair-issue chain; unrelated
 issues remain. Completed replay never deletes new files at the former source paths.
@@ -956,14 +969,22 @@ it either verifies the completed pair or records what is incomplete for explicit
 
 Generated tests exercise actual temporary file transfers, shared owners, collisions,
 filesystem/catalog failures, process interruption boundaries, retry/replay and source
-preservation. The pair issue category and retry primitive are internal: their dedicated
-API/UI actions and broader import lifecycle remain pending. Normal jobs include sidecar
-space, finish the current pair before cancellation and support explicit same-mode retry.
-An incomplete pair remains Failed outside Library, with details in Logs; repeating the
-same CLI Copy/Move resumes its recorded destination. If all source photos are gone, the
-existing empty-source confirmation is still required. Dedicated retry controls and
-eligibility/counts for the web UI are a release blocker, not a completed recovery screen.
-No new public CLI flags or schema changes accompany this integration.
+preservation. Normal jobs include sidecar space, finish the current pair before
+cancellation and support explicit same-mode retry. An incomplete pair remains Failed
+outside Library. The shared photo/Logs issue panel and eligible selection count open
+**Retry photo/XMP transfers**: recorded failures and paths, then a separate confirmation
+for Copy or Move. The preview reads catalog evidence only; it does not promise the
+external cause is fixed. The engine verifies live files before reuse or source deletion.
+
+The API passes selected IDs through the normal validated selection file plus
+`--pair-retry-token`. The token binds the latest pair intent, issue, catalog identity,
+source/destination roots and original mode. The engine checks it at acceptance and
+around startup recovery. Stale confirmations refuse; exact request replay returns its
+original run. Successful retries resolve only their linked issue chain. Ordinary
+Copy/Move eligibility stays unchanged. If all source photos are gone, empty-source
+confirmation still applies. Network safety questions preserve the original Move rather
+than offering a mode switch for an already-partial pair. No schema change is needed.
+Broader metadata decision screens remain separate work.
 
 ## Destination pair relocation (built for recorded pairs)
 
@@ -992,7 +1013,8 @@ Both new members verified and old names absent allow catalog repair; both origin
 verified and both new names absent establish that nothing moved. Partial pairs, remaining
 old names, cancellation and stale catalog bindings keep the issue. Directory sync is
 repeated even after an earlier unlink, so a failed barrier cannot be skipped by recovery.
-This uses the existing Files needing verification route; the internal import-pair retry UI remains unbuilt.
+This uses the existing Files needing verification route. Initial import-pair retry has
+its own confirmed Copy/Move flow described above; it does not retry Rename/Reject/Return.
 
 Generated tests cover the full Rename/Reject/Return cycle, bytes and identity preservation,
 collisions/orphans, symlinks, unsupported hard links, racing publication, catalog/fsync
@@ -1062,7 +1084,7 @@ external-edit conflict UI or automatic reconciliation is added in this workstrea
 Check my destination remains deferred. The engine must still verify its own actual
 reads/writes, prevent unintended overwrites and verify before deleting source files.
 
-## UI handoff — source viewer built, editing and decisions pending
+## UI handoff — source viewer, date editing and preferences built; decisions pending
 
 Setup's Files step and Settings › Files must show **Which metadata is used?** beside
 the metadata association/write questions. Keep the priority explanation visible, using
@@ -1088,8 +1110,9 @@ When Settings opens during a running job, show the shared informational notice n
 the top, across tabs: **“A job is running. Processing changes you save now will apply
 to future jobs, not this one.”** Keep its layout stable if the job starts/finishes while
 Settings is open. Retain the near-Save explanation and active-job save confirmation;
-see `webui-spec.md` §3 and `ui-design.md`. This prominent active-job notice is pending;
-the generic future-jobs notice and save confirmation already exist.
+see `webui-spec.md` §3 and `ui-design.md`. This notice is implemented through the shared
+job feed, with stable active/idle/unknown messages and no draft reload. The generic
+future-jobs notice and save confirmation remain.
 
 Future reproduction/consolidation messaging must distinguish supported earlier metadata
 states from exact original files: while unchanged image content remains available,
@@ -1158,8 +1181,8 @@ Job-confirmed post-edit source cleanup and writer qualification are complete wit
 agreed release boundaries above. PR #105 merged after passing CI; PR #107 subsequently
 integrated the navigation stack and schema 28 after its combined checks passed.
 Additional formats/representations are deferred work, not hidden items
-in this countdown. Source tabs are built; decision/edit controls and pair-retry screens belong to the
-separate API/UI workstream.
+in this countdown. Source tabs, Date taken edits, Move confirmation and import-pair
+retry are built in the separate API/UI workstream; broader decisions remain pending.
 
 XMP and qualified JPEG publication/recovery, earlier-state reapplication, base composition
 and explicit field copying, Library primary
@@ -1170,9 +1193,13 @@ handling remain deferred; none relaxes verification or source-deletion safety ga
 
 The source viewer and Date taken editor API/UI have passed maintainer validation,
 including source comparison, date/refiling previews and save feedback. Broader source
-selection, recovery controls and job-scoped edited-source cleanup confirmation remain
-future UI work requiring their own validation. Automated engine tests establish engine
-coverage, not acceptance of those future screens.
+selection and incoming-choice controls remain future UI work. Job-scoped edited-source
+cleanup confirmation has also passed maintainer validation. Import-pair retry has
+automated coverage and maintainer visual acceptance (R1–R3, 2026-10-15). Metadata
+setup/Settings acceptance S1–S3 passed. Warning-only organization (W1) and date/attention
+wording (D1) also passed maintainer validation. A dedicated Metadata setup step and
+Settings tab remain layout follow-ups. Automated engine tests do not establish
+acceptance of future screens.
 
 ### Web Move confirmation
 
@@ -1186,3 +1213,14 @@ pre-action backup remain the deletion gate; a preview is never proof that files 
 currently intact. Exact request replay still precedes stale checks. File verification
 failures appear in the resulting job; the source stays whenever safe removal cannot
 be established.
+
+### Reader warnings versus import holds
+
+ExifTool Warning diagnostics are retained as informational capture/report `warnings`,
+separate from blocking `issues`. Unknown MakerNotes do not prevent unchanged Copy or
+Move, with or without an associated readable sidecar; original bytes and diagnostics
+remain preserved. Reader Error diagnostics, unstable source reads, source-directory
+failures and unresolved/unreadable sidecar associations retain their existing holds.
+Metadata interpretation and embedded-write preservation checks are not relaxed.
+Reindex refreshes earlier warning-only holds without rewriting historical captures.
+The metadata viewer explains known warnings and keeps exact diagnostics available.

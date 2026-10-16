@@ -240,7 +240,7 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Pin Has similar photos", exact=True).click()
     # Filters ungroup without changing the explicit saved preference or selection.
     page.locator('.card input[type=checkbox]').first.check()
-    for label in ('Suspicious dates','No capture date','Small images','Review later'):
+    for label in ('Suspicious dates','No usable capture date','Small images','Review later'):
         chip=page.get_by_role('group',name='Look into').get_by_role('button',name=re.compile('^'+label))
         chip.click()
         expect(group).not_to_be_checked()

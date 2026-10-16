@@ -82,8 +82,21 @@ fi
 
 docker network create "$NET" >/dev/null
 # Named "app" on the network, as in compose: the web container's nginx proxies to it.
+if [ "${PAIR_RETRY_FIXTURE:-0}" = 1 ]; then
+    docker run --rm --user "$ME" --entrypoint python3 -v "$WORK/src":/src "$IMAGE" -c '
+from pathlib import Path
+import subprocess
+for name in ("photo-000.jpg", "photo-001.jpg"):
+    subprocess.run(["exiftool", "-overwrite_original", "-EXIF:Artist=Generated pair retry fixture", "/src/"+name],check=True)
+    Path("/src/"+name+".xmp").write_text("<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:exif=\"http://ns.adobe.com/exif/1.0/\"><rdf:Description><exif:DateTimeOriginal>2005-03-04T05:06:07</exif:DateTimeOriginal></rdf:Description></rdf:RDF>")
+'
+fi
 set --
-if [ "${STALLED_FIXTURE:-0}" = 1 ]; then
+if [ "${METADATA_SETTINGS_FIXTURE:-0}" = 1 ]; then
+    set -- -v "$HERE/settings_engine_fixture.py:/settings_engine_fixture.py:ro" -e NS_ENGINE=/settings_engine_fixture.py
+elif [ "${PAIR_RETRY_FIXTURE:-0}" = 1 ]; then
+    set -- -v "$HERE/pair_retry_engine_fixture.py:/pair_retry_engine_fixture.py:ro" -e NS_ENGINE=/pair_retry_engine_fixture.py
+elif [ "${STALLED_FIXTURE:-0}" = 1 ]; then
     set -- -v "$HERE/stalled_engine_fixture.py:/stalled_engine_fixture.py:ro" -e NS_ENGINE=/stalled_engine_fixture.py
 elif [ "${NETWORK_FIXTURE:-0}" = 1 ]; then
     set -- -v "$HERE/network_engine_fixture.py:/network_engine_fixture.py:ro" -e NS_ENGINE=/network_engine_fixture.py
@@ -92,6 +105,7 @@ elif [ "${SUBMISSION_FIXTURE:-0}" = 1 ]; then
 fi
 # Only this test's generated source can be made writable for verified Move tests.
 SOURCE_MODE=ro
+if [ "${PAIR_RETRY_FIXTURE:-0}" = 1 ]; then SOURCE_MODE=rw; fi
 if [ "${MOVE_CONFIRMATION_FIXTURE:-0}" = 1 ]; then
     SOURCE_MODE=rw
     # Make the edited original distinct from the ordinary duplicate fixtures.
@@ -125,6 +139,9 @@ if [ "$DRIVER" = webui_browser_drive.py ]; then
 fi
 
 CATALOG_ARGS=""
+# The settings fixture opens only this generated catalog in SQLite read-only mode.
+# The mount allows SQLite to create its WAL shared-memory file while a job runs.
+if [ "${METADATA_SETTINGS_FIXTURE:-0}" = 1 ]; then CATALOG_ARGS="-v $WORK/appdata:/catalog"; fi
 # Explicit opt-in: only this harness's temporary generated catalog is writable.
 if [ "${SIMILARITY_RECOVERY_FIXTURE:-0}" = 1 ]; then CATALOG_ARGS="-v $WORK/appdata:/catalog"; fi
 SHOT_ARGS=""

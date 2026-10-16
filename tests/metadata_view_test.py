@@ -38,6 +38,25 @@ class MetadataViewTests(ApiCase):
                 capture_id=self.capture, sources=sources or self.sources,primary_id=primary,
                 sha1_hash=digest,version_id=self.vid))
 
+    def test_reader_notes_are_separate_from_attention_and_survive_verified_transfer(self):
+        self.report.update(state='captured',warnings=[{'source':'photo','code':'embedded_reader_warning','detail':'[minor] Unrecognized MakerNotes'}])
+        with ns_db.connect(self.cfg.db_path) as conn:
+            run=ns_db.create_run(conn,mode='INDEX',source=str(self.cfg.source),destination=str(self.cfg.dest))[0]
+            self.capture=conn.execute('INSERT INTO metadata_captures(run_id,file_id,source_relative_path,catalog_sha1,embedded_json,report_json,observed_at) '
+                'SELECT ?,file_id,source_relative_path,catalog_sha1,embedded_json,?,? FROM metadata_captures WHERE capture_id=?',
+                (run,json.dumps(self.report),ns_db.utc_now(),self.capture)).lastrowid
+        self.assertIsNone(self.client.get(f'/api/v1/photos/{self.pid}/inspect').json()['metadata_attention'])
+        for activated in (False,True):
+            if activated:self.activate(primary='exif')
+            result=self.get()
+            self.assertEqual(result['issues'],[])
+            self.assertEqual(result['sources'][0]['issues'],[])
+            self.assertIn('camera-specific',result['warnings'][0]['reason'])
+            self.assertEqual(result['warnings'][0]['detail'],'[minor] Unrecognized MakerNotes')
+        with ns_db.connect(self.cfg.db_path) as conn:
+            conn.execute('UPDATE photos SET sha1_hash=? WHERE id=?',('b'*40,self.pid))
+        self.assertEqual(self.get()['warnings'],[])
+
     def test_capture_does_not_invent_primary_and_separates_embedded_sources(self):
         result=self.get()
         self.assertIsNone(result['primary_id'])
@@ -135,6 +154,22 @@ class MetadataViewTests(ApiCase):
         self.assertEqual(broken['fields'],{})
         self.assertEqual(broken['issues'][0]['code'],'malformed_xml')
 
+    def test_repeated_date_issue_is_explained_once_with_all_affected_paths(self):
+        report=dict(self.report,state='needs_attention',issues=[
+            {'source':'exif','code':'invalid_date_taken'},
+            {'source':'embedded_xmp','code':'invalid_date_taken'},
+            {'source':'sidecar:generated.jpg.xmp','code':'invalid_date_taken'}])
+        with ns_db.connect(self.cfg.db_path) as conn:
+            run=ns_db.create_run(conn,mode='INDEX',source=str(self.cfg.source),destination=str(self.cfg.dest))[0]
+            conn.execute('INSERT INTO metadata_captures(run_id,file_id,source_relative_path,catalog_sha1,embedded_json,report_json,observed_at) VALUES(?,?,?,?,?,?,?)',
+                (run,self.fid,'generated.jpg','a'*40,'{}',json.dumps(report),ns_db.utc_now()))
+        note=self.client.get(f'/api/v1/photos/{self.pid}/inspect').json()['metadata_attention']
+        self.assertEqual(note['issues'],[{'code':'invalid_date_taken','reason':'The recorded Date taken is invalid.',
+            'files':['generated.jpg','generated.jpg.xmp'],'detail':None}])
+        # Same photo may match both filters. Counts still represent one photo.
+        both=self.client.get('/api/v1/photos?view=unorganized&reason=attention&undated=true').json()
+        self.assertEqual(both['total'],1)
+
     def test_source_attention_has_path_explanation_and_clears_on_reindex(self):
         def capture(report):
             with ns_db.connect(self.cfg.db_path) as conn:
@@ -202,7 +237,7 @@ class MetadataViewTests(ApiCase):
         for flags,expected in (({'q':'failed'},[failed]),({'type':'jpg'},[self.pid]),({'date':'2020'},[self.pid])):
             self.assertEqual(self.client.get('/api/v1/photos/ids',params={**scope,**flags}).json()['ids'],expected)
         # Inactive counts predict replacing an unpinned condition, or intersecting a pin.
-        # Failed files are deliberately excluded from No capture date.
+        # Failed files are deliberately excluded from No usable capture date.
         for pins,expected in (('',2),('undated',0)):
             page=self.client.get('/api/v1/photos',params={'view':'unorganized','undated':True,'filter_pins':pins}).json()
             self.assertEqual(page['chips']['attention'],expected)

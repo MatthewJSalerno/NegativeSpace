@@ -1,10 +1,25 @@
 # Tests
 
 Everything here is for developing NegativeSpace; running the engine needs none of it.
+## Manual validation instructions
+
+- Number tests and letter their steps so results can refer to a specific check.
+- For every photo-specific check, supply a searchable filename verified in the current
+  test catalog, its location (for example Library or Not organized), the expected
+  starting state and the expected result. Add a date or other identifier if names repeat.
+- A source path or a description such as "an EXIF-primary photo" is not sufficient.
+  If the required fixture is absent, say so and arrange it before asking for validation.
+- State when a Settings-only check needs no photo. List only remaining checks; preserve
+  accepted results unless a relevant change requires a specific retest.
+- Keep private sample filenames in the direct validation message or private handoff;
+  tracked checklists use generated fixture names and aggregate results.
+
+## CI coverage
+
 CI coverage is split between two workflows:
 
 - **Every pull request, push to `main`, and manual Engine tests run**:
-  `.github/workflows/engine-tests.yml` runs all 44 Python unit suites
+  `.github/workflows/engine-tests.yml` runs all 45 Python unit suites
   (`tests/*_test.py`, except the separately invoked engine smoke suite), the engine
   smoke suite, the three shell suites, all `tools/check-*.py`, synthetic similarity
   validation, container CPU/timezone/CLI checks, and the browser drivers listed below.
@@ -34,6 +49,8 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | `fresh_start_browser_drive.py` | PR / main / manual | — |
 | `gallery_position_browser_drive.py` | PR / main / manual | — |
 | `metadata_dates_browser_drive.py` | PR / main / manual | `METADATA_VIEW_FIXTURE=1` |
+| `metadata_settings_browser_drive.py` | PR / main / manual | `METADATA_SETTINGS_FIXTURE=1` |
+| `pair_retry_browser_drive.py` | PR / main / manual | `PAIR_RETRY_FIXTURE=1` |
 | `move_confirmation_browser_drive.py` | PR / main / manual | `MOVE_CONFIRMATION_FIXTURE=1` |
 | `metadata_sources_browser_drive.py` | PR / main / manual | `METADATA_VIEW_FIXTURE=1` |
 | `notifications_browser_drive.py` | PR / main / manual | — |
@@ -545,7 +562,7 @@ comparison, rotate or zoom, choose a review filter, and refresh: the same compar
 should reopen. Back to gallery clears it. EXIF edits, saved orientation writes and
 deletion belong to a separate workstream and do not block these checks.
 
-Manual UI checks: switch All photos / Has similar photos / No capture date and
+Manual UI checks: switch All photos / Has similar photos / No usable capture date and
 compare card geometry, summary placement and filter actions. At narrow desktop
 widths, controls should wrap without clipping. Open a card from Has similar photos:
 Similar photos should be selected at the gallery percentage. Switch to information,
@@ -705,7 +722,7 @@ the app should show for it. Without `--seed-dir` the photos are generated.
 [ExifTool's sample images](https://exiftool.org/sample_images.html): real tags from
 hundreds of cameras on pictures shrunk to a few pixels. About three in four seed JPEGs
 with no EXIF date get one donor's tags (camera, lens, exposure, dates, GPS, maker notes,
-damaged ones included) on a fresh copy; the rest stay without, for No capture date. The
+damaged ones included) on a fresh copy; the rest stay without, for No usable capture date. The
 donor's size, previews and rotation are left behind, since they would contradict the
 pixels. A donor folder inside the seed is left out of the originals, and six donors join
 the library as themselves, tiny images for sorting out by resolution. Measured on a seed
@@ -1118,7 +1135,7 @@ folders/search without changing place. It also
 holds Inspector detail responses to check that gallery clicks and arrow navigation
 keep both tab labels and widths stable while loading.
 
-Manual: in Library, click No capture date then Suspicious dates; only the latter stays
+Manual: in Library, click No usable capture date then Suspicious dates; only the latter stays
 active. Pin Small images and try those date filters again: Small images stays applied.
 Review later should show its count immediately in Library, including zero. Filter by
 it, switch to Needs review and back, and confirm the same reminder remains applied.
@@ -2095,11 +2112,11 @@ post-validation discussion, not part of this batch.
   “Showing N of M photos” summary reflecting their intersection.
 - **c.** Unpin each in turn. Each filter should turn off, and the photos, counts and URL
   should update. Refresh; both should remain off.
-- **d.** Choose Newest first or Oldest first, then No capture date. The year controls
+- **d.** Choose Newest first or Oldest first, then No usable capture date. The year controls
   should disappear without making the gallery jump.
-- **e.** Pin No capture date and enable another available filter. The year controls
+- **e.** Pin No usable capture date and enable another available filter. The year controls
   should remain hidden, including after refreshing.
-- **f.** Unpin No capture date. The other filter should remain active, and the year
+- **f.** Unpin No usable capture date. The other filter should remain active, and the year
   controls should return while sorted by date. Clear all filters before Test 2.
 
 #### Test 2 — Inspection and comparison
@@ -2224,3 +2241,209 @@ whitespace checks passed. Engine behavior was unchanged in this presentation bat
 CI follow-up: the request-freshness browser driver checks one gallery request and no
 folder-tree request on the default gallery, then exactly one folder-tree request in
 Source folders. The unchanged-feed and job-completion freshness assertions remain.
+
+
+## Incomplete photo/XMP import retry
+
+`pair_retry_test.py` runs in the standard Docker unittest form. It covers partial
+Copy/Move publication, unchanged source bytes until verified success, destination
+reuse, stale snapshots, the API/engine race, request replay, invalid/busy requests,
+changed live files and same-mode safety answers. It runs in PR/main/manual CI.
+`PAIR_RETRY_FIXTURE=1 DRIVER=pair_retry_browser_drive.py sh tests/browser/webui_browser_test.sh`
+adds generated XMP pairs and injects one initial sidecar-publication failure per
+mode. Only this fixture's generated source is writable; no real source is used.
+The browser covers latest-failure notices with retained retry history in either response
+order, photo-log links, Inspector/selection entry points, Cancel, Copy/Move confirmation,
+verified completion, source preservation/removal and narrow/200% layouts. Artifacts
+can be retained with the harness's normal `NS_TEST_KEEP` and `SHOTS` options.
+
+Manual visual acceptance: **R1–R3 passed**, confirmed by the maintainer on 2026-10-15.
+The steps below remain the regression checklist; S1–S3 also passed. To repeat,
+use only the prepared generated-failure fixture.
+Do not damage a real library to manufacture an error.
+
+1. **R1 — Inspect and cancel.**
+   a. In Not organized, search `photo-000.jpg` and open its information pane after
+      the fixture's first Copy has failed publishing XMP.
+   b. Confirm **Photo/XMP transfer incomplete** includes the recorded failure.
+      Open **Retry photo/XMP transfers**. For the fresh generated XMP failure, expect
+      **Transferring XMP**, a green destination photo labelled **Verified at destination**,
+      and an amber destination XMP labelled **Delivery incomplete — file may be partial**.
+      Source originals stay neutral. All four paths are visible; Source and Destination
+      have headings and a divider. The explanation says destination paths are intended
+      locations and results come from the last recorded job, not a fresh check.
+      Older records without delivery evidence show amber unconfirmed results rather than
+      invented success. Check the same Source/Destination separation in Photo information
+      and Logs.
+   c. Choose **Retry Copy**, then Cancel. Both source files and the failure remain.
+      Check the dialog at normal size, 200% zoom and a narrow window.
+2. **R2 — Retry Copy.**
+   a. Select that photo in the gallery; the selection bar offers a separate retry
+      count, while ordinary Copy/Move eligibility remains unchanged.
+   b. Confirm Retry Copy. Follow the new job to completion; the photo enters Library
+      and its pair issue disappears. Both originals remain in the generated source.
+3. **R3 — Retry Move.**
+   a. On `photo-001.jpg`, use the fixture's initial failed Move. The retry must say
+      **Move**, explain removal after both destination files verify, and offer Cancel.
+   b. Confirm Retry Move. The pair enters Library and both generated source files
+      disappear only after verified completion. Earlier failure history stays in Logs.
+
+This flow is for incomplete first imports, not date-edit/refiling or incoming-choice
+recovery. Those retain their separate engine contracts and backlog entries.
+
+## Metadata setup and Settings preferences
+
+`METADATA_SETTINGS_FIXTURE=1 DRIVER=metadata_settings_browser_drive.py sh tests/browser/webui_browser_test.sh`
+uses generated photos and pauses a real Copy immediately after its run configuration is
+recorded. The browser saves new preferences while that job is held, then checks that
+its recorded settings remain unchanged and a later job captures the saved values. The
+catalog connection is read-only; its generated mount permits SQLite WAL shared-memory
+bookkeeping. The fixture never touches a real library. All holds are bounded and released
+in test cleanup.
+
+Coverage includes required first-run choice, no save until the final step, explicit
+Ask me persistence, defaults, unsupported RAW embedded writes, Reset, tab draft retention,
+revision conflict refusal, live notices without control movement, and narrow/200% reflow.
+This driver runs in PR/main/manual CI. Existing setup drivers choose Ask me while keeping
+their original assertions. Engine snapshot rules also remain covered by
+`metadata_decisions_test.py`; the Settings API is covered by `webui_api_test.py`.
+
+Manual Settings acceptance **S1–S3 passed**; the later warning
+classification check **W1** below also passed. R1–R3 and S1–S2 passed on
+2026-10-15; no repeat of those tests is required for current-build acceptance. S1 feedback:
+move metadata questions to their own setup step to reduce scrolling; tracked in TODO.md
+for the next UI batch. S3 feedback also requests a dedicated Metadata tab in Settings
+because Files is long and wordy; this layout follow-up is not yet built. For a future S1 regression run, use a separate fresh generated
+catalog. Do not reset a working library.
+
+1. **S1 — Setup choice and defaults.**
+   a. In the fresh setup's Files step, choose small-image reminders On or Off but leave
+      the shared-XMP choice empty. Next must identify the required choice and focus it.
+   b. Choose Ask me. Confirm the visible source priority, explicit-empty rule, RAW XMP
+      default, and JPEG-only embedded limit. Move Next then Back: your choice remains.
+   c. Finish setup; open Settings → Files. The same choice and explanations remain.
+2. **S2 — Settings drafts and running jobs.** Maintainer passed on 2026-10-15,
+   confirming the saved-settings notice during a running job.
+   a. Change the shared-XMP preference, switch tabs and return. The draft and unsaved
+      dot remain. Reset restores the saved choice.
+   b. With an Index or Copy running on generated photos, open Settings. The notice at
+      the top says saved processing changes affect future jobs, not this one, on every tab.
+   c. Save a preference while the job runs. The confirmation repeats the boundary.
+      When the job completes, the notice changes in place without shifting controls or
+      losing unsaved drafts. Appearance/review reminders still apply immediately.
+3. **S3 — Scope and layout.** Maintainer passed; retained as a regression checklist.
+   a. Save a different shared-XMP preference and reopen Settings to verify persistence.
+      This does not switch a photo's existing primary or rewrite recorded ownership.
+   b. Confirm unresolved files are described as source attention and the per-file choice
+      limitation is explicit. Embedded RAW cannot be enabled from this screen.
+   c. Check Files and the job notice at normal width, 200% zoom and a narrow window:
+      labels, explanations and Save/Close remain reachable without horizontal overflow.
+
+Per-file ownership/primary decisions, incoming alternative decisions and broader metadata
+editing controls remain separate unfinished work; this batch does not claim they are built.
+
+Automated Settings-batch validation: 34 targeted Settings/decision/date tests passed
+in Docker. Seven generated browser workflows passed: metadata Settings, access,
+date settings, fresh start, review, full web UI and layout stability. Setup/Settings
+screenshots were inspected at desktop, narrow and the reduced CSS viewport equivalent
+to 200% desktop zoom. The web build, workflow lint, spec/API/schema checks and whitespace
+checks passed. This supplements the earlier retry checks; R1–R3 now have maintainer
+acceptance; S1–S3 also passed.
+
+R1 feedback follow-up: Source/Destination sections now share a divider in Inspector,
+retry details, Logs and verification evidence. New transfer failures identify their
+attempted step and paths; old records remain unchanged. All 53 retry/transfer/attention
+tests and four generated browser workflows (retry, full UI, layout stability, attention)
+passed. Builds and spec/API/schema checks passed; desktop/narrow screenshots inspected.
+The maintainer subsequently accepted R1–R3 and S1–S3.
+
+R1 delivery-status follow-up: per-member verification is recorded with settled failures
+and read-only interruption recovery. Green is reserved for verified destination content;
+partial/unconfirmed delivery is amber with text, never inferred from an intended path.
+A new fixture cycle can prepare another generated failure while retaining earlier history.
+The maintainer subsequently accepted this R1 follow-up with the full R tests.
+
+Delivery-status validation: 39 retry/transfer engine/API tests passed, including photo
+publication versus XMP failure, cleanup failure after verified delivery, older records,
+final-verification refusal and read-only interruption recovery. The browser verifies
+status text and colors, removal of stale green results for unknown history, both themes,
+normal/narrow/200% reflow, and original Copy/Move retry semantics. Builds and all three
+contract checks passed. Maintainer R1–R3 acceptance passed.
+
+Recovery-notice cleanup: the generated browser check passed for both original modes,
+latest-only failure display with reversed history order, photo-log links, resume wording,
+and desktop/narrow/200% reflow. Screenshots were inspected in both themes. The web build,
+spec/API/schema contracts and whitespace check passed. R acceptance stays complete.
+
+## Informational metadata-reader warnings
+
+`metadata_index_test.py`, `metadata_import_test.py` and `metadata_view_test.py` cover
+reader warnings versus errors, refreshing legacy warning-only holds without rewriting
+history, real generated unknown MakerNotes, exact-byte Copy/Move with and without XMP,
+and broken sidecars remaining blocked. Notes remain available after verified transfer,
+but are not attributed to different photo content after an edit.
+
+Validation: 130 tests passed across capture, import, viewer, pair transfer, embedded
+editing and metadata decisions (67.596 seconds in Docker). The metadata-source browser
+driver passed informational notes, technical-detail disclosure and desktop/narrow/200%
+reflow alongside its existing source/comparison checks. Screenshots were inspected.
+
+Manual **W1 — Warning-only photo can be organized** (maintainer passed; retained as
+a regression checklist):
+
+a. Reindex an existing warning-only photo, then locate it in Not organized. A reader
+   warning alone should no longer put it in Needs attention or prevent Copy.
+b. Open Metadata: the MakerNotes explanation appears under Metadata notes; expand
+   Technical details for the exact diagnostic.
+c. Copy that photo. Confirm it reaches Library and still shows the note. An unrelated
+   suspicious-date warning remains separate; no metadata values are repaired or edited.
+
+R1–R3, S1–S3, D1 and W1 acceptance passed. No manual checks remain for this batch.
+
+
+## Date information versus source attention
+
+Validation: all 16 metadata-view tests passed in Docker (0.537 seconds), including
+repeated date diagnostics retaining every affected path. The metadata-source,
+layout-stability and full web-interface browser drivers passed. Desktop and narrow
+screenshots were inspected. App/web builds and specification/API/schema checks passed.
+
+Manual **D1 — Date information and source blockers** (maintainer passed all steps,
+including D1.c; retained as a regression checklist):
+
+a. Confirm the filter now reads **No usable capture date**. Select it and check the
+   guidance explains that missing dates alone do not prevent Copy or Move.
+b. Open a source photo with a date issue from **Needs attention**. Its File information
+   pane should explain the specific issue once under **Needs attention before
+   organizing**, identify the affected file and give the resolution. If it also appears
+   under No usable capture date, that is the same photo with two applicable properties.
+c. Open a photo with a usable XMP filing date but no EXIF Date taken. Its date should
+   appear without an incorrect missing-EXIF warning. Automated coverage also checks
+   this case; no need to manufacture a new fixture if none is in the current catalog.
+
+R1–R3 and S1–S2 remain accepted; do not repeat them for this wording change.
+
+
+## Photo/XMP retry branch closeout
+
+Maintainer acceptance is complete: R1–R3, S1–S3, D1 and W1 passed. The dedicated
+Metadata setup step/Settings tab and broader filter UX remain follow-up work.
+
+Final local validation used generated fixtures, plus the read-only public RAW samples:
+
+| Check | Result |
+| --- | --- |
+| All 45 Python unit suites | 817 tests passed; 534.8 seconds including suite startup |
+| Full engine smoke run | 153 passed, one test-fixture failure, zero skipped; both RAW checks passed |
+| Corrected detail-preview smoke check | One passed in 2.0 seconds; no skipped checks |
+| Photo/XMP retry browser | Passed Copy/Move, cancellation, source safety and narrow/200% layout |
+| Metadata Settings browser | Passed required choice, persistence/conflicts, frozen running jobs and layout |
+| Date-message integration browsers | Metadata sources, layout stability and full web workflow passed |
+| App/web builds and spec/API/schema checks | Passed |
+
+The smoke failure assumed a particular filename would win duplicate retention. The
+engine correctly retained the identical twin instead. The test now locates the actual
+retained copy, additionally checks that exactly one catalogued destination remains and
+both sources are gone, and preserves all cached-preview/content-change assertions.
+The focused rerun passed; the full smoke suite was not rerun after that test-only fix.
+GitHub CI is a separate pre-merge gate; these local results do not claim CI acceptance.
