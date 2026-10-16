@@ -9,6 +9,9 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Enlarged photos reuse the two-pane Inspector, with a large preview beside the
+  information, Metadata and Similar photos tabs, plus resizing and photo navigation.
+
 - Give metadata its own Settings tab and setup step, keeping required choices and
   saved preferences. Simplify explanations across gallery, metadata, similarity,
   recovery and job screens, with clearer paragraph/list formatting and shared dialog

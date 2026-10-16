@@ -2526,3 +2526,37 @@ The prepared demo has `photo-000.jpg` in Library with XMP Date taken
       stay in place despite the different explanation.
 
 No destructive or file-editing acceptance actions are required for this readability batch.
+
+
+## Expanded photo Inspector validation
+
+The expanded view reuses the Inspector rather than a separate photo/details layout.
+Automated checks passed in Docker: production frontend build/typecheck, all three
+contract checks, the full web browser workflow (including shared UI checks), Similar
+photos and metadata date editing. Coverage includes side-by-side geometry, tab and
+photo navigation, resize/reflow, nested lineage/date dialogs and focus restoration.
+Rendered desktop and narrow screenshots were inspected. No engine behavior changes.
+
+**Manual acceptance complete:** the maintainer confirmed all posted steps, Test 1a
+through Test 3b, passed. No manual checks remain for this batch. Use the existing demo; no reset, Index or Copy is needed.
+`photo-000.jpg` was verified in Library, Copied, with XMP Date taken
+`2005-03-04T05:06:07` and three recorded matches at 75% before requesting these checks.
+
+1. **Test 1 — Two panes.**
+   a. In Library, search `photo-000.jpg`, open its card, then click the large preview.
+      Expect the photo on the left and information/Metadata/Similar photos on the
+      right, without the gallery or another details section beneath the image.
+   b. Switch all three tabs and drag the divider. Similar photos identifies the
+      large image as Reference photo and keeps its matching controls on the right.
+      Choose 75% to see the three recorded candidates for this generated photo.
+   c. Press Escape. Expect the normal gallery Inspector with the last tab retained.
+2. **Test 2 — Browse photos.**
+   a. With `photo-000.jpg` still open, clear the filename search so the gallery has
+      other photos. Choose Metadata and enlarge the preview again.
+   b. Use Next photo, then Previous photo. The expanded view stays open, Metadata
+      stays selected, and Previous returns to `photo-000.jpg`.
+3. **Test 3 — Dialogs and reflow.**
+   a. On `photo-000.jpg`, expanded Metadata → XMP Sidecar Primary, choose Edit metadata
+      date, then Cancel without saving. Expect to return to expanded Metadata.
+   b. Check the expanded view at 200% browser zoom and in dark mode. Panes may stack
+      at narrow widths; text and controls remain reachable. Close returns to the gallery.

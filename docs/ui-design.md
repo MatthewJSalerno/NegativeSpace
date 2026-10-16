@@ -1146,7 +1146,12 @@ infer a more specific source). **Edit metadata date…** opens the existing edit
 Metadata; **View metadata** opens that tab. Hide editing outside Library and disable
 it during a job with the shared explanation. Fold hashes and additional file
 properties under **Technical details** in Photo information. History remains directly
-available. Enlarged photos share the compact facts and link back to Metadata. Each
+available. Enlarged photos use the same information, Metadata and eligible Similar
+photos tabs beside the large preview, with the shared resize divider and navigation.
+Do not duplicate the Inspector or put another details layout below the image. Keep
+the active tab and matching threshold when opening/closing, retain gallery geometry
+behind it, and restore focus to the preview on close. Narrow desktop reflow stacks
+the same panes; nested dialogs close before the expanded view. Each
 source tab shows that source's captured values, not a merged effective view. Keep
 missing, unreadable and failed-to-load sources distinct; do not present an error as
 an empty source. Alternative sidecar versions remain inspectable without activation.

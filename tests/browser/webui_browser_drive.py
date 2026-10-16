@@ -356,13 +356,21 @@ with sync_playwright() as p:
     shot("3-inspector")
     no_errors_yet()
 
-    # Clicking the photo enlarges it over a blurred page, details below; Esc returns.
+    # Enlarging reuses the photo and tabbed details side by side; Esc returns.
     inspector.locator(".inspector-image").click()
     lightbox = page.locator(".lightbox")
     expect(lightbox).to_be_visible()
     expect(lightbox).to_contain_text("Additional file information")
     blur = lightbox.evaluate("e => getComputedStyle(e).backdropFilter")
     assert "blur" in blur, f"the enlarged view does not blur the page behind it: {blur}"
+    expect(lightbox.get_by_role("tab", name="Metadata", exact=True)).to_be_visible()
+    expect(page.locator(".inspector")).to_have_count(1)
+    preview_box = lightbox.locator(".inspector-preview").bounding_box()
+    side_box = lightbox.locator(".inspector-side").bounding_box()
+    assert side_box["x"] >= preview_box["x"] + preview_box["width"], "Details must sit beside the photo"
+    lightbox.get_by_role("tab", name="Metadata", exact=True).click()
+    expect(lightbox.locator(".metadata-sources")).to_be_visible()
+    lightbox.get_by_role("tab", name="File information", exact=True).click()
     shot("5-enlarged")
     page.keyboard.press("Escape")
     expect(lightbox).to_have_count(0)

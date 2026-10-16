@@ -28,11 +28,26 @@ with sync_playwright() as p:
     date_row=viewer.get_by_role('row').filter(has=page.get_by_role('rowheader',name='Date taken',exact=True))
     for width in (1440,720):
         page.set_viewport_size({'width':width,'height':1000})
+        # Wait for responsive Inspector remount before scrolling its date action.
+        if width <= 800:
+            expect(page.get_by_role('dialog',name='Photo details',exact=True)).to_be_visible()
         expect(date_row.get_by_role('button',name='Edit metadata date…',exact=True)).to_be_visible()
         expect(date_row).to_contain_text('2021-02-03 04:05:06')
         date_row.get_by_role('button',name='Edit metadata date…',exact=True).scroll_into_view_if_needed()
         if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+f'/inline-edit-date-{width}.png')
     page.set_viewport_size({'width':1440,'height':1000})
+    # Date editing is nested above the expanded Inspector and returns to its Metadata tab.
+    page.get_by_role('button',name='Enlarge the photo',exact=True).click()
+    expanded=page.locator('.lightbox')
+    expect(expanded.get_by_role('tab',name='Metadata',exact=True)).to_have_attribute('aria-selected','true')
+    date_row.get_by_role('button',name='Edit metadata date…',exact=True).click()
+    nested=page.get_by_role('dialog',name='Edit Date taken',exact=True)
+    expect(nested.get_by_label('Date taken',exact=True)).to_have_value('2021-02-03T04:05:06')
+    nested.get_by_role('button',name='Cancel',exact=True).click()
+    expect(expanded).to_be_visible()
+    expect(date_row.get_by_role('button',name='Edit metadata date…',exact=True)).to_be_focused()
+    if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+'/expanded-metadata.png')
+    expanded.get_by_role('button',name='Close the enlarged photo').click()
     viewer.get_by_role('tab',name='EXIF',exact=True).click()
     expect(viewer.get_by_role('button',name='Edit metadata date…',exact=True)).to_have_count(0)
     viewer.get_by_role('tab',name='XMP Sidecar Primary',exact=True).click()

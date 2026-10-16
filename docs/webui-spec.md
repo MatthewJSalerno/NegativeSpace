@@ -958,9 +958,13 @@ computed properties outside the source mappings. Its filter and sticky Hide cont
 remain. Neither tag disclosure changes files or source selection. Viewing errors expose
 Retry metadata; capture/interpretation issues keep their explanation and a photo-log link.
 
-**Clicking the preview enlarges it** over the blurred page, with the photo's details
-below; Esc or the close button returns. It shows the 1024px preview, the largest image
-the engine makes. The file's own date stays out
+**Clicking the preview enlarges the same Inspector** to fill the window: the photo
+on the left, the existing information, Metadata and eligible Similar photos tabs on
+the right, with their shared resize divider. There is no gallery or separate details
+layout in this view. Preserve the active tab, matching threshold and previous/next
+navigation. Narrow desktop reflow stacks the same panes. Esc or Close returns to
+the gallery and focuses the preview opener; nested dialogs close first. It shows the
+1024px preview, the largest image the engine makes. The file's own date stays out
 of that section: **File modified**, as the first scan observed it, sits under the file's
 size. Missing source fields remain Not recorded in comparison. The File modified row
 identifies modification-time fallback when that is what files the photo under Undated.
