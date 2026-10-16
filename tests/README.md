@@ -2447,3 +2447,12 @@ retained copy, additionally checks that exactly one catalogued destination remai
 both sources are gone, and preserves all cached-preview/content-change assertions.
 The focused rerun passed; the full smoke suite was not rerun after that test-only fix.
 GitHub CI is a separate pre-merge gate; these local results do not claim CI acceptance.
+
+
+PR CI follow-up: the full engine smoke job passed after the duplicate-retention test
+correction. Metadata and Python/contract jobs also passed. The appearance browser
+caught an outdated global-first-section selector after the new Settings notice was
+added. It now asserts that Appearance is selected and checks its visible tab panel;
+all palette, contrast, persistence, scrolling and narrow-control assertions remain.
+The corrected appearance driver passed locally in Docker. The next CI run must pass
+all groups before merge.
