@@ -535,13 +535,20 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     # -- Jobs -----------------------------------------------------------------
 
+    @app.post("/api/v1/jobs/move-preview")
+    def preview_move(body: dict = Body(...)):
+        if set(body) - {'file_ids', 'source_subdir'}:
+            raise JobRefused(400, {'error':'invalid_request', 'message':'Choose photos or a source folder to preview.'})
+        return jobs.preview_move(body.get('file_ids'), body.get('source_subdir'))
+
     @app.post("/api/v1/jobs/start", status_code=202)
     def start_job(body: dict = Body(...)):
         """{"mode": "index"|"copy"|"move", "file_ids": [...]} or {"source_subdir": "..."}
         or neither for the whole source. 409 while another job runs (webui-spec 5.7)."""
-        if set(body) - {"mode", "file_ids", "source_subdir", "request_id"}:
+        if set(body) - {"mode", "file_ids", "source_subdir", "request_id", "confirm_edited_sources", "move_preview_token"}:
             raise JobRefused(400, {"error": "invalid_request", "message": "Unsupported job fields. Answer safety questions through the original job."})
-        run_id = jobs.start(body.get("mode"), body.get("file_ids"), body.get("source_subdir"), body.get("request_id"))
+        run_id = jobs.start(body.get("mode"), body.get("file_ids"), body.get("source_subdir"), body.get("request_id"),
+                            body.get("confirm_edited_sources", False), body.get("move_preview_token"))
         return outcomes.get_run(cfg.db_path, run_id)
 
     @app.post("/api/v1/runs/{run_id}/answer", status_code=202)

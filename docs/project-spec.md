@@ -219,7 +219,7 @@ service. Built and tested:
     what the interface remembers (a dismissed banner), and which build is running
     (`tests/webui_api_test.py`).
 *   **Screens** (`webui/frontend`, React + TypeScript):
-    *   the first-run screens, landing in the Library to Index;
+    *   the first-run screens, landing in Not organized to scan the source;
     *   settings as a window over the page, with catalog backups (list, Back up now,
         download);
     *   the page frame: a top bar with the filename search and the **Jobs** menu on the
@@ -292,6 +292,10 @@ separate work.
 The read-only metadata source viewer is built: separate XMP Sidecar, Embedded XMP and
 EXIF tabs, an applied Primary badge, retained versions, field comparison/filtering and
 recorded-tag disclosure. Catalog reads do not activate sources or modify files.
+Date taken editing/copying with a filing preview is built and validated. A later Move
+now offers one job-scoped Include/Leave confirmation for edited originals, with a bound
+selection and engine recheck; maintainer acceptance of this confirmation passed
+on 2026-10-14 (tests M1–M3).
 
 Specified but not yet on screen:
 *   The unbacked-changes line on every page, and Retry backup in the finished-job banner.
@@ -303,8 +307,8 @@ Specified but not yet on screen:
 *   The Index file-type summary (files found, eligible and excluded by type), which the
     engine records per full Index (`webui-spec.md` §5.1).
 *   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built),
-    undated photos with suggested dates, and Date taken editing/copying
-    with a filing preview (`webui-spec.md` §7.5). Other fields remain read-only; broader
+    and undated photos with suggested dates (`webui-spec.md` §7.5). Date taken editing/copying
+    with a filing preview is built and validated. Other fields remain read-only; broader
     engine capabilities do not imply a general-purpose web editor. Saved orientation is
     separately planned.
 *   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file resolution, and the similar-to-a-reject check

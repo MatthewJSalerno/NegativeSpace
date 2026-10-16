@@ -1173,3 +1173,16 @@ including source comparison, date/refiling previews and save feedback. Broader s
 selection, recovery controls and job-scoped edited-source cleanup confirmation remain
 future UI work requiring their own validation. Automated engine tests establish engine
 coverage, not acceptance of those future screens.
+
+### Web Move confirmation
+
+The web boundary uses a catalog-only scope snapshot, not repeated full-file hashing
+while the user considers the confirmation. It freezes Move all/folder into explicit
+catalogued IDs, shows edited-original names and the original-byte preservation warning,
+and requires Include or Leave for this job. `--move-preview-token` binds those IDs and
+current catalog identities/edit events to engine acceptance under the lock. Changed
+state refuses before scanning/transfer. Normal live hashes, image-history proof and
+pre-action backup remain the deletion gate; a preview is never proof that files are
+currently intact. Exact request replay still precedes stale checks. File verification
+failures appear in the resulting job; the source stays whenever safe removal cannot
+be established.

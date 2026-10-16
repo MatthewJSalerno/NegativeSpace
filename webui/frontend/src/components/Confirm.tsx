@@ -1,17 +1,18 @@
 import { Modal } from "./ui/Modal";
-import { useCallback, useState } from "react";
-import type { ActionMode, Status } from "../api";
+import { useCallback, useEffect, useState } from "react";
+import { api, ApiError, type ActionMode, type Status, type MoveScope, type MovePreview, type MoveSubmission } from "../api";
+import { Pager } from "./Pager";
 import { count, plural } from "../format";
 import { SubmissionStatus } from "./SubmissionStatus";
 
-export type Confirm = { title: string; body: string[]; action: string; danger?: boolean; run: () => Promise<void>; onCancel?: () => void };
+export type Confirm = { title: string; body: string[]; action: string; danger?: boolean; run: (move?: MoveSubmission) => Promise<void>; move?: MoveScope; onCancel?: () => void };
 
 // Copy, Move, Reject or Return to library, for selected photos or a folder (and Copy or
 // Move for all of them), asked the same way on every page. "All" counts what the engine
 // would take across the whole catalog (GET /status), never a view or search.
 export function transferConfirm(mode: ActionMode, status: Status, ids: number[] | { folder: string } | undefined,
-                                run: () => Promise<void>, onCancel?: () => void, filename?: string,
-                                inRejects = false): Confirm {
+                                run: (move?: MoveSubmission) => Promise<void>, onCancel?: () => void, filename?: string,
+                                inRejects = false, sourceSubdir?: string): Confirm {
   const scope = Array.isArray(ids) ? (ids.length === 1 && (mode === "reject" || mode === "return") ? "this photo" : plural(ids.length, "selected photo"))
     : ids ? `the photos under ${ids.folder}`
     : mode === "copy" ? `every photo not yet copied (${count(status.eligible.copy)})`
@@ -35,11 +36,12 @@ export function transferConfirm(mode: ActionMode, status: Status, ids: number[] 
     title: mode === "move" ? `Move ${scope}?` : `Copy ${scope}?`,
     action: mode === "move" ? "Move" : "Copy",
     danger: mode === "move",
+    move: mode === "move" ? (Array.isArray(ids) ? { file_ids: ids } : sourceSubdir ? { source_subdir: sourceSubdir } : {}) : undefined,
     body: mode === "move" && inRejects ? [
       // A selection in Rejects (webui-spec 2): the warning first, as the review shows only it.
       `${one ? "This photo is" : "These photos are"} in Rejects. Move deletes ${one ? "its original" : "their originals"} from your source once ${one ? "its copy" : "each copy"} in Rejects is verified. ${one ? "That copy becomes the only one" : "Those copies become the only ones"}: empty Rejects and ${one ? "it is" : "they are"} gone.`,
     ] : mode === "move" ? [
-      "Each photo is copied into the destination's date folders, checked byte for byte, and only then deleted from the source.",
+      "Unedited photos are copied into the destination's date folders, checked byte for byte, and only then deleted from the source.",
       ...(!ids && status.copied > 0 ? [`${plural(status.copied, "photo is", "photos are")} already copied: each of their copies is verified again before its source is deleted.`] : []),
       ...(!ids && status.rejected_with_source > 0 ? [`${plural(status.rejected_with_source, "rejected photo still has its source", "rejected photos still have their sources")}: each source is deleted once its copy in Rejects is verified, and that copy becomes the only one: empty Rejects and it is gone.`] : []),
       "Duplicate copies in the source are removed once a matching copy is confirmed at the destination.",
@@ -54,20 +56,65 @@ export function transferConfirm(mode: ActionMode, status: Status, ids: number[] 
 export function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<MovePreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const [choice, setChoice] = useState<"include" | "leave" | "">("");
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    if (!confirm.move) return;
+    let alive = true;
+    setPreview(null); setPreviewError(null); setError(null); setChoice(""); setPage(1);
+    api.previewMove(confirm.move).then(result => { if (alive) setPreview(result); })
+      .catch(e => { if (alive) setPreviewError(e instanceof ApiError ? e.message : "The Move selection could not be checked."); });
+    return () => { alive = false; };
+  }, [confirm.move, refresh]);
+  const edited = preview?.edited_originals ?? [];
+  const waiting = !!confirm.move && (!preview || !preview.file_ids.length || (edited.length > 0 && !choice));
   const cancel = useCallback(() => { confirm.onCancel?.(); onClose(); }, [confirm, onClose]);
   return (
     <Modal role="alertdialog" labelledBy="confirm-title" onClose={cancel} busy={busy}>
         <h2 id="confirm-title">{confirm.title}</h2>
         {confirm.body.map((line) => <p key={line}>{line}</p>)}
+        {confirm.move && <section aria-label="Source originals">
+          {!preview && !previewError && <p role="status">Checking the Move selection…</p>}
+          {previewError && <p className="error" role="alert">{previewError}</p>}
+          {preview && preview.file_ids.length === 0 && <p>There are no catalogued photos in this source selection.</p>}
+          {preview && preview.rejected_originals > 0 && <p className="warning">{plural(preview.rejected_originals, "original has its retained copy", "originals have their retained copies")} in Rejects. Removing the source leaves only that copy; emptying Rejects will remove it.</p>}
+          {edited.length > 0 && <>
+            <h3>Originals with edited copies</h3>
+            <p>{plural(edited.length, "source original has an edited copy", "source originals have edited copies")} at the destination.
+              The edited versions and recorded original metadata history stay. <strong>Exact original photo bytes are not retained if you include these originals.</strong></p>
+            <details><summary>Show {plural(edited.length, "affected original")}</summary>
+              <ul>{edited.slice((page - 1) * 20, page * 20).map(photo => <li key={photo.photo_id}>
+                <strong>{photo.filename}</strong>{photo.in_rejects && " (in Rejects)"}<br /><span className="muted">Source: {photo.source}</span>
+              </li>)}</ul>
+              {edited.length > 20 && <Pager page={page} pages={Math.ceil(edited.length / 20)} total={edited.length}
+                pageSize={20} sizes={[20]} onPage={setPage} onPageSize={() => {}} />}
+            </details>
+            <fieldset disabled={busy}><legend>For this Move only (required)</legend>
+              <label className="checkbox-row"><input type="radio" name="edited-originals" required checked={choice === "include"}
+                onChange={() => setChoice("include")} />Include {plural(edited.length, "original")}</label>
+              <label className="checkbox-row"><input type="radio" name="edited-originals" required checked={choice === "leave"}
+                onChange={() => setChoice("leave")} />Leave these originals at source</label>
+            </fieldset>
+            <p className="muted">Other photos in this selection follow the normal Move checks. Every included original is verified before removal. This choice is not saved for future jobs.</p>
+          </>}
+          {(previewError || error) && <button className="primary" disabled={busy} onClick={() => setRefresh(n => n + 1)}>Refresh Move preview</button>}
+        </section>}
         {busy && <SubmissionStatus />}
         {error && <p className="error" role="alert">{error}</p>}
         <footer className="settings-actions">
           <button data-initial-focus onClick={cancel} disabled={busy}>Cancel</button>
-          <button className={confirm.danger ? "danger" : "primary"} disabled={busy}
+          <button className={confirm.danger ? "danger" : "primary"} disabled={busy || waiting}
                   onClick={async () => {
                     setBusy(true); setError(null);
-                    try { await confirm.run(); onClose(); }
-                    catch { setError("The action could not be completed. Check its status before trying again."); }
+                    try {
+                      await confirm.run(preview ? { mode: "move", file_ids: preview.file_ids,
+                        move_preview_token: preview.token, confirm_edited_sources: choice === "include" } : undefined);
+                      onClose();
+                    }
+                    catch (e) { setError(e instanceof ApiError ? e.message : "The action could not be completed. Check its status before trying again."); }
                     finally { setBusy(false); }
                   }}>
             {confirm.action}

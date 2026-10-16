@@ -35,7 +35,7 @@ const IN_REJECTS = ["Rejected", "Rejected_Copied"];
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
 // page, with its details below; Esc or the close button returns.
-export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice, onReviewPhoto }: SetActions & {
+export function Inspector({ id, statusHint, sourceView = false, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice, onReviewPhoto }: SetActions & {
   // Reject this photo, or return it from Rejects; each asks first.
   onReject?: (filename: string) => void;
   onReturn?: () => void;
@@ -50,6 +50,7 @@ export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto,
   id: number;
   // Gallery status reserves the correct tabs while details load; never authorizes actions.
   statusHint?: string;
+  sourceView?: boolean;
   width: number | null;
   onClose: () => void;
   onStep: (delta: number) => void;
@@ -234,6 +235,9 @@ export function Inspector({ id, statusHint, width, onClose, onStep, onOpenPhoto,
                resizePreview(e.key === "Home" ? 20 : e.key === "End" ? 75 : previewShare + (e.key === before ? -5 : 5));
              }}><span aria-hidden="true">⋮⋮</span></div>
         <div className="inspector-side" aria-busy={detail == null && error == null}>
+          {sourceView && (layoutInLibrary || (layoutStatus != null && IN_REJECTS.includes(layoutStatus))) && <p className="notice" role="note">
+            The original remains in the source. This preview, metadata and photo actions refer to the {layoutInLibrary ? "Library" : "Rejects"} copy; its metadata may differ from the original.
+          </p>}
           {error && <p className="error">{error}</p>}
           <div style={{ flexShrink: 0, visibility: layoutStatus == null ? "hidden" : undefined }} aria-hidden={layoutStatus == null ? true : undefined}>
             <TabList className="inspector-tabs" label="Photo inspector" idBase={tabId} value={activeTab} onChange={onTab}

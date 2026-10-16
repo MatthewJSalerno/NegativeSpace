@@ -4,7 +4,7 @@ Everything here is for developing NegativeSpace; running the engine needs none o
 CI coverage is split between two workflows:
 
 - **Every pull request, push to `main`, and manual Engine tests run**:
-  `.github/workflows/engine-tests.yml` runs all 43 Python unit suites
+  `.github/workflows/engine-tests.yml` runs all 44 Python unit suites
   (`tests/*_test.py`, except the separately invoked engine smoke suite), the engine
   smoke suite, the three shell suites, all `tools/check-*.py`, synthetic similarity
   validation, container CPU/timezone/CLI checks, and the browser drivers listed below.
@@ -34,6 +34,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | `fresh_start_browser_drive.py` | PR / main / manual | — |
 | `gallery_position_browser_drive.py` | PR / main / manual | — |
 | `metadata_dates_browser_drive.py` | PR / main / manual | `METADATA_VIEW_FIXTURE=1` |
+| `move_confirmation_browser_drive.py` | PR / main / manual | `MOVE_CONFIRMATION_FIXTURE=1` |
 | `metadata_sources_browser_drive.py` | PR / main / manual | `METADATA_VIEW_FIXTURE=1` |
 | `notifications_browser_drive.py` | PR / main / manual | — |
 | `preview_refresh_browser_drive.py` | PR / main / manual | — |
@@ -237,6 +238,7 @@ of the checkout, build that copy under another tag, and run with `IMAGE` set to 
 | :--- | :--- | :--- |
 | `webui_browser_drive.py` (default) | | First run, Index, the gallery, Inspector, selection, Copy, Stats, Settings, backups, search, phone width; runs the shared UI checks |
 | `ui_browser_drive.py` | | The shared UI checks alone |
+| `move_confirmation_browser_drive.py` | `MOVE_CONFIRMATION_FIXTURE=1` | All Move entry points, edited-original consent, stale preview, preserved bytes and verified removal |
 | `stalled_job_browser_drive.py` | `STALLED_FIXTURE=1` | Real stalled generated decoder, no-progress reminder, Keep waiting, explicit cancellation and lock release |
 | `request_freshness_browser_drive.py` | | One initial Stats/log/facet request, refresh after a real job, retained Stats border/spacing in both themes and desktop reflow |
 | `appearance_browser_drive.py` | | Palettes, explicit/system modes, contrast, cross-tab storage, shared page tools and narrow controls |
@@ -1577,7 +1579,7 @@ photo bytes remain identical and all original XMP versions remain retrievable. R
 existing metadata-save, incoming-preservation, relocation and smoke checks for shared
 paths. Save full logs locally and report totals/failures, not every passing test.
 
-### Move after an embedded edit (engine only)
+### Move after an embedded edit
 
 `metadata_source_cleanup_test.py` uses generated photos to check one-job consent,
 source/destination and image-history verification, backup/fsync refusal, sidecar
@@ -1592,8 +1594,60 @@ The preview changes nothing. A deliberate `--move --confirm-edited-sources
 --request-id <new-id>` confirms edited-source removal for that job's normal selection;
 Copy rejects the flag. Use generated fixtures, inspect retained bytes/history and
 remaining source names, and verify that omitting the flag preserves edited originals.
-The web confirmation remains a separate implementation; no manual UI validation is
-required for this engine-only change.
+The web confirmation now uses a read-only catalog snapshot followed by one explicit
+job choice. `move_confirmation_test.py` runs in the standard Docker unittest form and
+is included in PR CI: Include/Leave, preserved bytes/history, stale scope, engine-lock
+recheck, request replay, live-file refusal, literal folder boundaries, Rejects and
+safety-answer consent. `MOVE_CONFIRMATION_FIXTURE=1
+DRIVER=move_confirmation_browser_drive.py sh tests/browser/webui_browser_test.sh` is
+also in PR CI. This opt-in makes **only the harness's generated source** writable;
+ordinary browser tests keep their source read-only. It exercises the real editor and
+Move jobs, choice/reset, list, desktop/200%/narrow layout and verified source removal.
+
+Maintainer validation: **M1, M2a–c and M3a–b passed (2026-10-14).** The M2c
+feedback requests a clearly visible Refresh Move preview button; it uses the shared
+filled primary style. During M3a the source original was verified to retain its
+2019 EXIF date and the Library copy its 2021 date. A false missing-EXIF-date message
+and unclear source/destination Inspector context were reported and corrected;
+The maintainer passed the remaining checks after these corrections. The API and
+Move browser regressions cover these cases.
+Use a disposable generated source with a writable
+mount for Move, never the shared sample library. The metadata scenario builder supplies
+these searchable names; the EXIF-only case must use embedded JPEG writes, not a forced
+new XMP sidecar. Keep the ordinary JPEG/XMP setting off for this check.
+
+1. **Test M1 — setup and the job-level choice.**
+   a. Complete setup, create the catalog, Scan/Index and Copy the generated library.
+      Existing deliberately broken-sidecar cases can remain at source.
+   b. In Library, search **md-exif-only.jpg**. Open Metadata → primary EXIF → Edit
+      metadata date. Change the date from 2019 to **2020-06-15T12:00:00**, preview and save.
+   c. Jobs → Move → Move all: verify one affected original, its expandable source name,
+      the exact-original-bytes warning and disabled Move until Include/Leave is chosen.
+   d. Choose Include, cancel, reopen: neither choice should be remembered. Check at
+      200% and a narrow window; Cancel/Move must remain reachable. Cancel afterward.
+2. **Test M2 — scope and stale confirmation (before moving files).**
+   a. Select **md-exif-only.jpg** and choose Move. Verify the same choice, then cancel.
+      Select it together with **md-embedded-xmp-only.jpg**, enter the Move review,
+      then Move these photos: the confirmation should still identify only the edited
+      original. Cancel and clear the selection.
+   b. Source folders → Still in source: select the **exif_only** folder. Move this
+      folder must offer the same edited original. Cancel.
+   c. Open Move all. In another tab, change **md-exif-only.jpg** to
+      **2021-06-15T12:00:00** and finish saving. Submit the older Move confirmation:
+      it must refuse without moving photos. Refresh Move preview must require the
+      Include/Leave choice again. Cancel afterward.
+3. **Test M3 — Leave, then Include.**
+   a. Jobs → Move → Move all, choose Leave these originals at source, then Move.
+      Ordinary eligible photos move; deliberately broken/held fixtures may remain.
+      **md-exif-only.jpg** must remain under Source folders → Still in source, and
+      its edited Library copy must retain the 2021 date. Opening the source entry
+      displays a notice that the Inspector shows the Library copy; it must not
+      falsely claim that this edited EXIF has no date taken.
+   b. Start Move all again: choose Include and confirm once. That original is removed
+      only after verification; its edited Library copy and metadata history remain.
+      Source folders must no longer list it as still in source. Check the job's log.
+      Do not interpret the fixture library's intentionally broken files as a new failure.
+
 
 ### Metadata engine delivery and later UI acceptance
 
@@ -1601,8 +1655,9 @@ The metadata engine has automated generated-fixture coverage, including verified
 date refiling, recovery and job-confirmed source cleanup. The engine-only delivery did
 not include screens. The later source viewer and Date taken editor have now passed
 maintainer acceptance, including all numbered follow-ups below. Broader source-choice,
-recovery and edited-source Move confirmation screens remain separate work and will need
-their own acceptance; command-line tests do not replace those walkthroughs.
+and recovery controls remain separate work. Edited-source Move confirmation is now built
+and passed the M1–M3 walkthroughs above; broader source-choice and recovery controls
+remain separate work.
 
 ### Combined metadata and navigation schema
 

@@ -303,7 +303,13 @@ the gallery, every catalogued folder listed (`GET /photos/folders?every=true`), 
 **Waiting | Still in source** (`view=source`: photos whose original is still in the
 source, so the originals of copied photos can be found and moved off by folder) and, for
 one ticked folder, **Copy this folder (n)…** / **Move this folder (n)…**. With zero or
-multiple folders, those controls stay visible but disabled with an explanation. Below 800px the
+multiple folders, those controls stay visible but disabled with an explanation.
+Opening a copied photo from Still in source shows its current destination Inspector,
+not an independent source-file preview. A notice above its tabs identifies the Library
+or Rejects copy and warns that its metadata may differ from the original. Inspector
+EXIF dates and offsets recognize both unqualified Index tags and family-qualified
+embedded-edit tags; XMP tags must not be mistaken for EXIF.
+Below 800px the
 sidebar hides behind a **☰ Menu** button and opens over the page. The design rules are
 in `ui-design.md`, "Page frame".
 
@@ -2247,7 +2253,7 @@ the successful fields of that photo's edit. Other photos in the batch may succee
 Retain recovery material until publication and required refiling have completed;
 report any failure at those later stages accurately (§7.1).
 
-**Later Move after editing (planned controls; engine available).** Date correction and
+**Later Move after editing (built; maintainer acceptance passed 2026-10-14).** Date correction and
 its Library folder move are one action and one confirmation, leaving the source alone.
 If a later Move includes sources whose organized copies have embedded edits, offer one
 job-level choice: **Include these N originals** or **Leave these originals at source**,
@@ -2255,7 +2261,14 @@ with an expandable list. State that edited Library versions and original metadat
 are retained, but exact original photo bytes are not. Other selected photos follow normal
 Move. Do not ask for each photo, and do not offer permanent suppression of this source-
 deletion confirmation. Filename-only changes use ordinary byte verification. Bind the
-choice to the submitted selection/job; no UI implementation is included in this engine work.
+choice to the submitted selection/job. All Move entry points use the shared confirmation;
+selected-photo review opens it when committing Move. Preview the catalogued scope, require
+an explicit Include/Leave choice when edited originals exist, and keep Move disabled
+while loading or after preview failure. The expandable affected list is paged. Cancel
+starts no job and the next confirmation asks anew. Stale previews offer **Refresh Move
+preview** as a filled primary button and require the choice again. The engine checks the snapshot under its lock
+and verifies live files before removal. Safety-question answers retain this choice only
+for the same Move scope; Copy instead drops deletion consent while retaining the scope/token.
 
 **Logs link back to the photo.** An edit's log entry provides **View photo**, opening
 the current photo info panel with its failure details/history and **Edit Date taken…**

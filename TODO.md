@@ -148,7 +148,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
   failure facts, explicit Stats scopes and consistent Job #ID · Action status labels.
 - [ ] Implement source-side sidecar/version import decisions in Not organized, separately
   from the Library inbox. The agreed contract is in `docs/xmp-metadata.md`; durable
-  compressed-BLOB storage is built, but import decisions and transfer recovery are not.
+  compressed-BLOB storage and engine import-decision/transfer-recovery primitives are built;
+  their API/UI decision and recovery controls remain unfinished.
 - [ ] Add the remaining Library reasons to the shared inbox/workspace: suspicious dates with acknowledgment;
   No capture date and sidecar/edit reasons with their respective workstreams.
 - [ ] Bulk review answers within one reason. Individual Mark reviewed/Done and the
@@ -384,10 +385,16 @@ Saved orientation stays a separate action from temporary preview rotation.
   Other fields remain read-only. Copying never activates the donor source.
   Maintainer validation of editing/saving passed; broad recovery/primary UI is separate.
 
-- [ ] One Move-job confirmation for edited-source originals: affected count/list,
+- [x] One Move-job confirmation for edited-source originals: affected count/list,
   **Include these originals** or **Leave these originals at source**; explain that exact
   original photo bytes are not retained. Bind the displayed selection to the job.
-  No per-photo prompts or permanent consent. Engine preview and confirmed cleanup exist.
+  No per-photo prompts or permanent consent. All entry points use a frozen catalogued
+  selection; the engine checks its snapshot under the lock before work, then verifies
+  live files before deletion. Include/Leave is carried only along the same Move's
+  safety-question chain; Copy instead retains scope without deletion consent.
+  Automated API/browser coverage passed; **maintainer UI acceptance passed**
+  (2026-10-14, tests/README.md, Move confirmation tests M1–M3), including the
+  refresh-button and source/destination Inspector follow-ups.
 
 - [ ] Deliberate association/primary-choice controls, separate from viewing and copying,
   with effective-value/refiling previews and the same priority explanation in setup and

@@ -480,6 +480,19 @@ outside the cache root is never served.
 
 ## 5. Jobs
 
+### `POST /api/v1/jobs/move-preview`
+
+Read-only confirmation snapshot. Body: `{}`, `{"file_ids":[101,102]}`, or
+`{"source_subdir":"sd_card/day1"}`. Uses the same positive-ID and literal source-folder
+validation as Start. A folder that resolves outside the source is refused.
+Returns `file_ids` (the frozen, sorted catalogued scope), `token` (SHA-256 stale-state
+guard), `edited_originals` (photo ID, current filename, source-relative path and
+`in_rejects`), and `rejected_originals` (count). Includes unfinished edited-source
+cleanup even when the original photo has already been removed. Reads no photo bytes
+and grants no consent. Invalid input: `400 invalid_request`; unavailable catalog:
+`409 catalog_missing`, `catalog_incompatible` or `catalog_error`; active engine: `409 busy`. An empty folder returns an empty
+selection; the UI cannot submit it.
+
 ### `POST /api/v1/jobs/start`
 
     {"mode": "index" | "copy" | "move"}                        // the whole source
@@ -494,9 +507,22 @@ saved before sending. Legacy callers omitting it receive a server-generated ID.
 An accepted ID with the same normalized request returns its original run without
 spawning, even during a different active job; different input returns
 `409 request_conflict`. Acceptance is durable in the engine's `job_requests` table.
-Index/Copy/Move request identity includes `confirm_edited_sources: false`, matching
-the engine default. The web API does not yet offer edited-source cleanup consent;
-a CLI request that explicitly enabled it cannot replay as an ordinary web Move.
+Index/Copy/Move request identity includes `confirm_edited_sources` (boolean, default
+false). A web Move supplies the preview's `file_ids`, `move_preview_token` and a
+`request_id`; `confirm_edited_sources: true` is accepted only with these fields. The
+choice applies only to that submitted selection/job, never to settings or another job.
+The optional token is also part of request identity. Accepted replay precedes stale
+state checks; a changed selection, place, content identity or saved metadata event
+refuses a fresh request (`409 move_preview_changed`). The engine rechecks under its
+lock at acceptance and around startup reconciliation before processing files; final
+live-file verification remains mandatory. A CLI request with explicit consent cannot
+replay as an ordinary unconfirmed web Move.
+
+The browser freezes Move all/folder to the previewed catalogued IDs; newly indexed
+photos are not silently added. Preview-confirmed Move (and its Copy-instead alternative) may span Library and Rejects
+(the existing whole-source Move behavior), with an explicit Rejects warning. Ordinary
+selection submissions still refuse mixed places. Source-empty/network answers carry
+consent and token only along the same Move request chain; choosing Copy drops deletion consent but retains the frozen scope/token.
 *   **Validated before anything runs:** mode, one targeting at most, ids as positive
     integers no greater than `2^63 - 1`, never more ids than the catalog holds photos (no
     other limit), and a folder that stays inside the source. Everything else is
@@ -508,7 +534,7 @@ a CLI request that explicitly enabled it cannot replay as an ordinary web Move.
     or stopped (`engine-spec.md` §4.1). If any photo is no longer catalogued in this source
     the engine refuses the whole job, recording nothing: `409 engine_refused` with the
     reason.
-    Copy, Move, Reject and Return also return `409 engine_refused` if the selected
+    Copy, ordinary Move, Reject and Return also return `409 engine_refused` if the selected
     photos now mix Library and Rejects. The engine checks under its lock during
     acceptance, including changes made after API validation. Refusal records no
     run/request/selection and changes no photos; the API cleans up its selection file.

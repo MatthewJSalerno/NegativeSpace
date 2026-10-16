@@ -90,8 +90,16 @@ elif [ "${NETWORK_FIXTURE:-0}" = 1 ]; then
 elif [ "${SUBMISSION_FIXTURE:-0}" = 1 ]; then
     set -- -v "$HERE/submission_engine_fixture.py:/submission_engine_fixture.py:ro" -e NS_ENGINE=/submission_engine_fixture.py
 fi
+# Only this test's generated source can be made writable for verified Move tests.
+SOURCE_MODE=ro
+if [ "${MOVE_CONFIRMATION_FIXTURE:-0}" = 1 ]; then
+    SOURCE_MODE=rw
+    # Make the edited original distinct from the ordinary duplicate fixtures.
+    docker run --rm --user "$ME" --entrypoint exiftool -v "$WORK/src":/src "$IMAGE" \
+        -overwrite_original '-EXIF:Artist=Generated Move confirmation fixture' /src/photo-000.jpg >/dev/null
+fi
 docker run -d --init --name "$APP" --network "$NET" --network-alias app -e PUID="$(id -u)" -e PGID="$(id -g)" -e NS_ALLOWED_HOSTS="localhost,127.0.0.1,$WEB,app" \
-    -v "$WORK/src":/data/source:ro -v "$DEST":/data/dest -v "$WORK/appdata":/appdata \
+    -v "$WORK/src":/data/source:"$SOURCE_MODE" -v "$DEST":/data/dest -v "$WORK/appdata":/appdata \
     -v "$WORK/cache":/cache -v "$WORK/backups":/backups "$@" "$IMAGE" >/dev/null
 docker run -d --name "$WEB" --network "$NET" --network-alias review.example --network-alias other.example "$WEB_IMAGE" >/dev/null
 

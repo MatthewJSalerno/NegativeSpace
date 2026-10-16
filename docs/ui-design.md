@@ -227,6 +227,9 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   everything still in the source**, **Go to Library**). *Why under Not organized:* source
   folders matter while photos wait to be organized or their originals wait to be removed;
   the Library and the destination are laid out by date, which the date scrubber navigates.
+  Opening an already copied photo here uses its destination Inspector. A visible
+  notice above the tabs identifies the preview, metadata and actions as belonging
+  to the Library or Rejects copy, whose metadata may differ from the source original.
   Source folders is the only folder selector; Library, Needs review and Rejects have
   no source-folder filter. Leaving Source folders for a place clears its folder scope;
   switching Waiting / Still in source retains it. Old source-folder URLs open the tree;
@@ -265,6 +268,20 @@ Selection counts reserve text space based on catalog capacity, including the out
 count and each offered action count. Numbers use tabular digits. Selecting additional
 photos must not move adjacent actions; this adds no selection limit. Different available
 actions and narrow-window wrapping may still change the layout.
+
+## Move confirmation after embedded edits
+
+Use the shared transfer confirmation for single-photo, selected, folder and whole-source
+Move. Freeze the catalogued scope in a read-only preview. When edited originals are
+present, show their count and an expandable paged list of filenames/source-relative
+paths, followed by a required Include/Leave radio group. No preselected choice, per-photo
+prompts or remembered consent. Explain that the edited copies and recorded metadata
+history remain, but exact original photo bytes do not. Identify copies in Rejects and
+explain their last-copy consequence. Keep the existing Cancel/Move footer and focus
+Cancel initially. Loading/failure cannot enable Move; stale state offers Refresh Move
+preview and clears the choice. Render **Refresh Move preview** as the shared filled
+primary button so the recovery action is clearly distinguishable from explanatory text.
+View/list controls remain separate from the action footer.
 
 ## Stable navigation and filtering
 

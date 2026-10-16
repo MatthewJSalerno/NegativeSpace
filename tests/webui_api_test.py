@@ -1191,6 +1191,38 @@ class JobsAndCatalog(ApiCase):
         names = [k for k, _ in detail["metadata"]]
         self.assertEqual(names, sorted(names, key=str.lower))
 
+    def test_inspector_reads_qualified_exif_dates_after_an_embedded_edit(self):
+        self.create_catalog()
+        meta = {
+            "date_taken": "2021-06-15T12:00:00", "date_source": "exif",
+            "ExifIFD:DateTimeOriginal": "2021:06:15 12:00:00",
+            "ExifIFD:OffsetTimeOriginal": "+02:00",
+            "ExifIFD:CreateDate": "2020:01:02 03:04:05",
+            "ExifIFD:OffsetTimeDigitized": "-05:00",
+            "IFD0:ModifyDate": "2021:06:16 12:00:00",
+            "ExifIFD:OffsetTime": "+01:00",
+            "XMP-exif:DateTimeOriginal": "1999-01-01T00:00:00",
+            "DateTimeOriginal": "2019:06:15 12:00:00",
+        }
+        with ns_db.connect(self.cfg.db_path) as conn:
+            pid = conn.execute("INSERT INTO photos(source_path,status,metadata_json) VALUES(?,'Copied',?)",
+                (str(self.cfg.source / "edited.jpg"), json.dumps(meta))).lastrowid
+            conn.commit()
+        detail = self.client.get(f"/api/v1/photos/{pid}/inspect").json()
+        self.assertEqual(detail["date_offset"], "+02:00")
+        self.assertEqual(detail["exif_dates"], [
+            {"field": "taken", "value": "2021:06:15 12:00:00", "offset": "+02:00"},
+            {"field": "digitized", "value": "2020:01:02 03:04:05", "offset": "-05:00"},
+            {"field": "modified", "value": "2021:06:16 12:00:00", "offset": "+01:00"},
+        ])
+        # An explicit cleared EXIF tag must not fall back to a stale bare or XMP tag.
+        meta["ExifIFD:DateTimeOriginal"] = ""
+        with ns_db.connect(self.cfg.db_path) as conn:
+            conn.execute("UPDATE photos SET metadata_json=? WHERE id=?", (json.dumps(meta), pid))
+            conn.commit()
+        detail = self.client.get(f"/api/v1/photos/{pid}/inspect").json()
+        self.assertNotIn("taken", [d["field"] for d in detail["exif_dates"]])
+
     def test_one_job_at_a_time_and_the_lock_decides(self):
         self.index_library()
         with self.engine_lock_held():
