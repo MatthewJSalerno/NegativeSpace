@@ -569,10 +569,11 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 - [ ] Filter-count UX follow-up: distinguish an actual zero from an unavailable count
   or incompatible filter; explain restrictions without misleading zero totals.
 
-- [ ] Future UX discussion: the full-screen view opened by clicking the large Inspector
-  preview feels visually cluttered, particularly the photo information displayed with
-  it. Review the photo/metadata layout and shared styling before deciding changes.
-  Discussion only; no redesign approved yet.
+- [x] Replace the enlarged-photo layout with the shared two-pane Inspector: large
+  preview beside information, Metadata and eligible Similar photos tabs; retain the
+  resize divider, navigation and nested dialogs.
+- [x] Maintainer validated the expanded two-pane photo view: all posted steps,
+  Test 1a through Test 3b, passed (tests/README.md).
 
 - [x] Phase 2 navigation (date scrubber and Source folders): maintainer accepted navigation.
 - [x] Shared notification bell with catalog-backed per-job read state; ordinary completed

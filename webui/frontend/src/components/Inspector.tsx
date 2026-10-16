@@ -35,9 +35,9 @@ const IN_REJECTS = ["Rejected", "Rejected_Copied"];
 // The split-screen Inspector (webui-spec 4.2): the grid thumbnail at once, the
 // 1024px preview as soon as the engine has made it, and what the catalog records.
 // When the panel is dragged wide, the details move to the right of the photo
-// and the inner divider adjusts their share of space. Clicking the photo enlarges it over a blurred
-// page, with its details below; Esc or the close button returns.
-export function Inspector({ id, statusHint, sourceView = false, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice, onReviewPhoto }: SetActions & {
+// and the inner divider adjusts their share of space. Enlarging uses this same
+// two-pane Inspector in a modal; Esc or the close button returns to the gallery.
+export function Inspector({ id, enlarged, setEnlarged, statusHint, sourceView = false, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice, onReviewPhoto }: SetActions & {
   // Reject this photo, or return it from Rejects; each asks first.
   onReject?: (filename: string) => void;
   onReturn?: () => void;
@@ -50,6 +50,8 @@ export function Inspector({ id, statusHint, sourceView = false, width, onClose, 
   comparison: ComparisonState | null;
   onComparison: (state: ComparisonState | null) => void;
   id: number;
+  enlarged: boolean;
+  setEnlarged: (enlarged: boolean) => void;
   // Gallery status reserves the correct tabs while details load; never authorizes actions.
   statusHint?: string;
   sourceView?: boolean;
@@ -66,8 +68,8 @@ export function Inspector({ id, statusHint, sourceView = false, width, onClose, 
   onMatchView: (view: MatchView) => void;
 }) {
   const [dateEdit, setDateEdit] = useState<{ photoId: number; donor?: MetadataSourceView } | null>(null);
-  const editDate = (donor?: MetadataSourceView) => { setEnlarged(false); onTab("metadata"); setDateEdit({ photoId:id, donor }); };
-  const openMetadata = () => { setEnlarged(false); onTab("metadata"); requestAnimationFrame(() => document.getElementById(`${tabId}-metadata`)?.focus()); };
+  const editDate = (donor?: MetadataSourceView) => { onTab("metadata"); setDateEdit({ photoId:id, donor }); };
+  const openMetadata = () => { onTab("metadata"); requestAnimationFrame(() => document.getElementById(`${tabId}-metadata`)?.focus()); };
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 800px)").matches);
   useEffect(() => {
     const media = window.matchMedia("(max-width: 800px)");
@@ -84,7 +86,7 @@ export function Inspector({ id, statusHint, sourceView = false, width, onClose, 
       "--inspector-head-h", `${Math.ceil(entry.target.getBoundingClientRect().height)}px`));
     observer.observe(header.current);
     return () => observer.disconnect();
-  }, [narrow]);
+  }, [narrow, enlarged]);
   const [previewShare, setPreviewShare] = useState(() => {
     try {
       const saved = Number(localStorage.getItem("ns.inspectorPreviewShare"));
@@ -103,7 +105,15 @@ export function Inspector({ id, statusHint, sourceView = false, width, onClose, 
     if (header.current) observer.observe(header.current);
     update();
     return () => observer.disconnect();
-  }, [narrow]);
+  }, [narrow, enlarged]);
+  const wasEnlarged = useRef(false);
+  useLayoutEffect(() => {
+    const restore = wasEnlarged.current && !enlarged;
+    wasEnlarged.current = enlarged;
+    if (!restore) return;
+    const frame = requestAnimationFrame(() => panel.current?.querySelector<HTMLElement>('.inspector-image')?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [enlarged]);
   const splitDrag = useRef<{ position: number; share: number; extent: number } | null>(null);
   const resizePreview = (share: number) => {
     const value = Math.min(75, Math.max(20, Math.round(share)));
@@ -114,7 +124,6 @@ export function Inspector({ id, statusHint, sourceView = false, width, onClose, 
   const [error, setError] = useState<string | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
-  const [enlarged, setEnlarged] = useState(false);
   const [lineage, setLineage] = useState(false);
   const inLibrary = !!detail && detail.id === id && IN_LIBRARY.includes(detail.status);
   const canCompare = inLibrary || (!!detail && detail.id === id && IN_REJECTS.includes(detail.status));
@@ -194,22 +203,29 @@ export function Inspector({ id, statusHint, sourceView = false, width, onClose, 
   );
 
   const body = (
-    <section ref={panel} className="inspector" data-tab={activeTab} aria-label="Photo details" style={width ? { flexBasis: `${width}px` } : undefined}>
+    <section ref={panel} className="inspector" data-tab={activeTab} aria-label="Photo details" style={!enlarged && width ? { flexBasis: `${width}px` } : undefined}
+      onKeyDown={(e) => {
+        if (!enlarged || e.defaultPrevented || !(e.target instanceof HTMLElement)) return;
+        if (e.target.closest("dialog") !== panel.current?.closest("dialog") ||
+            e.target.closest("input, textarea, select, [role=tablist], [role=separator], [role=menu]")) return;
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          e.preventDefault(); e.stopPropagation(); onStep(e.key === "ArrowLeft" ? -1 : 1);
+        }
+      }}>
       <header ref={header} className="inspector-head">
         <button onClick={() => onStep(-1)} aria-label="Previous photo">‹</button>
         <h2 title={detail?.filename}>{detail?.filename ?? "…"}</h2>
         <button onClick={() => onStep(1)} aria-label="Next photo">›</button>
-        <button onClick={onClose} aria-label="Close">✕</button>
+        <button onClick={enlarged ? () => setEnlarged(false) : onClose} aria-label={enlarged ? "Close the enlarged photo" : "Close"} data-initial-focus={enlarged || undefined}>✕</button>
       </header>
       <div className="inspector-main" data-wide={splitSize.wide}
            style={{ "--preview-share": `${previewShare}%`,
              "--preview-size": `${Math.round(splitSize.height * (splitSize.wide ? 1 : previewShare / 100))}px` } as CSSProperties}>
         <div className="inspector-preview" data-reference={activeTab === "similar"}>
           {activeTab === "similar" && <h3>Reference photo</h3>}
-          <button className="inspector-image" onClick={() => setEnlarged(true)} aria-label="Enlarge the photo"
-                  title="Click to enlarge">
-            {photo}
-          </button>
+          {enlarged ? <div className="inspector-image">{photo}</div> :
+            <button className="inspector-image" onClick={() => setEnlarged(true)} aria-label="Enlarge the photo"
+                    title="Click to enlarge">{photo}</button>}
         </div>
         <div className="preview-divider" role="separator" tabIndex={0}
              aria-label="Resize photo preview" aria-orientation={splitSize.wide ? "vertical" : "horizontal"}
@@ -273,23 +289,13 @@ export function Inspector({ id, statusHint, sourceView = false, width, onClose, 
         <LineageDialog photoId={id} filename={detail.filename} jobRunning={jobRunning}
                        onOpenPhoto={(other) => { setLineage(false); onOpenPhoto(other); }} onClose={() => setLineage(false)} />,
         document.body)}
-      {/* Rendered at the page's top level: inside the Inspector, a size container,
-          position: fixed would be relative to the panel and stay under the toolbar. */}
-      {enlarged && createPortal(
-        <Modal className="lightbox" label={`Enlarged: ${detail?.filename ?? ""}`} onClose={() => setEnlarged(false)}>
-          <button className="lightbox-close" onClick={() => setEnlarged(false)} aria-label="Close the enlarged photo">✕</button>
-          <div className="lightbox-body">
-            <div className="lightbox-image">{photo}</div>
-            {detail && <Details onMetadata={openMetadata} onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)} />}
-          </div>
-        </Modal>,
-        document.body,
-      )}
     </section>
   );
   return <>
     {dateEdit && <DateEditor photoId={dateEdit.photoId} donor={dateEdit.donor} onClose={() => setDateEdit(null)} onSaved={() => window.dispatchEvent(new Event("ns-review-changed"))} />}
-    {narrow && comparison == null && !coveredByDialog ? <Modal deferWhileCovered className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
+    {enlarged && !narrow && <div className="inspector-placeholder" aria-hidden="true" style={width ? { flexBasis: `${width}px` } : undefined} />}
+    {enlarged ? <Modal className="lightbox" label={`Enlarged: ${detail?.filename ?? ""}`} onClose={() => setEnlarged(false)}>{body}</Modal>
+      : narrow && comparison == null && !coveredByDialog ? <Modal deferWhileCovered className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
     {canCompare && comparison != null && <MatchReviewDialog reference={id} candidate={candidate} jobRunning={jobRunning} onNotice={onNotice} onKeep={onKeep}
       workspace={comparison} onWorkspace={onComparison} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet}
       initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}

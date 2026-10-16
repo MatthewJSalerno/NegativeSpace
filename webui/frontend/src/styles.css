@@ -291,6 +291,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 .thumb-placeholder { width: 100%; height: 100%; display: grid; place-items: center; padding: var(--space-2); text-align: center; color: var(--muted); font-size: var(--type-xs); }
 
 /* Inspector */
+.inspector-placeholder { flex: 0 0 50%; min-width: 320px; }
 .inspector {
   flex: 0 0 50%; min-width: 320px; background: var(--surface);
   position: sticky; top: var(--header-offset); height: calc(100vh - var(--header-offset)); overflow-y: auto; padding-bottom: var(--space-8);
@@ -321,16 +322,13 @@ body.dragging { cursor: col-resize; user-select: none; }
   width: 100%; padding: 0; border: 0; border-radius: 0; cursor: zoom-in; }
 .section-note { margin: 0 0 var(--space-1); font-size: var(--type-xs); color: var(--muted); }
 
-/* The enlarged photo: centred over the blurred page, its details below. */
+/* Enlarging reuses the Inspector's preview, tabs and divider, without the gallery. */
 .lightbox {
-  position: fixed; inset: 0; z-index: 30; overflow-y: auto; padding: var(--space-6) var(--space-4);
-  background: rgb(0 0 0 / 0.55); backdrop-filter: blur(10px);
+  position: fixed; inset: 0; z-index: 30; overflow: hidden;
+  background: var(--surface); backdrop-filter: blur(10px);
 }
-.lightbox-body { max-width: min(1100px, 100%); margin: 0 auto; display: grid; gap: var(--space-4); }
-.lightbox-image { display: grid; place-items: center; }
-.lightbox-image img { max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: var(--control-radius); box-shadow: 0 8px 32px rgb(0 0 0 / 0.5); }
-.lightbox .inspector-body { background: var(--surface); border-radius: var(--radius); padding: var(--space-1) var(--space-4) var(--space-4); }
-.lightbox-close { position: fixed; top: 16px; right: 16px; z-index: 31; font-size: var(--type-md); }
+.lightbox > .inspector { position: relative; top: 0; width: 100%; height: 100%; min-width: 0; padding-bottom: 0; }
+.lightbox .inspector-image { cursor: default; }
 .inspector-image img { max-width: 100%; max-height: 60vh; object-fit: contain; display: block; }
 .inspector-image .thumb-placeholder { min-height: 240px; }
 .inspector-body { padding: var(--space-1) var(--space-4) var(--space-4); }
@@ -690,7 +688,6 @@ button.active-soft { border-color: var(--accent); color: var(--accent); }
 
 .folder-name { display: block; min-width: 0; line-height: 28px; }
 .inspector-head { z-index: 2; }
-.lightbox .meta-head { top: 0; }
 
 /* Approved Library visual treatment. */
 .app {font-size: var(--type-sm);}

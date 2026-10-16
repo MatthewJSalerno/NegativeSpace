@@ -325,6 +325,23 @@ def check_ui(browser, base, _shot):
     page.get_by_role("button", name="Enlarge the photo").click()
     enlarged = page.get_by_role("dialog", name=re.compile(r"^Enlarged:"))
     expect(enlarged.get_by_role("button", name="Close the enlarged photo")).to_be_focused()
+    expect(enlarged.get_by_role("separator", name="Resize photo preview")).to_have_attribute("aria-orientation", "vertical")
+    expect(page.locator(".inspector")).to_have_count(1)
+    enlarged.get_by_role("tab", name="Metadata", exact=True).click()
+    expect(enlarged.locator(".metadata-sources")).to_be_visible()
+    original_name = enlarged.locator(".inspector-head h2").inner_text()
+    enlarged.get_by_role("button", name="Next photo", exact=True).click()
+    expect(enlarged.locator(".inspector-head h2")).not_to_have_text(original_name)
+    expect(enlarged.get_by_role("tab", name="Metadata", exact=True)).to_have_attribute("aria-selected", "true")
+    enlarged.get_by_role("button", name="Previous photo", exact=True).click()
+    expect(enlarged.locator(".inspector-head h2")).to_have_text(original_name)
+    enlarged.get_by_role("tab", name=re.compile(r"^(Photo|File) information$")).click()
+    for width, height in ((700, 450), (390, 844), (1400, 900)):
+        page.set_viewport_size({"width": width, "height": height})
+        expect(enlarged.get_by_role("button", name="Close the enlarged photo")).to_be_in_viewport()
+        assert enlarged.evaluate("e => e.scrollWidth <= e.clientWidth + 1"), "Enlarged photo overflows at reflow"
+        if os.environ.get("SHOTS"):
+            page.screenshot(path=f"{os.environ['SHOTS']}/expanded-inspector-{width}.png")
     lineage_opener = enlarged.get_by_role("button", name="View lineage tree")
     lineage_opener.click()
     lineage = page.get_by_role("dialog", name=re.compile(r"^Lineage of"))
@@ -334,6 +351,7 @@ def check_ui(browser, base, _shot):
     expect(lineage_opener).to_be_focused()
     page.keyboard.press("Escape")
     expect(enlarged).to_have_count(0)
+    expect(page.get_by_role("button", name="Enlarge the photo")).to_be_focused()
     page.keyboard.press("Escape")
 
     # A failed appended page stops loading, preserves selection and retries once.

@@ -182,6 +182,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [typeCounts, setTypeCounts] = useState<{ type: string; photos: number }[] | null>(null);
   const [openId, setOpenId] = useState<number | null>(initial.photo);
   const [matchState, setMatchState] = useState<{ photo: number | null; view: MatchView }>({ photo: initial.photo, view: initial.match });
+  const [expandedInspector, setExpandedInspector] = useState(false);
+  useEffect(() => { if (openId == null) setExpandedInspector(false); }, [openId]);
   const [inspectorTab, setInspectorTab] = useState(initial.inspectorTab);
   const [comparison, setComparison] = useState<ComparisonState | null>(initial.comparison);
   const [groupSets, setGroupSets] = useState(initial.groupSets);
@@ -1291,7 +1293,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                    if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() + 40); }
                    if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() - 40); }
                  }} />
-            <Inspector sourceView={view === "source"} onReviewPhoto={() => setReviewPhoto(openId!)} setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && similar && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} statusHint={flat.items.find(item => item.id === openId)?.status} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
+            <Inspector enlarged={expandedInspector} setEnlarged={setExpandedInspector} sourceView={view === "source"} onReviewPhoto={() => setReviewPhoto(openId!)} setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && similar && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} statusHint={flat.items.find(item => item.id === openId)?.status} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
                        onReject={(name) => askTransfer("reject", [openId], undefined, name)} onReturn={() => askTransfer("return", [openId])}
                        onRejectMatch={(id, name) => askTransfer("reject", [id], undefined, name)} onKeep={(keep, name, threshold) => void keepAndReview(keep, name, threshold)}
