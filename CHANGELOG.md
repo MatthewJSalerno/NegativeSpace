@@ -9,6 +9,11 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Give metadata its own Settings tab and setup step, keeping required choices and
+  saved preferences. Simplify explanations across gallery, metadata, similarity,
+  recovery and job screens, with clearer paragraph/list formatting and shared dialog
+  spacing. Keep failure evidence and safety consequences visible.
+
 - Retry incomplete photo/XMP imports from photo information, Logs or a selection.
   Confirmation preserves the original Copy/Move mode; changed catalog state requires
   a fresh preview, and files are verified before reuse or source removal. Failure details

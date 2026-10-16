@@ -59,6 +59,8 @@ with sync_playwright() as p:
         dialog=page.get_by_role('dialog',name='Retry photo/XMP transfers',exact=True)
         expect(dialog).to_contain_text('Generated XMP publication failure')
         expect(dialog).to_contain_text('Failed step: Transferring XMP.')
+        expect(dialog).not_to_contain_text('PairRefused:')
+        expect(dialog).not_to_contain_text('Published files were preserved')
         dest_group=dialog.get_by_role('group',name='Destination',exact=True)
         photo_row=dest_group.locator('.file-location-entry').filter(has=page.get_by_text('Photo',exact=True))
         xmp_row=dest_group.locator('.file-location-entry').filter(has=page.get_by_text('XMP',exact=True))

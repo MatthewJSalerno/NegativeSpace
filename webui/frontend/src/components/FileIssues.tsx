@@ -1,17 +1,10 @@
+import { pairFailureReason } from "../format";
 import { FileLocations } from "./ui/FileLocations";
 import { PairRetryButton } from "./PairRetry";
 import { useEffect, useRef, useState } from "react";
 import { api, type FileIssue } from "../api";
 import { useJobFeed } from "../jobs";
 import { follow, logUrl } from "../nav";
-
-// Remove only the transfer wrapper; retain the actual failure and its system details.
-function pairFailureReason(summary: string) {
-  return summary
-    .replace(/^Photo\/XMP transfer incomplete(?: while [^:]+)?: /, "")
-    .replace(/^PairRefused: /, "")
-    .replace(/\. Published files were preserved; review the pair before retrying\.$/, "");
-}
 
 // One recovery control in Inspector, Logs and the Library review workspace.
 export function FileIssues({ photoId, initialIssues, operationId, onResolved }: {

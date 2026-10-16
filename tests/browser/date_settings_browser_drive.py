@@ -20,6 +20,7 @@ with sync_playwright() as p:
     expect(year).to_have_value('1800')
     year.fill('2020')
     page.get_by_label('Small-image reminders',exact=False).select_option('off')
+    page.get_by_role('button',name='Next',exact=True).click()
     page.get_by_label('When an XMP sidecar matches multiple photos',exact=False).select_option('ask')
     for _ in range(3): page.get_by_role('button',name='Next',exact=True).click()
     page.get_by_role('button',name='Save and continue',exact=True).click()

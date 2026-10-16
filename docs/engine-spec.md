@@ -1356,7 +1356,7 @@ method, and never a correction stored only in the catalog.
 
 **Where edits are saved** (planned, decided 2026-10-02). Photographers keep RAW edits in
 XMP sidecars rather than inside the RAW, so this is a setting with two groups, set
-separately (Settings › Files): **RAW formats** default to an **XMP sidecar**, with **In
+separately (Settings › Metadata): **RAW formats** default to an **XMP sidecar**, with **In
 the file** as the opt-in that brings the RAW consent and warnings; **other formats**
 (JPEG, HEIC, TIFF…) default to **In the file**, with **XMP sidecar** as the option. A
 sidecar leaves the photo's bytes unchanged, so its SHA-1, duplicates and lineage stay put.

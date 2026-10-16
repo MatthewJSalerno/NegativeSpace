@@ -263,7 +263,7 @@ def _publish(conn, op, m, data):
         prior = _hash(p['previous'])
         if prior is None:
             if live != m['old_sha256']:
-                raise ValueError('The original sidecar is missing; retry cannot invent its removal')
+                raise ValueError('The original sidecar is missing. Retry cannot verify how it was removed')
             relocate._rename_noreplace(str(p['sidecar']), str(p['previous']))
             durable._fsync_directory(p['sidecar'].parent)
         elif prior != m['old_sha256']:
@@ -470,7 +470,7 @@ def abandon(conn, op):
     if m.get('embedded'):
         return metadata_photo_save.abandon(conn, op, pid, m)
     if _event(conn, op, 'metadata_saved'):
-        raise ValueError('Verified metadata was saved; finish its move/cleanup instead of abandoning it')
+        raise ValueError('Metadata was saved and verified. Finish moving the files and removing the previous versions before starting another edit')
     p = _paths(m)
     _photo(conn, pid, m)
     _verify_photo(p['photo'], m)

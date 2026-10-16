@@ -301,7 +301,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
           <ReviewMetadata reference={reference} candidate={active} refreshKey={reload} />
           <p className="review-score">{review.score == null ? "Visual hash unavailable" : `${review.score}% visual similarity`}</p>
           <p className="section-note">{review.exact ? "Identical bytes (same SHA-1)." : "Different bytes (different SHA-1)."}</p>
-          {review.score != null && review.score < 90 && <p className="section-note">Below 90%, results are more likely to be unrelated. Review photos side by side before using them as clues for dates or other details.</p>}
+          {review.score != null && review.score < 90 && <p className="section-note">Below 90%, matches are more likely to be unrelated. Compare the photos before using their dates or other details.</p>}
         </aside>
       </div>
     </>}

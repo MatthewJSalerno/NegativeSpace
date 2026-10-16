@@ -11,18 +11,18 @@ import { TabList, tabPanel } from "./ui/Tabs";
 const QUEUE_SIZE = 1000; // DB_QUEUE_SIZE, fixed in the engine (engine-spec 4.1)
 
 // The groups, in order: tabs in Settings, steps on first run (webui-spec 3).
-type Group = "appearance" | "files" | "backups" | "performance" | "access";
+type Group = "appearance" | "files" | "metadata" | "backups" | "performance" | "access";
 const GROUPS: { value: Group; label: string }[] = [
   { value: "appearance", label: "Appearance" }, { value: "files", label: "Files" },
-  { value: "backups", label: "Backups" }, { value: "performance", label: "Performance" }, { value: "access", label: "Access" },
+  { value: "metadata", label: "Metadata" }, { value: "backups", label: "Backups" }, { value: "performance", label: "Performance" }, { value: "access", label: "Access" },
 ];
 // Where each field and each saved setting lives.
 const FIELD_GROUP: Record<string, Group> = {
-  association: "files", rawWrite: "files", nonRawWrite: "files",
+  association: "metadata", rawWrite: "metadata", nonRawWrite: "metadata",
   workers: "performance", retention: "backups", exts: "files", reminderSize: "files", reminderAge: "files", small: "files", year: "files",
 };
 const SETTING_GROUP: Record<string, Group> = {
-  xmp_association: "files", metadata_write_raw: "files", metadata_write_non_raw: "files",
+  xmp_association: "metadata", metadata_write_raw: "metadata", metadata_write_non_raw: "metadata",
   workers: "performance", backup_retention: "backups", exts: "files",
   rejects_reminder_bytes: "files", rejects_reminder_days: "files", small_image_min: "files", suspicious_min_year: "files",
 };
@@ -241,7 +241,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     <section className={firstRun ? "notice notice-first-run" : undefined}>
         <h3>Small-image review</h3>
         {firstRun && <p id="small-required"><strong>Choose On or Off to continue.</strong> Either choice is valid; you can change it later in Settings.</p>}
-        <p>A cleanup suggestion after Copy or Move, never an import restriction. Mark reviewed clears a photo’s size reminder; select unwanted photos to Reject.</p>
+        <p>Suggest small photos for review after Copy or Move. This does not stop them being imported. Use Mark reviewed to dismiss a reminder, or Reject for photos you don’t want.</p>
         <label htmlFor="settings-small-choice">Small-image reminders{firstRun && <strong> (required)</strong>}</label>
         <select id="settings-small-choice" required={firstRun} value={smallChoice} disabled={saving} aria-invalid={smallChoice !== "on" && !!fieldErrors.small} aria-describedby={[firstRun && "small-required", "small-hint", smallChoice !== "on" && fieldErrors.small && "small-error"].filter(Boolean).join(" ")} onChange={e => setSmallChoice(e.target.value)}>
           <option value="" disabled>Choose…</option><option value="on">On — suggest small images</option><option value="off">Off</option>
@@ -254,14 +254,14 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
 
   const metadataSettings = <section aria-label="Metadata preferences">
     <h3>Which metadata is used?</h3>
-    <p>For a newly organized photo without a saved source choice, the default order is:</p>
+    <p>Unless you have chosen a primary source, metadata is read in this order:</p>
     <ol>
       <li><strong>XMP sidecar</strong> — a separate file beside the photo.</li>
       <li><strong>Embedded XMP</strong> — metadata inside the photo.</li>
       <li><strong>Embedded EXIF</strong> — metadata inside the photo, often written by the camera.</li>
     </ol>
-    <p>Only a missing field falls through to the next source. An explicitly empty field stays empty.
-      All recorded sources remain available in the photo’s Metadata tab. A saved primary-source choice takes precedence.</p>
+    <p>If a field is missing, NegativeSpace checks the next source. An explicitly empty field stays empty.
+      You can view all recorded sources in the photo’s Metadata tab.</p>
     <h3>Shared XMP sidecars</h3>
     <p>A short name such as <code>photo.xmp</code> can match both <code>photo.CR2</code> and <code>photo.jpg</code>.
       A full name such as <code>photo.CR2.xmp</code> identifies one photo.</p>
@@ -278,29 +278,28 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
       <option value="all">Associate with all matching photos</option>
     </select>
     {fieldErrors.association && <p id="association-error" className="error" role="alert">{fieldErrors.association}</p>}
-    <p id="association-hint" className="muted">Applies to new or unresolved associations, never to saved choices.
-      If ownership remains unclear, the affected photos stay in Not organized → Needs attention; other photos can proceed.
-      Choosing owners for individual held files is not available yet. Changing this preference requires another Index to reassess unresolved files.</p>
+    <div id="association-hint" className="muted message-copy">
+      <p>Saved associations stay unchanged. This choice applies to new or unresolved sidecars.</p>
+      <p>If it is unclear which photo owns a sidecar, those photos stay in <strong>Not organized → Needs attention</strong>. Other photos can proceed.</p>
+      <p>Choosing owners for individual files is not available yet. After changing this setting, run Index again to check unresolved sidecars.</p>
+    </div>
     <h3>Where future edits are saved</h3>
-    <p>These defaults apply only when a photo has no established primary write target.
-      Existing primary sources take precedence; changing a default does not switch them.</p>
+    <p>These defaults apply to photos without a primary source for edits. Photos that already have one keep it. Changing these settings does not edit or move files.</p>
     <label htmlFor="settings-rawWrite">RAW photos</label>
     <select id="settings-rawWrite" value={rawWrite} disabled={saving} aria-describedby="raw-write-hint"
       onChange={e=>setRawWrite(e.target.value as MetadataWriteTarget)}>
       <option value="xmp">XMP sidecar (default)</option>
       <option value="embedded" disabled>In the photo (not supported for RAW)</option>
     </select>
-    <p id="raw-write-hint" className="muted">RAW editing uses a separate XMP file and leaves the photo’s bytes unchanged.
-      Embedded RAW writes are not supported; an existing unsupported preference cannot enable them.</p>
+    <p id="raw-write-hint" className="muted">Edits go in a separate XMP file. The RAW photo stays unchanged; writing metadata inside it is not supported.</p>
     <label htmlFor="settings-nonRawWrite">Other photo formats</label>
     <select id="settings-nonRawWrite" value={nonRawWrite} disabled={saving} aria-describedby="non-raw-write-hint"
       onChange={e=>setNonRawWrite(e.target.value as MetadataWriteTarget)}>
       <option value="embedded">In the photo (JPEG only; default)</option>
       <option value="xmp">XMP sidecar</option>
     </select>
-    <p id="non-raw-write-hint" className="muted">Embedded editing is limited to supported JPEG files.
-      TIFF, HEIC and motion-photo embedded writes are not supported. Unsupported edits are refused;
-      NegativeSpace never switches the write target automatically. These preferences do not edit or move existing files.</p>
+    <p id="non-raw-write-hint" className="muted">Writing inside a photo is supported for some JPEGs only, not TIFF, HEIC or motion photos.
+      If an edit is unsupported, it stops with an explanation. NegativeSpace never switches to XMP automatically.</p>
   </section>;
 
   const panels: Record<Group, ReactNode> = settings ? {
@@ -322,7 +321,6 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     ),
     files: (<>
       {firstRun && smallImageSettings}
-      {metadataSettings}
       <section>
         <h3>Suspicious dates</h3>
         <Field id="settings-year" label="Earliest expected year" type="number" min={1} max={9999} step={1}
@@ -355,10 +353,9 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
       <section>
         <h3>Rejects reminder</h3>
         <p className="muted">
-          When you reject a photo, NegativeSpace moves it out of your library into a separate Rejects folder in your
-          destination. It stays there, untouched, until you delete it yourself, and you can bring it back until then:
-          NegativeSpace never deletes a photo. Once Rejects passes either limit below, a line on every page reminds you
-          to empty it.
+          Reject moves a photo out of Library into the destination’s Rejects folder. You can return it to Library
+          until you empty that folder yourself. NegativeSpace does not empty Rejects for you.
+          A reminder appears on every page when either limit below is reached.
         </p>
         <LimitRow id="settings-reminderSize" on={sizeOn} onToggle={setSizeOn} value={sizeGb} onValue={setSizeGb}
           before="Remind me when Rejects holds at least" after="GB" min={0.1} step={0.1} disabled={saving} error={fieldErrors.reminderSize} />
@@ -366,13 +363,13 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
           before="Remind me when a photo has been in Rejects for" after="days" min={1} step={1} disabled={saving} error={fieldErrors.reminderAge} />
       </section>
     </>),
+    metadata: metadataSettings,
     backups: (
       <section>
         <p className="notice">
           <strong>These are backups of NegativeSpace's catalog, not of your photos.</strong>{" "}
-          The catalog is what NegativeSpace records about your photos: file information, metadata and the history of
-          every change. A catalog backup cannot recreate or recover a photo. Backing up your photos is up to you; keep
-          your own separate backups of them.
+          They contain file information, metadata and change history. They cannot recover a lost photo.
+          Keep separate backups of your photo files.
         </p>
         <Field id="settings-retention" label="Automatic backups to keep" type="number" min={1} step={1}
           value={retention} disabled={saving} onChange={(e) => setRetention(e.target.value)} error={fieldErrors.retention}
@@ -408,7 +405,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
       <p className="muted">Local addresses and names configured through Docker cannot be removed here. For initial access or recovery on a server, set NS_ALLOWED_HOSTS in the deployment configuration and recreate the app container.</p>
       <p className="notice">This does not create DNS records, change Docker port publishing, or add sign-in. Anyone who can reach the app can use it.</p>
     </section>,
-  } : { appearance: null, files: null, backups: null, performance: null, access: null };
+  } : { appearance: null, files: null, metadata: null, backups: null, performance: null, access: null };
 
   const status = message && <p className={message.kind === "error" ? "error" : "ok"} role={message.kind === "error" ? "alert" : "status"}>{message.text}{message.kind === "error" && <> <button onClick={load} disabled={saving}>Reload settings</button></>}</p>;
 
@@ -450,7 +447,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
           {GROUPS.map((g) => (
             <div key={g.value} className="settings-panel" role="tabpanel" {...tabPanel(idBase, g.value, group)}>{panels[g.value]}</div>
           ))}
-          <p className="notice">Processing settings apply to future jobs. Review reminders update immediately; no photos are moved.</p>
+          <p className="section-note">Save applies changes from every tab. No photos are moved.</p>
           {status}
           <footer className="settings-actions">
             <button onClick={reset} disabled={saving}>Reset</button>

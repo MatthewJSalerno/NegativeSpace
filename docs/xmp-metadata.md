@@ -1086,7 +1086,7 @@ reads/writes, prevent unintended overwrites and verify before deleting source fi
 
 ## UI handoff — source viewer, date editing and preferences built; decisions pending
 
-Setup's Files step and Settings › Files must show **Which metadata is used?** beside
+Setup's Metadata step and Settings › Metadata must show **Which metadata is used?** beside
 the metadata association/write questions. Keep the priority explanation visible, using
 the shared guidance style rather than hiding it behind a tooltip or introducing another
 required choice. Suggested copy:

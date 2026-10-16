@@ -142,7 +142,7 @@ with sync_playwright() as p:
     viewer.get_by_role('button',name='Edit metadata date…',exact=True).click()
     expect(field).to_have_value('')
     expect(calendar).to_have_value('')
-    expect(dialog).to_contain_text('A missing date can use a date from another source for filing.')
+    expect(dialog).to_contain_text('Another source may still supply the filing date.')
     calendar.fill('2010-04-05')
     expect(field).to_have_value('2010-04-05')  # No time or zone is invented.
     draft=field.input_value()

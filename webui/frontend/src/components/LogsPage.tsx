@@ -256,10 +256,10 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
         </div>
         <StableContent active={failuresOnly ? "failed" : "all"} variants={{
           all: <p className="muted">Browse recorded work across jobs. Filter by status, date, photo or message; expand a job for its file details.</p>,
-          failed: <p className="muted">
-            Every attempt that failed, whatever the photo's status is now. A failure with no photo is about a folder
-            or the whole job. Read the cause before retrying. Unreadable or unrecognized files need external repair; access problems need corrected permissions or a reconnected source. Retry only after addressing the cause.
-          </p>
+          failed: <div className="muted message-copy">
+            <p>Past failures stay in this log even if a later attempt succeeded. Entries without a photo refer to a folder or the whole job.</p>
+            <p>Read the cause before retrying. You may need to reconnect storage, fix permissions, or repair a file outside the app.</p>
+          </div>
         }} />
         {filters.photo != null && (
           <p className="muted">
@@ -403,7 +403,7 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
               {retryLabel}
             </button>
           )}
-          {canRetry && <p className="section-note">Rechecking repeats the job; it cannot repair a damaged file or add format support. Fix the recorded cause first. Interrupted work can be retried once its files and storage are available.</p>}
+          {canRetry && <p className="section-note">Fix the recorded cause before rechecking. Retry repeats the job; it cannot repair files or add format support. For interrupted work, first check that the files and storage are available.</p>}
           {note && <p className="notice" role="status">{note}</p>}
         </div>
       )}

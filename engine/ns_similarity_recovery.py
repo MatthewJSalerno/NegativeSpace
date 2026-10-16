@@ -8,9 +8,9 @@ REASONS = {
     'not_supported': ('unsupported', 'This format is not supported by the visual decoder. The file may still be a valid image; check it in an external viewer or install decoder support.', False),
     'repair_missing': ('missing', 'The destination file is missing. Restore it at its recorded location before retrying.', True),
     'repair_unreadable': ('unreadable', 'The destination file could not be read. Check its availability and read permissions before retrying.', True),
-    'repair_changed': ('changed', 'The destination bytes differ from the catalog. Restore the catalogued file before retrying, or rebuild the catalog for the replacement; hash repair cannot reconcile replaced files.', True),
+    'repair_changed': ('changed', 'The destination file has changed since it was recorded. Restore the recorded version before retrying, or rebuild the catalog for the replacement. Hash recovery cannot update a replaced file.', True),
     'repair_outside': ('outside_destination', 'The recorded file is outside the configured destination. Correct the destination configuration before retrying.', True),
-    'repair_decode': ('decode_failed', 'The file could not be decoded for visual matching. It may be damaged, mislabeled, or need another decoder. Check it in an external viewer and repair or replace it outside this app. It stays excluded from visual matching; retry only after the underlying issue is fixed.', True),
+    'repair_decode': ('decode_failed', 'The file could not be decoded for visual matching. Check it in an external viewer: it may be damaged, mislabeled, or need another decoder. It stays out of matching until the cause is fixed; retry only then.', True),
 }
 
 

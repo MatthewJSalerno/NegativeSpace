@@ -102,7 +102,7 @@ export function BackupsPanel({ retentionDraft }: { retentionDraft: number }) {
                 {" "}Last successful: {data.last_success ? instant(data.last_success) : "none yet"}.</>}
         </span>
       </div>
-      {message && <p className={message.kind} role="alert">{message.text}</p>}
+      {message && <p className={message.kind} role={message.kind === "error" ? "alert" : "status"}>{message.text}</p>}
       {removed > 0 && (
         <p className="warning">
           Saving a limit of {retentionDraft} removes the {plural(removed, "oldest automatic backup")} after the next

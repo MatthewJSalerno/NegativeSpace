@@ -4,6 +4,7 @@ Everything here is for developing NegativeSpace; running the engine needs none o
 ## Manual validation instructions
 
 - Number tests and letter their steps so results can refer to a specific check.
+  Refer to these identifiers (for example Test 3a), never document line numbers.
 - For every photo-specific check, supply a searchable filename verified in the current
   test catalog, its location (for example Library or Not organized), the expected
   starting state and the expected result. Add a date or other identifier if names repeat.
@@ -2311,17 +2312,16 @@ their original assertions. Engine snapshot rules also remain covered by
 Manual Settings acceptance **S1–S3 passed**; the later warning
 classification check **W1** below also passed. R1–R3 and S1–S2 passed on
 2026-10-15; no repeat of those tests is required for current-build acceptance. S1 feedback:
-move metadata questions to their own setup step to reduce scrolling; tracked in TODO.md
-for the next UI batch. S3 feedback also requests a dedicated Metadata tab in Settings
-because Files is long and wordy; this layout follow-up is not yet built. For a future S1 regression run, use a separate fresh generated
+metadata questions now have their own Metadata setup step and Settings tab. The
+six-step layout and message readability changes need separate acceptance below. For a future S1 regression run, use a separate fresh generated
 catalog. Do not reset a working library.
 
 1. **S1 — Setup choice and defaults.**
-   a. In the fresh setup's Files step, choose small-image reminders On or Off but leave
-      the shared-XMP choice empty. Next must identify the required choice and focus it.
+   a. In the fresh setup's Files step, choose small-image reminders On or Off and select
+      Next. On the Metadata step, leave the shared-XMP choice empty. Next must identify the required choice and focus it.
    b. Choose Ask me. Confirm the visible source priority, explicit-empty rule, RAW XMP
       default, and JPEG-only embedded limit. Move Next then Back: your choice remains.
-   c. Finish setup; open Settings → Files. The same choice and explanations remain.
+   c. Finish setup; open Settings → Metadata. The same choice and explanations remain.
 2. **S2 — Settings drafts and running jobs.** Maintainer passed on 2026-10-15,
    confirming the saved-settings notice during a running job.
    a. Change the shared-XMP preference, switch tabs and return. The draft and unsaved
@@ -2456,3 +2456,73 @@ added. It now asserts that Appearance is selected and checks its visible tab pan
 all palette, contrast, persistence, scrolling and narrow-control assertions remain.
 The corrected appearance driver passed locally in Docker. The next CI run must pass
 all groups before merge.
+
+
+## Metadata grouping and message readability validation
+
+This batch moves Metadata to its own Settings tab and setup step (third of six).
+It reviews explanations across setup/preferences, gallery/filter guidance, photo and
+metadata information, date editing, similarity/sets, incomplete transfers, submission,
+job results, Logs, backups, and engine/API refusal messages. Short, clear messages stay
+as they are. Changes simplify repetitive prose, keep the specific cause and next step,
+show multiple metadata issues as a list, and use shared paragraph/dialog spacing.
+Recorded history, raw diagnostic evidence, error codes and file safety rules are not
+rewritten. The standard is `docs/ui-design.md`, Writing messages.
+
+Automated validation on generated fixtures (2026-10-16):
+
+| Check | Result |
+| --- | --- |
+| Metadata viewer | 16 tests passed |
+| Metadata save/recovery | 36 tests passed |
+| Similarity recovery | 7 tests passed |
+| Date editing API | 11 tests passed |
+| Metadata decisions/frozen settings | 18 tests passed |
+| Web API | 100 tests passed |
+| API, schema and spec checks | All three passed |
+| Frontend type-check and production build | Passed in Docker |
+| Browser workflows | 16 passed; list below |
+
+Browser drivers: `webui`, `access`, `fresh_start`, `date_settings`, `review`,
+`metadata_settings`, `metadata_dates`, `metadata_sources`, `pair_retry`,
+`similarity_recovery`, `similar`, `layout_stability`, `notifications`, `source_scope`,
+`submission`, and `safety_questions` (each with the `_browser_drive.py` suffix and
+its documented fixture flag). Final shared-dialog spacing was checked with a complete
+rerun of these workflows. Rendered Settings, setup, retry and Logs were inspected,
+including narrow/200% layouts. This is targeted validation, not a full engine smoke run.
+
+**Manual acceptance passed (2026-10-16): Tests 1, 2, 3 and 4, all steps.** No manual
+checks remain for this batch. The steps below are retained for future regression checks.
+Use the existing review demo for Tests 1, 3 and 4 and a separate fresh-setup instance
+for Test 2. Do not reset the existing library.
+The prepared demo has `photo-000.jpg` in Library with XMP Date taken
+`2005-03-04T05:06:07`; the filename and location were verified before requesting checks.
+
+1. **Test 1 — Settings.**
+   a. Open Settings. Expect Appearance, Files, Metadata, Backups, Performance and
+      Access. Metadata controls no longer appear in Files.
+   b. Open Metadata. Read the source priority, shared-sidecar choice and edit defaults.
+      Confirm the text is understandable and clearly separated.
+   c. Change a preference without saving, switch tabs and return. The draft remains
+      and Metadata shows an unsaved dot. Use Reset to restore the saved settings.
+2. **Test 2 — Fresh setup.**
+   a. On the separate setup instance, choose Create new catalog and Next. Choose
+      small-image reminders On or Off in Files, then Next.
+   b. Expect Step 3 of 6 Metadata. Leave the required sidecar choice empty and select
+      Next: the choice is identified and focused, with no advance.
+   c. Choose Ask me, go Next then Back. Your choice remains. Finish setup if desired;
+      no Index or Copy is needed for this check.
+3. **Test 3 — Photo and job explanations.**
+   a. In the existing demo's Library, search `photo-000.jpg`. Open Metadata, then
+      Edit metadata date beside Date taken. Read the source/date/location guidance;
+      cancel without saving. Check the Similar photos tab's explanation as well.
+   b. Open Logs, choose Failed only and expand the latest Index job with failures.
+      Check that the guidance explains why old failures remain and when retry helps.
+      Open the notification bell's Details to confirm recorded causes remain readable.
+4. **Test 4 — Formatting.**
+   a. Repeat Settings → Metadata and the date dialog at 200% browser zoom and in
+      dark mode. Text should wrap, paragraphs have clear gaps, and controls remain usable.
+   b. In Logs, switch between All status and Failed only. The filter controls should
+      stay in place despite the different explanation.
+
+No destructive or file-editing acceptance actions are required for this readability batch.

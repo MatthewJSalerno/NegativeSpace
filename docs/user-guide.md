@@ -42,7 +42,7 @@ photos themselves. Keep your own backups. See [If something goes wrong](recovery
 ## 1. First start
 
 Open **http://localhost:8080**. There is no catalog yet, so the page offers to create one,
-then walks through the settings in five steps. They are starting values, and every
+then walks through the settings in six steps. They are starting values, and every
 one can be changed later from the gear icon at the top right.
 
 ![Setup appearance choices (earlier interface)](images/welcome.png)
@@ -50,7 +50,8 @@ one can be changed later from the gear icon at the top right.
 The **Appearance** step sets the palette and light/dark preference. **Files** chooses
 file types, the earliest expected photo year, and when to be reminded to empty Rejects.
 It also requires a choice to enable or disable small-image reminders; these never
-restrict Copy or Move. **Backups** explains catalog backups, **Performance** sets how
+restrict Copy or Move. **Metadata** explains which source supplies metadata and asks how to
+handle shared XMP sidecars and where to save edits. **Backups** explains catalog backups, **Performance** sets how
 many photos are read at once, and **Access** saves additional addresses used to open the app.
 
 ![The Files step: file types and the Rejects reminder](images/welcome-files.png)
@@ -182,12 +183,13 @@ every job that touched it. **View lineage tree** in the panel shows it.
 
 ## 9. Settings
 
-The gear icon opens Settings, in five tabs: **Appearance**, **Files**, **Backups** (with
+The gear icon opens Settings, in six tabs: **Appearance**, **Files**, **Metadata**, **Backups** (with
 the list of catalog backups and Back up now) **Performance**, and **Access**. Access saves the additional hostnames/IP addresses
 you use to open the app. These settings survive replacing the photo catalog. Local
 and Docker-configured addresses remain available for recovery.
 
-![Settings](images/settings.png)
+**Metadata** keeps the same choices you made during setup. Changing its defaults does
+not change photos that already have a primary metadata source.
 
 ## Next
 

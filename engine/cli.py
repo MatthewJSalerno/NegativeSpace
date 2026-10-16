@@ -132,7 +132,7 @@ def main():
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
         "--move", action="store_true",
-        help="Execute physical migration (Copy-Verify-Delete, source files are moved/deleted)."
+        help="Copy files to the destination, verify them, then delete the source originals."
     )
     mode_group.add_argument(
         "--copy", action="store_true",

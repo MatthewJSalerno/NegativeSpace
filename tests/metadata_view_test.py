@@ -181,7 +181,7 @@ class MetadataViewTests(ApiCase):
         page=self.client.get('/api/v1/photos?view=unorganized').json()
         note=next(p for p in page['items'] if p['id']==self.pid)['metadata_attention']
         self.assertEqual(note['issues'][0]['files'],['generated.jpg.xmp'])
-        self.assertIn('malformed XML',note['issues'][0]['reason'])
+        self.assertIn('not valid XML',note['issues'][0]['reason'])
         self.assertIn('Index again',note['action'])
         self.assertEqual(page['index_summary']['metadata_held'],1)
         self.assertEqual(page['index_summary']['ready'],0)

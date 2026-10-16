@@ -32,14 +32,14 @@ export function ReferenceSets({ reference, threshold, refreshKey, suspended, onT
   const same = draft.length === included.length && draft.every(i => included.includes(i));
   return <Modal label="Explore reference sets" className="dialog reference-sets" onClose={onClose}>
     <div className="settings-head"><h2>Explore reference sets</h2><button onClick={onClose}>Back to gallery</button></div>
-    <p>Sets overlap. Each contains a reference and its direct matches from the destination library, including outside gallery filters. References are not keeper recommendations.</p>
+    <p>Each set contains a reference photo and its direct matches in Library, even outside your gallery filters. Sets can share photos. The reference is not a recommendation about which photo to keep.</p>
     <div className="row-links">
       <label>Matches at or above <select aria-label="Set match threshold" value={threshold} onChange={e => { reset(); onThreshold(Number(e.target.value)); }}>
         {MATCH_THRESHOLDS.map(t => <option key={t} value={t}>{t}%</option>)}
       </select></label>
       <button onClick={() => { reset(); setRetry(n => n + 1); }}>Reset to this set</button>
     </div>
-    <p className="section-note">Display choices last until you close this exploration or reload. Changing the percentage clears related sets. No groups or tags are saved.{threshold < 90 && " Below 90%, matches are more likely to be unrelated."}</p>
+    <p className="section-note">These groups are temporary. Closing this view or reloading clears them; changing the percentage clears related sets. No tags are saved.{threshold < 90 && " Below 90%, matches are more likely to be unrelated."}</p>
     {error && <p className="error" role="alert">{error} <button onClick={() => setRetry(n => n + 1)}>Retry sets</button></p>}
     {!data && !error && <p role="status">Loading reference sets…</p>}
     {data && <>
@@ -74,7 +74,7 @@ export function ReferenceSets({ reference, threshold, refreshKey, suspended, onT
       </section>
       <section aria-label="Related sets">
         <h3>Overlapping sets</h3>
-        <p>These references directly match {data.reference.filename}. Their sets overlap this set and may add other photos. Choose up to {data.max_related} related sets to show together; nothing expands automatically.</p>
+        <p>These references directly match {data.reference.filename}. Their sets share photos with this one and may include others. Choose up to {data.max_related} sets to show together.</p>
         <p className="section-note">These checkboxes only choose sets to display. They do not select photos for actions.</p>
         <div className="row-links"><button className="primary" disabled={same} onClick={() => { setIncluded([...draft]); setPage(1); }}>Show together</button>
           <span>{plural(draft.length, "related set")} chosen</span>

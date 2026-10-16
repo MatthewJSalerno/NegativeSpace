@@ -111,7 +111,7 @@ with sync_playwright() as p:
     page.get_by_role('tab',name='File information',exact=True).click()
     notice=page.get_by_role('region',name='Metadata needs attention',exact=True)
     expect(notice).to_be_visible()
-    expect(notice).to_contain_text('malformed XML')
+    expect(notice).to_contain_text('not valid XML')
     expect(notice).to_contain_text(cases['malformed_xml']['sidecars'][0]['path'])
     expect(notice).to_contain_text('remain at source')
     expect(notice).to_contain_text('Index again')
