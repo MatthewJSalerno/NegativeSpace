@@ -5,6 +5,7 @@ import { Field } from "./ui/Field";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { api, ApiError, type AccessSettings, type ExtensionSupport, type Settings, type XmpAssociation, type MetadataWriteTarget } from "../api";
 import { BackupsPanel } from "./BackupsPanel";
+import { ThumbnailsPanel } from "./ThumbnailsPanel";
 import { setPalette, usePalette, setTheme, useTheme, type Theme } from "../appearance";
 import { TabList, tabPanel } from "./ui/Tabs";
 
@@ -392,6 +393,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
           {" "}A value you save stays until you change it, even if the container's CPU limit changes later.
         </p>
         <p className="muted">Database queue size: {QUEUE_SIZE.toLocaleString()} items (fixed in the engine, shown for reference).</p>
+        {!firstRun && <ThumbnailsPanel />}
       </section>
     ),
     access: access && <section aria-label="Allowed addresses">

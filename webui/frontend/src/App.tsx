@@ -18,7 +18,7 @@ export function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsGroup, setSettingsGroup] = useState<"appearance" | "files" | "backups">("appearance");
+  const [settingsGroup, setSettingsGroup] = useState<"appearance" | "files" | "backups" | "performance">("appearance");
   useEffect(() => {
     const open = () => { setSettingsGroup("files"); setSettingsOpen(true); };
     window.addEventListener("ns-review-settings", open);

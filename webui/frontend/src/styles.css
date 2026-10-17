@@ -478,13 +478,19 @@ body.dragging { cursor: col-resize; user-select: none; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 }
 
-/* Catalog backups, inside Settings. */
-.backups { display: grid; gap: var(--space-2); margin-top: var(--space-2); }
+/* Catalog backups and the thumbnail cache, inside Settings. */
+.backups, .thumbnails { display: grid; gap: var(--space-2); margin-top: var(--space-2); }
+.thumbnails h3, .thumbnails p { margin: 0; }
 .backups details { margin-top: var(--space-1); }
 .backups summary { cursor: pointer; }
 .backups ol { margin: var(--space-1) 0; padding-left: 1.4em; }
 .copyable { user-select: all; }
-.backups button, .backup-table a { white-space: nowrap; overflow-wrap: normal; }
+.backups button, .thumbnails button, .backup-table a { white-space: nowrap; overflow-wrap: normal; }
+/* Standalone actions in a Settings panel are outlined like a photo's own actions, so they
+   do not read as plain text; each explanation sits beside its button. */
+.backups .field-inline > button, .thumbnails .panel-actions > button { border-color: var(--control-border); }
+.panel-actions { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center;
+  gap: var(--space-2) var(--space-3); }
 
 /* The log, grouped by job: one line per job until opened. */
 .job-list-head { display: flex; justify-content: space-between; align-items: center; gap: var(--gap); min-height: var(--control-height); }
