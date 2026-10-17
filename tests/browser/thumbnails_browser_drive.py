@@ -30,7 +30,9 @@ with sync_playwright() as p:
         assert request.get(f'/api/v1/photos/{photo}/thumbnail?size=preview').ok
     grid = request.get('/api/v1/thumbnails').json()['grid']
 
-    page = browser.new_page(viewport={'width': 1440, 'height': 1000}, color_scheme='dark')
+    # Tall enough for the whole Settings dialog to fit: it is then centred, so any change in
+    # its height would move the controls, as it does on a large screen.
+    page = browser.new_page(viewport={'width': 1440, 'height': 1800}, color_scheme='dark')
     errors = []
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.goto(base + '/stats')
@@ -42,6 +44,10 @@ with sync_playwright() as p:
     expect(panel.get_by_text('Detail previews · ', exact=False)).to_contain_text('2 photos opened')
     panel.scroll_into_view_if_needed()
     if os.environ.get('SHOTS'): page.screenshot(path=os.path.join(os.environ['SHOTS'], 'thumbnails-dark.png'))
+    # Messages come and go below the buttons without moving them: measured before any
+    # message is shown, checked after Free up and after a rebuild.
+    rebuild_all = panel.get_by_role('button', name='Rebuild all grid thumbnails', exact=True)
+    steady = rebuild_all.bounding_box()
 
     # Free up acts at once and reports what it freed; previews are then gone.
     expect(panel.get_by_text(re.compile('^Removes .+ of detail previews\\.'))).to_be_visible()
@@ -51,6 +57,7 @@ with sync_playwright() as p:
     expect(panel.get_by_role('button', name='Free up previews', exact=True)).to_be_disabled()
     expect(panel.get_by_text('No detail previews are stored.', exact=True)).to_be_visible()
     assert request.get('/api/v1/thumbnails').json()['previews'] == {'photos': 0, 'bytes': 0}
+    assert rebuild_all.bounding_box() == steady, ('after Free up', steady, rebuild_all.bounding_box())
 
     # Repair is a job: it is followed in the panel and settles with its summary.
     panel.get_by_role('button', name='Repair grid thumbnails', exact=True).click()
@@ -61,6 +68,7 @@ with sync_playwright() as p:
     expect(panel.get_by_role('button', name='Repair grid thumbnails', exact=True)).to_be_enabled()
     expect(panel.get_by_role('button', name='Rebuild all grid thumbnails', exact=True)).to_be_enabled()
     expect(panel.get_by_role('status')).to_contain_text(f"#{runs[0]['id']}")
+    assert rebuild_all.bounding_box() == steady, ('after a rebuild', steady, rebuild_all.bounding_box())
     assert request.get('/api/v1/thumbnails').json()['grid'] == grid
 
     if os.environ.get('SHOTS'):
