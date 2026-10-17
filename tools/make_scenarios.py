@@ -659,11 +659,12 @@ def build(args):
             m.add(dest, "burst_same_second", f"Frame {i + 1} of a burst in one second: ordered by its sub-seconds",
                   src, subsec=f"{(i + 1) * 15:03d}", open_question="whether sorting uses sub-seconds")
 
-    # 17. Look-alikes the similarity search should pair with their original.
+    # 17. Look-alikes the similarity search should pair with their original. Each is made
+    # from the photo as displayed, its orientation applied, as the search compares them.
     looks = sc / "look-alikes"
     for src in pick(raster, 1):
         with Image.open(src) as im:
-            base = im.convert("RGB")
+            base = ImageOps.exif_transpose(im).convert("RGB")
         variants = {
             "rotated-90": base.rotate(-90, expand=True),
             "cropped": base.crop((base.width // 10, base.height // 10, base.width * 9 // 10, base.height * 9 // 10)),
@@ -678,9 +679,36 @@ def build(args):
             dest.parent.mkdir(parents=True, exist_ok=True)
             img.save(dest, "JPEG", quality=88)
             record_altered(dest)
-            m.add(dest, f"look_alike_{name.replace('-', '_')}", "Has similar photos pairs it with its original", src,
-                  open_question={"rotated-90": "rotated matches are missed (TODO.md, Similar photos)",
-                             "cropped": "whether a crop should be paired"}.get(name))
+            m.add(dest, f"look_alike_{name.replace('-', '_')}",
+                  "Not paired with its original: a copy whose pixels were rewritten rotated is not found "
+                  "(engine-spec 9.3)" if name == "rotated-90" else "Has similar photos pairs it with its original",
+                  src, open_question={"cropped": "whether a crop should be paired"}.get(name))
+        # Stored turned, as a phone stores a portrait, with an orientation tag (6: turn 90
+        # degrees clockwise) that displays it the same as its original.
+        exif = Image.Exif()
+        exif[0x0112] = 6
+        dest = looks / f"scn-turned-tagged-{src.stem}.jpg"
+        base.transpose(Image.Transpose.ROTATE_90).save(dest, "JPEG", quality=88, exif=exif)
+        record_altered(dest)
+        m.add(dest, "look_alike_turned_tagged", "Has similar photos pairs it with its original at about 100%: "
+              "stored turned, it displays the same through its orientation tag", src)
+
+    # 17b. A camera's RAW+JPEG of a portrait shot: the JPEG is stored unrotated with the
+    # RAW's orientation tag, while LibRaw decodes the RAW upright. Made from a portrait RAW
+    # in the seed (LibRaw rejects fabricated RAWs, so a run without one has none).
+    portraits = [p for p in originals if p.suffix.lower() in RAW_EXTENSIONS and subprocess.run(
+        ["exiftool", "-s3", "-n", "-Orientation", str(p)], capture_output=True, text=True).stdout.strip() in ("5", "6", "7", "8")]
+    if portraits:
+        import rawpy                                   # in the app image; needed only for a RAW seed
+    for raw in portraits[:2]:
+        with rawpy.imread(str(raw)) as decoded:
+            rgb = decoded.postprocess(use_camera_wb=True, half_size=True, no_auto_bright=True, output_bps=8, user_flip=0)
+        dest = looks / f"scn-raw-twin-{raw.stem}.jpg"
+        Image.fromarray(rgb).save(dest, "JPEG", quality=90)
+        record_altered(dest)
+        exiftool(dest, "-TagsFromFile", str(raw), "-Orientation", "-DateTimeOriginal", "-Make", "-Model")
+        m.add(dest, "raw_jpeg_portrait", f"Has similar photos pairs it with its own RAW, {raw.name}, at about 100%; "
+              "search the RAW's name to see both", raw)
 
     # 18. Formats and sizes that strain a reader: past Pillow's decompression guard (warned
     # at 89.5 megapixels, refused at twice that), 16-bit, CMYK, multi-page, animated, progressive.
