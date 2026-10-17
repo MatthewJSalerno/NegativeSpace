@@ -9,6 +9,11 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Similar photos compares each photo as it is displayed, with its EXIF orientation
+  applied. A portrait RAW now matches its own JPEG (41–47% before, 100% after on the public
+  RAW samples), and a copy stored turned with an orientation tag matches the same picture
+  stored upright. Catalog schema 29: catalogs from earlier versions are refused.
+
 - Enlarged photos reuse the two-pane Inspector, with a large preview beside the
   information, Metadata and Similar photos tabs, plus resizing and photo navigation.
 

@@ -342,7 +342,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 28 and refuses incompatible catalogs before processing.
+initializes schema version 29 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -1003,6 +1003,24 @@ Index compares distinct usable hashes across all catalogued content.
 detail preview. Standard images use Pillow; RAW files use rawpy half-size demosaicing
 before hashing. The small visual fingerprint does not require a full-resolution
 render. Preview rotation in the browser never recomputes the hash.
+
+**The hash is taken from the photo as it is displayed**, the rule thumbnails follow:
+a standard image's EXIF orientation is applied, and LibRaw already decodes a RAW
+upright. Hashing stored pixels instead left a portrait RAW and its own JPEG (stored
+unrotated with an orientation tag) at 41–47%, below the 75% floor, on all three
+portrait shots of the public RAW samples; applied to both, they score 100%. On the demo
+library it found 189 more pairs at 90%; all 8 sampled were correct (one photo stored
+under different orientation tags). Standard images are shrunk to the hash's
+32×32 input before turning: 2 ms against 22 ms on a 24 MP photo. A tag-only rotation
+therefore changes the hash, as the rendering changes; a returning unrotated original
+is related to its rotated copy by content history, not by appearance.
+
+*Rejected: also searching each photo's 90°/180°/270° rotations.* On the demo library
+(4,743 contents) it added 71 pairs at 90%, and every one sampled was two different,
+mostly black space photos; pairs at 75% rose from 4,739 to 16,834. Comparison took
+3.6× as long (0.068 s against 0.019 s). Mirrored orientation tags (2, 4, 5, 7) on
+otherwise identical pixels no longer match each other; such copies are rare. Copies an
+editor rotated by rewriting their pixels are not found.
 
 The SHA-1 content identity and its perceptual hash are already associated in the
 SQLite catalog's `contents` table, alongside derived comparison tables. There is

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 28
+SCHEMA_VERSION = 29
 
 # --- Status vocabularies -----------------------------------------------------
 #
