@@ -10,6 +10,85 @@ duplicate open entries. Before every merge, reconcile component specs, this back
 validation notes and the private handoff against what is built and what remains pending.
 Do not leave finished work unchecked or count it again.
 
+## Punch list
+
+Everything still open, one line each, to scan at a glance; the sections below hold the
+details, and [project-spec.md](docs/project-spec.md) §4 the specified screens. Change
+this list in the same change that adds or finishes an item. 💬 marks discussion only: no
+development until the maintainer decides.
+
+**In review**
+- Thumbnail cache panel in Settings › Performance (PR #118)
+
+**Organizing**
+- Rename and "Also arrived as" from the photo panel
+- Copy/Move preview grouped by destination folder, and a downloadable plan
+- "A job is already running" just after a job finishes
+- Last-scanned time for each source folder
+- Not organized filters: small images, identical copies, processing errors
+- Not organized: sidecar and version decisions ("Which photo is this sidecar for?")
+- Telling apart two different photos with the same name on their cards
+
+**Review**
+- Answer many photos at once within one reason
+- Suspicious dates in the review queue, with "this date is correct"
+- "Looks like a reject"
+- "No capture date": suggested dates from the name, folder or a look-alike
+- Record in history when a review reason clears itself
+- Review history speed with many decisions
+
+**Similar photos**
+- Merge the two "Reject?" dialogs into one (decided)
+- Remove Explore reference sets (decided)
+- Selecting photos inside grouped sets
+- Overlapping sets beyond one step
+- Rotated matches: compare photos as displayed
+- Large-library measurement (250,000 and 500,000 photos)
+
+**Metadata**
+- Choose a photo's primary source and associate sidecars per file
+- Notices for metadata choices, and their queue in Not organized
+- Saved rotation (Rotate…)
+- Notice for Google Takeout and Flickr export sidecars
+- Motion-photo editing, qualified separately
+- RAW fixtures for the metadata scenario builder
+- Malformed or conflicting capture dates in date review
+- Deferred: bulk and cross-photo date editing; IPTC precedence (needs decisions)
+- 💬 Sidecars edited between Index and Copy or Move
+- 💬 Similar photos and metadata together
+
+**Checking and maintenance**
+- Destination check on screen, then a broader inventory and repair
+- Unbacked-changes line on every page, and Retry backup
+- Index summary by file type
+- Import summary, and a filter for files that could not be previewed
+- Resolving files that cannot be read
+- Stats: dates chart on its own row
+- Every warning offers a way out
+- The `dest/raw-originals` folder
+- Spacing and alignment pass; refresh the user-guide screenshots
+
+**Before the first release**
+- One sign-in password
+- Decide on catalog migration
+- Review every message the user sees
+- Version 1.0.0 and the changelog
+- State the minimum Linux and Docker versions
+- Test power-loss behaviour on real hardware
+
+**Later**
+- Reports (checksum lists)
+- Videos and other non-photo files
+
+**💬 Waiting on the maintainer**
+- Repairing a rearranged library without losing lineage
+- Needs review: a separate place or a Library filter
+- A SHA-1 content-history link
+- Discovering filters across places
+- Full-screen preview clutter; copying all metadata; source folders handled behind the scenes;
+  "Open in the log" wording
+- Visual check of where Clear all filters sits
+
 ## Uncertain file outcomes
 
 - [x] Shared warning/evidence and Check it now in photo information and Logs; active
