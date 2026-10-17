@@ -469,6 +469,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .ext input { padding: 0; }
 .ext.unsupported { color: var(--warn); }
 .settings-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-1); }
+/* The save result sits beside the buttons, so a one-line message never moves them. */
+.settings-status { flex: 1 1 16rem; min-width: 0; }
 
 /* Narrow screens: the Inspector covers the gallery instead of sharing it. */
 @media (max-width: 800px) {

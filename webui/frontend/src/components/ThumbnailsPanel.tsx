@@ -72,11 +72,11 @@ export function ThumbnailsPanel() {
 
       <div className="panel-actions">
         <button onClick={freeUp} disabled={busy || data.previews.photos === 0}>
-          {data.previews.photos ? `Free up ${bytes(data.previews.bytes)}` : "Free up"}
+          Free up previews
         </button>
         <span className="muted">
           {data.previews.photos
-            ? "Removes detail previews. They are recreated automatically the next time you open a photo, so nothing is lost."
+            ? `Removes ${bytes(data.previews.bytes)} of detail previews. They are recreated automatically the next time you open a photo, so nothing is lost.`
             : "No detail previews are stored."}
         </span>
         <button onClick={() => rebuild("missing")} disabled={busy || !!running}>Repair grid thumbnails</button>

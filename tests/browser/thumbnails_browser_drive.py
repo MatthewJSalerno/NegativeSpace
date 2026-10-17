@@ -44,10 +44,11 @@ with sync_playwright() as p:
     if os.environ.get('SHOTS'): page.screenshot(path=os.path.join(os.environ['SHOTS'], 'thumbnails-dark.png'))
 
     # Free up acts at once and reports what it freed; previews are then gone.
-    panel.get_by_role('button', name=re.compile('^Free up ')).click()
+    expect(panel.get_by_text(re.compile('^Removes .+ of detail previews\\.'))).to_be_visible()
+    panel.get_by_role('button', name='Free up previews', exact=True).click()
     expect(panel.get_by_role('status')).to_contain_text('from 2 detail previews.')
     expect(panel.get_by_text('Detail previews · ', exact=False)).to_contain_text('0 photos opened')
-    expect(panel.get_by_role('button', name='Free up', exact=True)).to_be_disabled()
+    expect(panel.get_by_role('button', name='Free up previews', exact=True)).to_be_disabled()
     expect(panel.get_by_text('No detail previews are stored.', exact=True)).to_be_visible()
     assert request.get('/api/v1/thumbnails').json()['previews'] == {'photos': 0, 'bytes': 0}
 
@@ -68,6 +69,15 @@ with sync_playwright() as p:
         page.get_by_role('tab', name='Performance').click()
         panel.scroll_into_view_if_needed()
         page.screenshot(path=os.path.join(os.environ['SHOTS'], 'thumbnails-after-dark.png'))
+    # The save result appears beside the buttons without moving them.
+    page.get_by_role('tab', name='Files').click()
+    save = page.get_by_role('button', name='Save settings', exact=True)
+    save.scroll_into_view_if_needed()
+    before = save.bounding_box()
+    save.click()
+    expect(page.locator('.settings-status')).to_contain_text('Nothing changed.')
+    assert save.bounding_box() == before, (before, save.bounding_box())
+    page.get_by_role('tab', name='Performance').click()
     # Desktop reflow keeps the panel inside Settings.
     page.set_viewport_size({'width': 800, 'height': 700})
     panel.scroll_into_view_if_needed()

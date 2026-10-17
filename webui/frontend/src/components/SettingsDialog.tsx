@@ -434,8 +434,8 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
             <span className="muted">Step {step + 1} of {GROUPS.length}</span> {GROUPS[step].label}
           </h3>
           <div className="settings-panel" role="group" tabIndex={0} aria-labelledby={`${idBase}-step`}>{panels[group]}</div>
-          {status}
           <footer className="settings-actions">
+            <div className="settings-status">{status}</div>
             {step > 0 && <button onClick={() => { setMessage(null); setGroup(GROUPS[step - 1].value); }} disabled={saving}>Back</button>}
             {step < GROUPS.length - 1
               ? <button className="primary" onClick={next}>Next</button>
@@ -450,8 +450,8 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
             <div key={g.value} className="settings-panel" role="tabpanel" {...tabPanel(idBase, g.value, group)}>{panels[g.value]}</div>
           ))}
           <p className="section-note">Save applies changes from every tab. No photos are moved.</p>
-          {status}
           <footer className="settings-actions">
+            <div className="settings-status">{status}</div>
             <button onClick={reset} disabled={saving}>Reset</button>
             <button className="primary" onClick={() => save()} disabled={saving}>{saving ? "Saving…" : "Save settings"}</button>
           </footer>
