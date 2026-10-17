@@ -663,6 +663,11 @@ selection before saving. It keeps drafts, marks affected fields, describes their
 errors and focuses the first invalid control. Server errors remain visible. Success
 uses a polite status, not an urgent alert. Loading failures offer an explicit retry.
 
+Settings' save result appears in its footer, beside **Reset** and **Save settings**, so a
+one-line message never moves the buttons. A button names its action; an amount it
+affects belongs in its explanation (**Free up previews**, "Removes 1.2 GB of detail
+previews…").
+
 Settings active-job notice: use the shared neutral informational treatment near
 the top, outside tab panels, to explain that saved processing settings affect future
 jobs only. It is not an error, requires no dismissal, and does not disable Save. Keep

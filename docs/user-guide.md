@@ -189,7 +189,7 @@ you use to open the app. These settings survive replacing the photo catalog. Loc
 and Docker-configured addresses remain available for recovery.
 
 **Performance** sets how many photos are read at once, and manages the thumbnail cache:
-**Free up** removes the large previews made when you open a photo, which are made again
+**Free up previews** removes the large previews made when you open a photo, which are made again
 the next time you open it, and **Repair grid thumbnails** remakes any gallery thumbnails
 that have gone missing. **Rebuild all grid thumbnails** remakes every one.
 

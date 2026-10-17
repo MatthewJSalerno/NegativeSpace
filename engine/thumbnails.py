@@ -444,11 +444,13 @@ def rebuild_thumbnails(db_path: Path, cache_root: Path, scope: str,
     (cache_root / constants.THUMBNAIL_DIR_NAME).mkdir(parents=True, exist_ok=True)
     work = {}
     with contextlib.closing(store.get_db_connection(str(db_path))) as conn:
+        # A file the Index could not read is catalogued Failed with an empty hash: it has
+        # no content to make a thumbnail from, and an empty digest names no content.
         for sha1, *row in conn.execute(
                 "SELECT p.sha1_hash, CASE WHEN fs.sha1_hash=p.sha1_hash THEN p.source_path END, p.dest_path, p.status, p.file_size, p.file_mtime, "
                 "pf.file_id FROM photos p LEFT JOIN photo_files pf ON pf.photo_id = p.id "
                 "LEFT JOIN file_states fs ON fs.file_id=pf.file_id "
-                "WHERE p.sha1_hash IS NOT NULL ORDER BY p.id"):
+                "WHERE p.sha1_hash IS NOT NULL AND p.sha1_hash <> '' ORDER BY p.id"):
             work.setdefault(sha1, []).append(tuple(row))
         recorded = {d for (d,) in conn.execute(
             "SELECT c.digest FROM thumbnail_cache t JOIN contents c USING(content_id) "
