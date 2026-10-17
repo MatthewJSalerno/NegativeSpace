@@ -44,6 +44,7 @@ development until the maintainer decides.
 - Overlapping sets beyond one step
 - Rotated matches: compare photos as displayed
 - Large-library measurement (250,000 and 500,000 photos)
+- 💬 Local AI image embeddings for look-alikes, crops included (the maintainer is reading up first)
 
 **Metadata**
 - Choose a photo's primary source and associate sidecars per file
@@ -274,6 +275,17 @@ Found 2026-10-05 looking for screens that do the same job twice.
   processing, comparison build costs and long-session browser work remain separate;
   filesystem latency is not benchmarked. The 75% floor is the chosen range. Measure a
   concrete bottleneck before proposing another database.
+- [ ] **Discussion only; the maintainer is reading up first: local AI image embeddings.**
+  pHash cannot match a cropped copy. A CLIP-style model run locally (OpenCLIP, SigLIP)
+  turns each photo into a vector at Index; near vectors find look-alikes, crops and edits
+  included, and text search comes with it. Costs: a model of roughly 150-600 MB in the
+  image, a fraction of a second per photo on a CPU, and a vector index. It measures what a
+  picture shows, not whether it is the same photo, so "duplicate" needs a strict threshold.
+  Immich, which reads `library/`, already runs one for smart search and duplicate
+  detection; the case for it here is catching look-alikes before files are organized.
+  Cheaper ways to match crops were considered and not pursued: hashing fixed sub-regions
+  (catches only crops near those sizes, adds wrong matches) and local feature matching
+  such as ORB/SIFT (slow pairwise comparison, a new library).
 
 ## Dates and metadata
 
