@@ -28,6 +28,11 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
   applied. A portrait RAW now matches its own JPEG (41–47% before, 100% after on the public
   RAW samples), and a copy stored turned with an orientation tag matches the same picture
   stored upright. Catalog schema 29: catalogs from earlier versions are refused.
+- Has similar photos explains its sets in one line above them: "Each card is a set: a
+  reference photo and every photo that matches it. Sets can share photos." Hovering it, or
+  its ⓘ, shows a small diagram of two sets sharing a photo. The cards drop their repeated
+  explanation, and Explore related sets is removed: Use as reference in the comparison
+  walks from one set to the next.
 
 - Enlarged photos reuse the two-pane Inspector, with a large preview beside the
   information, Metadata and Similar photos tabs, plus resizing and photo navigation.

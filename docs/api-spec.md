@@ -1056,34 +1056,6 @@ The view selects ordinary visible photos whose recorded `date_taken` year is bef
 Counts, IDs, positioning and sidebar endpoints share this predicate. This is a
 read-time hint; neither metadata nor catalog schema changes.
 
-### `GET /api/v1/similar/{id}/sets`
-
-Read-only reference-set exploration. Parameters: integer `threshold` 75–100 (90 by
-default), repeated `include` canonical reference IDs (at most six; each must directly
-match the starting reference), `page`, `related_page` (positive, default 1), and
-`page_size` (1–24, default 12). Missing/unusable/noncanonical references or stale
-expansions return 400; parameter validation returns 422. Pages clamp to the last page.
-
-Returns `reference`, chosen `references` with total member counts, deduplicated
-`items` with `references` (membership IDs), `direct` relative to the starting
-reference and nullable recorded `score`; `total`, `page`, `page_size`; `related`
-with set totals and `additional` members outside the starting set, `related_total`,
-`related_page`; `threshold`, `state: {pending, unavailable}`, and `max_related`.
-Members include their own reference. Root-first ordering then minimum recorded
-distance/ID is applied before paging; related references order by distance/ID.
-Gallery filters do not constrain members. Identical SHA-1 identities are represented
-once; equal visual hashes of different identities remain separate photos. Queries
-use existing stored relationships in one snapshot, make no photo reads or writes,
-and do not recalculate hashes or persist groups. Expansion is one hop, never recursive.
-
-Identical membership in Explore related sets follows the gallery rule: exclude sets
-identical to the starting set and show each remaining full-membership set once, before
-related-set counting and pagination. Compare exact membership at the selected percentage,
-not photo counts; a proper subset is still a distinct overlapping set. Choose the lowest
-canonical photo ID among the starting reference's direct matches for each distinct set.
-No other distinct sets produces an explicit empty message. Changing reference does not
-choose a keeper or modify photos.
-
 Inspector responses also include nullable `visual_issue` describing recorded missing
 or failed visual hashing. Recovery failure operations use mode SIMILARITY/status
 Failed with a photo ID, path and detailed `error_message`; the photo's delivered

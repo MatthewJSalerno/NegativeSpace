@@ -2960,8 +2960,8 @@ the server's UTC year when the catalog is read.
 ### Reference-based grouping
 
 **Built:** Group similar photos defaults on and adds reference-set counts and actions in
-Has similar photos in both Library and Needs review, with the same percentage, sorting,
-set exploration and comparison controls. Additional filters/search automatically show
+Has similar photos in both Library and Needs review, with the same percentage, sorting
+and comparison controls. Additional filters/search automatically show
 individual photos satisfying every filter; Group similar photos remains visible but
 disabled with an explanation. Clearing extra filters restores the explicit grouping
 preference, retained in the URL as `group_sets=1|0`. Sort and percentage are not extra
@@ -2971,20 +2971,9 @@ destination library at the chosen threshold; equal counts alone do not merge set
 Collapse precedes sorting and pagination. Totals count sets; selection takes only
 representative photos. Explicit selections remain unchanged. Members include direct
 matches from the entire destination catalog. Review this set opens direct-match
-comparison. Explore related sets offers direct-match references with overlap and
-additional-member counts. Show together unions at most six chosen related sets,
-shows each byte identity once, and preserves membership/provenance. Indirect photos
-compare through a supporting reference. Both member lists are paged and coverage
-limitations remain visible. Expanded sets are session-only and reset on reload/closing;
-threshold changes clear expansions. No transitive traversal. See [the design contract](ui-design.md#reference-based-sets).
-
-Identical membership in Explore related sets follows the gallery rule: exclude sets
-identical to the starting set and show each remaining full-membership set once, before
-related-set counting and pagination. Compare exact membership at the selected percentage,
-not photo counts; a proper subset is still a distinct overlapping set. Choose the lowest
-canonical photo ID among the starting reference's direct matches for each distinct set.
-No other distinct sets produces an explicit empty message. Changing reference does not
-choose a keeper or modify photos.
+comparison, where Use as reference walks into a neighbouring set. One line above the
+sets explains them, with a diagram in its help. No transitive traversal. Explore related
+sets, which showed neighbouring sets together, was removed. See [the design contract](ui-design.md#reference-based-sets).
 
 Hash recovery now records per-file failures in Logs, with photo/path, category and
 external correction guidance. Inspector shows recorded visual-processing problems.

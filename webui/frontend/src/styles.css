@@ -991,10 +991,15 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .recovery-photos p { margin: var(--space-1) 0; }
 
 /* Reference sets use shared cards, text roles and dialog controls. */
+/* Rich help: the grouped view's sets diagram. */
+.help-content.help-wide { width: min(392px, calc(100vw - 32px)); max-height: none; white-space: normal; display: grid; gap: var(--space-2); }
+.sets-diagram { display: block; max-width: 360px; }
+.sets-diagram .set-a { fill: var(--accent); fill-opacity: .16; stroke: var(--accent); stroke-width: 2; }
+.sets-diagram .set-b { fill: var(--muted); fill-opacity: .10; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 6 4; }
+.sets-diagram .photo { fill: var(--surface); stroke: var(--control-border); stroke-width: 1.5; }
+.sets-diagram .letter { fill: var(--text); font-size: 20px; font-weight: var(--weight-strong); text-anchor: middle; dominant-baseline: central; }
+.sets-diagram .label { fill: var(--text); font-size: 13px; font-weight: var(--weight-strong); text-anchor: middle; }
 .set-card-actions { display: grid; gap: var(--space-2); padding: var(--space-3); border-top: 1px solid var(--border); font-size: var(--type-sm); }
-.reference-sets { width: min(1100px, 100%); gap: var(--space-4); }
-.reference-sets p { margin-block: var(--space-2); }
-.reference-sets strong { overflow-wrap: anywhere; }
 .set-reference-list { list-style: none; padding: 0; display: grid; gap: var(--space-3); }
 .set-reference-list li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding-block: var(--space-2); border-bottom: 1px solid var(--border); }
 .set-reference-list li > img, .set-reference-list li > .thumb-placeholder { width: 64px; height: 64px; object-fit: contain; }

@@ -1,4 +1,5 @@
-"""Reference sets with generated files and an explicit A–B–C–D chain."""
+"""Grouped similar photos with generated files and an explicit A–B–C–D chain: set cards,
+the explanation of sets, set review and a set's members in the gallery."""
 import os
 import json
 from urllib.parse import urlsplit, parse_qs
@@ -117,37 +118,31 @@ with sync_playwright() as p:
     expect(card.get_by_text('Reference set · 2 photos',exact=True)).to_be_visible()
     card.locator('.card-check input').check()
     shot('reference-set-gallery')
-    card.get_by_role('button',name='Explore related sets',exact=True).click()
-    dialog=page.get_by_role('dialog',name='Explore reference sets',exact=True)
-    expect(dialog.locator('[data-member-id]')).to_have_count(2)
-    expect(dialog.locator(f'[data-related-id="{b}"]')).to_contain_text('1 additional match outside the starting set')
-    dialog.locator(f'[data-related-id="{b}"] input').check()
-    dialog.get_by_role('button',name='Show together',exact=True).click()
-    expect(dialog.locator('[data-member-id]')).to_have_count(3)
-    expect(dialog.locator(f'[data-member-id="{c}"]')).to_contain_text('Related through')
-    expect(dialog.locator(f'[data-member-id="{c}"]')).to_contain_text('no direct match recorded at 90%')
-    expect(dialog.locator(f'[data-member-id="{d}"]')).to_have_count(0)
-    shot('reference-sets-combined')
-    # Indirect photos compare against their actual supporting reference, not A.
-    dialog.locator(f'[data-member-id="{c}"]').get_by_role('button',name=re.compile('^Compare with')).click()
+    # The cards carry no repeated explanation and no Explore window; one line above the
+    # sets says what a set is, and hovering it shows the diagram.
+    expect(card.get_by_role('button',name='Explore related sets',exact=True)).to_have_count(0)
+    expect(card.get_by_text('Identical sets shown once',exact=False)).to_have_count(0)
+    guidance=page.locator('.gallery-guidance > div:not([aria-hidden=true])')
+    expect(guidance).to_contain_text('Each card is a set: a reference photo and every photo that matches it.')
+    guidance.get_by_text('Each card is a set',exact=False).hover()
+    note=page.get_by_role('note')
+    expect(note.get_by_role('img',name='Two sets that share a photo')).to_be_visible()
+    expect(note).to_contain_text("A and C don't match each other")
+    shot('sets-help')
+    if os.environ.get('SHOTS'):
+        page.emulate_media(color_scheme='dark')
+        guidance.get_by_text('Each card is a set',exact=False).hover()
+        expect(note.get_by_role('img',name='Two sets that share a photo')).to_be_visible()
+        shot('sets-help-dark')
+        page.emulate_media(color_scheme='light')
+    page.mouse.move(5,5)
+    expect(note).to_have_count(0)
+    # Keyboard and touch reach the same help through its information button.
+    guidance.get_by_role('button',name='More information').click()
+    expect(note.get_by_role('img',name='Two sets that share a photo')).to_be_visible()
+    guidance.get_by_role('button',name='More information').click()
+    expect(note).to_have_count(0)
     review=page.get_by_role('dialog',name='Review photo match',exact=True)
-    expect(review).to_be_visible()
-    expect(review.locator('.review-score')).to_contain_text('90.62%')
-    review.get_by_role('button',name='Back to gallery',exact=True).click()
-    expect(dialog).to_be_visible()
-    expect(dialog.locator('[data-member-id]')).to_have_count(3)
-    expect(card.locator('.card-check input')).to_be_checked()
-    # A threshold change resets selected expansions and recomputes all memberships.
-    dialog.get_by_role('combobox',name='Set match threshold').select_option('95')
-    expect(dialog.locator('[data-member-id]')).to_have_count(1)
-    expect(dialog.get_by_text('0 related sets chosen',exact=True)).to_be_visible()
-    dialog.get_by_role('combobox',name='Set match threshold').select_option('90')
-    expect(dialog.locator('[data-member-id]')).to_have_count(2)
-    page.set_viewport_size({'width':700,'height':844})
-    assert dialog.locator('.reference-sets').evaluate('e => e.scrollWidth <= e.clientWidth+1'), 'set dialog overflow'
-    shot('reference-sets-narrow')
-    dialog.get_by_role('button',name='Back to gallery',exact=True).click()
-    page.set_viewport_size({'width':1440,'height':1000})
     # Review from the tile opens the ordinary direct-match workspace.
     card.get_by_role('button',name='Review this set',exact=True).click()
     expect(review).to_be_visible()
@@ -197,25 +192,11 @@ with sync_playwright() as p:
     expect(review).to_be_visible()
     expect(review.locator('.review-score')).to_contain_text('90.62%')
     review.get_by_role('button',name='Back to gallery',exact=True).click()
-    # Failure has an explicit retry; successful retry restores the same set.
-    page.route('**/api/v1/similar/*/sets?*',lambda route: route.fulfill(status=503,json={'message':'Fixture temporary failure'}))
-    card.get_by_role('button',name='Explore related sets',exact=True).click()
-    expect(dialog.get_by_role('alert')).to_be_visible()
-    page.unroute('**/api/v1/similar/*/sets?*')
-    dialog.get_by_role('button',name='Retry sets',exact=True).click()
-    expect(dialog.locator('[data-member-id]')).to_have_count(2)
-    dialog.get_by_role('button',name='Back to gallery',exact=True).click()
-    # Identical dense sets appear once, while the member photos remain paged.
-    page.locator(f'.card[data-id="{large}"]').get_by_role('button',name='Explore related sets',exact=True).click()
-    expect(dialog.locator('[data-member-id]')).to_have_count(12)
-    expect(dialog.locator('[data-related-id]')).to_have_count(0)
-    expect(dialog.get_by_text('No other distinct overlapping sets at this percentage.',exact=True)).to_be_visible()
-    expect(dialog.get_by_role('region',name='Displayed sets')).to_contain_text('126 distinct photos')
-    dialog.get_by_role('button',name='Next photos',exact=True).click()
-    expect(dialog.get_by_role('navigation',name='Set photo pages')).to_contain_text('Page 2 of 11')
-    expect(dialog.get_by_role('button',name='Next sets',exact=True)).to_be_disabled()
-    dialog.get_by_role('button',name='Show this set in gallery',exact=True).first.click()
-    expect(dialog).to_have_count(0)
+    # A dense set's members are paged in the gallery, reached from the set's review.
+    page.locator(f'.card[data-id="{large}"]').get_by_role('button',name='Review this set',exact=True).click()
+    expect(review).to_be_visible()
+    review.get_by_role('button',name='Show this set in gallery',exact=True).click()
+    expect(review).to_have_count(0)
     expect(page.locator('.gallery-summary')).to_contain_text('126 photos')
     expect(page.locator('.card')).to_have_count(60)
     page.get_by_role('button',name='Next page',exact=True).click()
@@ -224,7 +205,6 @@ with sync_playwright() as p:
     page.locator('.focus-head').get_by_role('button',name='Back to results',exact=True).click()
     page.reload()
     expect(group).to_be_checked()
-    expect(dialog).to_have_count(0)
     # Needs review exposes the same grouping, threshold, sort and set controls.
     setting=request.get('/api/v1/settings').json()['small_image_min']
     assert request.put('/api/v1/settings',data={'values':{'small_image_min':800},
@@ -234,7 +214,7 @@ with sync_playwright() as p:
     expect(threshold).to_have_value('90')
     expect(sort).to_have_value('matches')
     expect(page.get_by_role('button',name='Review this set',exact=True).first).to_be_visible()
-    expect(page.get_by_role('button',name='Explore related sets',exact=True).first).to_be_visible()
+    expect(page.locator('.gallery-guidance > div:not([aria-hidden=true])')).to_contain_text('Each card is a set')
     shot('needs-review-grouping')
     # Pin similarity so choosing another filter combines with it rather than replacing it.
     page.get_by_role("button", name="Pin Has similar photos", exact=True).click()
