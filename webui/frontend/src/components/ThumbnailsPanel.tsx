@@ -77,7 +77,7 @@ export function ThumbnailsPanel() {
         {/* Both explanations share one space, so freeing previews never resizes the row. */}
         <div className="muted stable-content">
           <div aria-hidden={!data.previews.photos || undefined}>
-            Removes {bytes(data.previews.bytes)} of detail previews. They are recreated automatically the next time
+            Removes <strong>{bytes(data.previews.bytes)}</strong> of detail previews. They are recreated automatically the next time
             you open a photo, so nothing is lost.</div>
           <div aria-hidden={!!data.previews.photos || undefined}>No detail previews are stored.</div>
         </div>
