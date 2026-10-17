@@ -74,22 +74,24 @@ export function ThumbnailsPanel() {
         <button onClick={freeUp} disabled={busy || data.previews.photos === 0}>
           Free up previews
         </button>
-        <span className="muted">
-          {data.previews.photos
-            ? `Removes ${bytes(data.previews.bytes)} of detail previews. They are recreated automatically the next time you open a photo, so nothing is lost.`
-            : "No detail previews are stored."}
-        </span>
+        {/* Both explanations share one space, so freeing previews never resizes the row. */}
+        <div className="muted stable-content">
+          <div aria-hidden={!data.previews.photos || undefined}>
+            Removes {bytes(data.previews.bytes)} of detail previews. They are recreated automatically the next time
+            you open a photo, so nothing is lost.</div>
+          <div aria-hidden={!!data.previews.photos || undefined}>No detail previews are stored.</div>
+        </div>
         <button onClick={() => rebuild("missing")} disabled={busy || !!running}>Repair grid thumbnails</button>
         <span className="muted">Makes the ones that are missing. Quick when little is missing.</span>
         <button onClick={() => rebuild("all")} disabled={busy || !!running}>Rebuild all grid thumbnails</button>
         <span className="muted">Regenerates every one from your photos. How long this takes depends on the size of your library.</span>
       </div>
 
-      <div role="status">
+      <div className="thumbnails-status" role="status">
         {rebuilding
           ? <p>{jobLabel(rebuilding.id, rebuilding.mode)} is running{phase
               ? `: ${phaseLabel(phase)}, ${count(phase.done)}${phase.total != null ? ` of ${count(phase.total)}` : ""}` : ""}.
-              {" "}You can close Settings; its progress also shows at the top of the page.</p>
+              {" "}You can close Settings; it also shows at the top of the page.</p>
           : running
             ? <p className="muted">A job is running. Repair and rebuild become available when it finishes.</p>
             : outcome
