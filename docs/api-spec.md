@@ -805,6 +805,46 @@ of the source (`""` for files directly in it), every file catalogued there and h
 are duplicates of photos catalogued earlier, with their size: the copy indexed first is
 the original, so a later archive carries the duplicates.
 
+## 5d. Thumbnail cache
+
+The panel in Settings › Performance (`webui-spec.md` §4.2.1). Grid thumbnails and
+detail previews are reported and managed separately.
+
+### `GET /api/v1/thumbnails`
+
+What the cache holds, from the sizes the engine recorded (`ns_db.thumbnail_cache_totals`),
+not from walking the cache folder:
+
+    {"grid": {"photos": 29048, "bytes": 2300000000},
+     "previews": {"photos": 10412, "bytes": 1200000000},
+     "job_active": false}
+
+`409 catalog_missing` (or another catalog state) without a usable catalog.
+
+### `POST /api/v1/thumbnails/clear-previews`
+
+Free up: runs `--clear-previews`, which removes every recorded detail preview and keeps
+grid thumbnails. It takes no engine lock, so it works while a job runs, and waits for the
+result:
+
+    {"removed": 10412, "bytes_freed": 1200000000, "not_removed": 0}
+
+Previews that could not be removed are counted in `not_removed`, still with `200`.
+`500 clear_previews_failed` when the engine answered nothing usable,
+`500 clear_previews_timeout` after 10 minutes, and `409 catalog_missing` (or another
+catalog state) without a usable catalog.
+
+### `POST /api/v1/thumbnails/rebuild`
+
+Body: `{scope: "missing" | "all", request_id?: string}`. Starts `--rebuild-thumbnails`
+as a job and returns `202` with the accepted `REBUILD` run. `missing` (Repair) makes only
+grid thumbnails not on disk, retrying recorded failures; `all` regenerates every one,
+keeping an existing thumbnail when no unchanged copy can supply a new one. Unknown
+fields or scopes return `400`. Engine locking, `409 job_already_running`, durable
+request-ID replay and conflicts, job lookup and cancellation use the existing job
+protocol; the UI uses the uncertain-submission tracker. The job records no operations
+and takes no catalog backup.
+
 ## 6. The run object and its outcome
 
     {"id": 47, "mode": "INDEX" | "COPY" | "MOVE" | "REBUILD" | "CHECK" | "RENAME" | "SIMILARITY",
@@ -898,6 +938,7 @@ Reverse proxies must preserve the public Host, including a nondefault port.
 | `engine_start_failed` | 500 | The log could not be opened or the engine process could not be spawned |
 | `selection_unavailable` | 503 | The selection input could not be prepared; this attempt started no engine |
 | `backup_timeout` | 500 | Back up now did not finish in 10 minutes |
+| `clear_previews_failed`, `clear_previews_timeout` | 500 | Free up did not report a result, or did not finish in 10 minutes |
 
 ### `GET /api/v1/similar`
 

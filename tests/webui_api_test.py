@@ -605,6 +605,52 @@ class JobsAndCatalog(ApiCase):
             self.assertEqual(conn.execute('SELECT phash,phash_state FROM contents').fetchall(),before)
         self.assertEqual(self.client.get('/api/v1/similar/recovery').json()['state']['pending'],0)
 
+    def test_thumbnail_cache_is_reported_freed_and_repaired_as_a_job(self):
+        self.index_library()
+        photo = self.client.get("/api/v1/photos").json()["items"][0]["id"]
+        self.assertEqual(self.client.get(f"/api/v1/photos/{photo}/thumbnail", params={"size": "preview"}).status_code, 200)
+        cache = self.client.get("/api/v1/thumbnails").json()
+        self.assertEqual((cache["grid"]["photos"], cache["previews"]["photos"], cache["job_active"]), (2, 1, False))
+        self.assertTrue(cache["grid"]["bytes"] > 0 and cache["previews"]["bytes"] > 0)
+
+        # Free up removes detail previews only, and reports what the page showed.
+        freed = self.client.post("/api/v1/thumbnails/clear-previews")
+        self.assertEqual(freed.status_code, 200, freed.text)
+        self.assertEqual(freed.json(), {"removed": 1, "bytes_freed": cache["previews"]["bytes"], "not_removed": 0})
+        after = self.client.get("/api/v1/thumbnails").json()
+        self.assertEqual((after["grid"], after["previews"]), (cache["grid"], {"photos": 0, "bytes": 0}))
+
+        # Repair is a job: it makes the grid thumbnails that are gone, and replays by request ID.
+        grid = list((self.cfg.cache / "thumbnails").rglob("*.jpg"))
+        self.assertEqual(len(grid), 2)
+        for path in grid:
+            path.unlink()
+        body = {"scope": "missing", "request_id": "repair-grid"}
+        started = self.client.post("/api/v1/thumbnails/rebuild", json=body)
+        self.assertEqual(started.status_code, 202, started.text)
+        run = self.wait_for(started.json()["id"])
+        self.assertEqual((run["mode"], run["status"]), ("REBUILD", "Completed"))
+        self.assertTrue(all(path.exists() for path in grid))
+        self.assertEqual(self.client.post("/api/v1/thumbnails/rebuild", json=body).json()["id"], run["id"])
+        self.assertEqual(self.client.post("/api/v1/thumbnails/rebuild", json={**body, "scope": "all"}).status_code, 409)
+        rebuilt = self.wait_for(self.client.post("/api/v1/thumbnails/rebuild", json={"scope": "all"}).json()["id"])
+        self.assertEqual((rebuilt["mode"], rebuilt["status"]), ("REBUILD", "Completed"))
+
+        for bad in ({"scope": "bad"}, {}, {"scope": "missing", "extra": 1}, {"scope": "missing", "request_id": "no spaces"}):
+            self.assertEqual(self.client.post("/api/v1/thumbnails/rebuild", json=bad).status_code, 400, bad)
+        # A rebuild waits for the running job; freeing previews takes no lock and still works.
+        with self.engine_lock_held():
+            refused = self.client.post("/api/v1/thumbnails/rebuild", json={"scope": "missing"})
+            self.assertEqual((refused.status_code, refused.json()["error"]), (409, "job_already_running"))
+            self.assertTrue(self.client.get("/api/v1/thumbnails").json()["job_active"])
+            self.assertEqual(self.client.post("/api/v1/thumbnails/clear-previews").status_code, 200)
+
+    def test_a_missing_catalog_has_no_thumbnail_cache_to_manage(self):
+        for method, path, body in (("GET", "/api/v1/thumbnails", None), ("POST", "/api/v1/thumbnails/clear-previews", None),
+                                   ("POST", "/api/v1/thumbnails/rebuild", {"scope": "missing"})):
+            refused = self.client.request(method, path, json=body)
+            self.assertEqual((refused.status_code, refused.json()["error"]), (409, "catalog_missing"), path)
+
     def test_engine_publishes_count_cache_after_index_and_copy(self):
         self.index_library()
         with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
