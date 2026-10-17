@@ -497,6 +497,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .panel-actions { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center;
   gap: var(--space-2) var(--space-3); }
 .panel-actions > .stable-content { align-items: center; }
+/* An amount an action affects stands out from its muted explanation. */
+.panel-actions .muted strong { color: var(--text); font-weight: var(--weight-strong); }
 
 /* The log, grouped by job: one line per job until opened. */
 .job-list-head { display: flex; justify-content: space-between; align-items: center; gap: var(--gap); min-height: var(--control-height); }
