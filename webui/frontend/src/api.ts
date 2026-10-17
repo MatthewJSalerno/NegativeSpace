@@ -103,6 +103,7 @@ export interface MetadataAttention {
 }
 
 export interface PhotoItem {
+  thumbnail_revision?: number;
   metadata_attention?: MetadataAttention | null;
   id: number;
   status: string;

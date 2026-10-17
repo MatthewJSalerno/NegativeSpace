@@ -268,9 +268,15 @@ def _items(conn, rows, *, include_review=False) -> list:
     items = []
     review_cards = _review_cards(conn, rows) if include_review else {}
     metadata_notes = metadata_view.source_attention(conn, [r["id"] for r in rows])
+    # A saved edit invalidates this photo's preview, not every healthy grid image
+    # after any job. Fetch revisions once for the page, including legacy rows.
+    thumbnail_revisions = dict(conn.execute(
+        "SELECT photo_id,revision FROM photo_files WHERE photo_id IN (SELECT value FROM json_each(?))",
+        (json.dumps([r["id"] for r in rows]),)))
     for r in rows:
         item = dict(r)
         item["metadata_attention"] = metadata_notes.get(r["id"])
+        item["thumbnail_revision"] = thumbnail_revisions.get(r["id"], 0)
         sha1 = item.pop("sha1_hash")
         item["duplicates"] = conn.execute(
             "SELECT COUNT(*) FROM photos WHERE sha1_hash = ? AND id != ?", (sha1, r["id"])

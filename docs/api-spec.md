@@ -379,6 +379,10 @@ ExifTool's full set (or Pillow's when ExifTool found nothing for the file), not 
 subset. The engine's own `date_taken` and `date_source` are left out; they are above.
 Read from the catalog, so it shows the photo as last indexed.
 
+Photo listing items include `thumbnail_revision`, the per-photo catalog revision
+(zero without a retained identity). Grid previews use it to refresh saved metadata
+edits without reloading healthy images after unrelated jobs.
+
 Photo listing items and photo inspection include nullable `metadata_attention` for
 Not organized photos with issues in their latest metadata capture. Its `issues` list
 contains `code`, readable `reason`, source-relative `files` and optional `detail`;

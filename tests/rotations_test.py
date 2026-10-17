@@ -58,9 +58,12 @@ class RotationWrites(unittest.TestCase):
 
     def test_sidecar_save_preserves_photo_date_and_source_then_replays(self):
         c=self.client();before=self.dest.read_bytes();source=self.sidecar.read_bytes()
+        revision_before=c.get('/api/v1/photos',params={'view':'organized'}).json()['items'][0]['thumbnail_revision']
         first=self.plan(c);self.assertEqual(first['after'],6)
         run,body=self.save(c,first)
         self.assertEqual(run['status'],'Completed',run)
+        revision_after=c.get('/api/v1/photos',params={'view':'organized'}).json()['items'][0]['thumbnail_revision']
+        self.assertGreater(revision_after,revision_before)
         log=c.get('/api/v1/operations',params={'run':run['id']}).json()['items']
         saved=[op for op in log if op['status']=='Completed']
         self.assertTrue(saved,log)

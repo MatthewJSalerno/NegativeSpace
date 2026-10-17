@@ -2847,3 +2847,11 @@ tests passed (11.167s). CI also caught focus loss after discarding comparison tu
 discard no longer refreshes unchanged catalog results, so it does not remove the focused
 opener. The unchanged strict similarity browser checks passed after that fix, as did
 the generated import/rotation/consolidation browser workflow and web build.
+
+The next CI browser pass exposed a stale thumbnail interception URL and a grid
+refresh regression: healthy images reloaded after unrelated jobs. The driver now
+intercepts grid URLs with revision parameters; its bounded-retry and healthy-image
+assertions remain unchanged. Grid URLs use each photo's catalog revision, fetched
+in one batch per page. A rotation regression checks that saving changes that
+revision. Rotation/API checks passed 112 tests (108.797s), all three contract tools
+passed, and both preview-refresh and import/rotation browser workflows passed.
