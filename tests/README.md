@@ -2838,3 +2838,12 @@ CI runs the Python suite and the generated browser workflow:
 docker run --rm -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_primary_ui_test.py -v
 METADATA_VIEW_FIXTURE=1 DRIVER=metadata_primary_browser_drive.py sh tests/browser/webui_browser_test.sh
 ```
+
+PR validation follow-up: final local metadata regressions passed 145 tests (149.846s),
+plus API/schema/spec checks. CI caught a motion-photo test that expected refusal only
+at Apply; it now checks both early preview refusal and the independent Apply gate,
+with unchanged source/video assertions and no new metadata-save event. All four motion
+tests passed (11.167s). CI also caught focus loss after discarding comparison turns:
+discard no longer refreshes unchanged catalog results, so it does not remove the focused
+opener. The unchanged strict similarity browser checks passed after that fix, as did
+the generated import/rotation/consolidation browser workflow and web build.

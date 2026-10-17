@@ -132,7 +132,7 @@ export function RotationEditor({ initial, onClose, onSaved, onDiscard, jobRunnin
 }
 
 // One exit decision for all photos turned in a workspace, including former references.
-export function useRotationExit(choices: RotationChoice[], reset: (ids: number[]) => void, jobRunning: boolean, saving = false) {
+export function useRotationExit(choices: RotationChoice[], reset: (ids: number[], saved: boolean) => void, jobRunning: boolean, saving = false) {
   const [open, setOpen] = useState(false);
   const pending = useRef<(() => void) | null>(null);
   const bypass = useRef(false);
@@ -158,7 +158,7 @@ export function useRotationExit(choices: RotationChoice[], reset: (ids: number[]
     return () => { unguard(); window.removeEventListener("beforeunload", unload); };
   }, [dirty, choices, saving]);
   return { requestLeave, editor: open && <RotationEditor initial={choices.filter(x => x.turns !== 0)} jobRunning={jobRunning}
-    onSaved={ids => { reset(ids); window.dispatchEvent(new Event("ns-review-changed")); }}
+    onSaved={ids => { reset(ids, true); window.dispatchEvent(new Event("ns-review-changed")); }}
     onClose={() => { pending.current = null; setOpen(false); }}
-    onDiscard={() => { reset(choices.map(x => x.photo_id)); setOpen(false); bypass.current = true; try { pending.current?.(); } finally { bypass.current = false; pending.current = null; } }} /> };
+    onDiscard={() => { reset(choices.map(x => x.photo_id), false); setOpen(false); bypass.current = true; try { pending.current?.(); } finally { bypass.current = false; pending.current = null; } }} /> };
 }

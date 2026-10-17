@@ -111,9 +111,11 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
     }
     setReload(n => n+1); onChanged();
   });
-  const rotationExit = useRotationExit(Object.entries(views).map(([id, view]) => ({photo_id:Number(id),turns:view.rotation/90})), ids => {
+  const rotationExit = useRotationExit(Object.entries(views).map(([id, view]) => ({photo_id:Number(id),turns:view.rotation/90})), (ids, saved) => {
     setViews(old => Object.fromEntries(Object.entries(old).map(([id,view]) => [id, ids.includes(Number(id)) ? {...view,rotation:0} : view])));
-    setReload(n => n+1); onChanged();
+    // Discarding viewing turns changes no catalog data. Refreshing the match list
+    // here would remove the opener just after focus returns to it on close.
+    if (saved) { setReload(n => n+1); onChanged(); }
   }, jobRunning, rotationSaver.busy);
   const close = () => {
     // The gallery still shows its original reference. Pages from another photo's
