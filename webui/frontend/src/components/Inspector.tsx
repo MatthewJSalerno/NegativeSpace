@@ -1,5 +1,8 @@
+import { RotationControls, useRotationSave } from "./RotationControls";
+import { useRotationExit } from "./RotationEditor";
 import { blockingDateIssue, captureDateMessage } from "../photoDates";
 import { FileLocations } from "./ui/FileLocations";
+import { ImportChoiceDialog } from "./ImportChoices";
 import { FileIssues } from "./FileIssues";
 import { ReviewNote } from "./ReviewNote";
 import { TabList, tabPanel } from "./ui/Tabs";
@@ -7,14 +10,14 @@ import type { SetActions } from "./ReviewActions";
 import type { ComparisonState } from "../comparisonState";
 import { Modal } from "./ui/Modal";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { api, ApiError, type PhotoDetail, type MetadataSourceView } from "../api";
+import { api, ApiError, type PhotoDetail, type MetadataSourceView, type Operation } from "../api";
 import { bytes, epoch, isFallbackDate } from "../format";
 import { follow, logUrl } from "../nav";
+import { PrimarySourceEditor } from "./PrimarySourceEditor";
 import { DateEditor } from "./DateEditor";
 import { MetadataSources } from "./MetadataSources";
 import { LineageDialog } from "./LineageDialog";
-import { jobLabel } from "../jobs";
+import { jobLabel, operationLabel } from "../jobs";
 import { Thumb } from "./Thumb";
 import { PhotoMatches, type MatchView } from "./PhotoMatches";
 import { MatchReviewDialog } from "./MatchReviewDialog";
@@ -37,7 +40,7 @@ const IN_REJECTS = ["Rejected", "Rejected_Copied"];
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Enlarging uses this same
 // two-pane Inspector in a modal; Esc or the close button returns to the gallery.
-export function Inspector({ id, enlarged, setEnlarged, statusHint, sourceView = false, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice, onReviewPhoto }: SetActions & {
+export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, sourceView = false, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice, onReviewPhoto }: SetActions & {
   // Reject this photo, or return it from Rejects; each asks first.
   onReject?: (filename: string) => void;
   onReturn?: () => void;
@@ -49,6 +52,7 @@ export function Inspector({ id, enlarged, setEnlarged, statusHint, sourceView = 
   coveredByDialog?: boolean;
   comparison: ComparisonState | null;
   onComparison: (state: ComparisonState | null) => void;
+  leaveGuard: { current: (action: () => void) => void };
   id: number;
   enlarged: boolean;
   setEnlarged: (enlarged: boolean) => void;
@@ -67,7 +71,29 @@ export function Inspector({ id, enlarged, setEnlarged, statusHint, sourceView = 
   matchView: MatchView;
   onMatchView: (view: MatchView) => void;
 }) {
+  const [turns, setTurns] = useState(0);
+  const saver = useRotationSave((_id, survivor) => {
+    setTurns(0);
+    if (survivor != null) {
+      onNotice?.("Rotation saved. The existing photo was kept; both histories are preserved.", [], survivor);
+      // This confirmed save has settled the only pending turn. The navigation
+      // guard still sees the preceding render's busy state until React commits.
+      leaveGuard.current = action => action();
+      onOpenPhoto(survivor);
+    }
+  });
+  const rotationExit = useRotationExit([{ photo_id: id, turns }], () => setTurns(0), jobRunning, saver.busy);
+  useLayoutEffect(() => {
+    leaveGuard.current = rotationExit.requestLeave;
+    return () => { leaveGuard.current = action => action(); };
+  });
+  const close = () => rotationExit.requestLeave(onClose);
+  const step = (delta: number) => rotationExit.requestLeave(() => onStep(delta));
+  const imageFrame = useRef<HTMLDivElement>(null);
+  const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
+  const [importChoices, setImportChoices] = useState(false);
   const [dateEdit, setDateEdit] = useState<{ photoId: number; donor?: MetadataSourceView } | null>(null);
+  const [primaryEdit, setPrimaryEdit] = useState<{ photoId: number; source: MetadataSourceView; captureId: number } | null>(null);
   const editDate = (donor?: MetadataSourceView) => { onTab("metadata"); setDateEdit({ photoId:id, donor }); };
   const openMetadata = () => { onTab("metadata"); requestAnimationFrame(() => document.getElementById(`${tabId}-metadata`)?.focus()); };
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 800px)").matches);
@@ -77,6 +103,12 @@ export function Inspector({ id, enlarged, setEnlarged, statusHint, sourceView = 
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+  useLayoutEffect(() => {
+    const el = imageFrame.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setImageSize({ width: el.clientWidth, height: el.clientHeight }));
+    observer.observe(el); return () => observer.disconnect();
+  }, [enlarged, narrow]);
   const tabId = useId();
   const panel = useRef<HTMLElement>(null);
   const header = useRef<HTMLElement>(null);
@@ -178,28 +210,29 @@ export function Inspector({ id, enlarged, setEnlarged, statusHint, sourceView = 
     const onKey = (e: KeyboardEvent) => {
       if (document.querySelector("dialog[open]") || (e.target as HTMLElement)?.closest("input, textarea, select, [role=menu]")) return;
       // Esc closes the enlarged view first, then the Inspector.
-      if (e.key === "Escape") (enlarged ? setEnlarged(false) : onClose());
-      if (e.key === "ArrowRight") onStep(1);
-      if (e.key === "ArrowLeft") onStep(-1);
+      if (e.key === "Escape") (enlarged ? setEnlarged(false) : close());
+      if (e.key === "ArrowRight") step(1);
+      if (e.key === "ArrowLeft") step(-1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, onStep, enlarged]);
+  }, [onClose, onStep, enlarged, turns, saver.busy]);
 
   const photo = (
-    <>
+    <div ref={imageFrame} className="inspector-turn-frame"><div className="inspector-turn" style={{ width: turns % 2 ? imageSize.height : imageSize.width,
+      height: turns % 2 ? imageSize.width : imageSize.height, transform: `translate(-50%, -50%) rotate(${turns * 90}deg)` }}>
       {!previewReady && <Thumb refreshKey={refreshKey} id={id} alt={detail?.filename ?? ""} />}
       {!previewFailed && (
         <img
           key={id}
-          src={api.thumbnailUrl(id, "preview")}
+          src={api.thumbnailUrl(id, "preview", refreshKey)}
           alt={detail?.filename ?? ""}
           style={{ display: previewReady ? undefined : "none" }}
           onLoad={() => setPreviewReady(true)}
           onError={() => setPreviewFailed(true)}
         />
       )}
-    </>
+    </div></div>
   );
 
   const body = (
@@ -209,22 +242,25 @@ export function Inspector({ id, enlarged, setEnlarged, statusHint, sourceView = 
         if (e.target.closest("dialog") !== panel.current?.closest("dialog") ||
             e.target.closest("input, textarea, select, [role=tablist], [role=separator], [role=menu]")) return;
         if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-          e.preventDefault(); e.stopPropagation(); onStep(e.key === "ArrowLeft" ? -1 : 1);
+          e.preventDefault(); e.stopPropagation(); step(e.key === "ArrowLeft" ? -1 : 1);
         }
       }}>
       <header ref={header} className="inspector-head">
-        <button onClick={() => onStep(-1)} aria-label="Previous photo">‹</button>
+        <button onClick={() => step(-1)} aria-label="Previous photo">‹</button>
         <h2 title={detail?.filename}>{detail?.filename ?? "…"}</h2>
-        <button onClick={() => onStep(1)} aria-label="Next photo">›</button>
-        <button onClick={enlarged ? () => setEnlarged(false) : onClose} aria-label={enlarged ? "Close the enlarged photo" : "Close"} data-initial-focus={enlarged || undefined}>✕</button>
+        <button onClick={() => step(1)} aria-label="Next photo">›</button>
+        <button onClick={enlarged ? () => setEnlarged(false) : close} aria-label={enlarged ? "Close the enlarged photo" : "Close"} data-initial-focus={enlarged || undefined}>✕</button>
       </header>
       <div className="inspector-main" data-wide={splitSize.wide}
            style={{ "--preview-share": `${previewShare}%`,
              "--preview-size": `${Math.round(splitSize.height * (splitSize.wide ? 1 : previewShare / 100))}px` } as CSSProperties}>
         <div className="inspector-preview" data-reference={activeTab === "similar"}>
-          {activeTab === "similar" && <h3>Reference photo</h3>}
+          {(activeTab === "similar" || (!sourceView && inLibrary)) && <div className="inspector-preview-tools">
+            {activeTab === "similar" && <h3>Reference photo</h3>}
+            {!sourceView && inLibrary && <RotationControls id={id} label="Photo" turns={turns} onChange={setTurns} saver={saver} jobRunning={jobRunning} refreshKey={refreshKey}/>}
+          </div>}
           {enlarged ? <div className="inspector-image">{photo}</div> :
-            <button className="inspector-image" onClick={() => setEnlarged(true)} aria-label="Enlarge the photo"
+            <button className="inspector-image" disabled={saver.busy} onClick={() => setEnlarged(true)} aria-label="Enlarge the photo"
                     title="Click to enlarge">{photo}</button>}
         </div>
         <div className="preview-divider" role="separator" tabIndex={0}
@@ -262,17 +298,17 @@ export function Inspector({ id, enlarged, setEnlarged, statusHint, sourceView = 
               tabs={[{ value: "information", label: layoutInLibrary ? "Photo information" : "File information" }, { value: "metadata", label: "Metadata" }, ...(layoutCanCompare ? [{ value: "similar" as const, label: layoutInLibrary ? "Similar photos" : "Similar photos in Library" }] : [])]} />
           </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", activeTab)}>
-            {detail && activeTab === "information" && <Details onMetadata={openMetadata} onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
-              review={inLibrary ? <ReviewNote key={`review:${id}`} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto}
+            {detail && activeTab === "information" && <Details onImportChoices={() => setImportChoices(true)} onMetadata={openMetadata} onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
+              review={inLibrary ? <ReviewNote key={`review:${id}`} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto ? () => rotationExit.requestLeave(onReviewPhoto) : undefined}
                 concerns={detail.date_warning ? [{label:"Suspicious date",message:`${detail.date_warning} Recorded value: ${detail.date_taken}. Source: ${isFallbackDate(detail.date_source) ? "file modification fallback" : detail.date_source === "exif" ? "photo EXIF" : detail.date_source ?? "unknown"}. Use Edit date or the Metadata tab to correct the date.`}]
                   : captureDateMessage(detail) ? [{label:"No usable capture date",message:captureDateMessage(detail)!}] : []}
                 actions={IN_LIBRARY.includes(detail.status) && onReject
-                  ? <button onClick={() => onReject(detail.filename)} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Move this photo to Rejects. Nothing is deleted."}>Reject…</button>
+                  ? <button onClick={() => rotationExit.requestLeave(() => onReject(detail.filename))} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Move this photo to Rejects. Nothing is deleted."}>Reject…</button>
                   : null} /> : IN_REJECTS.includes(detail.status) && onReturn ? <div className="photo-actions"><button onClick={onReturn} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined}>Return to library…</button></div> : null} />}
           </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "metadata", activeTab)}>
             {detail && activeTab === "metadata" && <div className="inspector-body">
-              <MetadataSources onEdit={editDate} key={`metadata:${detail.id}`} photoId={detail.id} refreshKey={refreshKey} editable={inLibrary} jobRunning={jobRunning} />
+              <MetadataSources onPrimary={(source, captureId) => setPrimaryEdit({photoId:detail.id, source, captureId})} onEdit={editDate} key={`metadata:${detail.id}`} photoId={detail.id} refreshKey={refreshKey} editable={inLibrary} jobRunning={jobRunning} />
             </div>}
           </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "similar", activeTab)}>
@@ -281,21 +317,23 @@ export function Inspector({ id, enlarged, setEnlarged, statusHint, sourceView = 
               onKeep={inLibrary && onKeep ? (threshold) => onKeep(id, detail.filename, threshold) : undefined}
               delivered={canCompare} rejected={!inLibrary}
               view={matchView} onView={onMatchView} refreshKey={refreshKey}
-              onReview={openComparison} changes={comparisonChanges} /></div>}
+              onReview={(...args) => rotationExit.requestLeave(() => openComparison(...args))} changes={comparisonChanges} /></div>}
           </div>
         </div>
       </div>
-      {lineage && detail && createPortal(
-        <LineageDialog photoId={id} filename={detail.filename} jobRunning={jobRunning}
-                       onOpenPhoto={(other) => { setLineage(false); onOpenPhoto(other); }} onClose={() => setLineage(false)} />,
-        document.body)}
+
     </section>
   );
   return <>
+    {lineage && detail && <LineageDialog photoId={id} filename={detail.filename} jobRunning={jobRunning}
+      onOpenPhoto={(other) => rotationExit.requestLeave(() => { setLineage(false); onOpenPhoto(other); })} onClose={() => setLineage(false)} />}
+    {rotationExit.editor}
+    {importChoices && <ImportChoiceDialog photoId={id} onClose={() => setImportChoices(false)} />}
+    {primaryEdit && <PrimarySourceEditor {...primaryEdit} onClose={() => setPrimaryEdit(null)} onSaved={() => window.dispatchEvent(new Event("ns-review-changed"))} />}
     {dateEdit && <DateEditor photoId={dateEdit.photoId} donor={dateEdit.donor} onClose={() => setDateEdit(null)} onSaved={() => window.dispatchEvent(new Event("ns-review-changed"))} />}
     {enlarged && !narrow && <div className="inspector-placeholder" aria-hidden="true" style={width ? { flexBasis: `${width}px` } : undefined} />}
     {enlarged ? <Modal className="lightbox" label={`Enlarged: ${detail?.filename ?? ""}`} onClose={() => setEnlarged(false)}>{body}</Modal>
-      : narrow && comparison == null && !coveredByDialog ? <Modal deferWhileCovered className="mobile-inspector" label="Photo details" onClose={onClose}>{body}</Modal> : body}
+      : narrow && comparison == null && !coveredByDialog ? <Modal deferWhileCovered className="mobile-inspector" label="Photo details" onClose={close}>{body}</Modal> : body}
     {canCompare && comparison != null && <MatchReviewDialog reference={id} candidate={candidate} jobRunning={jobRunning} onNotice={onNotice} onKeep={onKeep}
       workspace={comparison} onWorkspace={onComparison} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet}
       initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}
@@ -325,7 +363,7 @@ function Section({ title, note, children }: { title: string; note?: ReactNode; c
   );
 }
 
-function Details({ detail: d, onLineage, refreshKey, review, jobRunning, onEdit, onMetadata }: { onMetadata: () => void; onEdit: (donor?: MetadataSourceView) => void; jobRunning: boolean; detail: PhotoDetail; onLineage: () => void; refreshKey: number; review?: ReactNode }) {
+function Details({ onImportChoices, detail: d, onLineage, refreshKey, review, jobRunning, onEdit, onMetadata }: { onImportChoices: () => void; onMetadata: () => void; onEdit: (donor?: MetadataSourceView) => void; jobRunning: boolean; detail: PhotoDetail; onLineage: () => void; refreshKey: number; review?: ReactNode }) {
   const fallback = isFallbackDate(d.date_source);
   return (
     <div className="inspector-body">
@@ -339,7 +377,10 @@ function Details({ detail: d, onLineage, refreshKey, review, jobRunning, onEdit,
           {issue.detail && <p className="section-note">Recorded detail: {issue.detail}</p>}
         </div>)}
         <p>{d.metadata_attention.action}</p>
+        <div className="settings-actions">
+        {d.status === "Pending" && d.metadata_attention.issues.some(i=>["ambiguous_ownership","owner_conflict","saved_owner_changed","metadata_choice_needed"].includes(i.code)) && <button className="photo-action" disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined} onClick={onImportChoices}>Resolve XMP choices…</button>}
         <a href={logUrl({photo:d.id})} onClick={follow}>View photo logs</a>
+        </div>
       </section>}
       {review}
       {!review && IN_LIBRARY.includes(d.status) && d.date_warning && <p className="section-note"><strong>Suspicious date:</strong> {d.date_warning} Recorded value: {d.date_taken}. Source: {fallback ? "file modification fallback" : d.date_source === "exif" ? "photo EXIF" : d.date_source ?? "unknown"}. Check the recorded metadata or compare similar photos for clues. Use Edit date or the Metadata tab to correct it. <a href="/?view=suspicious">View suspicious dates</a></p>}
@@ -448,7 +489,7 @@ const EVENT_LABEL: Record<string, string> = {
 const RECENT = 3;
 
 function PhotoHistory({ id, onLineage, refreshKey }: { id: number; onLineage: () => void; refreshKey: number }) {
-  const [page, setPage] = useState<{ items: { id: number; run_id: number; mode: string | null; status: string; timestamp: string }[]; total: number } | null>(null);
+  const [page, setPage] = useState<{ items: Operation[]; total: number } | null>(null);
   useEffect(() => {
     let live = true;
     setPage(null);
@@ -469,7 +510,7 @@ function PhotoHistory({ id, onLineage, refreshKey }: { id: number; onLineage: ()
             {events.map((op) => (
               <li key={op.id} className={op.status === "Failed" ? "history-failed" : undefined}>
                 <button className="history-event" onClick={onLineage} title="Open the lineage tree">
-                  <strong>{EVENT_LABEL[op.status] ?? op.status}</strong>
+                  <strong>{operationLabel(op, EVENT_LABEL[op.status] ?? op.status)}</strong>
                   <span className="muted"> · {jobLabel(op.run_id, op.mode)} · {epoch(Date.parse(op.timestamp) / 1000)}</span>
                 </button>
               </li>

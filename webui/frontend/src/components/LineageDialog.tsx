@@ -1,9 +1,10 @@
+import { MetadataHistory } from "./MetadataHistory";
 import { Modal } from "./ui/Modal";
 import { useEffect, useState } from "react";
 import { api, ApiError, type Lineage, type LineageFile, type LineageOperation } from "../api";
 import { bytes, instant } from "../format";
-import { follow, logUrl } from "../nav";
-import { jobLabel } from "../jobs";
+import { follow, logUrl, photoUrl } from "../nav";
+import { jobLabel, operationLabel } from "../jobs";
 import { Tip } from "./Tip";
 
 const STEP: Record<string, string> = {
@@ -112,6 +113,7 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
             </li>)}</ul>
           </details>
         )}
+        {tree && <MetadataHistory onNavigate={onClose} filters={{photo:photoId,run:[],status:[],q:"",since:"",until:""}} />}
         <p><a href={logUrl({ photo: photoId })} onClick={(e) => { onClose(); follow(e); }}>Open in the log</a></p>
     </Modal>
   );
@@ -128,13 +130,14 @@ function Step({ op, photoId, jobRunning, onRetry }: {
   return (
     <li className={failed ? "history-failed" : undefined}>
       {failed
-        ? <button className="link lineage-step" aria-expanded={open} onClick={() => setOpen(!open)}>{STEP.Failed} {open ? "▾" : "▸"}</button>
-        : <Tip text={op.error_message ?? `${STEP[op.status] ?? op.status}${op.recovery ? " (recovery of earlier work)" : ""}`}>
-            <strong className="lineage-step" tabIndex={0}>{STEP[op.status] ?? op.status}</strong>
+        ? <button className="link lineage-step" aria-expanded={open} onClick={() => setOpen(!open)}>{operationLabel(op, STEP.Failed)} {open ? "▾" : "▸"}</button>
+        : <Tip text={op.error_message ?? `${operationLabel(op, STEP[op.status] ?? op.status)}${op.recovery ? " (recovery of earlier work)" : ""}`}>
+            <strong className="lineage-step" tabIndex={0}>{operationLabel(op, STEP[op.status] ?? op.status)}</strong>
           </Tip>}
       <span className="muted"> · <a href={logUrl({ run: op.run_id, photo: photoId })} onClick={follow}
                                   title={`Open job #${op.run_id} in the log`}>{jobLabel(op.run_id, op.mode)}</a>
         {" · "}{instant(op.timestamp)}</span>
+      {op.consolidated_into != null && <span className="muted"> · Duplicate removed; kept <a href={photoUrl(op.consolidated_into)} onClick={follow}>photo #{op.consolidated_into}</a></span>}
       {failed && open && (
         <div className="lineage-failure">
           <p className="section-note">Check this file and the recorded cause before rechecking. The app cannot repair unreadable files or add format support.</p>

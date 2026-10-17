@@ -5,7 +5,7 @@ from pathlib import Path
 
 from engine import ns_db
 from engine import ns_similarity
-from . import catalog, gallery
+from . import catalog, gallery, photo_orientation
 from engine.ns_similarity_cache import AVAILABLE, VALID
 
 THRESHOLDS = (75, 80, 85, 90, 95, 100)
@@ -152,7 +152,10 @@ def pair(db: Path, reference_id: int, candidate_id: int):
         a, b = _pair(conn, reference_id, candidate_id)
         distance = ((int(a['phash'],16) ^ int(b['phash'],16)).bit_count()
                     if all(r['phash_state']=='ok' and ns_similarity.usable(r['phash']) for r in (a,b)) else None)
-        return {'reference': {**_item(a), 'sha1':a['sha1_hash']}, 'candidate': {**_item(b), 'sha1':b['sha1_hash']},
+        def displayed(row):
+            width,height=photo_orientation.dimensions(conn,row['id'],row['width'],row['height'])
+            return {**_item(row),'display_width':width,'display_height':height}
+        return {'reference': {**displayed(a), 'sha1':a['sha1_hash']}, 'candidate': {**displayed(b), 'sha1':b['sha1_hash']},
                 'exact': a['content_id'] == b['content_id'], 'distance':distance,
                 'score': round((64-distance)*100/64,2) if distance is not None else None}
 

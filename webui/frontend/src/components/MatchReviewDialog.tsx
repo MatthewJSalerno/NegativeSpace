@@ -1,3 +1,5 @@
+import { useRotationSave } from "./RotationControls";
+import { useRotationExit } from "./RotationEditor";
 import { ReviewActions, type SetActions } from "./ReviewActions";
 import type { ComparisonState } from "../comparisonState";
 import { SimilarityRecovery } from "./SimilarityRecovery";
@@ -100,11 +102,24 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
     }
   }, [review, reference, active]);
 
+  const rotationSaver = useRotationSave((id, survivor) => {
+    setViews(old => ({ ...old, [id]: { ...(old[id] ?? DEFAULT_VIEW), rotation: 0 } }));
+    if (survivor != null) {
+      if (id === reference) { setReference(survivor); setActive(null); setPage(1); }
+      else setActive(survivor === reference ? null : survivor);
+      onNotice?.("Rotation saved. The existing photo was kept; both histories are preserved.", [], survivor);
+    }
+    setReload(n => n+1); onChanged();
+  });
+  const rotationExit = useRotationExit(Object.entries(views).map(([id, view]) => ({photo_id:Number(id),turns:view.rotation/90})), ids => {
+    setViews(old => Object.fromEntries(Object.entries(old).map(([id,view]) => [id, ids.includes(Number(id)) ? {...view,rotation:0} : view])));
+    setReload(n => n+1); onChanged();
+  }, jobRunning, rotationSaver.busy);
   const close = () => {
     // The gallery still shows its original reference. Pages from another photo's
     // match set cannot be applied to that original Inspector.
     onView({ threshold, page: reference === initialReference && scope === "library" ? page : initialView.page });
-    onClose();
+    rotationExit.requestLeave(onClose);
   };
   const changeView = (id: number, next: PreviewView) => setViews(old => {
     const other = id === reference ? active : reference;
@@ -222,10 +237,10 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
         disabled={rejecting != null || jobRunning}
         title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : `Keep ${lastReference.filename}. The look-alikes are reviewed before any is rejected. To keep the other photo, use it as the reference first.`}
         aria-label={`Keep ${lastReference.filename}, reject the other ${count(remaining)}…`}
-        onClick={() => { const name = lastReference.filename; close(); onKeep(reference, name, threshold); }}>
+        onClick={() => rotationExit.requestLeave(() => { const name = lastReference.filename; onClose(); onKeep(reference, name, threshold); })}>
         Keep <span className="keep-name">{lastReference.filename}</span>, reject the other {count(remaining)}…
       </button>;
-  return <Workspace label="Review photo match" className="match-review-dialog" onBack={close}
+  return <Workspace label="Review photo match" className="match-review-dialog" busy={rotationSaver.busy} onBack={close}
     title="Review similar photos"
     subject={review?.reference.id === reference ? `Reference: ${review.reference.filename}` : "Compare destination photos side by side."}
     step={{
@@ -236,10 +251,11 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       nextDisabled: !matches?.items.length || (index === matches.items.length - 1 && page === pages),
     }}
     status={noteLine ?? progress}>
+    {rotationExit.editor}
     <ReviewActions workspace={{ origin: initialReference, reference, candidate: active, threshold, page, scope,
       views: { [reference]: referenceView, ...(active == null ? {} : { [active]: displayedCandidateView }) }, linked, share }}
-      busy={!review} setBrowse={scope === "library" && lastReference && !isRejected(lastReference) ? setBrowse : undefined} onOpenSet={onOpenSet}
-      onShowSet={scope === "library" && lastReference && !isRejected(lastReference) ? onShowSet : undefined} />
+      busy={!review} setBrowse={scope === "library" && lastReference && !isRejected(lastReference) ? setBrowse : undefined} onOpenSet={onOpenSet ? (r,c)=>rotationExit.requestLeave(()=>onOpenSet(r,c)) : undefined}
+      onShowSet={scope === "library" && lastReference && !isRejected(lastReference) ? (r,t)=>rotationExit.requestLeave(()=>onShowSet?.(r,t)) : undefined} />
     <div className="review-toolbar">
       <label>Minimum similarity<select aria-label="Minimum similarity" value={threshold} onChange={e => {
         setThreshold(Number(e.target.value)); setPage(1); setActive(null);
@@ -252,7 +268,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
     {rejectError && <p className="error" role="alert">{rejectError}</p>}
     {matches?.availability === "available" && remaining === 0 && lastReference?.id === reference && <div className="review-alone">
       <p role="status">No more look-alikes at this threshold.</p>
-      <div className="review-pair"><ReviewPreview label="Reference" isReference photo={lastReference} view={referenceView}
+      <div className="review-pair"><ReviewPreview rotationSaver={rotationSaver} jobRunning={jobRunning} label="Reference" isReference photo={lastReference} view={referenceView}
         onChange={next => changeView(reference, next)} refreshKey={reload} action={rejectButton(lastReference, true)} /></div>
     </div>}
     {returning && <ConfirmDialog onClose={() => setReturning(null)} confirm={{
@@ -269,10 +285,10 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
         <div className="review-comparison">
           <div className="review-previews">
           <div className="review-pair">
-            <ReviewPreview label="Reference" isReference photo={review.reference} view={referenceView}
+            <ReviewPreview rotationSaver={rotationSaver} jobRunning={jobRunning} label="Reference" isReference photo={review.reference} view={referenceView}
               onChange={next => changeView(reference, next)} refreshKey={reload}
               action={rejectButton(review.reference, true)} footerAction={keepAction} />
-            <ReviewPreview label="Candidate" photo={review.candidate} view={displayedCandidateView}
+            <ReviewPreview rotationSaver={rotationSaver} jobRunning={jobRunning} label="Candidate" photo={review.candidate} view={displayedCandidateView}
               onUseAsReference={useAsReference} referenceDisabled={!!error}
               onChange={next => changeView(active, next)} refreshKey={reload}
               action={rejectButton(review.candidate, false)} />
@@ -284,7 +300,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
               if (e.target.checked) setViews(old => ({ ...old, [active]: { ...(old[active] ?? DEFAULT_VIEW),
                 zoom: (old[reference] ?? DEFAULT_VIEW).zoom, x: (old[reference] ?? DEFAULT_VIEW).x, y: (old[reference] ?? DEFAULT_VIEW).y } }));
             }} />Link zoom and position</label>
-            <span className="section-note">Rotation is for viewing only. Zoom uses previews up to 1024 pixels.</span>
+            <span className="section-note">Turns stay temporary until you save them. Zoom uses previews up to 1024 pixels.</span>
           </div>
           </div>
         </div>

@@ -36,7 +36,8 @@ Reindex preserves an established import's filing and current filename. Other can
 fields/origins remain in the activation receipt for the source viewer. Photo-only
 imports now apply embedded-XMP/EXIF priority after verified delivery. Deliberate embedded
 primary switches are available through the engine CLI without rewriting tags.
-Decision/retry UI and non-JPEG embedded editing remain unfinished. The web source
+First-import choices and pair retry have API/UI controls. Incoming-alternative
+decisions, organized primary changes and non-JPEG embedded editing remain unfinished. The web source
 viewer is read-only and compares recorded EXIF, embedded XMP and sidecar versions.
 The engine now saves common-field XMP edits, copies explicit fields from retained sources,
 activates associated XMP versions deliberately, and refiles verified pairs. Confirmed
@@ -188,10 +189,11 @@ retaining an observation rolls back its newly retained BLOB/arrival. Cancellatio
 new read work and leaves committed observations intact; another Index reassesses the
 source rather than interpreting missing work as a successful complete capture. Reader
 issues appear in the engine log with the photo, category and available diagnostic details;
-UI inspection/decision controls are still pending. No file edit, refile, automatic primary
+Source inspection and first-import ownership/version controls are built; incoming
+and organized-primary decisions remain pending. No file edit, refile, automatic primary
 replacement or paired source cleanup is enabled by this phase.
 
-## Saved decisions (engine built; decision API/UI pending)
+## Saved decisions (first-import API/UI built)
 
 `engine/metadata_decisions.py` provides catalog-only `preview` and `confirm` functions.
 Association choices bind a source root and relative sidecar name to captured photo file
@@ -219,7 +221,9 @@ Setup and Settings expose these preferences with read-priority guidance. First r
 requires an explicit association choice; ordinary Settings uses revision-checked saves.
 Write defaults apply only without an established primary target and cannot enable an
 unqualified writer. RAW remains XMP-only; embedded editing is qualified for JPEG only.
-Per-file ownership/primary decision controls remain a separate unfinished workflow.
+First-import ownership and competing-XMP choices are available in Not organized →
+Needs attention. Deliberate primary changes for organized photos and incoming alternatives
+remain separate unfinished workflows.
 A live Settings notice explains that running jobs retain their starting configuration.
 
 The transfer gate records Skipped for unsupported/unresolved cases, leaving source bytes
@@ -227,8 +231,8 @@ intact. Resolved first-import pairs proceed through verified transfer; ambiguous
 damaged and unresolved multiple-sidecar cases remain held with an explanation.
 The incoming-alternative bridge below handles supported duplicate arrivals.
 This also guards duplicate-source removal and direct Copy/Move without a preceding Index.
-Other ordinary photos proceed. Dedicated Metadata choice needed screens remain
-unfinished. Confirmed import-pair retry is available from the photo issue, Logs and
+Other ordinary photos proceed. First-import ownership/version choices are available from source attention;
+incoming-alternative choices remain unfinished. Confirmed import-pair retry is available from the photo issue, Logs and
 eligible selections; see the import recovery contract below.
 
 ## Field-scoped edit plans (built; XMP execution connected)
@@ -323,8 +327,11 @@ Index can record source observations while retaining the edited Library content 
 unfinished operation's retry binding. The original source snapshot stays immutable.
 Caches for the new SHA-1 use the edited retained file; old-source bytes cannot supply
 its preview. An Orientation change updates displayed dimensions; pHash uses unchanged
-stored pixels. Exact-byte results matching another organized photo are reported as
-`exact_duplicate_photo_ids`; both files and histories remain. Old duplicate source
+stored pixels. Exact-byte results matching another organized photo are recorded as
+`exact_duplicate_photo_ids`. The public preview stages a verified output on a disposable
+copy and binds its digest and survivor snapshot to the token. Confirmed equal-primary
+Library matches retain the existing photo and retire the redundant edited destination;
+Rejects or conflicting effective metadata refuse. Old duplicate source
 pointers are detached because they no longer prove equality to the edited destination.
 
 Copy leaves originals untouched. Move also keeps sources whose organized photo has
@@ -796,7 +803,7 @@ folders. Making an older XMP primary is a new verified operation with preview, c
 and lineage; it does not erase intervening history. Catalog backup validation must cover
 restoring and verifying retained BLOBs, not just database integrity.
 
-## Earlier metadata states (engine built) and duplicate consolidation (deferred)
+## Earlier metadata states and exact-result consolidation (engine built)
 
 Reproduction of an earlier meaningful state is distinct from exact-file restoration.
 Given surviving unchanged image content and complete structured records, the goal is to
@@ -895,11 +902,19 @@ states; a profile name alone is not its original profile data. Precise format co
 profile preservation/reapplication and conservative handling of unfamiliar structures
 remain implementation requirements, not claims that current extracted EXIF is sufficient.
 
-An edit that would create an exact duplicate should preview the surviving photo and
-explain the preservation/removal consequences before confirmation. Prepare and verify
-staged output to establish equality; record links from both histories and preserve
-required metadata before any redundant-file removal. This is a new coordinated workflow,
-not permission to feed image-content matches into today's whole-file duplicate cleanup.
+An embedded edit that creates an exact whole-file duplicate previews the existing
+Library survivor and requires confirmation. `metadata_duplicates` verifies live byte
+equality, the survivor's file/revision/primary/sidecar, and preserved XMP originals.
+It journals both histories and inactive alternative associations before retiring the
+redundant destination. The survivor keeps its name, location and primary. Rejects and
+different effective primary fields stop the edit without changing either file. New
+matches appearing after preview, including earlier saves in a batch, require a fresh
+confirmation. Interrupted cleanup is explicitly retryable and verifies the survivor
+again before either unlink. Copy/reindex retain the consolidated relationship; later
+Move still requires edited-source consent. History remains connected after later edits.
+These checks also guard engine callers without a duplicate-aware preview: they refuse
+an unconfirmed match before publication. Existing duplicates are not bulk-cleaned.
+This does not enable the proposed image-content matching workflow below.
 
 **Production image-content hashing and its consolidation workflow are deferred by the
 maintainer.** Finish EXIF/XMP preservation and verified editing first. The extra hash
@@ -912,7 +927,7 @@ checks; measured warm-read cost is documented. It is isolated under tools, not u
 Index or cleanup. Unsupported layouts are refused, and decoding/metadata preservation
 are not certified by the fingerprint. RAW and broader JPEG coverage, integrated cost and
 pre-removal equality verification remain open. A pHash match never establishes exact
-image-content equality. Neither hash stores image data or reconstructs a file. These
+image-content equality. Neither hash stores image data or reconstructs a file. These image-content
 consolidation capabilities remain unbuilt. Supported earlier metadata reapplication uses
 the verified edit history above, not the experimental content fingerprint.
 
@@ -1148,7 +1163,8 @@ nothing: Save re-derives the preview under the engine lock, and a changed target
 new confirmation. Orphan sidecars, unsafe paths and non-file obstructions still refuse;
 execution/recovery never silently changes the confirmed target. Missing XMP dates are
 never prefilled from another source.
-**Make this source primary…** remains a separate deliberate preview/confirmation of
+**Use as primary…** on an organized photo’s readable non-primary tab is a separate
+deliberate preview/confirmation of
 effective-value changes, future edit target and any refiling; copying does not activate
 the donor. UI details live in `ui-design.md`; source reads are built; mutation routes and controls remain unbuilt.
 
@@ -1224,3 +1240,19 @@ failures and unresolved/unreadable sidecar associations retain their existing ho
 Metadata interpretation and embedded-write preservation checks are not relaxed.
 Reindex refreshes earlier warning-only holds without rewriting historical captures.
 The metadata viewer explains known warnings and keeps exact diagnostics available.
+
+### First-import choice screens
+
+Pending photos with captured ownership/version ambiguity offer Resolve XMP choices.
+The API delegates confirmation to `metadata_choices` and `metadata_decisions` through
+`--import-choice` under the engine lock. Source-root/photo binding, immutable captures,
+retained valid sidecars, candidate eligibility, stale tokens and request replay are checked.
+All candidates must be indexed and still Pending. Users choose one or more owners;
+competing owned XMP versions show recorded fields and effective differences before saving.
+This does not expose arbitrary primary switching or incoming duplicate/Rejects decisions.
+
+Saving changes only catalog decisions. It does not refile, edit, delete or imply a
+successful import. Normal Copy/Move recaptures and verifies the source before applying
+choices. An ownership reindex can clear that observed hold; competing-version observations
+may remain visible until import, with the saved choice shown explicitly. Repair issues
+cannot be bypassed. The dialog preserves drafts across desktop/narrow layout changes.

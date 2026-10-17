@@ -40,5 +40,5 @@ export function Thumb({ id, size = "grid", alt, refreshKey = 0 }: { id: number; 
       </div>
     );
   }
-  return <img src={api.thumbnailUrl(id, size)} alt={alt} loading="lazy" decoding="async" onError={() => setFailed(true)} />;
+  return <img src={api.thumbnailUrl(id, size, refreshKey)} alt={alt} loading="lazy" decoding="async" onError={() => setFailed(true)} />;
 }

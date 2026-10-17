@@ -57,6 +57,12 @@ jobs:
       - name: Motion photo metadata preservation
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_motion_save_test.py -v
 
+      - name: Source XMP import choices
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_choices_test.py -v
+
+      - name: Rotation editing and display
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p rotations_test.py -v
+
       - name: Date editing API
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_dates_test.py -v
 
@@ -77,6 +83,12 @@ jobs:
 
       - name: Embedded metadata priority and primary switching
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_primary_test.py -v
+
+      - name: Primary-source web boundary
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_primary_ui_test.py -v
+
+      - name: Confirmed metadata duplicate consolidation
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_duplicates_test.py -v
 
       - name: Embedded JPEG publication and recovery
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_photo_save_test.py -v
@@ -371,6 +383,12 @@ jobs:
 
       - name: Metadata source tabs in a browser
         run: METADATA_VIEW_FIXTURE=1 DRIVER=metadata_sources_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Primary-source browser workflow
+        run: METADATA_VIEW_FIXTURE=1 DRIVER=metadata_primary_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Source XMP import choices in browser
+        run: IMPORT_CHOICES_FIXTURE=1 DRIVER=import_choices_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Externally removed original in a browser
         run: DRIVER=copied_source_browser_drive.py sh tests/browser/webui_browser_test.sh

@@ -43,6 +43,11 @@ def validate_edit(photo_id, edit):
         raise ValueError('Supply only a bounded Date taken value.')
 
 
+def duplicate_summary(plan):
+    duplicate=(plan.get('exact_output') or {}).get('duplicate')
+    return {key:duplicate[key] for key in ('photo_id','filename','path')} if duplicate else None
+
+
 def preview(cfg, photo_id, body):
     if not isinstance(body,dict) or set(body) not in ({'capture_id','value'}, {'capture_id','donor_id'}):
         raise ValueError('Choose a date or one recorded source to copy.')
@@ -65,5 +70,5 @@ def preview(cfg, photo_id, body):
     after = planned['changes']['date_taken']
     return dict(edit=edit,token=planned['token'],target=planned['target'],
         before=dict(present='date_taken' in previous,value=previous.get('date_taken')),
-        after=after,filing=planned['filing'],
-        no_change=not planned['target']['create'] and 'date_taken' in previous and previous['date_taken']==after and not planned['filing']['change'])
+        after=after,filing=planned['filing'],duplicate=duplicate_summary(planned),
+        no_change=not duplicate_summary(planned) and not planned['target']['create'] and 'date_taken' in previous and previous['date_taken']==after and not planned['filing']['change'])

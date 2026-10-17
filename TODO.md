@@ -65,8 +65,30 @@ Found 2026-10-05 looking for screens that do the same job twice.
   panel and a match-count link to the existing Similar photos tab. Remaining two-photo rejection
   proposals belong with the unbuilt "looks like a reject" reason below.
 
+- [x] Saved import-choice history offers read-only comparison against the current photo's
+  primary, including excluded shared-sidecar candidates. Historical values stay bound
+  to the choice's capture; no ownership, metadata or file changes. Maintainer Test 5 passed.
+
 ## Views
 
+- [ ] Add concrete filename examples beside metadata choices in setup and Settings.
+  For shared-sidecar association, show `photo.jpg`, `photo.png`, and `photo.xmp`:
+  the sidecar could belong to both photos, so the user must choose how to associate it.
+  Contrast with `photo.jpg.xmp`, which identifies `photo.jpg` specifically. Keep examples
+  next to the relevant prompt so users understand the choice before answering.
+  Requested for a future UI update; not implemented yet.
+
+- [x] Metadata choices in Logs and lineage has a shared bordered disclosure with a
+  strong heading and short description. It stays collapsed by default. Maintainer Tests 7a/7b passed.
+
+- [x] Fit portrait previews inside their available height in the Inspector and enlarged
+  view; prevent intrinsic image sizing from clipping the bottom. Maintainer Test 6 passed.
+
+- [ ] **After metadata work:** tidy the left sidebar's Look into filters without
+  changing behavior. Align labels, counts and pins in consistent columns; use uniform
+  row heights and spacing. Prefer shorter, single-line labels (for example, Similar
+  photos); truncate only when necessary, with full labels available on hover and
+  keyboard focus. Check active states and narrow layouts. Deferred, not implemented.
 - [ ] Check Library/Jobs/Logs spacing and alignment in a future UI batch; preserve
   the reserved Jobs position so Logs does not shift when Jobs is unavailable.
 - [ ] Refresh user-guide screenshots for the current setup and review workflows.
@@ -146,10 +168,17 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] The in-tray for Small images and Review later (`docs/webui-spec.md` §7.9).
 - [x] Library-only review decisions, source exclusion from similarity, backend eligibility, separate source
   failure facts, explicit Stats scopes and consistent Job #ID · Action status labels.
-- [ ] Implement source-side sidecar/version import decisions in Not organized, separately
-  from the Library inbox. The agreed contract is in `docs/xmp-metadata.md`; durable
-  compressed-BLOB storage and engine import-decision/transfer-recovery primitives are built;
-  their API/UI decision and recovery controls remain unfinished.
+
+- [x] Show first-import XMP ownership/primary decisions and their verified application
+  in shared Logs/lineage history, distinct from file operations and job counts.
+
+- [x] First-import XMP ownership/version choices in Not organized → Needs attention:
+  read captured candidates/fields, preview and confirm under the engine lock, preserve
+  source files, and apply through normal verified Copy/Move. Source repair remains separate.
+  Automated validation and maintainer acceptance are tracked in tests/README.md.
+- [ ] Incoming-alternative decisions for already organized/rejected matches, with independent
+  metadata/location choices. Durable BLOB storage and engine primitives are built;
+  their decision UI remains unfinished. Import-pair retry is already built.
 - [ ] Add the remaining Library reasons to the shared inbox/workspace: suspicious dates with acknowledgment;
   No capture date and sidecar/edit reasons with their respective workstreams.
 - [ ] Bulk review answers within one reason. Individual Mark reviewed/Done and the
@@ -177,7 +206,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Small-image destination cleanup: user chooses on/off and minimum at first run;
   never blocks Copy/Move. Mark reviewed persists per photo/content and does not clear
   other reasons. Existing selection/Reject workflow; no bulk Keep or automatic unticking.
-- [ ] "Which photo is this sidecar for?": a short-named XMP sidecar that could belong to
+- [x] "Which photo is this sidecar for?": a short-named XMP sidecar that could belong to
   several photos, held in Not organized until association is resolved
   (`docs/xmp-metadata.md`, `docs/engine-spec.md` §9.6).
 
@@ -303,10 +332,10 @@ These are completed capabilities, not additional open closeout tasks.
   permissions and cleanup. Embedded XMP supports the common fields; EXIF refuses
   unrepresentable values. Source/retained content lineage, SHA/cache updates and date
   refiling are connected. Reindex preserves edited state and unfinished bindings;
-  old duplicate pointers detach and exact-result duplicates are reported without deletion.
+  old duplicate pointers detach. Confirmed exact-result consolidation is covered below.
 - [x] Generated JPEG content-fingerprint experiment: 20 tests plus warm-read measurements;
   see [jpeg-content-hash-experiment.md](docs/jpeg-content-hash-experiment.md).
-  No production image-only hashing or duplicate consolidation is enabled.
+  No production image-only hashing or image-content consolidation is enabled.
 
 ### Motion-photo and expanded-format qualification
 
@@ -325,13 +354,19 @@ These are completed capabilities, not additional open closeout tasks.
 ### Export-service metadata guidance
 
 - [ ] Detect recognized Google Photos/Takeout and Flickr export-sidecar naming/layout
-  evidence and add an Index-result notice: affected count/list, sidecars are not imported,
-  and a working Help route recommending dedicated export-preparation tools followed by
-  reindexing. Verify any named-tool recommendations before publication. Do not parse/apply
-  these sidecars or identify a provider from `.json` alone; label uncertain evidence as
-  possible export metadata. Leave the files untouched and explain Move leaves them behind.
-  This is informational, not a failed photo or Library review reason, and is separate
-  from supported XMP handling. Detection and notice are both unimplemented.
+  during Index; show counts and affected source files. Before Copy/Move, offer one
+  selection-level choice: prepare externally first, import without export metadata,
+  or skip affected photos while organizing the others. Readable photos are not failed.
+  Import uses embedded metadata and supported XMP; export sidecars remain untouched,
+  including during Move. Do not identify a provider from `.json` alone or guess photo
+  associations; uncertain evidence is Possible export metadata.
+- [ ] Provide minimal export-preparation guidance: external-tool links and a rough
+  workflow only. Convert export metadata to XMP, prepare photos plus XMP in a clean
+  source folder (or optionally remove old export sidecars externally after checking
+  the conversion), then select the source and reindex before Copy/Move. Check links
+  and advertised capabilities before publication. No in-app conversion/deletion,
+  detailed tool tutorials or conversion-support workstream. See webui-spec §7.5.
+
 
 ### API/UI work — source viewer/date editor built; decisions pending
 
@@ -421,9 +456,12 @@ Saved orientation stays a separate action from temporary preview rotation.
   maintainer readability review are tracked in tests/README.md; follow `ui-design.md`,
   Writing messages. Targeted automated checks and maintainer Tests 1–4 passed
   on 2026-10-16.
-- [ ] Deliberate per-file association/primary-choice controls, separate from viewing and
-  copying, with effective-value/refiling previews. Settings defaults do not replace this
-  workflow. The source viewer is tracked above, not a duplicate implementation task.
+- [x] Organized-photo primary-choice controls, separate from viewing and copying:
+  Use as primary on alternative source tabs, effective-value/refiling preview and
+  one verified-job confirmation. Imported/saved XMP can be selected again; unowned
+  candidates remain refused. Settings defaults do not replace deliberate choices.
+  Automated validation passed; maintainer accepted all Test 10a–10e steps
+  (tests/README.md). No manual checks remain for this primary-source batch.
 - [x] Prominent active-job Settings notice (`webui-spec.md` §3): shared live feed, stable
   geometry across active/idle/unknown states and tabs, no draft reload or separate poll.
   Generic future-jobs notice/save confirmation remain. Maintainer acceptance S2 passed on 2026-10-15.
@@ -449,10 +487,21 @@ Saved orientation stays a separate action from temporary preview rotation.
 - [ ] Deferred broader composition/cross-photo and bulk date controls. Engine support
   exists for qualified common fields; exposing it is outside the first date UI. Preserve
   explicit donor/target roles and never choose primary implicitly (`webui-spec.md` §7.5).
-- [ ] Saved orientation controls, separate from temporary viewing rotation: an
-  end-of-review decision in comparison/photo panels and Rotate… for a selection,
-  with no thumbnail control. Qualified engine Orientation writes are built;
-  UI eligibility must respect format/writer limits.
+- [x] Inline curved-arrow controls on the large preview, with explicit Save rotation /
+  Reset and per-photo targets/refusals. Bulk selection and end-of-review decisions
+  retain the shared confirmation. Verified saves refresh applied XMP previews;
+  viewing turns never save automatically. Bulk turn/reset/save affects checked eligible
+  photos only. Maintainer validation 8a–8g passed.
+- [x] Confirm exact-result embedded edits before consolidation: keep the existing Library
+  photo/name/location, retain both histories and XMP versions, verify before deletion,
+  and refuse Rejects or different primary metadata. Recheck on retry and preserve source
+  originals until a separately confirmed Move. Generated engine/browser validation and
+  maintainer Test 9 are tracked in tests/README.md; all steps 9a–9d passed.
+- [ ] UI polish: simplify the unsaved single-photo rotation exit prompt. The existing
+  navigation behavior passed maintainer Test 8c; this is a separate unimplemented redesign:
+  compact save/discard/keep-reviewing decision instead of the full bulk editor.
+  Proposed labels: Save and continue, Discard and continue, Keep reviewing. Failed saves
+  must retain the photo and explanation. Placement/wording to confirm before changing.
 
 ### Deferred work and open discussions
 
@@ -638,3 +687,7 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
   the photo-filtered operations history across jobs, including linked file identities
   and exact duplicates. Consider a clearer label such as View all photo logs; no new
   filtering feature is needed and no wording change is approved yet.
+
+- [x] Saved rotation log wording: Logs, recent History and lineage derive action labels
+  from recorded metadata intent, including existing operations. Date/source edits also
+  avoid Move labels; status filters and stored outcomes remain intact.

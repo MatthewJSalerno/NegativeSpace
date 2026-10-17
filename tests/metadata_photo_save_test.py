@@ -221,7 +221,7 @@ class PhotoSaves(unittest.TestCase):
         row=self.c.execute('SELECT status,dest_path FROM photos WHERE source_path=?',(str(duplicate),)).fetchone()
         self.assertEqual(row,('Pending',None))
 
-    def test_exact_result_duplicate_is_reported_and_both_files_survive(self):
+    def test_exact_result_duplicate_requires_confirmation_and_preserves_originals(self):
         self.setup_catalog()
         from engine import metadata_embedded
         other=self.root/'dest/library/equal.jpg'
@@ -230,10 +230,11 @@ class PhotoSaves(unittest.TestCase):
         digest=hashlib.sha1(other.read_bytes()).hexdigest()
         self.c.execute("INSERT INTO photos(source_path,dest_path,sha1_hash,status) VALUES(?,?,?,'Copied')",('generated-other',str(other),digest))
         self.c.commit()
-        other_id=self.c.execute('SELECT id FROM photos WHERE source_path=?',('generated-other',)).fetchone()[0]
-        result=self.execute(self.prepare({'title':'Same'}))
-        self.assertEqual(result['exact_duplicate_photo_ids'],[other_id])
-        self.assertEqual(self.dest.read_bytes(),other.read_bytes())
+        result=metadata_save.execute(self.c,self.prepare({'title':'Same'}))
+        self.assertEqual(result['outcome'],'failed',result)
+        self.assertIn('Preview and confirm',result['error'])
+        self.assertEqual(self.dest.read_bytes(),self.original)
+        self.assertEqual(hashlib.sha1(other.read_bytes()).hexdigest(),digest)
         self.assertEqual(self.photo.read_bytes(),self.original)
 
     def test_reject_return_and_index_keep_edited_bytes(self):

@@ -115,6 +115,10 @@ Delivered and validated against a real library. In place today:
 *   Full metadata capture — camera, ISO, aperture, shutter speed, and whatever
     else the source format exposes.
 *   Exact deduplication by SHA-1, including safe removal of duplicate sources.
+    Verified embedded edits can consolidate byte-identical results into an explicitly
+    confirmed existing Library photo, preserving histories/XMP and refusing Rejects
+    or primary-metadata conflicts. Source originals remain until a separately
+    confirmed Move; image-only matching is not a deletion rule.
 *   Rejects: turned-down photos move from `dest/library/` to `dest/rejects/` and can be
     returned; nothing is deleted, and identical copies stay out of the library
     (`engine-spec.md` §9.5).
@@ -147,7 +151,7 @@ evidence but never place a file. See `engine-spec.md` §4.2.
 
 Verified metadata writing is built for XMP sidecars and qualified JPEG embedded
 metadata (`engine-spec.md` §9.6). The first web editor exposes Date taken only;
-primary-choice, broader import decisions and recovery controls remain tracked in TODO.
+broader import decisions and recovery controls remain tracked in TODO.
 
 The agreed XMP import/source-precedence contract and the metadata-source UI are
 tracked in [xmp-metadata.md](xmp-metadata.md). Pure resolution, bounded sidecar reading
@@ -176,7 +180,9 @@ jobs; late sidecars beside an already Copied original use the same decision path
 embedded writer formats are explicitly deferred for this release; JPEG EXIF mapped-field
 removal is qualified. Confirmed incomplete photo/XMP transfer retry and metadata
 setup/Settings preferences are built and have passed maintainer validation; per-file
-association/primary and incoming-choice screens remain planned. Copy preserves source originals;
+first-import ownership/version choices are built in Not organized → Needs attention;
+organized-primary changes are available through a previewed Library action;
+incoming-choice screens remain planned. Copy preserves source originals;
 Move can remove originals whose retained photo was embedded-edited only with one explicit
 confirmation for that job and verified image history, hashes, sidecars and a pre-action
 backup. No exact-original-photo reconstruction is promised. Without that consent, those

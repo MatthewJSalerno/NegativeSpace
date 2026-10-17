@@ -4,26 +4,10 @@ import { TabList, tabPanel } from "./ui/Tabs";
 import { logUrl, follow } from "../nav";
 import { SearchField } from "./ui/SearchField";
 
-const LABELS: Record<string, string> = { date_taken: "Date taken", orientation: "Orientation", camera_make: "Camera make", camera_model: "Camera model", title: "Title", caption: "Caption", keywords: "Keywords", rating: "Rating", creators: "Creators", rights: "Copyright", gps: "Location" };
-const own = (values: Record<string, unknown>, key: string) => Object.prototype.hasOwnProperty.call(values, key);
-function stable(value: unknown): string {
-  if (Array.isArray(value)) return JSON.stringify(value.map(stable));
-  if (value !== null && typeof value === "object") return JSON.stringify(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, stable(v)]));
-  return JSON.stringify(value);
-}
-// Plain default-language text and its XMP language wrapper mean the same value.
-// Keep additional languages, missing fields, arrays and date precision distinct.
-function comparable(value: unknown, key: string) {
-  return ["title", "caption", "rights"].includes(key) && typeof value === "string"
-    ? { "x-default": value } : value;
-}
-function display(values: Record<string, unknown>, key: string) {
-  if (!own(values, key)) return "Not recorded";
-  const value = values[key];
-  if (value === null || value === "" || (typeof value === "object" && Object.keys(value).length === 0)) return "Empty";
-  return typeof value === "string" ? (key === "date_taken" ? value.replace("T", " ") : value) : JSON.stringify(value);
-}
-export function MetadataSources({ photoId, refreshKey, editable = false, jobRunning = false, onEdit }: { photoId: number; refreshKey: number; editable?: boolean; jobRunning?: boolean; onEdit?: (donor?: MetadataSourceView) => void }) {
+import { LABELS, own, stable, comparable, display } from "./metadataFields";
+import { MetadataFieldTable } from "./MetadataFieldTable";
+
+export function MetadataSources({ photoId, refreshKey, editable = false, jobRunning = false, onEdit, onPrimary }: { photoId: number; refreshKey: number; editable?: boolean; jobRunning?: boolean; onEdit?: (donor?: MetadataSourceView) => void; onPrimary?: (source: MetadataSourceView, captureId: number) => void }) {
   const [data, setData] = useState<MetadataView | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -84,6 +68,12 @@ export function MetadataSources({ photoId, refreshKey, editable = false, jobRunn
         <label>Sidecar version <select value={kind === "sidecar_xmp" ? source.id : sidecars[0].id} disabled={kind !== "sidecar_xmp"}
           onChange={e => setSelected(e.target.value)}>{sidecars.map((s, i) => <option key={s.id} value={s.id}>{s.version_id != null ? `Version ${s.version_id}` : `Unreadable sidecar ${i + 1}`}{s.id === data.primary_id ? " · Primary" : " · Alternative"}</option>)}</select></label>
       </div>}
+      {editable && onPrimary && <div className="metadata-primary-action">
+        <button className="link" style={{visibility: source.available && source.id !== primary?.id && data.capture_id != null ? undefined : "hidden"}}
+          disabled={jobRunning || !source.available || source.id === primary?.id || data.capture_id == null}
+          title={jobRunning ? "Wait for the running job to finish." : "Preview this source’s metadata and filing changes."}
+          onClick={() => onPrimary(source, data.capture_id!)}>Use as primary…</button>
+      </div>}
       {source.issues.map((issue, i) => <p key={i} className="notice">{issue.detail || issue.code.replaceAll("_", " ")}</p>)}
       {!source.available ? <p className="muted">{source.issues.length ? "This metadata could not be read. See the issue above or open the photo logs." : "No metadata recorded for this source."}</p> : <>
         <div className="metadata-source-options">
@@ -92,14 +82,15 @@ export function MetadataSources({ photoId, refreshKey, editable = false, jobRunn
         </div>
         <SearchField placeholder="Filter fields" value={query} onValueChange={setQuery} aria-label="Filter source fields" clearLabel="Clear source field filter" />
         <p className="section-note">Dates are shown as recorded; no time zone is assumed.</p>
-        <table className="review-metadata-table"><caption>{comparing ? `${source.label} compared with ${primary.label}` : source.label}</caption><thead><tr><th scope="col">Field</th>{comparing && <th scope="col">Primary value</th>}<th scope="col">{comparing ? "This source" : "Value"}</th></tr></thead><tbody>
-          {shown.map(k => <tr key={k} data-different={comparing && differs(k)}><th scope="row">{LABELS[k] ?? k}{comparing && differs(k) && <small>Different</small>}</th>{comparing && <td>{display(primary.fields,k)}</td>}<td>{display(source.fields,k)}{k === "date_taken" && editable && onEdit && <>
+        <MetadataFieldTable caption={comparing ? `${source.label} compared with ${primary.label}` : source.label}
+          fields={shown} source={source.fields} primary={comparing ? primary.fields : undefined}
+          extra={k => <>
+          {k === "date_taken" && editable && onEdit && <>
             {source.id === primary?.id ? <>{" · "}<button className="link" disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Edit Date taken in the primary metadata source."} onClick={() => onEdit()}>Edit metadata date…</button></>
               : canCopyDate && <>{" · "}<button className="link" disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Copy only Date taken into the primary metadata source."} onClick={() => onEdit(source)}>Copy date to primary…</button></>}
           </>}
           {k === "date_taken" && source.id === primary?.id && dateAlternatives.length > 0 && <p className="section-note">Primary has no Date taken. A date is recorded in {dateAlternatives.map((alternative, i) => <span key={alternative.id}>{i > 0 && ", "}<button className="link" onClick={() => {setSelected(alternative.id); setQuery("");}}>{alternative.label}</button></span>)}. Review it before deciding whether to copy.</p>}
-          </td></tr>)}
-        </tbody></table>
+          </>} />
         {!shown.length && <p className="muted">{comparing && differences ? "No differing fields match this filter." : "No comparable fields recorded or matching this filter."}</p>}
       </>}
       {tags.length > 0 && <details><summary>All recorded source tags ({shownTags.length}{shownTags.length !== tags.length ? ` of ${tags.length}` : ""})</summary>

@@ -6,10 +6,10 @@ import posixpath
 from pathlib import Path
 from typing import Optional
 
-from engine import ns_db, review, attention
+from engine import ns_db, review, attention, metadata_choices
 from engine import ns_similarity_cache
 from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
-from . import catalog, metadata_view
+from . import photo_orientation, catalog, metadata_view
 
 
 # An uncorrelated settings lookup is evaluated once per statement, not per photo.
@@ -140,7 +140,9 @@ def _run_clause(run):
         return "", ()
     if type(run) is not int or not 1 <= run <= 2**63-1:
         raise ValueError("run must be a positive job id")
-    return " AND p.id IN (SELECT o.photo_id FROM operations o WHERE o.run_id = ? AND o.photo_id IS NOT NULL)", (run,)
+    return (" AND p.id IN (SELECT o.photo_id FROM operations o WHERE o.run_id = ? AND o.photo_id IS NOT NULL "
+            "UNION SELECT json_extract(e.detail_json,'$.survivor_photo_id') FROM operations o "
+            "JOIN operation_events e ON e.operation_id=o.id WHERE o.run_id=? AND e.step='metadata_consolidated')"), (run,run)
 
 
 def _filters(q, undated, dates, types=None, folders=None, root=None, *, group_sets=False, group_view=None, match_min=75, set_reference=None, run=None, similar=False, suspicious=False, reason="all"):
@@ -661,13 +663,16 @@ def _exif_tag(meta, group, name):
     return meta.get(f"{group}:{name}", meta.get(name))
 
 
-def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
+def inspect_photo(db_path: Path, photo_id: int, *, source_root=None, destination_root=None) -> Optional[dict]:
     """The Inspector's details (webui-spec 4.2, 6.2): paths, dates with their source,
     hashes, dimensions, camera, and every catalogued copy of the same content."""
     with catalog.connect(db_path) as conn:
         p = conn.execute(f"SELECT p.*, {_date_warning_sql()} AS date_warning FROM photos p WHERE id = ?", (photo_id,)).fetchone()
         if p is None:
             return None
+        destination = p["dest_path"]
+        if p["status"] == PhotoStatus.PENDING and source_root is not None and destination_root is not None:
+            destination = metadata_choices.projected_destination(conn, photo_id, source_root, destination_root) or destination
         meta = json.loads(p["metadata_json"]) if p["metadata_json"] else {}
         content = conn.execute("SELECT width, height, phash, phash_state FROM contents WHERE hash_algorithm = 'sha1' AND digest = ?",
                                (p["sha1_hash"],)).fetchone() if p["sha1_hash"] else None
@@ -680,6 +685,8 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
         snapshot = conn.execute(
             "SELECT s.file_mtime FROM photo_files pf JOIN source_snapshots s USING(file_id) "
             "WHERE pf.photo_id = ?", (photo_id,)).fetchone()
+        display_width, display_height = photo_orientation.dimensions(conn, photo_id,
+            content['width'] if content else None, content['height'] if content else None)
         issues = attention.for_photo(conn, photo_id)
         metadata_attention = metadata_view.source_attention(conn, [photo_id]).get(photo_id)
         failure = None
@@ -697,7 +704,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
     return {
         "id": p["id"], "status": p["status"],
         "filename": catalog._basename(p["dest_path"] if p["status"] in catalog.AT_DESTINATION else p["source_path"]),
-        "source_path": p["source_path"], "dest_path": p["dest_path"],
+        "source_path": p["source_path"], "dest_path": destination,
         "dest_path_is_projection": p["status"] not in catalog.AT_DESTINATION,
         "has_collision_rename": bool(p["has_name_collision"]),
         "file_size": p["file_size"],
@@ -714,6 +721,7 @@ def inspect_photo(db_path: Path, photo_id: int) -> Optional[dict]:
                        for field, group, key, offset_key in _EXIF_DATES if _exif_tag(meta, group, key)],
         "iso": meta.get("ISO"), "aperture": meta.get("FNumber"), "shutter": meta.get("ExposureTime"),
         "width": content["width"] if content else None, "height": content["height"] if content else None,
+        "display_width": display_width, "display_height": display_height,
         "sha1": p["sha1_hash"], "phash": p["phash"],
         "duplicates": copies,
         # Every tag the Index recorded (ExifTool's full set, not a curated subset), for

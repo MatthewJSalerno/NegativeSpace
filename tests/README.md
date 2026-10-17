@@ -49,6 +49,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | `filter_pins_browser_drive.py` | PR / main / manual | — |
 | `fresh_start_browser_drive.py` | PR / main / manual | — |
 | `gallery_position_browser_drive.py` | PR / main / manual | — |
+| `import_choices_browser_drive.py` | PR / main / manual | `IMPORT_CHOICES_FIXTURE=1` |
 | `metadata_dates_browser_drive.py` | PR / main / manual | `METADATA_VIEW_FIXTURE=1` |
 | `metadata_settings_browser_drive.py` | PR / main / manual | `METADATA_SETTINGS_FIXTURE=1` |
 | `pair_retry_browser_drive.py` | PR / main / manual | `PAIR_RETRY_FIXTURE=1` |
@@ -2560,3 +2561,280 @@ through Test 3b, passed. No manual checks remain for this batch. Use the existin
       date, then Cancel without saving. Expect to return to expanded Metadata.
    b. Check the expanded view at 200% browser zoom and in dark mode. Panes may stack
       at narrow widths; text and controls remain reachable. Close returns to the gallery.
+
+## XMP import-choice validation
+
+Automated: `metadata_choices_test.py` runs in the app image with unittest discovery.
+It covers HTTP/engine binding, read-only preview, ownership/version saving, exact replay,
+stale/conflicting requests, malformed input, active-job refusal and verified Copy.
+`IMPORT_CHOICES_FIXTURE=1 DRIVER=import_choices_browser_drive.py` uses the browser harness
+for cancellation, selection, comparison, responsive draft retention and real import.
+Both run in PR/main CI. Generated fixtures are built by
+`tests/browser/import_choices_fixture.py`; they do not use personal photos.
+
+Automated results: production app/web builds, 140 focused API/metadata regressions,
+the final 50-test import/decision run (including eight new choice tests), the real browser
+workflow and all three
+contract checks passed. Browser screenshots were inspected at desktop and narrow widths.
+These checks do not replace maintainer acceptance or the full pre-push CI run.
+
+Maintainer acceptance: Tests 1a–1c, 3b and 4a–4d passed. The fixtures have already
+been copied; no repeat Copy, reset or Index is needed. Corrected Test 2b has automated
+browser coverage; its original source-only state no longer needs manual recreation.
+Maintainer Tests 5 and 6 also passed. Earlier checks remain accepted.
+Maintainer Tests 7a/7b and all Tests 8a–8g passed. The proposed compact single-photo exit prompt is separate UI polish, not an outstanding validation step.
+
+**Test 1 — Shared sidecar ownership**
+
+- **1a.** In Not organized → Needs attention, search `choice-shared.jpg`, open it, and
+  choose **Resolve XMP choices…**. Expect `choice-shared.jpg` and `choice-shared.png`
+  as unchecked candidates for `choice-shared.xmp`.
+- **1b.** Select only `choice-shared.jpg`, then Preview choice. Confirm that the owner
+  list contains only that photo. Resize the window; the confirmation must remain open.
+  Choose Decide later, reopen, and confirm nothing was saved.
+- **1c.** Choose the JPG again, preview and Save choice. Expect confirmation that source
+  files are unchanged and Copy/Move applies the choice. Close and reopen: ownership is saved.
+
+**Test 2 — Competing XMP versions**
+
+- **2a.** Search `choice-versions.jpg` in Not organized → Needs attention. Open Resolve
+  XMP choices. Compare recorded fields: `choice-versions.xmp` has Date taken
+  `2011-03-04T05:06:07`; `choice-versions.XMP` has `2012-04-05T06:07:08`.
+- **2b.** Choose the uppercase `.XMP` version and preview. Expect the 2012 filing date,
+  a reminder that no file moves now, and a separate Save choice action. After saving,
+  expect **XMP choices saved**, the chosen version and 2012 date, with no radio choices
+  or further Save prompt. Close and reopen: the saved summary should remain. For a photo
+  already saved during testing, reopening is sufficient; do not save again. Optional
+  **Change XMP version…** opens editing deliberately; closing it leaves the saved choice intact.
+  After closing the dialog, Proposed destination should contain
+  `library/2012/04/05/choice-versions.jpg`, not Undated. No Copy or repeat save is needed.
+
+**Test 3 — Apply through Copy**
+
+- **3a.** In Not organized, select `choice-shared.jpg`, `choice-shared.png` and
+  `choice-versions.jpg`, then Copy selected. Expect all three to reach Library.
+  `choice-shared.jpg` uses 2010-02-03; `choice-versions.jpg` uses 2012-04-05.
+- **3b.** In Library, open each JPG's Metadata tab. Expect its imported XMP to be Primary;
+  the choice warning is gone. The PNG has no sidecar primary. Originals remain in the
+  source because this was Copy. No existing Library photo should acquire import controls.
+
+**Test 4 — Saved choices and applied history**
+
+- **4a.** In Not organized, open `choice-versions.jpg` (or Library if already copied).
+  In File information, use **View lineage tree**, then expand **Metadata choices**. Expect
+  **Saved primary for import**, `choice-versions.XMP`, its 2012 date, save time and
+  choice number. The saved entry says **No files changed**, even after a later Copy.
+- **4b.** Choose **Open in the log**. The photo-filtered Logs page shows the same
+  saved choice after expanding **Metadata choices**. After Test 3, it also shows **Applied metadata
+  during import**, the choice number and a link to the Copy job. Open that link: it
+  filters to that job and explains why saved choices are excluded by the job filter.
+- **4c.** Open `choice-shared.png` (Not organized or Library). Its lineage's Metadata
+  choices, when expanded, should show the saved ownership of `choice-shared.xmp` for
+  `choice-shared.jpg` only. After Test 3, the PNG has no applied-XMP entry; the JPG
+  has an applied entry linking to its Copy job. Earlier choices remain history if revised.
+
+- **4d.** In Library, open `choice-versions.jpg` → **View lineage tree**. Metadata
+  choices starts collapsed. Expand it to see the same saved/applied history. Close and
+  reopen the lineage: it starts collapsed again. Use **Open in the log**; Metadata choices
+  also starts collapsed there and remains available to expand. Tests 4a/4b stay passed.
+
+Automated coverage for this history includes paging, photo/search/date/job/status
+filters, literal search escaping, shared candidates, request replay, revision retention,
+unchanged operation counts, and rendering in Logs/lineage before and after real Copy
+using generated fixtures. Existing manual Test 1 acceptance remains valid.
+
+Automated comparison validation: 13 import-choice/history tests and 16 metadata-view
+regressions passed. Generated browser workflows passed for import-choice comparisons
+(including no active primary, excluded candidates, difference filtering, keyboard focus,
+light/dark mode and resizing), existing source tabs and date editing/copying. App/web
+builds and API/schema/spec checks passed. Historical values remain unchanged after a
+later source-sidecar edit and Index; unrelated photo/choice IDs are refused. No UI
+acceptance is inferred from these checks. The maintainer subsequently passed Test 5,
+with a discoverability note for Metadata choices in Logs.
+
+**Test 5 — Compare a saved choice without changing ownership**
+
+- **5a.** In Library, search `choice-shared.png`. Open File information → View lineage
+  tree → expand Metadata choices → Compare metadata… on its saved ownership entry.
+  Expect the PNG name, the recorded `choice-shared.xmp`, and a clear statement that
+  it was assigned only to `choice-shared.jpg`, not applied to this PNG.
+- **5b.** Compare Current primary against Recorded XMP. The recorded XMP Date taken
+  is `2010-02-03 04:05:06`. Toggle Show differences only; differing fields stay visible,
+  equal fields disappear. Missing values say Not recorded, not Empty. No editing or
+  Save action appears. Resize or use 200% zoom; the dialog remains usable.
+- **5c.** Close the comparison, then choose Open in the log from lineage. Expand
+  Metadata choices and reopen Compare metadata…. It still compares the PNG, not the
+  JPG. Close it and inspect the PNG's Metadata tab: no sidecar has been associated.
+  Earlier Tests 1–4 remain accepted; no repeat import is required.
+
+Portrait-fit automated checks passed for portrait/landscape sizing, wide-layout detail
+scrolling, divider resizing, reference labels and narrow reflow. The standard browser
+suite passed on rerun; its first attempt stopped at page restoration before opening any
+Inspector (the preceding build also passed). No pagination test or app behavior was
+changed. Live demo portrait sizing was inspected before/after, with files unchanged.
+
+**Test 6 — Enlarged portrait fits the window**
+
+- **6a.** In Library, search `orientation-7.jpg` and click the large preview to enlarge
+  it. Confirm the entire photo is visible, including its top and bottom, without cropping.
+- **6b.** Scroll the information pane. The full photo should remain visible in the
+  wide layout. Resize the window and try the divider; it should scale to fit its area.
+- **6c.** Close the enlarged view. Confirm the normal preview also shows the whole photo.
+  This changes viewing only; no photo files or orientation metadata are modified.
+
+
+**Test 7 — Find Metadata choices**
+
+- **7a.** In Library search `choice-versions.jpg`, open its lineage, then Open in the log.
+  Metadata choices should be easy to spot as a distinct section, collapsed initially.
+- **7b.** Expand it with a click or Enter. Saved/applied entries and Compare metadata…
+  should work as before. Collapse it again; try a narrow window.
+
+**Test 8 — Inline rotation (8a–8g passed)**
+
+Use Library photos `choice-versions.jpg` and `orientation-7.jpg`. Tests 1–7 remain
+accepted. These steps save Orientation only; no reset, Index or Copy is needed when
+these files are already organized.
+
+- **8a.** Open `choice-versions.jpg` in Library. Click the curved **Rotate right** arrow
+  beside the large preview. The photo turns in place, without another popup. Save rotation
+  and Reset appear, and the target says XMP Sidecar. Reset restores the starting view.
+- **8b.** Turn right again, click the large preview to enlarge it, then Save rotation.
+  Wait for Rotation saved. Close the enlarged view and reload: the preview and thumbnail
+  retain the turn. Metadata shows Orientation in the same primary source; the date and
+  filing location stay unchanged. Turn left and save to restore the starting orientation.
+- **8c.** Make an unsaved turn on `choice-versions.jpg`, then Next photo. Return to photo
+  preserves the turn. Try clicking another gallery photo, then Discard viewing turns and
+  leave. It opens that photo without saving. The same decision protects close/Back.
+- **8d.** On `choice-versions.jpg`, open Similar photos → Review side by side. Each preview
+  has curved arrows and its own Save rotation/Reset. Save a right turn on the reference,
+  then save a left turn to restore it. Turn reference and candidate without saving,
+  navigate to another candidate, then Back or Escape: both turned photos appear in the
+  exit decision. Discard viewing turns and leave; neither temporary turn is saved.
+- **8e.** Select `choice-versions.jpg` and `orientation-7.jpg` in Library. Rotate… still
+  opens a bulk dialog. Uncheck one before turning; only the checked preview should turn.
+  Reset should affect only checked photos too. Uncheck both: turn/reset/save should be
+  disabled. Recheck one and save; only that photo changes. Restore it with the opposite turn.
+- **8f.** On `orientation-7.jpg`, repeat viewing turns in the normal and enlarged preview
+  at 200% zoom or a narrow window. The whole image fits; arrows, Save/Reset, target and
+  results remain accessible. Reset without saving. Open View job details from a saved
+  rotation and confirm the job reports its result.
+
+Automated `rotations_test.py` uses generated files for all eight orientations, mirrored
+transforms, embedded pixel preservation, XMP-only writes, request replay, stale previews,
+source/rejected refusals and malformed requests. Run in Docker like metadata_dates_test.py.
+The generated import-choice browser workflow also exercises rotation confirmation,
+preview refresh, reset, candidate navigation, exit/discard and responsive layout.
+
+
+Visibility/rotation automation passed: 35 focused rotation/import/date tests, 90 existing
+metadata planning/publication/viewer tests, the generated import/rotation browser workflow,
+the similarity browser regression, and the standard browser workflow. API/schema/spec
+contracts and production builds passed. This is targeted validation, not the full
+pre-push suite. Maintainer Tests 7a/7b and 8a–8g passed.
+
+Rotation history follow-up **8g**: open `choice-versions.jpg` after a saved rotation.
+In **File information → History**, **View lineage tree**, and **Open in the log**,
+confirm the successful rotation says **Rotation saved**, not Moved. Existing saved
+rotations also use this wording; no fresh Index or Copy is needed.
+
+Rotation action-label follow-up: 123 rotation/date/API checks and the generated
+browser workflow passed; API/schema/spec contracts and production builds passed.
+
+Maintainer validation: **8d, 8e, 8f and 8g passed**. No repeat of those checks is
+needed. The maintainer subsequently confirmed **8c passed** as well: the existing unsaved-turn navigation behavior works. A smaller prompt remains a separate UI-polish proposal; this pass does not claim that redesign was implemented.
+
+
+**Test 9 — Confirm an edit that creates an identical photo (9a–9d passed)**
+
+Use the generated `dedup-rotate-edit.jpg`, `dedup-rotate-keep.jpg`,
+`dedup-date-edit.jpg` and `dedup-date-keep.jpg` fixtures. These are generated JPEGs;
+whole-file equality is intentional only after the requested edit. Do not substitute
+ordinary look-alikes. Earlier Tests 8a–8g remain passed.
+
+- **9a — Prepare:** Index and Copy the new fixtures. In Library, search
+  `dedup-rotate-` and confirm both filenames appear. Repeat with `dedup-date-`.
+- **9b — Rotation:** Open `dedup-rotate-edit.jpg`, rotate right once, then choose
+  **Save rotation**. The inline confirmation must name `dedup-rotate-keep.jpg`,
+  explain which copy is removed and state that histories/XMP are preserved. Cancel
+  first: both photos must remain. Save again and choose **Save and keep existing
+  photo**. The existing photo opens and keeps its original name/location. Library
+  search `dedup-rotate-` now has one organized photo. The confirmation stays beside
+  the rotation controls; no separate rotation dialog should open.
+- **9c — Date:** Open `dedup-date-edit.jpg` → Metadata → **Edit metadata date…**.
+  Enter `2010-02-03T04:05:06` and preview. It must name `dedup-date-keep.jpg` as the
+  survivor and show that file's location. Nothing is removed during preview. Confirm
+  **Save and keep existing photo**. Open the surviving photo from the result;
+  Library search `dedup-date-` must show one organized photo.
+- **9d — History:** For each surviving `dedup-…-keep.jpg`, open Logs and lineage.
+  The saved action must say Rotation saved or Date saved and explain which existing
+  photo was kept. Both source histories remain accessible. The job's **Show these
+  photos** link must include the survivor. Source originals remain; do not run Move
+  as part of this manual check.
+
+Generated automation: `metadata_duplicates_test.py` covers exact-result confirmation,
+Rejects and primary conflicts, active/inactive sidecars, changed survivors, new matches
+after preview, interrupted unlink/retry, reindex/Copy, later consented Move, job-gallery
+membership and both histories after another edit. It runs in CI using the standard
+unittest command. The `IMPORT_CHOICES_FIXTURE=1` browser driver covers rotation/date
+confirmation, Cancel, survivor navigation, preserved sources and Logs. These checks do
+not certify automatic cleanup of duplicates left by earlier releases. Production
+image-content matching remains deferred.
+
+Exact-result validation (2026-10-17): the 14 new duplicate cases passed within the
+69-test duplicate/relocation/source-cleanup run (85.768s). The preceding metadata
+regression run passed 224 tests (199.099s); the final Move/API/rotation run passed
+122 (125.108s). These runs overlap; counts are not a unique-test total. The full
+engine smoke runner passed 154, failed 0, skipped 0, including both public RAW
+checks. Generated browser validation passed existing XMP choices, rotations and
+reflow plus exact-result rotation/date confirmations, cancellation, preserved
+sources, survivor navigation and Logs. App/web builds, API/schema/spec checks and
+`git diff --check` passed. Maintainer confirmed all of Test 9 (9a–9d) passed; this is not a claim
+that every suite in the repository was rerun or that the proposed compact exit-prompt redesign is implemented.
+
+
+### Organized-photo primary source — Test 10 (10a–10e passed)
+
+Maintainer confirmed all Test 10 steps (10a–10e) passed. Tests 8a–8g and 9a–9d
+remain passed. No manual checks remain for this primary-source batch.
+The generated `primary-sources.jpg` fixture has three deliberately different dates:
+XMP Sidecar **2021-02-03 04:05:06**, Embedded XMP **2022-02-03 04:05:06**,
+and EXIF **2023-01-15 09:30:00**. Search by that exact filename, not a source path.
+It is prepared with `tests/browser/import_choices_fixture.py <owned-output> --primary-only`.
+
+- **10a — Prepare and inspect:** Run Index, then Copy. In Library, search
+  `primary-sources.jpg`, open it and select Metadata. XMP Sidecar initially has the
+  Primary badge. Viewing EXIF or Embedded XMP does not move that badge. On either
+  alternative tab, Use as primary appears above the fields; the primary tab has no
+  active link. Date copying remains a separate link beside Date taken.
+- **10b — Preview and cancel:** On EXIF, choose Use as primary. Confirm the preview
+  shows 2021 → 2023 and a resulting folder ending `2023/01/15/primary-sources.jpg`.
+  Cancel. XMP Sidecar remains primary and the photo stays in its 2021 folder.
+- **10c — Confirm EXIF:** Repeat 10b and choose Change primary and move file. Wait
+  for Primary source changed, then Close. EXIF has the Primary badge; Photo information
+  shows the 2023 date and destination. Reopen Metadata: Edit metadata date belongs to
+  EXIF. Other source values remain readable.
+- **10d — Other sources and return:** Choose Embedded XMP → Use as primary and confirm.
+  Check the 2022 date/folder. Then choose XMP Sidecar → Use as primary and confirm.
+  Check the 2021 date/folder and Primary badge. Refresh: Sidecar remains primary.
+- **10e — History and layout:** Open this photo's Logs and expand its metadata jobs.
+  Each operation says Metadata source changed. Reopen a primary preview; resize the
+  window or use 200% text scaling. Read all differences/paths and reach Cancel/Save
+  without horizontal clipping. Cancel to leave the photo as it is.
+
+Automated coverage: `metadata_primary_ui_test.py` (8 tests) exercises real jobs,
+all three sources, refiling, preserved bytes, request replay, stale settings, invalid
+requests, eligibility, collisions, imported/saved sidecar reuse and refusal of
+unassigned candidate XMP. The existing primary/save/view suites passed 67 additional
+checks. The new browser driver passed Cancel/focus, three-source switches, file bytes,
+source preservation, primary refresh, Logs, narrow reflow and 200% text scaling.
+The final reindex regression and viewer checks passed together (24 tests).
+API/schema/spec checks and image builds passed. The full engine smoke was not repeated
+for this focused UI batch; its preceding branch run passed 154 tests, including RAW.
+
+CI runs the Python suite and the generated browser workflow:
+
+```sh
+docker run --rm -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_primary_ui_test.py -v
+METADATA_VIEW_FIXTURE=1 DRIVER=metadata_primary_browser_drive.py sh tests/browser/webui_browser_test.sh
+```

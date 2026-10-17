@@ -1,6 +1,7 @@
+import { DuplicateEditNotice } from "./DuplicateEditNotice";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, type DateEditContext, type DateEditPreview, type MetadataSourceView, type Run } from "../api";
-import { follow, logUrl, navigate, guardNavigation } from "../nav";
+import { follow, logUrl, photoUrl, navigate, guardNavigation } from "../nav";
 import { Modal } from "./ui/Modal";
 import { Field } from "./ui/Field";
 
@@ -120,14 +121,15 @@ export function DateEditor({ photoId, donor, onClose, onSaved }: {
           <h3>{preview.no_change ? "No changes needed" : "Confirm date and location"}</h3>
           <dl><dt>Before</dt><dd>{recorded(preview.before)}</dd><dt>After</dt><dd>{preview.after === "" ? "Explicitly cleared" : preview.after}</dd>
             <dt>Current location</dt><dd><code>{preview.filing.current}</code></dd>
-            <dt>Resulting location</dt><dd><code>{preview.filing.proposed}</code></dd></dl>
-          {preview.filing.collision_renamed && <p>The filename has been numbered to avoid an existing file. Nothing will be overwritten.</p>}
+            <dt>Resulting location</dt><dd><code>{preview.duplicate?.path ?? preview.filing.proposed}</code></dd></dl>
+          {!preview.duplicate && preview.filing.collision_renamed && <p>The filename has been numbered to avoid an existing file. Nothing will be overwritten.</p>}
+          {preview.duplicate && <DuplicateEditNotice duplicate={preview.duplicate}/>}
           <p>{preview.no_change ? "The date and filing location already match. Nothing will be written." : "Only Date taken and its time details are saved. Files and naming conflicts are checked before any changes."}</p>
         </section>}
         <div className="settings-actions">
           <button disabled={busy} onClick={close}>Cancel</button>
           {preview ? <><button disabled={busy} onClick={() => setPreview(null)}>Back to edit</button>
-            <button className="primary" disabled={busy || preview.no_change} onClick={() => void save()}>{busy ? "Submitting…" : preview.filing.change ? "Save date and move file" : "Save date"}</button></>
+            <button className="primary" disabled={busy || preview.no_change} onClick={() => void save()}>{busy ? "Submitting…" : preview.duplicate ? "Save and keep existing photo" : preview.filing.change ? "Save date and move file" : "Save date"}</button></>
           : <button className="primary" disabled={busy || !!dateError || (!clear && !value.trim())} onClick={() => void plan()}>{busy ? "Checking…" : "Preview change"}</button>}
         </div>
       </>}
@@ -135,6 +137,7 @@ export function DateEditor({ photoId, donor, onClose, onSaved }: {
         <section role="status">
           {run.status === "Completed" ? <p>Date taken was saved to {context ? targetName(context.target.kind) : "the primary metadata source"}.</p>
             : <p>Metadata job #{run.id}: {run.status}</p>}
+          {run.status === "Completed" && preview?.duplicate && <p>The existing photo was kept. <a href={photoUrl(preview.duplicate.photo_id)} onClick={follow}>Open {preview.duplicate.filename}</a></p>}
           {run.status === "Failed" && <p>The save did not complete. Review the job details and any file issue before starting another edit.</p>}
         </section>
         <footer className="settings-actions">

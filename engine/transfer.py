@@ -328,6 +328,14 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
             "AND f.step='source_cleanup_complete'))" + predicate,predicate_params).fetchall()
         included = {row[0] for row in pending_records}
         pending_records.extend(row for row in cleanup_retries if row[0] not in included)
+    # Consolidated edited copies retain their originals until a confirmed Move.
+    # They need image-preserving edit proof, not ordinary byte-identical cleanup.
+    if args.move:
+        consolidated = conn.execute("SELECT id,source_path,dest_path,metadata_json FROM photos WHERE status='Duplicate' "
+            "AND EXISTS(SELECT 1 FROM operations o JOIN operation_events e ON e.operation_id=o.id "
+            "WHERE o.photo_id=photos.id AND e.step='metadata_consolidated')" + predicate,predicate_params).fetchall()
+        included = {row[0] for row in pending_records}
+        pending_records.extend(row for row in consolidated if row[0] not in included)
     # Rejected photos whose source is still here (engine-spec 9.5): the Move carries them
     # to their place in Rejects, not into the library, and they stay rejected.
     rejected_ids = {row[0] for row in cursor.execute(
@@ -841,7 +849,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         if duplicate_records:
             runtime.run_progress.start("removing_duplicates", len(duplicate_records))
         for index, (record_id, dup_src_str, sha1_hash) in enumerate(duplicate_records):
-            if record_id in incoming_handled:
+            if record_id in incoming_handled or record_id in edited_ids:
                 continue
             if runtime.run_progress.due():
                 runtime.run_progress.write(conn)
@@ -1032,7 +1040,7 @@ def _run_move_or_copy(args, db_path: Path, dest_path: Path, run_id: int) -> str:
         copy_skips = 0
         incoming_copy_count = 0
         for record_id, dup_src_str, sha1_hash in cursor.fetchall():
-            if record_id in incoming_handled:
+            if record_id in incoming_handled or record_id in edited_ids:
                 continue
             conn.commit()
             try:

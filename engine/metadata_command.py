@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import sys
 
-from engine import backups, jobs, metadata_edits, metadata_incoming_apply, metadata_reproduce, metadata_save, ns_db, runtime, xmp
+from engine import backups, jobs, metadata_edits, metadata_duplicates, metadata_incoming_apply, metadata_reproduce, metadata_save, ns_db, runtime, xmp
 from engine.ns_db import RunStatus
 
 
@@ -100,7 +100,7 @@ def _preview_function(edit):
 
 def previews(db_path, root, request):
     validate(request, 'preview')
-    return {'previews': [(_preview_function(edit))(db_path, destination_root=root, **edit)
+    return {'previews': [metadata_duplicates.preview(db_path, (_preview_function(edit))(db_path, destination_root=root, **edit))
                          for edit in request['edits']]}
 
 
@@ -126,7 +126,7 @@ def run(args, db_path, base_dir, lock_fd, request):
                         continue
                     try:
                         values = {k:v for k,v in item.items() if k != 'token'}
-                        preview = _preview_function(values)(db_path, destination_root=root, settings=config, **values)
+                        preview = metadata_duplicates.preview(db_path, _preview_function(values)(db_path, destination_root=root, settings=config, **values))
                         if preview['token'] != item['token']:
                             raise ns_db.RevisionConflict('Metadata preview changed; review it again')
                         op = metadata_save.prepare(conn, run_id=run_id, preview=preview, db_path=db_path,

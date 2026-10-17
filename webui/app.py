@@ -11,17 +11,17 @@ import json
 import sqlite3
 from typing import List, Optional
 
-from fastapi import Body, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import Body, FastAPI, HTTPException, Path as PathParam, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
-from engine import ns_db, review, attention, pair_retry
+from engine import ns_db, review, attention, pair_retry, metadata_choices
 from engine import ns_similarity
 from engine import ns_similarity_recovery
-from . import catalog, catalog_backups, gallery, lineage, oplog, outcomes, stats
-from . import access, matching, notifications, security, metadata_view, metadata_dates
+from . import catalog, catalog_backups, gallery, lineage, metadata_history, oplog, outcomes, stats
+from . import access, matching, notifications, security, metadata_view, metadata_dates, metadata_primary, rotations, photo_orientation
 from . import config, jobs as job_commands
 from .config import Config
 from .jobs import JobRefused, JobRunner
@@ -368,6 +368,32 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(400, {"error": "invalid_request", "message": "The photo must match the URL."})
         return jobs.review_decision(body)
 
+    @app.get("/api/v1/photos/{photo_id}/import-choices")
+    def import_choices(photo_id: int):
+        try:
+            return metadata_choices.context(cfg.db_path, photo_id, cfg.source)
+        except (ValueError, ns_db.RevisionConflict) as exc:
+            raise _bad_request(exc)
+
+    @app.post("/api/v1/photos/{photo_id}/import-choices/preview")
+    def preview_import_choice(photo_id: int, body: dict = Body(...)):
+        if len(json.dumps(body)) > 65536 or type(body.get('photo_id')) is not int or body.get('photo_id') != photo_id:
+            raise _bad_request(ValueError('Choose this photo within the request size limit.'))
+        try:
+            return metadata_choices.preview(cfg.db_path, body, cfg.source)
+        except ns_db.RevisionConflict as exc:
+            raise HTTPException(409, {'error':'import_choice_changed','message':str(exc)})
+        except (ValueError, TypeError) as exc:
+            raise _bad_request(exc)
+
+    @app.post("/api/v1/photos/{photo_id}/import-choices/confirm")
+    def confirm_import_choice(photo_id: int, body: dict = Body(...)):
+        choice=body.get('choice')
+        if (len(json.dumps(body)) > 65536 or not isinstance(choice,dict)
+                or type(choice.get('photo_id')) is not int or choice.get('photo_id') != photo_id):
+            raise _bad_request(ValueError('Confirm the preview for this photo.'))
+        return jobs.import_choice(body)
+
     @app.get("/api/v1/photos/{photo_id}/issues")
     def photo_issues(photo_id: int):
         with catalog.connect(cfg.db_path) as conn:
@@ -404,6 +430,17 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         run_id = jobs.check_issue(body.get('issue_id'), body.get('request_id'))
         return outcomes.get_run(cfg.db_path, run_id)
 
+    @app.post("/api/v1/rotations/preview")
+    def rotation_preview(body: dict = Body(...)):
+        try:
+            return rotations.preview(cfg, body)
+        except (ValueError, TypeError) as exc:
+            raise _bad_request(exc)
+
+    @app.post("/api/v1/rotations/save", status_code=202)
+    def rotation_save(body: dict = Body(...)):
+        return outcomes.get_run(cfg.db_path, jobs.save_rotations(body))
+
     @app.get("/api/v1/photos/{photo_id}/date-edit")
     def date_edit_context(photo_id: int):
         try:
@@ -425,6 +462,19 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         run = jobs.save_date(photo_id,body)
         return outcomes.get_run(cfg.db_path,run)
 
+    @app.post("/api/v1/photos/{photo_id}/primary-preview")
+    def primary_preview(photo_id: int, body: dict = Body(...)):
+        try:
+            return metadata_primary.preview(cfg, photo_id, body)
+        except ns_db.RevisionConflict as exc:
+            raise HTTPException(409, {'error':'metadata_changed','message':str(exc)})
+        except (ValueError, TypeError, OSError) as exc:
+            raise _bad_request(exc)
+
+    @app.post("/api/v1/photos/{photo_id}/primary-save", status_code=202)
+    def primary_save(photo_id: int, body: dict = Body(...)):
+        return outcomes.get_run(cfg.db_path, jobs.save_primary(photo_id, body))
+
     @app.get("/api/v1/photos/{photo_id}/metadata")
     def photo_metadata(photo_id: int):
         if not 1 <= photo_id <= 2**63-1:
@@ -436,7 +486,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/api/v1/photos/{photo_id}/inspect")
     def inspect(photo_id: int):
-        found = gallery.inspect_photo(cfg.db_path, photo_id)
+        found = gallery.inspect_photo(cfg.db_path, photo_id, source_root=cfg.source, destination_root=cfg.dest)
         if found is None:
             raise HTTPException(404, {"error": "unknown_photo", "message": "No catalogued photo has this id."})
         return found
@@ -460,7 +510,8 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             if answer.get("availability") == "present":
                 path = catalog.cache_file(cfg.cache, answer["cache_filename"])
                 if path:
-                    return FileResponse(path, media_type="image/jpeg")
+                    with catalog.connect(cfg.db_path) as conn:
+                        return photo_orientation.response(conn, photo_id, path)
             return JSONResponse({"availability": answer.get("availability", "unavailable"),
                                  "failure_category": answer.get("failure_category"),
                                  "failure_detail": answer.get("failure_detail")}, status_code=404)
@@ -471,7 +522,8 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         if record and record[1] == "present":
             path = catalog.cache_file(cfg.cache, record[0])
             if path:
-                return FileResponse(path, media_type="image/jpeg")
+                with catalog.connect(cfg.db_path) as conn:
+                    return photo_orientation.response(conn, photo_id, path)
         return JSONResponse({"availability": record[1] if record and record[1] != "present" else "pending",
                              "failure_category": record[2] if record else None,
                              "failure_detail": record[3] if record else None}, status_code=404)
@@ -485,6 +537,22 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(400, {"error": "invalid_request", "message": f"Unknown status: {', '.join(unknown)}."})
         return {"runs": run or None, "statuses": status or None, "photo": photo, "q": q or None,
                 "since": since or None, "until": until or None}
+
+    @app.get("/api/v1/metadata-history")
+    def get_metadata_history(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
+                             photo: Optional[int] = Query(None, ge=1, le=2**63-1), q: Optional[str] = None,
+                             since: Optional[str] = None, until: Optional[str] = None,
+                             page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
+        return metadata_history.list_history(cfg.db_path, page=page, page_size=page_size,
+                                             **_log_filters(run, status, photo, q, since, until))
+
+    @app.get("/api/v1/photos/{photo_id}/metadata-choices/{revision}/comparison")
+    def get_metadata_choice_comparison(photo_id: int = PathParam(..., ge=1, le=2**63-1),
+                                       revision: int = PathParam(..., ge=1, le=2**63-1)):
+        result = metadata_history.compare_choice(cfg.db_path, photo_id, revision)
+        if result is None:
+            raise HTTPException(404, {"error":"not_found", "message":"This saved choice is not recorded for this photo."})
+        return result
 
     @app.get("/api/v1/operations")
     def get_operations(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
@@ -505,7 +573,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         with catalog.connect(cfg.db_path):               # refuse with 409 before streaming, not midway
             pass
         columns = ["id", "timestamp", "run_id", "mode", "status", "source_path", "dest_path", "error_message",
-                   "photo_id", "photo_status", "recovery", "run_level"]
+                   "photo_id", "photo_status", "recovery", "run_level", "action", "consolidated_into"]
 
         def rows_csv():
             out = io.StringIO()

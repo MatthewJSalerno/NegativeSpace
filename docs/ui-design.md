@@ -108,6 +108,10 @@ preview and confirmation controls. Navigation goes to its named destination/tab.
 | Supplemental help | `Tip.tsx`: hover/focus plus an explicit information button for touch; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. |
 | Paged loading | `ui/PageBoundary.tsx` and `paged.ts`: idle/load, pending, failed/retry and end states. Keep already-loaded photos and selection on failure. |
 
+History and Logs use the action and outcome together: **Rotation saved** or **Date
+saved**, rather than calling every completed operation a Move. Failed or skipped
+attempts must retain their outcome. Use the shared operation label in every timeline.
+
 Keep filters and viewing controls in their own groups. File-changing actions (Keep,
 Reject, edits) belong with the affected photo; exports belong in the page action group,
 not among search/date/status filters. Refresh comparison is a viewing control. The Logs
@@ -528,7 +532,7 @@ Reset view. A visible note identifies temporary rotation. Rotation fits inside
 the preview even for portrait photos. Link zoom and position is optional; it never
 links rotation. Viewing transforms stay associated with their photo during the
 open workspace and reset on closing; they never write files, EXIF or hash scores.
-A saved orientation correction remains a separate future edit.
+Saving a correction uses the explicit Orientation action below.
 Dimensions beneath a preview follow its viewing rotation: swap width and height
 at 90° and 270°, and label rotated dimensions **Displayed**. The information pane
 continues to show recorded dimensions; zoom does not change either value.
@@ -568,7 +572,7 @@ Only the current pair's transforms are bookmarked; other candidate transforms la
 for the open session. Reload restores controls but fetches photo data again.
 Malformed bookmarks are ignored, unavailable photos
 show errors, and excessive candidate pages clamp to the current last page. Closing
-removes the workspace state and discards viewing transforms. Return keyboard focus
+removes workspace state after the save/discard decision for unsaved turns. Return keyboard focus
 to the opener, or a surviving match thumbnail when restoring from a bookmark.
 Photo links to another Inspector photo clear the prior comparison state.
 
@@ -581,14 +585,37 @@ match set must not leave hidden targets armed. Show proposed metadata changes
 before execution and record each result. Do not show nonfunctional edit controls
 while those actions are unbuilt.
 
-**Future orientation-save interaction:** rotation remains temporary throughout
-comparison. Once verified orientation writes exist, offer one decision at the end
-of review for photos whose final orientation differs from their starting state.
-Identify the affected reference/candidates by photo and show their final orientation;
-allow saving selected changes, discarding them, or returning to review. Never save
-or prompt on each Rotate click. General EXIF editing uses the shared editor rather
-than turning this comparison into an inline editor. The current workspace has no
-rotation-save prompt and closing it discards viewing transforms.
+**Orientation-save interaction:** turns remain temporary during comparison. Back,
+Escape and navigation offer one Save rotations dialog for every photo turned in
+that review, including candidates no longer displayed and promoted references.
+Save selected changes, discard viewing turns and leave, or return to the photo.
+Reset to zero needs no save. The Inspector (including its enlarged view), Photo Review
+and each comparison preview show curved-arrow icon buttons for Rotate left and Rotate
+right, with tooltips and accessible names. Turns act on the existing large preview,
+fit inside its bounds, and never open a separate rotation editor. After a turn, show
+**Save rotation** and **Reset** beside it, reserving their space when hidden so the
+photo does not jump. Show the metadata write target or refusal before enabling Save;
+saving is explicit and progress/results remain inline. If the verified edit would create
+an exact duplicate, show a compact confirmation beside these controls naming the existing
+photo, preserved history and redundant-copy removal. Use **Save and keep existing photo**
+and Cancel. The date editor uses the same notice in its existing preview, beside Save;
+bulk rotation identifies affected rows before its existing confirmation. Rejects and
+metadata conflicts show a refusal, never an automatic primary change.
+Preserve pending turns through
+enlarging/resizing; photo navigation and close offer save/discard/return. The selection
+bar keeps **Rotate…** and its multi-photo confirmation with per-photo targets/refusals.
+Bulk left/right/180° and Reset affect only checked, eligible photos, across all pages.
+Unchecked previews retain their existing turns and are not saved. Zero-turn photos
+remain selectable before turning; with no eligible photos checked, turn/reset/save
+controls are disabled with a selection hint. No thumbnail-card rotation controls. Save is separate from
+viewing/filter controls and never triggered by an individual turn. Partial failures
+retain unsaved turns; verified saves refresh previews and clear the corresponding
+viewing turns. Ordinary jobs, verification and logs provide save progress and failures.
+
+Metadata choices in Logs and lineage remains collapsed by default. A shared bordered
+section with a strong label and “Saved and applied import decisions” supporting text
+makes the disclosure distinguishable from ordinary log text. It still uses native
+summary keyboard behavior, without fetching its entries until opened.
 
 
 ## Keyboard and focus
@@ -649,6 +676,12 @@ logs, API errors shown in the app, and command-line guidance.
   state changes using the existing stable-content control.
 - A successful save uses a calm status. Do not promise recovery, a successful transfer,
   or deletion safety beyond what the recorded verification actually establishes.
+
+Export-sidecar guidance stays brief: identify the export evidence, explain the
+Copy/Move choices, and link to external conversion tools with a short preparation
+workflow. Use a clean source of photos plus converted XMP, then reindex. Removing old
+export sidecars is an optional external user action after checking conversion.
+Do not turn this help into a converter, tool-specific tutorial or troubleshooting flow.
 
 ## Validation and feedback
 
@@ -1135,8 +1168,8 @@ contract live in `xmp-metadata.md`; do not show it as current behavior before in
 The agreed first UI supports photo organization, not general metadata editing.
 Keep the common-field engine capabilities, but expose **Date taken** as the only
 editable logical field in this first UI. Other captured fields remain readable and
-comparable without edit/copy controls. Saved orientation is a separate future action;
-temporary preview rotation stays temporary. Broader field editors, bulk composition
+comparable without edit/copy controls. Orientation has its own explicit save controls beside the preview;
+turns remain temporary until saved. Broader field editors, bulk composition
 and copying arbitrary tags are not prerequisites for this UI.
 
 Within the dedicated **Metadata** tab, use the shared source tabs for **XMP Sidecar**,
@@ -1150,7 +1183,9 @@ available. Enlarged photos use the same information, Metadata and eligible Simil
 photos tabs beside the large preview, with the shared resize divider and navigation.
 Do not duplicate the Inspector or put another details layout below the image. Keep
 the active tab and matching threshold when opening/closing, retain gallery geometry
-behind it, and restore focus to the preview on close. Narrow desktop reflow stacks
+behind it, and restore focus to the preview on close. The full photo fits within the available preview height and width, including
+portrait images; preserve its aspect ratio without cropping. Scrolling details in
+the wide layout keeps the whole photo visible. Narrow desktop reflow stacks
 the same panes; nested dialogs close before the expanded view. Each
 source tab shows that source's captured values, not a merged effective view. Keep
 missing, unreadable and failed-to-load sources distinct; do not present an error as
@@ -1219,12 +1254,19 @@ and a shared action footer for View job details and Close.
 Other fields remain unchanged except required date companions. No permanent consent
 or automatic save. Failure and recovery reuse the shared job/issue controls.
 
-**Make this source primary…** is a separate deliberate action with a preview of all
+**Use as primary…** is a separate deliberate link at the top of each readable
+non-primary source tab for organized Library photos. Reserve its row on primary and
+unavailable source tabs so switching tabs does not shift the fields. Hide it outside
+Library and disable it while a job runs, with the shared explanation. It opens the
+shared confirmation dialog with a preview of all
 effective-value differences, any refiling and future write target. Copy to primary
 never activates the donor. Preserve all source versions and provenance. Import choices
 still distinguish retaining an inactive alternative from activating it; rejected-photo
 metadata and location choices remain independent (`xmp-metadata.md`). Broader import,
-primary-choice and recovery screens remain separately tracked work.
+incoming-choice and recovery screens remain separately tracked work.
+One confirmation covers the primary change and any date-based move. Cancel writes
+nothing. Show actual job completion, then refresh the primary badge, metadata and
+filing information; failures link to the job without claiming the switch completed.
 
 **Built:** read-only source tabs, applied Primary badge, retained-version viewing,
 comparison, differences-only, field filtering and recorded-tag disclosure. The photo
@@ -1236,7 +1278,10 @@ validates calendar components, previews date/refiling and submits one verified e
 Unsupported writer values stop at preview; completed/failed jobs link to Logs.
 **Built:** shared metadata guidance/preferences in setup and Settings, with a stable
 live job notice. Incomplete first-import photo/XMP pairs have a separate confirmed retry.
-**Pending:** per-file ownership/primary changes and incoming-alternative decision controls.
+**Built:** first-import shared-XMP ownership and competing-version controls in source attention.
+**Built:** organized-photo primary changes over the verified engine job, including
+returning to previously imported/saved sidecars without treating unassigned candidates
+as owners. Incoming-alternative decision controls remain pending.
 The engine's broader composition
 and earlier-state reproduction capabilities remain built; exposing their general field
 controls is deferred. Before merge, reconcile specs, backlog, validation evidence and
@@ -1290,3 +1335,53 @@ hidden, so filter selection never moves the tree below it. Source-folder Copy/Mo
 controls stay visible with eligibility guidance when zero or multiple folders are shown.
 Lineage avoids repeating selection jobs already represented by a file step; selection
 jobs without a recorded file step remain in a collapsed disclosure, never erased.
+
+### First-import XMP choices
+
+Not organized → Needs attention offers **Resolve XMP choices…** for recorded shared-sidecar
+ownership or competing-XMP ambiguity. Use the shared modal, checkbox rows, metadata
+comparison table and confirmation footer. Name each source sidecar and candidate photo.
+No automatic selection: show the proposed owner list or effective-value differences before
+**Save choice**. **Decide later** leaves everything unchanged. Keep drafts through reflow.
+
+Saving records a choice for a later Copy/Move, not a completed import. Say that source
+files stay unchanged and preserve repair guidance for unreadable evidence. The saved
+choice remains visible when an old capture still reports ambiguity. After saving, show
+**XMP choices saved**, the selected version/date and the next Copy/Move step. Reopening
+shows this saved summary rather than the choice form. **Change XMP version…** deliberately
+reopens editing; merely closing a draft preserves the saved choice. Disable while a job
+runs with an explanation. Existing Library/Rejects primaries and incoming alternatives
+are outside this first-import control; never offer an ineffective repair or primary switch.
+
+The source Inspector’s **Proposed destination** reflects saved first-import XMP choices
+using the engine’s filing rules. This is a catalog-only projection, not a completed
+transfer or a reserved filename. Copy/Move verifies the source and final destination.
+Unresolved or stale choices retain the last Index projection.
+
+### Metadata choice history
+
+Logs and photo lineage share a paged **Metadata choices** disclosure. Keep it collapsed
+by default in every context, including photo-scoped Logs and newly opened lineage. Load
+the history only when expanded. This is secondary decision history: shared-sidecar
+candidates may share only a filename, not image content or a visual relationship. Show saved
+ownership/primary choices with sidecar, owners or date, timestamp and choice number.
+Explicit revisions remain separate entries; request replay and implicit ownership do not
+create extra user decisions. A saved choice says **No files changed**. Applied entries
+name the primary/date and link to the job that applied it after verified import. They
+never turn a save into a processed photo or a fabricated job. Search/photo/date filters
+apply; job/status filters show applied entries only and explain why saves are excluded.
+Operation counts, retry controls and operation exports retain their file-operation scope.
+Use shared history text, links and Pager, with loading, empty, error/retry states. Keep
+source names as recorded history even if a later import or rename changes the live path.
+
+Saved entries offer **Compare metadata…** for the current photo (or the entry's photo
+in unscoped Logs). The read-only dialog compares that photo's current recorded primary
+with the source values captured for the exact saved decision, never a newer sidecar
+or live source file. Label the historical XMP and saved choice/time; show the recorded
+owners and explicitly say when this choice did not apply the XMP to the current photo.
+Shared filenames do not imply visual similarity. Reuse the Metadata source field table,
+neutral difference markers, Empty versus Not recorded and **Show differences only**.
+No primary means no invented comparison column; explain its absence. Unavailable
+historical evidence, loading and retry are explicit. There are no edit, copy or
+association actions. Closing restores focus to the history action; history still starts
+collapsed. This inspection does not change ownership or primary metadata.

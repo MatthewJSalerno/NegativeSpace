@@ -1,3 +1,4 @@
+import { RotationEditor } from "./RotationEditor";
 import { useDismissedRun } from "../dismissal";
 import { StableContent } from "./ui/StableContent";
 import { ReviewWorkspace } from "./ReviewWorkspace";
@@ -138,6 +139,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
 }) {
   const initial = useRef(readUrl((status.library_photos ?? 0) > 0)).current;
   const { pins, save: savePins } = useFilterPins();
+  const [rotationIds, setRotationIds] = useState<number[] | null>(null);
   const [view, setView] = useState<View>(initial.view);
   const [sourceTree, setSourceTree] = useState(initial.sourceTree);
   const [reviewReturn, setReviewReturn] = useState<{ url: string; anchor: number; offset: number; opener: number } | null>(null);
@@ -180,6 +182,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const browseView: View | "job" = jobRun != null ? "job" : view;
   const [folderTree, setFolderTree] = useState<FolderTree | null>(null);
   const [typeCounts, setTypeCounts] = useState<{ type: string; photos: number }[] | null>(null);
+  const inspectorLeave = useRef<(action: () => void) => void>(action => action());
   const [openId, setOpenId] = useState<number | null>(initial.photo);
   const [matchState, setMatchState] = useState<{ photo: number | null; view: MatchView }>({ photo: initial.photo, view: initial.match });
   const [expandedInspector, setExpandedInspector] = useState(false);
@@ -188,12 +191,12 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [comparison, setComparison] = useState<ComparisonState | null>(initial.comparison);
   const [groupSets, setGroupSets] = useState(initial.groupSets);
   const [exploreReference, setExploreReference] = useState<number | null>(null);
-  const reviewSet = (reference: number, candidate: number | null) => {
+  const reviewSet = (reference: number, candidate: number | null) => inspectorLeave.current(() => {
     setOpenId(reference); setLocate(null); setRevealId(null); setInspectorTab("similar");
     setMatchState({ photo: reference, view: { threshold: matchMin, page: 1 } });
     setComparison({ origin: reference, reference, candidate, threshold: matchMin, page: 1,
       views: {}, linked: false, share: 72 });
-  };
+  });
   const [comparisonNavigation, setComparisonNavigation] = useState(0);
   useEffect(() => { if (comparison && comparison.origin !== openId) setComparison(null); }, [openId, comparison]);
   const matchView = useMemo(() => matchState.view && ({ ...matchState.view,
@@ -205,13 +208,13 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [locate, setLocate] = useState<{ id: number; delta: number; checkOnly?: boolean } | null>(
     initial.photo == null ? null : { id: initial.photo, delta: 0 });
   const [revealId, setRevealId] = useState<number | null>(null);
-  const openFromGallery = (id: number) => {
+  const openFromGallery = (id: number) => inspectorLeave.current(() => {
     setLocate(null); setRevealId(null); setOpenId(id); setInspectorTab("information");
     if (similar && jobRun == null) {
       setMatchState({ photo: id, view: { threshold: focus?.kind === "set" ? focus.threshold! : matchMin, page: 1 } });
     }
-  };
-  const openAndLocate = (id: number) => { setInspectorTab("information"); setOpenId(id); setLocate({ id, delta: 0 }); setRevealId(null); };
+  });
+  const openAndLocate = (id: number) => inspectorLeave.current(() => { setInspectorTab("information"); setOpenId(id); setLocate({ id, delta: 0 }); setRevealId(null); });
   const [timeline, setTimeline] = useState<Timeline | null>(null);
   const [jumpTimeline, setJumpTimeline] = useState<Timeline | null>(null);
   const [focus, setFocus] = useState<Focus | null>(null);
@@ -423,10 +426,10 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const setBrowse = useMemo(() => grouped && exploreReference == null ? ({ view, similar, suspicious, reason: reviewFilter, sort, match_min: galleryMinimum,
     group_sets: true, q, undated, dates, types, folders, page_size: pageSize }) : undefined,
     [similar, suspicious, reason, grouped, exploreReference, view, sort, galleryMinimum, q, undated, dates, types, folders, pageSize, refreshKey]);
-  const showSet = (reference: number, threshold: number) => {
+  const showSet = (reference: number, threshold: number) => inspectorLeave.current(() => {
     setComparison(null); setExploreReference(null); setOpenId(null); setLocate(null); setRevealId(null);
     setFocus({ kind: "set", ids: [], reference, threshold }); setFocusPage(1);
-  };
+  });
   const focused = usePaged((p) => (memberBrowse ? api.photos({ ...memberBrowse, sort, page:p, page_size:pageSize }).then(r => ({...r, missing: []}))
                                         : focus ? api.selection(focus.ids, sort, p, pageSize, galleryMinimum)
                                           : Promise.resolve({ items: [], total: 0, page: p, page_size: pageSize, missing: [] } as SelectionPage)),
@@ -616,9 +619,9 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   // Clearing the selection leaves nothing to show only, so it returns to the results.
   const clearSelection = () => { setSelected(new Set()); if (focus?.kind === "selection" || focus?.kind === "review") backToResults(); };
 
-  const changeDates = (next: string[]) => { setDates(next); setPage(1); };
-  const changeTypes = (next: string[]) => { setTypes(next); setPage(1); };
-  const changeFolders = (next: string[]) => { setFolders(next); setPage(1); };
+  const changeDates = (next: string[]) => inspectorLeave.current(() => { setDates(next); setPage(1); });
+  const changeTypes = (next: string[]) => inspectorLeave.current(() => { setTypes(next); setPage(1); });
+  const changeFolders = (next: string[]) => inspectorLeave.current(() => { setFolders(next); setPage(1); });
   const sortChoices = useRef<Partial<Record<View, Sort>>>({});
   const chooseMatchMinimum = (value: number) => {
     savePreference("ns.matchMin", String(value));
@@ -692,7 +695,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     setReason(REASON_KEYS.find(key => keys.includes(key)) ?? "all");
     setPage(1);
   };
-  const chooseView = (v: View, keepSourceFolder = false, restoreFilters = true) => {
+  const chooseView = (v: View, keepSourceFolder = false, restoreFilters = true) => inspectorLeave.current(() => {
     if (!keepSourceFolder) setFolders([]);
     setJobRun(null); jobFilters.current = null; setFollowJob(null); setSourceTree(false);
     sortChoices.current[similar ? "similar" : view] = sort;
@@ -722,9 +725,9 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     if (eligible.includes("small")) setReason("small");
     else if (eligible.includes("later")) setReason("later");
     else if (eligible.includes("issues")) setReason("issues");
-  };
+  });
   // Source folders' switch: what is waiting, or everything still in the source.
-  const chooseSourceScope = (v: "unorganized" | "source") => { chooseView(v, true); setSourceTree(true); };
+  const chooseSourceScope = (v: "unorganized" | "source") => inspectorLeave.current(() => { chooseView(v, true); setSourceTree(true); });
   const jumpTo = (key: string) => {
     const newestFirst = sort !== "oldest";
     const target = datePage(jumpTimeline ?? timeline ?? { months: [], undated: 0 }, newestFirst, pageSize, key);
@@ -974,7 +977,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       later: libraryOnly ?? reasonWhy("later"),
       issues: libraryOnly ?? reasonWhy("issues"),
       attention: view !== "unorganized" ? "Only in Not organized." : reasonWhy("attention") },
-    onToggle: key => {
+    onToggle: key => inspectorLeave.current(() => {
       if (focus) backToResults();
       if (activeLook[key]) {
         // Turning off a filter also removes its pin, so it cannot unexpectedly return.
@@ -983,8 +986,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       } else {
         applyLook([...pins.filter(pin => filterApplies(pin, view)), key]);
       }
-    },
-    onPin: key => {
+    }),
+    onPin: key => inspectorLeave.current(() => {
       if (pins.includes(key)) {
         libraryFilters.current = libraryFilters.current.filter(item => item !== key);
         saveLibraryFilters(libraryFilters.current);
@@ -1001,12 +1004,12 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       savePins([...pins, key]);
       applyLook([...LOOK_KEYS.filter(item => activeLook[item] &&
         !(REASON_KEYS.includes(key) && REASON_KEYS.includes(item))), key]);
-    },
+    }),
   };
   // Source folders shows its folders in the tree, not in the Filters panel.
   const filtersActive = dates.length + types.length;
   const searchField = <SearchField className="search" placeholder="Search filenames" value={search}
-                                   onValueChange={(v) => { if (focus) backToResults(); setSearch(v); }} aria-label="Search filenames" />;
+                                   onValueChange={(v) => inspectorLeave.current(() => { if (focus) backToResults(); setSearch(v); })} aria-label="Search filenames" />;
 
   return (
     <AppFrame header={header} status={status} onOpenSettings={onOpenSettings} className={openId != null ? "with-inspector" : ""}
@@ -1022,7 +1025,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               onTransfer={(mode, scope) => (scope === "folder" ? askFolder(mode) : askTransfer(mode))} />}
       selection={selected.size > 0 ? (
         <SelectionBar pairRetryIds={[...selected]} pairRetryCount={pairRetryCount} capacity={status.photos} selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
-                      counts={selectionActions} place={place} jobRunning={jobRunning} search={searchField} onAction={transferSelected}
+                      onRotate={selectionActions.reject > 0 ? () => setRotationIds([...selected]) : undefined} counts={selectionActions} place={place} jobRunning={jobRunning} search={searchField} onAction={transferSelected}
                       onShowSelected={showSelected} onBack={backToResults} onClear={clearSelection} />
       ) : undefined}
       banners={<>
@@ -1032,6 +1035,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
         <RejectsReminder status={status} inRejectsView={browseView === "rejects" && !focus} />
         {actionError && <p className="error banner" role="alert">{actionError} <button onClick={() => setActionError(null)}>Dismiss</button></p>}
       </>}>
+      {rotationIds && <RotationEditor initial={rotationIds.map(photo_id=>({photo_id,turns:0}))} jobRunning={jobRunning} onClose={()=>setRotationIds(null)} onSaved={()=>window.dispatchEvent(new Event("ns-review-changed"))} />}
       <main id="main-content" tabIndex={-1} className="content" ref={content}>
         {sourceTree && !focus && (
           <aside className="source-tree" aria-label="Source folders">
@@ -1293,7 +1297,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                    if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() + 40); }
                    if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() - 40); }
                  }} />
-            <Inspector enlarged={expandedInspector} setEnlarged={setExpandedInspector} sourceView={view === "source"} onReviewPhoto={() => setReviewPhoto(openId!)} setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && similar && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} statusHint={flat.items.find(item => item.id === openId)?.status} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
+            <Inspector leaveGuard={inspectorLeave} enlarged={expandedInspector} setEnlarged={setExpandedInspector} sourceView={view === "source"} onReviewPhoto={() => setReviewPhoto(openId!)} setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && similar && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} statusHint={flat.items.find(item => item.id === openId)?.status} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
                        onReject={(name) => askTransfer("reject", [openId], undefined, name)} onReturn={() => askTransfer("return", [openId])}
                        onRejectMatch={(id, name) => askTransfer("reject", [id], undefined, name)} onKeep={(keep, name, threshold) => void keepAndReview(keep, name, threshold)}
