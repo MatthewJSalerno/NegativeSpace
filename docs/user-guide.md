@@ -188,6 +188,11 @@ the list of catalog backups and Back up now) **Performance**, and **Access**. Ac
 you use to open the app. These settings survive replacing the photo catalog. Local
 and Docker-configured addresses remain available for recovery.
 
+**Performance** sets how many photos are read at once, and manages the thumbnail cache:
+**Free up previews** removes the large previews made when you open a photo, which are made again
+the next time you open it, and **Repair grid thumbnails** remakes any gallery thumbnails
+that have gone missing. **Rebuild all grid thumbnails** remakes every one.
+
 **Metadata** keeps the same choices you made during setup. Changing its defaults does
 not change photos that already have a primary metadata source.
 

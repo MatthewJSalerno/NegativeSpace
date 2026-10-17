@@ -4323,6 +4323,27 @@ def a_thumbnail_rebuild_restores_the_grid_from_any_catalogued_copy():
 
 
 @test
+def a_thumbnail_rebuild_skips_files_that_were_never_read():
+    """A file the Index could not read is catalogued Failed with an empty content hash.
+    It has no content to make a thumbnail from, so the rebuild leaves it out rather than
+    stopping the whole job on it."""
+    case = new_case("rebuild_unread")
+    make_photo(case / "src" / "good.jpg", "rebuild-unread")
+    (case / "src" / "not-a-photo.jpg").write_bytes(b"not a photo")
+    run_engine(case)
+    unread = rows(case, "SELECT status, sha1_hash FROM photos WHERE source_path LIKE '%not-a-photo.jpg'")
+    check([(r["status"], r["sha1_hash"]) for r in unread] == [("Failed", "")],
+          f"setup: the unreadable file was not catalogued Failed with an empty hash: {unread}")
+    for scope in ("missing", "all"):
+        run_engine(case, "--rebuild-thumbnails", scope)
+        run = rows(case, "SELECT status FROM runs ORDER BY id DESC LIMIT 1")[0]
+        check(run["status"] == "Completed", f"`{scope}` stopped on a file that was never read: {run}")
+        progress = [(r["total"], r["counts"]) for r in _progress(case)]
+        check(progress[-1][0] == 1 and "failed" not in progress[-1][1],
+              f"`{scope}` counted a file that was never read: {progress}")
+
+
+@test
 def a_cancelled_thumbnail_rebuild_stops_and_says_so():
     """Cancellation is checked between batches, like the Index scan; a rebuild
     cancelled before its first batch makes nothing and reports Cancelled."""

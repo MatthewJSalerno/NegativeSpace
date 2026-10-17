@@ -475,7 +475,7 @@ Saved orientation stays a separate action from temporary preview rotation.
 
 ## Stats
 
-- [ ] The thumbnail cache panel in Settings › Performance (Free up previews, Repair grid
+- [x] The thumbnail cache panel in Settings › Performance (Free up previews, Repair grid
   thumbnails, Rebuild all), with API routes for the existing engine jobs, and a Manage
   thumbnails link from Stats (`docs/webui-spec.md` §4.2.1).
 - [ ] The Dates chart on its own full-width row, with suspicious years set apart at each

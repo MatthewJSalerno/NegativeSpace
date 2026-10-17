@@ -381,6 +381,9 @@ jobs:
       - name: Needs review in a browser
         run: DRIVER=review_browser_drive.py sh tests/browser/webui_browser_test.sh
 
+      - name: Thumbnail cache panel in a browser
+        run: DRIVER=thumbnails_browser_drive.py sh tests/browser/webui_browser_test.sh
+
 
   smoke:
     # Keep the existing required-check name. A failed, cancelled or skipped group
