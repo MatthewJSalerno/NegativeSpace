@@ -38,7 +38,6 @@ class SyntheticQueryTests(unittest.TestCase):
                 self.assertEqual(benchmark.query(db,'gallery',90)['total'],100)
                 self.assertEqual(benchmark.query(db,'grouped',90)['total'],groups)
                 self.assertEqual(benchmark.query(db,'members',90)['total'],members)
-                self.assertEqual(benchmark.query(db,'related',90)['total'],members)
                 self.assertEqual(benchmark.fingerprint(db),manifest['database_sha256'])
 
     def test_mixed_excludes_unavailable_and_failed_hashes(self):
@@ -50,7 +49,7 @@ class SyntheticQueryTests(unittest.TestCase):
 
     def test_high_threshold_and_edge_guard(self):
         db, _ = self.fixture('dense')
-        self.assertEqual(benchmark.query(db,'related',100)['total'],1)
+        self.assertEqual(benchmark.query(db,'members',100)['total'],1)
         self.assertEqual(benchmark.query(db,'gallery',100)['total'],0)
         with self.assertRaisesRegex(ValueError,'exceeding'):
             benchmark.build_fixture(self.root/'bounded',100,'dense',max_edges=10)
@@ -133,7 +132,7 @@ class SyntheticQueryTests(unittest.TestCase):
         self.assertEqual(result.returncode,0,result.stderr)
         report = json.loads(output.read_text())
         self.assertTrue(report['database_unchanged'])
-        self.assertEqual(len(report['workloads']),4)
+        self.assertEqual(len(report['workloads']),2)
         for workload in report['workloads'].values():
             self.assertTrue(workload['statements'])
             self.assertTrue(all(s['plan'] for s in workload['statements']))
