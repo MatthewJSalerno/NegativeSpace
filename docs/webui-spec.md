@@ -2615,11 +2615,11 @@ The current comparison requires both destination files to be recorded present.
 
 **Looks like a reject** (decided 2026-10-17; not built). A photo that resembles one the
 user rejected, but is not a byte-identical copy (those are recognised at Index as
-duplicates of the reject, engine-spec §10), is never rejected automatically.
+duplicates of the reject, `engine-spec.md` §10), is never rejected automatically.
 
 * **Strict to start:** the reason is raised only at 95% similarity or more, and never for
   low-detail photos (mostly black or flat), which match unrelated ones even at 97–100%
-  (engine-spec §9.3). A missed look-alike leaves things as they are today; a false one
+  (`engine-spec.md` §9.3). A missed look-alike leaves things as they are today; a false one
   costs a question. Once enough of the user's own keep and reject decisions exist, the level
   is measured per library, as for date suggestions (§3.1). No user setting: Has similar
   photos already shows any percentage.
