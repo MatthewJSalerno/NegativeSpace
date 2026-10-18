@@ -40,21 +40,23 @@ development until the maintainer decides.
 **Similar photos**
 - Merge the two "Reject?" dialogs into one (decided)
 - Remove Explore reference sets (decided)
-- Selecting photos inside grouped sets
+- 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
 - Overlapping sets beyond one step
 - Rotated matches: compare photos as displayed
 - Large-library measurement (250,000 and 500,000 photos)
 - 💬 Local AI image embeddings for look-alikes, crops included (the maintainer is reading up first)
 
 **Metadata**
-- Choose a photo's primary source and associate sidecars per file
+- Choose an organized photo's primary metadata source
 - Notices for metadata choices, and their queue in Not organized
 - Saved rotation (Rotate…)
 - Notice for Google Takeout and Flickr export sidecars
 - Motion-photo editing, qualified separately
-- RAW fixtures for the metadata scenario builder
+- RAW, TIFF/HEIC and extended-XMP fixtures for the metadata scenario builder
 - Malformed or conflicting capture dates in date review
-- Deferred: bulk and cross-photo date editing; IPTC precedence (needs decisions)
+- Deferred: bulk and cross-photo date editing
+- 💬 Legacy IPTC precedence and additional RDF mappings
+- 💬 Metadata-independent image hashing and content-based duplicate consolidation (deferred)
 - 💬 Sidecars edited between Index and Copy or Move
 - 💬 Similar photos and metadata together
 
@@ -66,6 +68,8 @@ development until the maintainer decides.
 - Resolving files that cannot be read
 - Stats: dates chart on its own row
 - Every warning offers a way out
+- Filter counts: distinguish zero, unavailable and incompatible
+- Re-audit durability claims whenever a write path changes
 - The `dest/raw-originals` folder
 - Spacing and alignment pass; refresh the user-guide screenshots
 
