@@ -187,10 +187,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
   processing errors; date filters already work. Source similarity comparisons are
   not calculated and must not be presented as zero.
 
-- [ ] **Same-named photos look identical on a card** (designed 2026-10-17, not built;
-  `docs/webui-spec.md`, Telling same-named photos apart): only clashing cards add the
-  shortest distinguishing part of the original source folder; every name shows its full
-  original path on hover; a collision-renamed name (`IMG_0412_1.jpg`) says why.
+- [ ] Telling apart same-named photos on cards: designed, not built
+  (`docs/webui-spec.md`, Telling same-named photos apart).
 
 - [ ] **"A job is already running" just after a job finishes:** the engine keeps its lock
   while it takes the catalog backup that follows a settled run, so a start in that moment
