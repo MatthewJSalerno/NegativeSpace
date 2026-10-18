@@ -9,6 +9,41 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Add a previewed “Use as primary…” action to Library metadata tabs, with effective
+  field changes, date refiling and preserved alternatives. Recognize verified imported
+  and saved XMP when switching back; unassigned sidecars remain refused.
+
+- Confirm embedded edits that produce an identical Library photo before removing the
+  redundant edited copy. Keep the existing photo, both histories and recorded XMP;
+  refuse Rejects/primary conflicts and preserve source originals. Journal cleanup for
+  explicit retry and keep later Copy, Move and history links consistent.
+
+- Label saved rotations, date edits and metadata-source changes accurately in Logs,
+  recent History and lineage, including previously recorded operations.
+
+- Make Metadata choices easier to find while keeping the history collapsed.
+- Turn the existing large preview with curved-arrow controls and save/reset inline;
+  keep bulk and unsaved-exit confirmations. Save rotations through the
+  qualified JPEG/XMP metadata writer. Reflect applied XMP orientation in previews,
+  without modifying source files, image pixels or shared thumbnail cache entries.
+- Allow edits after a verified import has resolved the original capture’s XMP choice;
+  retain immutable capture history and continue refusing unresolved metadata problems.
+
+- Portrait previews now fit within the Inspector and enlarged view without clipping
+  their bottom edge; the full photo stays visible while details scroll in the wide layout.
+
+- Saved XMP choices can be compared read-only with the current photo's primary metadata,
+  including sidecars assigned to another candidate. Historical values remain tied to
+  the saved choice, with explicit ownership and differences-only viewing.
+
+- First-import XMP choices now have paged, read-only Logs and lineage history,
+  distinguishing saved decisions from the Copy/Move that applied them.
+
+- Resolve shared XMP ownership and competing XMP versions for first imports in
+  Not organized → Needs attention. Preview and record choices without changing source
+  files; normal Copy/Move verifies and applies them. Repair and incoming-duplicate
+  decisions remain separate.
+
 - Set help correctly distinguishes reference sets and stays within the viewport at
   enlarged text sizes, with keyboard scrolling when the explanation needs more room.
 

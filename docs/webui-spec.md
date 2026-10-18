@@ -900,6 +900,12 @@ modified or claim EXIF is missing when XMP supplies the date.
 log** and **View lineage tree**; each event also opens the tree. **Why not every event in
 the panel:** it crowded the photo's details; the full record is one click away.
 
+Logs, recent History and lineage name saved metadata actions from recorded intent:
+**Rotation saved**, **Date saved**, **Metadata source changed**, or **Metadata saved**.
+Failed, skipped, cancelled and unfinished attempts retain those outcomes; they never
+claim a save. A metadata completion is not labelled as a Move. The shared Completed
+status filter includes completed moves and metadata operations.
+
 **The lineage tree** (`GET /photos/{id}/lineage`, §6.3) is a window of its own: one node
 per file (the source, each copy made from it, each exact duplicate), each with its
 presence and the steps that happened to it. Each step appears once, on the file it
@@ -962,7 +968,9 @@ Retry metadata; capture/interpretation issues keep their explanation and a photo
 on the left, the existing information, Metadata and eligible Similar photos tabs on
 the right, with their shared resize divider. There is no gallery or separate details
 layout in this view. Preserve the active tab, matching threshold and previous/next
-navigation. Narrow desktop reflow stacks the same panes. Esc or Close returns to
+navigation. The full photo fits within the available preview height and width, including
+portrait images; preserve its aspect ratio without cropping. Scrolling details in
+the wide layout keeps the whole photo visible. Narrow desktop reflow stacks the same panes. Esc or Close returns to
 the gallery and focuses the preview opener; nested dialogs close first. It shows the
 1024px preview, the largest image the engine makes. The file's own date stays out
 of that section: **File modified**, as the first scan observed it, sits under the file's
@@ -2174,7 +2182,7 @@ shows any fraction/offset, and requires Preview change before Save. Copy uses a
 recorded source of the same photo without changing primary. Empty donor dates propose
 an explicit clear; unsupported EXIF empties/partial dates refuse. A matching date/path
 disables Save as No changes needed. Controls are disabled during an active job.
-Broader editing and primary-choice controls below remain planned. Temporary comparison
+Broader field editing remains planned; the deliberate primary-choice control is built below. Temporary comparison
 rotation is implemented separately below.
 
 **Leaving an editor with unsaved changes:** when in-app navigation or closing the
@@ -2201,14 +2209,17 @@ Filesystem stat, structural image properties and computed catalog fields are nev
 editable. Do not confuse ExifTool writability with permission to edit derived properties. Keep capture date/time and its
 optional timezone offset distinct, consistent with §10.
 
-**An edit can create an exact duplicate.** If the edited file's resulting content
-hash matches another catalogued photo, update the exact-duplicate relationship and
-show it in the result with a link to review the matching photos. Preserve both files
-and their individual lineage; do not automatically delete, merge away a file's
-history, or trigger duplicate cleanup as part of a metadata edit. Rejecting an
-unwanted destination copy is a separate explicit action with its own review and
-confirmation (§7.8). A catalog hash match never authorizes source deletion without
-the engine's live verification.
+**An edit can create an exact duplicate.** Preview the existing Library photo that
+would survive, keeping its name and location. Explain that the redundant edited copy
+will be removed after verification, both histories and recorded XMP versions will be
+preserved, and source files will stay untouched. The date editor confirms this beside
+Save; inline rotation shows the same compact confirmation beside its controls. Bulk
+rotation previews identify affected rows before Save. Cancel changes no files.
+Matches in Rejects or different effective primary metadata stop the edit with an
+explanation; neither primary nor rejected state changes silently. A changed survivor
+or another match appearing after preview requires fresh confirmation. Logs and lineage
+link the survivor; Show these photos includes it. Existing duplicates are not swept up
+in the background, and a catalog hash alone never authorizes deletion.
 
 **Verified metadata editing can modify delivered photo bytes.** The engine supports
 qualified JPEG writes and XMP sidecars; the first web controls expose Date taken only.
@@ -2374,17 +2385,13 @@ orientation applied (`engine-spec.md` §9.3); a copy whose pixels were rewritten
 is not found. The expanded workspace (§7.4) is the
 side-by-side review surface.
 
-**Future end-of-review save** (confirmed 2026-10-05): after a verified orientation-write
-path exists, offer one decision for remaining rotation changes when the user finishes
-reviewing, not on individual Rotate clicks: turning to look stays free, and nothing is
-saved by accident. Show affected photos and their final orientations,
-with choices to save selected changes, discard viewing changes, or return to review.
-Track photos across candidate navigation and reference promotion; do not assume the
-currently displayed pair is the only pair rotated. Define consistent exit handling
-for Back, Escape and dialog close before shipping. Resetting to the original
-orientation leaves no rotation change to save. General EXIF edits open the shared
-editor rather than being entered in the comparison table. None of this save flow is
-implemented; closing today's workspace discards its viewing transforms.
+**End-of-review save:** Back, Escape and navigation offer one decision for remaining
+rotation changes. Show affected photos and final turns, with Save selected, Discard
+viewing turns and leave, or Return to photo. Track candidates across navigation and
+reference promotion. Reset to zero needs no save. Saving runs the qualified metadata
+engine job; no click on a viewing turn writes a file. Successful saves clear those
+viewing turns and refresh previews. Partial failures keep unsaved turns and link to
+job details. The source and image pixels remain unchanged.
 
 **Where a photo can be turned** (decided 2026-10-05): in the comparison, in the photo
 panel (the same one question when the panel closes or moves to another photo with turns
@@ -2394,8 +2401,15 @@ thumbnails:** a card is for picking, a stray click would add a photo to the save
 question, and the panel and the selection bar already cover one photo and many (Google Photos and
 Apple Photos place rotation the same way).
 
-**Future saved rotation is an EXIF edit, never a pixel edit.** The Inspector and bulk edit will offer
-**Rotate left**, **Rotate right** and **Rotate 180°**. Each changes only the EXIF
+**Saved rotation is a metadata edit, never a pixel edit.** The Inspector, its enlarged
+view, Photo Review and each comparison preview have two curved-arrow icon buttons,
+with Rotate left/right tooltips and accessible names. They turn the large preview
+without opening another dialog. **Save rotation** and **Reset** appear after a turn,
+with their space reserved; the inline target/refusal, progress and result explain saving.
+The selection bar retains its multi-photo **Rotate…** dialog. Its turn/reset controls
+act only on checked eligible photos, including across pages. Unchecked photos retain
+any existing viewing turns and are not saved; zero-turn rows remain selectable.
+No eligible checked photos disables turn/reset/save with guidance. A save changes only the
 `Orientation` tag, which viewers and galleries apply when displaying the photo.
 The pixel data is never decoded and re-saved: re-encoding a JPEG loses quality on
 every save, and a rotation that changed pixels would be a different photograph.
@@ -2409,7 +2423,11 @@ XMP sidecar that RAW formats use by default, which leaves the photo's bytes and 
 unchanged). Where neither can take `Orientation` safely, the control is unavailable with
 that reason. It never falls back to re-encoding, to the other storage method, or to a
 catalog-only rotation a gallery would not see. Qualified engine write paths are built;
-the saved-rotation web controls remain unbuilt.
+the shared Save rotations web confirmation uses those paths. Applied XMP orientation
+is rendered from disposable previews without rewriting the photo or its shared cache.
+Embedded JPEG saves recompute pHash from the verified photo as displayed, including
+its embedded orientation, and refresh comparisons for new hashes after the batch.
+Sidecar-only saves leave the photo bytes and its existing hash unchanged.
 
 **A changed date refiles the photo** to the folder its new date implies,
 automatically and with no setting to disable it. Correcting the date *is* the
@@ -2457,13 +2475,19 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   the screen says the amount is the user's responsibility. The preview flags photos
   landing in the future.
 * **Metadata source tabs (read-only viewer built):** **XMP Sidecar**, **Embedded XMP** and **EXIF**
-  inside Photo information. Initially view the primary source when available; mark
+  inside Metadata. Initially view the primary source when available; mark
   its tab with a textual **Primary** badge distinct from the viewed-tab selection.
   Each tab shows captured source values. Other tabs offer **Compare with primary**
   (Field / Primary value / This source) and **Show differences only**. Distinguish
   Empty from Not recorded, retain per-field origin for effective fallback values,
   and preserve alternate versions. Copy to primary is limited to Date taken in the
-  built first date editor; primary-change controls remain planned.
+  built first date editor. **Use as primary…** at the top of each readable alternative
+  tab previews effective-value differences, future edit target and current/resulting
+  folder. One confirmation submits the existing verified primary-change job for
+  Library photos; Cancel changes nothing. Unavailable and already-primary sources
+  have no active link. Preserve row geometry and disable during another job.
+  Show completion only after the job and applied primary agree, refresh photo data,
+  and link failures to job details. Import/Rejects decisions remain separate.
   Switching primary is a separate previewed, confirmed action; tab changes
   and comparisons never write. See `ui-design.md` and [xmp-metadata.md](xmp-metadata.md).
 * **Where edits are saved** (decided 2026-10-02, `engine-spec.md` §9.6): Settings › Metadata
@@ -2475,10 +2499,19 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   TIFF and HEIC writes remain deferred; no setting or consent enables an unqualified
   writer. Explain unsupported targets and require a deliberate source change rather
   than switching storage automatically.
-* **Unresolved sidecar association/version choices (planned)** wait in
-  Not organized as Metadata choice needed. Apply the
-  association settings or ask for a recorded choice; show separate source versions
-  without discarding alternatives. Copy/Move skips affected pairs until resolved.
+* **Unresolved sidecar association/version choices** wait in
+  Not organized → Needs attention. **Resolve XMP choices…** opens recorded candidate
+  photos for a shared sidecar, or competing XMP versions for a first import. Preview
+  owners or effective-field differences before Save choice; Decide later changes nothing.
+  Each candidate must be indexed and unorganized. Repair blockers remain external repair
+  instructions, not choices that bypass unreadable evidence. Saved decisions leave files
+  at source and take effect through normal verified Copy/Move; Index can refresh ownership.
+  A saved version shows a confirmation summary and Copy/Move guidance, including when
+  reopened. Change XMP version deliberately reopens the form; closing it without Save
+  preserves the current choice. Proposed destination reflects saved choices using the
+  engine’s filing rules; unresolved or stale choices retain the last Index projection.
+  The path is not reserved: Copy/Move verifies the files and available destination name.
+  All originals/alternatives are preserved. Incoming cases below remain planned.
   Library photos with existing XMP or metadata edits retain differing incoming XMP as alternatives,
   keep their primary and enter Needs review → Metadata differences after preservation.
   Rejected matches present metadata and Return/leave-rejected choices together.
@@ -2487,17 +2520,30 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
 * **An unedited original arriving later** (its bytes match an edited photo's earlier
   SHA-1) is not organized again: it goes to Needs review (§7.9) as "old version of a photo
   you fixed", with **Don't keep it** and **Keep it as its own photo**.
-* **Export sidecars (planned):** recognized Google Photos/Takeout or Flickr export
-  metadata gets one Index-result notice with the affected count and a route to the
-  affected source photos/files. Explain that NegativeSpace does not import this metadata,
-  purpose-built tools are better suited to preparing these exports, and the user should
-  prepare the source externally and Index again. Include a Help link to maintained
-  preparation guidance; verify recommendations before publishing named tools. Move leaves
-  these sidecars in source. Do not call them broken photos, block usable photos, add
-  Library review tasks or offer a retry that cannot import their data. When the provider
-  cannot be identified from supported naming/layout evidence, say **Possible export
-  metadata**; `.json` alone does not establish Flickr or Google Photos. Keep this notice
-  distinct from XMP sidecar support and failures. Detection and guidance are not yet built.
+* **Export sidecars (planned):** detect recognized Google Photos/Takeout or Flickr
+  export naming/layout during Index. Show one notice with recognized sidecar counts
+  and a route to affected source files; count affected photos only where association
+  is established. Explain that NegativeSpace does not import the export metadata.
+  Before Copy/Move, let the user choose once for the affected selection: **Prepare
+  metadata first**, **Import without export metadata**, or **Skip these photos for now**.
+  Preparing leaves affected photos at source; skipping lets other selected photos
+  proceed. Importing uses the photos' embedded metadata and any supported XMP, leaving
+  export sidecars untouched. Explain explicitly that Move leaves those sidecars in source.
+  Do not classify usable photos as failed or add a Library review reason for this notice.
+  When supported naming/layout evidence cannot establish the provider, say **Possible
+  export metadata**; `.json` alone does not establish Flickr or Google Photos.
+
+  **Guidance scope:** a Help link makes users aware of external tools and gives only a
+  rough workflow: use a tool to convert Google/Flickr export metadata to XMP; prepare
+  a clean source folder containing the photos and resulting XMP; select that source
+  and Index again before Copy/Move. Alternatively, users may remove the old export
+  sidecars themselves after checking the conversion, then reindex the existing source.
+  NegativeSpace never deletes these sidecars or runs the converter. Provide links and
+  a brief description of each tool's purpose, checking advertised capabilities and
+  links before publication. Do not build a conversion wizard, detailed tool tutorials,
+  troubleshooting support or a promise of complete conversion/compatibility. Keep this
+  distinct from supported XMP handling. Detection, choices and guidance are not yet built.
+
 
 ### 7.6 Re-processing a disordered destination
 
@@ -3148,3 +3194,31 @@ app. A verified Library copy remains in Library as Found at destination, with a 
 explanation and no remaining Move eligibility. An unverified copy uses the same File
 issues panel and recovery action. Empty-source confirmation still applies; the app does
 not assume that an empty mount means its originals were deliberately deleted.
+
+### Metadata choice history
+
+Logs and photo lineage share a paged **Metadata choices** disclosure. Keep it collapsed
+by default in every context, including photo-scoped Logs and newly opened lineage. Load
+the history only when expanded. This is secondary decision history: shared-sidecar
+candidates may share only a filename, not image content or a visual relationship. Show saved
+ownership/primary choices with sidecar, owners or date, timestamp and choice number.
+Explicit revisions remain separate entries; request replay and implicit ownership do not
+create extra user decisions. A saved choice says **No files changed**. Applied entries
+name the primary/date and link to the job that applied it after verified import. They
+never turn a save into a processed photo or a fabricated job. Search/photo/date filters
+apply; job/status filters show applied entries only and explain why saves are excluded.
+Operation counts, retry controls and operation exports retain their file-operation scope.
+Use shared history text, links and Pager, with loading, empty, error/retry states. Keep
+source names as recorded history even if a later import or rename changes the live path.
+
+Saved entries offer **Compare metadata…** for the current photo (or the entry's photo
+in unscoped Logs). The read-only dialog compares that photo's current recorded primary
+with the source values captured for the exact saved decision, never a newer sidecar
+or live source file. Label the historical XMP and saved choice/time; show the recorded
+owners and explicitly say when this choice did not apply the XMP to the current photo.
+Shared filenames do not imply visual similarity. Reuse the Metadata source field table,
+neutral difference markers, Empty versus Not recorded and **Show differences only**.
+No primary means no invented comparison column; explain its absence. Unavailable
+historical evidence, loading and retry are explicit. There are no edit, copy or
+association actions. Closing restores focus to the history action; history still starts
+collapsed. This inspection does not change ownership or primary metadata.

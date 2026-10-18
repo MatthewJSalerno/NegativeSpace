@@ -1,6 +1,6 @@
 """Catalog-only metadata decisions with version-bound previews and append-only history.
 
-No file edits or filing activation. Preview/confirm is an engine boundary for future
+No file edits or filing activation. Preview/confirm is an engine boundary for
 API/CLI callers; it never trusts submitted effective fields or photo ownership.
 """
 import contextlib
@@ -275,7 +275,7 @@ def transfer_hold(conn, photo_id):
     if sidecars:
         if any(s['state'] in ('needs_choice','needs_attention') for s in sidecars):
             return ('Metadata choice or repair needed. Photo and XMP remain at source. '
-                    'Metadata decision screens are not built yet; correct the source metadata and reindex, or leave this pair for a later decision.')
+                    'Resolve XMP choices in Not organized. For unreadable metadata, repair the source file and run Index again.')
         return ('Photo and XMP remain at source: this incoming metadata or duplicate case needs a decision before transfer. '
                 'The captured metadata and any saved choices are preserved.')
     primary = conn.execute("SELECT 1 FROM metadata_decisions d JOIN photo_files pf ON d.scope=CAST(pf.file_id AS TEXT) "

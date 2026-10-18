@@ -261,9 +261,22 @@ def _catalog_state(db_path, *, photo_id, capture_id, destination_root, settings=
         captured_file,_,report,_ = metadata_decisions._capture(conn,capture_id,allow_edited=True)
         if captured_file != file_id:
             raise ValueError('Capture belongs to a different photo')
-        if report['issues'] and not allow_primary_choice:
-            raise ValueError('Resolve capture issues before planning an edit')
         saved = metadata_decisions.current(conn,'primary',str(file_id))
+        if report['issues'] and not allow_primary_choice:
+            # An immutable Index capture still records the choices it originally
+            # needed. Only a verified import of that capture can settle those
+            # choice-only issues; a saved-but-unapplied decision is insufficient.
+            imported = conn.execute("SELECT e.detail_json FROM operations o JOIN operation_events e "
+                "ON e.operation_id=o.id WHERE o.photo_id=? AND e.step IN "
+                "('metadata_activated','photo_metadata_activated') ORDER BY e.event_id DESC LIMIT 1",
+                (photo_id,)).fetchone()
+            receipt = json.loads(imported[0]) if imported else {}
+            choice_codes = {'metadata_choice_needed','ambiguous_ownership','owner_conflict','saved_owner_changed'}
+            settled = (receipt.get('capture_id') == capture_id and saved is not None
+                       and receipt.get('primary_id') == saved['value']['primary_id']
+                       and all(issue.get('code') in choice_codes for issue in report['issues']))
+            if not settled:
+                raise ValueError('Resolve capture issues before planning an edit')
         sources, primary_id = report['sources'], None
         activated = metadata_save.active(conn, photo_id)
         if saved:
@@ -437,6 +450,24 @@ def preview_copy(db_path, *, photo_id, capture_id, changes, copy_fields, destina
     return _token(result)
 
 
+def _previously_applied_xmp(conn, photo_id, file_id, version_id):
+    """Verified import/save receipts establish ownership; candidate captures do not."""
+    rows = conn.execute("SELECT e.detail_json FROM operations o JOIN operation_events e ON e.operation_id=o.id "
+        "WHERE o.photo_id=? AND ((e.step='metadata_activated' AND e.outcome='completed') "
+        "OR (e.step='metadata_saved' AND e.outcome='verified'))", (photo_id,))
+    for (raw,) in rows:
+        receipt = json.loads(raw)
+        if receipt.get('file_id') != file_id:
+            continue
+        if receipt.get('version_id') == version_id:
+            return True
+        # A first import also retains alternatives with explicit owner identities.
+        if any(v.get('version_id') == version_id and file_id in v.get('owners', {}).values()
+               for v in receipt.get('versions', [])):
+            return True
+    return False
+
+
 def preview_primary(db_path, *, photo_id, capture_id, version_id, destination_root, settings=None):
     """Deliberate activation of one retained, associated XMP version in Library.
 
@@ -458,7 +489,7 @@ def preview_primary(db_path, *, photo_id, capture_id, version_id, destination_ro
             (version_id, binding['file_id'], retained[0])).fetchone()
         incoming = any(v['version_id']==version_id for d in metadata_incoming.alternatives(conn, retained[0])
                        for v in d['versions'])
-        if not linked and not incoming:
+        if not linked and not incoming and not _previously_applied_xmp(conn, photo_id, binding['file_id'], version_id):
             raise ValueError('This XMP version has no confirmed association with the photo')
         data = xmp_store.original_bytes(conn, version_id)
         parsed = xmp.parse_bytes(data, source_id='primary')

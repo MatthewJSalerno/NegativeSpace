@@ -106,6 +106,9 @@ def prepare(conn, *, run_id, preview, db_path, backups_dir, base_dir, defer_back
             copy_fields=preview['composition']['copy_fields'], base=preview['composition'].get('base'), **args)
     else:
         fresh = metadata_edits.preview_catalog(db_path, changes=preview['changes'], remove_fields=preview.get('remove_fields', ()), **args)
+    if 'exact_output' in preview:
+        from engine import metadata_duplicates
+        fresh = metadata_duplicates.preview(db_path, fresh)
     if fresh != preview:
         raise ns_db.RevisionConflict('Metadata preview changed; review it again before saving')
     photo = metadata_transfer._path(binding['destination_root'],

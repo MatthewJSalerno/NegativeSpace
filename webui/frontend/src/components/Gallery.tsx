@@ -59,7 +59,7 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
           <li key={item.id} data-page={pageOfShown?.[index]} data-id={item.id} className={`card ${isSelected ? "selected" : ""} ${openId === item.id ? "open" : ""} ${item.id === keepId ? "card-keep" : ""}`}>
             <div className="card-preview">
               <button className="card-image" onClick={() => onOpen(item.id)} aria-label={`Open ${item.filename}`}>
-                <Thumb refreshKey={refreshKey} id={item.id} alt={item.filename} />
+                <Thumb refreshKey={refreshKey} revision={item.thumbnail_revision ?? 0} id={item.id} alt={item.filename} />
               </button>
               {matchThreshold != null && item.similar_count != null && <span className="card-match-count" title={`${plural(item.similar_count, "match", "matches")} at or above ${matchThreshold}%`}>
                 {plural(item.similar_count, "match", "matches")}

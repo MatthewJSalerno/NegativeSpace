@@ -3,10 +3,20 @@
 from pathlib import Path
 from typing import Optional
 
-from . import catalog
+from . import catalog, operation_actions
 
 
 # --- A photo's lineage (webui-spec 6.3) ----------------------------------------
+
+def file_tree(photo_query):
+    """Internal SQL only: retain both ancestries after confirmed consolidation."""
+    return ("WITH RECURSIVE tree(file_id) AS (SELECT file_id FROM photo_files WHERE photo_id IN (" + photo_query + ") "
+            "UNION SELECT o.file_id FROM file_origins o JOIN tree t ON o.origin_file_id=t.file_id "
+            "UNION SELECT linked.file_id FROM tree t JOIN operation_files seed ON seed.file_id=t.file_id "
+            "JOIN operation_files linked ON linked.operation_id=seed.operation_id "
+            "WHERE EXISTS(SELECT 1 FROM operation_events e WHERE e.operation_id=seed.operation_id "
+            "AND e.step='metadata_consolidation_verified')) ")
+
 
 def photo_lineage(db_path: Path, photo_id: int) -> Optional[dict]:
     """Everything the catalog records about a photo's files, for the lineage tree: its
@@ -22,8 +32,7 @@ def photo_lineage(db_path: Path, photo_id: int) -> Optional[dict]:
             "SELECT id FROM photos WHERE sha1_hash = ? AND id != ? ORDER BY id", (photo["sha1_hash"], photo_id))]
             if photo["sha1_hash"] else [])
         marks = ",".join("?" * len(photos))
-        tree = (f"WITH RECURSIVE tree(file_id) AS (SELECT file_id FROM photo_files WHERE photo_id IN ({marks}) "
-                "UNION SELECT o.file_id FROM file_origins o JOIN tree t ON o.origin_file_id = t.file_id) ")
+        tree = file_tree(marks)
         files = [dict(r) for r in conn.execute(
             tree + "SELECT t.file_id, o.origin_file_id, o.kind AS origin_kind, s.current_path AS path, "
             "s.location_role AS role, s.presence_state AS presence, s.sha1_hash, snap.file_size, "
@@ -42,6 +51,7 @@ def photo_lineage(db_path: Path, photo_id: int) -> Optional[dict]:
             "o.source_path, o.dest_path, (o.reconciles_operation_id IS NOT NULL) AS recovery "
             f"FROM operations o LEFT JOIN runs r ON r.id = o.run_id WHERE o.id IN ({','.join('?' * len(op_ids))}) "
             "ORDER BY o.id", op_ids)] if op_ids else []
+        operation_actions.annotate(conn, operations)
         # The jobs this photo was chosen for by hand, whatever each then did with it.
         selected_by = [dict(r) for r in conn.execute(
             "SELECT r.id AS run_id, r.mode, r.status, r.started_at FROM run_selections s "

@@ -237,3 +237,13 @@ export function reasonsText(outcome: Outcome | null | undefined): string | null 
     .filter(Boolean);
   return blocks.length ? blocks.join("\n\n") : null;
 }
+
+// Outcomes are shared with transfer jobs; name metadata work from its durable intent.
+export function operationLabel(op: { mode: string | null; status: string; action?: string | null }, fallback: string): string {
+  const action = op.action ?? (op.mode === "METADATA" ? "metadata" : null);
+  const name = ({ rotation: "Rotation", date: "Date", metadata_source: "Metadata source", metadata: "Metadata" } as Record<string, string>)[action ?? ""];
+  if (!name) return fallback;
+  if (op.status === "Completed") return `${name} ${action === "metadata_source" ? "changed" : "saved"}`;
+  const outcome = ({ Failed: "failed", Processing: "unfinished", Skipped: "skipped", Cancelled: "cancelled" } as Record<string, string>)[op.status];
+  return outcome ? `${name} ${outcome}` : fallback;
+}

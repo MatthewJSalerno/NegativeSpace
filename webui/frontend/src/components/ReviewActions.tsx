@@ -58,6 +58,6 @@ export function ReviewActions({ workspace, busy, setBrowse, onOpenSet, onShowSet
     </label>}
     {error && <p className="error" role="alert">{error} <button onClick={() => setRetry(n => n + 1)}>Retry set navigation</button></p>}
     {setBrowse && position?.position === null && <p className="section-note">This reference is outside the current gallery sets. Return to the gallery to choose a set.</p>}
-    {setBrowse && <p className="section-note">Set navigation follows the gallery’s percentage, filters and sort. Viewing rotations are temporary and reset when leaving this set.</p>}
+    {setBrowse && <p className="section-note">Set navigation follows the gallery’s percentage, filters and sort. Unsaved viewing turns are reviewed before leaving this set.</p>}
   </div>;
 }

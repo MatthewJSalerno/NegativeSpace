@@ -20,6 +20,7 @@ Return and pair-aware recovery), metadata_edits (field/base composition previews
 metadata_reproduce (supported historical-state reapplication with image-history proof),
 metadata_writer (preservation-aware XMP bytes), metadata_embedded (verified JPEG working copies),
 metadata_photo_save (journaled JPEG publication and content identity),
+metadata_duplicates (confirmed exact-result consolidation and retained histories),
 metadata_primary (verified embedded-source activation without rewriting), metadata_save (verified metadata
 publication, history and refiling), metadata_command (bounded JSON edit jobs), metadata_gps (linked GPS validation),
 metadata_incoming (incoming XMP alternatives, choices and verified duplicate cleanup),
@@ -28,6 +29,7 @@ metadata_source_cleanup (job-confirmed edited-source retirement with image-histo
 move_confirmation (read-only Move scope snapshots and stale-confirmation checks),
 pair_retry (catalog-only incomplete import eligibility and confirmed retry guards),
 metadata_decisions (saved choices and preview/confirmation),
+metadata_choices (source-only import-choice boundary),
 metadata_capture/metadata_index (read-only source
 observations and proposed priority, never activation), and the ns_similarity modules.
 
@@ -69,6 +71,8 @@ deletion and are not reliably detected by the engine.
   recorded pair intent, roots and original mode; checked under the engine lock
   before acceptance and around startup recovery. It grants no verification bypass.
 
+- --import-choice (Optional) Confirm a source XMP ownership/version choice from JSON stdin,
+  under the engine lock; source files stay unchanged.
 - --review-decision (Optional) Record one catalog-only review decision from JSON stdin,
   under the engine lock. Returns JSON; never changes photo bytes or transfer status.
 
