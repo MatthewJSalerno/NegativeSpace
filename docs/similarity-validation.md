@@ -482,15 +482,14 @@ discoverability and desired behavior with grouped sets before adding/changing UI
 unrelated ones at 97–100%. Should the hash normalize brightness first, and how should
 "low-detail" be defined? Decision: `engine-spec.md` §9.3.
 
-**Method.** A read-only script computed three perceptual hashes per photo from the
-engine's 32×32 greyscale input, orientation applied as in §9.3: as today, after a
-contrast stretch (Pillow `ImageOps.autocontrast`, 1% cutoff), and after histogram
-equalization (`ImageOps.equalize`). It also recorded the image's brightness spread,
-average brightness and mean gradient magnitude. Matches were found with the engine's
-own `HashIndex`; byte-identical copies counted once. Sample pairs were inspected by
-eye. Two libraries: the demo library (4,795 photos: public NASA images, public camera
-samples and generated scenarios) and the maintainer's photo share (29,085 photos,
-mounted read-only; only these aggregates were kept).
+**Historical methods and limits.** The demo script used the engine's full-decode
+32×32 greyscale input with orientation applied, comparing the existing hash with
+Pillow `ImageOps.autocontrast` (1% cutoff) and `ImageOps.equalize`. It deduplicated
+by SHA-1. The share script instead requested JPEG `draft('L', (128, 128))` before
+resizing and keyed rows by path, without content deduplication. Both used the engine's
+`HashIndex`; they are not equivalent methods. The historical demo record describes
+4,795 photos and the share record 29,085. These are retained observations from the
+original runs, not a reproducible shared baseline. Only aggregates are published.
 
 **Pairs at 90% or more.**
 
@@ -515,8 +514,10 @@ photos' hashes moved more than 6 bits, against a median of 8 bits for equalizati
 | Dark pairs kept | 261 of 309 | 12 | 12 |
 
 The three false dark pairs were light trails, sparklers and a lit ring against each
-other. Equalization swapped about 2,350 real matches across the 90% line to remove
-roughly a dozen false ones, so it was not adopted.
+other. The measured change was 2,351 pairs crossing the threshold. Calling all of those
+real matches, or estimating roughly a dozen false pairs removed, extrapolates from
+the small inspected samples above; neither is a full-library ground-truth count.
+The decision was to retain the existing hash and mark low-detail matches.
 
 **Choosing the definition.** Low brightness spread alone is not a definition: most of
 the share's 309 dark pairs are real. Structure alone (mean gradient under 2) covered
@@ -538,10 +539,10 @@ more, 6 stay unflagged, all between photos with ordinary detail; three of them a
 versions of one NASA image. The share-wide count of flagged photos was not taken; Stats reports it per
 library once built.
 
-**Prior work.** No published method prescribes equalization before perceptual hashing
-for this problem; equalization is a standard contrast correction, and our measurement
-shows it moves a hash by a median of 8 of 64 bits, so it cannot be mixed with existing
-hashes. Practitioners matching photos at scale report the same collisions between
+**Prior work.** The sources below discuss composition collisions and a different
+method for star fields; neither validates equalization as a remedy for these photo
+libraries. Equalization changed hashes by a median of 8 of 64 bits in the demo
+measurement. Some hashes stay unchanged, but the two hash definitions cannot be mixed. Practitioners matching photos at scale report the same collisions between
 unrelated images of similar overall composition
 ([The problem with perceptual hashes](https://rentafounder.com/the-problem-with-perceptual-hashes/)).
 Matching star fields properly is a different technique: Astrometry.net indexes
@@ -549,3 +550,33 @@ quadrilaterals of stars, independent of rotation and scale
 ([Lang et al. 2010](https://arxiv.org/abs/0910.2233)). That would be a separate feature
 for astrophotography libraries; low-detail marking keeps such photos from false
 automatic reasons in the meantime.
+
+
+### Demo reproduction — 2026-10-18
+
+A Docker rerun of the original demo script read only the demo library: 4,859 eligible
+paths and 4,731 unique decoded contents. The sorted unique content digests, joined
+with newlines, have SHA-256 fingerprint
+`b25d4049e16452fba7f7b5c0d1e33766b2751da143333c2b0e0d3899a02e3eee`.
+No personal library was read for this rerun. The historical demo numbers above could
+not be reproduced from this snapshot; do not compare their totals as an algorithm change.
+
+| Current demo pairs | Existing hash | Stretch | Equalize |
+| --- | ---: | ---: | ---: |
+| At least 90% | 465 | 451 | 425 |
+| At least 75% | 4,892 | 4,573 | 3,053 |
+
+Equalization removed 48 and added 8 pairs at 90%; 131 hashes stayed unchanged and
+the median change was 8 bits. No new visual ground-truth classification was performed.
+The agreed brightness-under-10 or gradient-under-2 rule flags **154 photos**, involving
+76 of the 465 pairs and 26 of the 48 removed pairs. These are flagged counts, not
+false-positive estimates. Thresholds remain unchanged.
+
+The share script was also run **on the same demo**, to isolate its method difference:
+4,837 decoded path rows produced 584 / 565 / 540 pairs at 90%. Restricting its output
+to the demo script's same 4,731 representative files showed that JPEG draft changed
+854 hashes and two low-detail classifications: existing-hash pairs went from 465 to
+470 with draft, then to 584 without content deduplication. Historical share results
+therefore must not be described as an exact engine-input, unique-content measurement.
+A direct check of 56 files across eight extensions matched the demo script's hash to
+`compute_phash` in every case, including RAW files.

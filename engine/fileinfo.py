@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
+
 from engine.ns_db import RAW_EXTENSIONS
 from engine import constants, deps, durable, runtime
 
@@ -338,7 +340,18 @@ _ORIENTATION_TRANSPOSE = {2: "FLIP_LEFT_RIGHT", 3: "ROTATE_180", 4: "FLIP_TOP_BO
 _PHASH_INPUT = 32
 
 
-def compute_phash(file_path: str) -> str:
+def _hash_and_measure(small, measures):
+    """One common hash input; evidence is published only after hashing succeeds."""
+    value = str(deps.imagehash.phash(small))
+    if measures is not None:
+        pixels = np.asarray(small, dtype=float)
+        gy, gx = np.gradient(pixels)
+        measures.update(mean_brightness=float(pixels.mean()),
+                        mean_gradient=float(np.hypot(gx, gy).mean()))
+    return value
+
+
+def compute_phash(file_path: str, *, measures=None) -> str:
     """The photo's perceptual hash, taken from the photo as it is displayed: the stored
     pixels with their orientation applied, the same rule thumbnails follow. A portrait
     JPEG then matches its own RAW, which LibRaw decodes already rotated, and copies
@@ -348,6 +361,8 @@ def compute_phash(file_path: str) -> str:
     full-size image first measured 22 ms more on a 24 MP photo, against 2 ms. The two
     orders differ by a bit or two, which is immaterial when every photo uses the same one.
     """
+    if measures is not None:
+        measures.clear()
     if not deps.IMAGEHASH_SUPPORTED:
         return "not_supported"
 
@@ -366,7 +381,8 @@ def compute_phash(file_path: str) -> str:
                         use_camera_wb=True, half_size=True, no_auto_bright=True, output_bps=8
                     )
                 img = deps.Image.fromarray(rgb)
-                return str(deps.imagehash.phash(img))
+                small = img.convert("L").resize((_PHASH_INPUT, _PHASH_INPUT), deps.Image.Resampling.LANCZOS)
+                return _hash_and_measure(small, measures)
         except Exception as e:
             runtime.logger.debug(f"rawpy pHash failed for {file_path}: {e}")
             return "error"
@@ -381,7 +397,7 @@ def compute_phash(file_path: str) -> str:
             turn = _ORIENTATION_TRANSPOSE.get(orientation)
             if turn is not None:
                 small = small.transpose(getattr(deps.Image.Transpose, turn))
-            return str(deps.imagehash.phash(small))
+            return _hash_and_measure(small, measures)
     except Exception as e:
         runtime.logger.debug(f"PIL pHash failed for {file_path}: {e}")
         return "error"

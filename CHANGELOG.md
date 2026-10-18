@@ -9,6 +9,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Mark mostly dark or flat similarity matches without hiding them or changing scores;
+  show their count in Stats. Store brightness and gradient with the visual hash
+  (catalog schema 30; older catalogs require rebuilding).
+
 - Gallery review links align at the bottom of each card when dates or status badges wrap.
 
 - Same-named photo cards show distinguishing original-source folders across the whole

@@ -547,6 +547,7 @@ export interface Stats {
     renames: number; exif_edits: number | null;
   };
   health: {
+    low_detail_photos: number;
     last_backup: string | null; backup_bytes: number; backups: number; unbacked_changes: number;
     catalog_bytes: number; thumbnail_cache: { size: number; photos: number; bytes: number }[];
     destination_check: { at: string; findings: Record<string, number> } | null;
@@ -675,7 +676,10 @@ function submitJob(path: string, body: Record<string, unknown>): Promise<Run> {
 
 export type MatchScope = "library" | "rejects";
 
+export const LOW_DETAIL_NOTE = "Mostly dark or plain: matches like this are often unrelated photos.";
+
 export interface MatchPhoto {
+  low_detail?: boolean; low_detail_match?: boolean;
   id: number; filename: string; file_size: number | null; date_taken: string | null;
   display_width?: number | null; display_height?: number | null;
   status: string; width: number | null; height: number | null; matches?: number; score?: number;
@@ -709,7 +713,7 @@ export interface MatchCounts {
 // Two photos for side by side.
 export interface MatchPair {
   reference: MatchPhoto & { sha1: string }; candidate: MatchPhoto & { sha1: string };
-  exact: boolean; distance: number | null; score: number | null;
+  exact: boolean; distance: number | null; score: number | null; low_detail_match?: boolean;
 }
 export interface MatchDiagnostics {
   state: MatchPage["state"]; distinct_hashes: number; stored_pairs: number; query_ms: number;

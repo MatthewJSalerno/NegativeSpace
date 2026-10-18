@@ -121,7 +121,9 @@ to delete anything for its library to be complete.
 source files are not compared in this view. Open one and choose **Similar
 photos**: the counts show how many matches it has at each percentage. The percentage
 measures visual similarity, not certainty; below 90%, matches are more likely to be
-unrelated.
+unrelated. Mostly dark or plain photos carry a note because even a high percentage
+can pair unrelated scenes. You can still compare every match. **Stats › Catalog health**
+shows how many of your photos have little detail.
 
 ![A photo's similar photos](images/similar-photos.png)
 

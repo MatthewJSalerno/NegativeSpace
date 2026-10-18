@@ -17,7 +17,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 29
+SCHEMA_VERSION = 30
 
 # --- Status vocabularies -----------------------------------------------------
 #
@@ -670,11 +670,12 @@ FOUNDATION_DDL = (
         submitted_request_json TEXT NOT NULL)""",
     # Shared content identity. Similarity pairs and the thumbnail cache both key
     # on content rather than on a file, so identical copies are compared and
-    # rendered once. Defined now; nothing populates it until those steps land.
+    # rendered once. Low-detail evidence is measured from the same hash input.
     """CREATE TABLE contents (
         content_id INTEGER PRIMARY KEY AUTOINCREMENT,
         hash_algorithm TEXT NOT NULL, digest TEXT NOT NULL,
         phash TEXT, phash_state TEXT, width INTEGER, height INTEGER,
+        mean_brightness REAL, mean_gradient REAL,
         UNIQUE(hash_algorithm, digest))""",
     # Append-only step outcomes for one operation. A terminal event and the
     # current-state update commit together; an interrupted operation has intent
@@ -1191,7 +1192,7 @@ def resolve_attention_issue(conn, issue_id, *, event_id=None):
 
 
 def content_for_digest(conn, *, digest, algorithm='sha1', phash=None, phash_state=None,
-                       width=None, height=None):
+                       width=None, height=None, mean_brightness=None, mean_gradient=None):
     """Content identity for one digest, created on first sight and returned thereafter.
 
     Thumbnails and similarity key on content rather than on a particular
@@ -1205,13 +1206,15 @@ def content_for_digest(conn, *, digest, algorithm='sha1', phash=None, phash_stat
     if not digest:
         raise ValueError("content identity requires a digest")
     conn.execute(
-        "INSERT INTO contents(hash_algorithm,digest,phash,phash_state,width,height) "
-        "VALUES(?,?,?,?,?,?) ON CONFLICT(hash_algorithm,digest) DO UPDATE SET "
+        "INSERT INTO contents(hash_algorithm,digest,phash,phash_state,width,height,mean_brightness,mean_gradient) "
+        "VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(hash_algorithm,digest) DO UPDATE SET "
         "phash=COALESCE(excluded.phash,contents.phash), "
         "phash_state=COALESCE(excluded.phash_state,contents.phash_state), "
         "width=COALESCE(excluded.width,contents.width), "
-        "height=COALESCE(excluded.height,contents.height)",
-        (algorithm, digest, phash, phash_state, width, height))
+        "height=COALESCE(excluded.height,contents.height), "
+        "mean_brightness=COALESCE(excluded.mean_brightness,contents.mean_brightness), "
+        "mean_gradient=COALESCE(excluded.mean_gradient,contents.mean_gradient)",
+        (algorithm, digest, phash, phash_state, width, height, mean_brightness, mean_gradient))
     return conn.execute("SELECT content_id FROM contents WHERE hash_algorithm=? AND digest=?",
                         (algorithm, digest)).fetchone()[0]
 

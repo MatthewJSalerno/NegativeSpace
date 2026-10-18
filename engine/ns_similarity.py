@@ -8,6 +8,12 @@ MIN_SCORE = 75
 VALID_HASH = re.compile(r'^[0-9a-fA-F]{16}$')
 
 
+def is_low_detail(mean_brightness, mean_gradient):
+    """Engine-spec 9.3: missing evidence is unknown, not an automatic warning."""
+    return ((mean_brightness is not None and mean_brightness < 10)
+            or (mean_gradient is not None and mean_gradient < 2))
+
+
 def usable(value):
     return isinstance(value, str) and bool(VALID_HASH.fullmatch(value))
 

@@ -27,6 +27,7 @@ def repair_similarity(db_path: Path, dest_root: Path, scope: str, photo_id=None)
                 return RunStatus.CANCELLED
             path = Path(row['dest_path'])
             state, phash = 'repair_unreadable', None
+            measures = {}
             read_error = None
             try:
                 if not path.resolve().is_relative_to(dest_root.resolve()):
@@ -40,7 +41,7 @@ def repair_similarity(db_path: Path, dest_root: Path, scope: str, photo_id=None)
                     elif fileinfo.compute_sha1(str(path)) != row['sha1_hash']:
                         state = 'repair_changed'
                     else:
-                        value = fileinfo.compute_phash(str(path))
+                        value = fileinfo.compute_phash(str(path), measures=measures)
                         after = path.stat()
                         fingerprint = lambda s: (s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
                         if (fingerprint(before) != fingerprint(after)
@@ -58,8 +59,10 @@ def repair_similarity(db_path: Path, dest_root: Path, scope: str, photo_id=None)
             if runtime.cancel_requested.is_set():
                 return RunStatus.CANCELLED
             with ns_db.transaction(conn):
-                conn.execute('UPDATE contents SET phash=?,phash_state=? WHERE content_id=? AND digest=?',
-                             (phash,state,row['content_id'],row['sha1_hash']))
+                conn.execute('UPDATE contents SET phash=?,phash_state=?,mean_brightness=?,mean_gradient=? '
+                             'WHERE content_id=? AND digest=?',
+                             (phash,state,measures.get('mean_brightness') if phash else None,
+                              measures.get('mean_gradient') if phash else None,row['content_id'],row['sha1_hash']))
                 if phash is not None:
                     conn.execute('UPDATE photos SET phash=? WHERE sha1_hash=?', (phash,row['sha1_hash']))
                 if phash is None and runtime.run_progress.run_id is not None:

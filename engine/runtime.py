@@ -39,6 +39,8 @@ class ProcessingResult:
     birthtime: Optional[float] = None
     observed_at: Optional[str] = None
     thumbnail: Optional["ThumbnailResult"] = None
+    mean_brightness: Optional[float] = None
+    mean_gradient: Optional[float] = None
 
 
 @dataclass

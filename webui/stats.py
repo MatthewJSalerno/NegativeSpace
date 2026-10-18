@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from engine import ns_db
+from engine import ns_db, ns_similarity
 from engine.ns_db import PhotoStatus, RunStatus, OPERATION_RENAMED
 from . import catalog, catalog_backups
 
@@ -96,7 +96,7 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
             "json_extract(p.metadata_json, '$.date_taken') AS date_taken, "
             "json_extract(p.metadata_json, '$.date_source') AS date_source, "
             "json_extract(p.metadata_json, '$.DateTimeOriginal') AS original, "
-            "json_extract(p.metadata_json, '$.OffsetTimeOriginal') AS offset, c.width, c.height "
+            "json_extract(p.metadata_json, '$.OffsetTimeOriginal') AS offset, c.width, c.height, c.phash_state, c.mean_brightness, c.mean_gradient "
             f"FROM photos p LEFT JOIN contents c ON c.digest = p.sha1_hash AND c.hash_algorithm = 'sha1' WHERE p.status IN ({shown})").fetchall()
         dup = conn.execute(
             f"SELECT COUNT(*) AS copies, COALESCE(SUM(file_size), 0) AS bytes, "
@@ -226,7 +226,9 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
                      "bytes_per_second": round(moved_run_bytes / moved_seconds) if moved_seconds else None,
                      "failures": failures, "renames": ops.get(OPERATION_RENAMED, 0), "exif_edits": None},
         "rejects": rejects,
-        "health": {"last_backup": backup["last_success"], "backup_bytes": backup["present_bytes"],
+        "health": {"low_detail_photos": sum(p["phash_state"] == "ok" and ns_similarity.is_low_detail(
+                       p["mean_brightness"], p["mean_gradient"]) for p in photos),
+                   "last_backup": backup["last_success"], "backup_bytes": backup["present_bytes"],
                    "backups": backup["present_count"], "unbacked_changes": backup["unbacked"]["count"],
                    "catalog_bytes": catalog_bytes, "thumbnail_cache": cache,
                    "destination_check": {"at": check[1], "findings": findings} if check else None},

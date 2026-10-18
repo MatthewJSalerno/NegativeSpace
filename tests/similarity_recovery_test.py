@@ -40,12 +40,14 @@ class RecoveryTests(unittest.TestCase):
         return maintenance.repair_similarity(self.db,self.dest,'missing',self.photo)
 
     def test_cancel_during_decode_publishes_no_partial_hash(self):
-        def decode(_):
+        def decode(_, **kwargs):
+            kwargs['measures'].update(mean_brightness=3, mean_gradient=1)
             runtime.cancel_requested.set()
             return '0000000000000000'
         with patch.object(fileinfo,'compute_phash',side_effect=decode):
             self.assertEqual(self.repair(),'Cancelled')
         self.assertEqual(self.state(),(None,'error'))
+        self.assertEqual(self.conn.execute('SELECT mean_brightness,mean_gradient FROM contents').fetchone(), (None,None))
         self.assertEqual(self.conn.execute('SELECT COUNT(*) FROM similarity_hashes').fetchone(),(0,))
         runtime.cancel_requested.clear()
         with patch.object(fileinfo,'compute_phash',return_value='0000000000000000'):
@@ -53,12 +55,14 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(self.state(),('0000000000000000','ok'))
 
     def test_bytes_changed_during_decode_never_receive_old_content_hash(self):
-        def decode(_):
+        def decode(_, **kwargs):
+            kwargs['measures'].update(mean_brightness=3, mean_gradient=1)
             self.path.write_bytes(b'new external bytes')
             return '0000000000000000'
         with patch.object(fileinfo,'compute_phash',side_effect=decode):
             self.repair()
         self.assertEqual(self.state(),(None,'repair_changed'))
+        self.assertEqual(self.conn.execute('SELECT mean_brightness,mean_gradient FROM contents').fetchone(), (None,None))
         self.assertEqual(self.path.read_bytes(),b'new external bytes')
 
     def test_unreadable_and_decode_failures_have_distinct_reasons(self):

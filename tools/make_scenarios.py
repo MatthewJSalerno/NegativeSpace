@@ -350,6 +350,34 @@ def prepare_out(out: Path, replace: bool):
     (out / MARKER).write_text("Made by tools/make_scenarios.py; replaced by build --replace.\n")
 
 
+def low_detail_scenarios(folder: Path):
+    """Generated night scenes: a real look-alike and an unrelated similar silhouette."""
+    folder.mkdir(parents=True, exist_ok=True)
+    moon = Image.new("RGB", (320, 240), (2, 2, 2))
+    draw = ImageDraw.Draw(moon)
+    draw.ellipse((210, 30, 250, 70), fill=(95, 95, 95))
+    for x, y in ((40, 30), (90, 180), (120, 100), (280, 160)):
+        draw.point((x, y), fill=(20, 20, 20))
+    lamp = Image.new("RGB", (320, 240), (2, 2, 2))
+    draw = ImageDraw.Draw(lamp)
+    draw.ellipse((210, 30, 250, 70), fill=(95, 95, 95))
+    draw.line((230, 70, 230, 239), fill=(4, 4, 4), width=3)
+    city = Image.new("RGB", (320, 240), (2, 2, 2))
+    draw = ImageDraw.Draw(city)
+    for x in range(20, 300, 35):
+        for y in range(150, 220, 20):
+            draw.rectangle((x, y, x + 3, y + 5), fill=(65, 65, 65))
+    for name, image, description in (
+            ("moon", moon, "Near-black moon scene; a real look-alike of moon-brighter"),
+            ("moon-brighter", ImageEnhance.Brightness(moon).enhance(1.25), "Same moon scene with a brightness change"),
+            ("lamp", lamp, "Unrelated streetlight; its similar silhouette is not the moon photo"),
+            ("city", city, "Unrelated city windows, not a copy of the moon or lamp"),
+            ("flat", Image.new("RGB", (320, 240), (180, 180, 180)), "Bright flat image; little detail despite high brightness")):
+        path = folder / f"scn-low-detail-{name}.png"
+        image.save(path)
+        yield path, description
+
+
 def build(args):
     rng = random.Random(args.seed)
     out = Path(args.out).resolve()
@@ -692,6 +720,11 @@ def build(args):
         record_altered(dest)
         m.add(dest, "look_alike_turned_tagged", "Has similar photos pairs it with its original at about 100%: "
               "stored turned, it displays the same through its orientation tag", src)
+
+    # Low-detail evidence marks dubious matches without hiding real night-photo copies.
+    for dest, description in low_detail_scenarios(sc / "low-detail"):
+        record_altered(dest)
+        m.add(dest, "low_detail", description + "; low-detail note on matches, still counted")
 
     # 17b. A camera's RAW+JPEG of a portrait shot: the JPEG is stored unrotated with the
     # RAW's orientation tag, while LibRaw decodes the RAW upright. Made from a portrait RAW

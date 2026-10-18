@@ -911,7 +911,8 @@ file is gone, pruned or never written is `404 backup_unavailable`.
 Everything the Stats page shows, read from the catalog in one pass (`webui-spec.md` §5.9).
 The `library` photo totals/traits and `dates` cover Library and Not organized, excluding
 Failed source records; `library.failed_source` counts these separately. Rejects totals
-and activity failure-attempt counts have their own scopes:
+and activity failure-attempt counts have their own scopes. `health.low_detail_photos`
+uses the same Catalog photos scope and excludes unknown measurements:
 
     {"library": {"failed_source", "photos", "bytes", "organized", "organized_bytes", "not_organized",
                  "formats": [{"format": "jpg", "photos", "bytes"}, ...],     // most space first
@@ -929,7 +930,7 @@ and activity failure-attempt counts have their own scopes:
      "activity": {"jobs": {"INDEX": 3, ...}, "last_index", "copied", "moved",
                   "bytes_transferred", "bytes_per_second" | null,
                   "failures": {"not_an_image": 2, "permission": 1, ...}, "renames", "exif_edits": null},
-     "health": {"last_backup", "backup_bytes", "backups", "unbacked_changes", "catalog_bytes",
+     "health": {"low_detail_photos", "last_backup", "backup_bytes", "backups", "unbacked_changes", "catalog_bytes",
                 "thumbnail_cache": [{"size", "photos", "bytes"}, ...],
                 "destination_check": {"at", "findings": {"missing": 1, ...}} | null},
      "rejects": {"photos", "bytes", "oldest_rejected_at", "emptied": {"photos", "bytes"}}}
@@ -1131,6 +1132,11 @@ transitive. A direct link to another eligible destination copy resolves its cont
 Incomplete comparisons are reported through `state.pending`; no results with
 pending work do not establish uniqueness.
 
+Similarity items expose `low_detail` for that photo and match-list candidates expose
+`low_detail_match` when either the reference or candidate is low-detail. These booleans
+do not change scores, eligibility, counts or grouping. Missing measurements are not
+classified. The catalog supplies the measurements; these reads do not decode photos.
+
 ### `GET /api/v1/similar/{id}/counts`
 
 Cumulative direct-match counts for a Library or still-present rejected reference at thresholds
@@ -1187,7 +1193,8 @@ photo files, and interrupted filesystem mutations are not resumed by this job.
 
 Two photos for side by side: any two different eligible destination photos, in Library or still-present in Rejects. Each status identifies its location; source-only and emptied-reject pairs return 409. Below-threshold pairs are allowed. Returns `reference` and `candidate` (matching item
 fields plus `sha1`), `exact` (same content identity), `distance` (0–64, null without
-usable hashes) and `score` (hash percentage or null). Unknown, identical-ID or
+usable hashes), `score` (hash percentage or null), and `low_detail_match` (true when
+either endpoint is low-detail). Unknown, identical-ID or
 unavailable photos return 409 `pair_changed`. It reads only; deciding between the two is
 Reject or Keep this one, reject the rest for Library photos, or Return for a rejected photo (§5).
 

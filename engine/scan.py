@@ -75,7 +75,8 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int,
             pass
 
         sha1 = fileinfo.compute_sha1(str(file_path))
-        phash = fileinfo.compute_phash(str(file_path))
+        measures = {}
+        phash = fileinfo.compute_phash(str(file_path), measures=measures)
 
         dt, metadata = fileinfo.get_metadata_and_date(file_path, original_mtime)
         refusal = not_an_image(file_path, file_size, metadata)
@@ -134,7 +135,7 @@ def process_file_task(file_path_str: str, dest_base_path: str, run_id: int,
             has_name_collision=False,
             file_size=file_size,
             file_mtime=file_mtime, birthtime=birthtime, observed_at=observed_at,
-            thumbnail=thumbnail
+            thumbnail=thumbnail, **measures
         )
     except Exception as e:
         result = _failed_result(file_path_str, run_id, f"{type(e).__name__}: {e}")

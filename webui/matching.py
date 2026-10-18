@@ -40,7 +40,7 @@ def counts(db: Path, photo_id: int, *, scope="library"):
 # presence check so emptied files disappear. Reject/Return independently verify bytes.
 _BASE = f"""raw AS (
  SELECT {gallery._LIST_COLUMNS}, c.content_id, lower(c.phash) AS phash,
-        c.phash_state, c.width, c.height,
+        c.phash_state, c.width, c.height, c.mean_brightness, c.mean_gradient,
         ROW_NUMBER() OVER (PARTITION BY c.content_id ORDER BY p.id) AS representative
  FROM photos p JOIN contents c ON c.digest=p.sha1_hash AND c.hash_algorithm='sha1'
  WHERE p.status IN ({ns_db.sql_values(catalog.DELIVERED)})
@@ -99,8 +99,13 @@ def _state(conn, available=AVAILABLE):
     return dict(row)
 
 
+def _low_detail(row):
+    return row['phash_state'] == 'ok' and ns_similarity.is_low_detail(row['mean_brightness'], row['mean_gradient'])
+
+
 def _item(row):
-    return {key: row[key] for key in ('id','filename','file_size','date_taken','status','width','height')}
+    return {**{key: row[key] for key in ('id','filename','file_size','date_taken','status','width','height')},
+            'low_detail': _low_detail(row)}
 
 
 def queue(db: Path, *, mode='similar', threshold=90., sort='matches', q='', page=1, page_size=30):
@@ -157,6 +162,7 @@ def pair(db: Path, reference_id: int, candidate_id: int):
             return {**_item(row),'display_width':width,'display_height':height}
         return {'reference': {**displayed(a), 'sha1':a['sha1_hash']}, 'candidate': {**displayed(b), 'sha1':b['sha1_hash']},
                 'exact': a['content_id'] == b['content_id'], 'distance':distance,
+                'low_detail_match': _low_detail(a) or _low_detail(b),
                 'score': round((64-distance)*100/64,2) if distance is not None else None}
 
 
@@ -205,6 +211,7 @@ def matches(db: Path, photo_id: int, *, mode='similar', threshold=90., page=1, p
         rows=conn.execute('WITH '+scope+scored+' SELECT * FROM scored ORDER BY distance,id LIMIT :limit OFFSET :offset',params).fetchall()
         largest_match = conn.execute('WITH '+scope+scored+' SELECT * FROM scored WHERE width>0 AND height>0 ORDER BY width*height DESC,id LIMIT 1', params).fetchone()
         largest=max(reference['width']*reference['height'] if reference['width'] and reference['height'] else 0,stats[1] or 0) or None
-    return {'reference':_item(reference),'items':[{**_item(r),'score':round((64-r['distance'])*100/64,2)} for r in rows],
+    return {'reference':_item(reference),'items':[{**_item(r),'score':round((64-r['distance'])*100/64,2),
+                'low_detail_match':_low_detail(reference) or _low_detail(r)} for r in rows],
             'total':total, 'largest_match':_item(largest_match) if largest_match is not None else None,
             'page':page,'page_size':page_size,'state':state,'availability':'available','largest_pixels':largest}

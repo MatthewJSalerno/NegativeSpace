@@ -37,7 +37,7 @@ development until the maintainer decides.
 - Merge the two "Reject?" dialogs into one (decided)
 - 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
 - [x] Rotated matches: compare photos as displayed
-- Mark low-detail (mostly black or flat) matches (decided)
+- Mark low-detail (mostly black or flat) matches — implemented; validation pending (`docs/engine-spec.md` §9.3)
 - Large-library measurement (250,000 and 500,000 photos)
 - 💬 Local AI image embeddings for look-alikes, crops included (the maintainer is reading up first)
 
@@ -299,7 +299,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
   as displayed, which matches a portrait RAW to its own JPEG and copies stored turned with
   an orientation tag. Searching every rotation as well was measured and declined: on the
   demo library its new matches were two different, mostly black photos.
-- [ ] Low-detail matches: designed, not built (`docs/engine-spec.md` §9.3).
+- [ ] Low-detail matches: implemented; automated checks passed, maintainer validation pending (`docs/engine-spec.md` §9.3).
 - [ ] Follow the [large-library measurement plan](docs/large-library-performance.md):
   query performance at 250k/500k, dense and overlapping sets, memory, invalidated caches
   and response times. Repeat A/B runs before claiming supported capacity. Original-file

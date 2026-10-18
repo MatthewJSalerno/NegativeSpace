@@ -4,7 +4,7 @@ import { ReviewActions, type SetActions } from "./ReviewActions";
 import type { ComparisonState } from "../comparisonState";
 import { SimilarityRecovery } from "./SimilarityRecovery";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { api, MATCH_THRESHOLDS, type MatchPage, type MatchPair, type MatchPhoto, type MatchScope } from "../api";
+import { api, LOW_DETAIL_NOTE, MATCH_THRESHOLDS, type MatchPage, type MatchPair, type MatchPhoto, type MatchScope } from "../api";
 import { moved, runAndWait } from "../rejecting";
 import { ConfirmDialog } from "./Confirm";
 import { RejectConfirm } from "./RejectConfirm";
@@ -252,7 +252,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       previousDisabled: !matches || (index <= 0 && page === 1),
       nextDisabled: !matches?.items.length || (index === matches.items.length - 1 && page === pages),
     }}
-    status={noteLine ?? progress}>
+    status={<>{noteLine ?? progress}{review?.low_detail_match && <span className="muted"> · {LOW_DETAIL_NOTE}</span>}</>}>
     {rotationExit.editor}
     <ReviewActions workspace={{ origin: initialReference, reference, candidate: active, threshold, page, scope,
       views: { [reference]: referenceView, ...(active == null ? {} : { [active]: displayedCandidateView }) }, linked, share }}
@@ -336,6 +336,7 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
           <button aria-pressed={active === photo.id} aria-label={`Compare ${photo.filename}`} onClick={() => setActive(photo.id)}>
             <Thumb id={photo.id} alt="" refreshKey={reload} /><span title={photo.filename}>{photo.filename}</span>
             <span>{photo.score}% visual similarity</span>
+            {photo.low_detail_match && <span className="muted">{LOW_DETAIL_NOTE}</span>}
           </button>
         </li>)}</ul>
         {pages > 1 && <nav className="match-pages" aria-label="Candidate pages">
