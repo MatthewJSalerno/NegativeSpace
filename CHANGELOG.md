@@ -9,6 +9,18 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Thumbnail cleanup counts only bytes actually removed and reports engine-launch failures
+  with a specific error and next step.
+
+- Settings › Performance shows the thumbnail cache by kind and manages it: **Free up
+  previews** removes detail previews, which are recreated when a photo is opened again;
+  **Repair grid thumbnails** and **Rebuild all grid thumbnails** run as jobs, followed in
+  the panel and the job bar. Stats' Catalog health links to it with **Manage thumbnails**.
+- A thumbnail rebuild no longer stops partway when the catalog holds files the Index
+  could not read; those have no content to make a thumbnail from and are left out.
+- Settings shows its save result beside **Save settings**, so saving no longer moves the
+  buttons.
+
 - Enlarged photos reuse the two-pane Inspector, with a large preview beside the
   information, Metadata and Similar photos tabs, plus resizing and photo navigation.
 

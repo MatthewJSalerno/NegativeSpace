@@ -409,6 +409,14 @@ export interface BackupAttempt {
   availability: "present" | "missing" | "unknown" | "pruned" | null;
 }
 
+// The thumbnail cache by kind (webui-spec 4.2.1), from the sizes the engine records.
+export interface ThumbnailCache {
+  grid: { photos: number; bytes: number };
+  previews: { photos: number; bytes: number };
+  job_active: boolean;
+}
+export interface PreviewsFreed { removed: number; bytes_freed: number; not_removed: number }
+
 export interface Backups {
   items: BackupAttempt[];
   storage: { ok: boolean; error_category: string | null; error_detail: string | null };
@@ -747,6 +755,9 @@ export const api = {
   backups: () => request<Backups>("GET", "/api/v1/backups"),
   backupNow: () => request<BackupAttempt>("POST", "/api/v1/backups"),
   backupDownloadUrl: (id: number) => `/api/v1/backups/${id}/download`,
+  thumbnails: () => request<ThumbnailCache>("GET", "/api/v1/thumbnails"),
+  rebuildThumbnails: (scope: "missing" | "all") => submitJob("/api/v1/thumbnails/rebuild", { scope }),
+  clearPreviews: () => request<PreviewsFreed>("POST", "/api/v1/thumbnails/clear-previews"),
   stats: () => request<Stats>("GET", "/api/v1/stats"),
   uiState: () => request<{ dismissed_run: number | null }>("GET", "/api/v1/ui-state"),
   saveUiState: (values: { dismissed_run: number }) => request<{ dismissed_run: number | null }>("PUT", "/api/v1/ui-state", values),

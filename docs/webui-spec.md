@@ -1159,12 +1159,13 @@ Index retries their readability so an external repair can restore eligibility.
   say **“Preview unavailable; reason not recorded.”** A cache miss awaiting generation
   is a pending preview, not a diagnosed failure. Clear the current unavailable state
   after successful generation while retaining recorded failure history.
-* **Not yet on screen** (the engine side is built): the panel below, and API routes to
-  start a rebuild or free previews. Today `--rebuild-thumbnails` and `--clear-previews` run
-  only from the command line. **It goes in Settings › Performance** (decided 2026-10-05),
-  beside the worker setting, as backups sit in Settings › Backups: thumbnails exist to make
-  browsing fast, and clearing or rebuilding them is occasional housekeeping. Stats'
-  Catalog health keeps the sizes and links to it (**Manage thumbnails**).
+* **The panel is in Settings › Performance** (decided 2026-10-05; built), below the
+  worker setting, as backups sit in Settings › Backups: thumbnails exist to make browsing
+  fast, and clearing or rebuilding them is occasional housekeeping. Stats' Catalog health
+  keeps the sizes and links to it (**Manage thumbnails**). Its routes are in `api-spec.md`
+  §5d. A rebuild started there is followed in the panel through the shared job feed as
+  well as in the drawer, since Settings covers the page; Repair and Rebuild all wait for
+  a running job, while Free up takes no lock and stays available.
 * **Cache size is shown per size, and the two are managed separately.** They have
   different economics and lumping them under one "clear cache" control would mislead:
   grid thumbnails are generated in bulk at Index and their loss blanks the gallery
@@ -1176,8 +1177,8 @@ Index retries their readability so an external repair can restore eligibility.
   > Grid thumbnails · 2.3 GB · 29,048 photos
   > Detail previews · 1.2 GB · 10,412 photos opened
   >
-  > **Free up 1.2 GB** — removes detail previews. They are recreated automatically the
-  > next time you open a photo, so nothing is lost.
+  > **Free up previews** — removes 1.2 GB of detail previews. They are recreated
+  > automatically the next time you open a photo, so nothing is lost.
   > **Repair grid thumbnails** — makes the ones that are missing. Quick when little is missing.
   > **Rebuild all grid thumbnails** — regenerates every one from your photos. How long this takes
   > depends on the size of your library.

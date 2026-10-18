@@ -5,6 +5,7 @@ import { Field } from "./ui/Field";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { api, ApiError, type AccessSettings, type ExtensionSupport, type Settings, type XmpAssociation, type MetadataWriteTarget } from "../api";
 import { BackupsPanel } from "./BackupsPanel";
+import { ThumbnailsPanel } from "./ThumbnailsPanel";
 import { setPalette, usePalette, setTheme, useTheme, type Theme } from "../appearance";
 import { TabList, tabPanel } from "./ui/Tabs";
 
@@ -392,6 +393,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
           {" "}A value you save stays until you change it, even if the container's CPU limit changes later.
         </p>
         <p className="muted">Database queue size: {QUEUE_SIZE.toLocaleString()} items (fixed in the engine, shown for reference).</p>
+        {!firstRun && <ThumbnailsPanel />}
       </section>
     ),
     access: access && <section aria-label="Allowed addresses">
@@ -432,8 +434,8 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
             <span className="muted">Step {step + 1} of {GROUPS.length}</span> {GROUPS[step].label}
           </h3>
           <div className="settings-panel" role="group" tabIndex={0} aria-labelledby={`${idBase}-step`}>{panels[group]}</div>
-          {status}
           <footer className="settings-actions">
+            <div className="settings-status">{status}</div>
             {step > 0 && <button onClick={() => { setMessage(null); setGroup(GROUPS[step - 1].value); }} disabled={saving}>Back</button>}
             {step < GROUPS.length - 1
               ? <button className="primary" onClick={next}>Next</button>
@@ -448,8 +450,8 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
             <div key={g.value} className="settings-panel" role="tabpanel" {...tabPanel(idBase, g.value, group)}>{panels[g.value]}</div>
           ))}
           <p className="section-note">Save applies changes from every tab. No photos are moved.</p>
-          {status}
           <footer className="settings-actions">
+            <div className="settings-status">{status}</div>
             <button onClick={reset} disabled={saving}>Reset</button>
             <button className="primary" onClick={() => save()} disabled={saving}>{saving ? "Saving…" : "Save settings"}</button>
           </footer>

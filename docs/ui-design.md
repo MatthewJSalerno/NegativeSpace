@@ -97,7 +97,7 @@ preview and confirmation controls. Navigation goes to its named destination/tab.
 | Element | Contract and implementation |
 | :--- | :--- |
 | Navigation | Real anchors with destinations and modified-click support; current page indicated. A skip link reaches the main region. |
-| Buttons | Native buttons, primary/secondary/quiet/destructive CSS variants; verb labels. Disable submission while pending. A photo's own action standing alone on a white panel (the Inspector's **Reject…** and **Return to library…**) is outlined with `--control-border`, as fields are: quiet, it read as plain text and was missed. |
+| Buttons | Native buttons, primary/secondary/quiet/destructive CSS variants; verb labels. Disable submission while pending. A photo's own action standing alone on a white panel (the Inspector's **Reject…** and **Return to library…**) is outlined with `--control-border`, as fields are: quiet, it read as plain text and was missed. Standalone actions in a Settings panel (**Back up now**, the thumbnail cache actions) are outlined the same way, each with its explanation beside it. |
 | Selects | Native select for sort and page size. Menus execute commands and are not substitutes for form selects. |
 | Search fields | `ui/SearchField.tsx` for every search and filter box: a **Clear search** button (×, with the field's own name where it filters something else) appears once there is text, clears it and keeps focus in the box; Esc does the same before reaching the dialog or panel around it. The browser's own clear button is hidden, since only some browsers draw one. *From:* [Carbon search](https://carbondesignsystem.com/components/search/usage/). |
 | Fields | `ui/Field.tsx`: persistent label, hint and field error linked to the input, plus invalid state. Required choices say **(required)** in the visible label and use native `required` semantics; do not wait for an error to reveal the requirement. Keep server validation. |
@@ -662,6 +662,11 @@ Settings validates whole positive worker/retention counts and a nonempty extensi
 selection before saving. It keeps drafts, marks affected fields, describes their
 errors and focuses the first invalid control. Server errors remain visible. Success
 uses a polite status, not an urgent alert. Loading failures offer an explicit retry.
+
+Settings' save result appears in its footer, beside **Reset** and **Save settings**, so a
+one-line message never moves the buttons. A button names its action; an amount it
+affects belongs in its explanation, in emphasis so it stands out from the muted text
+(**Free up previews**, "Removes **1.2 GB** of detail previews…").
 
 Settings active-job notice: use the shared neutral informational treatment near
 the top, outside tab panels, to explain that saved processing settings affect future

@@ -4252,6 +4252,37 @@ def clearing_previews_frees_them_and_keeps_the_grid():
           f"a cleared preview was not made again on the next view: {again}")
 
 
+
+@test
+def clearing_previews_counts_only_bytes_actually_removed():
+    """Partial removal keeps failed records and never reports their bytes as freed."""
+    if os.geteuid() == 0:
+        raise Fail("SKIP: permission fixture needs a non-root user")
+    case = new_case("clear_previews_partial")
+    for i in range(3):
+        make_photo(case / "src" / f"p{i}.jpg", f"clear-partial-{i}")
+    run_engine(case)
+    previews = []
+    for row in rows(case, "SELECT id FROM photos ORDER BY id"):
+        result, _ = _preview(case, row["id"])
+        previews.append(case / "cache" / result["cache_filename"])
+    blocked, removed, missing = previews
+    check(blocked.parent != removed.parent, "fixture previews must occupy distinct cache folders")
+    expected_bytes = removed.stat().st_size
+    missing.unlink()
+    blocked.parent.chmod(0o555)
+    try:
+        result = json.loads(run_engine(case, "--clear-previews", expect_rc=1).stdout)
+        check(result == {"removed": 2, "bytes_freed": expected_bytes, "not_removed": 1},
+              f"failed or already-missing previews counted as freed: {result}, expected {expected_bytes} bytes")
+        check(blocked.exists() and not removed.exists(), "partial clearing removed the wrong files")
+        remaining = rows(case, "SELECT cache_filename FROM thumbnail_cache WHERE size = 1024")
+        check([r["cache_filename"] for r in remaining] == [str(blocked.relative_to(case / "cache"))],
+              f"failed preview record was not retained: {remaining}")
+    finally:
+        blocked.parent.chmod(0o755)
+
+
 def _grid_files(case):
     return {p.name: p.stat().st_ino for p in (case / "cache").rglob("*.jpg")
             if not p.name.endswith("-1024.jpg")}
@@ -4320,6 +4351,27 @@ def a_thumbnail_rebuild_restores_the_grid_from_any_catalogued_copy():
         fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
         run_engine(case, "--rebuild-thumbnails", "all", expect_rc=1)
     run_engine(case, "--rebuild-thumbnails", "all", "--no-thumbnails", expect_rc=2)
+
+
+@test
+def a_thumbnail_rebuild_skips_files_that_were_never_read():
+    """A file the Index could not read is catalogued Failed with an empty content hash.
+    It has no content to make a thumbnail from, so the rebuild leaves it out rather than
+    stopping the whole job on it."""
+    case = new_case("rebuild_unread")
+    make_photo(case / "src" / "good.jpg", "rebuild-unread")
+    (case / "src" / "not-a-photo.jpg").write_bytes(b"not a photo")
+    run_engine(case)
+    unread = rows(case, "SELECT status, sha1_hash FROM photos WHERE source_path LIKE '%not-a-photo.jpg'")
+    check([(r["status"], r["sha1_hash"]) for r in unread] == [("Failed", "")],
+          f"setup: the unreadable file was not catalogued Failed with an empty hash: {unread}")
+    for scope in ("missing", "all"):
+        run_engine(case, "--rebuild-thumbnails", scope)
+        run = rows(case, "SELECT status FROM runs ORDER BY id DESC LIMIT 1")[0]
+        check(run["status"] == "Completed", f"`{scope}` stopped on a file that was never read: {run}")
+        progress = [(r["total"], r["counts"]) for r in _progress(case)]
+        check(progress[-1][0] == 1 and "failed" not in progress[-1][1],
+              f"`{scope}` counted a file that was never read: {progress}")
 
 
 @test

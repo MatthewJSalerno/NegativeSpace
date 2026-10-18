@@ -17,9 +17,6 @@ details, and [project-spec.md](docs/project-spec.md) §4 the specified screens. 
 this list in the same change that adds or finishes an item. 💬 marks discussion only: no
 development until the maintainer decides.
 
-**In review**
-- Thumbnail cache panel in Settings › Performance (PR #118)
-
 **Organizing**
 - Rename and "Also arrived as" from the photo panel
 - Copy/Move preview grouped by destination folder, and a downloadable plan
@@ -570,7 +567,7 @@ Saved orientation stays a separate action from temporary preview rotation.
 
 ## Stats
 
-- [ ] The thumbnail cache panel in Settings › Performance (Free up previews, Repair grid
+- [x] The thumbnail cache panel in Settings › Performance (Free up previews, Repair grid
   thumbnails, Rebuild all), with API routes for the existing engine jobs, and a Manage
   thumbnails link from Stats (`docs/webui-spec.md` §4.2.1).
 - [ ] The Dates chart on its own full-width row, with suspicious years set apart at each

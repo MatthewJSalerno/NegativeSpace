@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
-from engine import ns_db, review, attention, pair_retry
+from engine import constants, ns_db, review, attention, pair_retry
 from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, oplog, outcomes, stats
@@ -259,6 +259,32 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         if path is None:
             raise HTTPException(404, {"error": "backup_unavailable", "message": "Backup file no longer available."})
         return FileResponse(path, filename=path.name, media_type="application/octet-stream")
+
+    # -- Thumbnail cache (webui-spec 4.2.1) -------------------------------------
+
+    @app.get("/api/v1/thumbnails")
+    def get_thumbnails():
+        """Grid thumbnails and detail previews on disk, from the recorded sizes."""
+        with catalog.connect(cfg.db_path) as conn:
+            conn.row_factory = None  # the engine's reader expects plain rows, as in stats
+            totals = {size: (photos, size_bytes) for size, photos, size_bytes in ns_db.thumbnail_cache_totals(conn)}
+        def kind(size):
+            photos, size_bytes = totals.get(size, (0, 0))
+            return {"photos": photos, "bytes": size_bytes}
+        return {"grid": kind(constants.THUMBNAIL_SIZE), "previews": kind(constants.PREVIEW_SIZE),
+                "job_active": jobs.active() is not None}
+
+    @app.post("/api/v1/thumbnails/rebuild", status_code=202)
+    def rebuild_thumbnails(body: dict = Body(...)):
+        if set(body) - {"scope", "request_id"}:
+            raise HTTPException(400, {"error": "invalid_request", "message": "Send the scope and optional request ID only."})
+        run_id = jobs.rebuild_thumbnails(body.get("scope"), body.get("request_id"))
+        return outcomes.get_run(cfg.db_path, run_id)
+
+    @app.post("/api/v1/thumbnails/clear-previews")
+    def clear_previews():
+        """Free up: removes detail previews and returns what was removed and freed."""
+        return jobs.clear_previews()
 
     # -- Photos ---------------------------------------------------------------
 

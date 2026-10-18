@@ -47,6 +47,9 @@ PREVIEW_CONCURRENCY = 2
 # A manual backup holds the engine lock; measured at about a second on a 524 MB
 # catalog (webui-spec 9), so this bound only catches a hung backup storage.
 BACKUP_TIMEOUT_SECONDS = 600
+# Freeing previews measured 0.07 s for 10,412 files on local storage (webui-spec 4.2.1);
+# a cache on a network share makes each removal a round trip, so this bound is generous.
+CLEAR_PREVIEWS_TIMEOUT_SECONDS = 600
 
 
 class JobRefused(Exception):
@@ -329,6 +332,44 @@ class JobRunner:
         with self._start_lock:
             return self._launch(flags,request_id)
 
+    def rebuild_thumbnails(self, scope, request_id=None):
+        """--rebuild-thumbnails as a job (webui-spec 4.2.1): 'missing' repairs, 'all'
+        regenerates every grid thumbnail. It takes the engine lock like any job."""
+        validate_request_id(request_id)
+        if scope not in ('missing', 'all'):
+            raise JobRefused(400, {'error': 'invalid_request', 'message': 'Choose missing or all grid thumbnails.'})
+        status = catalog.status(self.cfg.db_path)
+        if status['state'] != 'ok':
+            raise JobRefused(409, {'error': f"catalog_{status['state']}", 'message': status['detail']})
+        with self._start_lock:
+            return self._launch(['--rebuild-thumbnails', scope], request_id)
+
+    def clear_previews(self) -> dict:
+        """--clear-previews, waited for (webui-spec 4.2.1). The engine takes no lock for
+        it and touches only detail previews, so it runs beside a job. Returns what was
+        removed and freed; files it could not remove are counted, not an HTTP error."""
+        status = catalog.status(self.cfg.db_path)
+        if status['state'] != 'ok':
+            raise JobRefused(409, {'error': f"catalog_{status['state']}", 'message': status['detail']})
+        try:
+            proc = subprocess.run(self.cfg.engine_argv('--clear-previews'), cwd=ENGINE_CWD, stdin=subprocess.DEVNULL,
+                                  capture_output=True, text=True, timeout=CLEAR_PREVIEWS_TIMEOUT_SECONDS)
+        except OSError as exc:
+            raise JobRefused(500, {'error': 'clear_previews_failed',
+                'message': f'The engine could not start freeing previews: {exc}. '
+                           'Check engine permissions and application-data storage, then try again.'}) from exc
+        except subprocess.TimeoutExpired:
+            raise JobRefused(500, {'error': 'clear_previews_timeout',
+                                   'message': 'Freeing previews did not finish in time. Check the thumbnail cache storage.'})
+        lines = [line for line in proc.stdout.splitlines() if line.strip()]
+        try:
+            result = json.loads(lines[-1])
+            return {k: int(result[k]) for k in ('removed', 'bytes_freed', 'not_removed')}
+        except (IndexError, ValueError, KeyError, TypeError):
+            raise JobRefused(500, {'error': 'clear_previews_failed', 'message':
+                                   _last_error_text(proc.stderr + proc.stdout) or
+                                   f'The engine stopped before freeing previews (exit {proc.returncode}).'})
+
     def answer(self, run_id, question, answer, request_id=None):
         validate_request_id(request_id)
         if type(run_id) is not int or not 1 <= run_id <= MAX_PHOTO_ID:
@@ -411,6 +452,9 @@ class JobRunner:
                             'scope':argument('--repair-similarity'),
                             'photo_id':int(argument('--repair-photo')) if '--repair-photo' in flags else None,
                             'dest':str(self.cfg.dest.resolve())}}
+        if '--rebuild-thumbnails' in flags:
+            expected = {'mode': 'REBUILD', 'source': None, 'destination': None, 'targeting': None, 'overrides': {},
+                        'submitted': {'scope': argument('--rebuild-thumbnails'), 'cache': str(self.cfg.cache.resolve())}}
         if '--check-issue' in flags:
             expected = {'mode':'CHECK','source':None,'destination':None,'targeting':None,'overrides':{},
                         'submitted':{'issue_id':int(argument('--check-issue')),
@@ -609,9 +653,14 @@ class JobRunner:
 def _last_error(log_path) -> Optional[str]:
     """The engine's own reason for refusing to start, from its console output."""
     try:
-        lines = log_path.read_text(errors="replace").splitlines()
+        return _last_error_text(log_path.read_text(errors="replace"))
     except OSError:
         return None
+
+
+def _last_error_text(output: str) -> Optional[str]:
+    """The last reason in engine output, for a person."""
+    lines = output.splitlines()
     for line in reversed(lines):
         if "FATAL" in line or "error:" in line:
             # Only the reason, for a person: not the log's time, level and process, the
