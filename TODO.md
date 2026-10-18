@@ -251,6 +251,10 @@ Found 2026-10-05 looking for screens that do the same job twice.
   never rejected automatically; it waits in Needs review. With the reject still in
   Rejects: full side by side, Reject it too · Keep it · Keep the old one instead. With
   the reject emptied: its stored thumbnail and details (`docs/webui-spec.md` §7.8).
+- [ ] 💬 Parked: dates from other applications' records for undated photos (a Lightroom
+  catalog's capture times, Google Takeout `.json`, Picasa `.picasa.ini`, Apple `.AAE`).
+  Possibly the strongest source for some photos, but real effort for an unknown payoff;
+  revisit if a library shows it matters (`docs/webui-spec.md` §3.1).
 - [ ] "No capture date": suggested dates from the name, the folder or a dated look-alike,
   answered in bulk through the editor; the photo stays under `Undated/` meanwhile
   (`docs/webui-spec.md` §3.1).

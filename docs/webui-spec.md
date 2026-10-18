@@ -675,6 +675,16 @@ which gives a year or decade where these suggestions look for a day; and sensor-
 tools fall back to the file time or a filename date only, so there is no established
 combined method to follow; the back-test is the evidence.
 
+Further rules (agreed 2026-10-17): photos flagged as suspicious dates and known default
+camera dates (`2000:01:01`, `1970:01:01`) are left out of the evidence or shown apart;
+identical copies are one photo, so answering one answers all; sources whose time zone is
+unknown may differ by a day without disagreeing; only unambiguous date formats are read
+from names (`03042019` is skipped unless another source settles it); accepting a
+suggestion records in the photo's history the evidence it rested on. Photos still waiting
+for a date get fresh suggestions as new evidence arrives, while a date the user set never
+changes by itself. Evidence is computed once and refreshed when the library changes, not
+on every view.
+
 **Measure before building:** hide the capture date of photos that have one and run the
 estimator on them. How often each source and combination is right, and by how much it
 misses, sets the levels for that library; a read-only check reporting only counts and
