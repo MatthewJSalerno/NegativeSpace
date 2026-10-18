@@ -36,9 +36,7 @@ development until the maintainer decides.
 
 **Similar photos**
 - Merge the two "Reject?" dialogs into one (decided)
-- Remove Explore reference sets (decided)
 - 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
-- Overlapping sets beyond one step
 - [x] Rotated matches: compare photos as displayed
 - 💬 Low-detail photos matching unrelated images at high percentages
 - Large-library measurement (250,000 and 500,000 photos)
