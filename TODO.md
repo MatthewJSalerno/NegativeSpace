@@ -18,33 +18,39 @@ this list in the same change that adds or finishes an item. 💬 marks discussio
 development until the maintainer decides.
 
 **Organizing**
+- Earlier versions arriving again — decided, not built (`docs/engine-spec.md` §10)
+- "View photo logs" label — decided, not built (`docs/webui-spec.md` §4.2)
 - Rename and "Also arrived as" from the photo panel
 - Copy/Move preview grouped by destination folder, and a downloadable plan
-- "A job is already running" just after a job finishes
-- Last-scanned time for each source folder
-- Not organized filters: small images, identical copies, processing errors
-- Not organized: sidecar and version decisions ("Which photo is this sidecar for?")
+- Start a requested job after the preceding backup — decided, not built (`docs/webui-spec.md` §5.7)
+- Last-indexed time for each source folder — decided, not built (`docs/webui-spec.md` §2)
+- Source filters and clickable Index summary figures — decided, not built (`docs/ui-design.md`, Which Look into filters apply where; `docs/webui-spec.md` §2)
+- Copy all and Move all count photos held in Needs attention
+- 💬 Source-folder handling behind the scenes
+- 💬 A content-history link from a photo to its earlier versions
 
 **Review**
 - Answer many photos at once within one reason
 - Suspicious dates in the review queue, with "this date is correct"
 - "Looks like a reject" (decided)
-- "No capture date": suggested dates from the name, folder or a look-alike
+- Undated-photo evidence and per-library back-test — decided, not built (`docs/webui-spec.md` §3.1)
 - Record in history when a review reason clears itself
 - Review history speed with many decisions
+- 💬 Needs review as its own place or a Library filter
+- 💬 Filters that persist across places (Rejects can look empty)
 
 **Similar photos**
 - Merge the two "Reject?" dialogs into one (decided)
 - 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
-- [x] Rotated matches: compare photos as displayed
-- [x] Mark low-detail (mostly black or flat) matches — implemented and validated (`docs/engine-spec.md` §9.3)
 - Large-library measurement (250,000 and 500,000 photos)
 - 💬 Local AI image embeddings for look-alikes, crops included (the maintainer is reading up first)
 
 **Metadata**
-- Choose an organized photo's primary metadata source
 - Notices for metadata choices, and their queue in Not organized
-- Saved rotation (Rotate…)
+- A simpler prompt when leaving an unsaved rotation
+- Metadata decisions for arrivals matching photos already in Library or Rejects
+- Filename examples beside the metadata choices in setup and Settings
+- Setup and Settings still say choosing sidecar owners is not available
 - Notice for Google Takeout and Flickr export sidecars
 - Motion-photo editing, qualified separately
 - RAW, TIFF/HEIC and extended-XMP fixtures for the metadata scenario builder
@@ -54,26 +60,27 @@ development until the maintainer decides.
 - 💬 Metadata-independent image hashing and content-based duplicate consolidation (deferred)
 - 💬 Sidecars edited between Index and Copy or Move
 - 💬 Similar photos and metadata together
+- 💬 Copying all metadata, or a wider choice of fields
 
 **Checking and maintenance**
 - Destination check on screen, then a broader inventory and repair
 - Unbacked-changes line on every page, and Retry backup
-- Index summary by file type
+- Index summary by file type — decided, not built (`docs/webui-spec.md` §2)
 - Import summary, and a filter for files that could not be previewed
 - Resolving files that cannot be read
-- Stats: dates chart on its own row
+- Stats dates chart, with undated count beside it — decided, not built (`docs/webui-spec.md` §6)
+- Stats: Metadata edits figure, exact duplicates only as waste — decided, not built (`docs/webui-spec.md` §5.9)
 - Every warning offers a way out
 - Filter counts: distinguish zero, unavailable and incompatible
 - Re-audit durability claims whenever a write path changes
+- `metadata.resolve_sources` is called only by tests: wire it in or remove it
 - The `dest/raw-originals` folder
-- Spacing and alignment pass
+- Spacing and alignment pass, and the sidebar's Look into filters
 
 **Before the first release**
-- One sign-in password
 - Decide on catalog migration
 - Review every message the user sees
 - Version 1.0.0 and the changelog
-- State the minimum Linux and Docker versions
 - Test power-loss behaviour on real hardware
 
 **Later**
@@ -83,10 +90,8 @@ development until the maintainer decides.
 **💬 Waiting on the maintainer**
 - Repairing a rearranged library without losing lineage
 - Needs review: a separate place or a Library filter
-- A SHA-1 content-history link
 - Discovering filters across places
-- Full-screen preview clutter; copying all metadata; source folders handled behind the scenes;
-  "Open in the log" wording
+- Full-screen preview clutter; copying all metadata; source folders handled behind the scenes
 - Visual check of where Clear all filters sits
 
 ## Uncertain file outcomes
@@ -189,10 +194,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Undecodable source photos remain flagged in Not organized and are excluded from
   Copy/Move and Library matching. Missing EXIF/hash-only/cache-write failures do not
   block readable images. External repair plus Index reassesses failed sources.
-- [ ] Discuss a SHA-1 content-history link, first comparing it with existing photo
-  history/lineage to avoid redundant navigation. No pHash history link planned. A concrete
-  use: since the hash is taken as displayed, a photo NegativeSpace rotates no longer looks
-  like its unrotated original; content history is how a returning original is recognised.
+- [ ] Earlier versions arriving again: decided, not built (`docs/engine-spec.md` §10).
 
 - [x] Stable filter guidance and navigation: shared guidance sizing for Logs/gallery/
   review reasons; fixed Logs position when Jobs is absent; stable status shortcuts,
@@ -204,19 +206,26 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Workflow order, Not organized guidance and Index summary; Library review markers
   open the photo’s reason in Needs review without changing selection, with a return
   to the entry Library context.
-- [ ] Additional source-summary filters for small dimensions, identical copies and
-  processing errors; date filters already work. Source similarity comparisons are
-  not calculated and must not be presented as zero.
+- [ ] Not organized filters and clickable Index summary figures: decided, not built (`docs/ui-design.md`, Which Look into filters apply where; `docs/webui-spec.md` §2).
 
 - [x] Same-named photo cards: built and maintainer validated ([spec](docs/webui-spec.md#telling-same-named-photos-apart)).
 
-- [ ] **"A job is already running" just after a job finishes:** the engine keeps its lock
-  while it takes the catalog backup that follows a settled run, so a start in that moment
-  is refused with no running job shown. Say what is happening ("finishing the last job's
-  catalog backup") and offer to start when it is done, or wait briefly before refusing.
+- [ ] Requested job starts after the preceding backup: decided, not built (`docs/webui-spec.md` §5.7).
 
 - [x] Location views, overlapping Needs review inbox, combined filter chips, cross-location
   filename search and first-visit default (`webui-spec.md` §2).
+
+- [ ] **Copy all and Move all count photos held in Needs attention.** Found 2026-10-18 on
+  the NASA demo set: the Index summary says 4,496 photos are ready and 7 are held in Needs
+  attention, but the confirmation asks "Copy every photo not yet copied (4,503)?". The job
+  then reports "4,496 of 4,503 files copied · 7 skipped". The question should count only
+  the photos it will copy and name the held ones separately. The same mismatch was seen
+  on a 300-photo NASA subset (300 against 281).
+- [ ] **Setup and Settings still say choosing sidecar owners is not available.** The
+  Metadata step's text "Choosing owners for individual files is not available yet. After
+  changing this setting, run Index again to check unresolved sidecars."
+  (`webui/frontend/src/components/SettingsDialog.tsx`) predates #122, which built choosing
+  owners and versions in Not organized → Needs attention. Point to that place instead.
 
 ## Needs review
 
@@ -274,9 +283,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
   Reject actions. Keep-reference and gallery grouping remain Library-only. Review
   links retain candidate scope. Not organized and emptied rejects stay excluded.
 - [ ] "Looks like a reject": designed, not built (`docs/webui-spec.md` §7.8).
-- [ ] "No capture date": suggested dates from the name, the folder or a dated look-alike,
-  answered in bulk through the editor; the photo stays under `Undated/` meanwhile
-  (`docs/webui-spec.md` §3.1).
+- [ ] 💬 Dates from other applications’ records: parked for discussion (`docs/webui-spec.md` §3.1).
+- [ ] Undated-photo evidence, suggestions and per-library back-test: decided, not built (`docs/webui-spec.md` §3.1).
 - [x] "Review later": a button beside Reject… in the photo panel, with an optional short
   note; Done clears it (`docs/webui-spec.md` §7.9).
 - [x] Small-image destination cleanup: user chooses on/off and minimum at first run;
@@ -622,6 +630,8 @@ Saved orientation stays a separate action from temporary preview rotation.
   thumbnails link from Stats (`docs/webui-spec.md` §4.2.1).
 - [ ] The Dates chart on its own full-width row, with suspicious years set apart at each
   end, so a few impossible dates cannot squash it (`docs/webui-spec.md` §5.9).
+- [ ] Stats: "EXIF edits" becomes Metadata edits, and wasted space stays exact duplicates
+  only (no near-duplicates figure): decided, not built (`docs/webui-spec.md` §5.9).
 
 ## Warnings that need a way out
 
@@ -671,12 +681,9 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 
 - [ ] **Version 1.0.0 and the changelog:** keep [CHANGELOG.md](CHANGELOG.md) current as each
   change merges; 1.0.0 is the first release ([Semantic Versioning](https://semver.org/)).
-- [ ] **Say what it runs on:** a minimum Linux and Docker version in the README, and that
-  Mac and Windows are not tested.
+- [x] Platform wording: documented as decided (`docs/user-docs-standard.md`, Voice).
 
-- [ ] **One password for the web interface** (`docs/webui-spec.md` §11): generated on first
-  start and printed to the container output, changeable in Settings. Until then the README
-  tells users to keep the app off the internet.
+- [x] No built-in sign-in: documented as decided (`docs/webui-spec.md` §11).
 
 - [ ] **Decide on catalog migration.** `engine/ns_db.py` stamps `catalog_schema.version` and refuses any catalog whose version it does not recognise. While every catalog is a development catalog, refusal plus a fresh Index is enough; that stops being acceptable once a user holds history that cannot be recreated.
 
@@ -693,6 +700,9 @@ Deferred performance work — the unchanged-file check loading every settled row
 Stalled read-only workers now support user-requested cancellation of decoder process
 groups, with a no-progress reminder and Keep waiting. Kernel-blocked storage remains
 an explicit limitation in engine-spec §8; automatic file skipping is not planned.
+- [ ] `engine/metadata.py` `resolve_sources` is exercised only by tests; Index, transfer and
+  the metadata tabs do their own resolution. Decide whether to wire it in as the single
+  resolver or remove it (found in the 2026-10-18 docs sweep).
 
 ## Navigation refinement
 
@@ -776,10 +786,7 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 
 - [ ] Future discussion (accepted Test 3b): could source-folder handling happen behind
   the scenes? Clarify the desired behavior before changing selection or action rules.
-- [ ] Optional wording discussion (accepted Test 4f): Open in the log already opens
-  the photo-filtered operations history across jobs, including linked file identities
-  and exact duplicates. Consider a clearer label such as View all photo logs; no new
-  filtering feature is needed and no wording change is approved yet.
+- [ ] Rename Open in the log to View photo logs, in History and the lineage tree: decided, not built (`docs/webui-spec.md` §4.2).
 
 - [x] Saved rotation log wording: Logs, recent History and lineage derive action labels
   from recorded metadata intent, including existing operations. Date/source edits also

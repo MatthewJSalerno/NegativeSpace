@@ -1171,7 +1171,7 @@ never prefilled from another source.
 **Use as primary…** on an organized photo’s readable non-primary tab is a separate
 deliberate preview/confirmation of
 effective-value changes, future edit target and any refiling; copying does not activate
-the donor. UI details live in `ui-design.md`; source reads are built; mutation routes and controls remain unbuilt.
+the donor. UI details live in `ui-design.md`; source reads, Date taken copying and Use as primary… are built.
 
 A completed job must summarize unresolved cases (for example, "1 photo needs a metadata
 choice") and link to Not organized → Metadata choice needed. An alternative retained
@@ -1213,8 +1213,8 @@ Broader destination scans, production image-only hashing and external sidecar-ch
 handling remain deferred; none relaxes verification or source-deletion safety gates.
 
 The source viewer and Date taken editor API/UI have passed maintainer validation,
-including source comparison, date/refiling previews and save feedback. Broader source
-selection and incoming-choice controls remain future UI work. Job-scoped edited-source
+including source comparison, date/refiling previews and save feedback. Use as primary…
+and first-import XMP choices are built; incoming-duplicate choices remain future UI work. Job-scoped edited-source
 cleanup confirmation has also passed maintainer validation. Import-pair retry has
 automated coverage and maintainer visual acceptance (R1–R3, 2026-10-15). Metadata
 setup/Settings acceptance S1–S3 passed. Warning-only organization (W1) and date/attention

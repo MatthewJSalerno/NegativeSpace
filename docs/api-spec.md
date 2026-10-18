@@ -1382,8 +1382,8 @@ These are designed in `webui-spec.md` and will be described here when they exist
     reconnect (`webui-spec.md` §4.1, §5.2). `GET /operations?run=` covers the history;
     the drawer needs only the aggregate feed.
 *   The curation actions: rename, the destination check (offered from a lineage
-    tree's copy), thumbnail cache controls, and later metadata editing, all of which
-    the engine already supports or is specified to (`engine-spec.md` §9).
+    tree's copy), and metadata editing beyond Date taken, rotation and the primary
+    source, all of which the engine already supports or is specified to (`engine-spec.md` §9).
 
 ## Job notifications
 

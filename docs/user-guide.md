@@ -44,8 +44,6 @@ Open **http://localhost:8080**. There is no catalog yet, so the page offers to c
 then walks through the settings in six steps. They are starting values, and every
 one can be changed later from the gear icon at the top right.
 
-![The first setup step: appearance](images/setup-appearance.png)
-
 The **Appearance** step sets the palette and light/dark preference. **Files** chooses
 file types, the earliest expected photo year, and when to be reminded to empty Rejects.
 It also requires a choice to enable or disable small-image reminders; these never
@@ -65,8 +63,6 @@ what it does, and why when it cannot run yet.
 **Index** reads every photo in your source: its date, a checksum of its content, and a
 small thumbnail. It moves and copies nothing, and never writes to your source. Its progress
 shows at the top of the page; closing the browser does not stop it.
-
-![An Index in progress](images/index-progress.png)
 
 ## 3. Look around
 
@@ -92,8 +88,6 @@ explains that another photo already had that name.
 Click a photo to open it in the panel on the right: its file, its dates and where they came
 from, and its history.
 
-![A photo open in the panel](images/photo-panel.png)
-
 ## 4. Copy or Move
 
 **Jobs › Copy** files every photo not yet organized into the destination's `library/`
@@ -105,8 +99,6 @@ A selection holds library photos or photos in Rejects, never both, so each actio
 one thing. When a job finishes, you are where you were, and the bell at the top right
 lists it under **Notifications**: **Show these photos** shows what it did, and you can
 search and filter them like any other photos.
-
-![Three photos selected: the bar offers Move, Reject and Rotate](images/selection-actions.png)
 
 ![A finished Copy in Notifications](images/notifications.png)
 
@@ -124,8 +116,6 @@ measures visual similarity, not certainty; below 90%, matches are more likely to
 unrelated. Mostly dark or plain photos carry a note because even a high percentage
 can pair unrelated scenes. You can still compare every match. **Stats › Catalog health**
 shows how many of your photos have little detail.
-
-![A photo's similar photos: counts at each percentage and the matches at 90%](images/similar-photos-tab.png)
 
 Open a match to compare the two side by side: their size, format, dates and every
 recorded detail. **Reject…** under a photo turns that one down; **Keep this one, reject
@@ -192,8 +182,6 @@ your current primary source.
 Every photo keeps its full history: each file it has been, each copy made of it, and
 every job that touched it. **View lineage tree** in the panel shows it.
 
-![A photo's lineage](images/lineage-tree.png)
-
 **Logs** lists every job and everything it did, with any failures, their reasons, and
 **Retry**. Expand **Metadata choices** to see saved import decisions and the jobs that
 applied them. The same section appears in the photo’s lineage; **Compare metadata…**
@@ -202,8 +190,6 @@ compares a saved choice with the photo’s current primary source without changi
 ![The log](images/log-page.png)
 
 **Stats**, under Logs in the sidebar, gives figures for the whole library.
-
-![Stats](images/stats-page.png)
 
 ## 9. Settings
 

@@ -919,6 +919,13 @@ Label locations on review cards and in the Inspector/workspace. Counts count dis
 photos and must not imply the inbox adds files to the library. A new unscoped visit
 starts at Not organized while Library is empty; explicit links retain their view.
 Once Library exists, an unscoped visit remembers the last place in this browser.
+**Which Look into filters apply where** (decided 2026-10-17; not built): filters about facts of a
+file, known from the Index (its dates, its size, whether it has identical copies), work in
+every place; filters about comparisons or decisions (look-alikes, review reminders,
+verification) work only on organized photos. A filter that does not apply stays in place,
+dimmed, saying why. Small images therefore also applies in Not organized, beside a new
+**Has identical copies**.
+
 Not organized starts with Index source. After Index, its neutral Index summary describes
 remaining indexed photos, identical extra copies, size and date facts, plus a clear
 Copy/Move next step using the existing confirmation. Counts cover the whole location,

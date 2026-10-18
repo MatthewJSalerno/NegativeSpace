@@ -1,6 +1,7 @@
-"""Source-aware metadata resolution for the planned XMP import and metadata tabs.
+"""Source-aware metadata: the MetadataSource shape shared by capture, the metadata tabs
+and the edit planner, and resolve_sources, a pure resolution primitive.
 
-This is a pure engine primitive, not yet wired into Index or transfer. A reader must
+resolve_sources is covered by tests but not called by Index or transfer. A reader must
 provide validated, canonical field IDs for values that represent the same concept
 across formats; this module never equates tags just because their short names match.
 Raw extracted tags remain separate, including tags the application does not interpret.

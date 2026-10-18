@@ -75,8 +75,8 @@ The [user guide](docs/user-guide.md) walks through each step with screenshots.
 
 ## Before you open it to other machines
 
-**There is no sign-in yet.** Anyone who can open the page can use every button, including
-**Move**. A single password is planned before the first release. Until then:
+**NegativeSpace has no sign-in of its own.** Anyone who can open the page can use every
+button, including **Move**. So:
 
 - Keep it on your own network, and never forward port 8080 to the internet.
 - From elsewhere, use a VPN (such as WireGuard or Tailscale) or a reverse proxy that asks
@@ -90,9 +90,9 @@ The [user guide](docs/user-guide.md) walks through each step with screenshots.
 
 It never backs up your photos, edits pixels, or manages albums, people or faces (that is
 what gallery apps such as Immich are for). It is for one person, not several accounts.
-**Not yet:** videos, editing metadata other than the date taken, phones and tablets, and
-Mac or Windows hosts. The [full list](docs/webui-spec.md#8-explicitly-out-of-scope) gives
-the reasons.
+**Not yet:** videos, editing metadata other than the date taken and rotation, phones and
+tablets, and Mac or Windows hosts. The
+[full list](docs/webui-spec.md#8-explicitly-out-of-scope) gives the reasons.
 
 ## Documentation
 
