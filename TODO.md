@@ -10,6 +10,90 @@ duplicate open entries. Before every merge, reconcile component specs, this back
 validation notes and the private handoff against what is built and what remains pending.
 Do not leave finished work unchecked or count it again.
 
+## Punch list
+
+Everything still open, one line each, to scan at a glance; the sections below hold the
+details, and [project-spec.md](docs/project-spec.md) §4 the specified screens. Change
+this list in the same change that adds or finishes an item. 💬 marks discussion only: no
+development until the maintainer decides.
+
+**In review**
+- Thumbnail cache panel in Settings › Performance (PR #118)
+
+**Organizing**
+- Rename and "Also arrived as" from the photo panel
+- Copy/Move preview grouped by destination folder, and a downloadable plan
+- "A job is already running" just after a job finishes
+- Last-scanned time for each source folder
+- Not organized filters: small images, identical copies, processing errors
+- Not organized: sidecar and version decisions ("Which photo is this sidecar for?")
+- Telling apart two different photos with the same name on their cards
+
+**Review**
+- Answer many photos at once within one reason
+- Suspicious dates in the review queue, with "this date is correct"
+- "Looks like a reject"
+- "No capture date": suggested dates from the name, folder or a look-alike
+- Record in history when a review reason clears itself
+- Review history speed with many decisions
+
+**Similar photos**
+- Merge the two "Reject?" dialogs into one (decided)
+- Remove Explore reference sets (decided)
+- 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
+- Overlapping sets beyond one step
+- Rotated matches: compare photos as displayed
+- Large-library measurement (250,000 and 500,000 photos)
+- 💬 Local AI image embeddings for look-alikes, crops included (the maintainer is reading up first)
+
+**Metadata**
+- Choose an organized photo's primary metadata source
+- Notices for metadata choices, and their queue in Not organized
+- Saved rotation (Rotate…)
+- Notice for Google Takeout and Flickr export sidecars
+- Motion-photo editing, qualified separately
+- RAW, TIFF/HEIC and extended-XMP fixtures for the metadata scenario builder
+- Malformed or conflicting capture dates in date review
+- Deferred: bulk and cross-photo date editing
+- 💬 Legacy IPTC precedence and additional RDF mappings
+- 💬 Metadata-independent image hashing and content-based duplicate consolidation (deferred)
+- 💬 Sidecars edited between Index and Copy or Move
+- 💬 Similar photos and metadata together
+
+**Checking and maintenance**
+- Destination check on screen, then a broader inventory and repair
+- Unbacked-changes line on every page, and Retry backup
+- Index summary by file type
+- Import summary, and a filter for files that could not be previewed
+- Resolving files that cannot be read
+- Stats: dates chart on its own row
+- Every warning offers a way out
+- Filter counts: distinguish zero, unavailable and incompatible
+- Re-audit durability claims whenever a write path changes
+- The `dest/raw-originals` folder
+- Spacing and alignment pass; refresh the user-guide screenshots
+
+**Before the first release**
+- One sign-in password
+- Decide on catalog migration
+- Review every message the user sees
+- Version 1.0.0 and the changelog
+- State the minimum Linux and Docker versions
+- Test power-loss behaviour on real hardware
+
+**Later**
+- Reports (checksum lists)
+- Videos and other non-photo files
+
+**💬 Waiting on the maintainer**
+- Repairing a rearranged library without losing lineage
+- Needs review: a separate place or a Library filter
+- A SHA-1 content-history link
+- Discovering filters across places
+- Full-screen preview clutter; copying all metadata; source folders handled behind the scenes;
+  "Open in the log" wording
+- Visual check of where Clear all filters sits
+
 ## Uncertain file outcomes
 
 - [x] Shared warning/evidence and Check it now in photo information and Logs; active
@@ -195,6 +279,17 @@ Found 2026-10-05 looking for screens that do the same job twice.
   processing, comparison build costs and long-session browser work remain separate;
   filesystem latency is not benchmarked. The 75% floor is the chosen range. Measure a
   concrete bottleneck before proposing another database.
+- [ ] **Discussion only; the maintainer is reading up first: local AI image embeddings.**
+  pHash cannot match a cropped copy. A CLIP-style model run locally (OpenCLIP, SigLIP)
+  turns each photo into a vector at Index; near vectors find look-alikes, crops and edits
+  included, and text search comes with it. Costs: a model of roughly 150-600 MB in the
+  image, a fraction of a second per photo on a CPU, and a vector index. It measures what a
+  picture shows, not whether it is the same photo, so "duplicate" needs a strict threshold.
+  Immich, which reads `library/`, already runs one for smart search and duplicate
+  detection; the case for it here is catching look-alikes before files are organized.
+  Cheaper ways to match crops were considered and not pursued: hashing fixed sub-regions
+  (catches only crops near those sizes, adds wrong matches) and local feature matching
+  such as ORB/SIFT (slow pairwise comparison, a new library).
 
 ## Dates and metadata
 
