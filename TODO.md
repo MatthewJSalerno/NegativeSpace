@@ -40,6 +40,7 @@ development until the maintainer decides.
 - 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
 - Overlapping sets beyond one step
 - [x] Rotated matches: compare photos as displayed
+- 💬 Low-detail photos matching unrelated images at high percentages
 - Large-library measurement (250,000 and 500,000 photos)
 - 💬 Local AI image embeddings for look-alikes, crops included (the maintainer is reading up first)
 
