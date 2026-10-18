@@ -1,8 +1,7 @@
 # User guide
 
 A first session with NegativeSpace, start to finish. The screenshots use NASA's public
-image library. Screenshots show an earlier interface; navigation and setup details below
-describe the current app.
+image library.
 
 Install it first: the [README](../README.md#install) takes four commands.
 
@@ -45,7 +44,7 @@ Open **http://localhost:8080**. There is no catalog yet, so the page offers to c
 then walks through the settings in six steps. They are starting values, and every
 one can be changed later from the gear icon at the top right.
 
-![Setup appearance choices (earlier interface)](images/welcome.png)
+![The first setup step: appearance](images/setup-appearance.png)
 
 The **Appearance** step sets the palette and light/dark preference. **Files** chooses
 file types, the earliest expected photo year, and when to be reminded to empty Rejects.
@@ -54,20 +53,20 @@ restrict Copy or Move. **Metadata** explains which source supplies metadata and 
 handle shared XMP sidecars and where to save edits. **Backups** explains catalog backups, **Performance** sets how
 many photos are read at once, and **Access** saves additional addresses used to open the app.
 
-![The Files step: file types and the Rejects reminder](images/welcome-files.png)
+![The Files step: small-image reminders and the earliest expected year](images/setup-files.png)
 
 ## 2. Index: read your photos
 
 The library starts empty. **Jobs** holds the jobs for the whole library; each item says
 what it does, and why when it cannot run yet.
 
-![The Jobs menu before anything is indexed](images/jobs-menu.png)
+![The Jobs menu before anything is indexed](images/jobs-menu-before-index.png)
 
 **Index** reads every photo in your source: its date, a checksum of its content, and a
 small thumbnail. It moves and copies nothing, and never writes to your source. Its progress
 shows at the top of the page; closing the browser does not stop it.
 
-![An Index in progress](images/index-running.png)
+![An Index in progress](images/index-progress.png)
 
 ## 3. Look around
 
@@ -88,12 +87,12 @@ part of the original source folder that tells them apart. Hover over a photo’s
 see its original path and any identical copies’ paths. A name changed on arrival also
 explains that another photo already had that name.
 
-![The gallery, showing one year](images/library.png)
+![The Library, showing one year, with two same-named photos told apart by their folders](images/library-year.png)
 
 Click a photo to open it in the panel on the right: its file, its dates and where they came
 from, and its history.
 
-![A photo open in the panel](images/inspector.png)
+![A photo open in the panel](images/photo-panel.png)
 
 ## 4. Copy or Move
 
@@ -103,12 +102,13 @@ removes each original once its copy is verified (it needs a writable source). Ei
 take everything or one folder from Jobs. Tick photos instead and the bar at the top
 offers what applies to them: Copy, Move, Reject, or Return to library. Each asks first.
 A selection holds library photos or photos in Rejects, never both, so each action means
-one thing. When a job finishes, you are where you were; **Show these photos** in its
-banner shows what it did, and you can search and filter them like any other photos.
+one thing. When a job finishes, you are where you were, and the bell at the top right
+lists it under **Notifications**: **Show these photos** shows what it did, and you can
+search and filter them like any other photos.
 
-![Three photos selected: the bar offers Move and Reject](images/selection-bar.png)
+![Three photos selected: the bar offers Move, Reject and Rotate](images/selection-actions.png)
 
-![Copy finished](images/copy-finished.png)
+![A finished Copy in Notifications](images/notifications.png)
 
 Which to use is your choice. If you would rather not give any app write access to your
 originals, use Copy only: the source stays read-only, you check the library your own way,
@@ -125,7 +125,7 @@ unrelated. Mostly dark or plain photos carry a note because even a high percenta
 can pair unrelated scenes. You can still compare every match. **Stats › Catalog health**
 shows how many of your photos have little detail.
 
-![A photo's similar photos](images/similar-photos.png)
+![A photo's similar photos: counts at each percentage and the matches at 90%](images/similar-photos-tab.png)
 
 Open a match to compare the two side by side: their size, format, dates and every
 recorded detail. **Reject…** under a photo turns that one down; **Keep this one, reject
@@ -140,7 +140,7 @@ Only checked photos turn, reset or save; unchecked photos stay as they are.
 It saves Orientation to the photo’s metadata source without changing image pixels or your source files. A turn
 saved in an XMP sidecar needs a gallery that reads sidecar Orientation.
 
-![Two look-alikes side by side](images/compare.png)
+![Two look-alikes side by side](images/side-by-side.png)
 
 ## 6. Reject what you do not want
 
@@ -154,7 +154,7 @@ If you Move, a rejected photo's original in your source is deleted too, once its
 Rejects is verified, so the source can end up empty. That copy is then the only one:
 empty Rejects and the photo is gone. Every Move that includes rejected photos says so first.
 
-![The Rejects view](images/rejects.png)
+![The Rejects view](images/rejects-view.png)
 
 ## 7. Check dates
 
@@ -163,7 +163,7 @@ empty Rejects and the photo is gone. Every Move that includes rejected photos sa
 in **Settings › Files** to suit your collection. These are clues to investigate, not proof
 of a wrong date; NegativeSpace changes no date by itself.
 
-![Photos with suspicious dates](images/suspicious-dates.png)
+![Photos with suspicious dates](images/suspicious-dates-filter.png)
 
 **No usable capture date** lists photos with no usable date in their metadata. A missing date alone does not prevent **Copy** or **Move**. A photo can also appear under **Not organized › Needs attention** if a separate issue prevents organizing it; open its information pane for the specific reason. They are filed
 under `library/Undated/<year>/`, where the year comes from the file's modification time,
@@ -192,18 +192,18 @@ your current primary source.
 Every photo keeps its full history: each file it has been, each copy made of it, and
 every job that touched it. **View lineage tree** in the panel shows it.
 
-![A photo's lineage](images/lineage.png)
+![A photo's lineage](images/lineage-tree.png)
 
 **Logs** lists every job and everything it did, with any failures, their reasons, and
 **Retry**. Expand **Metadata choices** to see saved import decisions and the jobs that
 applied them. The same section appears in the photo’s lineage; **Compare metadata…**
 compares a saved choice with the photo’s current primary source without changing it.
 
-![The log](images/logs.png)
+![The log](images/log-page.png)
 
 **Stats**, under Logs in the sidebar, gives figures for the whole library.
 
-![Stats](images/stats.png)
+![Stats](images/stats-page.png)
 
 ## 9. Settings
 
@@ -216,6 +216,8 @@ and Docker-configured addresses remain available for recovery.
 **Free up previews** removes the large previews made when you open a photo, which are made again
 the next time you open it, and **Repair grid thumbnails** remakes any gallery thumbnails
 that have gone missing. **Rebuild all grid thumbnails** remakes every one.
+
+![Settings › Performance, with the thumbnail cache](images/settings-performance.png)
 
 **Metadata** keeps the same choices you made during setup. Changing its defaults does
 not change photos that already have a primary metadata source.

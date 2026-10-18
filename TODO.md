@@ -66,7 +66,7 @@ development until the maintainer decides.
 - Filter counts: distinguish zero, unavailable and incompatible
 - Re-audit durability claims whenever a write path changes
 - The `dest/raw-originals` folder
-- Spacing and alignment pass; refresh the user-guide screenshots
+- Spacing and alignment pass
 
 **Before the first release**
 - One sign-in password
@@ -170,8 +170,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
   keyboard focus. Check active states and narrow layouts. Deferred, not implemented.
 - [ ] Check Library/Jobs/Logs spacing and alignment in a future UI batch; preserve
   the reserved Jobs position so Logs does not shift when Jobs is unavailable.
-- [ ] Refresh user-guide screenshots for the current setup and review workflows.
-  The guide labels the existing screenshots as an earlier interface.
+- [x] Refresh user-guide screenshots for the current setup and review workflows (dark,
+  1440 × 900, NASA demo set), including Notifications and Settings › Performance.
 
 - [x] Empty review queues return to the filtered gallery with a completion message;
   closing review checks whether the open preview still belongs in the view.
