@@ -685,10 +685,36 @@ for a date get fresh suggestions as new evidence arrives, while a date the user 
 changes by itself. Evidence is computed once and refreshed when the library changes, not
 on every view.
 
-**Measure before building:** hide the capture date of photos that have one and run the
-estimator on them. How often each source and combination is right, and by how much it
-misses, sets the levels for that library; a read-only check reporting only counts and
-accuracy. The levels are not tuned to one sample library.
+**Measure before building, and in every library:** hide the capture date of photos that
+have one and run the estimator on them. How often each source and combination is right,
+and by how much it misses, sets the Strong, Likely and Weak levels **for that library**;
+the back-test is part of the feature, run when a library is indexed, not a one-off. No
+threshold is tuned to one sample: any library, including the maintainer's, represents only
+itself.
+
+**Build order** follows cost and accuracy in general, not one sample's coverage: dates
+in names first (cheap, and nearly always right where present); grouping bulk review by
+fingerprint and original folder; folder years for year-level suggestions and checks;
+look-alikes and the remaining sources for the hard cases; name counters kept, since other
+libraries may depend on them.
+
+*Measurement, one partial sample* (2026-10-17; a single share of the maintainer's photos,
+read-only, 29,079 photos; not representative of other libraries or of the maintainer's
+whole collection):
+
+| Measure | Result |
+| :--- | :--- |
+| Photos with no usable capture date | 2,370 (8.2%) |
+| Of those, with a date in the name | 1,764 (74%) |
+| Back-test: name date against capture date (17,856 photos) | 99.9% same day; 0.1% one day off |
+| Of the undated, in a folder whose name holds a year | 1,327 (56%) |
+| Back-test: folder year against capture year (582 photos) | 100% |
+| Undated with neither a name date nor a year folder | 581 (25%) |
+| Undated sharing one identical set of quantization tables | 1,419 (60%), all with dates in their names, in 2 folders |
+| Fingerprints whose dated photos fall within 2 years | half of photos in fingerprints with 5+ dated |
+| Back-test: within dated name-counter neighbours, same folder (1,078 photos) | 89% |
+| Undated with dated counter neighbours on both sides | 2 |
+| Of the undated, with any metadata clue (date, camera, GPS, software) | 29%; GPS date stamp 9%; no serial numbers or shot counters |
 
 
 **Year subdivision is a filing aid, not a capture-date claim.** Use the placed
