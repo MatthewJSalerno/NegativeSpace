@@ -752,6 +752,20 @@ catalog’s capture times, Google Takeout `.json`, Picasa `.picasa.ini` and Appl
 These may be the strongest source for some photos, but require real effort for an
 unknown payoff; revisit if a library shows it matters.
 
+**Parked for discussion: photos you already have, arriving in another form** (discussed
+2026-10-18). A folder may hold photos already in the Library, re-encoded, resized or with
+changed metadata, for example a second backup or an export processed by another tool.
+Exact copies are recognised today; any other form becomes a separate Library photo,
+resolved one look-alike set at a time. The likely answer is a shared **relationship
+layer** that labels how two files are related and how certain that is: same file
+(checksum, certain), same picture with different metadata (an image-data fingerprint,
+certain; tested for JPEG in `jpeg-content-hash-experiment.md`), and look-alike, of the
+same or a different size (visual similarity, probable). A folder-level comparison with
+the Library would then answer a whole group at once with a preview, and the look-alike
+provider above would read the same layer, so "the same picture as one dated 4 July 2019"
+becomes certain evidence. Nothing in it depends on where a folder came from; preparing an
+export remains the user's job, with the guidance in §7.5.
+
 **Measure before building, and in every library:** hide the capture date of photos that
 have one and run the estimator on them. How often each source and combination is right,
 and by how much it misses, sets the Strong, Likely and Weak levels **for that library**;
