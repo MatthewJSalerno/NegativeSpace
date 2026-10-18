@@ -247,10 +247,12 @@ Found 2026-10-05 looking for screens that do the same job twice.
   Library matches for rejected references; location labels and confirmed Return or
   Reject actions. Keep-reference and gallery grouping remain Library-only. Review
   links retain candidate scope. Not organized and emptied rejects stay excluded.
-- [ ] "Looks like a reject": a photo only similar to a reject (small pHash distance) is
-  never rejected automatically; it waits in Needs review. With the reject still in
-  Rejects: full side by side, Reject it too · Keep it · Keep the old one instead. With
-  the reject emptied: its stored thumbnail and details (`docs/webui-spec.md` §7.8).
+- [ ] "Looks like a reject" (designed 2026-10-17, not built; `docs/webui-spec.md` §7.8):
+  never automatic; 95%+ and no low-detail photos to start, measured per library later, no
+  setting; checked after Copy/Move and noted in the Reject confirmation; answers depend
+  on whether the rejected file still exists; Keep it keeps only this photo; bulk through
+  the existing Reject flow; a small picture of each reject stored in the catalog at reject
+  time, with full details when there is none.
 - [ ] "No capture date": suggested dates from the name, the folder or a dated look-alike,
   answered in bulk through the editor; the photo stays under `Undated/` meanwhile
   (`docs/webui-spec.md` §3.1).

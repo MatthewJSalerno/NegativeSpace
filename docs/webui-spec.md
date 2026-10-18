@@ -2613,6 +2613,44 @@ and Return actions stay explicit; comparison never relocates either photo automa
 Keep the old one instead decision, and historical thumbnail evidence for emptied rejects.
 The current comparison requires both destination files to be recorded present.
 
+**Looks like a reject** (decided 2026-10-17; not built). A photo that resembles one the
+user rejected, but is not a byte-identical copy (those are recognised at Index as
+duplicates of the reject, engine-spec §10), is never rejected automatically.
+
+* **Strict to start:** the reason is raised only at 95% similarity or more, and never for
+  low-detail photos (mostly black or flat), which match unrelated ones even at 97–100%
+  (engine-spec §9.3). A missed look-alike leaves things as they are today; a false one
+  costs a question. Once enough of the user's own keep and reject decisions exist, the level
+  is measured per library, as for date suggestions (§3.1). No user setting: Has similar
+  photos already shows any percentage.
+* **When it is checked:** after a Copy or Move, for each newly organized photo, which
+  waits in **Needs review** with the reason "Looks like a reject"; and when the user
+  rejects a photo, the Reject confirmation says how many other Library photos look like it,
+  with **Show them**. That note adds nothing to Needs review.
+* **A rejected file may no longer exist:** the user empties Rejects. The catalog keeps the
+  rejected photo's record, fingerprint and history, so matching still works after
+  emptying. While its file is in Rejects, the review offers **Reject it too**, **Keep it**
+  and **Keep the old one instead** (a swap: the old photo returns to the Library and the new
+  one goes to Rejects, with the usual preview), and compares both photos side by side.
+  Once emptied, only **Reject it too** and **Keep it**, with a plain note ("The photo you
+  rejected was emptied from Rejects on 3 March; it can't be brought back"). **Keep the old
+  one instead** checks that the file is still present when pressed and stops with an
+  explanation if it is not; nothing moves.
+* **Keep it keeps this photo, nothing more:** a later arrival that resembles both a reject
+  and a photo kept before is asked about again, showing both, each labelled with whether
+  its file still exists.
+* **Many at once,** for example after re-importing an old backup: the existing selection
+  and **Reject…** flow, with its preview, handles them; **Select the closest matches** picks
+  those at 99% or more; photos are grouped by the reject they resemble ("37 photos look
+  like IMG_0412.jpg, rejected 3 March"). Keeping many arrives with bulk review answers.
+* **What an emptied reject looked like:** when a photo is rejected, while its file
+  exists, a small picture of it (about a gallery thumbnail) is stored in the catalog,
+  made from the file, not copied from the thumbnail cache, which is disposable
+  (§4.2.1). Catalog backups include it. A reject without one (emptied before this existed)
+  shows "No picture kept" with everything recorded about it: every copy's original name and
+  folder, size, dimensions, format, capture date and its origin, when and by which job it
+  was rejected, when its file was found gone, and the match percentage.
+
 **Rejects' size stays in view without noise:**
 
 *   **Stats** has a Rejects tile (§5.9): "340 photos", "1.2 GB using now · oldest rejected
