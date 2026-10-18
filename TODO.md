@@ -18,11 +18,13 @@ this list in the same change that adds or finishes an item. 💬 marks discussio
 development until the maintainer decides.
 
 **Organizing**
+- Recognise earlier versions of changed photos when archives are indexed again (decided)
+- "View photo logs" label for Open in the log (decided)
 - Rename and "Also arrived as" from the photo panel
 - Copy/Move preview grouped by destination folder, and a downloadable plan
-- "A job is already running" just after a job finishes
-- Last-scanned time for each source folder
-- Not organized filters: small images, identical copies, processing errors
+- "A job is already running" just after a job finishes (decided)
+- Last-indexed time for each source folder (decided)
+- Not organized filters: small images, identical copies; summary figures as links (decided)
 - Not organized: sidecar and version decisions ("Which photo is this sidecar for?")
 - Telling apart two different photos with the same name on their cards
 
@@ -59,10 +61,10 @@ development until the maintainer decides.
 **Checking and maintenance**
 - Destination check on screen, then a broader inventory and repair
 - Unbacked-changes line on every page, and Retry backup
-- Index summary by file type
+- Index summary by file type (decided)
 - Import summary, and a filter for files that could not be previewed
 - Resolving files that cannot be read
-- Stats: dates chart on its own row
+- Stats: dates chart on its own row (decided)
 - Every warning offers a way out
 - Filter counts: distinguish zero, unavailable and incompatible
 - Re-audit durability claims whenever a write path changes
@@ -70,11 +72,9 @@ development until the maintainer decides.
 - Spacing and alignment pass; refresh the user-guide screenshots
 
 **Before the first release**
-- One sign-in password
 - Decide on catalog migration
 - Review every message the user sees
 - Version 1.0.0 and the changelog
-- State the minimum Linux and Docker versions
 - Test power-loss behaviour on real hardware
 
 **Later**
@@ -84,10 +84,8 @@ development until the maintainer decides.
 **💬 Waiting on the maintainer**
 - Repairing a rearranged library without losing lineage
 - Needs review: a separate place or a Library filter
-- A SHA-1 content-history link
 - Discovering filters across places
-- Full-screen preview clutter; copying all metadata; source folders handled behind the scenes;
-  "Open in the log" wording
+- Full-screen preview clutter; copying all metadata; source folders handled behind the scenes
 - Visual check of where Clear all filters sits
 
 ## Uncertain file outcomes
@@ -168,10 +166,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Undecodable source photos remain flagged in Not organized and are excluded from
   Copy/Move and Library matching. Missing EXIF/hash-only/cache-write failures do not
   block readable images. External repair plus Index reassesses failed sources.
-- [ ] Discuss a SHA-1 content-history link, first comparing it with existing photo
-  history/lineage to avoid redundant navigation. No pHash history link planned. A concrete
-  use: since the hash is taken as displayed, a photo NegativeSpace rotates no longer looks
-  like its unrotated original; content history is how a returning original is recognised.
+- [ ] Earlier versions arriving again: decided, not built (`docs/engine-spec.md` §10,
+  Earlier versions arriving again).
 
 - [x] Stable filter guidance and navigation: shared guidance sizing for Logs/gallery/
   review reasons; fixed Logs position when Jobs is absent; stable status shortcuts,
@@ -183,18 +179,15 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Workflow order, Not organized guidance and Index summary; Library review markers
   open the photo’s reason in Needs review without changing selection, with a return
   to the entry Library context.
-- [ ] Additional source-summary filters for small dimensions, identical copies and
-  processing errors; date filters already work. Source similarity comparisons are
-  not calculated and must not be presented as zero.
+- [ ] Not organized filters and clickable Index summary figures: decided, not built
+  (`docs/ui-design.md`, Which Look into filters apply where; `docs/webui-spec.md` §2).
 
 - [ ] **Same-named photos look identical on a card:** a card shows only the filename, so two
   different photos named alike (in different source folders) read as one photo in two
   places. Show the source folder on hover, or beside the name when the view holds both.
 
-- [ ] **"A job is already running" just after a job finishes:** the engine keeps its lock
-  while it takes the catalog backup that follows a settled run, so a start in that moment
-  is refused with no running job shown. Say what is happening ("finishing the last job's
-  catalog backup") and offer to start when it is done, or wait briefly before refusing.
+- [ ] "A job is already running" just after a job finishes: decided, not built
+  (`docs/webui-spec.md` §5.7).
 
 - [x] Location views, overlapping Needs review inbox, combined filter chips, cross-location
   filename search and first-visit default (`webui-spec.md` §2).
@@ -629,12 +622,11 @@ Every durability claim resolves to either **enforced and tested** or **a documen
 
 - [ ] **Version 1.0.0 and the changelog:** keep [CHANGELOG.md](CHANGELOG.md) current as each
   change merges; 1.0.0 is the first release ([Semantic Versioning](https://semver.org/)).
-- [ ] **Say what it runs on:** a minimum Linux and Docker version in the README, and that
-  Mac and Windows are not tested.
+- [x] Say what it runs on: the README states it is tested on Linux with Docker and
+  Compose, and Rancher Desktop on Mac or Windows is untested; no version numbers (decided 2026-10-17).
 
-- [ ] **One password for the web interface** (`docs/webui-spec.md` §11): generated on first
-  start and printed to the container output, changeable in Settings. Until then the README
-  tells users to keep the app off the internet.
+- [x] No built-in sign-in (decided 2026-10-17, `docs/webui-spec.md` §11): a password belongs
+  on the reverse proxy or a VPN.
 
 - [ ] **Decide on catalog migration.** `engine/ns_db.py` stamps `catalog_schema.version` and refuses any catalog whose version it does not recognise. While every catalog is a development catalog, refusal plus a fresh Index is enough; that stops being acceptable once a user holds history that cannot be recreated.
 
@@ -734,7 +726,5 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 
 - [ ] Future discussion (accepted Test 3b): could source-folder handling happen behind
   the scenes? Clarify the desired behavior before changing selection or action rules.
-- [ ] Optional wording discussion (accepted Test 4f): Open in the log already opens
-  the photo-filtered operations history across jobs, including linked file identities
-  and exact duplicates. Consider a clearer label such as View all photo logs; no new
-  filtering feature is needed and no wording change is approved yet.
+- [ ] Rename Open in the log to View photo logs, in History and the lineage tree: decided, not built
+  (`docs/webui-spec.md` §4.2).

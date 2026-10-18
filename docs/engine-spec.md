@@ -1668,6 +1668,23 @@ match, not a historical one: the content must be recorded as delivered or pendin
 delivered copy live, as for any duplicate. Tested by
 `a_file_returning_after_a_move_is_a_duplicate_of_the_moved_photo`.
 
+**Earlier versions arriving again** (decided 2026-10-17; not built). Libraries are built in
+rounds: index an archive, organize it, find another, repeat. A new file is checked against
+every checksum any catalogued file has ever had, not only current ones: a current checksum
+is an identical copy, as today; a checksum a photo had before a date edit or rotation
+changed its file is an earlier version of that photo; a rejected photo's checksum, emptied
+or not, is a copy of the reject. When a change to a photo's file alters its visual
+hash, the previous perceptual hash is kept in its history beside the previous checksum,
+so a re-saved or resized copy of the earlier version is recognised by appearance too (the
+strict level and low-detail exclusion of `webui-spec.md` §7.8). A rotation saved to an XMP
+sidecar changes neither, and needs neither. An earlier version is held in Not organized
+with **Don't keep it** (left at the source, recorded; Move never deletes it, since it is
+not identical to anything delivered) and **Keep it as its own photo**; the photo's
+history notes it was found. A source no longer mounted is not a problem: Copied and Moved
+record what NegativeSpace did, not whether the source file is still there. To verify when
+building: saving a rotation into EXIF records the new checksum and recomputes the
+perceptual hash.
+
 **Identity across content changes:** each logical file retains a stable lineage
 identity independent of its current path and content hash. For every tool action
 that changes content, record the before/after hashes linked to that same lineage
