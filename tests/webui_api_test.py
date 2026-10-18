@@ -645,6 +645,25 @@ class JobsAndCatalog(ApiCase):
             self.assertTrue(self.client.get("/api/v1/thumbnails").json()["job_active"])
             self.assertEqual(self.client.post("/api/v1/thumbnails/clear-previews").status_code, 200)
 
+    def test_clear_previews_reports_launch_timeout_and_invalid_output(self):
+        self.index_library()
+        for failure, code in ((OSError("generated launch refusal"), "clear_previews_failed"),
+                              (subprocess.TimeoutExpired("generated engine", 600), "clear_previews_timeout")):
+            with self.subTest(failure=type(failure).__name__), patch("webui.jobs.subprocess.run", side_effect=failure):
+                response = self.client.post("/api/v1/thumbnails/clear-previews")
+                self.assertEqual((response.status_code, response.json()["error"]), (500, code))
+                self.assertTrue(response.json()["message"])
+        for output in ("", "not JSON", "{}", "[]", '{"removed": null}'):
+            with self.subTest(output=output), patch("webui.jobs.subprocess.run", return_value=
+                    subprocess.CompletedProcess([], 1, stdout=output, stderr="")):
+                response = self.client.post("/api/v1/thumbnails/clear-previews")
+                self.assertEqual((response.status_code, response.json()["error"]), (500, "clear_previews_failed"))
+        with patch("webui.jobs.subprocess.run", return_value=subprocess.CompletedProcess([], 1,
+                stdout='{"removed": 1, "bytes_freed": 42, "not_removed": 2}', stderr="")):
+            response = self.client.post("/api/v1/thumbnails/clear-previews")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), {"removed": 1, "bytes_freed": 42, "not_removed": 2})
+
     def test_a_missing_catalog_has_no_thumbnail_cache_to_manage(self):
         for method, path, body in (("GET", "/api/v1/thumbnails", None), ("POST", "/api/v1/thumbnails/clear-previews", None),
                                    ("POST", "/api/v1/thumbnails/rebuild", {"scope": "missing"})):

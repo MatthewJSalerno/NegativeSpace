@@ -354,6 +354,10 @@ class JobRunner:
         try:
             proc = subprocess.run(self.cfg.engine_argv('--clear-previews'), cwd=ENGINE_CWD, stdin=subprocess.DEVNULL,
                                   capture_output=True, text=True, timeout=CLEAR_PREVIEWS_TIMEOUT_SECONDS)
+        except OSError as exc:
+            raise JobRefused(500, {'error': 'clear_previews_failed',
+                'message': f'The engine could not start freeing previews: {exc}. '
+                           'Check engine permissions and application-data storage, then try again.'}) from exc
         except subprocess.TimeoutExpired:
             raise JobRefused(500, {'error': 'clear_previews_timeout',
                                    'message': 'Freeing previews did not finish in time. Check the thumbnail cache storage.'})

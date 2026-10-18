@@ -830,7 +830,9 @@ result:
     {"removed": 10412, "bytes_freed": 1200000000, "not_removed": 0}
 
 Previews that could not be removed are counted in `not_removed`, still with `200`.
-`500 clear_previews_failed` when the engine answered nothing usable,
+`bytes_freed` counts only files actually removed; missing or unremovable previews
+contribute no freed bytes.
+`500 clear_previews_failed` when the engine could not start or answered nothing usable,
 `500 clear_previews_timeout` after 10 minutes, and `409 catalog_missing` (or another
 catalog state) without a usable catalog.
 

@@ -9,6 +9,9 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Thumbnail cleanup counts only bytes actually removed and reports engine-launch failures
+  with a specific error and next step.
+
 - Settings › Performance shows the thumbnail cache by kind and manages it: **Free up
   previews** removes detail previews, which are recreated when a photo is opened again;
   **Repair grid thumbnails** and **Rebuild all grid thumbnails** run as jobs, followed in
