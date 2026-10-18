@@ -1807,6 +1807,18 @@ spread of the library is scrolled out of sight.
   empty slot, so gaps read as gaps; the bars scale to the busiest real year.
 * Year links, keyboard access and **As a table** stay as they are.
 
+**Metadata edits, and what counts as wasted space** (decided 2026-10-18; not built).
+
+* **Activity's "EXIF edits" becomes "Metadata edits".** Edits are saved to XMP sidecars as
+  well as inside photos, so "EXIF" names only part of them. It counts the photos whose
+  metadata was changed, split by kind (dates, rotations, primary source), e.g. "12
+  photos: 9 dates, 3 rotations", linking to those entries in Logs.
+* **Wasted space is exact duplicates only.** Identical files are interchangeable, so their
+  extra copies are space that can be reclaimed. Look-alikes are never counted as waste or
+  as near-duplicates on Stats: whether a similar photo is worth keeping is the user's
+  call, and **Has similar photos** already shows how many have look-alikes at any
+  percentage. The API's `near_duplicates` field goes when this is built.
+
 
 "How much space are my duplicates wasting?" is a headline figure for the Stats page, and the catalog already answers it without any engine change. Deduplication acts on two different volumes, though, and conflating them produces a number that is wrong in whichever direction the user's mode does not apply:
 

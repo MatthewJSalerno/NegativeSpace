@@ -69,7 +69,7 @@ development until the maintainer decides.
 - Import summary, and a filter for files that could not be previewed
 - Resolving files that cannot be read
 - Stats dates chart, with undated count beside it — decided, not built (`docs/webui-spec.md` §6)
-- Stats: count metadata edits and near-duplicates (both still empty)
+- Stats: Metadata edits figure, exact duplicates only as waste — decided, not built (`docs/webui-spec.md` §5.9)
 - Every warning offers a way out
 - Filter counts: distinguish zero, unavailable and incompatible
 - Re-audit durability claims whenever a write path changes
@@ -630,12 +630,8 @@ Saved orientation stays a separate action from temporary preview rotation.
   thumbnails link from Stats (`docs/webui-spec.md` §4.2.1).
 - [ ] The Dates chart on its own full-width row, with suspicious years set apart at each
   end, so a few impossible dates cannot squash it (`docs/webui-spec.md` §5.9).
-- [ ] Stats Activity shows **EXIF edits** as "Not built yet" and the API returns null for
-  `exif_edits` and `near_duplicates`, though date edits, saved rotations, primary changes
-  and similar photos are built. Decide what each figure counts, then fill them in.
-
-## Warnings that need a way out
-
+- [ ] Stats: "EXIF edits" becomes Metadata edits, and wasted space stays exact duplicates
+  only (no near-duplicates figure): decided, not built (`docs/webui-spec.md` §5.9).
 - [ ] An import-completion summary and a catalog-wide filter for files whose visual
   processing failed, distinguishing corrupt data from missing decoder support and IO
   failures; absent EXIF is not proof of damage. Do not retry unchanged bad files.
