@@ -305,6 +305,9 @@ the gallery, every catalogued folder listed (`GET /photos/folders?every=true`), 
 source, so the originals of copied photos can be found and moved off by folder) and, for
 one ticked folder, **Copy this folder (n)…** / **Move this folder (n)…**. With zero or
 multiple folders, those controls stay visible but disabled with an explanation.
+When each folder was last indexed (decided 2026-10-17; not built) shows on hover over its
+row and beside the opened folder's name and its Copy/Move controls: "Last indexed 3 weeks
+ago" for recent times, a date for older ones, the exact time on hover.
 Opening a copied photo from Still in source shows its current destination Inspector,
 not an independent source-file preview. A notice above its tabs identifies the Library
 or Rejects copy and warns that its metadata may differ from the original. Inspector
@@ -353,8 +356,13 @@ unavailable** and processing failures. Image size unavailable means no usable wi
 height were recorded; help explains possible unsupported formats, unreadable files or
 incomplete processing without labelling these files corrupt or non-photos. These counts cover the whole location, not active
 filters. A scope note says similarity compares destination photos, not source files; a disabled size rule says
-**Rule disabled**. Date chips already filter the source gallery; the other summary values
-are informational (additional source filters remain planned). Copy all/Move all lead to
+**Rule disabled**. Date chips already filter the source gallery. Decided 2026-10-17, not built: every
+summary figure opens the photos it counts (Small images and **Has identical copies** as
+filters, processing failures as Needs attention), and a fold-out **By file type**, closed by
+default and repeated in the Index's log entry, shows photos taken by type, photo types
+turned off in Settings (linking to Settings › Files), sidecars and videos as one count
+each, and every other file as one number, "4,312 other files, left untouched", never
+listed by type. Copy all/Move all lead to
 the same confirmations as Jobs. Index failures link to Logs for specific evidence.
 The Index summary has **Close index summary** and a compact **Show index summary**
 control to reopen it. Dismissal is remembered in this browser across refreshes and
@@ -1058,7 +1066,12 @@ the gallery, and later manual scrolling is not forced back to the Inspector phot
 Position lookups return rank and neighbors without downloading earlier pages.
 Failed lookups offer a retry while leaving the Inspector open.
 
-History's **Open in the log** and **View lineage tree** actions share text size and
+**History label change** (decided 2026-10-17; not built): rename **Open in the log** to
+**View photo logs** in History and the lineage tree. The existing link already opens
+that photo’s operations across jobs, including linked identities and identical copies;
+this changes its label, not its filtering.
+
+History's **View photo logs** and **View lineage tree** actions share text size and
 alignment, retaining their link and button semantics respectively.
 Clicking an image opens a right-side 50% detail panel. **Photo information** is the
 default on every gallery-card click, including Has similar photos, even when the
@@ -1587,7 +1600,7 @@ what it names. Each has its count and an **only** link to narrow to it in one cl
 **All statuses** ticks every one again, and the last ticked box cannot be unticked, since a
 log of no statuses shows nothing. *Why not buttons:* a row of toggle buttons grew crowded
 and did not say whether it meant one status or several. The Inspector's
-**Open in the log**, under History, opens the log for that photo. Each failure carries a plain hint drawn from its
+**View photo logs** (the planned label for **Open in the log**, §4.2), under History, opens the log for that photo. Each failure carries a plain hint drawn from its
 recorded reason, and **Retry**, inside the job it belongs to, runs the same mode again over the photos behind
 that job's shown failures, however many, and says what it did beside the button. A Move's
 retry takes its copied-only photos too, so nothing is left out; a selection's retry leaves
@@ -1714,6 +1727,15 @@ operation ends, controls become available again; nothing starts automatically.
 The user must initiate and confirm a new action against current state. Curation jobs
 (rename, reject, return to library) take the same lock as any other job.
 
+**A job requested while the last one's catalog backup runs** (decided 2026-10-17; not
+built). After a job settles, the engine keeps its lock for the catalog backup, about a
+second, so a start in that moment would be refused with no job visible. Instead the page
+says "Finishing the last job's catalog backup… your Move will start in a moment" and
+starts the requested job itself once the lock frees. This is the one exception to
+"nothing starts automatically": the user asked for this job a moment earlier. If the
+backup takes over a minute (slow backup storage), it stops waiting, says so, and offers
+**Start now**.
+
 Only one engine process may run at a time — see `engine-spec.md` §4.1/§7 for the engine-level guarantee (an OS-level `flock`, held for the whole process lifetime, released automatically even on a hard `SIGKILL`). This is enforced in two layers, not one:
 
 * **Fast pre-check (FastAPI):** Before spawning the engine, `POST /api/v1/jobs/start` probes the engine's own lock: a non-blocking `flock` on `<base>/engine.lock`. If the lock is held, an engine is running, and it returns `409 Conflict` immediately — no subprocess is spawned, and the response includes the newest active run's (`Preparing`, `Running` or `Cancelling`) `id`, `mode`, and `started_at` so the frontend can show *"A Move operation is already in progress (started 2 minutes ago) — wait for it to finish or cancel it."* The Rescan/Move/Copy buttons should all be disabled client-side whenever a job is known to be active, so this 409 is a backstop for races (e.g. two tabs), not the primary UX.
@@ -1779,6 +1801,8 @@ spread of the library is scrolled out of sight.
   year) are counted in one labelled bar at each end, e.g. "before 1800: 3" for the default
   minimum and "future: 6", linking to that view, so they neither stretch the axis
   nor hide the real years.
+* **Undated photos beside the chart, not in it:** "Undated: 2,370", linking to No capture
+  date (decided 2026-10-17).
 * **Every year between the earliest and latest real year is shown,** an empty year as an
   empty slot, so gaps read as gaps; the bars scale to the busiest real year.
 * Year links, keyboard access and **As a table** stay as they are.
@@ -3025,7 +3049,7 @@ changes, and move a row out once it is built.
 | Write to the source, except Move removing originals | Never | The library stays read-only for everything else |
 | Edit pixels (crop, filters, re-saving) | Never | Rotation is metadata only (§7.5); editing belongs to photo editors |
 | Albums, people, faces, keywords for browsing | Never | Gallery applications such as Immich do this; NegativeSpace organizes files for them, and Needs review notes are for decisions only (§7.9) |
-| Several users with their own accounts | Never | A single person's tool; one password is planned (§11) |
+| Several users with their own accounts, or a built-in sign-in | Never | A single person's tool; a password belongs on the reverse proxy in front of it (§11) |
 | Run in the cloud, or sync between machines | Never | It works on mounted folders |
 | Published container images | Never | Users build the images from a clone, so what runs is the code they can read (decided 2026-10-05) |
 | Videos and other non-photo files | Not yet | Deferred until photo organizing is complete; until then they are left untouched |
@@ -3306,22 +3330,12 @@ use every action, Move included. The README says so and tells users to keep the 
 their own network, behind a VPN or an authenticating reverse proxy, never exposed to the
 internet.
 
-**Planned before the first release: one password** (decided 2026-10-05). NegativeSpace is
-a single-person tool, so one password, not user accounts.
-
-* **First start generates it.** The app creates a random password and prints it once to
-  the container output (`docker compose logs app`), in a block that is easy to find,
-  saying where it came from and that it should be changed. Only a hash of it is stored.
-* **Sign in, then change it.** Until signed in, the page shows only the sign-in form.
-  Settings offers **Change password**, asking for the current one.
-* **Every route needs it,** the job feed included; the API refuses without a valid session.
-* **Still to settle when building:** the hash (an established one such as scrypt or
-  Argon2, chosen by measurement and named); where it is kept (application data, and
-  whether catalog backups include it); session length and cookie settings; how a
-  forgotten password is reset (a command run inside the container is the likely route,
-  since whoever can run it already controls the files); and whether a reverse proxy's
-  sign-in can stand in for it.
-
+**No built-in sign-in** (decided 2026-10-17, replacing the one-password plan of
+2026-10-05). NegativeSpace is a single-person tool; access control belongs to what
+fronts it. Users who reach it from elsewhere put a password on their reverse proxy (basic
+authentication, an `.htaccess`, Authelia or similar) or use a VPN. A built-in password
+would add storing, resetting and session handling for no gain. The protections below,
+allowed addresses, same-origin checks and no framing, remain.
 
 The app enforces an exact Host allowlist for every API request and job-feed handshake.
 Setup and Settings › Access edit additional hostnames/IPs. Local addresses are always

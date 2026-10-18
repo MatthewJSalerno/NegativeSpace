@@ -9,6 +9,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Consolidate agreed designs for undated-photo evidence, source filters and summaries,
+  job handoff after backups, history labels and earlier photo versions. Mark pending
+  features as unbuilt; document the decision to use external access control.
+
 - Mark mostly dark or flat similarity matches without hiding them or changing scores;
   show their count in Stats. Store brightness and gradient with the visual hash
   (catalog schema 30; older catalogs require rebuilding).
