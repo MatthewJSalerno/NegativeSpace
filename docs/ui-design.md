@@ -764,7 +764,7 @@ the server's UTC year when the catalog is read.
 ### Reference-based sets
 
 Library and Needs review expose the same Similar photos controls: Group similar photos,
-percentage, Most matches first and set exploration/comparison. A group's representative
+percentage, Most matches first and set comparison. A group's representative
 must belong to the current location/inbox before identical sets collapse.
 
 Grouping is available when Has similar photos is the only explicit filter. Adding
@@ -851,11 +851,10 @@ and sort, anchored on the entry reference even after Use as reference. Disable
 unavailable boundaries and loading navigation; request failures offer Retry set
 navigation. Entering another set starts a fresh comparison with temporary viewing
 transforms reset.
-Navigation is offered only from the grouped gallery, not an expanded union or a
-set-member scope whose ordering has a different meaning.
+Navigation is offered only from the grouped gallery, not a set-member scope whose
+ordering has a different meaning.
 
-Show this set in gallery is available from comparison and each reference in set
-exploration. It shows the reference and direct members at that set's percentage as
+Show this set in gallery is available from comparison. It shows the reference and direct members at that set's percentage as
 ordinary, individually selectable cards, with server paging and normal sort controls.
 This temporary scope bypasses the saved gallery filters and does not auto-select,
 expand or clear the existing selection. Filters are disabled while it is open;
