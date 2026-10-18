@@ -64,6 +64,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | `source_scope_browser_drive.py` | PR / main / manual | — |
 | `stalled_job_browser_drive.py` | PR / main / manual | `STALLED_FIXTURE=1` |
 | `suspicious_dates_browser_drive.py` | PR / main / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
+| `thumbnails_browser_drive.py` | PR / main / manual | — |
 | `webui_browser_drive.py` | PR / main / manual | — |
 | `navigation_browser_drive.py` | Nightly / manual | — |
 | `layout_stability_browser_drive.py` | Nightly / manual | — |
