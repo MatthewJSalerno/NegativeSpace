@@ -240,7 +240,7 @@ Users can select individual files or multiple files across grid views to run tar
 
 **Move/Copy preview:** before confirmation, group projected destinations by folder
 with counts and expandable file details. Offer a downloadable operation plan for
-the full scope. Label it a plan, not a log: subsequent execution can fail or detect
+the full scope, as CSV like the log export. Label it a plan, not a log: subsequent execution can fail or detect
 changed state, and its actual outcomes belong in the job log. Apply the same
 selection counts and stale-preview safeguards used by other confirmed actions.
 
@@ -364,6 +364,12 @@ turned off in Settings (linking to Settings › Files), sidecars and videos as o
 each, and every other file as one number, "4,312 other files, left untouched", never
 listed by type. Copy all/Move all lead to
 the same confirmations as Jobs. Index failures link to Logs for specific evidence.
+Decided 2026-10-18, not built: files Index cannot use are skipped, not catalogued
+(`engine-spec.md` §4.1), and the summary counts them by kind, e.g. "4,503 found · 4,490
+indexed · 13 skipped: 3 empty, 2 not images, 5 permission denied, 3 couldn't be
+decoded"; each count opens that job's log filtered to those files. Permission denied,
+read errors and undecodable files are highlighted as possibly missing photos;
+undecodable ones say they stay in the source and are not in the library.
 The Index summary has **Close index summary** and a compact **Show index summary**
 control to reopen it. Dismissal is remembered in this browser across refreshes and
 navigation for that finished Index; the next finished Index reveals the updated
@@ -509,10 +515,12 @@ indication. Changes apply to new/unresolved associations; saved ownership choice
 Explain that unresolved files stay in Not organized → Needs attention and need another
 Index after a preference change. Per-file ownership decision controls are still pending.
 
-**Where future edits are saved** shows RAW's XMP default and other formats' embedded
-(default) or XMP choice. An established primary target wins over these defaults.
-Embedded RAW is visible as unsupported and cannot be selected; embedded editing remains
-limited to qualified JPEG files. Unsupported formats are refused rather than silently
+**Where future edits are saved** states that RAW edits always use XMP sidecars and
+offers other formats' embedded (default) or XMP choice. Replacing the disabled RAW
+choice with this statement is decided 2026-10-18, not built. An established primary
+target wins over format defaults but cannot authorize RAW writes; changing an embedded
+RAW primary to XMP is deliberate, never automatic. Embedded editing remains limited
+to qualified JPEG files. Unsupported formats are refused rather than silently
 switched. Saving preferences alone does not edit, move or change a photo's primary.
 
 **Startup without a usable catalog:** distinguish a missing database from access
@@ -2388,7 +2396,7 @@ clear metadata. The explicit-clear checkbox blanks/disables both visible inputs 
 unchecking restores the draft. An absent XMP date retains the explicit-clear option with an explanation
 of missing-value fallback versus intentional Undated filing. Prefill an existing complete Date taken value, including
 recorded fraction/offset, so changing its calendar portion does not silently drop other
-components. Show deliberate removals in the preview. First XMP creation defaults for RAW
+components. Show deliberate removals in the preview. First XMP creation is the write path for RAW
 and contains only changed fields; no sidecar is created merely by Index. Other fields
 continue to read from the embedded sources. Establish primary only after verified Save.
 The engine has verified sidecar and qualified embedded JPEG publication, refiling,
@@ -2523,7 +2531,7 @@ applied to hundreds of scans that all carry a scanner's wrong date.
   timezone information according to §10, without inventing an absent offset.
 * **Write through the chosen method:** planned edits update the delivered photo
   or its XMP sidecar according to the format's setting (`engine-spec.md` §9.6).
-  RAW defaults to XMP; other formats default to in-file edits. Unsupported writes
+  RAW edits use XMP only; other formats default to in-file edits. Unsupported writes
   fail clearly, with no silent switch of method or catalog-only correction.
 * **Preview unsupported writes:** before confirmation, identify selected photos
   that cannot store the requested fields through the chosen method, with counts and per-photo reasons
@@ -2649,7 +2657,7 @@ pHash above, and a new content identity linked to the old one in lineage, since 
 file's bytes change. The grid thumbnail and detail preview follow the new content;
 both already honour `Orientation`. A rotated copy is no longer byte-identical to its
 former duplicates, and history shows that. The tag goes where the photo's edits are saved (`engine-spec.md` §9.6: in the file, or the
-XMP sidecar that RAW formats use by default, which leaves the photo's bytes and identity
+XMP sidecar that RAW formats always use, which leaves the photo's bytes and identity
 unchanged). Where neither can take `Orientation` safely, the control is unavailable with
 that reason. It never falls back to re-encoding, to the other storage method, or to a
 catalog-only rotation a gallery would not see. Qualified engine write paths are built;
@@ -2721,14 +2729,16 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   Switching primary is a separate previewed, confirmed action; tab changes
   and comparisons never write. See `ui-design.md` and [xmp-metadata.md](xmp-metadata.md).
 * **Where edits are saved** (decided 2026-10-02, `engine-spec.md` §9.6): Settings › Metadata
-  sets it for RAW formats (default **XMP sidecar**) and other formats (default **In the
-  file**). These defaults apply when no primary write target is established; an existing
+  sets it for other formats (default **In the file**). RAW formats always use an XMP
+  sidecar; Settings and setup state this rather than showing a disabled choice, e.g.
+  "RAW photos: edits are always saved to an XMP sidecar beside the photo; the RAW file
+  is never changed" (decided 2026-10-18; the disabled option is still shown). These defaults apply when no primary write target is established; an existing
   primary overrides them. A primary change requires an explicit preview and confirmation,
   including its effect on future edits and any refiling. Tabs do not change it.
-  This release qualifies embedded JPEG writes and XMP sidecars only. Embedded RAW,
-  TIFF and HEIC writes remain deferred; no setting or consent enables an unqualified
-  writer. Explain unsupported targets and require a deliberate source change rather
-  than switching storage automatically.
+  This release qualifies embedded JPEG writes and XMP sidecars only. Embedded
+  TIFF and HEIC writes remain deferred; RAW files are never written. No setting or
+  consent enables an unqualified writer. Explain unsupported targets and require a
+  deliberate source change rather than switching storage automatically.
 * **Unresolved sidecar association/version choices** wait in
   Not organized → Needs attention. **Resolve XMP choices…** opens recorded candidate
   photos for a shared sidecar, or competing XMP versions for a first import. Preview
@@ -2969,8 +2979,16 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   one consistent row of photo actions at the top of the information pane, before review reasons and File/capture information. *Why not a page of its own:* finding notes then works like the rest of the
   Library (filters, selection, bulk answers), and working through them reuses the
   workspace built for such tasks.
-* **Filter by reason; bulk within one reason** (planned for review answers; existing bulk Reject is available with preview and confirmation). A mixed
-  selection offers only shared actions. The sidebar's Look into holds the review-reason
+* **Filter by reason; bulk within one reason** (decided 2026-10-18; not built beyond the
+  existing bulk Reject). While Needs review is filtered to one reason, ticked photos get
+  that reason's answers in the selection bar. Answers that change no file (**Mark
+  reviewed**, **It's correct**, **Keep it**, **Done**) take one confirmation with the count
+  ("Mark 200 photos reviewed? Their files don't change."), and each photo's history
+  records the answer. Answers that change files use their existing previews: Reject the
+  Reject review, applying suggested dates a per-photo list of new dates and folders
+  before the job runs. **Keep the old one instead** stays one photo at a time, since each
+  swap needs its comparison. To revisit once the maintainer's own library has been
+  organized. A mixed selection offers only shared actions. The sidebar's Look into holds the review-reason
   toggles and their counts; **Review one by one** stays above the photos. Types, Folders
   and Dates are in the Filters panel. Active filters toggle off, and none active means the
   whole inbox. Do not duplicate Small images elsewhere.
@@ -2988,8 +3006,8 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   busywork, and nothing is lost.
 * **Review later** (decided 2026-10-05): the one note a user sets. **Review later** sits
   beside **Reject…** in the photo panel, with an optional short note ("check the date");
-  **Done** clears it. Not in the selection bar: it is a photo-by-photo bookmark, and it holds
-  nothing. It stays a plain "come back to this": no names, colours or lists, which
+  **Done** clears it. Setting it is not in the selection bar: it is a photo-by-photo bookmark,
+  and it holds nothing. Clearing it is: **Done** is a bulk answer like the others. It stays a plain "come back to this": no names, colours or lists, which
   would make it the general tagging that belongs to gallery applications.
 * **Review belongs after organization** (revised 2026-10-07). The inbox and its
   decision APIs accept only active Library photos. Source failures belong in import

@@ -74,7 +74,7 @@ an established primary or an edit target. Legacy IPTC mapping/precedence is not 
 by this rule; retain extracted evidence without guessing aliases.
 
 - Read associated XMP at Index regardless of the setting for where future edits go.
-  RAW writes default to XMP; other formats default to embedded writes when no primary
+  RAW writes use XMP only; other formats default to embedded writes when no primary
   write target has been established. An established primary takes precedence over
   those defaults: a photo imported with primary XMP is edited only in that XMP, even
   when Settings defaults its format to embedded writes. Editing a field displayed via
@@ -101,7 +101,8 @@ by this rule; retain extracted evidence without guessing aliases.
   Explicitly choosing embedded metadata retains the XMP alternatives for inspection.
   Changing primary requires a deliberate action, a preview of changed effective values,
   any resulting refiling and future edit target, and confirmation. It copies no values
-  between sources. Existing format support and RAW-write consent still apply.
+  between sources. Existing format support still applies; an embedded RAW primary
+  must be deliberately changed to XMP before editing, never switched automatically.
 
 The resolver accepts validated reader output: source IDs, qualified extracted `tags`,
 canonical `fields`, and original bytes for every XMP version. It returns JSON-compatible
@@ -238,7 +239,7 @@ eligible selections; see the import recovery contract below.
 ## Field-scoped edit plans (built; XMP execution connected)
 
 An edit changes only explicitly selected fields and their required companions. The first
-confirmed RAW edit defaults to a new full-filename XMP if no primary is established.
+confirmed RAW edit creates a new full-filename XMP if no primary is established.
 Index alone never creates one. That new XMP contains only the requested fields; other
 values continue to resolve from embedded metadata. Its creation becomes established
 primary only after the execution path verifies and records the operation. Existing
@@ -253,8 +254,8 @@ DateTimeOriginal's fraction/offset companions. Embedded XMP/sidecar dates use on
 property. An absent offset in the requested logical date does not inherit a stale old
 one. The future editor must prefill the complete value and show any deliberate removal.
 Partial/blank dates are supported in XMP; the initial embedded EXIF planner requires a
-complete date/time and refuses blank/partial writes. Embedded RAW plans remain refused
-pending their consent, format qualification, backup and verified-write path.
+complete date/time and refuses blank/partial writes. Embedded RAW plans are refused:
+RAW files are never written, and their edits use XMP sidecars only.
 
 Catalog previews accept only an organized Library photo and its current stable capture.
 They honor the saved primary version before Settings defaults, show per-field changes,
@@ -307,7 +308,8 @@ the capture-date companions and supported GPS coordinate/reference/altitude tags
 is distinct from writing an empty value. Other representations—including new EXIF GPS
 coordinates, explicit empty values and partial EXIF dates—are refused without switching primary. Known required IFD scaffolding may
 be added only with verified values, and is listed in the returned receipt. Existing
-unrelated fields cannot be changed. TIFF, HEIC and RAW writing remain unqualified.
+unrelated fields cannot be changed. Embedded TIFF and HEIC writing remain unqualified;
+RAW files are never written.
 
 The writer checks free space, bounds live reader output and tool runtime, rejects
 symlink traversal and occupied staging names, preserves photo read/write permissions,
@@ -321,7 +323,7 @@ staging file before retry. Filesystem guarantees remain subject to working fsync
 Generated tests include a lying writer, image-data corruption, an unrelated-tag change,
 missing date-companion removal, insufficient space, changed inputs, sync failure,
 malformed images, Unicode values, progressive JPEG/ICC preservation, tool output limits
-and a stalled tool. Public RAW smoke checks do not qualify embedded RAW writing.
+and a stalled tool. Public RAW smoke checks cover reading RAW files, not writing them.
 
 Index can record source observations while retaining the edited Library content and an
 unfinished operation's retry binding. The original source snapshot stays immutable.
@@ -394,7 +396,8 @@ these originals until that separate UI work is implemented.
 | XMP sidecar | Common-field values and removals for supported photo formats, including RAW; photo bytes unchanged | Custom unsupported extensions still refuse; existing primary never changes automatically |
 | Embedded JPEG XMP | Qualified JPEG layouts; common fields, localized text, linked GPS, partial/empty dates, lists, decimal ratings and removals | Extended XMP, multiple images, trailers or unsupported JPEG layout refuse |
 | Embedded JPEG EXIF | Complete capture date/time with recorded fraction/offset; Orientation 1–8; one default-language title/caption/rights; one creator; representable keywords; integer ratings 0–5; explicit mapped-field removal | GPS coordinate writes, partial dates, present-empty values, localized alternatives, multiple creators, fractional/-1 ratings and keyword elements containing semicolons refuse |
-| Embedded TIFF/HEIC/RAW and other formats | No embedded writing in this release | Deferred for separate preservation qualification; deliberately choose an XMP primary instead |
+| Embedded TIFF/HEIC and other non-RAW formats | No embedded writing in this release | Deferred for separate preservation qualification; deliberately choose an XMP primary instead |
+| Embedded RAW | Never supported | RAW edits use XMP sidecars only; deliberately choose an XMP primary before editing if needed |
 
 The maintainer accepted these release boundaries. Unsupported values refuse the whole
 request before publication; no automatic rounding, fabricated date/time, primary switch
@@ -501,7 +504,7 @@ Photo-only Copy/Move uses captured embedded XMP before EXIF for absent fields; e
 empty and partial dates remain Undated. Unsupported custom extensions retain their existing
 transfer behavior. The frozen job choice and verified delivery receipt determine the
 catalog projection; no metadata bytes are rewritten by import. Automatic read priority
-alone establishes no embedded write primary, so RAW sidecar defaults remain available.
+alone establishes no embedded write primary, so the RAW sidecar write path remains available.
 Source read failures are failed transfers with their underlying reason, not decision skips.
 
 A Library metadata request can select `primary_id: "exif"` or `"embedded_xmp"` instead
@@ -510,7 +513,7 @@ future edit target and date filing; Apply verifies the photo and any recorded si
 requires the batch backup, and records the deliberate choice. The selected source must
 already exist. No tags are copied between sources. Existing sidecars remain byte-identical
 and follow the photo if its effective date changes. Source switching does not authorize
-an unsupported embedded writer or bypass RAW consent.
+an unsupported embedded writer; RAW edits use XMP sidecars only.
 
 An unapplied catalog decision is not proof that the photo was refiled: preview uses the
 last verified activation. Saved primary changes survive a failed date move; Retry finishes
@@ -938,8 +941,7 @@ the verified edit history above, not the experimental content fingerprint.
 
 Existing edit-backup policy remains: a pre-action catalog backup and structured metadata
 history for all edits; verified temporary outputs and recovery material until completion;
-exact retained XMP versions; optional first-edit original-file copies for explicitly
-enabled embedded RAW editing. There is no new requirement to permanently retain every
+exact retained XMP versions. RAW files are never written (`engine-spec.md` §9.6). There is no new requirement to permanently retain every
 pre-edit JPEG or other ordinary photo file.
 
 ## Verified pair transfer primitive (built; resolved first-import jobs connected)
@@ -1055,8 +1057,9 @@ before claiming the combined photo/XMP durability guarantees are enforced.
 During Copy/Move, verify destination names, written photo/sidecar content and durable
 records before source cleanup; a name collision cannot authorize overwriting or adopting
 unrelated destination content. These are checks on the operation's actual targets, not
-a catalog-wide destination scan. A broader **Check my destination** inventory/diff/repair
-workflow for external changes is deferred to a separate discussion.
+a catalog-wide destination scan. **Check my library** and **Repair** in place for
+external changes are decided, not built (`engine-spec.md` §9.2). They are separate
+from the required checks on each transfer.
 
 If metadata saving succeeds but subsequent refiling fails, retain the verified edit and
 record the actual location plus Needs refiling. Explain the specific permission, space or
@@ -1101,8 +1104,9 @@ original photo. An interrupted job's recovery is not undo of a completed job.
 
 External destination editing is the maintainer's responsibility for now. No monitoring,
 external-edit conflict UI or automatic reconciliation is added in this workstream;
-Check my destination remains deferred. The engine must still verify its own actual
-reads/writes, prevent unintended overwrites and verify before deleting source files.
+**Check my library** and **Repair** are decided, not built (`engine-spec.md` §9.2).
+The engine must still verify its own actual reads/writes, prevent unintended overwrites
+and verify before deleting source files.
 
 ## UI handoff — source viewer, date editing and preferences built; decisions pending
 

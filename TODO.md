@@ -30,7 +30,7 @@ development until the maintainer decides.
 - 💬 A content-history link from a photo to its earlier versions
 
 **Review**
-- Answer many photos at once within one reason
+- Answer many photos at once within one reason — decided, not built (`docs/webui-spec.md` §7.9)
 - Suspicious dates in the review queue, with "this date is correct"
 - "Looks like a reject" (decided)
 - Undated-photo evidence and per-library back-test — decided, not built (`docs/webui-spec.md` §3.1)
@@ -59,22 +59,22 @@ development until the maintainer decides.
 - 💬 Legacy IPTC precedence and additional RDF mappings
 - 💬 Metadata-independent image hashing and content-based duplicate consolidation (deferred)
 - 💬 Sidecars edited between Index and Copy or Move
+- RAW edit target shown as a statement, not a disabled choice — decided, not built (`docs/webui-spec.md` §7.5)
 - 💬 Similar photos and metadata together
 - 💬 Copying all metadata, or a wider choice of fields
 
 **Checking and maintenance**
-- Destination check on screen, then a broader inventory and repair
+- Check my library and Repair in place — decided, not built (`docs/engine-spec.md` §9.2)
 - Unbacked-changes line on every page, and Retry backup
 - Index summary by file type — decided, not built (`docs/webui-spec.md` §2)
 - Import summary, and a filter for files that could not be previewed
-- Resolving files that cannot be read
+- Skip unreadable files at Index, counted by kind — decided, not built (`docs/engine-spec.md` §4.1)
 - Stats dates chart, with undated count beside it — decided, not built (`docs/webui-spec.md` §6)
 - Stats: Metadata edits figure, exact duplicates only as waste — decided, not built (`docs/webui-spec.md` §5.9)
 - Every warning offers a way out
 - Filter counts: distinguish zero, unavailable and incompatible
 - Re-audit durability claims whenever a write path changes
-- `metadata.resolve_sources` is called only by tests: wire it in or remove it
-- The `dest/raw-originals` folder
+- Remove the unused `metadata.resolve_sources` — decided, not built (see Other below)
 - Spacing and alignment pass, and the sidebar's Look into filters
 
 **Before the first release**
@@ -100,20 +100,8 @@ development until the maintainer decides.
   Library issues also appear in Needs review → File issues. A read-only engine check
   resolves supported outcomes only with fresh verified evidence, preserving original
   history and the deletion gate while uncertainty remains.
-- [ ] Broader destination inventory UI and external restoration guidance beyond the
-  recorded operation pair remain separate from this scoped verification.
-- [ ] **Discussion only; no development until the maintainer decides: repairing a
-  rearranged library without losing lineage.** If files in `library/` are moved, renamed
-  or deleted outside the app, the destination check (engine built, no UI) can report it
-  but nothing repairs it in place. The documented repair (`engine-spec.md` §9.2) indexes
-  the old library as a source into a fresh destination with a fresh catalog: photo IDs
-  and run history do not carry over, and each photo's history restarts at its old library
-  path. Reusing the same catalog does not work, because the catalog still records every
-  photo as delivered at `/data/dest`, so the re-indexed files are treated as duplicates
-  and nothing is written. The option to discuss is reorganizing in place: match each
-  file to the catalog by content, put it back where it belongs, and record that as a
-  step in its existing lineage. Until decided, `recovery.md` gets no entry for this case.
-
+- [ ] Check my library and Repair in place: decided, not built (`docs/engine-spec.md` §9.2).
+  `recovery.md` gets its entry when this is built.
 ## Copy, then delete the originals yourself
 
 - [x] Full Index detects externally missing originals of Copied Library photos, verifies
@@ -269,8 +257,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
   their decision UI remains unfinished. Import-pair retry is already built.
 - [ ] Add the remaining Library reasons to the shared inbox/workspace: suspicious dates with acknowledgment;
   No capture date and sidecar/edit reasons with their respective workstreams.
-- [ ] Bulk review answers within one reason. Individual Mark reviewed/Done and the
-  existing bulk Reject workflow are built; general bulk acknowledgments are not.
+- [ ] Bulk review answers within one reason: decided, not built (`docs/webui-spec.md` §7.9).
 - [ ] Record automatic reason clearing in review history. Current small-image
   eligibility is computed on read; explicit user decisions are recorded, but a
   setting/dimension change that removes eligibility does not append an event.
@@ -616,8 +603,9 @@ Saved orientation stays a separate action from temporary preview rotation.
 - [ ] **Deferred by maintainer:** production metadata-independent image hashing,
   broader fingerprint formats and image-content duplicate consolidation. Retain the
   tested JPEG experiment; complete metadata preservation/editing first.
-- [ ] Broader destination inventory/diff/repair (**Check my destination**) remains a
-  separate discussion. Ordinary per-operation collision/write verification is required.
+- [ ] Destination inventory and repair: **Check my library** and **Repair** in place,
+  decided, not built (`docs/engine-spec.md` §9.2). Ordinary per-operation collision/write
+  verification is required.
 - [ ] Revisit sidecars edited externally between Index and Copy/Move. For now the user
   reindexes after an external edit; existing verification/deletion gates still apply.
 - [ ] Legacy IPTC precedence/mappings and additional RDF representations require decisions
@@ -700,9 +688,9 @@ Deferred performance work — the unchanged-file check loading every settled row
 Stalled read-only workers now support user-requested cancellation of decoder process
 groups, with a no-progress reminder and Keep waiting. Kernel-blocked storage remains
 an explicit limitation in engine-spec §8; automatic file skipping is not planned.
-- [ ] `engine/metadata.py` `resolve_sources` is exercised only by tests; Index, transfer and
-  the metadata tabs do their own resolution. Decide whether to wire it in as the single
-  resolver or remove it (found in the 2026-10-18 docs sweep).
+- [ ] Remove `engine/metadata.py` `resolve_sources` and its tests (decided 2026-10-18): only
+  tests call it; Index, transfer and the metadata tabs resolve sources themselves. Do it
+  in the next code change that touches metadata.
 
 ## Navigation refinement
 
