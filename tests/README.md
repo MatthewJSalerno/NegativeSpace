@@ -147,8 +147,10 @@ a. In Not organized, search `IMG_0001.jpg`. Both cards show their original folde
 b. Hover each name: its full original path appears. Moving the pointer away does not
 move the cards or add/remove the folder line.
 
-c. In Source folders, narrow to one trip. Only its card remains and the extra folder
-line disappears. Clear the folder restriction to restore both labels.
+c. Open Source folders, then enter `IMG_0001.jpg` in search again (opening Source
+folders clears the search). Expand `scenarios`, then `same-name`, using their arrows.
+Check `trip-a`: only its card remains and the extra folder line disappears. Use
+Show all above the tree to restore both photos and their folder labels.
 
 **Test 2 — Library and filtering**
 

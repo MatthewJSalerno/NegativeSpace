@@ -434,7 +434,7 @@ changes the selected photos or arms new action targets.
 
 Two different photos can share a filename: two cameras each with an `IMG_0412.jpg`.
 Cards distinguish their original folders when both photos are in the result (decided
-2026-10-17; built, maintainer validation pending).
+2026-10-17; built and maintainer validated).
 
 * **Only when names clash,** a card adds one muted line under its name with the shortest
   part of its **original source folder** that tells it apart (`…/Canon 2014`, `…/Phone/DCIM`),
