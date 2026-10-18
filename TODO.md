@@ -75,7 +75,7 @@ development until the maintainer decides.
 - Filter counts: distinguish zero, unavailable and incompatible
 - Re-audit durability claims whenever a write path changes
 - Remove the unused `metadata.resolve_sources` — decided, not built (see Other below)
-- Spacing and alignment pass, the sidebar's Look into filters, and the user-guide screenshots
+- Spacing and alignment pass, and the sidebar's Look into filters
 
 **Before the first release**
 - Decide on catalog migration
@@ -163,8 +163,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
   keyboard focus. Check active states and narrow layouts. Deferred, not implemented.
 - [ ] Check Library/Jobs/Logs spacing and alignment in a future UI batch; preserve
   the reserved Jobs position so Logs does not shift when Jobs is unavailable.
-- [ ] Refresh user-guide screenshots for the current setup and review workflows.
-  The guide labels the existing screenshots as an earlier interface.
+- [x] Refresh user-guide screenshots for the current setup and review workflows (dark,
+  1440 × 900, NASA demo set), including Notifications and Settings › Performance.
 
 - [x] Empty review queues return to the filtered gallery with a completion message;
   closing review checks whether the open preview still belongs in the view.
@@ -620,6 +620,9 @@ Saved orientation stays a separate action from temporary preview rotation.
   end, so a few impossible dates cannot squash it (`docs/webui-spec.md` §5.9).
 - [ ] Stats: "EXIF edits" becomes Metadata edits, and wasted space stays exact duplicates
   only (no near-duplicates figure): decided, not built (`docs/webui-spec.md` §5.9).
+
+## Warnings that need a way out
+
 - [ ] An import-completion summary and a catalog-wide filter for files whose visual
   processing failed, distinguishing corrupt data from missing decoder support and IO
   failures; absent EXIF is not proof of damage. Do not retry unchanged bad files.

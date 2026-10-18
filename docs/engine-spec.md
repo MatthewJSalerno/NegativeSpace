@@ -1471,7 +1471,7 @@ The format's default determines the write target when none has been established.
     Preserve all source snapshots and exact field origins. Invalid/unresolved sources
     follow attention/decision rules, not silent fallback. Viewing a source tab, changing
     Settings or a later arrival never silently replaces an established primary.
-    Read priority is separate from write-target defaults and embedded RAW consent.
+    Read priority is separate from write-target defaults; RAW metadata writes use XMP sidecars only.
     [xmp-metadata.md](xmp-metadata.md) defines version conflicts, shared associations,
     malformed sidecars and the pending UI contract. Its pure resolution helper is
     built along with three-source observations and saved explicit ownership/primary
@@ -1688,10 +1688,10 @@ dest/
   rejects/          photos the user turned down (§9.5), emptied by the user
 ```
 
-*   **Gallery applications import `dest/library` only**, never `dest`, so rejects and RAW
-    copies never reach them. Undated photos stay inside `library/`: they are still the
+*   **Gallery applications import `dest/library` only**, never `dest`, so rejected
+    photos never reach them. Undated photos stay inside `library/`: they are still the
     library.
-*   **One mount, not three.** Rejects and RAW copies live on the destination's filesystem,
+*   **One destination mount.** Library and Rejects live on the destination's filesystem,
     so the container keeps four user mounts (source, destination, application data,
     backups), and a reject is an atomic rename.
 *   **Source, backups and application data stay separate**: originals never mix with

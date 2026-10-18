@@ -515,10 +515,12 @@ indication. Changes apply to new/unresolved associations; saved ownership choice
 Explain that unresolved files stay in Not organized → Needs attention and need another
 Index after a preference change. Per-file ownership decision controls are still pending.
 
-**Where future edits are saved** shows RAW's XMP default and other formats' embedded
-(default) or XMP choice. An established primary target wins over these defaults.
-Embedded RAW is visible as unsupported and cannot be selected; embedded editing remains
-limited to qualified JPEG files. Unsupported formats are refused rather than silently
+**Where future edits are saved** states that RAW edits always use XMP sidecars and
+offers other formats' embedded (default) or XMP choice. Replacing the disabled RAW
+choice with this statement is decided 2026-10-18, not built. An established primary
+target wins over format defaults but cannot authorize RAW writes; changing an embedded
+RAW primary to XMP is deliberate, never automatic. Embedded editing remains limited
+to qualified JPEG files. Unsupported formats are refused rather than silently
 switched. Saving preferences alone does not edit, move or change a photo's primary.
 
 **Startup without a usable catalog:** distinguish a missing database from access
@@ -2394,7 +2396,7 @@ clear metadata. The explicit-clear checkbox blanks/disables both visible inputs 
 unchecking restores the draft. An absent XMP date retains the explicit-clear option with an explanation
 of missing-value fallback versus intentional Undated filing. Prefill an existing complete Date taken value, including
 recorded fraction/offset, so changing its calendar portion does not silently drop other
-components. Show deliberate removals in the preview. First XMP creation defaults for RAW
+components. Show deliberate removals in the preview. First XMP creation is the write path for RAW
 and contains only changed fields; no sidecar is created merely by Index. Other fields
 continue to read from the embedded sources. Establish primary only after verified Save.
 The engine has verified sidecar and qualified embedded JPEG publication, refiling,
@@ -2529,7 +2531,7 @@ applied to hundreds of scans that all carry a scanner's wrong date.
   timezone information according to §10, without inventing an absent offset.
 * **Write through the chosen method:** planned edits update the delivered photo
   or its XMP sidecar according to the format's setting (`engine-spec.md` §9.6).
-  RAW defaults to XMP; other formats default to in-file edits. Unsupported writes
+  RAW edits use XMP only; other formats default to in-file edits. Unsupported writes
   fail clearly, with no silent switch of method or catalog-only correction.
 * **Preview unsupported writes:** before confirmation, identify selected photos
   that cannot store the requested fields through the chosen method, with counts and per-photo reasons
@@ -2733,10 +2735,10 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   is never changed" (decided 2026-10-18; the disabled option is still shown). These defaults apply when no primary write target is established; an existing
   primary overrides them. A primary change requires an explicit preview and confirmation,
   including its effect on future edits and any refiling. Tabs do not change it.
-  This release qualifies embedded JPEG writes and XMP sidecars only. Embedded RAW,
-  TIFF and HEIC writes remain deferred; no setting or consent enables an unqualified
-  writer. Explain unsupported targets and require a deliberate source change rather
-  than switching storage automatically.
+  This release qualifies embedded JPEG writes and XMP sidecars only. Embedded
+  TIFF and HEIC writes remain deferred; RAW files are never written. No setting or
+  consent enables an unqualified writer. Explain unsupported targets and require a
+  deliberate source change rather than switching storage automatically.
 * **Unresolved sidecar association/version choices** wait in
   Not organized → Needs attention. **Resolve XMP choices…** opens recorded candidate
   photos for a shared sidecar, or competing XMP versions for a first import. Preview
