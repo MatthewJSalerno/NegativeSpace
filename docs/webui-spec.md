@@ -619,8 +619,9 @@ Rules for what counts as evidence:
   user, which includes an accepted suggestion. Dates the user set are shown separately
   and never counted as independent evidence for another photo: otherwise one guess,
   passed from look-alike to look-alike, would read as many confirmations.
-* Low-detail photos can match unrelated ones (`engine-spec.md` §9.3); the evidence notes
-  it rather than hiding the look-alikes.
+* Low-detail matches (a mostly black or flat photo on either side,
+  `engine-spec.md` §9.3) can be unrelated photos: the evidence lists them with that
+  note rather than hiding them, and they never count towards a suggestion or its level.
 
 The catalog already holds every copy's original path, name and file time, and each date
 edit's before and after values; Library photos may need a gallery filter by original
