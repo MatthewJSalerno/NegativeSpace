@@ -1028,6 +1028,27 @@ mostly black space photos; pairs at 75% rose from 4,739 to 16,834. Comparison to
 otherwise identical pixels no longer match each other; such copies are rare. Copies an
 editor rotated by rewriting their pixels are not found.
 
+**Mostly black or flat photos are marked low-detail** (decided 2026-10-18; not built). A
+night sky, a sparkler or a lens-cap shot leaves the hash little to describe, so two
+unrelated ones can score 97–100%. A photo is low-detail when the same 32×32 greyscale
+image the hash is taken from has an average brightness under 10 of 255, or a mean
+gradient magnitude (neighbouring-pixel change) under 2. Both come from the image already
+in memory, so they cost no extra read or decode, and are stored beside the hash. A match
+is low-detail when either photo is. Such matches still appear and count everywhere;
+the screens mark them, and nothing that acts on a match uses them: the Looks like a
+reject reason (`webui-spec.md` §7.8) and look-alike date evidence (`webui-spec.md` §3.1).
+There is no setting. The two levels are starting values from two libraries; the
+per-library keep/reject measurement in `webui-spec.md` §7.8 checks them. Measurements
+are in [similarity-validation.md](similarity-validation.md#low-detail-photos--2026-10-18).
+
+*Rejected: equalizing or stretching the 32×32 image's brightness before hashing.* On the
+demo library, equalization removed 72 of 587 matches at 90%, and every sampled one was
+a false match between different night or space photos. On the maintainer's share it
+dropped 1,365 and added 986 of about 15,400, and every sampled change in both directions
+was a real look-alike, mostly bursts near the 90% line. Of the share's dark pairs it
+dropped, 3 in 12 sampled were false. A plain contrast stretch changed little on either.
+Equalization also shifts every hash, so it could not be mixed with existing ones.
+
 The SHA-1 content identity and its perceptual hash are already associated in the
 SQLite catalog's `contents` table, alongside derived comparison tables. There is
 no separate DuckDB mapping. A second database is not required by the current review

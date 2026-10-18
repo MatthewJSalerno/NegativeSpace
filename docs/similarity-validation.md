@@ -475,3 +475,77 @@ into main and push.
 Future discussion requested: presenting selected photos in the gallery. The existing
 Show only selected command already provides a temporary selection gallery; discuss
 discoverability and desired behavior with grouped sets before adding/changing UI.
+
+## Low-detail photos — 2026-10-18
+
+**Question.** Mostly black or flat photos (night skies, fireworks, lens-cap shots) match
+unrelated ones at 97–100%. Should the hash normalize brightness first, and how should
+"low-detail" be defined? Decision: `engine-spec.md` §9.3.
+
+**Method.** A read-only script computed three perceptual hashes per photo from the
+engine's 32×32 greyscale input, orientation applied as in §9.3: as today, after a
+contrast stretch (Pillow `ImageOps.autocontrast`, 1% cutoff), and after histogram
+equalization (`ImageOps.equalize`). It also recorded the image's brightness spread,
+average brightness and mean gradient magnitude. Matches were found with the engine's
+own `HashIndex`; byte-identical copies counted once. Sample pairs were inspected by
+eye. Two libraries: the demo library (4,795 photos: public NASA images, public camera
+samples and generated scenarios) and the maintainer's photo share (29,085 photos,
+mounted read-only; only these aggregates were kept).
+
+**Pairs at 90% or more.**
+
+| Library | Today | Stretch | Equalize |
+| :--- | ---: | ---: | ---: |
+| Demo | 587 | 569 | 523 |
+| Share | 15,427 | 15,479 | 15,048 |
+
+**Demo library.** Equalization removed 72 matches; all 10 sampled paired different
+night or space photos (city lights against the moon, a launch against a crescent).
+Dark photos matching normal ones fell from 27 to 1. Real look-alikes (black-and-white,
+watermarked, turned, RAW twins) stayed at 97–100%. The stretch changed little: 32
+photos' hashes moved more than 6 bits, against a median of 8 bits for equalization.
+
+**Share.** The picture reversed:
+
+| Change with equalization | Pairs | Sampled | Real look-alikes in sample |
+| :--- | ---: | ---: | ---: |
+| Dropped | 1,365 | 12 | 12 (bursts, repeated frames) |
+| Added | 986 | 12 | 12 |
+| Dark pairs (both photos' brightness spread under 20) dropped | 48 of 309 | 12 | 9 (campfire, moon, carved pumpkins, a dim room) |
+| Dark pairs kept | 261 of 309 | 12 | 12 |
+
+The three false dark pairs were light trails, sparklers and a lit ring against each
+other. Equalization swapped about 2,350 real matches across the 90% line to remove
+roughly a dozen false ones, so it was not adopted.
+
+**Choosing the definition.** Low brightness spread alone is not a definition: most of
+the share's 309 dark pairs are real. Structure alone (mean gradient under 2) covered
+all three false share pairs but only 24 of the demo's 72; most of the demo's remainder
+are near-black night photos with a few lights. Adding "average brightness under 10 of
+255":
+
+| Rule (either photo of a pair) | Demo photos flagged | Demo 90%+ pairs flagged | Demo pairs equalization removed, flagged |
+| :--- | ---: | ---: | ---: |
+| Gradient under 2 | 77 | 72 of 587 | 24 of 72 |
+| Gradient under 2, or brightness under 8 | 141 | 97 | 48 |
+| Gradient under 2, or brightness under 12 | 197 | 99 | 50 |
+| Gradient under 2, or brightness under 16 | 250 | 102 | 53 |
+
+Brightness under 10 sits on the flat part of the curve. On the share's 12 sampled dark
+drops it flags all three false pairs and four real ones (campfire, moon, pumpkins),
+whose matches are still shown, only marked. Of the demo's removed matches at 95% or
+more, 6 stay unflagged, all between photos with ordinary detail; three of them are
+versions of one NASA image. The share-wide count of flagged photos was not taken; Stats reports it per
+library once built.
+
+**Prior work.** No published method prescribes equalization before perceptual hashing
+for this problem; equalization is a standard contrast correction, and our measurement
+shows it moves a hash by a median of 8 of 64 bits, so it cannot be mixed with existing
+hashes. Practitioners matching photos at scale report the same collisions between
+unrelated images of similar overall composition
+([The problem with perceptual hashes](https://rentafounder.com/the-problem-with-perceptual-hashes/)).
+Matching star fields properly is a different technique: Astrometry.net indexes
+quadrilaterals of stars, independent of rotation and scale
+([Lang et al. 2010](https://arxiv.org/abs/0910.2233)). That would be a separate feature
+for astrophotography libraries; low-detail marking keeps such photos from false
+automatic reasons in the meantime.

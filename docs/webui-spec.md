@@ -2030,6 +2030,14 @@ individual preview. Viewing transforms follow the photo while browsing candidate
 and reset on close. Zoom magnifies generated previews (up to 1024 pixels), not
 original-resolution pixels. Dimensions, file sizes and exact-content status are
 shown. Hash percentages are not confidence estimates, including at 100%.
+
+**Low-detail matches are marked** (decided 2026-10-18; not built). A match involving a
+mostly black or flat photo (`engine-spec.md` §9.3) keeps its place and percentage in
+counts, lists and the side-by-side review, with a muted note on the candidate and in
+the review status line: "Mostly dark or plain: matches like this are often unrelated
+photos." Has similar photos and its counts are unchanged; there is no filter or setting
+to hide them. Stats' Catalog health gives the number of low-detail photos, so each
+library shows how much this applies to it.
 The comparison area expands to fit both previews and all their controls/details,
 including dimensions, file sizes and linked zoom. It has no inner vertical scroll.
 If needed, the whole review window scrolls, with the shared More above/below cues;
@@ -2618,8 +2626,8 @@ user rejected, but is not a byte-identical copy (those are recognised at Index a
 duplicates of the reject, `engine-spec.md` §10), is never rejected automatically.
 
 * **Strict to start:** the reason is raised only at 95% similarity or more, and never for
-  low-detail photos (mostly black or flat), which match unrelated ones even at 97–100%
-  (`engine-spec.md` §9.3). A missed look-alike leaves things as they are today; a false one
+  a low-detail match (a mostly black or flat photo on either side, defined in
+  `engine-spec.md` §9.3), since those match unrelated ones even at 97–100%. A missed look-alike leaves things as they are today; a false one
   costs a question. Once enough of the user's own keep and reject decisions exist, the level
   is measured per library, as for date suggestions (§3.1). No user setting: Has similar
   photos already shows any percentage.
