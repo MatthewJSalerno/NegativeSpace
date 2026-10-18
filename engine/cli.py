@@ -195,6 +195,8 @@ def main():
                             help='Recover missing visual hashes from destination files or resume stored-hash comparisons; never edits photos.')
     parser.add_argument('--repair-photo', type=int, default=None, help='Limit missing-hash recovery to one destination photo identity.')
     mode_group.add_argument('--check-issue', type=positive_int, help='Verify one uncertain operation without modifying photo files.')
+    mode_group.add_argument('--import-choice', action='store_true',
+                            help='Confirm a source XMP import choice from bounded JSON stdin; changes no files.')
     mode_group.add_argument('--review-decision', action='store_true',
                             help='Record a catalog-only review decision supplied as JSON on standard input; changes no photo files.')
     mode_group.add_argument('--metadata', choices=('preview','apply','retry','discard','source-cleanup-preview'),
@@ -257,7 +259,7 @@ def main():
 
     # 2. Configure Logging
     # --preview answers on stdout in JSON for the API, so its log goes to the file only.
-    answers_in_json = (args.metadata or args.review_decision or args.preview is not None or args.clear_previews or args.rename_candidates is not None
+    answers_in_json = (args.import_choice or args.metadata or args.review_decision or args.preview is not None or args.clear_previews or args.rename_candidates is not None
                        or (args.rename is not None and args.dry_run))
     runtime.configure_logging(log_dir, console=not answers_in_json)
     metadata_request = None
@@ -314,6 +316,25 @@ def main():
 
     if args.metadata:
         sys.exit(metadata_command.run(args, db_path, base_dir, lock_fd, metadata_request))
+
+    if args.import_choice:
+        from engine import metadata_choices
+        try:
+            raw = sys.stdin.buffer.read(65537)
+            if len(raw)>65536:
+                raise ValueError('Import choice exceeds the request size limit.')
+            body = json.loads(raw)
+            print(json.dumps(metadata_choices.confirm(db_path, body, Path(args.source).absolute())))
+            code = 0
+        except (ns_db.RevisionConflict, ns_db.RequestConflict) as exc:
+            print(json.dumps({'error':'import_choice_changed','message':str(exc)}))
+            code = 3
+        except (ValueError, TypeError, ns_db.SchemaError) as exc:
+            print(json.dumps({'error':'invalid_request','message':str(exc)}))
+            code = 2
+        finally:
+            runtime.release_single_instance_lock(lock_fd)
+        sys.exit(code)
 
     if args.review_decision:
         from engine import review

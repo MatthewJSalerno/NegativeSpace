@@ -59,7 +59,7 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
           <li key={item.id} data-page={pageOfShown?.[index]} data-id={item.id} className={`card ${isSelected ? "selected" : ""} ${openId === item.id ? "open" : ""} ${item.id === keepId ? "card-keep" : ""}`}>
             <div className="card-preview">
               <button className="card-image" onClick={() => onOpen(item.id)} aria-label={`Open ${item.filename}`}>
-                <Thumb refreshKey={refreshKey} id={item.id} alt={item.filename} />
+                <Thumb refreshKey={refreshKey} revision={item.thumbnail_revision ?? 0} id={item.id} alt={item.filename} />
               </button>
               {matchThreshold != null && item.similar_count != null && <span className="card-match-count" title={`${plural(item.similar_count, "match", "matches")} at or above ${matchThreshold}%`}>
                 {plural(item.similar_count, "match", "matches")}
@@ -83,7 +83,9 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
             </label>
             )}
             <div className="card-meta">
-              <span className="card-name" title={item.filename}>{item.filename}</span>
+              <span className="card-name" title={[...(item.name_context?.original_paths ?? [item.filename]),
+                ...(item.name_context?.renamed_on_arrival ? ["Renamed on arrival: another photo already had this name"] : [])].join("\n")}>{item.filename}</span>
+              {item.name_context?.clashes && item.name_context.folder && <span className="card-folder" title={item.name_context.original_paths.join("\n")}>{item.name_context.folder}</span>}
               <span className="card-sub">
                 {item.status !== "Failed" && <span title={isFallbackDate(item.date_source) ? "No usable capture date: this is the file's modification date" : undefined}>
                   {photoDate(item.date_taken, false)}

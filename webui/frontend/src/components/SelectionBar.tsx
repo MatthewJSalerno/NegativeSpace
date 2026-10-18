@@ -14,7 +14,7 @@ export type SelectionCounts = Record<ActionMode, number>;
 // the actions wait, saying why. A selection in Rejects offers Return to library first,
 // and its Move says what it deletes.
 export function SelectionBar({ selected, capacity, outside, focused, reviewing, counts, place, jobRunning, search, onAction, onShowSelected,
-                               onBack, onClear, pairRetryIds, pairRetryCount = 0 }: {
+                               onBack, onClear, onRotate, pairRetryIds, pairRetryCount = 0 }: {
   pairRetryIds?: number[];
   pairRetryCount?: number;
   selected: number;
@@ -30,6 +30,7 @@ export function SelectionBar({ selected, capacity, outside, focused, reviewing, 
   onShowSelected: () => void;
   onBack: () => void;
   onClear: () => void;
+  onRotate?: () => void;
 }) {
   const size = count(Math.max(capacity, selected));
   const copy = { mode: "copy" as const, label: "Copy", hint: "Copy the selected photos not yet copied. The source is left untouched." };
@@ -72,6 +73,7 @@ export function SelectionBar({ selected, capacity, outside, focused, reviewing, 
           ))}
         </span>
       )}
+      {!reviewing && onRotate && <button className="photo-action" disabled={jobRunning} title={busy} onClick={onRotate}>Rotate…</button>}
       {!reviewing && pairRetryIds && pairRetryCount > 0 && <PairRetryButton ids={pairRetryIds} count={pairRetryCount} />}
       {search && <div className="topbar-search">{search}</div>}
     </div>

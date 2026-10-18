@@ -83,6 +83,11 @@ years down the right edge jump through the gallery: point to see the month, clic
 at a time, and with **Still in source**, find the originals of photos you have already
 copied and move them off the source.
 
+When different photos in your results have the same name, their cards show the shortest
+part of the original source folder that tells them apart. Hover over a photo’s name to
+see its original path and any identical copies’ paths. A name changed on arrival also
+explains that another photo already had that name.
+
 ![The gallery, showing one year](images/library.png)
 
 Click a photo to open it in the panel on the right: its file, its dates and where they came
@@ -123,6 +128,15 @@ unrelated.
 Open a match to compare the two side by side: their size, format, dates and every
 recorded detail. **Reject…** under a photo turns that one down; **Keep this one, reject
 the other…** keeps one and reviews the rest before anything moves.
+
+Turns stay temporary until you save them. Leaving with unsaved turns offers a choice
+to save, discard them, or return to the photos. Use the curved-arrow buttons beside
+the large preview to turn it left or right,
+then **Save rotation** to keep the change or **Reset** to undo the viewing turn.
+For several selected photos, **Rotate…** in the selection bar opens a confirmation.
+Only checked photos turn, reset or save; unchecked photos stay as they are.
+It saves Orientation to the photo’s metadata source without changing image pixels or your source files. A turn
+saved in an XMP sidecar needs a gallery that reads sidecar Orientation.
 
 ![Two look-alikes side by side](images/compare.png)
 
@@ -165,6 +179,12 @@ reminder for a photo you want to keep; select the ones you don't want and use
 takes an optional note, and **Done** clears it. **Review one by one** steps through them;
 **Next** moves on without deciding. Change or turn off the rule in **Settings › Files**.
 
+In a Library photo’s **Metadata** tab, open another recorded source and choose
+**Use as primary…** to make it take priority for that photo. Review the metadata and
+folder changes before confirming. Future edits use that source; your other recorded
+sources remain available. **Copy date to primary…** copies only the date and keeps
+your current primary source.
+
 ## 8. History, logs and stats
 
 Every photo keeps its full history: each file it has been, each copy made of it, and
@@ -173,7 +193,9 @@ every job that touched it. **View lineage tree** in the panel shows it.
 ![A photo's lineage](images/lineage.png)
 
 **Logs** lists every job and everything it did, with any failures, their reasons, and
-**Retry**.
+**Retry**. Expand **Metadata choices** to see saved import decisions and the jobs that
+applied them. The same section appears in the photo’s lineage; **Compare metadata…**
+compares a saved choice with the photo’s current primary source without changing it.
 
 ![The log](images/logs.png)
 

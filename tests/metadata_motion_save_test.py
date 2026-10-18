@@ -11,7 +11,7 @@ import tempfile
 import unittest
 
 from PIL import Image
-from engine import metadata_save, ns_db
+from engine import metadata_edits, metadata_save, ns_db
 
 REPO = Path(__file__).resolve().parent.parent
 VIDEO_TAGS = {'google_legacy':'File:EmbeddedVideo', 'pixel':'Google:MotionPhotoVideo',
@@ -60,14 +60,27 @@ class MotionMetadataSaves(unittest.TestCase):
         return result
 
     def apply(self, root, edit, request, *, refuse_trailer=False):
-        preview=json.loads(self.engine(root,'--metadata','preview',payload={'edits':[edit]}).stdout)['previews'][0]
+        if refuse_trailer:
+            refused=self.engine(root,'--metadata','preview',payload={'edits':[edit]},expected=2)
+            self.assertIn('JPEG trailer or additional image',json.loads(refused.stdout)['error'])
+            # The public preview now stages the output for duplicate detection and
+            # refuses unsupported trailers early. Also exercise Apply with a
+            # lower-level field plan so its independent safety gate stays covered.
+            db=next((root/'base/db').glob('*.db'))
+            preview=metadata_edits.preview_catalog(db,destination_root=root/'dest',**edit)
+            with contextlib.closing(ns_db.connect(db)) as conn:
+                saved_before=conn.execute("SELECT COUNT(*) FROM operation_events WHERE step='metadata_saved'").fetchone()[0]
+        else:
+            preview=json.loads(self.engine(root,'--metadata','preview',payload={'edits':[edit]}).stdout)['previews'][0]
         result=self.engine(root,'--metadata','apply','--request-id',request,
                     payload={'edits':[{**edit,'token':preview['token']}]},expected=1 if refuse_trailer else 0)
         if refuse_trailer:
             outcome=json.loads(result.stdout)['outcomes'][0]
             self.assertEqual(outcome['outcome'],'failed')
             self.assertIn('JPEG trailer or additional image',outcome['error'])
-            self.assertFalse(outcome['metadata_saved'])
+            self.assertFalse(outcome.get('metadata_saved',False))
+            with contextlib.closing(ns_db.connect(db)) as conn:
+                self.assertEqual(conn.execute("SELECT COUNT(*) FROM operation_events WHERE step='metadata_saved'").fetchone()[0],saved_before)
         return preview
 
     def save_all(self, kind):
