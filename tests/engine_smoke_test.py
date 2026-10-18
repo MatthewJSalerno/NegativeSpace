@@ -4252,6 +4252,37 @@ def clearing_previews_frees_them_and_keeps_the_grid():
           f"a cleared preview was not made again on the next view: {again}")
 
 
+
+@test
+def clearing_previews_counts_only_bytes_actually_removed():
+    """Partial removal keeps failed records and never reports their bytes as freed."""
+    if os.geteuid() == 0:
+        raise Fail("SKIP: permission fixture needs a non-root user")
+    case = new_case("clear_previews_partial")
+    for i in range(3):
+        make_photo(case / "src" / f"p{i}.jpg", f"clear-partial-{i}")
+    run_engine(case)
+    previews = []
+    for row in rows(case, "SELECT id FROM photos ORDER BY id"):
+        result, _ = _preview(case, row["id"])
+        previews.append(case / "cache" / result["cache_filename"])
+    blocked, removed, missing = previews
+    check(blocked.parent != removed.parent, "fixture previews must occupy distinct cache folders")
+    expected_bytes = removed.stat().st_size
+    missing.unlink()
+    blocked.parent.chmod(0o555)
+    try:
+        result = json.loads(run_engine(case, "--clear-previews", expect_rc=1).stdout)
+        check(result == {"removed": 2, "bytes_freed": expected_bytes, "not_removed": 1},
+              f"failed or already-missing previews counted as freed: {result}, expected {expected_bytes} bytes")
+        check(blocked.exists() and not removed.exists(), "partial clearing removed the wrong files")
+        remaining = rows(case, "SELECT cache_filename FROM thumbnail_cache WHERE size = 1024")
+        check([r["cache_filename"] for r in remaining] == [str(blocked.relative_to(case / "cache"))],
+              f"failed preview record was not retained: {remaining}")
+    finally:
+        blocked.parent.chmod(0o755)
+
+
 def _grid_files(case):
     return {p.name: p.stat().st_ino for p in (case / "cache").rglob("*.jpg")
             if not p.name.endswith("-1024.jpg")}

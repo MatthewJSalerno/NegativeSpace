@@ -374,8 +374,9 @@ def clear_previews(db_path: Path, cache_root: Path) -> dict:
             path = Path(cache_root) / name
             try:
                 fileinfo.require_plain_path(path.parent)
-                freed += path.stat().st_size
+                size = path.stat().st_size
                 path.unlink()
+                freed += size
             except FileNotFoundError:
                 pass
             except OSError as exc:
