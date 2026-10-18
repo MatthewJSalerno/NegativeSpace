@@ -90,9 +90,9 @@ button, including **Move**. So:
 
 It never backs up your photos, edits pixels, or manages albums, people or faces (that is
 what gallery apps such as Immich are for). It is for one person, not several accounts.
-**Not yet:** videos, editing metadata other than the date taken, phones and tablets, and
-Mac or Windows hosts. The [full list](docs/webui-spec.md#8-explicitly-out-of-scope) gives
-the reasons.
+**Not yet:** videos, editing metadata other than the date taken and rotation, phones and
+tablets, and Mac or Windows hosts. The
+[full list](docs/webui-spec.md#8-explicitly-out-of-scope) gives the reasons.
 
 ## Documentation
 

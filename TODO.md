@@ -25,7 +25,9 @@ development until the maintainer decides.
 - Start a requested job after the preceding backup — decided, not built (`docs/webui-spec.md` §5.7)
 - Last-indexed time for each source folder — decided, not built (`docs/webui-spec.md` §2)
 - Source filters and clickable Index summary figures — decided, not built (`docs/ui-design.md`, Which Look into filters apply where; `docs/webui-spec.md` §2)
-- Not organized: sidecar and version decisions ("Which photo is this sidecar for?")
+- Copy all and Move all count photos held in Needs attention
+- 💬 Source-folder handling behind the scenes
+- 💬 A content-history link from a photo to its earlier versions
 
 **Review**
 - Answer many photos at once within one reason
@@ -34,19 +36,21 @@ development until the maintainer decides.
 - Undated-photo evidence and per-library back-test — decided, not built (`docs/webui-spec.md` §3.1)
 - Record in history when a review reason clears itself
 - Review history speed with many decisions
+- 💬 Needs review as its own place or a Library filter
+- 💬 Filters that persist across places (Rejects can look empty)
 
 **Similar photos**
 - Merge the two "Reject?" dialogs into one (decided)
 - 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
-- [x] Rotated matches: compare photos as displayed
-- [x] Mark low-detail (mostly black or flat) matches — implemented and validated (`docs/engine-spec.md` §9.3)
 - Large-library measurement (250,000 and 500,000 photos)
 - 💬 Local AI image embeddings for look-alikes, crops included (the maintainer is reading up first)
 
 **Metadata**
-- Choose an organized photo's primary metadata source
 - Notices for metadata choices, and their queue in Not organized
-- Saved rotation (Rotate…)
+- A simpler prompt when leaving an unsaved rotation
+- Metadata decisions for arrivals matching photos already in Library or Rejects
+- Filename examples beside the metadata choices in setup and Settings
+- Setup and Settings still say choosing sidecar owners is not available
 - Notice for Google Takeout and Flickr export sidecars
 - Motion-photo editing, qualified separately
 - RAW, TIFF/HEIC and extended-XMP fixtures for the metadata scenario builder
@@ -56,6 +60,7 @@ development until the maintainer decides.
 - 💬 Metadata-independent image hashing and content-based duplicate consolidation (deferred)
 - 💬 Sidecars edited between Index and Copy or Move
 - 💬 Similar photos and metadata together
+- 💬 Copying all metadata, or a wider choice of fields
 
 **Checking and maintenance**
 - Destination check on screen, then a broader inventory and repair
@@ -64,11 +69,13 @@ development until the maintainer decides.
 - Import summary, and a filter for files that could not be previewed
 - Resolving files that cannot be read
 - Stats dates chart, with undated count beside it — decided, not built (`docs/webui-spec.md` §6)
+- Stats: Metadata edits figure, exact duplicates only as waste — decided, not built (`docs/webui-spec.md` §5.9)
 - Every warning offers a way out
 - Filter counts: distinguish zero, unavailable and incompatible
 - Re-audit durability claims whenever a write path changes
+- `metadata.resolve_sources` is called only by tests: wire it in or remove it
 - The `dest/raw-originals` folder
-- Spacing and alignment pass; refresh the user-guide screenshots
+- Spacing and alignment pass, the sidebar's Look into filters, and the user-guide screenshots
 
 **Before the first release**
 - Decide on catalog migration
@@ -207,6 +214,18 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 - [x] Location views, overlapping Needs review inbox, combined filter chips, cross-location
   filename search and first-visit default (`webui-spec.md` §2).
+
+- [ ] **Copy all and Move all count photos held in Needs attention.** Found 2026-10-18 on
+  the NASA demo set: the Index summary says 4,496 photos are ready and 7 are held in Needs
+  attention, but the confirmation asks "Copy every photo not yet copied (4,503)?". The job
+  then reports "4,496 of 4,503 files copied · 7 skipped". The question should count only
+  the photos it will copy and name the held ones separately. The same mismatch was seen
+  on a 300-photo NASA subset (300 against 281).
+- [ ] **Setup and Settings still say choosing sidecar owners is not available.** The
+  Metadata step's text "Choosing owners for individual files is not available yet. After
+  changing this setting, run Index again to check unresolved sidecars."
+  (`webui/frontend/src/components/SettingsDialog.tsx`) predates #122, which built choosing
+  owners and versions in Not organized → Needs attention. Point to that place instead.
 
 ## Needs review
 
@@ -611,9 +630,8 @@ Saved orientation stays a separate action from temporary preview rotation.
   thumbnails link from Stats (`docs/webui-spec.md` §4.2.1).
 - [ ] The Dates chart on its own full-width row, with suspicious years set apart at each
   end, so a few impossible dates cannot squash it (`docs/webui-spec.md` §5.9).
-
-## Warnings that need a way out
-
+- [ ] Stats: "EXIF edits" becomes Metadata edits, and wasted space stays exact duplicates
+  only (no near-duplicates figure): decided, not built (`docs/webui-spec.md` §5.9).
 - [ ] An import-completion summary and a catalog-wide filter for files whose visual
   processing failed, distinguishing corrupt data from missing decoder support and IO
   failures; absent EXIF is not proof of damage. Do not retry unchanged bad files.
@@ -679,6 +697,9 @@ Deferred performance work — the unchanged-file check loading every settled row
 Stalled read-only workers now support user-requested cancellation of decoder process
 groups, with a no-progress reminder and Keep waiting. Kernel-blocked storage remains
 an explicit limitation in engine-spec §8; automatic file skipping is not planned.
+- [ ] `engine/metadata.py` `resolve_sources` is exercised only by tests; Index, transfer and
+  the metadata tabs do their own resolution. Decide whether to wire it in as the single
+  resolver or remove it (found in the 2026-10-18 docs sweep).
 
 ## Navigation refinement
 

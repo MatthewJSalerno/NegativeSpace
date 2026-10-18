@@ -1261,9 +1261,9 @@ transaction rollback, cancellation between complete observations, re-index after
 immutable observations and backup restoration/concurrent arrivals.
 The suite also checks descriptor safety, changed-photo refusal and cache/force behavior.
 
-Schema 24 adds `metadata_captures` and the snapshot's metadata-capture watermark.
-Older development catalogs are refused. The phase records proposals only; it does not
-activate filing metadata, expose source tabs, or carry sidecars in Copy/Move.
+These tests cover `metadata_captures` and the snapshot's metadata-capture watermark.
+Index records proposals only; activation, source tabs and sidecar transfer are covered
+by their own suites below.
 Catalog-only explicit choices are covered by the decision suite below.
 
 ## XMP reader and association planning
@@ -1299,7 +1299,7 @@ This is interoperability coverage, not a complete standards-conformance lint.
 
 ## XMP storage and catalog backup validation
 
-Schema 26 requires a fresh generated catalog. `xmp_store_test.py` covers compressed/raw
+`xmp_store_test.py` covers compressed/raw
 round trips, unknown encodings, corrupt/oversized frames, separate arrivals over shared
 content, immutable lineage, transaction/savepoint rollback, request-like replay binding,
 bounded damaged/invalid-value originals (attention-only), metadata queries without decoding, backup round trips, corrupt
@@ -1345,8 +1345,8 @@ Docker image with this checkout mounted read-only. Generated actual jobs cover e
 ownership, frozen job settings, preserved primary versions, stale/tampered choices,
 request replay/conflicts, active-job refusal, atomic rollback, immutable decisions,
 backup watermarks and held photo/XMP pairs during direct Copy/Move and duplicate cleanup.
-Schema 25 adds decisions and their backup watermark; use a fresh development catalog.
-Decision UI/API remains pending. Index tests assert that a resolved pair uses captured
+Decisions carry their own backup watermark. The decision UI is covered by the
+first-import XMP choice checks. Index tests assert that a resolved pair uses captured
 XMP filing, while unresolved/duplicate cases remain held.
 
 
@@ -1390,7 +1390,7 @@ not remove either old name, and explicit retry must reuse the originally intende
 Also run `metadata_transfer_test.py`, `attention_test.py`, `webui_api_test.py` and the full
 engine smoke suite (including public RAW fixtures) when changing this lifecycle.
 These simulated failures do not prove hardware power-loss behavior. No UI walkthrough
-is required for this engine-only primitive; the web decision/retry workflow remains unbuilt.
+is required for this engine-only primitive; the web retry workflow has its own checks (R1–R3).
 
 ## Normal single-sidecar import and activation
 
@@ -1765,8 +1765,8 @@ command. `METADATA_VIEW_FIXTURE=1 DRIVER=metadata_sources_browser_drive.py` uses
 browser harness's generated three-source photo to check real Index/Copy captures,
 conflicting dates, Primary identity, comparison, field search, keyboard navigation,
 light/dark reflow and failed-read retry. Both checks run in CI. The metadata test fixture
-never reads the demo library. Date-copy/edit acceptance passed; future primary-change
-controls still require their own implementation and acceptance.
+never reads the demo library. Date-copy/edit acceptance passed; primary-change controls
+have their own acceptance (Test 10).
 
 The merged metadata scenario generator also passed all six tests unchanged. A build
 with a public RAW sample produced 57 cases and 61 photos; the branch reader reported
@@ -1811,7 +1811,7 @@ information, and scroll to Metadata sources:
 Local validation: 61 photos indexed, 44 copied, 17 left at source with metadata holds.
 The manifest browser check passed and all 61 metadata responses stayed unchanged.
 The 12 source-view API tests passed. Screenshots inspected in light and dark/narrow
-layouts. Maintainer acceptance is complete; date-editing controls remain unbuilt.
+layouts. Maintainer acceptance is complete; date editing was accepted separately.
 
 Maintainer acceptance: source tabs, primary identity, agreeing/conflicting values,
 comparison/filtering, empty/missing values and layouts passed. The broken-sidecar
@@ -2915,7 +2915,8 @@ also verify that measurements follow verified bytes, including interrupted saves
 city and flat scenes, checking match notes, scores, counts, Stats and 200% text scale.
 Both run in PR CI; use the Docker commands and browser harness above.
 
-Manual validation is pending on a fresh review instance. After its Index/Copy:
+Maintainer validation passed (Tests 1a–1c and 2a–2b). To repeat it on a fresh review
+instance, after its Index/Copy:
 
 **Test 1 — Notes without hidden matches**
 

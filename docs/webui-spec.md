@@ -1807,6 +1807,18 @@ spread of the library is scrolled out of sight.
   empty slot, so gaps read as gaps; the bars scale to the busiest real year.
 * Year links, keyboard access and **As a table** stay as they are.
 
+**Metadata edits, and what counts as wasted space** (decided 2026-10-18; not built).
+
+* **Activity's "EXIF edits" becomes "Metadata edits".** Edits are saved to XMP sidecars as
+  well as inside photos, so "EXIF" names only part of them. It counts the photos whose
+  metadata was changed, split by kind (dates, rotations, primary source), e.g. "12
+  photos: 9 dates, 3 rotations", linking to those entries in Logs.
+* **Wasted space is exact duplicates only.** Identical files are interchangeable, so their
+  extra copies are space that can be reclaimed. Look-alikes are never counted as waste or
+  as near-duplicates on Stats: whether a similar photo is worth keeping is the user's
+  call, and **Has similar photos** already shows how many have look-alikes at any
+  percentage. The API's `near_duplicates` field goes when this is built.
+
 
 "How much space are my duplicates wasting?" is a headline figure for the Stats page, and the catalog already answers it without any engine change. Deduplication acts on two different volumes, though, and conflating them produces a number that is wrong in whichever direction the user's mode does not apply:
 
@@ -2019,7 +2031,8 @@ what is already there — a different activity, with a different safety story.
 
 **These workflows depend on engine capabilities in `engine-spec.md` §9.** The
 destination check, renaming a delivered file, similarity review, Reject and Return
-are built; metadata writing is planned. The application never permanently deletes
+are built; metadata writing is built for Date taken, rotation and the primary source,
+and planned for other fields. The application never permanently deletes
 destination photos. This
 section specifies what the user does; that one specifies what the engine must be
 able to do first.
@@ -2219,7 +2232,7 @@ Equal visual hashes of
 different byte identities remain visual matches, including at 100%.
 The review also supports finding related photographs and clues about dates, events,
 and other metadata. Association does not prove shared metadata or authorize copying
-it; users must inspect the evidence. Metadata editing remains future work.
+it; users must inspect the evidence. Copying metadata between matches remains future work.
 Availability is recorded evidence, not a fresh filesystem check. Missing hashes
 and pending comparisons are explicit, and Index resumes unfinished comparisons.
 **Built:** Review matching status opens a paged list of affected destination
@@ -2234,7 +2247,7 @@ failure retry and refreshed remaining counts are available. Successful recovery
 keeps its results dialog open even when the originating warning disappears.
 An ordinary Index may skip unchanged files and is not a general hash repair.
 URL state preserves filters, reference and pages on reload or browser navigation.
-Metadata donor/target selection and EXIF writes remain planned. The current review
+Metadata donor/target selection between matches remains planned. The current review
 offers explicit Reject and Keep actions (§7.8); browsing alone changes no files.
 
 **Expanded review:** each match offers **Review side by side**, opening the
@@ -3053,7 +3066,7 @@ changes, and move a row out once it is built.
 | Run in the cloud, or sync between machines | Never | It works on mounted folders |
 | Published container images | Never | Users build the images from a clone, so what runs is the code they can read (decided 2026-10-05) |
 | Videos and other non-photo files | Not yet | Deferred until photo organizing is complete; until then they are left untouched |
-| Edit dates and other metadata | Date taken only | Single-photo date editor (§7.5); other field and bulk controls remain deferred |
+| Edit dates and other metadata | Date taken and rotation | Single-photo date editor and saved rotation (§7.5), and choosing the primary source; other field and bulk date controls remain deferred |
 | Mobile and touch | Not yet | Built for desktop browsers; phones are not tested |
 | Mac and Windows hosts | Not yet | Tested on Linux only |
 
