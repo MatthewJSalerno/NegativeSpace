@@ -389,6 +389,10 @@ ExifTool's full set (or Pillow's when ExifTool found nothing for the file), not 
 subset. The engine's own `date_taken` and `date_source` are left out; they are above.
 Read from the catalog, so it shows the photo as last indexed.
 
+Photo listing items include `thumbnail_revision`, the per-photo catalog revision
+(zero without a retained identity). Grid previews use it to refresh saved metadata
+edits without reloading healthy images after unrelated jobs.
+
 Photo listing items and photo inspection include nullable `metadata_attention` for
 Not organized photos with issues in their latest metadata capture. Its `issues` list
 contains `code`, readable `reason`, source-relative `files` and optional `detail`;
@@ -398,7 +402,7 @@ failed photos already counted in `failed`; `ready` excludes recorded metadata ho
 
 ### `GET /api/v1/photos/{id}/metadata`
 
-Read-only catalog snapshots for the metadata source viewer. Returns `photo_id`,
+Read-only catalog snapshots for the metadata source viewer. Returns `photo_id`, nullable `capture_id`,
 `primary_id` (null until verified activation), `applied`, `recorded`, `notice`,
 `field_sources`, `issues`, `warnings`, and `sources`. Informational `warnings` carry
 `code`, `source`, `detail` and plain-language `reason`; they do not block transfer. They
@@ -416,6 +420,73 @@ claim and exposes an issue; capture-only observations do not imply activation.
 Unknown, nonpositive or oversized IDs return 404 `unknown_photo`; noninteger IDs return
 422. Viewing never writes metadata or changes primary.
 
+### `GET /api/v1/photos/{id}/import-choices`
+
+Read choices for a Pending photo with a latest ownership/version-choice observation
+in the configured source. Returns `photo_id`, `capture_id`, `filename`, `sidecars`
+(with candidate relative paths, file identities, eligibility and saved owners), recorded
+`sources`, `primary_id`, `needs_primary` and repair `blockers`. Only catalog evidence
+is read. Organized/unknown photos, mismatched source roots and non-choice cases return
+400 `invalid_request`; noninteger IDs return 422. No physical-file verification occurs.
+
+### `POST /api/v1/photos/{id}/import-choices/preview`
+
+Body: `photo_id`, `kind` (`association` or `primary`), and `selection`. Association
+selection contains `capture_id`, `sidecar` and nonempty unique `owner_ids`; primary
+selection contains `capture_id` and a captured owned `sidecar:` source in `primary_id`.
+Every association candidate must be indexed and Pending. This screen resolves first
+imports, not changes to existing Library/Rejects metadata or ownership.
+
+Returns `choice`, evidence-bound `token`, `filename`, chosen `owners`, field
+`differences`, `effective` values and `primary_id`. Values distinguish missing from
+explicitly empty. It neither writes files nor reserves a destination filename. Unknown
+owners, unreadable evidence, wrong photo, oversized body (64 KiB) or unsupported scope
+return 400 `invalid_request`; changed evidence returns 409 `import_choice_changed`.
+
+### `POST /api/v1/photos/{id}/import-choices/confirm`
+
+Body: the preview's `choice` and `token`, plus `request_id`. Returns 200 with saved
+`revision` and next-step `message`. Bounded JSON goes to `--import-choice` through stdin,
+under the engine lock, never through a shell or a client-selected path. The engine
+recomputes the preview, records the immutable decision, and changes no source/destination
+files, photo statuses or active filing metadata. Normal Copy/Move subsequently recaptures,
+verifies and applies saved choices; Index can refresh ownership observations.
+
+Exact request replay returns the original revision, including after import. A different
+request with the same ID, stale evidence or active run returns 409; malformed or ineligible
+requests return 400. Lock contention uses the normal busy response. An unavailable engine
+response returns 503 `choice_unavailable`; retry the same confirmation to resolve an
+uncertain response. These are catalog decisions, not transfer jobs or successful imports.
+
+### `POST /api/v1/photos/{id}/primary-preview`
+
+Body: `{"source_id":"exif","capture_id":12}`. Use the capture and source identities
+from the photo's metadata response. Only readable, non-primary recorded sources for
+an organized Library photo are eligible. Embedded sources become `primary_id` edits;
+retained sidecars become `version_id` edits. Candidate visibility alone does not
+establish sidecar ownership: the engine requires associated/incoming evidence or a
+verified import/save receipt for this photo.
+
+Returns `edit`, `token`, `source_id`, `label`, `kind`, nullable `version_id`, effective
+`before`/`after` field maps, `differences` (field names), and `filing` with current and
+proposed destination-relative paths and `change`. Missing fields differ from explicit
+empty values. Preview changes no files or decisions. It does not reserve or overwrite
+destination names; the engine verifies files and destination conflicts before saving.
+Invalid/ineligible requests return 400; stale capture/state returns 409
+`metadata_changed`. The metadata GET response includes nullable `capture_id`.
+
+### `POST /api/v1/photos/{id}/primary-save`
+
+Body: preview `edit`, `token`, and required `request_id`. Accept only a same-photo
+primary/version selection, not arbitrary metadata changes, file paths or incoming
+conflict decisions. Returns 202 with the normal metadata run. One verified engine
+job covers primary activation and any required refiling, preserving source originals
+and metadata alternatives. Normal job locking and request-ID replay apply; changed
+input under the same request ID returns 409. Invalid shape returns 400. A changed
+preview, unsupported association, file issue or occupied destination may fail the
+accepted job; acceptance alone does not establish success. Read the job outcome and
+current applied primary before reporting completion.
+
 ### `GET /api/v1/photos/{id}/date-edit`
 
 Read the organized Library photo's current date write target. Returns `capture_id`,
@@ -431,7 +502,10 @@ Body: `{"capture_id": 12, "value": "2020-06-15T14:30:00.123+02:00"}` or
 `{"capture_id": 12, "donor_id": "exif"}`. An explicit empty string proposes a clear;
 absent donor dates cannot be copied. A donor must be a recorded source of this photo.
 Return `edit`, `token`, `target`, `before` (`present`, `value`), `after`, `filing`
-(`current`, `proposed`, `change`, optional `collision_renamed`), and `no_change`. The
+(`current`, `proposed`, `change`, optional `collision_renamed`), `no_change`, and
+`duplicate` (null or `{photo_id, filename, path}` for the existing survivor; path is
+relative to the destination). Its preview token binds that verified survivor; display
+its path and confirmation rather than the discarded edited file's proposed name. The
 read-only engine preview validates writer support and retains source provenance. For
 refiling it checks destination names and offers the next available numbered photo name
 when a photo occupies the requested name, keeping its sidecar paired. It refuses an
@@ -462,7 +536,7 @@ Everything recorded about a photo's files, for the lineage tree (`webui-spec.md`
                 "path", "role": "source" | "destination", "presence": "present" | "removed" | "missing",
                 "sha1_hash", "matches": true, "file_size", "indexed_path", "created_at",
                 "photo_id", "photo_status"}, ...],
-     "operations": [{"id", "run_id", "mode", "status", "timestamp", "error_message", "photo_id",
+     "operations": [{"id", "run_id", "mode", "action", "status", "timestamp", "error_message", "photo_id",
                      "source_path", "dest_path", "recovery",
                      "files": [{"file_id", "role": "source" | "destination" | "retained_copy"}]}, ...],
      "selected_by": [{"run_id", "mode", "status", "started_at"}, ...]}
@@ -493,6 +567,33 @@ placeholder:
 `pending` means not made yet, which is not a failure; `absent` means the engine recorded
 the cached file as gone. A cache filename that would resolve
 outside the cache root is never served.
+
+### `POST /api/v1/rotations/preview`
+
+Body: `{"rotations":[{"photo_id":101,"turns":1}]}`. Turns are clockwise quarter
+turns (0–3), relative to the currently displayed, applied Orientation. Photo IDs must
+be unique positive integers. Requests are bounded by the engine metadata packet limit.
+Returns `items` with photo ID, filename, turns, `before`/`after` orientation, target,
+`no_change`, confirmed engine `edit` (including token), `duplicate` (the same nullable
+survivor summary as Date preview), and `error`. Ineligible photos
+have a reason and cannot be selected for saving. Zero turns require no save. Invalid
+request shapes return `400 invalid_request`. No files are changed by preview.
+
+### `POST /api/v1/rotations/save`
+
+Body: `{"edits":[<confirmed edit>],"request_id":"<unique request>"}`. Only an
+Orientation change is accepted; other metadata, primary switches and removals are
+refused with `400 invalid_request`. Returns `202` with the metadata job. Uses the
+ordinary engine lock, request-ID replay/conflict checks and bound preview tokens.
+Settings, content or revision changes require a fresh preview; the engine reports
+per-photo failures without silently switching primary or re-encoding image pixels.
+The job uses qualified JPEG or XMP writes, backups, verification and lineage.
+
+Thumbnail responses apply the recorded active Orientation to disposable cached images.
+A sidecar/embedded-XMP difference is returned as PNG without overwriting the shared
+content cache; unchanged orientation returns the cached JPEG. The optional `revision`
+query is a browser cache-buster only, never an orientation or path supplied by a client.
+Inspector/pair responses include `display_width`/`display_height` alongside file dimensions.
 
 ## 5. Jobs
 
@@ -680,16 +781,51 @@ Center (`webui-spec.md` §5.3).
 | `q` | Text in the source path, destination path or recorded message. |
 | `since`, `until` | ISO instants, from inclusive to exclusive. The screen converts local calendar days. |
 
+### `GET /api/v1/metadata-history`
+
+Read-only, newest-first history of explicit XMP association/primary choices and recorded
+import applications. Accepts the same `photo`, repeated `run`/`status`, `q`, `since`
+and `until` filters as operations, plus `page` (default 1) and `page_size` (default 20,
+maximum 100). Photo scope includes file descendants, identical copies and shared-sidecar
+candidates, including candidates excluded by the chosen ownership. Job/status filters
+show applied entries only: saved choices have neither a job nor a file outcome.
+Returns `items`, `total`, `page`, `page_size`; entries identify saved/applied stage,
+kind, timestamp, photo/filename, primary/sidecar, owners, date, decision revision and
+`applied_choices` revision IDs and application job when present. Implicit ownership confirmations and automatic import
+establishment are not separate saved-choice entries. Replays add no history.
+This history does not alter operation counts, retries or CSV/JSON operation exports.
+Invalid statuses return 400 `invalid_request`; invalid pagination/photo bounds return 422.
+
+### `GET /api/v1/photos/{photo_id}/metadata-choices/{revision}/comparison`
+
+Read-only comparison of an explicit saved import choice against the photo's current
+recorded primary. Both positive IDs are bounded to signed 64-bit integers (422 for
+invalid IDs). Returns 404 `not_found` for missing or unrelated photos/choices. The
+photo must belong to the captured file lineage or be a recorded candidate of that
+shared sidecar. Reads one catalog snapshot; never opens source/destination files or
+archived blobs. Returns `photo_id`, `filename`, `revision`, `saved_at`, recorded `owners`,
+`assigned_to_photo` (null for primary choices), `historical` (label, captured fields,
+availability and digest), `primary` (source-view object or null), `notice` and `issues`.
+Historical fields come from the decision's capture, not the latest capture or sidecar.
+No current primary or unavailable historical fields is explicit, not an empty-source
+substitution. No decisions, file operations or jobs are created.
+
 ### `GET /api/v1/operations`
 
 One page, newest first (`page`, and `page_size` from 1 to 500, default 100):
 
     {"items": [{"id", "run_id", "mode", "photo_id", "timestamp", "source_path", "dest_path",
-                "status", "error_message", "photo_status", "recovery", "run_level"}, ...],
+                "status", "error_message", "photo_status", "recovery", "run_level", "action"}, ...],
      "page": 1, "page_size": 100, "total": 4,
      "status_counts": {"Pending": 2, "Copied": 1, "Failed": 1},
      "run_counts": {"1": 2, "2": 2}}
 
+*   **`action`** identifies recorded metadata intent: `rotation`, `date`,
+    `metadata_source` or `metadata`; other operations return null. Lineage and exports
+    carry the same value. This does not change stored outcomes or status filters.
+*   **`consolidated_into`** is the surviving photo ID for a completed confirmed
+    exact-result edit, otherwise null. Logs, lineage and exports carry it. A job's
+    gallery includes this survivor even though the edited duplicate has left Library.
 *   **`Copied_Only`** is derived, never stored: a Move's operation recorded `Copied` with
     a message starting "The original could not be removed" (`engine-spec.md` §4.2). The
     `status` column, `status_counts` and the `status` filter all use it, so `Copied`

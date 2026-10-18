@@ -1,3 +1,4 @@
+import { MetadataHistory } from "./MetadataHistory";
 import { FileLocations } from "./ui/FileLocations";
 import { FileIssues } from "./FileIssues";
 import { useDismissedRun } from "../dismissal";
@@ -6,7 +7,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AppFrame } from "./AppFrame";
 import { api, ApiError, type LogFilters, type Operation, type OperationPage, type Run, type Status } from "../api";
 import { count, instant, plural } from "../format";
-import { reasonsText, jobLabel, modeName, showsPhotos, summary, useJobCompletion, useJobFeed } from "../jobs";
+import { operationLabel, reasonsText, jobLabel, modeName, showsPhotos, summary, useJobCompletion, useJobFeed } from "../jobs";
 import { follow, photoUrl, useNavigation } from "../nav";
 import { usePaged } from "../paged";
 import { FinishedBanner, JobDrawer } from "./JobDrawer";
@@ -21,7 +22,7 @@ const RUNS_LISTED = 500;
 // How the log names each recorded status. A scan records Pending for a file it
 // catalogued and Duplicate for an exact copy.
 const STATUS_LABEL: Record<string, string> = {
-  Pending: "Indexed", Duplicate: "Indexed (duplicate)", Processing: "Unfinished", Completed: "Moved",
+  Pending: "Indexed", Duplicate: "Indexed (duplicate)", Processing: "Unfinished", Completed: "Completed",
   Copied: "Copied", Copied_Only: "Copied only", Failed: "Failed", Removed_Duplicate: "Duplicate removed",
   Found_At_Destination: "Found at destination", Skipped: "Skipped", Cancelled: "Cancelled", Renamed: "Renamed",
 };
@@ -310,6 +311,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
           <span>{active.length ? `Showing: ${active.join(" · ")}` : "Showing all log entries"}</span>
           <button className="link" aria-hidden={!active.length} inert={!active.length} onClick={clearAll}>Clear all filters</button>
         </p>
+        <MetadataHistory filters={apiFilters} refreshKey={refreshKey} />
         {runs && totals && (
           <div className="job-list-head">
             <span className="muted">
@@ -421,7 +423,7 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
                   <tr key={op.id} className={`log-${op.status.toLowerCase()}`}>
                     <td className="nowrap">{instant(op.timestamp)}</td>
                     <td className="log-status">
-                      {op.mode === "CHECK" && op.recovery && op.status === "Skipped" ? "Verified" : STATUS_LABEL[op.status] ?? op.status}
+                      {op.mode === "CHECK" && op.recovery && op.status === "Skipped" ? "Verified" : operationLabel(op, op.status === "Completed" ? "Moved" : STATUS_LABEL[op.status] ?? op.status)}
                       {op.recovery && <div><span className="badge">Recovery of earlier work</span></div>}
                       {op.run_level && op.status === "Failed" && <div><span className="badge">Folder or job</span></div>}
                     </td>
@@ -439,10 +441,11 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
                     </td>
                     <td>
                       {op.photo_id != null && op.issues?.length > 0 && <FileIssues photoId={op.photo_id} initialIssues={op.issues} operationId={op.id} />}
+                      {op.consolidated_into != null && <p className="section-note">Duplicate removed; kept <a href={photoUrl(op.consolidated_into)} onClick={follow}>photo #{op.consolidated_into}</a>. Both histories are preserved.</p>}
                       {op.error_message && <div className="message">{op.error_message}</div>}
                       {hint && <div className="hint">{hint}{CALLS_FOR_INDEX.test(hint) && <> {indexButton}</>}</div>}
                       {op.status === "Failed" && op.photo_status && op.photo_status !== "Failed" && (
-                        <div className="muted">{op.mode === "SIMILARITY" ? "Recorded file status: " : "The photo is now "}{STATUS_LABEL[op.photo_status]?.toLowerCase() ?? op.photo_status}.</div>
+                        <div className="muted">{op.mode === "SIMILARITY" ? "Recorded file status: " : "The photo is now "}{op.photo_status === "Completed" ? "moved" : STATUS_LABEL[op.photo_status]?.toLowerCase() ?? op.photo_status}.</div>
                       )}
                     </td>
                   </tr>

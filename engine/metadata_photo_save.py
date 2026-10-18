@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import uuid
 
-from engine import (constants, durable, fileinfo, metadata_capture, metadata_embedded, metadata_relocate,
+from engine import (constants, durable, fileinfo, metadata_capture, metadata_duplicates, metadata_embedded, metadata_relocate,
                     metadata_save, metadata_transfer, ns_db, relocate, thumbnails)
 
 
@@ -312,16 +312,32 @@ def execute(conn, op, pid, m):
 
 
 def _execute(conn, op, pid, m):
+    duplicate = (m['preview'].get('exact_output') or {}).get('duplicate')
+    if metadata_save._event(conn,op,'metadata_consolidation_verified'):
+        output=metadata_save._event(conn,op,'embedded_staged')
+        metadata_duplicates.consolidate(conn,op,pid,m,output)
+        _cleanup(m,output)
+        return metadata_save._finish(conn,op)
     _catalog_photo(conn,pid,op,m)
     output=_staged(conn,op,m)
-    if output['no_change']:
+    if not metadata_save._event(conn,op,'metadata_saved'):
+        db_path=conn.execute('PRAGMA database_list').fetchone()[2]
+        metadata_duplicates.guard(conn,db_path,op,pid,m,output)
+    if output['no_change'] and not duplicate:
         _verify(m,m['photo'],m['sha1'])
         _cleanup(m,output)
         return metadata_save._finish(conn,op,'no_change')
     if not metadata_save._event(conn,op,'metadata_saved'):
-        _publish(conn,op,m,output)
+        if not output['no_change']:
+            _publish(conn,op,m,output)
         _verify(m,m['photo'],output['after_sha1'])
         _record_saved(conn,op,pid,m,output)
+    if duplicate:
+        metadata_duplicates.consolidate(conn,op,pid,m,output)
+        _cleanup(m,output)
+        result=metadata_save._finish(conn,op)
+        result['survivor_photo_id']=duplicate['photo_id']
+        return result
     _refile(conn,op,pid,m,output)
     photo=_catalog_photo(conn,pid,op,m)
     _verify(m,photo,output['after_sha1'])
@@ -362,6 +378,11 @@ def check(conn, op, pid, m):
     if m.get('primary_only'):
         from engine import metadata_primary
         return metadata_primary.check(conn,op,pid,m)
+    if metadata_save._event(conn,op,'metadata_consolidation_verified'):
+        metadata_duplicates._survivor(conn,m)
+        message='The surviving photo verifies. Retry to finish the recorded duplicate cleanup; both histories are preserved.'
+        metadata_save._failure(conn,op,m,message)
+        return {'resolved':False,'message':message}
     photo=_catalog_photo(conn,pid,op,m)
     output=metadata_save._event(conn,op,'embedded_staged')
     if metadata_save._event(conn,op,'metadata_saved'):

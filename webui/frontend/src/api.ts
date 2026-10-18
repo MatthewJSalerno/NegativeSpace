@@ -55,22 +55,48 @@ export interface MetadataSourceView {
   issues: { code: string; detail?: string }[];
 }
 export interface MetadataView {
-  photo_id: number; primary_id: string | null; sources: MetadataSourceView[];
+  photo_id: number; capture_id: number | null; primary_id: string | null; sources: MetadataSourceView[];
   issues: { code: string; detail?: string }[]; recorded: boolean; applied: boolean;
   warnings?: { code: string; detail?: string; reason: string }[];
   notice: string | null; field_sources: Record<string, string>;
 }
 
+export interface EditDuplicate { photo_id: number; filename: string; path: string }
+export interface RotationChoice { photo_id: number; turns: number }
+export interface RotationPlan { items: { photo_id: number; filename: string; turns: number; error: string | null;
+  before?: number; after?: number; duplicate?: EditDuplicate | null; target?: DateEditContext["target"]; no_change?: boolean; edit?: Record<string, unknown> }[] }
 export interface DateEditContext {
   capture_id: number; target: { source_id: string; kind: string; create: boolean };
   date: { present: boolean; value: string | null }; current_path: string; can_clear: boolean;
 }
 export interface DateEditPreview {
   edit: Record<string, unknown>; token: string; target: DateEditContext["target"];
-  before: DateEditContext["date"]; after: string; no_change: boolean;
+  before: DateEditContext["date"]; after: string; no_change: boolean; duplicate?: EditDuplicate | null;
   filing: { current: string; proposed: string; change: boolean; collision_renamed?: boolean };
 }
 
+export interface PrimaryPreview {
+  edit: Record<string, unknown>; token: string; source_id: string; label: string; kind: string;
+  version_id: number | null; before: Record<string, unknown>; after: Record<string, unknown>;
+  differences: string[]; filing: DateEditPreview["filing"];
+}
+
+export interface ImportChoice {
+  photo_id: number; kind: "association" | "primary";
+  selection: {capture_id:number;sidecar?:string;owner_ids?:number[];primary_id?:string};
+}
+export interface ImportChoiceContext {
+  photo_id:number;capture_id:number;filename:string;primary_id:string|null;needs_primary:boolean;
+  blockers:{code:string}[];
+  sidecars:{path:string;fields:Record<string,unknown>;needs_choice:boolean;saved:boolean;can_choose:boolean;owner_ids:number[];
+    candidates:{path:string;file_id:number|null;photo_id:number|null;selectable:boolean}[]}[];
+  sources:{id:string;label:string;fields:Record<string,unknown>}[];
+}
+export interface ImportChoicePreview {
+  choice:ImportChoice;token:string;filename:string;owners:string[];primary_id:string|null;
+  effective:Record<string,unknown>|null;
+  differences:{field:string;before:{present:boolean;value:unknown};after:{present:boolean;value:unknown}}[];
+}
 export interface MetadataAttention {
   issues: {code: string; reason: string; files: string[]; detail: string | null}[];
   action: string;
@@ -78,6 +104,7 @@ export interface MetadataAttention {
 
 export interface PhotoItem {
   name_context?: { clashes: boolean; folder: string | null; original_paths: string[]; renamed_on_arrival: boolean };
+  thumbnail_revision?: number;
   metadata_attention?: MetadataAttention | null;
   id: number;
   status: string;
@@ -256,6 +283,7 @@ export interface PhotoDetail {
   iso: number | string | null;
   aperture: number | string | null;
   shutter: number | string | null;
+  display_width?: number | null; display_height?: number | null;
   width: number | null;
   height: number | null;
   sha1: string | null;
@@ -350,7 +378,24 @@ export interface Settings {
   job_active: boolean;
 }
 
+export interface MetadataChoiceComparison {
+  photo_id:number; filename:string; revision:number; saved_at:string;
+  owners:string[]; assigned_to_photo:boolean|null;
+  historical:{label:string; fields:Record<string,unknown>; available:boolean; sha256:string|null};
+  primary:MetadataSourceView|null; notice:string|null; issues:{code:string; detail?:string}[];
+}
+
+export interface MetadataHistoryPage {
+  items: { id:string; stage:"saved"|"applied"; kind:string; timestamp:string;
+    filename:string; photo_id:number|null; run_id:number|null; mode:string|null;
+    revision:number|null; applied_choices:number[]; primary:string|null; sidecar:string|null; owners:string[];
+    date_taken:string|null }[];
+  page:number; page_size:number; total:number;
+}
+
 export interface Operation {
+  consolidated_into: number | null;
+  action: "rotation" | "date" | "metadata_source" | "metadata" | null;
   issues: FileIssue[];
   id: number;
   run_id: number;
@@ -447,6 +492,8 @@ export interface LineageFile {
 }
 
 export interface LineageOperation {
+  consolidated_into: number | null;
+  action: "rotation" | "date" | "metadata_source" | "metadata" | null;
   id: number;
   run_id: number;
   mode: string | null;
@@ -630,6 +677,7 @@ export type MatchScope = "library" | "rejects";
 
 export interface MatchPhoto {
   id: number; filename: string; file_size: number | null; date_taken: string | null;
+  display_width?: number | null; display_height?: number | null;
   status: string; width: number | null; height: number | null; matches?: number; score?: number;
 }
 export interface MatchPage {
@@ -725,6 +773,12 @@ export const api = {
     request<{ ids: number[]; total: number; in_rejects: number[] }>("GET", `/api/v1/photos/ids?${browseQuery(params)}`),
   selection: (ids: number[], sort: Sort, page: number, page_size: number, match_min = 75, action?: ActionMode) =>
     request<SelectionPage>("POST", "/api/v1/photos/selection", { ids, sort, page, page_size, match_min, ...(action ? { action } : {}) }),
+  metadataChoiceComparison: (photo:number, revision:number) =>
+    request<MetadataChoiceComparison>("GET", `/api/v1/photos/${photo}/metadata-choices/${revision}/comparison`),
+  metadataHistory: (f: LogFilters, page: number, pageSize: number) => {
+    const p=logQuery(f);p.set("page",String(page));p.set("page_size",String(pageSize));
+    return request<MetadataHistoryPage>("GET",`/api/v1/metadata-history?${p}`);
+  },
   operations: (f: LogFilters, page: number, pageSize: number) => {
     const p = logQuery(f);
     p.set("page", String(page));
@@ -754,9 +808,16 @@ export const api = {
   pairRetryPreview: (file_ids: number[]) => request<PairRetryPreview>("POST", "/api/v1/pair-retries/preview", {file_ids}),
   retryPairs: (group: PairRetryGroup, request_id: string) => request<Run>("POST", "/api/v1/pair-retries/start", {...group,request_id}),
   checkIssue: (issue_id: number, request_id: string) => request<Run>("POST", "/api/v1/issues/check", {issue_id,request_id}),
+  importChoices: (id:number) => request<ImportChoiceContext>("GET", `/api/v1/photos/${id}/import-choices`),
+  previewImportChoice: (id:number, choice:ImportChoice) => request<ImportChoicePreview>("POST", `/api/v1/photos/${id}/import-choices/preview`, choice),
+  confirmImportChoice: (id:number, preview:ImportChoicePreview, request_id:string) => request<{revision:number;message:string}>("POST", `/api/v1/photos/${id}/import-choices/confirm`, {choice:preview.choice,token:preview.token,request_id}),
+  rotationPreview: (rotations: RotationChoice[]) => request<RotationPlan>("POST", "/api/v1/rotations/preview", { rotations }),
+  saveRotations: (edits: Record<string, unknown>[]) => submitJob("/api/v1/rotations/save", { edits }),
   dateContext: (id: number) => request<DateEditContext>("GET", `/api/v1/photos/${id}/date-edit`),
   datePreview: (id: number, body: { capture_id: number; value?: string; donor_id?: string }) => request<DateEditPreview>("POST", `/api/v1/photos/${id}/date-preview`, body),
   saveDate: (id: number, preview: DateEditPreview) => submitJob(`/api/v1/photos/${id}/date-save`, { edit: preview.edit, token: preview.token }),
+  primaryPreview: (id: number, sourceId: string, captureId: number) => request<PrimaryPreview>("POST", `/api/v1/photos/${id}/primary-preview`, {source_id:sourceId,capture_id:captureId}),
+  savePrimary: (id: number, preview: PrimaryPreview) => submitJob(`/api/v1/photos/${id}/primary-save`, {edit:preview.edit,token:preview.token}),
   metadata: (id: number) => request<MetadataView>("GET", `/api/v1/photos/${id}/metadata`),
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   answerQuestion: (id: number, question: SafetyQuestion, answer: SafetyAnswer) =>
@@ -765,8 +826,8 @@ export const api = {
   startJob: (body: { mode: "index" | ActionMode; file_ids?: number[]; source_subdir?: string; confirm_edited_sources?: boolean; move_preview_token?: string }) =>
     submitJob("/api/v1/jobs/start", body),
   cancelJob: (id: number) => request<{ id: number }>("POST", `/api/v1/jobs/${id}/cancel`),
-  thumbnailUrl: (id: number, size: "grid" | "preview" = "grid") =>
-    `/api/v1/photos/${id}/thumbnail${size === "preview" ? "?size=preview" : ""}`,
+  thumbnailUrl: (id: number, size: "grid" | "preview" = "grid", revision?: number) =>
+    `/api/v1/photos/${id}/thumbnail?size=${size}${revision == null ? "" : `&revision=${revision}`}`,
   // Why a thumbnail is missing: the 404 body carries the recorded reason.
   thumbnailReason: async (id: number, size: "grid" | "preview" = "grid") => {
     const response = await fetch(api.thumbnailUrl(id, size));

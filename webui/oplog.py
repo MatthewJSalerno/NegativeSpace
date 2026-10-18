@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from engine import attention
-from . import catalog, outcomes
+from . import catalog, outcomes, operation_actions, lineage
 
 
 # --- The operations log and the Error Center (webui-spec 5.3, 5.4) -----------
@@ -38,6 +38,11 @@ def _operations_where(*, runs=None, statuses=None, photo=None, q=None, since=Non
                        "  UNION SELECT fo.file_id FROM file_origins fo JOIN photo_files pf ON fo.origin_file_id = pf.file_id"
                        "  WHERE pf.photo_id = ?)))")
         params += [photo, photo, photo, photo]
+        # A later edit changes the survivor hash. Follow the immutable consolidation
+        # links as well, so either original still opens the entire combined history.
+        joined = lineage.file_tree("SELECT id FROM photos WHERE id=? OR sha1_hash=(SELECT sha1_hash FROM photos WHERE id=?)")
+        clauses[-1] = "(" + clauses[-1] + " OR o.id IN (" + joined + "SELECT of.operation_id FROM operation_files of JOIN tree t ON t.file_id=of.file_id))"
+        params += [photo, photo]
     if q:
         like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         clauses.append("(o.source_path LIKE ? ESCAPE '\\' OR o.dest_path LIKE ? ESCAPE '\\' "
@@ -85,7 +90,8 @@ def list_operations(db_path: Path, *, page=1, page_size=100, **filters) -> dict:
         per_run = {str(run): n for run, n in conn.execute(
             f"SELECT o.run_id, COUNT(*) {_OP_FROM}{where} GROUP BY o.run_id", params)}
         issues = attention.for_operations(conn, [r['id'] for r in rows])
-    return {"items": [dict(_op_dict(r), issues=issues.get(r['id'], [])) for r in rows], "page": page, "page_size": page_size, "total": total,
+        items = operation_actions.annotate(conn, [dict(_op_dict(r), issues=issues.get(r['id'], [])) for r in rows])
+    return {"items": items, "page": page, "page_size": page_size, "total": total,
             "status_counts": counts, "run_counts": per_run}
 
 
@@ -93,8 +99,9 @@ def iter_operations(db_path: Path, **filters):
     """Every matching operation, oldest first, for export."""
     where, params = _operations_where(**filters)
     with catalog.connect(db_path) as conn:
-        for row in conn.execute(f"SELECT {_OP_COLUMNS} {_OP_FROM}{where} ORDER BY o.id", params):
-            yield _op_dict(row)
+        cursor = conn.execute(f"SELECT {_OP_COLUMNS} {_OP_FROM}{where} ORDER BY o.id", params)
+        while rows := cursor.fetchmany(LOG_PAGE_MAX):
+            yield from operation_actions.annotate(conn, [_op_dict(row) for row in rows])
 
 
 def operation_photo_ids(db_path: Path, requested_only=False, **filters) -> list:

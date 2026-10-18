@@ -21,10 +21,14 @@ class PairRelocationRefused(OSError):
 
 def current(conn, old):
     """Find the sidecar receipt through the retained photo identity, not its old name."""
+    # Consolidation links both histories; its old pair receipt does not belong to the survivor.
     row = conn.execute("SELECT e.detail_json FROM file_states f JOIN operation_files of ON of.file_id=f.file_id "
         "JOIN operation_events e ON e.operation_id=of.operation_id "
         "WHERE f.current_path=? AND f.location_role='destination' AND f.presence_state='present' "
-        "AND e.step='pair_complete' ORDER BY e.event_id DESC LIMIT 1",(str(old),)).fetchone()
+        "AND e.step='pair_complete' "
+        "AND NOT (of.role='retained_copy' AND EXISTS(SELECT 1 FROM operation_events bridge "
+        "WHERE bridge.operation_id=of.operation_id AND bridge.step='metadata_consolidation_verified')) "
+        "ORDER BY e.event_id DESC LIMIT 1",(str(old),)).fetchone()
     if row:
         receipt=json.loads(row[0])
         return {'old':str(old)+'.xmp','sha256':receipt['xmp_sha256'],'version_id':receipt['version_id']}

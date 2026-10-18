@@ -248,6 +248,21 @@ class JobRunner:
                         raise JobRefused(409, {'error':'move_preview_changed', 'message':str(exc)}) from exc
             return self._launch(flags, request_id, selection)
 
+    def import_choice(self, body):
+        with self._start_lock:
+            if self._probe_lock():
+                raise self._busy()
+            try:
+                result = subprocess.run(self.cfg.engine_argv('--import-choice'), input=json.dumps(body),
+                    text=True, capture_output=True, cwd=ENGINE_CWD, timeout=30)
+                answer = json.loads(result.stdout)
+            except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+                raise JobRefused(503, {'error':'choice_unavailable',
+                    'message':'The choice was not confirmed. Retry the same confirmation.'}) from exc
+            if result.returncode:
+                raise JobRefused(409 if result.returncode == 3 else 400, answer)
+            return answer
+
     def review_decision(self, body):
         with self._start_lock:
             if self._probe_lock():
@@ -279,6 +294,37 @@ class JobRunner:
             raise JobRefused(400,{'error':'invalid_request','message':str(exc)}) from exc
         with self._start_lock:
             return self._launch(['--metadata','apply'],body['request_id'],metadata_request=request)
+
+    def save_primary(self, photo_id, body):
+        from . import metadata_primary
+        from engine import metadata_command
+        if not isinstance(body, dict) or set(body) != {'edit','token','request_id'}:
+            raise JobRefused(400, {'error':'invalid_request','message':'Send the confirmed primary preview and request ID.'})
+        validate_request_id(body['request_id'])
+        if not body['request_id']:
+            raise JobRefused(400, {'error':'invalid_request','message':'A request ID is required.'})
+        try:
+            metadata_primary.validate_edit(photo_id, body['edit'])
+            request = {'edits': [{**body['edit'], 'token':body['token']}]}
+            metadata_command.validate(request, 'apply')
+        except (ValueError, TypeError) as exc:
+            raise JobRefused(400, {'error':'invalid_request','message':str(exc)}) from exc
+        with self._start_lock:
+            return self._launch(['--metadata','apply'], body['request_id'], metadata_request=request)
+
+    def save_rotations(self, body):
+        from . import rotations
+        if not isinstance(body, dict) or set(body) != {'edits','request_id'}:
+            raise JobRefused(400, {'error':'invalid_request','message':'Send confirmed rotations and a request ID.'})
+        validate_request_id(body['request_id'])
+        if not body['request_id']:
+            raise JobRefused(400, {'error':'invalid_request','message':'A request ID is required.'})
+        try:
+            rotations.validate_edits(body['edits'])
+        except (ValueError, TypeError) as exc:
+            raise JobRefused(400, {'error':'invalid_request','message':str(exc)}) from exc
+        with self._start_lock:
+            return self._launch(['--metadata','apply'], body['request_id'], metadata_request={'edits':body['edits']})
 
     def retry_pairs(self, body):
         if set(body) != {'mode','file_ids','token','request_id'}:

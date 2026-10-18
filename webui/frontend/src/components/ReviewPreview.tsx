@@ -1,3 +1,4 @@
+import { RotationControls, type RotationSave } from "./RotationControls";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { MatchPhoto } from "../api";
 import { bytes } from "../format";
@@ -6,7 +7,8 @@ import { Thumb } from "./Thumb";
 export type PreviewView = { rotation: number; zoom: number; x: number; y: number };
 export const DEFAULT_VIEW: PreviewView = { rotation: 0, zoom: 1, x: 50, y: 50 };
 
-export function ReviewPreview({ photo, label, view, onChange, refreshKey, isReference = false, onUseAsReference, referenceDisabled, action, footerAction, prominent = false }: {
+export function ReviewPreview({ photo, label, view, onChange, refreshKey, isReference = false, onUseAsReference, referenceDisabled, action, footerAction, prominent = false, rotationSaver, jobRunning = false }: {
+  rotationSaver: RotationSave; jobRunning?: boolean;
   photo: MatchPhoto; label: string; view: PreviewView; onChange: (next: PreviewView) => void; refreshKey: number; isReference?: boolean;
   onUseAsReference?: () => void; referenceDisabled?: boolean;
   // The photo's own action beside its name (Reject…), so it is clear which photo it acts on.
@@ -22,6 +24,7 @@ export function ReviewPreview({ photo, label, view, onChange, refreshKey, isRefe
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
+  const width = photo.display_width ?? photo.width, height = photo.display_height ?? photo.height;
   const sideways = view.rotation % 180 !== 0;
   return <figure className="review-photo" data-reference={isReference} data-prominent={prominent} tabIndex={isReference ? -1 : undefined} aria-label={`${label} preview`}>
     <figcaption><div className="review-photo-heading">
@@ -38,11 +41,9 @@ export function ReviewPreview({ photo, label, view, onChange, refreshKey, isRefe
       </div>
     </div>
     <div className="review-preview-controls">
-      <div className="review-rotation-controls">
-        <button aria-label={`Rotate ${label.toLowerCase()} left`} onClick={() => onChange({ ...view, rotation: (view.rotation + 270) % 360 })}>↶ Left</button>
-        <button aria-label={`Rotate ${label.toLowerCase()} right`} onClick={() => onChange({ ...view, rotation: (view.rotation + 90) % 360 })}>↷ Right</button>
-        <button onClick={() => onChange(DEFAULT_VIEW)} aria-label={`Reset ${label.toLowerCase()} view`}>Reset view</button>
-      </div>
+      <RotationControls id={photo.id} label={label} turns={view.rotation / 90} onChange={turns => onChange({ ...view, rotation: turns * 90 })}
+        saver={rotationSaver} jobRunning={jobRunning} refreshKey={refreshKey}/>
+      <div className="review-rotation-controls"><button disabled={rotationSaver.busy} onClick={() => onChange(DEFAULT_VIEW)} aria-label={`Reset ${label.toLowerCase()} view`}>Reset view</button></div>
       <label>Zoom: {view.zoom}×<input aria-label={`Zoom ${label.toLowerCase()}`} type="range" min="1" max="4" step="0.25"
         value={view.zoom} onChange={(e) => onChange({ ...view, zoom: Number(e.target.value) })} /></label>
       <div className="review-pan-controls" role="group" aria-label="Preview position" title="Zoom in to adjust position.">
@@ -51,8 +52,8 @@ export function ReviewPreview({ photo, label, view, onChange, refreshKey, isRefe
         <label>Vertical<input aria-label={`${label} vertical position`} type="range" min="0" max="100" disabled={view.zoom === 1} value={view.y}
           onChange={(e) => onChange({ ...view, y: Number(e.target.value) })} /></label>
       </div>
-      <p className="section-note">{photo.width && photo.height
-        ? `${view.rotation !== 0 ? "Displayed: " : ""}${sideways ? photo.height : photo.width} × ${sideways ? photo.width : photo.height}`
+      <p className="section-note">{width && height
+        ? `${view.rotation !== 0 ? "Displayed: " : ""}${sideways ? height : width} × ${sideways ? width : height}`
         : "Dimensions unknown"} · {bytes(photo.file_size)}
         <span className="review-rotation-note">Viewing rotation: {view.rotation}° · not saved to file</span></p>
     </div>

@@ -44,16 +44,16 @@ def plan(conn, photo_id, run_id):
     blocking = [issue for issue in report['issues']
                 if issue.get('source')!='sidecars' or issue.get('code')!='metadata_choice_needed']
     if blocking or any(side['state']!='associated' for side in sidecars):
-        raise ValueError('Metadata choice or repair needed. The photo and sidecars remain at source; resolve the source metadata and reindex. Decision screens are not built yet.')
+        raise ValueError('Metadata choice or repair needed. The photo and sidecars remain at source. Resolve XMP choices in Not organized, or repair the reported source problem and run Index again.')
     if row[3] not in ('Pending','Copied'):
         raise ValueError('Incoming metadata for an existing or rejected photo needs a separate decision. The source pair remains untouched.')
     versions = []
     for side in sidecars:
-        owners,_ = metadata_decisions._owners(conn,root,side,highwater=highwater)
+        owners,association_revision = metadata_decisions._owners(conn,root,side,highwater=highwater)
         if owners.get(relative)!=file_id or sorted(owners)!=sorted(side['candidates']):
             raise ValueError('Resolve sidecar ownership before importing this photo')
         version = metadata_decisions._retained(conn,capture[0],side['path'],side['sha256'])
-        versions.append(dict(path=side['path'],version_id=version,sha256=side['sha256'],owners=owners))
+        versions.append(dict(path=side['path'],version_id=version,sha256=side['sha256'],owners=owners,association_revision=association_revision))
     selected = primary['value']['primary_id'] if primary else None
     if selected and selected.startswith('sidecar:'):
         side = next((side for side in sidecars if 'sidecar:'+side['path']==selected),None)
@@ -178,6 +178,19 @@ def restore_delivered(conn, photo_id):
     same-content recorded pair's current destination identity, never infer delivery
     from a source or from an unverified file found on disk. No external rescan here.
     """
+    consolidated = conn.execute("SELECT e.detail_json FROM operation_events e JOIN operations o ON o.id=e.operation_id "
+        "WHERE o.photo_id=? AND e.step='metadata_consolidated' ORDER BY e.event_id DESC LIMIT 1",(photo_id,)).fetchone()
+    if consolidated:
+        receipt=json.loads(consolidated[0])
+        row=conn.execute('SELECT p.sha1_hash,s.sha1_hash FROM photos p JOIN photo_files pf ON pf.photo_id=p.id '
+            'JOIN source_snapshots s ON s.file_id=pf.file_id WHERE p.id=?',(photo_id,)).fetchone()
+        if row and row[0]==row[1]:
+            keep=conn.execute('SELECT dest_path,sha1_hash FROM photos WHERE id=?',(receipt['survivor_photo_id'],)).fetchone()
+            edited=metadata_save.active(conn,photo_id)
+            with contextlib.nullcontext() if conn.in_transaction else ns_db.transaction(conn):
+                conn.execute("UPDATE photos SET status=?,dest_path=?,sha1_hash=?,metadata_json=? WHERE id=?",
+                    ('Removed_Duplicate' if receipt['source_consumed'] else 'Duplicate',keep[0] if keep and keep[1]==receipt['sha1'] else None,receipt['sha1'],json.dumps(edited['metadata']),photo_id))
+            return
     edited = metadata_save.active(conn, photo_id)
     if edited and (edited.get('content_changed') or conn.execute('SELECT sha1_hash FROM photos WHERE id=?', (photo_id,)).fetchone()[0] == edited['sha1_hash']):
         retained = conn.execute('SELECT current_path,presence_state,sha1_hash FROM file_states WHERE file_id=?',

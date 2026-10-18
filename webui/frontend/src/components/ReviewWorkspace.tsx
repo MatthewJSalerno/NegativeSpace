@@ -1,3 +1,5 @@
+import { useRotationSave } from "./RotationControls";
+import { useRotationExit } from "./RotationEditor";
 import { captureDateMessage } from "../photoDates";
 import { FileIssues } from "./FileIssues";
 import { follow } from "../nav";
@@ -26,6 +28,15 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [rejectRun, setRejectRun] = useState<{run: number; photo: number} | null>(null);
   const { jobs } = useJobFeed();
+  const rotationSaver = useRotationSave((id, survivor) => {
+    setViews(old => ({ ...old, [id]: { ...(old[id] ?? DEFAULT_VIEW), rotation: 0 } }));
+    if (survivor != null) setNotice("Rotation saved. The existing photo was kept; both histories are preserved.");
+    setRevision(n => n+1);
+  });
+  const rotationExit = useRotationExit(Object.entries(views).map(([id, view]) => ({photo_id:Number(id),turns:view.rotation/90})), ids => {
+    setViews(old => Object.fromEntries(Object.entries(old).map(([id,view]) => [id,ids.includes(Number(id)) ? {...view,rotation:0} : view])));
+    setRevision(n=>n+1);
+  }, !!jobs.active, rotationSaver.busy);
   const scope = JSON.stringify(filters);
   useEffect(() => {
     const update = () => setRevision(n=>n+1);
@@ -84,13 +95,13 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
   matchLink.delete("match_page");
   if (photo) matchLink.set("photo", String(photo.id));
   matchLink.set("tab", "similar"); matchLink.set("match", String(filters.match_min ?? 90));
-  return <Workspace label="Review photos" title={title} subject={photo?.filename} onBack={onBack} busy={busy} className="photo-review-workspace"
+  return <Workspace label="Review photos" title={title} subject={photo?.filename} onBack={() => rotationExit.requestLeave(onBack)} busy={busy || rotationSaver.busy} className="photo-review-workspace"
     step={{position: data?.total ? `Photo ${page} of ${data.total}` : "Review", previousLabel:"Previous photo",nextLabel:"Next photo",
-      onPrevious:()=>setPage(n=>Math.max(1,(n??1)-1)),onNext:()=>setPage(n=>(n??1)+1),previousDisabled:page==null||page<=1,nextDisabled:!data||page==null||page>=data.total}}
+      onPrevious:()=>rotationExit.requestLeave(()=>setPage(n=>Math.max(1,(n??1)-1))),onNext:()=>rotationExit.requestLeave(()=>setPage(n=>(n??1)+1)),previousDisabled:page==null||page<=1,nextDisabled:!data||page==null||page>=data.total}}
     status={<span role="status">{notice || "Next leaves this photo unresolved. Your gallery selection is unchanged."}{busy && " Saving or waiting for the job…"}</span>}>
     {error && <p className="error" role="alert">{error} {!error.startsWith("Only organized") && !error.startsWith("This photo is no longer") && !error.startsWith("This photo is outside") && <button onClick={()=>setRevision(n=>n+1)}>Retry loading</button>}</p>}
     {photo && <div className="review-photos">
-      <ReviewPreview prominent label="Photo to review" photo={photo} view={views[photo.id] ?? DEFAULT_VIEW} onChange={v=>setViews(old=>({...old,[photo.id]:v}))} refreshKey={revision}/>
+      <ReviewPreview rotationSaver={rotationSaver} jobRunning={!!jobs.active} prominent label="Photo to review" photo={photo} view={views[photo.id] ?? DEFAULT_VIEW} onChange={v=>setViews(old=>({...old,[photo.id]:v}))} refreshKey={revision}/>
       <aside className="review-decision-panel" aria-label="Review decision">
         <FileIssues key={photo.id} photoId={photo.id} initialIssues={photo.issues ?? []} onResolved={()=>changed("File issue resolved.")} />
         <ReviewNote key={photo.id} id={photo.id} refreshKey={revision} reason={filters.reason} disabled={!!jobs.active} onBusy={setBusy} onResolved={changed}
@@ -113,6 +124,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
       </aside>
     </div>}
     {!photo && !error && (data ? <p>No more photos at this position. Earlier skipped photos may still need review. Use Previous or return to the gallery.</p> : <p role="status">Loading review…</p>)}
+    {rotationExit.editor}
     {confirm && <ConfirmDialog confirm={confirm} onClose={()=>setConfirm(null)}/>}
   </Workspace>;
 }

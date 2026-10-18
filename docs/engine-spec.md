@@ -1308,7 +1308,12 @@ active jobs refuse new confirmations. XMP settings and the decision high-water m
 frozen at job acceptance. Index and transfer preflight preserve decisions separately from
 new observations. Resolved single-/multiple-sidecar first imports are integrated into normal Copy/Move;
 unresolved ownership/version and duplicate cases stay at source with a Skipped explanation.
-Decision routes and UI are pending; see `docs/xmp-metadata.md` for the precise implementation boundary.
+First-import association/version choices have a source-scoped API/UI and locked
+`--import-choice` confirmation. Explicit saved decisions are exposed through read-only
+Logs/lineage history. Import receipts retain association revision IDs alongside the primary
+revision so applied entries identify the choices used without inventing a save job.
+Incoming-alternative and organized-primary screens remain
+pending; see `docs/xmp-metadata.md` for the precise implementation boundary.
 
 
 Correcting or merging EXIF — persisting a good copy's date onto the survivor, or
@@ -1448,8 +1453,8 @@ requested metadata changes to a temporary working copy and read back every reque
 field, including explicit removals, against the validated intended values. Replace
 the original only after all requested fields and required file-integrity checks pass.
 The JPEG writer and journaled publisher are specified in `xmp-metadata.md`. They update
-retained content identity and caches, preserve source observations, and report exact
-duplicate results without consolidating files.
+retained content identity and caches and preserve source observations. An exact-byte
+result can consolidate into a confirmed existing Library photo as described in §9.8.
 If a field fails writing or verification, discard the failed working copy, leave
 the original unchanged and log the per-photo failure with field details. Never
 publish a subset of the requested field changes. Other photos in a batch may succeed.
@@ -1592,10 +1597,16 @@ what has been taken out of it.
 
 ### 9.8. Capabilities the web interface needs
 
-Metadata edits whose resulting hash matches another catalogued file must preserve
-both files and their distinct lineage, recording the new duplicate relationship
-without automatically deleting either file. Duplicate cleanup requires a separate
-confirmed action; see `webui-spec.md` §7.5.
+An embedded edit that would produce a byte-identical Library photo previews the existing
+survivor and requires confirmation before saving. SHA-1 narrows candidates; live byte
+comparison verifies equality. Preserve both histories and distinct XMP originals before
+removing the redundant edited destination. Keep the survivor's name, location and primary.
+Matches in Rejects or different effective primary metadata refuse before publication.
+A changed survivor or a new unconfirmed match requires another preview. Interrupted
+cleanup retains a journaled retry; observation alone never deletes. Source files remain
+untouched, and later Move requires the existing edited-source consent. No image-only
+matching or automatic cleanup of pre-existing duplicates is introduced. See
+`webui-spec.md` §7.5 and `xmp-metadata.md`.
 
 Thumbnail cache lifecycle must follow content identity: after an embedded metadata
 edit, reuse an existing entry for the resulting hash or generate a new thumbnail.

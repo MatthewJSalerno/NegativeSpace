@@ -64,8 +64,10 @@ def _proposal(conn, photo_id, source_root, dest_root):
         raise ValueError('This photo does not require edited-source confirmation')
     row = conn.execute('SELECT p.source_path,p.dest_path,p.sha1_hash,p.status,pf.file_id FROM photos p '
         'JOIN photo_files pf ON pf.photo_id=p.id WHERE p.id=?',(photo_id,)).fetchone()
-    if not row or row[3] not in ('Copied','Rejected_Copied'):
+    if not row or row[3] not in ('Copied','Rejected_Copied','Duplicate'):
         raise ValueError('Choose an edited organized copy whose source has not been consumed')
+    if row[3]=='Duplicate' and not conn.execute("SELECT 1 FROM operations o JOIN operation_events e ON e.operation_id=o.id WHERE o.photo_id=? AND e.step='metadata_consolidated'",(photo_id,)).fetchone():
+        raise ValueError('This duplicate has no confirmed metadata consolidation')
     source, dest, sha, status, file_id = row
     source = metadata_transfer._path(source_root,source)
     dest = metadata_transfer._path(dest_root,dest)
@@ -207,7 +209,7 @@ def _durable(m):
 
 
 def _finish(conn, op, m, *, complete, error=None, notes=None):
-    status=('Rejected' if m['status_before'].startswith('Rejected') else 'Completed')
+    status=('Removed_Duplicate' if m['status_before']=='Duplicate' else 'Rejected' if m['status_before'].startswith('Rejected') else 'Completed')
     with ns_db.transaction(conn):
         if complete:
             run_id=conn.execute('SELECT run_id FROM operations WHERE id=?',(op,)).fetchone()[0]

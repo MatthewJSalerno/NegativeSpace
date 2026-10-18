@@ -38,13 +38,17 @@ def snapshot(conn, *, source, destination, photo_ids=None, source_subdir=None):
         "AND json_extract(e.detail_json,'$.kind')='metadata_source_cleanup' "
         "AND NOT EXISTS(SELECT 1 FROM operation_events f WHERE f.operation_id=o.id AND f.step='source_cleanup_complete')",
         (json.dumps(ids),))}
+    consolidated = {row[0] for row in conn.execute(
+        "SELECT DISTINCT o.photo_id FROM operations o JOIN operation_events e ON e.operation_id=o.id "
+        "WHERE o.photo_id IN (SELECT value FROM json_each(?)) AND e.step='metadata_consolidated'",
+        (json.dumps(ids),))}
     digest = hashlib.sha256()
     digest.update(json.dumps([str(root), str(Path(destination).resolve())]).encode())
     affected = []
     for row in rows:
         event, changed = saved.get(row[0], (None, False))
         digest.update(json.dumps([*row, event, changed, row[0] in pending], ensure_ascii=True).encode())
-        if changed and (row[3] in ('Copied', 'Rejected_Copied', 'Failed') or row[0] in pending):
+        if changed and (row[3] in ('Copied', 'Rejected_Copied', 'Failed') or row[0] in pending or (row[3]=='Duplicate' and row[0] in consolidated)):
             affected.append({'photo_id':row[0], 'source':str(Path(row[1]).relative_to(root)),
                              'filename':Path(row[2] or row[1]).name, 'in_rejects':row[3] in ns_db.IN_REJECTS_STATUSES})
     return {'file_ids':ids, 'token':digest.hexdigest(), 'edited_originals':affected,

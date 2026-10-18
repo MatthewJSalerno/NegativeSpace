@@ -1,4 +1,5 @@
 """Completed jobs refresh open details and retry only failed grid images."""
+import re
 import sys
 import time
 from playwright.sync_api import expect, sync_playwright
@@ -25,8 +26,8 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={'width':1400, 'height':900})
     errors = []
     page.on('pageerror', lambda e: errors.append(str(e)))
-    missing = f'**/api/v1/photos/{ids[0]}/thumbnail'
-    permanent = f'**/api/v1/photos/{ids[1]}/thumbnail'
+    missing = re.compile(rf'/api/v1/photos/{ids[0]}/thumbnail(?:\?size=grid(?:&[^#]*)?)?$')
+    permanent = re.compile(rf'/api/v1/photos/{ids[1]}/thumbnail(?:\?size=grid(?:&[^#]*)?)?$')
     attempts = []
 
     def fail(route):
