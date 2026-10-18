@@ -307,21 +307,20 @@ on 2026-10-14 (tests M1–M3).
 
 Specified but not yet on screen:
 *   The unbacked-changes line on every page, and Retry backup in the finished-job banner.
-*   Each folder's last-scanned time in the Folders tree.
+*   Each folder's last-indexed time in Source folders.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
 *   The Index file-type summary (files found, eligible and excluded by type), which the
     engine records per full Index (`webui-spec.md` §5.1).
 *   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built),
-    and undated photos with suggested dates (`webui-spec.md` §7.5). Date taken editing/copying
+    and undated-photo evidence with a per-library back-test (`webui-spec.md` §3.1). Date taken editing/copying
     with a filing preview is built and validated. Other fields remain read-only; broader
     engine capabilities do not imply a general-purpose web editor. Saved orientation is
-    separately planned.
+    built and validated through the preview controls.
 *   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file resolution, and the similar-to-a-reject check
     (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);
     the export-sidecar notice at Index.
-*   Sign-in: one password, generated on first start (`webui-spec.md` §11).
 *   Videos and other non-photo formats are deliberately deferred until photo organizing
     is complete.
 
