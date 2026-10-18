@@ -430,6 +430,31 @@ other locations. These escape links retain the filename search and clear narrowi
 filters, and identify where the results live. Changing views or reasons never silently
 changes the selected photos or arms new action targets.
 
+### Telling same-named photos apart
+
+Two different photos can share a filename: two cameras each with an `IMG_0412.jpg`.
+A card shows only the name, so they would read as one photo in two places (decided
+2026-10-17; not built).
+
+* **Only when names clash,** a card adds one muted line under its name with the shortest
+  part of its **original source folder** that tells it apart (`…/Canon 2014`, `…/Phone/DCIM`),
+  as code editors label same-named tabs. A clash is judged over the whole current result,
+  not the page, so a card does not change as pages load; the line is decided when the
+  results load, never added while viewing. Rows holding a clash are one line taller; no
+  space is reserved on other cards.
+* **The original source folder,** not the destination folder: two same-named photos taken
+  on one day share a date folder, and the card already shows the date. For a photo that
+  arrived more than once, show the folder of the copy that was organized and list every
+  copy's folder on hover.
+* **Every card's name shows its full original path on hover,** as supplemental help.
+* **A name changed on arrival explains itself:** a Library card named `IMG_0412_1.jpg`
+  says on hover "Renamed on arrival: another photo already had this name" (engine-spec
+  §4.2, Unique Filename Enforcement), from the photo's history.
+* **Identical copies are not a clash:** one photo with its duplicates badge.
+
+The list API would report, per item, whether its name clashes within the result and the
+distinguishing folder text; which folder to show is a display choice, easy to change.
+
 ## 3. Dedicated Settings Management (`/settings`)
 
 A dedicated Settings view provides central management of engine parameters, persisted
