@@ -584,6 +584,42 @@ Answers within the reason are made in bulk, a batch at a time, through the edito
 capture, digitization and modification dates. Do not automatically promote a clue
 to a capture date. Preserve original and subsequent placement decisions in lineage.
 
+**Evidence behind a suggestion** (agreed 2026-10-17; not built). Beside its suggestions,
+the one-by-one review shows the evidence as counts, and a card's suggestion shows a
+short summary on hover:
+
+* **look-alikes with a capture date:** how many, the most common year, month and day,
+  their range, and a small chart by month;
+* **photos from the same original folder** with a capture date: how many, range, most
+  common day;
+* **neighbours by name:** the dated photos just before and after it in the same folder;
+* where sources disagree, a plain note saying so ("Look-alikes point to 2018; the
+  folder and the neighbours point to July 2019"), never a silent choice.
+
+Each line offers **Show in gallery**: the existing temporary member gallery, sorted by
+date, with the undated photo pinned first and marked, each card showing its date and
+where it came from, and **Back to review** returning to the same photo. Suggestions may
+be ordered by how many sources agree; that only ranks them, it never applies one.
+
+Rules for what counts as evidence:
+
+* **Names and folders come from the source side, from every copy.** A photo that arrived
+  more than once is matched on every recorded original path and name, including copies
+  never organized or since removed: the telling name may be on any of them.
+* **Destination folders are never evidence.** The Library is organized by date, so a
+  destination path only repeats the date used to file the photo, including the
+  file-date fallback; moves caused by date edits do not matter for the same reason.
+* **A date carries its origin:** from the camera (EXIF), from a sidecar, or set by the
+  user, which includes an accepted suggestion. Dates the user set are shown separately
+  and never counted as independent evidence for another photo: otherwise one guess,
+  passed from look-alike to look-alike, would read as many confirmations.
+* Low-detail photos can match unrelated ones (`engine-spec.md` §9.3); the evidence notes
+  it rather than hiding the look-alikes.
+
+The catalog already holds every copy's original path, name and file time, and each date
+edit's before and after values; Library photos may need a gallery filter by original
+source folder for **Show in gallery**.
+
 
 **Year subdivision is a filing aid, not a capture-date claim.** Use the placed
 file's own modification year to keep Undated navigable. For byte-identical copies,
