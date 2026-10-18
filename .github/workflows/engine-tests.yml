@@ -228,6 +228,9 @@ jobs:
       - name: Notification read receipts
         run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p notifications_test.py -v
 
+      - name: Low-detail hash evidence and matches
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p low_detail_test.py -v
+
       - name: Reference-based similarity sets
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p reference_sets_test.py -v
 
@@ -335,6 +338,9 @@ jobs:
 
       - name: Appearance palettes in a browser
         run: DRIVER=appearance_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Low-detail match notes
+        run: LOW_DETAIL_FIXTURE=1 DRIVER=low_detail_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Same-name photo cards in a browser
         run: DRIVER=same_name_browser_drive.py sh tests/browser/webui_browser_test.sh

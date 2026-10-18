@@ -66,6 +66,14 @@ for i in range($DUPLICATES):
     make(f'/src/copy-of-{i:03d}.jpg', i)
 "
 
+if [ "${LOW_DETAIL_FIXTURE:-0}" = 1 ]; then
+    docker run --rm --user "$ME" --entrypoint python3 -v "$WORK/src":/src -v "$HERE/../../tools":/app/tools:ro "$IMAGE" -c '
+from pathlib import Path
+from tools import make_scenarios
+list(make_scenarios.low_detail_scenarios(Path("/src/low-detail")))
+'
+fi
+
 if [ "${IMPORT_CHOICES_FIXTURE:-0}" = 1 ]; then
     docker run --rm --user "$ME" --entrypoint python3 -e PYTHONPATH=/app -v "$WORK/src":/src -v "$HERE/import_choices_fixture.py":/fixture.py:ro "$IMAGE" /fixture.py /src
 fi

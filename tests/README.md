@@ -20,7 +20,7 @@ Everything here is for developing NegativeSpace; running the engine needs none o
 CI coverage is split between two workflows:
 
 - **Every pull request, push to `main`, and manual Engine tests run**:
-  `.github/workflows/engine-tests.yml` runs all 49 Python unit suites
+  `.github/workflows/engine-tests.yml` runs all 50 Python unit suites
   (`tests/*_test.py`, except the separately invoked engine smoke suite), the engine
   smoke suite, the three shell suites, all `tools/check-*.py`, synthetic similarity
   validation, container CPU/timezone/CLI checks, and the browser drivers listed below.
@@ -63,6 +63,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | `review_browser_drive.py` | PR / main / manual | — |
 | `similar_browser_drive.py` | PR / main / manual | — |
 | `same_name_browser_drive.py` | PR / main / manual | — |
+| `low_detail_browser_drive.py` | PR / main / manual | `LOW_DETAIL_FIXTURE=1` |
 | `source_scope_browser_drive.py` | PR / main / manual | — |
 | `stalled_job_browser_drive.py` | PR / main / manual | `STALLED_FIXTURE=1` |
 | `suspicious_dates_browser_drive.py` | PR / main / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
@@ -2902,3 +2903,37 @@ assertions remain unchanged. Grid URLs use each photo's catalog revision, fetche
 in one batch per page. A rotation regression checks that saving changes that
 revision. Rotation/API checks passed 112 tests (108.797s), all three contract tools
 passed, and both preview-refresh and import/rotation browser workflows passed.
+
+
+### Low-detail matches
+
+`low_detail_test.py` checks strict measurement boundaries, one decode for raster/RAW,
+unchanged hashes, shared content persistence, real Index/Copy scenarios, match flags,
+unchanged counts/grouping and Catalog health scope. Recovery and embedded-save suites
+also verify that measurements follow verified bytes, including interrupted saves.
+`low_detail_browser_drive.py` uses `LOW_DETAIL_FIXTURE=1` for generated moon, lamp,
+city and flat scenes, checking match notes, scores, counts, Stats and 200% text scale.
+Both run in PR CI; use the Docker commands and browser harness above.
+
+Manual validation is pending on a fresh review instance. After its Index/Copy:
+
+**Test 1 — Notes without hidden matches**
+
+- **1a.** In Library search `scn-low-detail-moon.png`, open it and choose Similar photos.
+  At 90%, expect two matches: `scn-low-detail-moon-brighter.png` and
+  `scn-low-detail-lamp.png`. Both show 100% and the muted mostly-dark-or-plain note.
+- **1b.** Open the lamp match side by side. Confirm the note appears in the review's
+  status line, the full photos remain visible, and next/previous still works.
+- **1c.** Increase browser zoom to 200%. Confirm the note and controls remain readable;
+  return to normal zoom afterward.
+
+**Test 2 — Catalog health**
+
+- **2a.** Open Stats → Catalog health. Confirm Low-detail photos shows **5** in the
+  prepared generated review library.
+- **2b.** Search `scn-low-detail-city.png` and `scn-low-detail-flat.png` in Library.
+  Both are still ordinary photos you can open; neither is automatically rejected.
+
+The generated moon versions depict the same scene. The streetlight is a different
+scene with the same coarse hash; 100% is not proof of identical photos. Expected
+counts here assume the generated scenario library prepared for this review.

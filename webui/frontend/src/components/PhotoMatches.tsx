@@ -1,6 +1,6 @@
 import { SimilarityRecovery } from "./SimilarityRecovery";
 import { useEffect, useState } from "react";
-import { api, type MatchCounts, type MatchPage, type MatchPhoto, type MatchScope } from "../api";
+import { api, LOW_DETAIL_NOTE, type MatchCounts, type MatchPage, type MatchPhoto, type MatchScope } from "../api";
 import { count, plural } from "../format";
 import { Thumb } from "./Thumb";
 import { MatchDiagnosticsPanel } from "./MatchDiagnosticsPanel";
@@ -92,6 +92,7 @@ export function PhotoMatches({ id, name, delivered, rejected = false, view, onVi
                 <Thumb id={photo.id} alt="" refreshKey={refreshKey} />
                 <span><strong>{photo.filename}</strong><span>{photo.score}% visual similarity</span>
                   <span className="muted">{photo.width && photo.height ? `${photo.width} × ${photo.height}` : "Dimensions unknown"}</span>
+                  {photo.low_detail_match && <span className="muted">{LOW_DETAIL_NOTE}</span>}
                   <span className="match-card-action">Review side by side</span></span>
               </button>
               {onReject && <button className="photo-action" disabled={jobRunning} aria-label={`Reject ${photo.filename}…`}
@@ -149,7 +150,9 @@ function RejectedMatches({ id, threshold, refreshKey, onReview }: {
         <button className="inspector-match" onClick={() => onReview(photo.id, "rejects", page)} aria-label={`Review side by side: ${photo.filename}`}>
           <Thumb id={photo.id} alt="" refreshKey={retry} />
           <span><strong>{photo.filename}</strong><span>Location: Rejects</span>
-            <span>{photo.score}% visual similarity</span><span className="match-card-action">Review side by side</span></span>
+            <span>{photo.score}% visual similarity</span>
+            {photo.low_detail_match && <span className="muted">{LOW_DETAIL_NOTE}</span>}
+            <span className="match-card-action">Review side by side</span></span>
         </button>
       </li>)}</ul>
       {results.total > 12 && <nav className="match-pages" aria-label="Rejected match pages">

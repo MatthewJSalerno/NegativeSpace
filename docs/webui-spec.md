@@ -1708,7 +1708,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 29 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 30 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -2063,6 +2063,16 @@ individual preview. Viewing transforms follow the photo while browsing candidate
 and reset on close. Zoom magnifies generated previews (up to 1024 pixels), not
 original-resolution pixels. Dimensions, file sizes and exact-content status are
 shown. Hash percentages are not confidence estimates, including at 100%.
+
+**Low-detail matches are marked** (implemented; decided 2026-10-18). A match involving a
+mostly black or flat photo (`engine-spec.md` §9.3) keeps its place and percentage in
+counts, lists and the side-by-side review, with a muted note on the candidate and in
+the review status line: "Mostly dark or plain: matches like this are often unrelated
+photos." Has similar photos and its counts are unchanged; there is no filter or setting
+to hide them. Stats' Catalog health gives the number of low-detail photos, so each
+library shows how much this applies to it. That count uses the same current-photo
+scope as Catalog photos (Not organized and Library, excluding failed files, duplicate
+source copies, Rejects and historical content). Unknown measurements do not count.
 The comparison area expands to fit both previews and all their controls/details,
 including dimensions, file sizes and linked zoom. It has no inner vertical scroll.
 If needed, the whole review window scrolls, with the shared More above/below cues;
@@ -2683,6 +2693,52 @@ and Return actions stay explicit; comparison never relocates either photo automa
 **Not built yet:** the automatic similar-to-reject reason in Needs review (§7.9), a combined
 Keep the old one instead decision, and historical thumbnail evidence for emptied rejects.
 The current comparison requires both destination files to be recorded present.
+
+**Looks like a reject** (decided 2026-10-17; not built). A photo that resembles one the
+user rejected, but is not a byte-identical copy (those are recognised at Index as
+duplicates of the reject, `engine-spec.md` §10), is never rejected automatically.
+
+* **Strict to start:** the reason is raised only at 95% similarity or more, and never for
+  a low-detail match (a mostly black or flat photo on either side, defined in
+  `engine-spec.md` §9.3), since those match unrelated ones even at 97–100%. A missed look-alike leaves things as they are today; a false one
+  costs a question. Once enough of the user's own keep and reject decisions exist, the level
+  is measured per library, as for date suggestions (§3.1). No user setting: Has similar
+  photos already shows any percentage.
+* **When it is checked:** after a Copy or Move, for each newly organized photo, which
+  waits in **Needs review** with the reason "Looks like a reject"; and when the user
+  rejects a photo, the Reject confirmation says how many other Library photos look like it,
+  with **Show them**. That note adds nothing to Needs review.
+* **A rejected file may no longer exist:** the user empties Rejects. The catalog keeps the
+  rejected photo's record, fingerprint and history, so matching still works after
+  emptying. While its file is in Rejects, the review offers **Reject it too**, **Keep it**
+  and **Keep the old one instead** (a swap: the old photo returns to the Library and the new
+  one goes to Rejects, with the usual preview), and compares both photos side by side.
+  Once emptied, only **Reject it too** and **Keep it**, with a plain note ("The photo you
+  rejected was emptied from Rejects on 3 March; it can't be brought back"). **Keep the old
+  one instead** checks that the file is still present when pressed and stops with an
+  explanation if it is not; nothing moves.
+* **Keep it keeps this photo, nothing more:** a later arrival that resembles both a reject
+  and a photo kept before is asked about again, showing both, each labelled with whether
+  its file still exists.
+* **Many at once,** for example after re-importing an old backup: the existing selection
+  and **Reject…** flow, with its preview, handles them; **Select the closest matches** picks
+  those at 99% or more; photos are grouped by the reject they resemble ("37 photos look
+  like IMG_0412.jpg, rejected 3 March"). Keeping many arrives with bulk review answers.
+* **What an emptied reject looked like:** when a photo is rejected, in the same
+  transaction that records the rejection and while its file is certainly in Rejects, a
+  small picture of it (160 px on the long edge, about 4–5 KB) is stored in the catalog,
+  made from the file, not copied from the thumbnail cache, which is disposable
+  (§4.2.1). Pictures are keyed by content, so identical copies share one. Catalog backups
+  include it; since JPEG data does not compress further, each backup grows by the
+  pictures' size (about 5 MB per 1,000 rejects), multiplied by the backups kept; a 320 px
+  picture would be about 16 KB. Rejects made before this exists get their picture during
+  the next job while their file is still in Rejects. Returning a photo to the Library,
+  including **Keep the old one instead**, removes its picture in the same step: its file
+  and ordinary thumbnails are back, and its history keeps the rejection; rejecting it
+  again stores a new one. Pictures remain only for photos still rejected, emptied or not. A reject without one (emptied before this existed)
+  shows "No picture kept" with everything recorded about it: every copy's original name and
+  folder, size, dimensions, format, capture date and its origin, when and by which job it
+  was rejected, when its file was found gone, and the match percentage.
 
 **Rejects' size stays in view without noise:**
 

@@ -185,14 +185,15 @@ def _record_saved(conn, op, pid, m, output):
     info=Path(m['photo']).stat()
     # Hash the verified published photo, including its displayed orientation.
     # Unchanged stored pixels do not imply an unchanged visual hash after EXIF edits.
-    phash=fileinfo.compute_phash(m['photo'])
+    measures={}
+    phash=fileinfo.compute_phash(m['photo'], measures=measures)
     width,height=output['width'],output['height']
     exif=metadata_capture.interpret(output['tags_after'])['sources'].get('exif',{})
     if exif.get('fields',{}).get('orientation') in (5,6,7,8):width,height=height,width
     receipt=dict(sources=sources,primary_id=target,resolution=preview['after'],metadata=metadata,
         sha1_hash=output['after_sha1'], destination_root=m['root'],file_id=m['file_id'],retained_id=m['retained_id'],
         differences=preview['differences'],composition=preview.get('composition'),reproduction=preview.get('reproduction'),embedded=True,content_changed=True,
-        file_size=info.st_size,file_mtime=info.st_mtime,phash=phash,width=width,height=height)
+        file_size=info.st_size,file_mtime=info.st_mtime,phash=phash,width=width,height=height,**measures)
     duplicates=[row[0] for row in conn.execute('SELECT id FROM photos WHERE sha1_hash=? AND id<>? '
         "AND status IN ('Copied','Completed','Found_At_Destination','Rejected','Rejected_Copied')",
         (output['after_sha1'],pid))]
@@ -220,7 +221,7 @@ def _record_saved(conn, op, pid, m, output):
         ns_db.advance_revision(conn,pid,_revision(conn,op,m))
         before=ns_db.content_for_digest(conn,digest=m['sha1'])
         after=ns_db.content_for_digest(conn,digest=output['after_sha1'],phash=phash,
-            phash_state='ok' if phash not in (None,'','error','not_supported') else 'error',width=width,height=height)
+            phash_state='ok' if phash not in (None,'','error','not_supported') else 'error',width=width,height=height,**measures)
         conn.execute('UPDATE photos SET sha1_hash=?,metadata_json=?,file_size=?,file_mtime=?,phash=? WHERE id=?',
             (output['after_sha1'],json.dumps(metadata),info.st_size,info.st_mtime,phash,pid))
         conn.execute('UPDATE file_states SET sha1_hash=?,revision=revision+1 WHERE file_id=?',

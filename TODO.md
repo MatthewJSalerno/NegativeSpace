@@ -28,7 +28,7 @@ development until the maintainer decides.
 **Review**
 - Answer many photos at once within one reason
 - Suspicious dates in the review queue, with "this date is correct"
-- "Looks like a reject"
+- "Looks like a reject" (decided)
 - "No capture date": suggested dates from the name, folder or a look-alike
 - Record in history when a review reason clears itself
 - Review history speed with many decisions
@@ -37,7 +37,7 @@ development until the maintainer decides.
 - Merge the two "Reject?" dialogs into one (decided)
 - 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
 - [x] Rotated matches: compare photos as displayed
-- 💬 Low-detail photos matching unrelated images at high percentages
+- [x] Mark low-detail (mostly black or flat) matches — implemented and validated (`docs/engine-spec.md` §9.3)
 - Large-library measurement (250,000 and 500,000 photos)
 - 💬 Local AI image embeddings for look-alikes, crops included (the maintainer is reading up first)
 
@@ -273,10 +273,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
   Library matches for rejected references; location labels and confirmed Return or
   Reject actions. Keep-reference and gallery grouping remain Library-only. Review
   links retain candidate scope. Not organized and emptied rejects stay excluded.
-- [ ] "Looks like a reject": a photo only similar to a reject (small pHash distance) is
-  never rejected automatically; it waits in Needs review. With the reject still in
-  Rejects: full side by side, Reject it too · Keep it · Keep the old one instead. With
-  the reject emptied: its stored thumbnail and details (`docs/webui-spec.md` §7.8).
+- [ ] "Looks like a reject": designed, not built (`docs/webui-spec.md` §7.8).
 - [ ] "No capture date": suggested dates from the name, the folder or a dated look-alike,
   answered in bulk through the editor; the photo stays under `Undated/` meanwhile
   (`docs/webui-spec.md` §3.1).
@@ -302,8 +299,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
   as displayed, which matches a portrait RAW to its own JPEG and copies stored turned with
   an orientation tag. Searching every rotation as well was measured and declined: on the
   demo library its new matches were two different, mostly black photos.
-- [ ] Assess low-detail photos (mostly black or flat), which match unrelated photos at high
-  percentages today: whether to mark them unreliable for matching. Discussion first.
+- [x] Low-detail matches: implemented; automated checks and maintainer Tests 1a–1c / 2a–2b passed (`docs/engine-spec.md` §9.3).
 - [ ] Follow the [large-library measurement plan](docs/large-library-performance.md):
   query performance at 250k/500k, dense and overlapping sets, memory, invalidated caches
   and response times. Repeat A/B runs before claiming supported capacity. Original-file

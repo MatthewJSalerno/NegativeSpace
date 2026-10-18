@@ -195,6 +195,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: (group?: "
             ["Not yet backed up", s.health.unbacked_changes ? plural(s.health.unbacked_changes, "change") : "Nothing"],
             ["Backups kept", `${plural(s.health.backups, "backup")} · ${bytes(s.health.backup_bytes)}`],
             ["Catalog size", bytes(s.health.catalog_bytes)],
+            ["Low-detail photos", count(s.health.low_detail_photos)],
             ...s.health.thumbnail_cache.map((c): [string, ReactNode] =>
               [c.size <= 320 ? "Grid thumbnails" : "Detail previews", `${plural(c.photos, "photo")} · ${bytes(c.bytes)}`]),
             ["Last destination check", s.health.destination_check

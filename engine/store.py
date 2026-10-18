@@ -397,6 +397,7 @@ def db_writer_worker(db_path: str):
                     conn, digest=result.sha1_hash,
                     phash=result.phash if decoded else None,
                     phash_state="ok" if decoded else (result.phash or "error"),
+                    mean_brightness=result.mean_brightness, mean_gradient=result.mean_gradient,
                     width=result.thumbnail.width if result.thumbnail else None,
                     height=result.thumbnail.height if result.thumbnail else None,
                 )

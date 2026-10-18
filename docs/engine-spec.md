@@ -342,7 +342,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 29 and refuses incompatible catalogs before processing.
+initializes schema version 30 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -655,6 +655,7 @@ CREATE TABLE contents (
     content_id INTEGER PRIMARY KEY AUTOINCREMENT,
     hash_algorithm TEXT NOT NULL, digest TEXT NOT NULL,
     phash TEXT, phash_state TEXT, width INTEGER, height INTEGER,
+    mean_brightness REAL, mean_gradient REAL,
     UNIQUE(hash_algorithm, digest)
 );
 
@@ -1027,6 +1028,33 @@ mostly black space photos; pairs at 75% rose from 4,739 to 16,834. Comparison to
 3.6× as long (0.068 s against 0.019 s). Mirrored orientation tags (2, 4, 5, 7) on
 otherwise identical pixels no longer match each other; such copies are rare. Copies an
 editor rotated by rewriting their pixels are not found.
+
+**Mostly black or flat photos are marked low-detail** (implemented; decided 2026-10-18). A
+night sky, a sparkler or a lens-cap shot leaves the hash little to describe, so two
+unrelated ones can score 97–100%. A photo is low-detail when the same 32×32 greyscale
+image the hash is taken from has an average brightness under 10 of 255, or a mean
+gradient magnitude (neighbouring-pixel change) under 2. Both come from the image already
+in memory, so they cost no extra read or decode, and are stored beside the hash on
+`contents` (schema 30, §6.5). The gradient is the mean of `hypot(gx, gy)` from NumPy
+`gradient` on float pixels. Index, embedded metadata saves and verified hash recovery
+record both measures with the hash; interrupted or failed recovery publishes no measures.
+Unknown measures are not classified. Historic content retains its own evidence. A match
+is low-detail when either photo is. Such matches still appear and count everywhere;
+the screens mark them, and nothing that acts on a match uses them: the Looks like a
+reject reason (`webui-spec.md` §7.8) and look-alike date evidence (`webui-spec.md` §3.1).
+There is no setting. The two levels are starting values from two libraries; the
+per-library keep/reject measurement in `webui-spec.md` §7.8 checks them. Measurements
+are in [similarity-validation.md](similarity-validation.md#low-detail-photos--2026-10-18).
+
+*Rejected: equalizing or stretching the 32×32 image's brightness before hashing.* On the
+demo library, equalization removed 72 of 587 matches at 90%, and every sampled one was
+a false match between different night or space photos. On the maintainer's share it
+dropped 1,365 and added 986 of about 15,400, and every sampled change in both directions
+was a real look-alike, mostly bursts near the 90% line. Of the share's dark pairs it
+dropped, 3 in 12 sampled were false. A plain contrast stretch changed little on either.
+Equalization changes the hash definition and many hashes, so the algorithms cannot be
+mixed. The historical figures above were not reproduced by the current demo snapshot;
+see the measurement record for the rerun and the historical share method limitations.
 
 The SHA-1 content identity and its perceptual hash are already associated in the
 SQLite catalog's `contents` table, alongside derived comparison tables. There is
@@ -1842,7 +1870,7 @@ photo/review revisions are refused. Small-image eligibility is a query over deli
 content dimensions and `small_image_min` (positive integer pixels, null for off).
 Acknowledgements survive re-indexing unchanged content and rule changes. Review later
 is independently resolved by Done. Review events are included in catalog backups and
-unbacked-change accounting. Development catalogs require schema 29; no migration.
+unbacked-change accounting. Development catalogs require schema 30; no migration.
 
 
 ## 11. Explicit uncertain-outcome verification

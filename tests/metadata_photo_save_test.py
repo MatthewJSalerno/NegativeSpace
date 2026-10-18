@@ -66,6 +66,10 @@ class PhotoSaves(unittest.TestCase):
         self.assertEqual(self.c.execute('SELECT COUNT(*) FROM file_changes').fetchone()[0],1)
         self.assertEqual(self.c.execute('SELECT sha1_hash FROM source_snapshots').fetchone()[0],self.sha)
         self.assertEqual(self.c.execute('SELECT width,height FROM contents WHERE digest=?',(sha,)).fetchone(),(32,48))
+        measures={}
+        fileinfo.compute_phash(path, measures=measures)
+        self.assertEqual(self.c.execute('SELECT mean_brightness,mean_gradient FROM contents WHERE digest=?',(sha,)).fetchone(),
+                         (measures['mean_brightness'],measures['mean_gradient']))
         self.assertTrue(thumbnails.thumbnail_cache_path(self.root/'cache',sha).exists())
         self.assertEqual(thumbnails.preview_for_photo(self.db,self.root/'cache',self.pid)['availability'],'present')
         self.assertEqual(metadata_save.execute(self.c,op)['outcome'],'already_finished')
@@ -83,7 +87,11 @@ class PhotoSaves(unittest.TestCase):
 
     def assert_saved_hash(self, op):
         sha, path, *_ = self.current()
-        actual = fileinfo.compute_phash(path)
+        measures={}
+        actual = fileinfo.compute_phash(path, measures=measures)
+        self.assertEqual(self.c.execute(
+            "SELECT mean_brightness,mean_gradient FROM contents WHERE digest=?",(sha,)).fetchone(),
+            (measures["mean_brightness"],measures["mean_gradient"]))
         self.assertTrue(ns_similarity.usable(actual))
         self.assertEqual(self.c.execute('SELECT phash FROM photos WHERE id=?', (self.pid,)).fetchone()[0], actual)
         self.assertEqual(self.c.execute('SELECT phash,phash_state FROM contents WHERE digest=?', (sha,)).fetchone(), (actual, 'ok'))
@@ -127,7 +135,7 @@ class PhotoSaves(unittest.TestCase):
         op = self.prepare({'date_taken': '2015-06-07T01:02:03'})
         with mock.patch.object(fileinfo, 'compute_phash', wraps=fileinfo.compute_phash) as hashing:
             self.execute(op)
-        self.assertIn(mock.call(str(self.dest)), hashing.call_args_list)
+        self.assertIn(mock.call(str(self.dest), measures=mock.ANY), hashing.call_args_list)
         self.assertNotEqual(self.current()[0], self.sha)
         self.assertEqual(self.assert_saved_hash(op), before)
 
