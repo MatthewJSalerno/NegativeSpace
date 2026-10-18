@@ -635,6 +635,11 @@ metadata joins later.
   and folder agree: early July 2019"), **Likely** (one good source, nothing against it),
   **Weak or conflicting** (shown, never offered for bulk apply). Bulk review offers Strong
   first.
+* **Agreeing look-alikes weigh heavily by concentration:** many distinct look-alikes on
+  one day ("38 of 40 on 4 Jul 2019") make a suggestion Strong on their own, since
+  unrelated matches scatter across dates; the same number spread over years is weak.
+  Count distinct contents, not copies or near-copies of one photo, and leave out dates
+  the user set. Weights for the other sources come from the back-test.
 * **Name counters use the nearest dated photo on each side,** not a fixed window: the
   same naming pattern, same folder first, then the folder tree, then the library. Dates
   must rise with the counter around the photo; if they do not (two cameras share a
