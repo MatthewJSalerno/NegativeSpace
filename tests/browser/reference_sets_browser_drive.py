@@ -173,7 +173,7 @@ with sync_playwright() as p:
     assert note.evaluate('e => e.scrollHeight > e.clientHeight'), 'fixture must exercise overflow'
     note.focus()
     note.press('End')
-    page.wait_for_function("document.querySelector('.help-wide').scrollTop > 0")
+    page.wait_for_function("() => { const e=document.querySelector('.help-wide'); return e.scrollTop >= e.scrollHeight-e.clientHeight-1; }")
     shot('sets-help-scaled-scrolled')
     note.press('Home')
     page.wait_for_function("document.querySelector('.help-wide').scrollTop === 0")
