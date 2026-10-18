@@ -9,6 +9,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Run documentation checks without the application suites for verified documentation-only
+  changes. Preserve full validation for code, mixed changes and manual runs, with a
+  required merge gate that rejects failed checks and unintended skips.
+
 - Consolidate agreed designs for undated-photo evidence, source filters and summaries,
   job handoff after backups, history labels and earlier photo versions. Mark pending
   features as unbuilt; document the decision to use external access control.

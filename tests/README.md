@@ -19,11 +19,15 @@ Everything here is for developing NegativeSpace; running the engine needs none o
 
 CI coverage is split between two workflows:
 
-- **Every pull request, push to `main`, and manual Engine tests run**:
-  `.github/workflows/engine-tests.yml` runs all 50 Python unit suites
-  (`tests/*_test.py`, except the separately invoked engine smoke suite), the engine
-  smoke suite, the three shell suites, all `tools/check-*.py`, synthetic similarity
-  validation, container CPU/timezone/CLI checks, and the browser drivers listed below.
+- **Every pull request and push to `main`**: `.github/workflows/engine-tests.yml`
+  first classifies the complete Git diff and tests that classification and the required
+  merge gate. Documentation-only changes run the spec cross-reference, schema-drift
+  and API-spec checks; they skip the application test groups.
+- **Code, mixed, unknown-path changes and manual Engine tests runs**: run every
+  Python unit suite (`tests/*_test.py`), engine smoke, the three shell suites, all
+  `tools/check-*.py`, synthetic similarity validation, container CPU/timezone/CLI
+  checks, and the PR/main browser drivers listed below. `ci_scope_test.py` runs
+  in the small Git-equipped CI test image; application suites use the app image.
   `filter_pins_test.py` and `notifications_test.py` use `PYTHONPATH=/app/tests:/app`.
   RAW smoke tests require the optional read-only public samples locally; GitHub has
   no such samples and reports those two skips.
@@ -33,7 +37,8 @@ CI coverage is split between two workflows:
   workflow is on the default branch. After merge, use Actions → Extended browser
   tests → Run workflow to select a branch for a manual run.
 
-All browser entries below are in `tests/browser/`, use `webui_browser_test.sh`, and
+“PR / main / manual” below means the full application path, not documentation-only
+changes. All browser entries below are in `tests/browser/`, use `webui_browser_test.sh`, and
 build isolated catalogs from generated photos. Set `DRIVER` to the filename; the
 fixture flags are required where shown. Each browser job builds the app, web and browser-test images.
 CI sets `PLAYWRIGHT_IMAGE` to the browser-test image, installing the matching
@@ -88,16 +93,37 @@ Helpers and engine fixture wrappers are not standalone suites. Same-named tests
 in different modules cover different contracts and remain in place.
 
 
-PR/main CI runs four independent jobs: engine smoke tests, metadata tests,
-other Python/contract tests, and browser tests. Each has a 30-minute budget;
-individual test timeouts and assertions are unchanged. The existing required check,
-**Smoke suite (in container)**, is now a final gate: every group must succeed,
-including when another group fails, is skipped, or is cancelled. Do not require
-only one of the four groups in branch protection. New suites must be added to the
-appropriate group. Superseded runs on the same PR are cancelled; main and manual
-runs are independent. The ten nightly/manual drivers keep their existing schedule.
+The documentation-only allowlist is `README.md`, `CHANGELOG.md`, `TODO.md`,
+`AGENTS.md`, `CLAUDE.md`, `tests/README.md`, Markdown under `docs/`, and PNG/JPEG/GIF/
+WebP/SVG images under `docs/images/`. Everything else requires the full suite,
+including tests, tools, workflows, dependencies, Dockerfiles and unknown Markdown
+paths. Missing Git history, an empty diff or a non-fast-forward push also requires
+full validation. Pull requests compare against their merge base; pushes compare
+all changes between the previous and new commit. Renames include both old and new
+paths, and the classifier has no changed-file count limit.
 
-Before this split, successful GitHub run `38505467509` took 26m15s: engine smoke
+The full application path runs four independent jobs: engine smoke tests, metadata
+tests, other Python/contract tests, and browser tests. Each has a 30-minute budget;
+individual test timeouts and assertions are unchanged. Documentation checks run
+separately for both paths. The existing required check, **Smoke suite (in container)**,
+is the final gate. Classification and documentation checks must pass. All four
+application groups must pass for full validation, or be intentionally skipped for
+verified documentation-only changes. Failure, cancellation, missing classification
+or an unexpected skip blocks the gate. Keep this final gate required in branch
+protection; requiring the application groups alone would not verify documentation.
+New suites must be added to the appropriate group. Superseded runs on the same PR
+are cancelled; main and manual runs are independent. The ten nightly/manual drivers
+keep their existing schedule.
+
+Run the routing and gate regressions in Docker (generated Git repositories only):
+
+```bash
+docker build -f docker/ci-test.Dockerfile -t negativespace-ci-routing .
+docker run --rm -v "$PWD":/app:ro -w /app negativespace-ci-routing \
+  -m unittest discover -s tests -p ci_scope_test.py -v
+```
+
+Before the application suites ran in parallel, successful GitHub run `38505467509` took 26m15s: engine smoke
 7m49s, browser/shell shutdown checks 5m28s, other checks 12m19s, and builds 36s
 (step timestamps, rounded to seconds). Parallel jobs reduce elapsed waiting, not
 the amount of test coverage. First parallel run `38590119552` passed every group

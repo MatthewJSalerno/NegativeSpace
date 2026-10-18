@@ -15,7 +15,42 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Classify changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      scope: ${{ steps.scope.outputs.scope }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build CI test image
+        run: docker build -f docker/ci-test.Dockerfile -t negativespace-ci-routing .
+      - name: CI routing and required-gate regression tests
+        run: docker run --rm -v "$PWD":/app:ro -w /app negativespace-ci-routing -m unittest discover -s tests -p ci_scope_test.py -v
+      - name: Select validation scope
+        id: scope
+        run: python3 tools/ci_scope.py select
+
+  docs:
+    name: Documentation checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -f docker/app.Dockerfile -t negativespace .
+      - name: Spec cross-references
+        run: docker run --rm --entrypoint python3 -v "$PWD":/app:ro -w /app negativespace tools/check-specs.py
+      - name: Schema drift
+        run: docker run --rm --entrypoint python3 -v "$PWD":/app:ro -w /app negativespace tools/check-schema-drift.py
+      - name: API specification matches the routes
+        run: docker run --rm --entrypoint python3 -v "$PWD":/app:ro -w /app negativespace tools/check-api-spec.py
+
   engine:
+    needs: changes
+    if: ${{ needs.changes.outputs.scope == 'full' }}
     name: Engine smoke tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -36,6 +71,8 @@ jobs:
             negativespace python3 tests/engine_smoke_test.py
 
   metadata:
+    needs: changes
+    if: ${{ needs.changes.outputs.scope == 'full' }}
     name: Metadata tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -140,6 +177,8 @@ jobs:
 
 
   contracts:
+    needs: changes
+    if: ${{ needs.changes.outputs.scope == 'full' }}
     name: Python and contract tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -201,23 +240,6 @@ jobs:
         # Nothing ran this script until now, which is how it shipped able to
         # build a sample inside the library through a symlinked root.
         run: sh tests/sampler_test.sh
-
-      - name: Spec cross-references
-        # Dangling references have shipped here twice. This exits non-zero, so it
-        # blocks rather than informs.
-        run: python3 tools/check-specs.py
-
-      - name: Schema drift
-        # engine-spec.md 6.5 calls itself the authoritative schema; nothing else
-        # keeps that true, so this compares it against what the engine creates.
-        run: |
-          docker run --rm -v "$PWD":/app -w /app \
-            negativespace python3 tools/check-schema-drift.py
-
-      - name: API specification matches the routes
-        run: |
-          docker run --rm -v "$PWD":/app -w /app \
-            negativespace python3 tools/check-api-spec.py
 
       - name: Instance access policy
         run: docker run --rm --entrypoint python3 -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p access_test.py -v
@@ -307,6 +329,8 @@ jobs:
 
 
   browsers:
+    needs: changes
+    if: ${{ needs.changes.outputs.scope == 'full' }}
     name: Browser tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -413,23 +437,16 @@ jobs:
 
 
   smoke:
-    # Keep the existing required-check name. A failed, cancelled or skipped group
-    # must fail this gate rather than leaving a green check with missing coverage.
+    # Always report the existing required check. Only proven docs-only changes may
+    # skip application suites; classification and documentation must still pass.
     name: Smoke suite (in container)
     if: ${{ always() }}
-    needs: [engine, metadata, contracts, browsers]
+    needs: [changes, docs, engine, metadata, contracts, browsers]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require every test group to pass
+      - uses: actions/checkout@v4
+      - name: Require the selected checks to pass
         env:
           RESULTS: ${{ toJSON(needs) }}
-        run: |
-          python3 - <<'PYTHON'
-          import json, os
-          results = json.loads(os.environ['RESULTS'])
-          for name, result in results.items():
-              print(f"{name}: {result['result']}")
-          if not results or any(r['result'] != 'success' for r in results.values()):
-              raise SystemExit('Every test group must pass')
-          PYTHON
+        run: python3 tools/ci_scope.py gate
