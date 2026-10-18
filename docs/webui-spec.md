@@ -653,9 +653,21 @@ look-alikes that also share the folder; neighbouring dated folders. Checks rathe
 suggestions: a name date after the earliest file time is impossible; app naming
 semantics (a screenshot or camera name is the taken time, WhatsApp's is when it was
 received, so "on or before"; Pixel names are UTC); files copied in together bound a batch
-only as "not after". A device fingerprint without metadata (dimensions, format and naming
-pattern) keeps counters from different cameras apart and bounds a photo by the dated
-span of photos sharing it.
+only as "not after". A device fingerprint without metadata (dimensions, format, naming
+pattern and a JPEG's quantization tables) keeps counters from different cameras apart and
+bounds a photo by the dated span of photos sharing it. Quantization tables are part of the
+compressed image, not EXIF, so they usually survive when metadata is stripped; they
+identify a camera make and model series rather than one camera, and a re-saved JPEG
+carries its editor's tables instead, itself a sign the file is a copy
+([Sorell](https://digital.library.adelaide.edu.au/items/43f08727-f88b-4830-aee8-ec6b246bae8d);
+[Kornblum, DFRWS 2008](https://dfrws.org/presentation/using-jpeg-quantization-tables-to-identify-imagery-processed-by-software/)).
+
+*Considered and set aside:* estimating a date from the picture's content with a trained
+model ([Date Estimation in the Wild](https://oa.tib.eu/renate/items/1617ef10-5757-4e6b-97d0-a33d6b8745cc/full)),
+which gives a year or decade where these suggestions look for a day; and sensor-noise
+(PRNU) camera identification, which is heavy and weakened by recompression. Other photo
+tools fall back to the file time or a filename date only, so there is no established
+combined method to follow; the back-test is the evidence.
 
 **Measure before building:** hide the capture date of photos that have one and run the
 estimator on them. How often each source and combination is right, and by how much it
