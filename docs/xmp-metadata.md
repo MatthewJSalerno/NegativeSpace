@@ -938,8 +938,7 @@ the verified edit history above, not the experimental content fingerprint.
 
 Existing edit-backup policy remains: a pre-action catalog backup and structured metadata
 history for all edits; verified temporary outputs and recovery material until completion;
-exact retained XMP versions; optional first-edit original-file copies for explicitly
-enabled embedded RAW editing. There is no new requirement to permanently retain every
+exact retained XMP versions. RAW files are never written (`engine-spec.md` §9.6). There is no new requirement to permanently retain every
 pre-edit JPEG or other ordinary photo file.
 
 ## Verified pair transfer primitive (built; resolved first-import jobs connected)

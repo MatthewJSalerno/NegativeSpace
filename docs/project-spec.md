@@ -311,7 +311,7 @@ selection and engine recheck; maintainer acceptance of this confirmation passed
 on 2026-10-14 (tests M1–M3).
 
 Specified but not yet on screen:
-*   The unbacked-changes line on every page, and Retry backup in the finished-job banner.
+*   The unbacked-changes line on every page, and Retry backup in a persistent backup notice.
 *   Each folder's last-indexed time in Source folders.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
@@ -322,8 +322,7 @@ Specified but not yet on screen:
     with a filing preview is built and validated, as are saved rotations. Other fields
     remain read-only; broader engine capabilities do not imply a general-purpose web editor.
 *   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file resolution, and the similar-to-a-reject check
-    (`webui-spec.md` §7.8); the destination
-    folder `dest/raw-originals` (`engine-spec.md` §9.9);
+    (`webui-spec.md` §7.8);
     the export-sidecar notice at Index.
 *   Videos and other non-photo formats are deliberately deferred until photo organizing
     is complete.

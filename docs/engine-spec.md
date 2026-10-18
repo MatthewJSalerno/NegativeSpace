@@ -83,7 +83,7 @@ security concern, specified in `webui-spec.md` §5.6.
 *   **Tuning:**
     *   `--workers <N>` — overrides the `ProcessPoolExecutor` worker count (default: the CPUs the container may use: the host's cores reduced by a `--cpuset-cpus` set or a `--cpus` quota, rounded down, at least 1; `ns_db.available_cpus()`).
     *   `--exts <.ext1,.ext2,...>` — overrides the default extension set for directory scanning. Has no effect on `--file-ids` targeting.
-*   **A photo's name is not enough (maintainer's rule):** a file with a photo format's extension whose content is not an image is logged and left alone. The scan judges content as ExifTool identified it (`not_an_image`): an empty file, an ExifTool error, or a MIME type that is not `image/…` is recorded `Failed` with a reason starting **"Not an image"**, so it appears in the log and the Error Center, and Copy and Move never take it. A PNG named `.jpg` is still an image and is catalogued. Metadata alone does not establish usable pixels. A supported photo format whose pixels cannot be decoded is also `Failed`, with a **"Cannot decode image"** reason that preserves the decoder error and directs the user to fix the source or decoder support, then Index again. A successful pHash establishes decodability without another decode; if hashing is unavailable or fails, independently try the image decoder (RAW uses rawpy sensor decoding). Missing EXIF, a hash-algorithm failure on readable pixels, or a thumbnail-cache write failure does not block organization. This check applies with `--no-thumbnails` too. Failed files stay at source, outside duplicate cleanup and Copy/Move eligibility. A later Index reassesses them after external correction. Existing delivered files are not relocated or deleted by this rule; no catalog migration is introduced. This rule is established on a full source read; older development catalogs accepted under the previous rule require rebuilding or `--force-rehash` for undelivered rows that the unchanged-file check would otherwise reuse. An extension the user selected that is not a photo format (`.mov`) is outside the rule and keeps its own warning (`webui-spec.md` §3.2).
+*   **A photo's name is not enough (maintainer's rule):** a file with a photo format's extension whose content is not an image is logged and left alone. The scan judges content as ExifTool identified it (`not_an_image`): an empty file, an ExifTool error, or a MIME type that is not `image/…` is recorded `Failed` with a reason starting **"Not an image"**, so it appears in the log and the Error Center, and Copy and Move never take it. A PNG named `.jpg` is still an image and is catalogued. Metadata alone does not establish usable pixels. A supported photo format whose pixels cannot be decoded is also `Failed`, with a **"Cannot decode image"** reason that preserves the decoder error and directs the user to fix the source or decoder support, then Index again. A successful pHash establishes decodability without another decode; if hashing is unavailable or fails, independently try the image decoder (RAW uses rawpy sensor decoding). Missing EXIF, a hash-algorithm failure on readable pixels, or a thumbnail-cache write failure does not block organization. This check applies with `--no-thumbnails` too. Failed files stay at source, outside duplicate cleanup and Copy/Move eligibility. A later Index reassesses them after external correction. **Decided 2026-10-18, not built: such files are skipped and logged, not catalogued.** The library holds photos only, so Index records each as a `Failed` operation of the run (path and reason, no photo row) and moves on, sorted into five kinds: **empty file** and **not an image** (nothing to save; reported as information), **permission denied** and **read error** (a missing photo the user can fix: warned, with the cause, grouped by folder), and **cannot decode** (warned; stays in the source, never organized). Empty, permission and non-regular files are recognised from `stat` and the open, without reading content. Nothing records a skip, so the next Index tries again; that costs a read only for undecodable files. Existing delivered files are not relocated or deleted by this rule; no catalog migration is introduced. This rule is established on a full source read; older development catalogs accepted under the previous rule require rebuilding or `--force-rehash` for undelivered rows that the unchanged-file check would otherwise reuse. An extension the user selected that is not a photo format (`.mov`) is outside the rule and keeps its own warning (`webui-spec.md` §3.2).
     *   `--force-rehash` — re-reads every targeted file in full even when the catalog already holds a current record for it, bypassing the unchanged-file skip described in §4.2. For the case where content changed without size or mtime moving; not something editors do in practice, but verification should not require deleting the catalog.
     *   `--cache <path>` — where generated thumbnails are written (default `/cache`). Written during scans and cache-generation commands; the transfer phase itself never touches it. A cache root that cannot be created disables generation for that run with a warning rather than failing an otherwise good Index.
     *   Thumbnail writes stage into an exclusively created, unique temporary file beside the cache entry, then atomically replace it. They never open a pre-existing temporary name; concurrent generators own separate staging files.
@@ -996,6 +996,19 @@ Three costs have to be surfaced before offering it:
 
 The destination check (§9.1) detects differences without modifying photos. When a mismatch is found, direct the user to this fresh-destination workflow; it logs new processing but cannot reconstruct external changes or recover missing pixels.
 
+**Repair in place** (decided 2026-10-18; not built). **Check my library** runs the
+destination check and reports each Library photo by what it found; **Repair** previews
+every change, then runs as an ordinary job that records each fix in the photo's lineage.
+Nothing is deleted. This replaces the fresh-destination workflow for a library rearranged
+outside the app, because that workflow restarts every photo's history.
+
+| Found | Repair |
+| :--- | :--- |
+| **Moved or renamed** (its content found elsewhere under `library/`) | Move it back to where it belongs |
+| **Missing** | Copy it back from the source or Rejects if a verified copy remains; otherwise record it gone, keeping its history |
+| **Changed** (saved over by another application) | Keep the new version in place, record its checksum as a later version (§10), and refile it if its date changed |
+| **Unknown file** (not in the catalog) | Never touched; listed so the user knows it is there |
+
 ### 9.3. Similarity: Perceptual Pairs
 
 pHash is computed and stored during Index (§4.2), including RAW. After scanning,
@@ -1411,11 +1424,10 @@ entered values go to the same place. Retained source originals are not edited. A
 that cannot take the chosen method fails explicitly: never a silent fallback to the other
 method, and never a correction stored only in the catalog.
 
-**Where edits are saved** (built). Photographers keep RAW edits in
-XMP sidecars rather than inside the RAW, so this is a setting with two groups, set
-separately (Settings › Metadata): **RAW formats** default to an **XMP sidecar**, with **In
-the file** as the opt-in that brings the RAW consent and warnings; **other formats**
-(JPEG, HEIC, TIFF…) default to **In the file**, with **XMP sidecar** as the option. A
+**Where edits are saved** (built; RAW rule decided 2026-10-18). Photographers keep RAW
+edits in XMP sidecars rather than inside the RAW, so **RAW formats always use an XMP
+sidecar**; NegativeSpace never writes inside a RAW file. **Other formats** (JPEG, HEIC,
+TIFF…) default to **In the file**, with **XMP sidecar** as the option (Settings › Metadata). A
 sidecar leaves the photo's bytes unchanged, so its SHA-1, duplicates and lineage stay put.
 
 **Established primary overrides those defaults (built).** Edits target only the
@@ -1544,12 +1556,13 @@ edit failure handling and deferred destination scan are in
 default 20 each), so a run of single-photo edits never pushes out a job's backup. The
 backup list names each kind and what triggered it.
 
-**RAW files are read-only unless the user enables RAW editing** in Settings, after a
-warning that manufacturers do not follow the standard consistently. Enabling it asks
-whether to keep a copy of each RAW file before its first edit, in `dest/raw-originals/`
-(§9.9); with copies on, a failed copy stops the edit with nothing changed. Both choices
-can change at any time and affect only later edits. These RAW-editing controls remain
-planned; the supported embedded writer is limited to JPEG.
+**RAW files are never written** (decided 2026-10-18). Their edits go to an XMP sidecar
+beside them, and the supported embedded writer is limited to JPEG. *Rejected: an opt-in
+for editing inside RAW files, with untouched copies kept in `dest/raw-originals/`.*
+Manufacturers structure RAW files differently, so writing inside one risks damage other
+software may not read. Sidecars are the photographers' convention, read by darktable and
+Immich, and leave the RAW byte-identical, so its checksum, duplicates and lineage do not
+change.
 
 **pHash after a rotation:** standard images are hashed with EXIF Orientation applied;
 RAW is hashed after the decoder applies orientation (§9.3). Embedded JPEG saves refresh
@@ -1666,15 +1679,13 @@ is needed for the job-confirmed edited-source cleanup.
 ### 9.9. Destination layout
 
 Move and Copy place photos under `library/` (`ns_db.library_root`) and Reject moves
-them to `rejects/` (`ns_db.rejects_root`, §9.5); `raw-originals/` arrives with RAW
-editing (§9.6). Check destination walks
+them to `rejects/` (`ns_db.rejects_root`, §9.5). Check destination walks
 `library/` only, so the folders beside it are never reported as foreign files.
 
 ```
 dest/
   library/          the organized photos: YYYY/MM/DD/… and Undated/<year>/…
   rejects/          photos the user turned down (§9.5), emptied by the user
-  raw-originals/    untouched copies of RAW files made before their first EXIF edit (§9.6)
 ```
 
 *   **Gallery applications import `dest/library` only**, never `dest`, so rejects and RAW
@@ -1784,7 +1795,8 @@ status that nothing verifies fails the test rather than passing unnoticed.
 
 **An unreadable source is included.** A file the engine cannot read is catalogued
 `Failed` with no hash and the real `PermissionError` recorded, and still assembles a
-full history. It is the row most likely to be dropped and the one a user most needs
+full history. Once the 2026-10-18 decision (§4.1) is built, an unreadable source is not
+catalogued; its record is the Index's log entry with its path and reason. It is the row most likely to be dropped and the one a user most needs
 explained.
 
 **One honest exception.** A destination the engine *found* rather than created has no
