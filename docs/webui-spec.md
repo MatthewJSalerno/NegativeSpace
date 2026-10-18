@@ -606,6 +606,12 @@ Rules for what counts as evidence:
 * **Names and folders come from the source side, from every copy.** A photo that arrived
   more than once is matched on every recorded original path and name, including copies
   never organized or since removed: the telling name may be on any of them.
+* **Names are the names each copy had at Index,** recorded in lineage, never a current
+  destination name: a destination name can carry a collision suffix (`IMG_0412_1.jpg`,
+  engine-spec §4.2) that would break a counter sequence, or a name the user chose
+  through Rename (§7.3). A user's rename is the user's input, like a date the user set:
+  shown, never counted as independent evidence. Earlier names stay visible ("arrived as
+  `IMG_20190704_153012.jpg`").
 * **Destination folders are never evidence.** The Library is organized by date, so a
   destination path only repeats the date used to file the photo, including the
   file-date fallback; moves caused by date edits do not matter for the same reason.
