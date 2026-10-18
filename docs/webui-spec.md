@@ -2960,8 +2960,8 @@ the server's UTC year when the catalog is read.
 ### Reference-based grouping
 
 **Built:** Group similar photos defaults on and adds reference-set counts and actions in
-Has similar photos in both Library and Needs review, with the same percentage, sorting,
-set exploration and comparison controls. Additional filters/search automatically show
+Has similar photos in both Library and Needs review, with the same percentage, sorting
+and comparison controls. Additional filters/search automatically show
 individual photos satisfying every filter; Group similar photos remains visible but
 disabled with an explanation. Clearing extra filters restores the explicit grouping
 preference, retained in the URL as `group_sets=1|0`. Sort and percentage are not extra
@@ -2971,20 +2971,9 @@ destination library at the chosen threshold; equal counts alone do not merge set
 Collapse precedes sorting and pagination. Totals count sets; selection takes only
 representative photos. Explicit selections remain unchanged. Members include direct
 matches from the entire destination catalog. Review this set opens direct-match
-comparison. Explore related sets offers direct-match references with overlap and
-additional-member counts. Show together unions at most six chosen related sets,
-shows each byte identity once, and preserves membership/provenance. Indirect photos
-compare through a supporting reference. Both member lists are paged and coverage
-limitations remain visible. Expanded sets are session-only and reset on reload/closing;
-threshold changes clear expansions. No transitive traversal. See [the design contract](ui-design.md#reference-based-sets).
-
-Identical membership in Explore related sets follows the gallery rule: exclude sets
-identical to the starting set and show each remaining full-membership set once, before
-related-set counting and pagination. Compare exact membership at the selected percentage,
-not photo counts; a proper subset is still a distinct overlapping set. Choose the lowest
-canonical photo ID among the starting reference's direct matches for each distinct set.
-No other distinct sets produces an explicit empty message. Changing reference does not
-choose a keeper or modify photos.
+comparison, where Use as reference walks into a neighbouring set. One line above the
+sets explains them, with a diagram in its help. No transitive traversal. Explore related
+sets, which showed neighbouring sets together, was removed. See [the design contract](ui-design.md#reference-based-sets).
 
 Hash recovery now records per-file failures in Logs, with photo/path, category and
 external correction guidance. Inspector shows recorded visual-processing problems.
@@ -2992,7 +2981,7 @@ Failures do not change delivered status or delete files. Missing EXIF alone does
 establish damage. A broader import-completion issue summary remains pending.
 
 Grouping defaults on; the browser remembers the grouping toggle and each view’s
-explicit sort choice. Set membership and chosen expansions remain temporary.
+explicit sort choice. Viewing a set remains temporary and does not save a group.
 
 The gallery similarity percentage defaults to 90% and remembers explicit user
 changes in browser storage (`ns.matchMin`). An explicit `match_min` URL value wins
@@ -3014,11 +3003,10 @@ and sort, anchored on the entry reference even after Use as reference. Disable
 unavailable boundaries and loading navigation; request failures offer Retry set
 navigation. Entering another set starts a fresh comparison with temporary viewing
 transforms reset.
-Navigation is offered only from the grouped gallery, not an expanded union or a
-set-member scope whose ordering has a different meaning.
+Navigation is offered only from the grouped gallery, not a set-member scope whose
+ordering has a different meaning.
 
-Show this set in gallery is available from comparison and each reference in set
-exploration. It shows the reference and direct members at that set's percentage as
+Show this set in gallery is available from comparison. It shows the reference and direct members at that set's percentage as
 ordinary, individually selectable cards, with server paging and normal sort controls.
 This temporary scope bypasses the saved gallery filters and does not auto-select,
 expand or clear the existing selection. Filters are disabled while it is open;

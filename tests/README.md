@@ -443,16 +443,17 @@ Inspector reasons, comparison date review and narrow reflow.
 ### Reference-set checks
 
 With app dependencies, run `python3 -m unittest discover -s tests -p reference_sets_test.py`.
-The generated A–B–C–D chain checks direct membership, explicit unions, deduplication,
-thresholds, stale selections, paging, destination-only eligibility and no DB writes.
+The generated A–B–C–D chain checks grouped collapse, a set's direct members,
+thresholds, paging, positioning, destination-only eligibility and no DB writes.
 Run the browser harness with `DRIVER=reference_sets_browser_drive.py` and
 `SIMILARITY_RECOVERY_FIXTURE=1`, specifying the built `IMAGE` and `WEB_IMAGE`.
-It uses only the harness's disposable generated catalog. Checks include grouping,
-indirect comparison through the correct reference, selection preservation, session
-reset, dense same-hash paging, expansion limits, failure retry, narrow modality and
-per-file recovery failure details in Logs.
+It uses only the harness's disposable generated catalog. Checks include grouping, the
+explanation of sets and its accurate diagram membership; hover, keyboard focus, the ⓘ
+button, Escape and scrollable viewport bounds at 200% text; set review, selection
+preservation, a dense set's members paged in the gallery, and per-file recovery failure
+details in Logs.
 
-`python3 tools/benchmark-reference-sets.py` measures opened-set queries against
+`python3 tools/benchmark-reference-sets.py` measures a set's member gallery against
 250,000 generated catalog identities with prepared sparse edges. It reads no photo
 files and does not establish dense-set or end-to-end real-library capacity.
 
@@ -1080,10 +1081,6 @@ completion replaces the photo facts with a compact failure notice, without reloa
 The failed-only notice retains the failure link and omits zero-valued photo statistics,
 similarity guidance and Copy/Move controls.
 
-Reference-set checks also verify exact membership deduplication in related sets before
-pagination: identical sets disappear, equivalent alternatives collapse to one, and
-proper subsets/overlaps remain distinct. The browser exercises a dense identical set
-and the A–B–C chain independently.
 
 The scenario-generator identity checks cover device/inode collisions, retaining old
 output identities until seed comparison, and a real write through a generated seed

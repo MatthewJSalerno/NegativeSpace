@@ -2072,7 +2072,7 @@ class MatchingTests(ApiCase):
         position = self.client.post('/api/v1/photos/position', json={'photo_id':b, 'view':'review',
             'similar':True, 'group_sets':True, 'match_min':90, 'sort':'matches','page_size':1}).json()
         self.assertEqual((position['position'], position['page'], position['next_id']), (0, 1, None))
-        members = self.client.get(f'/api/v1/similar/{b}/sets?threshold=90').json()
+        members = self.client.get(f'/api/v1/photos?view=all&match_min=90&set_reference={b}').json()
         self.assertEqual({p['id'] for p in members['items']}, {a,b,c})
         library = self.client.get('/api/v1/photos?view=organized&similar=true&group_sets=true').json()
         self.assertEqual([p['id'] for p in library['items']], [a])

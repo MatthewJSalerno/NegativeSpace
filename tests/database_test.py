@@ -941,13 +941,12 @@ class ModuleBindingTests(unittest.TestCase):
     def test_similarity_callers_observe_replaced_functions(self):
         from unittest.mock import patch
         from engine import ns_similarity_cache
-        from webui import equivalent_sets, gallery, reference_sets
+        from webui import equivalent_sets, gallery
         class Replaced(Exception):
             pass
         with patch.object(ns_similarity_cache, 'match_distance', side_effect=Replaced):
             for call in (lambda: gallery._view_clause('all', 90),
-                         lambda: equivalent_sets.representatives(90, ''),
-                         lambda: reference_sets.browse(None, 1, threshold=90)):
+                         lambda: equivalent_sets.representatives(90, '')):
                 with self.subTest(call=call), self.assertRaises(Replaced):
                     call()
 

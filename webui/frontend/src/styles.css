@@ -143,7 +143,7 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 /* Supplemental help: real text with an explicit keyboard/touch button. */
 .tip { position: relative; display: inline-flex; align-items: center; gap: var(--space-1); }
 .help-trigger { min-width: 28px; min-height: 28px; padding: 0; border: 0; background: transparent; color: var(--accent); }
-.help-content { position: fixed; inset: auto; margin: 0; z-index: var(--layer-help); width: min(280px, calc(100vw - 32px)); max-height: 144px;
+.help-content { position: fixed; inset: auto; margin: 0; z-index: var(--layer-help); width: min(280px, calc(100vw - 32px)); max-height: min(144px, calc(100dvh - 32px));
   overflow-y: auto; padding: var(--space-3); background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--control-radius);
   white-space: pre-line; overflow-wrap: anywhere; font-size: var(--type-sm); line-height: 1.45; text-align: left;
   box-shadow: 0 4px 16px rgb(0 0 0 / 0.25); }
@@ -991,18 +991,15 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .recovery-photos p { margin: var(--space-1) 0; }
 
 /* Reference sets use shared cards, text roles and dialog controls. */
+/* Rich help: the grouped view's sets diagram. */
+.help-content.help-wide { width: min(392px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); white-space: normal; display: grid; gap: var(--space-2); }
+.sets-diagram { display: block; max-width: 360px; }
+.sets-diagram .set-a { fill: var(--accent); fill-opacity: .16; stroke: var(--accent); stroke-width: 2; }
+.sets-diagram .set-b { fill: var(--muted); fill-opacity: .10; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 6 4; }
+.sets-diagram .photo { fill: var(--surface); stroke: var(--control-border); stroke-width: 1.5; }
+.sets-diagram .letter { fill: var(--text); font-size: 20px; font-weight: var(--weight-strong); text-anchor: middle; dominant-baseline: central; }
+.sets-diagram .label { fill: var(--text); font-size: 13px; font-weight: var(--weight-strong); text-anchor: middle; }
 .set-card-actions { display: grid; gap: var(--space-2); padding: var(--space-3); border-top: 1px solid var(--border); font-size: var(--type-sm); }
-.reference-sets { width: min(1100px, 100%); gap: var(--space-4); }
-.reference-sets p { margin-block: var(--space-2); }
-.reference-sets strong { overflow-wrap: anywhere; }
-.set-reference-list { list-style: none; padding: 0; display: grid; gap: var(--space-3); }
-.set-reference-list li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding-block: var(--space-2); border-bottom: 1px solid var(--border); }
-.set-reference-list li > img, .set-reference-list li > .thumb-placeholder { width: 64px; height: 64px; object-fit: contain; }
-.set-reference-list li > div:not(.thumb-placeholder) { flex: 1; min-width: 160px; }
-.set-members { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr)); gap: var(--space-4); }
-.set-members li { min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-3); }
-.set-members li > img, .set-members li > .thumb-placeholder { width: 100%; height: 160px; object-fit: contain; background: var(--surface-2); }
-.set-members li > button { margin-top: auto; }
 
 
 .review-note { margin-block: var(--space-4); }

@@ -36,9 +36,7 @@ development until the maintainer decides.
 
 **Similar photos**
 - Merge the two "Reject?" dialogs into one (decided)
-- Remove Explore reference sets (decided)
 - 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
-- Overlapping sets beyond one step
 - [x] Rotated matches: compare photos as displayed
 - 💬 Low-detail photos matching unrelated images at high percentages
 - Large-library measurement (250,000 and 500,000 photos)
@@ -137,7 +135,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
   (`Confirm.tsx`) and the comparison's own (`RejectConfirm.tsx`) become a single dialog,
   with "Don't ask again while comparing" and the last-photo warning appearing only where
   they apply. Every later reject question uses it.
-- [ ] **Remove Explore reference sets** (decided 2026-10-05), leaving no trace: the window
+- [x] **Remove Explore reference sets** (decided 2026-10-05), leaving no trace: the window
   (`ReferenceSets.tsx`), the Explore related sets button on set cards, its API route
   (`/similar/{id}/sets`), its tests and its spec and API-spec text. The comparison covers it:
   ‹ › steps through a photo's look-alikes and **Use as reference** walks into a neighbouring
@@ -269,8 +267,11 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 - [ ] Selected-photo gallery discoverability and grouped-set behavior. Show only
   selected already exists; discuss before adding another control.
-- [ ] Broader relationships between overlapping sets beyond the current explicit
-  one-hop exploration. Do not infer transitive matches.
+- [x] Overlapping sets (decided 2026-10-17): no view of neighbouring sets together; **Use as
+  reference** in the comparison walks from one set to the next, and one line above the sets
+  explains them with a diagram. Skipped option, if neighbouring sets are missed on a real
+  library: a line in a photo's Similar photos tab (`docs/ui-design.md`, Reference-based sets).
+  Never infer transitive matches.
 - [x] Rotated matches assessed (`docs/engine-spec.md` §9.3): pHash is taken from the photo
   as displayed, which matches a portrait RAW to its own JPEG and copies stored turned with
   an orientation tag. Searching every rotation as well was measured and declined: on the

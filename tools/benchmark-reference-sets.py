@@ -26,18 +26,15 @@ with tempfile.TemporaryDirectory(prefix='ns-match-sort-scale-') as tmp:
     print(json.dumps({'cache_seconds':round(time.perf_counter()-tcache,3), 'cache_bytes':c.execute("SELECT SUM(pgsize) FROM dbstat WHERE name IN ('similarity_count_cache','similarity_count_state')").fetchone()[0]}),flush=True)
     c.close()
     print(json.dumps({'photos':n,'fixture_and_cache_seconds':round(time.perf_counter()-t,2)}),flush=True)
-    from webui import reference_sets
-    for include in ([], [2], [2, 3, 4, 5, 6, 7]):
-        started = time.perf_counter()
-        result = reference_sets.browse(db, 1, threshold=90, include=include)
-        assert result['total'] == (15 if len(include) == 6 else 10)
-        assert len(result['items']) <= 12
-        print(json.dumps({'related_sets':len(include),
-            'query_seconds':round(time.perf_counter()-started,3),
-            'members':result['total'], 'returned':len(result['items'])}),flush=True)
-
-    # Full grouped gallery, not only a bounded exploration of one reference.
+    # One set's members, as Show this set in gallery and Review this set read them.
     from webui import gallery
+    started = time.perf_counter()
+    members = gallery.list_photos(db, view='all', sort='matches', match_min=90, set_reference=1)
+    assert members['total'] == 10
+    print(json.dumps({'set_members_seconds':round(time.perf_counter()-started,3),
+        'members':members['total'], 'returned':len(members['items'])}),flush=True)
+
+    # The full grouped gallery.
     started = time.perf_counter()
     grouped = gallery.list_photos(db, view='similar', sort='matches', match_min=90, group_sets=True)
     assert 1 < grouped['total'] < n

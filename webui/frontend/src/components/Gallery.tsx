@@ -9,7 +9,7 @@ const STATUS_BADGE: Record<string, string> = {
   Processing: "In progress", Rejected: "Rejected", Rejected_Copied: "Rejected",
 };
 
-export function Gallery({ page: shown, pageOf, refreshKey, selected, place, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold, onReviewSet, onExploreSet, keepItem, onReview, onNeedsReview }: {
+export function Gallery({ page: shown, pageOf, refreshKey, selected, place, selectable, openId, onOpen, onToggle, onToggleMany, matchThreshold, onReviewSet, keepItem, onReview, onNeedsReview }: {
   // Keep this one, reject the rest: the kept photo comes first, full size, marked
   // Keeping, with no tick box, so it cannot be rejected with the rest.
   keepItem?: PhotoItem | null;
@@ -19,7 +19,7 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
   // The page each photo came from, so scrolling can tell which page is on top.
   pageOf?: number[];
   matchThreshold?: number;
-  onReviewSet?: (id: number) => void; onExploreSet?: (id: number) => void;
+  onReviewSet?: (id: number) => void;
   refreshKey: number;
   selected: Set<number>;
   // The selection's place: a photo of the other place cannot join it (webui-spec 2).
@@ -112,11 +112,9 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
               </a>
             </div>}
             {onReview && item.review && <div className="review-card-notes"><span className="section-note">Location: {item.review.location}</span>{item.review.reasons.map(n=><p key={n.reason}>{n.reason === "small" ? <Tip text={n.message}><span>Below minimum image size</span></Tip> : `${n.label}: ${n.message}`}</p>)}<button onClick={()=>onReview(item.id)}>Inspect photo</button></div>}
-            {onExploreSet && <div className="set-card-actions">
+            {onReviewSet && <div className="set-card-actions">
               <strong>Reference set · {plural((item.similar_count ?? 0) + 1, "photo")}</strong>
-              <span className="section-note">Identical sets shown once. Explore members and related sets.</span>
-              <button onClick={() => onReviewSet?.(item.id)}>Review this set</button>
-              <button onClick={() => onExploreSet(item.id)}>Explore related sets</button>
+              <button onClick={() => onReviewSet(item.id)}>Review this set</button>
             </div>}
           </li>
         );

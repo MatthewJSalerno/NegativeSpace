@@ -650,15 +650,6 @@ export function savedMatchMinimum(): number {
   } catch { /* Storage is optional. */ }
   return 90;
 }
-type SetPhoto = Pick<PhotoItem, "id" | "filename" | "file_size" | "date_taken" | "date_source" | "date_warning" | "status">;
-export interface ReferenceSetsPage {
-  reference: SetPhoto;
-  references: (SetPhoto & { total: number })[];
-  items: (SetPhoto & { references: number[]; direct: boolean; score: number | null })[];
-  related: (SetPhoto & { total: number; additional: number })[];
-  total: number; page: number; page_size: number; related_total: number; related_page: number;
-  threshold: number; state: { pending: number; unavailable: number }; max_related: number;
-}
 
 export interface MatchCounts {
   availability: "available" | "not_available" | "hash_unavailable";
@@ -695,11 +686,6 @@ export const api = {
     request<ReviewDetail>("POST", `/api/v1/photos/${id}/review`, {
       photo_id: id, sha1: detail.sha1, revision: detail.revision, reason, action, note, request_id,
     }),
-  referenceSets: (reference: number, threshold: number, included: number[], page: number, relatedPage: number) => {
-    const query = new URLSearchParams({ threshold: String(threshold), page: String(page), related_page: String(relatedPage) });
-    included.forEach(id => query.append("include", String(id)));
-    return request<ReferenceSetsPage>("GET", `/api/v1/similar/${reference}/sets?${query}`);
-  },
   similarityRecovery: (page = 1, photoId?: number) => request<SimilarityRecoveryPage>("GET", `/api/v1/similar/recovery?page=${page}${photoId == null ? "" : `&photo_id=${photoId}`}`),
   repairSimilarity: (scope: "missing" | "comparisons", photo_id?: number) => submitJob("/api/v1/similar/recovery", { scope, ...(photo_id == null ? {} : { photo_id }) }),
   run: (id: number) => request<Run>("GET", `/api/v1/runs/${id}`),
