@@ -620,6 +620,43 @@ The catalog already holds every copy's original path, name and file time, and ea
 edit's before and after values; Library photos may need a gallery filter by original
 source folder for **Show in gallery**.
 
+**Combining evidence into a score** (agreed 2026-10-17; not built). Start from data every
+photo has: every copy's name and original path, file times, its appearance (perceptual
+hash, dimensions, format) and reference photos with a capture date. The photo's own
+metadata joins later.
+
+* **Each source gives a range,** not a point: a dated filename an exact time, a folder a
+  year or month, neighbours by name the span between their dates, the earliest file time
+  of any copy "not after", the earliest expected year (§3) "not before".
+* **Overlapping ranges narrow the answer; limits remove candidates;** disagreement is
+  reported, never averaged. Independent sources are counted once: copies of one file
+  with one name are a single source.
+* **The score is a level with its reasons**, not a percentage: **Strong** ("name sequence
+  and folder agree: early July 2019"), **Likely** (one good source, nothing against it),
+  **Weak or conflicting** (shown, never offered for bulk apply). Bulk review offers Strong
+  first.
+* **Name counters use the nearest dated photo on each side,** not a fixed window: the
+  same naming pattern, same folder first, then the folder tree, then the library. Dates
+  must rise with the counter around the photo; if they do not (two cameras share a
+  prefix, a counter wrapped past 9999), the result is weak.
+
+Combinations considered, strongest first: a look-alike with the next counter (the same
+moment); counter neighbours in one folder; a partner by name (`IMG_5521.CR2` beside
+`.jpg`) trusted only when it also looks the same; a dated filename confirmed by its
+folder; a copy's name (`IMG_5521 (1).jpg`, `Copy of`, `-edited`) leading to its original;
+look-alikes that also share the folder; neighbouring dated folders. Checks rather than
+suggestions: a name date after the earliest file time is impossible; app naming
+semantics (a screenshot or camera name is the taken time, WhatsApp's is when it was
+received, so "on or before"; Pixel names are UTC); files copied in together bound a batch
+only as "not after". A device fingerprint without metadata (dimensions, format and naming
+pattern) keeps counters from different cameras apart and bounds a photo by the dated
+span of photos sharing it.
+
+**Measure before building:** hide the capture date of photos that have one and run the
+estimator on them. How often each source and combination is right, and by how much it
+misses, sets the levels for that library; a read-only check reporting only counts and
+accuracy. The levels are not tuned to one sample library.
+
 
 **Year subdivision is a filing aid, not a capture-date claim.** Use the placed
 file's own modification year to keep Undated navigable. For byte-identical copies,
