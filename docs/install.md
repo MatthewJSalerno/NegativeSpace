@@ -91,11 +91,11 @@ zone and are used exactly as the camera recorded them.
 
 ## Network access
 
-**There is no sign-in yet.** Anyone who can open the page can use every button, including
-**Move**. Keep NegativeSpace on your own network, never forward its port to the internet,
+**NegativeSpace has no sign-in of its own,** by design: it is a single-person tool, and a
+password belongs on whatever fronts it. Anyone who can open the page can use every
+button, including **Move**. Keep NegativeSpace on your own network, never forward its port to the internet,
 and from elsewhere use a VPN or a reverse proxy that asks for a password first (such as
-Authelia, Authentik, or nginx with basic authentication). A single password is planned
-before the first release.
+Authelia, Authentik, or nginx with basic authentication).
 
 **Allowed addresses.** NegativeSpace answers only to addresses it knows. `localhost` and
 the local loopback addresses always work. To use a LAN address, hostname or reverse-proxy
