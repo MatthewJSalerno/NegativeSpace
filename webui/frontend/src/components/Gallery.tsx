@@ -83,7 +83,9 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
             </label>
             )}
             <div className="card-meta">
-              <span className="card-name" title={item.filename}>{item.filename}</span>
+              <span className="card-name" title={[...(item.name_context?.original_paths ?? [item.filename]),
+                ...(item.name_context?.renamed_on_arrival ? ["Renamed on arrival: another photo already had this name"] : [])].join("\n")}>{item.filename}</span>
+              {item.name_context?.clashes && item.name_context.folder && <span className="card-folder" title={item.name_context.original_paths.join("\n")}>{item.name_context.folder}</span>}
               <span className="card-sub">
                 {item.status !== "Failed" && <span title={isFallbackDate(item.date_source) ? "No usable capture date: this is the file's modification date" : undefined}>
                   {photoDate(item.date_taken, false)}

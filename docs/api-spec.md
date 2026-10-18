@@ -201,6 +201,16 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
      "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160},
      "matches": {"all": 1160, "organized": 0, "unorganized": 1160}}
 
+Each list item also includes `name_context: {clashes, folder, original_paths,
+renamed_on_arrival}`. `clashes` compares displayed filenames across the whole current
+filtered result before pagination, excluding identical-content copies. `folder` is the
+shortest distinguishing original-source folder suffix, or null without a clash.
+`original_paths` lists the photo's original source first, followed by its recorded exact
+copies. `renamed_on_arrival` requires a successful import record with a changed name;
+a numbered filename by itself is not evidence. These fields also accompany
+`POST /photos/selection`, using that complete explicit selection as the result scope.
+The same catalog snapshot supplies labels and photos; no filesystem access is needed.
+
 For `view=rejects`, each item's `rejected_at` is when it went to Rejects, and the response
 adds `rejects`, as in `GET /status` without `reminder`; other views
 return `rejects: null`. A file deleted from `dest/rejects` leaves the view at once: the

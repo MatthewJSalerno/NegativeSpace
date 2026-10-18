@@ -300,3 +300,19 @@ one complete Stats calculation (about 1.25 seconds of isolated backend work on t
 fixture); this is not a claim of a 1.25-second browser wall-clock improvement. Metadata
 is compact synthetic data; broad aggregate caching and representative-library tuning
 remain separate work, to be justified by further measurements.
+
+
+### Same-name card context
+
+On a generated sparse 200,000-photo catalog, a 60-item organized gallery page took
+980 ms without name context and 1,047 ms with it (warm median of three measured reads
+after one warm-up; same process and fixture). The additional 67 ms is about 7%.
+This measures query work only, without photo or network-share reads. It does not
+establish representative-library response time.
+
+The extra work is three batched queries: names matching the page within the whole
+filtered result, original paths of exact copies, and successful import history.
+The name query scans the eligible status index because displayed filenames are
+derived from source/destination paths; copy paths use the SHA-1 index, and history
+uses the photo-operation index. There is no per-card name query, persisted name
+cache, new index or schema change. Filters and labels share the list's read snapshot.

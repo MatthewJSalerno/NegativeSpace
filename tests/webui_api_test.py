@@ -94,6 +94,71 @@ class ApiCase(unittest.TestCase):
             yield
 
 
+class SameNameCards(ApiCase):
+    def test_scope_pagination_selection_and_exact_copies(self):
+        self.create_catalog()
+        with ns_db.connect(self.cfg.db_path) as conn:
+            for i, (folder, digest, status) in enumerate([
+                ('Camera/DCIM', 'a', 'Pending'), ('Phone/DCIM', 'b', 'Pending'),
+                ('Backup', 'a', 'Duplicate'), ('Elsewhere', 'c', 'Copied')], 1):
+                conn.execute("INSERT INTO photos(id,source_path,dest_path,sha1_hash,status,metadata_json) VALUES(?,?,?,?,?,?)",
+                    (i, str(self.cfg.source/folder/'same.jpg'), str(self.cfg.dest/'same.jpg'), digest, status, '{}'))
+            conn.commit()
+        def listing(**params):
+            return self.client.get('/api/v1/photos', params={'view':'unorganized','sort':'name', **params}).json()
+        first = listing(page_size=1)['items'][0]
+        second = listing(page_size=1, page=2)['items'][0]
+        self.assertTrue(first['name_context']['clashes'])
+        self.assertEqual(first['name_context']['folder'], '…/Camera/DCIM')
+        self.assertEqual(second['name_context']['folder'], '…/Phone/DCIM')
+        self.assertEqual(first['duplicates'], 1)
+        self.assertEqual(first['name_context']['original_paths'], [str(self.cfg.source/'Camera/DCIM/same.jpg'), str(self.cfg.source/'Backup/same.jpg')])
+        narrowed = listing(folder='Camera')['items'][0]
+        self.assertFalse(narrowed['name_context']['clashes'])
+        self.assertIsNone(narrowed['name_context']['folder'])
+        self.assertFalse(self.client.get('/api/v1/photos', params={'view':'organized'}).json()['items'][0]['name_context']['clashes'])
+        from webui import gallery
+        selected = gallery.photos_by_ids(self.cfg.db_path, [1,2], sort="name", page_size=1)
+        self.assertEqual(selected['items'][0]['name_context'], first['name_context'])
+        copies = gallery.photos_by_ids(self.cfg.db_path, [1,3])
+        self.assertTrue(all(not p['name_context']['clashes'] for p in copies['items']))
+        self.assertEqual(listing(q="same%_'")['items'], [])
+        self.assertEqual(first['name_context'], listing(page_size=2)['items'][0]['name_context'])
+
+    def test_unknown_hashes_unicode_and_literal_suffix_names(self):
+        self.create_catalog()
+        with ns_db.connect(self.cfg.db_path) as conn:
+            for folder in ('旅行/Day 1', 'Été/Day 1'):
+                conn.execute("INSERT INTO photos(source_path,status,metadata_json) VALUES(?,'Failed','{}')",
+                    (str(self.cfg.source/folder/'photo_1.jpg'),))
+            conn.commit()
+        rows = self.client.get('/api/v1/photos').json()['items']
+        self.assertEqual({r['name_context']['folder'] for r in rows}, {'…/旅行/Day 1', '…/Été/Day 1'})
+        self.assertTrue(all(r['name_context']['clashes'] for r in rows))
+        self.assertTrue(all(not r['name_context']['renamed_on_arrival'] for r in rows))
+
+    def test_import_collision_hover_uses_successful_history(self):
+        for folder, seed in [('one','a'),('two','b')]:
+            make_photo(self.cfg.source/folder/'arrival.jpg', seed, exif={36867:'2023:01:15 09:30:00'})
+        make_photo(self.cfg.source/'literal_1.jpg', 'c', exif={36867:'2023:01:15 09:30:00'})
+        self.create_catalog()
+        self.wait_for(self.start(mode='index'))
+        before = self.client.get('/api/v1/photos', params={'q':'arrival'}).json()['items']
+        self.assertTrue(all(p['name_context']['clashes'] for p in before))
+        self.assertTrue(all(not p['name_context']['renamed_on_arrival'] for p in before))
+        self.wait_for(self.start(mode='copy'))
+        rows = self.client.get('/api/v1/photos', params={'view':'organized'}).json()['items']
+        renamed = [p for p in rows if p['name_context']['renamed_on_arrival']]
+        self.assertEqual([p['filename'] for p in renamed], ['arrival_1.jpg'])
+        self.assertTrue(all(not p['name_context']['clashes'] for p in rows))
+        # A failed/proposed collision must never be described as a completed rename.
+        with ns_db.connect(self.cfg.db_path) as conn:
+            conn.execute("UPDATE operations SET status='Failed' WHERE photo_id=? AND status='Copied'", (renamed[0]['id'],))
+            conn.commit()
+        rows = self.client.get('/api/v1/photos', params={'view':'organized'}).json()['items']
+        self.assertTrue(all(not p['name_context']['renamed_on_arrival'] for p in rows))
+
+
 class BrowserRequestBoundary(ApiCase):
     def test_host_allowlist_guards_reads_mutations_and_websockets(self):
         from starlette.websockets import WebSocketDisconnect

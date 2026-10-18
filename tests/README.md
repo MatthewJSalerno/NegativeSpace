@@ -62,6 +62,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | `request_freshness_browser_drive.py` | PR / main / manual | — |
 | `review_browser_drive.py` | PR / main / manual | — |
 | `similar_browser_drive.py` | PR / main / manual | — |
+| `same_name_browser_drive.py` | PR / main / manual | — |
 | `source_scope_browser_drive.py` | PR / main / manual | — |
 | `stalled_job_browser_drive.py` | PR / main / manual | `STALLED_FIXTURE=1` |
 | `suspicious_dates_browser_drive.py` | PR / main / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
@@ -126,6 +127,47 @@ Pillow, imagehash and rawpy:
 ```bash
 docker build -f docker/app.Dockerfile -t negativespace .
 ```
+
+## Same-name card validation
+
+`same_name_browser_drive.py` covers whole-result labels, page boundaries, filtered
+results, arrival-rename hovers, both themes and 200% text reflow. It also checks
+review-link alignment with mixed EXIF/file dates and wrapped status badges. The API suite's
+`SameNameCards` cases also check exact copies, missing hashes, Unicode folders,
+explicit selections and failed-versus-successful transfer history.
+
+For a generated `tools/make_scenarios.py build` library, verify the fixture names and
+filing dates in the review instance before handing over these tests. The default
+seed produces two different `IMG_0001.jpg` photos in `trip-a` and `trip-b`.
+
+**Test 1 — Not organized cards**
+
+a. In Not organized, search `IMG_0001.jpg`. Both cards show their original folders,
+`…/trip-a` and `…/trip-b`, under the name.
+
+b. Hover each name: its full original path appears. Moving the pointer away does not
+move the cards or add/remove the folder line.
+
+c. Open Source folders, then enter `IMG_0001.jpg` in search again (opening Source
+folders clears the search). Expand `scenarios`, then `same-name`, using their arrows.
+Check `trip-a`: only its card remains and the extra folder line disappears. Use
+Show all above the tree to restore both photos and their folder labels.
+
+**Test 2 — Library and filtering**
+
+a. Select these two photos and Copy them. In Library, search `IMG_0001.jpg`: when their
+filing dates differ, both retain that name and their original-folder labels. Their
+hover paths still identify the source, not their date folders in the destination.
+
+b. Narrow to one photo's recorded year with Filters. With only one name remaining in
+the result, its extra folder line disappears; clearing that date filter restores it.
+
+c. Check the labels in both color modes and at 200% browser zoom. They stay on one
+supporting-text line, with the full path available on hover if space is tight.
+
+Arrival collision renames and identical-copy folding have separate automated coverage;
+do not assume these two generated photos will collide at the destination when their
+filing dates differ.
 
 ## Engine smoke suite — `engine_smoke_test.py`
 

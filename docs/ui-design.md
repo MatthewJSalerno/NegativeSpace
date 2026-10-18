@@ -351,6 +351,22 @@ the server response at desktop and narrow desktop widths, and inspect screenshot
 avoid reserving excessive blank space. `layout_stability_browser_drive.py` guards the
 shared navigation, Logs status filtering, and Library/Needs review reason toggles.
 
+Gallery cards allow dates, status badges and review text to wrap without clipping.
+Review links sit at the bottom of each card so their baselines align across a row
+when other cards have longer date labels or more badges. Use flexible space, not a
+fixed card height or a permanently reserved empty text row.
+
+### Same-named photos on cards
+
+Only cards whose names clash within the current result carry a muted line with the
+shortest distinguishing part of the original source folder, in the supporting-detail text
+role; the line is decided when results load and never appears while viewing. Hover on any
+card name shows the full original path; a collision-renamed name says why. Pattern:
+editors labelling same-named tabs with their folder
+([VS Code](https://zenn.dev/bmth/articles/vscode-tab-display-name-alias?locale=en),
+[Sublime Text](https://forum.sublimetext.com/t/tab-name-with-multiple-files-of-same-name-open/3619)).
+Behaviour: `webui-spec.md`, Telling same-named photos apart.
+
 ## Workspaces
 
 The Library is for finding photos; a **workspace** is for working on them. Deep tasks
