@@ -1831,7 +1831,7 @@ photo/review revisions are refused. Small-image eligibility is a query over deli
 content dimensions and `small_image_min` (positive integer pixels, null for off).
 Acknowledgements survive re-indexing unchanged content and rule changes. Review later
 is independently resolved by Done. Review events are included in catalog backups and
-unbacked-change accounting. Development catalogs require schema 28; no migration.
+unbacked-change accounting. Development catalogs require schema 29; no migration.
 
 
 ## 11. Explicit uncertain-outcome verification
