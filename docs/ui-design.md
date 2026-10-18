@@ -782,7 +782,8 @@ set contains B/A/C. A representative is a navigation reference, never a keeper.
 One line above the sets says what a set is: “Each card is a set: a reference photo and
 every photo that matches it. Sets can share photos.” Hovering it, focusing it or its ⓘ
 shows the shared help with a small diagram (`SetsDiagram.tsx`): the set of A holding A
-and B, the set of B holding B and C, B in both, and why sets are never joined. The same
+and B, the set of C holding B and C, B in both, and why sets are never joined. Explain
+that these are two of three sets: B's own set holds A, B and C. The same
 line says that checkboxes select only the reference photo. Cards carry no repeated
 explanation, only their set size and **Review this set**, which opens the reference and
 its direct matches in comparison; **Use as reference** there walks into a neighbouring

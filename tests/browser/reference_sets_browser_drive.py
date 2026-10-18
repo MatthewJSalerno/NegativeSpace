@@ -128,6 +128,9 @@ with sync_playwright() as p:
     note=page.get_by_role('note')
     expect(note.get_by_role('img',name='Two sets that share a photo')).to_be_visible()
     expect(note).to_contain_text("A and C don't match each other")
+    expect(note.locator('svg text.label')).to_have_text(['Set of A', 'Set of C'])
+    expect(note).to_contain_text("B's set holds all three")
+    expect(note.locator('svg desc')).to_contain_text("B's set holds A, B and C")
     shot('sets-help')
     if os.environ.get('SHOTS'):
         page.emulate_media(color_scheme='dark')

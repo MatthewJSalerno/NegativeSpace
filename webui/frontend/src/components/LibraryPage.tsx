@@ -132,8 +132,9 @@ type Focus = { kind: "selection" | "review" | "photo" | "set"; ids: number[]; re
 const NO_ACTIONS: SelectionCounts = { copy: 0, move: 0, reject: 0, return: 0 };
 
 // What a set is (webui-spec 7.4), shown with the diagram in the grouped view's help.
-const SETS_HELP = "A matches B and B matches C, but A and C don't match each other, so there are two sets "
-  + "that share B. NegativeSpace never joins sets by itself: along a chain, the photos at each end can look "
+const SETS_HELP = "A matches B and B matches C, but A and C don't match each other. The diagram shows two "
+  + "of their three sets: A's holds A and B; C's holds B and C. B's set holds all three. "
+  + "NegativeSpace never joins sets by itself: along a chain, the photos at each end can look "
   + "nothing alike. Identical sets are shown once, and a set's photos come from the whole Library, even outside "
   + "your filters.";
 
