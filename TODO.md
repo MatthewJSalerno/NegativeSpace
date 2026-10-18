@@ -17,9 +17,6 @@ details, and [project-spec.md](docs/project-spec.md) §4 the specified screens. 
 this list in the same change that adds or finishes an item. 💬 marks discussion only: no
 development until the maintainer decides.
 
-**In review**
-- Thumbnail cache panel in Settings › Performance (PR #118)
-
 **Organizing**
 - Rename and "Also arrived as" from the photo panel
 - Copy/Move preview grouped by destination folder, and a downloadable plan
