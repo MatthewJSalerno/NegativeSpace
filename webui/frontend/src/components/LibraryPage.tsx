@@ -4,7 +4,6 @@ import { StableContent } from "./ui/StableContent";
 import { ReviewWorkspace } from "./ReviewWorkspace";
 // The Library: the gallery with its views, filters and selection, the Inspector, and
 // the jobs started from it (webui-spec 2 and 4).
-import { ReferenceSets } from "./ReferenceSets";
 import { readComparison, type ComparisonState } from "../comparisonState";
 import { SimilarityRecovery } from "./SimilarityRecovery";
 import { PageBoundary } from "./ui/PageBoundary";
@@ -28,6 +27,7 @@ import { SelectMenu } from "./SelectMenu";
 import { usePaged } from "../paged";
 import { ConfirmDialog, transferConfirm, type Confirm } from "./Confirm";
 import { Tip } from "./Tip";
+import { SetsDiagram } from "./SetsDiagram";
 import { JobsMenu } from "./JobsMenu";
 import { SelectionBar, type SelectionCounts } from "./SelectionBar";
 import { RejectsLine, RejectsReminder } from "./RejectsLine";
@@ -132,6 +132,13 @@ type Focus = { kind: "selection" | "review" | "photo" | "set"; ids: number[]; re
 
 const NO_ACTIONS: SelectionCounts = { copy: 0, move: 0, reject: 0, return: 0 };
 
+// What a set is (webui-spec 7.4), shown with the diagram in the grouped view's help.
+const SETS_HELP = "A matches B and B matches C, but A and C don't match each other. The diagram shows two "
+  + "of their three sets: A's holds A and B; C's holds B and C. B's set holds all three. "
+  + "NegativeSpace never joins sets by itself: along a chain, the photos at each end can look "
+  + "nothing alike. Identical sets are shown once, and a set's photos come from the whole Library, even outside "
+  + "your filters.";
+
 export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   status: Status;
   refreshStatus: () => void;
@@ -190,7 +197,6 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [inspectorTab, setInspectorTab] = useState(initial.inspectorTab);
   const [comparison, setComparison] = useState<ComparisonState | null>(initial.comparison);
   const [groupSets, setGroupSets] = useState(initial.groupSets);
-  const [exploreReference, setExploreReference] = useState<number | null>(null);
   const reviewSet = (reference: number, candidate: number | null) => inspectorLeave.current(() => {
     setOpenId(reference); setLocate(null); setRevealId(null); setInspectorTab("similar");
     setMatchState({ photo: reference, view: { threshold: matchMin, page: 1 } });
@@ -225,7 +231,6 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const grouped = similar && similarityPlace && groupSets && !groupingUnavailable;
   // Most matches first is the similar view's; a job's photos fall back to newest.
   const browseSort: Sort = jobRun != null && sort === "matches" ? "newest" : sort;
-  useEffect(() => { if (!grouped) setExploreReference(null); }, [grouped]);
   const [focusJump, setFocusJump] = useState({ page: 1, n: 0 });
   const [focusPage, setFocusVisible] = useState(1);
   const setFocusPage = (p: number) => { setFocusJump((j) => ({ page: p, n: j.n + 1 })); setFocusVisible(p); };
@@ -423,11 +428,11 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
 
   const memberBrowse = focus?.kind === "set" ? { view: "all" as const, q: "", undated: false,
     set_reference: focus.reference!, match_min: focus.threshold!, dates: [], types: [], folders: [] } : null;
-  const setBrowse = useMemo(() => grouped && exploreReference == null ? ({ view, similar, suspicious, reason: reviewFilter, sort, match_min: galleryMinimum,
+  const setBrowse = useMemo(() => grouped ? ({ view, similar, suspicious, reason: reviewFilter, sort, match_min: galleryMinimum,
     group_sets: true, q, undated, dates, types, folders, page_size: pageSize }) : undefined,
-    [similar, suspicious, reason, grouped, exploreReference, view, sort, galleryMinimum, q, undated, dates, types, folders, pageSize, refreshKey]);
+    [similar, suspicious, reason, grouped, view, sort, galleryMinimum, q, undated, dates, types, folders, pageSize, refreshKey]);
   const showSet = (reference: number, threshold: number) => inspectorLeave.current(() => {
-    setComparison(null); setExploreReference(null); setOpenId(null); setLocate(null); setRevealId(null);
+    setComparison(null); setOpenId(null); setLocate(null); setRevealId(null);
     setFocus({ kind: "set", ids: [], reference, threshold }); setFocusPage(1);
   });
   const focused = usePaged((p) => (memberBrowse ? api.photos({ ...memberBrowse, sort, page:p, page_size:pageSize }).then(r => ({...r, missing: []}))
@@ -1197,7 +1202,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             {similar && focus?.kind !== "set" && focus?.kind !== "review" && <span className="similar-summary-controls">
               {similarityPlace && <label className="checkbox-row" title={groupingUnavailable ?? undefined}><input type="checkbox" checked={grouped} disabled={!!groupingUnavailable}
                 aria-describedby={hasAdditionalFilters && !focus ? "gallery-guidance" : undefined}
-                onChange={e => { setGroupSets(e.target.checked); setPage(1); savePreference("ns.groupSets", String(e.target.checked)); setExploreReference(null); }} />Group similar photos</label>}
+                onChange={e => { setGroupSets(e.target.checked); setPage(1); savePreference("ns.groupSets", String(e.target.checked)); }} />Group similar photos</label>}
               <label className="gallery-match-threshold">Matches at or above
                 <select aria-label="Gallery match threshold" value={matchMin} disabled={!!focus}
                         onChange={e => { chooseMatchMinimum(Number(e.target.value)); }}>
@@ -1222,7 +1227,9 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
            attention: <p className="section-note">These source files have an issue that prevents organizing them. Open a file for the specific reason.</p>,
            "attention-undated": <p className="section-note">These photos have no usable filing date and cannot be organized yet. Open a photo to see why. The same issue may explain both.</p>,
            dates: <p className="section-note">Date review: before {data?.date_min_year ?? "your earliest expected year"} or more than one year ahead. Dates are unchanged. <button className="link" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>,
-           groups: <p className="section-note">Identical sets appear once; partially overlapping sets remain separate. Set members come from the full destination library. Checkboxes select only the reference photo. Turn grouping off to see every photo.</p>,
+           groups: <p className="section-note"><Tip wide text={SETS_HELP} content={<><SetsDiagram /><span>{SETS_HELP}</span></>}>
+             <span>Each card is a set: a reference photo and every photo that matches it. Sets can share photos.</span></Tip>
+             {" "}Checkboxes select only the reference photo; turn grouping off to select the others.</p>,
            filtered: <p className="section-note">Showing every photo that matches all active filters. Clear the other filters to group similar photos.</p>,
            "filtered-dates": <p className="section-note">Showing every photo that matches all active filters. Clear the other filters to group similar photos. Date review: before {data?.date_min_year ?? "your earliest expected year"} or more than one year ahead. Dates are unchanged. <button className="link" onClick={() => window.dispatchEvent(new Event("ns-review-settings"))}>Change in Settings</button></p>,
          }} />}
@@ -1275,7 +1282,6 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                        keepItem={keepId != null ? keptItem : null}
                        onOpen={openFromGallery} onToggle={toggle} onToggleMany={toggleMany}
                        onReviewSet={grouped ? id => reviewSet(id, null) : undefined}
-                       onExploreSet={grouped ? setExploreReference : undefined}
                        matchThreshold={focus?.kind === "set" ? focus.threshold : focus?.kind === "review" ? undefined : focus ? galleryMinimum : data?.similarity?.threshold} />
               {list.last < pages
                 ? <PageBoundary ref={bottomSentinel} pending={list.pending.has(list.last + 1)} error={list.failures.get(list.last + 1)} onLoad={() => list.load(list.last + 1, true)} />
@@ -1297,7 +1303,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
                    if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() + 40); }
                    if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); setWidth(currentWidth() - 40); }
                  }} />
-            <Inspector leaveGuard={inspectorLeave} enlarged={expandedInspector} setEnlarged={setExpandedInspector} sourceView={view === "source"} onReviewPhoto={() => setReviewPhoto(openId!)} setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} coveredByDialog={exploreReference != null && similar && !focus} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} statusHint={flat.items.find(item => item.id === openId)?.status} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
+            <Inspector leaveGuard={inspectorLeave} enlarged={expandedInspector} setEnlarged={setExpandedInspector} sourceView={view === "source"} onReviewPhoto={() => setReviewPhoto(openId!)} setBrowse={setBrowse} onOpenSet={reviewSet} onShowSet={showSet} key={`${openId}:${comparisonNavigation}`} comparison={comparison?.origin === openId ? comparison : null} onComparison={setComparison} refreshKey={refreshKey} id={openId} statusHint={flat.items.find(item => item.id === openId)?.status} width={effectivePanelWidth} onClose={() => { setOpenId(null); setLocate(null); setRevealId(null); }} onStep={step}
                        onOpenPhoto={openAndLocate} jobRunning={jobRunning} matchView={matchView} tab={inspectorTab}
                        onReject={(name) => askTransfer("reject", [openId], undefined, name)} onReturn={() => askTransfer("return", [openId])}
                        onRejectMatch={(id, name) => askTransfer("reject", [id], undefined, name)} onKeep={(keep, name, threshold) => void keepAndReview(keep, name, threshold)}
@@ -1310,9 +1316,6 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
         )}
       </main>
 
-      {exploreReference != null && similar && !focus && <ReferenceSets key={exploreReference}
-        reference={exploreReference} threshold={matchMin} refreshKey={refreshKey} suspended={comparison != null}
-        onShowSet={showSet} onThreshold={chooseMatchMinimum} onClose={() => setExploreReference(null)} onReview={reviewSet} />}
       {reviewPhoto != null && <ReviewWorkspace initialPhoto={reviewPhoto} filters={{ view: browseView, q, undated, dates, types, folders, similar, suspicious, reason: reviewFilter, match_min: matchMin }} sort={browseSort} status={status}
         onBack={() => {
           setReviewPhoto(null); setRefreshKey(n => n + 1);

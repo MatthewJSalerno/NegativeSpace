@@ -5,7 +5,7 @@ import shutil
 from unittest import mock
 import unittest
 
-from engine import metadata_command, metadata_decisions, metadata_edits, metadata_duplicates, metadata_embedded, metadata_photo_save, metadata_save, ns_db
+from engine import fileinfo, metadata_command, metadata_decisions, metadata_edits, metadata_duplicates, metadata_embedded, metadata_photo_save, metadata_save, ns_db
 import metadata_photo_save_test
 
 
@@ -15,11 +15,11 @@ class ExactEdits(unittest.TestCase):
     conn=metadata_photo_save_test.PhotoSaves.conn
     setup_catalog=metadata_photo_save_test.PhotoSaves.setup_catalog
 
-    def pair(self, primary=True, sidecar=False, survivor_sidecar=False):
+    def pair(self, primary=True, sidecar=False, survivor_sidecar=False, changes=None):
         self.setup_catalog(sidecar=sidecar)
         root=self.root/'dest'
         result=metadata_embedded.stage(root,self.dest.relative_to(root).as_posix(),'other.jpg',
-            expected_sha1=self.sha,kind='embedded_exif',changes={'title':'Same'})
+            expected_sha1=self.sha,kind='embedded_exif',changes=changes or {'title':'Same'})
         self.other_source=self.photo.with_name('survivor.jpg')
         shutil.move(root/'other.jpg',self.other_source)
         if survivor_sidecar:
@@ -41,8 +41,8 @@ class ExactEdits(unittest.TestCase):
         self.other=Path(self.c.execute('SELECT dest_path FROM photos WHERE id=?',(self.other_id,)).fetchone()[0])
         self.capture=self.c.execute('SELECT MAX(m.capture_id) FROM metadata_captures m JOIN photo_files pf ON pf.file_id=m.file_id WHERE pf.photo_id=?',(self.pid,)).fetchone()[0]
 
-    def plan(self):
-        return metadata_command.previews(self.db,self.root/'dest',{'edits':[dict(photo_id=self.pid,capture_id=self.capture,changes={'title':'Same'})]})['previews'][0]
+    def plan(self, changes=None):
+        return metadata_command.previews(self.db,self.root/'dest',{'edits':[dict(photo_id=self.pid,capture_id=self.capture,changes=changes or {'title':'Same'})]})['previews'][0]
 
     def prepare(self,plan=None):
         plan=plan or self.plan()
@@ -70,6 +70,22 @@ class ExactEdits(unittest.TestCase):
         self.assertIn((self.other_id,),visible)
         self.assertTrue(metadata_save._event(self.c,op,'metadata_consolidated'))
         self.assertEqual(metadata_save.execute(self.c,op)['outcome'],'already_finished')
+
+    def test_rotation_consolidation_retains_refreshed_hash_and_original_history(self):
+        metadata_photo_save_test.PhotoSaves.patterned_photo(self)
+        self.pair(changes={'orientation':6})
+        before=fileinfo.compute_phash(str(self.dest))
+        after=fileinfo.compute_phash(str(self.other))
+        self.assertNotEqual(before,after)
+        op=self.prepare(self.plan(changes={'orientation':6}))
+        result=metadata_save.execute(self.c,op)
+        self.assertEqual(result['outcome'],'completed',result)
+        self.assertFalse(self.dest.exists());self.assert_preserved()
+        for pid in (self.pid,self.other_id):
+            self.assertEqual(self.c.execute('SELECT phash FROM photos WHERE id=?',(pid,)).fetchone()[0],after)
+        self.assertEqual(metadata_save._event(self.c,op,'metadata_saved')['phash'],after)
+        self.assertEqual(self.c.execute('SELECT phash FROM contents WHERE digest=?',(self.digest,)).fetchone()[0],after)
+        self.assertEqual(self.c.execute('SELECT phash FROM contents WHERE digest=?',(self.sha,)).fetchone()[0],before)
 
     def test_unconfirmed_engine_caller_cannot_create_duplicate(self):
         self.pair()

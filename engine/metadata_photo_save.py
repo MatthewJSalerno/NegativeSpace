@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import uuid
 
-from engine import (constants, durable, metadata_capture, metadata_duplicates, metadata_embedded, metadata_relocate,
+from engine import (constants, durable, fileinfo, metadata_capture, metadata_duplicates, metadata_embedded, metadata_relocate,
                     metadata_save, metadata_transfer, ns_db, relocate, thumbnails)
 
 
@@ -183,8 +183,9 @@ def _record_saved(conn, op, pid, m, output):
             mtime=conn.execute('SELECT file_mtime FROM source_snapshots WHERE file_id=?',(m['file_id'],)).fetchone()[0]
             metadata.update(date_taken=datetime.fromtimestamp(mtime).isoformat(),date_source=constants.DATE_SOURCE_MTIME)
     info=Path(m['photo']).stat()
-    phash=conn.execute('SELECT phash FROM photos WHERE id=?',(pid,)).fetchone()[0]
-    # JPEG hashing uses stored pixels, which the writer verified unchanged.
+    # Hash the verified published photo, including its displayed orientation.
+    # Unchanged stored pixels do not imply an unchanged visual hash after EXIF edits.
+    phash=fileinfo.compute_phash(m['photo'])
     width,height=output['width'],output['height']
     exif=metadata_capture.interpret(output['tags_after'])['sources'].get('exif',{})
     if exif.get('fields',{}).get('orientation') in (5,6,7,8):width,height=height,width
@@ -220,8 +221,8 @@ def _record_saved(conn, op, pid, m, output):
         before=ns_db.content_for_digest(conn,digest=m['sha1'])
         after=ns_db.content_for_digest(conn,digest=output['after_sha1'],phash=phash,
             phash_state='ok' if phash not in (None,'','error','not_supported') else 'error',width=width,height=height)
-        conn.execute('UPDATE photos SET sha1_hash=?,metadata_json=?,file_size=?,file_mtime=? WHERE id=?',
-            (output['after_sha1'],json.dumps(metadata),info.st_size,info.st_mtime,pid))
+        conn.execute('UPDATE photos SET sha1_hash=?,metadata_json=?,file_size=?,file_mtime=?,phash=? WHERE id=?',
+            (output['after_sha1'],json.dumps(metadata),info.st_size,info.st_mtime,phash,pid))
         conn.execute('UPDATE file_states SET sha1_hash=?,revision=revision+1 WHERE file_id=?',
             (output['after_sha1'],m['retained_id']))
         # Old duplicate pointers no longer prove equality to this edited file.

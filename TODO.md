@@ -10,6 +10,86 @@ duplicate open entries. Before every merge, reconcile component specs, this back
 validation notes and the private handoff against what is built and what remains pending.
 Do not leave finished work unchecked or count it again.
 
+## Punch list
+
+Everything still open, one line each, to scan at a glance; the sections below hold the
+details, and [project-spec.md](docs/project-spec.md) §4 the specified screens. Change
+this list in the same change that adds or finishes an item. 💬 marks discussion only: no
+development until the maintainer decides.
+
+**Organizing**
+- Rename and "Also arrived as" from the photo panel
+- Copy/Move preview grouped by destination folder, and a downloadable plan
+- "A job is already running" just after a job finishes
+- Last-scanned time for each source folder
+- Not organized filters: small images, identical copies, processing errors
+- Not organized: sidecar and version decisions ("Which photo is this sidecar for?")
+- Telling apart two different photos with the same name on their cards
+
+**Review**
+- Answer many photos at once within one reason
+- Suspicious dates in the review queue, with "this date is correct"
+- "Looks like a reject"
+- "No capture date": suggested dates from the name, folder or a look-alike
+- Record in history when a review reason clears itself
+- Review history speed with many decisions
+
+**Similar photos**
+- Merge the two "Reject?" dialogs into one (decided)
+- 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
+- [x] Rotated matches: compare photos as displayed
+- 💬 Low-detail photos matching unrelated images at high percentages
+- Large-library measurement (250,000 and 500,000 photos)
+- 💬 Local AI image embeddings for look-alikes, crops included (the maintainer is reading up first)
+
+**Metadata**
+- Choose an organized photo's primary metadata source
+- Notices for metadata choices, and their queue in Not organized
+- Saved rotation (Rotate…)
+- Notice for Google Takeout and Flickr export sidecars
+- Motion-photo editing, qualified separately
+- RAW, TIFF/HEIC and extended-XMP fixtures for the metadata scenario builder
+- Malformed or conflicting capture dates in date review
+- Deferred: bulk and cross-photo date editing
+- 💬 Legacy IPTC precedence and additional RDF mappings
+- 💬 Metadata-independent image hashing and content-based duplicate consolidation (deferred)
+- 💬 Sidecars edited between Index and Copy or Move
+- 💬 Similar photos and metadata together
+
+**Checking and maintenance**
+- Destination check on screen, then a broader inventory and repair
+- Unbacked-changes line on every page, and Retry backup
+- Index summary by file type
+- Import summary, and a filter for files that could not be previewed
+- Resolving files that cannot be read
+- Stats: dates chart on its own row
+- Every warning offers a way out
+- Filter counts: distinguish zero, unavailable and incompatible
+- Re-audit durability claims whenever a write path changes
+- The `dest/raw-originals` folder
+- Spacing and alignment pass; refresh the user-guide screenshots
+
+**Before the first release**
+- One sign-in password
+- Decide on catalog migration
+- Review every message the user sees
+- Version 1.0.0 and the changelog
+- State the minimum Linux and Docker versions
+- Test power-loss behaviour on real hardware
+
+**Later**
+- Reports (checksum lists)
+- Videos and other non-photo files
+
+**💬 Waiting on the maintainer**
+- Repairing a rearranged library without losing lineage
+- Needs review: a separate place or a Library filter
+- A SHA-1 content-history link
+- Discovering filters across places
+- Full-screen preview clutter; copying all metadata; source folders handled behind the scenes;
+  "Open in the log" wording
+- Visual check of where Clear all filters sits
+
 ## Uncertain file outcomes
 
 - [x] Shared warning/evidence and Check it now in photo information and Logs; active
@@ -55,7 +135,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
   (`Confirm.tsx`) and the comparison's own (`RejectConfirm.tsx`) become a single dialog,
   with "Don't ask again while comparing" and the last-photo warning appearing only where
   they apply. Every later reject question uses it.
-- [ ] **Remove Explore reference sets** (decided 2026-10-05), leaving no trace: the window
+- [x] **Remove Explore reference sets** (decided 2026-10-05), leaving no trace: the window
   (`ReferenceSets.tsx`), the Explore related sets button on set cards, its API route
   (`/similar/{id}/sets`), its tests and its spec and API-spec text. The comparison covers it:
   ‹ › steps through a photo's look-alikes and **Use as reference** walks into a neighbouring
@@ -111,7 +191,9 @@ Found 2026-10-05 looking for screens that do the same job twice.
   Copy/Move and Library matching. Missing EXIF/hash-only/cache-write failures do not
   block readable images. External repair plus Index reassesses failed sources.
 - [ ] Discuss a SHA-1 content-history link, first comparing it with existing photo
-  history/lineage to avoid redundant navigation. No pHash history link planned.
+  history/lineage to avoid redundant navigation. No pHash history link planned. A concrete
+  use: since the hash is taken as displayed, a photo NegativeSpace rotates no longer looks
+  like its unrotated original; content history is how a returning original is recognised.
 
 - [x] Stable filter guidance and navigation: shared guidance sizing for Logs/gallery/
   review reasons; fixed Logs position when Jobs is absent; stable status shortcuts,
@@ -214,16 +296,34 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 - [ ] Selected-photo gallery discoverability and grouped-set behavior. Show only
   selected already exists; discuss before adding another control.
-- [ ] Broader relationships between overlapping sets beyond the current explicit
-  one-hop exploration. Do not infer transitive matches.
-- [ ] Assess finding rotated matches that the current pHash search misses. Rotating a
-  preview helps a person compare but does not change retrieval or scores.
+- [x] Overlapping sets (decided 2026-10-17): no view of neighbouring sets together; **Use as
+  reference** in the comparison walks from one set to the next, and one line above the sets
+  explains them with a diagram. Skipped option, if neighbouring sets are missed on a real
+  library: a line in a photo's Similar photos tab (`docs/ui-design.md`, Reference-based sets).
+  Never infer transitive matches.
+- [x] Rotated matches assessed (`docs/engine-spec.md` §9.3): pHash is taken from the photo
+  as displayed, which matches a portrait RAW to its own JPEG and copies stored turned with
+  an orientation tag. Searching every rotation as well was measured and declined: on the
+  demo library its new matches were two different, mostly black photos.
+- [ ] Assess low-detail photos (mostly black or flat), which match unrelated photos at high
+  percentages today: whether to mark them unreliable for matching. Discussion first.
 - [ ] Follow the [large-library measurement plan](docs/large-library-performance.md):
   query performance at 250k/500k, dense and overlapping sets, memory, invalidated caches
   and response times. Repeat A/B runs before claiming supported capacity. Original-file
   processing, comparison build costs and long-session browser work remain separate;
   filesystem latency is not benchmarked. The 75% floor is the chosen range. Measure a
   concrete bottleneck before proposing another database.
+- [ ] **Discussion only; the maintainer is reading up first: local AI image embeddings.**
+  pHash cannot match a cropped copy. A CLIP-style model run locally (OpenCLIP, SigLIP)
+  turns each photo into a vector at Index; near vectors find look-alikes, crops and edits
+  included, and text search comes with it. Costs: a model of roughly 150-600 MB in the
+  image, a fraction of a second per photo on a CPU, and a vector index. It measures what a
+  picture shows, not whether it is the same photo, so "duplicate" needs a strict threshold.
+  Immich, which reads `library/`, already runs one for smart search and duplicate
+  detection; the case for it here is catching look-alikes before files are organized.
+  Cheaper ways to match crops were considered and not pursued: hashing fixed sub-regions
+  (catches only crops near those sizes, adds wrong matches) and local feature matching
+  such as ORB/SIFT (slow pairwise comparison, a new library).
 
 ## Dates and metadata
 
@@ -524,7 +624,7 @@ Saved orientation stays a separate action from temporary preview rotation.
 
 ## Stats
 
-- [ ] The thumbnail cache panel in Settings › Performance (Free up previews, Repair grid
+- [x] The thumbnail cache panel in Settings › Performance (Free up previews, Repair grid
   thumbnails, Rebuild all), with API routes for the existing engine jobs, and a Manage
   thumbnails link from Stats (`docs/webui-spec.md` §4.2.1).
 - [ ] The Dates chart on its own full-width row, with suspicious years set apart at each

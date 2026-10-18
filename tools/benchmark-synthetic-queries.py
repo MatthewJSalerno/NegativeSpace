@@ -20,10 +20,10 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from engine import ns_db
 from engine import ns_similarity_cache
-from webui import gallery, matching, reference_sets
+from webui import gallery, matching
 
 PROFILES = ('sparse', 'equal', 'dense', 'mixed')
-SCENARIOS = ('gallery', 'grouped', 'last_page', 'filtered', 'inspector', 'related', 'members', 'position')
+SCENARIOS = ('gallery', 'grouped', 'last_page', 'filtered', 'inspector', 'members', 'position')
 
 
 def fingerprint(path):
@@ -126,12 +126,6 @@ def query(db, scenario, threshold):
         return gallery.list_photos(db, **args, group_sets=True, types=['jpg'], dates=['2020'])
     if scenario == 'inspector':
         return {'counts':matching.counts(db,1),'matches':matching.matches(db,1,threshold=threshold,page_size=12)}
-    if scenario == 'related':
-        # Time discovery plus one expansion; at 100% a distinct-hash reference
-        # may have no related references at all.
-        first = reference_sets.browse(db,1,threshold=threshold,page_size=12)
-        include = [first['related'][0]['id']] if first['related'] else []
-        return reference_sets.browse(db,1,threshold=threshold,include=include,page_size=12)
     if scenario == 'members':
         return gallery.list_photos(db, **{**args,'view':'all'}, set_reference=1)
     if scenario == 'position':

@@ -74,8 +74,6 @@ def main():
     workloads = {
         'inspector_counts':lambda:benchmark.matching.counts(db,1),
         'inspector_candidates':lambda:benchmark.matching.matches(db,1,threshold=90,page_size=12),
-        'related_root':lambda:benchmark.reference_sets.browse(db,1,threshold=90,page_size=12),
-        'related_expansion':lambda:benchmark.reference_sets.browse(db,1,threshold=90,include=[2],page_size=12),
     }
     with args.output.open('x') as output:
         report = {'fixture':manifest,'workloads':{}}

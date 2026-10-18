@@ -454,6 +454,14 @@ export interface BackupAttempt {
   availability: "present" | "missing" | "unknown" | "pruned" | null;
 }
 
+// The thumbnail cache by kind (webui-spec 4.2.1), from the sizes the engine records.
+export interface ThumbnailCache {
+  grid: { photos: number; bytes: number };
+  previews: { photos: number; bytes: number };
+  job_active: boolean;
+}
+export interface PreviewsFreed { removed: number; bytes_freed: number; not_removed: number }
+
 export interface Backups {
   items: BackupAttempt[];
   storage: { ok: boolean; error_category: string | null; error_detail: string | null };
@@ -690,15 +698,6 @@ export function savedMatchMinimum(): number {
   } catch { /* Storage is optional. */ }
   return 90;
 }
-type SetPhoto = Pick<PhotoItem, "id" | "filename" | "file_size" | "date_taken" | "date_source" | "date_warning" | "status">;
-export interface ReferenceSetsPage {
-  reference: SetPhoto;
-  references: (SetPhoto & { total: number })[];
-  items: (SetPhoto & { references: number[]; direct: boolean; score: number | null })[];
-  related: (SetPhoto & { total: number; additional: number })[];
-  total: number; page: number; page_size: number; related_total: number; related_page: number;
-  threshold: number; state: { pending: number; unavailable: number }; max_related: number;
-}
 
 export interface MatchCounts {
   availability: "available" | "not_available" | "hash_unavailable";
@@ -735,11 +734,6 @@ export const api = {
     request<ReviewDetail>("POST", `/api/v1/photos/${id}/review`, {
       photo_id: id, sha1: detail.sha1, revision: detail.revision, reason, action, note, request_id,
     }),
-  referenceSets: (reference: number, threshold: number, included: number[], page: number, relatedPage: number) => {
-    const query = new URLSearchParams({ threshold: String(threshold), page: String(page), related_page: String(relatedPage) });
-    included.forEach(id => query.append("include", String(id)));
-    return request<ReferenceSetsPage>("GET", `/api/v1/similar/${reference}/sets?${query}`);
-  },
   similarityRecovery: (page = 1, photoId?: number) => request<SimilarityRecoveryPage>("GET", `/api/v1/similar/recovery?page=${page}${photoId == null ? "" : `&photo_id=${photoId}`}`),
   repairSimilarity: (scope: "missing" | "comparisons", photo_id?: number) => submitJob("/api/v1/similar/recovery", { scope, ...(photo_id == null ? {} : { photo_id }) }),
   run: (id: number) => request<Run>("GET", `/api/v1/runs/${id}`),
@@ -801,6 +795,9 @@ export const api = {
   backups: () => request<Backups>("GET", "/api/v1/backups"),
   backupNow: () => request<BackupAttempt>("POST", "/api/v1/backups"),
   backupDownloadUrl: (id: number) => `/api/v1/backups/${id}/download`,
+  thumbnails: () => request<ThumbnailCache>("GET", "/api/v1/thumbnails"),
+  rebuildThumbnails: (scope: "missing" | "all") => submitJob("/api/v1/thumbnails/rebuild", { scope }),
+  clearPreviews: () => request<PreviewsFreed>("POST", "/api/v1/thumbnails/clear-previews"),
   stats: () => request<Stats>("GET", "/api/v1/stats"),
   uiState: () => request<{ dismissed_run: number | null }>("GET", "/api/v1/ui-state"),
   saveUiState: (values: { dismissed_run: number }) => request<{ dismissed_run: number | null }>("PUT", "/api/v1/ui-state", values),

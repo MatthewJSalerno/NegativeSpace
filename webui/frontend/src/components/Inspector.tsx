@@ -40,7 +40,7 @@ const IN_REJECTS = ["Rejected", "Rejected_Copied"];
 // When the panel is dragged wide, the details move to the right of the photo
 // and the inner divider adjusts their share of space. Enlarging uses this same
 // two-pane Inspector in a modal; Esc or the close button returns to the gallery.
-export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, sourceView = false, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, coveredByDialog = false, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice, onReviewPhoto }: SetActions & {
+export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, sourceView = false, width, onClose, onStep, onOpenPhoto, jobRunning, refreshKey, matchView, onMatchView, tab, onTab, comparison, onComparison, setBrowse, onOpenSet, onShowSet, onReject, onReturn, onRejectMatch, onKeep, onNotice, onReviewPhoto }: SetActions & {
   // Reject this photo, or return it from Rejects; each asks first.
   onReject?: (filename: string) => void;
   onReturn?: () => void;
@@ -49,7 +49,6 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
   onRejectMatch?: (id: number, filename: string) => void;
   onKeep?: (keep: number, name: string, threshold: number) => void;
   onNotice?: (text: string, actions: { label: string; run: () => void }[], photo?: number) => void;
-  coveredByDialog?: boolean;
   comparison: ComparisonState | null;
   onComparison: (state: ComparisonState | null) => void;
   leaveGuard: { current: (action: () => void) => void };
@@ -333,7 +332,7 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
     {dateEdit && <DateEditor photoId={dateEdit.photoId} donor={dateEdit.donor} onClose={() => setDateEdit(null)} onSaved={() => window.dispatchEvent(new Event("ns-review-changed"))} />}
     {enlarged && !narrow && <div className="inspector-placeholder" aria-hidden="true" style={width ? { flexBasis: `${width}px` } : undefined} />}
     {enlarged ? <Modal className="lightbox" label={`Enlarged: ${detail?.filename ?? ""}`} onClose={() => setEnlarged(false)}>{body}</Modal>
-      : narrow && comparison == null && !coveredByDialog ? <Modal deferWhileCovered className="mobile-inspector" label="Photo details" onClose={close}>{body}</Modal> : body}
+      : narrow && comparison == null ? <Modal deferWhileCovered className="mobile-inspector" label="Photo details" onClose={close}>{body}</Modal> : body}
     {canCompare && comparison != null && <MatchReviewDialog reference={id} candidate={candidate} jobRunning={jobRunning} onNotice={onNotice} onKeep={onKeep}
       workspace={comparison} onWorkspace={onComparison} setBrowse={setBrowse} onOpenSet={onOpenSet} onShowSet={onShowSet}
       initialView={matchView ?? { threshold: 90, page: 1 }} onView={onMatchView}

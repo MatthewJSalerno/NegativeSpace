@@ -310,8 +310,6 @@ Specified but not yet on screen:
 *   Each folder's last-scanned time in the Folders tree.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
-*   The thumbnail cache panel in Settings › Performance: free detail previews, repair or
-    rebuild grid thumbnails (the engine jobs exist; `webui-spec.md` §4.2.1).
 *   The Index file-type summary (files found, eligible and excluded by type), which the
     engine records per full Index (`webui-spec.md` §5.1).
 *   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built),
@@ -330,7 +328,7 @@ Specified but not yet on screen:
 ### The catalog
 
 One engine-owned SQLite database holds the catalog, settings and operation history,
-at schema version 28; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
+at schema version 29; an older catalog is refused, not upgraded (`engine-spec.md` §6.5).
 It stores immutable
 source Index evidence and per-run settings, and records destination lineage: a Copy
 creates a new identity tied to its source's origin, a completed Move keeps its

@@ -8,9 +8,11 @@ import sys
 import unittest
 from unittest import mock
 
+from PIL import Image, ImageDraw
+
 import metadata_index_test
-from engine import (constants, durable, metadata_decisions, metadata_edits, metadata_photo_save,
-                    metadata_save, ns_db, relocate, runtime, thumbnails)
+from engine import (constants, durable, fileinfo, metadata_command, metadata_decisions, metadata_edits, metadata_photo_save,
+                    metadata_save, ns_db, ns_similarity, ns_similarity_cache, relocate, runtime, thumbnails)
 
 
 class PhotoSaves(unittest.TestCase):
@@ -67,6 +69,122 @@ class PhotoSaves(unittest.TestCase):
         self.assertTrue(thumbnails.thumbnail_cache_path(self.root/'cache',sha).exists())
         self.assertEqual(thumbnails.preview_for_photo(self.db,self.root/'cache',self.pid)['availability'],'present')
         self.assertEqual(metadata_save.execute(self.c,op)['outcome'],'already_finished')
+
+    def patterned_photo(self):
+        # Preserve the fixture's metadata while making rotations visibly different.
+        with Image.open(self.photo) as original:
+            exif, xmp = original.getexif(), original.info.get('xmp', b'')
+        image = Image.new('RGB', (300, 200), (30, 60, 90))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((20, 20, 140, 90), fill=(240, 220, 40))
+        draw.ellipse((180, 110, 280, 190), fill=(200, 30, 30))
+        draw.line((0, 199, 299, 120), fill='white', width=9)
+        image.save(self.photo, quality=92, exif=exif, xmp=xmp)
+
+    def assert_saved_hash(self, op):
+        sha, path, *_ = self.current()
+        actual = fileinfo.compute_phash(path)
+        self.assertTrue(ns_similarity.usable(actual))
+        self.assertEqual(self.c.execute('SELECT phash FROM photos WHERE id=?', (self.pid,)).fetchone()[0], actual)
+        self.assertEqual(self.c.execute('SELECT phash,phash_state FROM contents WHERE digest=?', (sha,)).fetchone(), (actual, 'ok'))
+        self.assertEqual(metadata_save._event(self.c, op, 'metadata_saved')['phash'], actual)
+        self.assertEqual(self.photo.read_bytes(), self.original)
+        return actual
+
+    def test_orientation_save_rehashes_photo_content_and_history(self):
+        self.patterned_photo(); self.setup_catalog()
+        before = fileinfo.compute_phash(str(self.dest))
+        ns_similarity_cache.refresh(self.c)
+        self.assertEqual(self.c.execute('SELECT dirty FROM similarity_count_state').fetchone()[0], 0)
+        op = self.prepare({'orientation': 6})
+        self.execute(op)
+        after = self.assert_saved_hash(op)
+        self.assertNotEqual(after, before)
+        self.assertEqual(self.c.execute('SELECT phash FROM contents WHERE digest=?', (self.sha,)).fetchone()[0], before)
+        self.assertEqual(self.c.execute('SELECT dirty FROM similarity_count_state').fetchone()[0], 1)
+        self.assertEqual(ns_similarity_cache.live_comparison_state(self.c), {'unavailable': 0, 'pending': 1})
+        self.run_engine('--force-rehash')
+        self.assertEqual(self.assert_saved_hash(op), after)
+
+    def test_interrupted_orientation_save_rehashes_on_retry_without_rewriting(self):
+        self.patterned_photo(); self.setup_catalog()
+        before = fileinfo.compute_phash(str(self.dest))
+        op = self.prepare({'orientation': 6})
+        with mock.patch.object(metadata_photo_save, '_record_saved', side_effect=SystemExit('fixture interruption')):
+            with self.assertRaises(SystemExit): metadata_save.execute(self.c, op)
+        edited = self.dest.read_bytes()
+        self.assertNotEqual(fileinfo.compute_phash(str(self.dest)), before)
+        with mock.patch.object(metadata_photo_save.metadata_embedded, 'stage', side_effect=AssertionError('must not rewrite')):
+            self.execute(op)
+        self.assertNotEqual(self.assert_saved_hash(op), before)
+        self.assertEqual(self.dest.read_bytes(), edited)
+        self.assertEqual(self.c.execute('SELECT COUNT(*) FROM file_changes').fetchone()[0], 1)
+        self.assertEqual(metadata_save.execute(self.c, op)['outcome'], 'already_finished')
+
+    def test_embedded_date_edits_rehash_without_changing_visual_identity(self):
+        self.patterned_photo(); self.setup_catalog(primary='embedded_xmp')
+        before = fileinfo.compute_phash(str(self.dest))
+        op = self.prepare({'date_taken': '2015-06-07T01:02:03'})
+        with mock.patch.object(fileinfo, 'compute_phash', wraps=fileinfo.compute_phash) as hashing:
+            self.execute(op)
+        self.assertIn(mock.call(str(self.dest)), hashing.call_args_list)
+        self.assertNotEqual(self.current()[0], self.sha)
+        self.assertEqual(self.assert_saved_hash(op), before)
+
+    def test_hash_failure_never_reuses_old_visual_identity(self):
+        self.patterned_photo(); self.setup_catalog()
+        op = self.prepare({'orientation': 6})
+        with mock.patch.object(fileinfo, 'compute_phash', return_value='error'):
+            self.execute(op)
+        sha = self.current()[0]
+        self.assertEqual(self.c.execute('SELECT phash FROM photos WHERE id=?', (self.pid,)).fetchone()[0], 'error')
+        self.assertEqual(self.c.execute('SELECT phash_state FROM contents WHERE digest=?', (sha,)).fetchone()[0], 'error')
+        self.assertEqual(ns_similarity_cache.live_comparison_state(self.c), {'unavailable': 1, 'pending': 0})
+        self.assertEqual(self.photo.read_bytes(), self.original)
+
+    def test_cli_apply_and_retry_finish_new_hash_comparisons(self):
+        self.patterned_photo(); self.setup_catalog()
+        args = [sys.executable, '-m', 'engine', '--base', str(self.root/'base'),
+                '--dest', str(self.root/'dest'), '--cache', str(self.root/'cache'),
+                '--backups', str(self.root/'backups')]
+        edit = {'photo_id': self.pid, 'capture_id': self.capture, 'changes': {'orientation': 6}}
+        edit['token'] = metadata_command.previews(self.db, self.root/'dest', {'edits': [edit]})['previews'][0]['token']
+        for action in ('apply', 'retry'):
+            with self.subTest(action=action):
+                if action == 'apply':
+                    request = {'edits': [edit]}
+                else:
+                    op = self.prepare({'orientation': 8})
+                    with mock.patch.object(metadata_photo_save, '_record_saved', side_effect=SystemExit('fixture interruption')):
+                        with self.assertRaises(SystemExit): metadata_save.execute(self.c, op)
+                    request = {'operation_ids': [op]}
+                result = subprocess.run(args + ['--metadata', action, '--request-id', 'hash-' + action], input=json.dumps(request),
+                                        text=True, capture_output=True, timeout=90)
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                outcome = json.loads(result.stdout)['outcomes'][0]
+                self.assertEqual(outcome['outcome'], 'completed', outcome)
+                actual = self.assert_saved_hash(outcome['operation_id'])
+                self.assertIsNotNone(self.c.execute('SELECT 1 FROM similarity_hashes WHERE phash=?', (actual,)).fetchone())
+                self.assertEqual(ns_similarity_cache.live_comparison_state(self.c), {'unavailable': 0, 'pending': 0})
+                self.assertEqual(self.c.execute('SELECT dirty FROM similarity_count_state').fetchone()[0], 0)
+
+    def test_matching_failure_is_retryable_and_known_hash_needs_no_comparison(self):
+        self.patterned_photo(); self.setup_catalog()
+        op = self.prepare({'orientation': 6}); self.execute(op)
+        with mock.patch.object(ns_similarity, 'refresh', side_effect=OSError('fixture comparison failure')) as refresh:
+            metadata_command._refresh_matching(self.c, [(op, self.pid), (op, self.pid)])
+        refresh.assert_called_once()
+        self.assert_saved_hash(op)
+        self.assertEqual(ns_similarity_cache.live_comparison_state(self.c)['pending'], 1)
+        with mock.patch.object(ns_similarity, 'refresh', wraps=ns_similarity.refresh) as refresh:
+            metadata_command._refresh_matching(self.c, [(op, self.pid), (op, self.pid)])
+        refresh.assert_called_once()
+        self.assertEqual(ns_similarity_cache.live_comparison_state(self.c)['pending'], 0)
+        date_op = self.prepare({'date_taken': '2015-06-07T01:02:03'}); self.execute(date_op)
+        with mock.patch.object(ns_similarity, 'refresh') as refresh:
+            metadata_command._refresh_matching(self.c, [(date_op, self.pid)])
+        refresh.assert_not_called()
+        self.assertEqual(self.assert_saved_hash(date_op), self.assert_saved_hash(op))
 
     def test_two_edits_and_force_index_preserve_retained_identity(self):
         self.setup_catalog()

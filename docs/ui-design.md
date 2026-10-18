@@ -80,7 +80,9 @@ tokens; the font is served with the app, with no external font request.
 
 Help popups use the subdued `--surface-2` background and normal text color in both
 themes. They occupy the browser's top layer so sticky sidebars and adjacent photos
-cannot clip or cover the text.
+cannot clip or cover the text. Help is positioned using its rendered size, stays within
+the viewport when it resizes or scrolls, and scrolls internally if needed at larger text
+sizes. Its content is keyboard-focusable so arrow keys can scroll it; Escape dismisses it.
 
 Stats warning and failure tiles retain their semantic colored left borders so
 problems are easy to notice. Folder-table cells retain the shared spacing, including
@@ -97,7 +99,7 @@ preview and confirmation controls. Navigation goes to its named destination/tab.
 | Element | Contract and implementation |
 | :--- | :--- |
 | Navigation | Real anchors with destinations and modified-click support; current page indicated. A skip link reaches the main region. |
-| Buttons | Native buttons, primary/secondary/quiet/destructive CSS variants; verb labels. Disable submission while pending. A photo's own action standing alone on a white panel (the Inspector's **Reject…** and **Return to library…**) is outlined with `--control-border`, as fields are: quiet, it read as plain text and was missed. |
+| Buttons | Native buttons, primary/secondary/quiet/destructive CSS variants; verb labels. Disable submission while pending. A photo's own action standing alone on a white panel (the Inspector's **Reject…** and **Return to library…**) is outlined with `--control-border`, as fields are: quiet, it read as plain text and was missed. Standalone actions in a Settings panel (**Back up now**, the thumbnail cache actions) are outlined the same way, each with its explanation beside it. |
 | Selects | Native select for sort and page size. Menus execute commands and are not substitutes for form selects. |
 | Search fields | `ui/SearchField.tsx` for every search and filter box: a **Clear search** button (×, with the field's own name where it filters something else) appears once there is text, clears it and keeps focus in the box; Esc does the same before reaching the dialog or panel around it. The browser's own clear button is hidden, since only some browsers draw one. *From:* [Carbon search](https://carbondesignsystem.com/components/search/usage/). |
 | Fields | `ui/Field.tsx`: persistent label, hint and field error linked to the input, plus invalid state. Required choices say **(required)** in the visible label and use native `required` semantics; do not wait for an error to reveal the requirement. Keep server validation. |
@@ -105,7 +107,7 @@ preview and confirmation controls. Navigation goes to its named destination/tab.
 | Filter trees | Consistent rows, counts and focus. Folder/type labels filter; date-name buttons jump and carry an arrow cue. Parent/child inclusion rules remain those in the web spec. |
 | Menus | `ui/MenuButton.tsx` manages focus, item traversal, nested scopes and dismissal. Domain components provide labels, counts, reasons and callbacks. |
 | Dialogs | `ui/Modal.tsx` uses native modal dialogs and top-layer inertness. Desktop Inspector stays nonmodal; on narrow screens its covering panel becomes modal. |
-| Supplemental help | `Tip.tsx`: hover/focus plus an explicit information button for touch; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. |
+| Supplemental help | `Tip.tsx`: hover/focus plus an explicit information button for touch; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. Richer help, such as a small diagram drawn with theme tokens, uses `content` with `wide`; `text` stays its plain form. |
 | Paged loading | `ui/PageBoundary.tsx` and `paged.ts`: idle/load, pending, failed/retry and end states. Keep already-loaded photos and selection on failure. |
 
 History and Logs use the action and outcome together: **Rotation saved** or **Date
@@ -696,6 +698,11 @@ selection before saving. It keeps drafts, marks affected fields, describes their
 errors and focuses the first invalid control. Server errors remain visible. Success
 uses a polite status, not an urgent alert. Loading failures offer an explicit retry.
 
+Settings' save result appears in its footer, beside **Reset** and **Save settings**, so a
+one-line message never moves the buttons. A button names its action; an amount it
+affects belongs in its explanation, in emphasis so it stands out from the muted text
+(**Free up previews**, "Removes **1.2 GB** of detail previews…").
+
 Settings active-job notice: use the shared neutral informational treatment near
 the top, outside tab panels, to explain that saved processing settings affect future
 jobs only. It is not an error, requires no dismissal, and does not disable Save. Keep
@@ -790,7 +797,7 @@ the server's UTC year when the catalog is read.
 ### Reference-based sets
 
 Library and Needs review expose the same Similar photos controls: Group similar photos,
-percentage, Most matches first and set exploration/comparison. A group's representative
+percentage, Most matches first and set comparison. A group's representative
 must belong to the current location/inbox before identical sets collapse.
 
 Grouping is available when Has similar photos is the only explicit filter. Adding
@@ -807,14 +814,22 @@ view. A set consists of its reference and every direct match at the chosen perce
 If A matches B and B matches C but A does not match C, A's set contains A/B and B's
 set contains B/A/C. A representative is a navigation reference, never a keeper.
 
-Show inline overlap notices: A's set can say “B has additional matches outside this
-set”; B's can say “Overlaps with A's set.” Offer **Review this set** to open its
-reference and direct matches in comparison, and **Explore related sets** to display
-related sets with their references and membership intact. Avoid repeated decision
-prompts. Within exploration, **Show together** combines only sets the user chooses,
-showing each photo once while preserving its relationship to the references.
-Clearly distinguish indirect photos, for example “Related through B · below your
-threshold for A”; never present C as a qualifying direct match to A.
+One line above the sets says what a set is: “Each card is a set: a reference photo and
+every photo that matches it. Sets can share photos.” Hovering it, focusing it or its ⓘ
+shows the shared help with a small diagram (`SetsDiagram.tsx`): the set of A holding A
+and B, the set of C holding B and C, B in both, and why sets are never joined. Explain
+that these are two of three sets: B's own set holds A, B and C. The same
+line says that checkboxes select only the reference photo. Cards carry no repeated
+explanation, only their set size and **Review this set**, which opens the reference and
+its direct matches in comparison; **Use as reference** there walks into a neighbouring
+set. Use “set” and “reference” consistently on every screen.
+
+*Removed: Explore related sets* (decided 2026-10-05, removed 2026-10-17), a window that
+listed a set's neighbouring sets and showed up to six together. Its purpose was hard to
+read from the screen, and on the demo library its chains with new photos were almost all
+low-detail false matches. *Skipped option:* a single line in a photo's Similar photos tab
+such as “2 more photos connect through this one · Show”, if neighbouring sets are missed
+on a real library.
 
 These are session-only display choices, not saved groups or tags. **Group similar
 photos** adds set counts and actions to the existing reference cards. Sets with exactly the same full destination membership appear once in the gallery.
@@ -830,33 +845,7 @@ still displays individual photos. Sidebar place counts remain library photo coun
 Filter-panel counts remain individual photos so filters can find members hidden by
 collapsed sets; date-jump positioning uses grouped representatives. A set's members come from the full destination
 library. Turning grouping off returns the ordinary cards without clearing selection.
-Grouping defaults on and the toggle is remembered per browser (`ns.groupSets`). Selected expansions reset on closing exploration
-or changing its percentage, and survive a visit to side-by-side review and back.
-
-Identical membership in Explore related sets follows the gallery rule: exclude sets
-identical to the starting set and show each remaining full-membership set once, before
-related-set counting and pagination. Compare exact membership at the selected percentage,
-not photo counts; a proper subset is still a distinct overlapping set. Choose the lowest
-canonical photo ID among the starting reference's direct matches for each distinct set.
-No other distinct sets produces an explicit empty message. Changing reference does not
-choose a keeper or modify photos.
-
-Explore related sets offers only the starting reference's direct-match references.
-Choose up to six explicitly, then Show together. This unions their sets, deduplicates
-byte identities, and shows every photo's membership in the displayed sets. Members
-and related references have independent pagination (12 per page). The starting
-reference sorts first, then minimum recorded distance to a chosen reference and ID;
-related references sort by direct distance then ID. Counts include the reference;
-match counts elsewhere exclude it. Broader graph intersections remain future work. No automatic traversal follows a newly exposed photo.
-
-An indirect member's Compare button uses its supporting reference, not the starting
-reference it does not directly match. The comparison remains the existing direct
-match workspace. Returning reopens the same exploration; no comparison save is
-implied. At narrow widths the covering exploration owns modality instead of opening
-a second Inspector dialog over it. Failed requests expose Retry sets and Reset to
-this set; stale expansions are rejected rather than silently dropped. Incomplete
-coverage links to matching information and recovery. No persisted group membership,
-keeper inference, EXIF editing or rejecting is introduced by exploring sets.
+Grouping defaults on and the toggle is remembered per browser (`ns.groupSets`).
 
 Review later belongs to the built Needs review in-tray (`webui-spec.md` §7.9).
 Its notes record decisions awaiting a person, with reason-specific actions and
@@ -895,11 +884,10 @@ and sort, anchored on the entry reference even after Use as reference. Disable
 unavailable boundaries and loading navigation; request failures offer Retry set
 navigation. Entering another set starts a fresh comparison with temporary viewing
 transforms reset.
-Navigation is offered only from the grouped gallery, not an expanded union or a
-set-member scope whose ordering has a different meaning.
+Navigation is offered only from the grouped gallery, not a set-member scope whose
+ordering has a different meaning.
 
-Show this set in gallery is available from comparison and each reference in set
-exploration. It shows the reference and direct members at that set's percentage as
+Show this set in gallery is available from comparison. It shows the reference and direct members at that set's percentage as
 ordinary, individually selectable cards, with server paging and normal sort controls.
 This temporary scope bypasses the saved gallery filters and does not auto-select,
 expand or clear the existing selection. Filters are disabled while it is open;

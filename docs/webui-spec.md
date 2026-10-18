@@ -1167,12 +1167,13 @@ Index retries their readability so an external repair can restore eligibility.
   say **“Preview unavailable; reason not recorded.”** A cache miss awaiting generation
   is a pending preview, not a diagnosed failure. Clear the current unavailable state
   after successful generation while retaining recorded failure history.
-* **Not yet on screen** (the engine side is built): the panel below, and API routes to
-  start a rebuild or free previews. Today `--rebuild-thumbnails` and `--clear-previews` run
-  only from the command line. **It goes in Settings › Performance** (decided 2026-10-05),
-  beside the worker setting, as backups sit in Settings › Backups: thumbnails exist to make
-  browsing fast, and clearing or rebuilding them is occasional housekeeping. Stats'
-  Catalog health keeps the sizes and links to it (**Manage thumbnails**).
+* **The panel is in Settings › Performance** (decided 2026-10-05; built), below the
+  worker setting, as backups sit in Settings › Backups: thumbnails exist to make browsing
+  fast, and clearing or rebuilding them is occasional housekeeping. Stats' Catalog health
+  keeps the sizes and links to it (**Manage thumbnails**). Its routes are in `api-spec.md`
+  §5d. A rebuild started there is followed in the panel through the shared job feed as
+  well as in the drawer, since Settings covers the page; Repair and Rebuild all wait for
+  a running job, while Free up takes no lock and stays available.
 * **Cache size is shown per size, and the two are managed separately.** They have
   different economics and lumping them under one "clear cache" control would mislead:
   grid thumbnails are generated in bulk at Index and their loss blanks the gallery
@@ -1184,8 +1185,8 @@ Index retries their readability so an external repair can restore eligibility.
   > Grid thumbnails · 2.3 GB · 29,048 photos
   > Detail previews · 1.2 GB · 10,412 photos opened
   >
-  > **Free up 1.2 GB** — removes detail previews. They are recreated automatically the
-  > next time you open a photo, so nothing is lost.
+  > **Free up previews** — removes 1.2 GB of detail previews. They are recreated
+  > automatically the next time you open a photo, so nothing is lost.
   > **Repair grid thumbnails** — makes the ones that are missing. Quick when little is missing.
   > **Rebuild all grid thumbnails** — regenerates every one from your photos. How long this takes
   > depends on the size of your library.
@@ -1682,7 +1683,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 28 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 29 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -2379,8 +2380,9 @@ reference preview and each candidate independently, in 90° steps, with a reset 
 visible temporary-orientation state. It must compose with zoom/pan and never carry
 one candidate's rotation onto a different photo. These viewing controls
 do not write files, edit EXIF, regenerate hashes or recalculate match scores.
-They help assess returned candidates; retrieval of rotated photos missed by the
-current matcher is a separate concern. The expanded workspace (§7.4) is the
+They help assess returned candidates. Matching uses each photo as displayed, with its
+orientation applied (`engine-spec.md` §9.3); a copy whose pixels were rewritten rotated
+is not found. The expanded workspace (§7.4) is the
 side-by-side review surface.
 
 **End-of-review save:** Back, Escape and navigation offer one decision for remaining
@@ -2423,8 +2425,9 @@ that reason. It never falls back to re-encoding, to the other storage method, or
 catalog-only rotation a gallery would not see. Qualified engine write paths are built;
 the shared Save rotations web confirmation uses those paths. Applied XMP orientation
 is rendered from disposable previews without rewriting the photo or its shared cache.
-JPEG pHash remains the stored-pixel hash; orientation-only edits do not alter matching
-scores. RAW sidecar saves likewise leave the photo bytes and existing hash unchanged.
+Embedded JPEG saves recompute pHash from the verified photo as displayed, including
+its embedded orientation, and refresh comparisons for new hashes after the batch.
+Sidecar-only saves leave the photo bytes and its existing hash unchanged.
 
 **A changed date refiles the photo** to the folder its new date implies,
 automatically and with no setting to disable it. Correcting the date *is* the
@@ -3003,8 +3006,8 @@ the server's UTC year when the catalog is read.
 ### Reference-based grouping
 
 **Built:** Group similar photos defaults on and adds reference-set counts and actions in
-Has similar photos in both Library and Needs review, with the same percentage, sorting,
-set exploration and comparison controls. Additional filters/search automatically show
+Has similar photos in both Library and Needs review, with the same percentage, sorting
+and comparison controls. Additional filters/search automatically show
 individual photos satisfying every filter; Group similar photos remains visible but
 disabled with an explanation. Clearing extra filters restores the explicit grouping
 preference, retained in the URL as `group_sets=1|0`. Sort and percentage are not extra
@@ -3014,20 +3017,9 @@ destination library at the chosen threshold; equal counts alone do not merge set
 Collapse precedes sorting and pagination. Totals count sets; selection takes only
 representative photos. Explicit selections remain unchanged. Members include direct
 matches from the entire destination catalog. Review this set opens direct-match
-comparison. Explore related sets offers direct-match references with overlap and
-additional-member counts. Show together unions at most six chosen related sets,
-shows each byte identity once, and preserves membership/provenance. Indirect photos
-compare through a supporting reference. Both member lists are paged and coverage
-limitations remain visible. Expanded sets are session-only and reset on reload/closing;
-threshold changes clear expansions. No transitive traversal. See [the design contract](ui-design.md#reference-based-sets).
-
-Identical membership in Explore related sets follows the gallery rule: exclude sets
-identical to the starting set and show each remaining full-membership set once, before
-related-set counting and pagination. Compare exact membership at the selected percentage,
-not photo counts; a proper subset is still a distinct overlapping set. Choose the lowest
-canonical photo ID among the starting reference's direct matches for each distinct set.
-No other distinct sets produces an explicit empty message. Changing reference does not
-choose a keeper or modify photos.
+comparison, where Use as reference walks into a neighbouring set. One line above the
+sets explains them, with a diagram in its help. No transitive traversal. Explore related
+sets, which showed neighbouring sets together, was removed. See [the design contract](ui-design.md#reference-based-sets).
 
 Hash recovery now records per-file failures in Logs, with photo/path, category and
 external correction guidance. Inspector shows recorded visual-processing problems.
@@ -3035,7 +3027,7 @@ Failures do not change delivered status or delete files. Missing EXIF alone does
 establish damage. A broader import-completion issue summary remains pending.
 
 Grouping defaults on; the browser remembers the grouping toggle and each view’s
-explicit sort choice. Set membership and chosen expansions remain temporary.
+explicit sort choice. Viewing a set remains temporary and does not save a group.
 
 The gallery similarity percentage defaults to 90% and remembers explicit user
 changes in browser storage (`ns.matchMin`). An explicit `match_min` URL value wins
@@ -3057,11 +3049,10 @@ and sort, anchored on the entry reference even after Use as reference. Disable
 unavailable boundaries and loading navigation; request failures offer Retry set
 navigation. Entering another set starts a fresh comparison with temporary viewing
 transforms reset.
-Navigation is offered only from the grouped gallery, not an expanded union or a
-set-member scope whose ordering has a different meaning.
+Navigation is offered only from the grouped gallery, not a set-member scope whose
+ordering has a different meaning.
 
-Show this set in gallery is available from comparison and each reference in set
-exploration. It shows the reference and direct members at that set's percentage as
+Show this set in gallery is available from comparison. It shows the reference and direct members at that set's percentage as
 ordinary, individually selectable cards, with server paging and normal sort controls.
 This temporary scope bypasses the saved gallery filters and does not auto-select,
 expand or clear the existing selection. Filters are disabled while it is open;

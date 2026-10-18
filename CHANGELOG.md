@@ -44,6 +44,34 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
   files; normal Copy/Move verifies and applies them. Repair and incoming-duplicate
   decisions remain separate.
 
+- Set help correctly distinguishes reference sets and stays within the viewport at
+  enlarged text sizes, with keyboard scrolling when the explanation needs more room.
+
+- Thumbnail cleanup counts only bytes actually removed and reports engine-launch failures
+  with a specific error and next step.
+
+- Settings › Performance shows the thumbnail cache by kind and manages it: **Free up
+  previews** removes detail previews, which are recreated when a photo is opened again;
+  **Repair grid thumbnails** and **Rebuild all grid thumbnails** run as jobs, followed in
+  the panel and the job bar. Stats' Catalog health links to it with **Manage thumbnails**.
+- A thumbnail rebuild no longer stops partway when the catalog holds files the Index
+  could not read; those have no content to make a thumbnail from and are left out.
+- Settings shows its save result beside **Save settings**, so saving no longer moves the
+  buttons.
+- Embedded metadata saves refresh the visual hash from the verified saved photo.
+  New hashes are compared after Apply or Retry, so saved orientations no longer leave
+  stale similarity matches. Original source bytes and content history are preserved.
+
+- Similar photos compares each photo as it is displayed, with its EXIF orientation
+  applied. A portrait RAW now matches its own JPEG (41–47% before, 100% after on the public
+  RAW samples), and a copy stored turned with an orientation tag matches the same picture
+  stored upright. Catalog schema 29: catalogs from earlier versions are refused.
+- Has similar photos explains its sets in one line above them: "Each card is a set: a
+  reference photo and every photo that matches it. Sets can share photos." Hovering it, or
+  its ⓘ, shows a small diagram of two sets sharing a photo. The cards drop their repeated
+  explanation, and Explore related sets is removed: Use as reference in the comparison
+  walks from one set to the next.
+
 - Enlarged photos reuse the two-pane Inspector, with a large preview beside the
   information, Metadata and Similar photos tabs, plus resizing and photo navigation.
 

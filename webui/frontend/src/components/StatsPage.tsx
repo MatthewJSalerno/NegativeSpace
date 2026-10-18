@@ -27,7 +27,7 @@ const JOB_LABEL: Record<string, string> = {
 export function StatsPage({ status, refreshStatus, onOpenSettings }: {
   status: Status;
   refreshStatus: () => void;
-  onOpenSettings: (group?: "appearance" | "files" | "backups") => void;
+  onOpenSettings: (group?: "appearance" | "files" | "backups" | "performance") => void;
 }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +75,7 @@ function share(n: number, of: number): string {
   return tenths >= 100 ? ">99.9%" : tenths <= 0 ? "<0.1%" : `${tenths}%`;
 }
 
-function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: (group?: "appearance" | "files" | "backups") => void }) {
+function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: (group?: "appearance" | "files" | "backups" | "performance") => void }) {
   const lib = s.library;
   const failed = Object.values(s.activity.failures).reduce((a, b) => a + b, 0);
   return (
@@ -202,7 +202,10 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: (group?: "
                   .map(([k, n]) => `${count(n)} ${k}`).join(", ") || "all as recorded"}`
               : "Never run"],
           ]} />
-          <button className="link" onClick={() => onOpenSettings("backups")}>Open Settings for backups</button>
+          <div className="field-inline">
+            <button className="link" onClick={() => onOpenSettings("backups")}>Open Settings for backups</button>
+            <button className="link" onClick={() => onOpenSettings("performance")}>Manage thumbnails</button>
+          </div>
         </Panel>
       </div>
     </>

@@ -20,7 +20,7 @@ Everything here is for developing NegativeSpace; running the engine needs none o
 CI coverage is split between two workflows:
 
 - **Every pull request, push to `main`, and manual Engine tests run**:
-  `.github/workflows/engine-tests.yml` runs all 45 Python unit suites
+  `.github/workflows/engine-tests.yml` runs all 49 Python unit suites
   (`tests/*_test.py`, except the separately invoked engine smoke suite), the engine
   smoke suite, the three shell suites, all `tools/check-*.py`, synthetic similarity
   validation, container CPU/timezone/CLI checks, and the browser drivers listed below.
@@ -65,6 +65,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | `source_scope_browser_drive.py` | PR / main / manual | — |
 | `stalled_job_browser_drive.py` | PR / main / manual | `STALLED_FIXTURE=1` |
 | `suspicious_dates_browser_drive.py` | PR / main / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
+| `thumbnails_browser_drive.py` | PR / main / manual | — |
 | `webui_browser_drive.py` | PR / main / manual | — |
 | `navigation_browser_drive.py` | Nightly / manual | — |
 | `layout_stability_browser_drive.py` | Nightly / manual | — |
@@ -262,6 +263,7 @@ of the checkout, build that copy under another tag, and run with `IMAGE` set to 
 | `request_freshness_browser_drive.py` | | One initial Stats/log/facet request, refresh after a real job, retained Stats border/spacing in both themes and desktop reflow |
 | `appearance_browser_drive.py` | | Palettes, explicit/system modes, contrast, cross-tab storage, shared page tools and narrow controls |
 | `date_settings_browser_drive.py` | | Setup year choice, settings validation/persistence, immediate filter and Inspector updates |
+| `thumbnails_browser_drive.py` | | Settings › Performance thumbnail cache: sizes by kind, Free up, Repair as a job followed in the panel, the Stats link, reflow |
 | `navigation_browser_drive.py` | | Links, Back/Forward, restoration |
 | `gallery_position_browser_drive.py` | | Positioning a photo from Logs, hidden photos |
 | `large_selection_browser_drive.py` | `SIMILARITY_RECOVERY_FIXTURE=1` | Show only selected and Inspector navigation across page boundaries with more than 1,000 selected photos |
@@ -442,16 +444,17 @@ Inspector reasons, comparison date review and narrow reflow.
 ### Reference-set checks
 
 With app dependencies, run `python3 -m unittest discover -s tests -p reference_sets_test.py`.
-The generated A–B–C–D chain checks direct membership, explicit unions, deduplication,
-thresholds, stale selections, paging, destination-only eligibility and no DB writes.
+The generated A–B–C–D chain checks grouped collapse, a set's direct members,
+thresholds, paging, positioning, destination-only eligibility and no DB writes.
 Run the browser harness with `DRIVER=reference_sets_browser_drive.py` and
 `SIMILARITY_RECOVERY_FIXTURE=1`, specifying the built `IMAGE` and `WEB_IMAGE`.
-It uses only the harness's disposable generated catalog. Checks include grouping,
-indirect comparison through the correct reference, selection preservation, session
-reset, dense same-hash paging, expansion limits, failure retry, narrow modality and
-per-file recovery failure details in Logs.
+It uses only the harness's disposable generated catalog. Checks include grouping, the
+explanation of sets and its accurate diagram membership; hover, keyboard focus, the ⓘ
+button, Escape and scrollable viewport bounds at 200% text; set review, selection
+preservation, a dense set's members paged in the gallery, and per-file recovery failure
+details in Logs.
 
-`python3 tools/benchmark-reference-sets.py` measures opened-set queries against
+`python3 tools/benchmark-reference-sets.py` measures a set's member gallery against
 250,000 generated catalog identities with prepared sparse edges. It reads no photo
 files and does not establish dense-set or end-to-end real-library capacity.
 
@@ -698,7 +701,7 @@ cases a real library on a NAS brings:
 | `date-in-name/` | no EXIF, a file time in 2011, and a date only in the name (`IMG_20190615_…`, WhatsApp, Pixel, Samsung, a screenshot) |
 | `clock-off-by-a-year/` | one trip from a camera a year early and a phone that was right |
 | `day-boundary/`, `burst/` | 23:30 at +09:00 and at −05:00, midnight; five frames in one second, told apart only by sub-seconds |
-| `look-alikes/` | an original rotated in its pixels, cropped, black-and-white, colour-graded, watermarked |
+| `look-alikes/` | an original rotated in its pixels (not found, by design), cropped, black-and-white, colour-graded, watermarked; the original stored turned with an orientation tag (`scn-turned-tagged-…`); and, with a portrait RAW in the seed, a camera's JPEG of it stored unrotated with the RAW's orientation tag (`scn-raw-twin-<RAW name>.jpg`) |
 | `formats/` | 96 and 200 megapixels (past Pillow's decompression limits), 16-bit PNG, CMYK JPEG, multi-page TIFF, animated GIF, progressive JPEG |
 | `unicode-names/`, `case-at-destination/` | one name in NFC and NFD; names differing only in case, one day, two folders |
 | `edge/locked-folder/` | a folder the Index cannot open |
@@ -1079,10 +1082,6 @@ completion replaces the photo facts with a compact failure notice, without reloa
 The failed-only notice retains the failure link and omits zero-valued photo statistics,
 similarity guidance and Copy/Move controls.
 
-Reference-set checks also verify exact membership deduplication in related sets before
-pagination: identical sets disappear, equivalent alternatives collapse to one, and
-proper subsets/overlaps remain distinct. The browser exercises a dense identical set
-and the A–B–C chain independently.
 
 The scenario-generator identity checks cover device/inode collisions, retaining old
 output identities until seed comparison, and a real write through a generated seed
@@ -1529,8 +1528,14 @@ image with the checkout mounted read-only. Generated fixtures cover CLI preview/
 request replay, new content/cache identity, original source preservation, date/Undated
 refiling, unchanged inactive sidecars, no-op inode preservation, discarded unsaved edits,
 unexpected path bytes, failed verification, interrupted publication and move-only retry.
+Asymmetric generated photos check embedded-orientation rehashing, new SHA-1/content/save
+receipt agreement, unchanged visual identity after embedded date edits, unavailable
+hashing without stale reuse, comparison refresh on Apply/Retry, and recoverable comparison
+failure. Original source bytes and historical content hashes remain unchanged.
 Reindex both completed and unfinished edits; exercise Reject/Return, detached duplicate
-sources and exact-result duplicate reporting without consolidation. Run all metadata,
+sources, confirmed exact-result consolidation and refusal without confirmation.
+The duplicate suite also checks refreshed orientation hashes through consolidation,
+including the surviving photo and immutable original-content history. Run all metadata,
 XMP, database/API/recovery suites and engine smoke checks after shared catalog changes.
 Public RAW smoke tests validate ordinary RAW import, not embedded RAW editing.
 
