@@ -24,7 +24,7 @@ development until the maintainer decides.
 - Last-scanned time for each source folder
 - Not organized filters: small images, identical copies, processing errors
 - Not organized: sidecar and version decisions ("Which photo is this sidecar for?")
-- Telling apart two different photos with the same name on their cards
+- Telling apart two different photos with the same name on their cards (decided)
 
 **Review**
 - Answer many photos at once within one reason
