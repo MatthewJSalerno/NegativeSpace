@@ -347,6 +347,11 @@ the server response at desktop and narrow desktop widths, and inspect screenshot
 avoid reserving excessive blank space. `layout_stability_browser_drive.py` guards the
 shared navigation, Logs status filtering, and Library/Needs review reason toggles.
 
+Gallery cards allow dates, status badges and review text to wrap without clipping.
+Review links sit at the bottom of each card so their baselines align across a row
+when other cards have longer date labels or more badges. Use flexible space, not a
+fixed card height or a permanently reserved empty text row.
+
 ### Same-named photos on cards
 
 Only cards whose names clash within the current result carry a muted line with the

@@ -9,6 +9,8 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Gallery review links align at the bottom of each card when dates or status badges wrap.
+
 - Same-named photo cards show distinguishing original-source folders across the whole
   filtered result. Name hovers include original paths and explain recorded arrival renames.
 

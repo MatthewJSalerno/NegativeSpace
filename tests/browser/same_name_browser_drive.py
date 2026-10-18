@@ -68,6 +68,30 @@ with sync_playwright() as p:
     assert 'Renamed on arrival: another photo already had this name' in renamed.get_attribute('title')
     assert '/data/source/' in renamed.get_attribute('title')
     if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+'/same-name-renamed.png')
+    # The normal fixture includes EXIF dates and longer file-date labels. At
+    # narrow card widths only the latter pushes Copied onto another line.
+    settings=request.get('/api/v1/settings').json()
+    assert request.put('/api/v1/settings',data={'values':{'small_image_min':800},
+        'revisions':{'small_image_min':settings['small_image_min']['revision']}}).ok
+    page.goto(sys.argv[1]+'/?view=organized&q=photo-0&sort=name')
+    expect(page.locator('.review-card-notes').first).to_be_visible()
+    for theme, width, scale in [('dark',1040,'100%'),('light',1440,'100%'),('light',800,'200%')]:
+        page.evaluate("theme => { localStorage.setItem('ns.theme',theme); location.reload(); }",theme)
+        page.set_viewport_size({'width':width,'height':900})
+        page.locator('html').evaluate('(el, scale) => el.style.fontSize=scale',scale)
+        expect(page.locator('.review-card-notes').first).to_be_visible()
+        positions=page.locator('.card').evaluate_all("""cards => cards.map(card => {
+            const link=card.querySelector('.review-card-notes a');
+            const bounds=card.getBoundingClientRect();
+            return {top:bounds.top, bottom:bounds.bottom,
+                linkBottom:link.getBoundingClientRect().bottom,
+                overflowing:card.scrollWidth > card.clientWidth};
+        })""")
+        row=[item for item in positions if abs(item['top']-positions[0]['top']) < 1]
+        assert len(row)>1,row
+        assert max(item['linkBottom'] for item in row)-min(item['linkBottom'] for item in row)<1,row
+        assert all(not item['overflowing'] and item['linkBottom']<=item['bottom'] for item in positions),positions
+        if os.environ.get('SHOTS'):page.screenshot(path=os.environ['SHOTS']+f'/card-wrap-{theme}-{width}.png')
     assert not errors,errors
     browser.close()
 print('Same-name cards: full-result labels, filtering, hover history, themes and reflow passed.')

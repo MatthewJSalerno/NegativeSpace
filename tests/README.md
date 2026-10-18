@@ -130,7 +130,8 @@ docker build -f docker/app.Dockerfile -t negativespace .
 ## Same-name card validation
 
 `same_name_browser_drive.py` covers whole-result labels, page boundaries, filtered
-results, arrival-rename hovers, both themes and 200% text reflow. The API suite's
+results, arrival-rename hovers, both themes and 200% text reflow. It also checks
+review-link alignment with mixed EXIF/file dates and wrapped status badges. The API suite's
 `SameNameCards` cases also check exact copies, missing hashes, Unicode folders,
 explicit selections and failed-versus-successful transfer history.
 
