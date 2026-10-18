@@ -39,7 +39,7 @@ development until the maintainer decides.
 - Remove Explore reference sets (decided)
 - 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
 - Overlapping sets beyond one step
-- Rotated matches: compare photos as displayed
+- [x] Rotated matches: compare photos as displayed
 - Large-library measurement (250,000 and 500,000 photos)
 - 💬 Local AI image embeddings for look-alikes, crops included (the maintainer is reading up first)
 
