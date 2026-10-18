@@ -685,6 +685,26 @@ for a date get fresh suggestions as new evidence arrives, while a date the user 
 changes by itself. Evidence is computed once and refreshed when the library changes, not
 on every view.
 
+**Built to grow: new evidence is added, not designed in.** Sources and combinations will
+change as features arrive and larger libraries are tried, so each source is a separate
+provider behind one shape, and nothing else knows the list:
+
+* a provider takes a photo and returns zero or more pieces of evidence, each with a
+  **date range** (an exact time, a day, a month, a year, or a "not before" / "not after"
+  bound), its **origin** (which source, and for a date whether it came from a camera,
+  a sidecar or the user), an **independence key** (what makes two pieces the same witness:
+  one file's copies, one look-alike's near-copies) and a short **reason** for display;
+* combining, the levels, the evidence lines, **Show in gallery** and the back-test work
+  only from that shape, so a new provider needs no change to them: it appears in the
+  evidence, joins the score and is measured by the back-test from its first run;
+* a provider's weight is never hard-coded: the back-test gives it one per library, so a
+  weak or misleading source shows as such instead of needing tuning by hand;
+* providers can be added, switched off or replaced without changing stored decisions:
+  history records the evidence a decision rested on, by provider and reason.
+
+The sources above are the first providers. The parked and set-aside ideas (other
+applications' records, content-based dating) are candidates for later ones.
+
 **Measure before building, and in every library:** hide the capture date of photos that
 have one and run the estimator on them. How often each source and combination is right,
 and by how much it misses, sets the Strong, Likely and Weak levels **for that library**;
