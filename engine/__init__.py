@@ -11,7 +11,7 @@ destinations, targeting (which photos a run acts on), jobs, maintenance, backups
 runtime (shared run state), workers (cancellable read-only pools), constants and deps; ns_db (the catalog schema and its rules,
 shared with the web API), review (catalog-only review decisions), attention (explicit
 read-only checks of uncertain file outcomes), metadata (source-aware resolution for the
-planned XMP pipeline), metadata_adapter (qualified EXIF/comparison views),
+XMP pipeline), metadata_adapter (qualified EXIF/comparison views),
 xmp (bounded sidecar reads), xmp_association (pure ownership
 planning), xmp_store (retained metadata BLOBs/arrivals and backup validation;
 no publication in storage), metadata_transfer (internal verified photo/XMP pairs and recovery;

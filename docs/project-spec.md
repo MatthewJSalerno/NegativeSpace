@@ -252,7 +252,9 @@ service. Built and tested:
     *   the split Inspector, with a movable divider, the 1024px preview, the file's own
         details apart from Metadata sources, Additional file information, the
         photo's recent history, its lineage tree in a window of its own, and **Reject…**
-        or **Return to library…**.
+        or **Return to library…**; the same two panes serve the enlarged photo view;
+    *   gallery cards that tell same-named photos apart by the shortest distinguishing
+        part of their original folder;
 
     *   the **Stats** page: the library in figures (formats, cameras, resolution, dates,
         duplicate space with its coverage, activity, catalog health), each leading to
@@ -264,13 +266,12 @@ service. Built and tested:
         linked zoom/position, candidate promotion to reference, file/image and metadata
         differences with scrolling column headings, and Reject or Keep this one, reject the rest.
         Preview dimensions follow viewing rotation; recorded dimensions stay unchanged.
-        The validation panel shows coverage and timings. General EXIF
-        editing and end-of-review orientation saving remain future work
-        tracked in [TODO.md](../TODO.md). The similarity gallery can sort by direct
-        match count at a chosen percentage, with card counts and consistent filters,
-        selection and photo navigation. Optional reference sets expose direct matches,
-        overlap notices and explicitly chosen session-only unions. Group expansion never
-        selects files for actions. Missing-hash recovery reads verified destination
+        The validation panel shows coverage and timings. The similarity gallery can sort
+        by direct match count at a chosen percentage, with card counts and consistent
+        filters, selection and photo navigation. Reference sets show a reference photo's
+        direct matches, with an explanation of how sets overlap. Group expansion never
+        selects files for actions. Matches involving a mostly black or flat photo are
+        marked, never hidden, and Stats counts those photos. Missing-hash recovery reads verified destination
         originals and logs per-file failures; comparison state restores after reload.
         Suspicious-date review flags recorded years without modifying them. The design
         is in [ui-design.md](ui-design.md) and `webui-spec.md` §7.
@@ -300,7 +301,11 @@ separate work.
 The read-only metadata source viewer is built: separate XMP Sidecar, Embedded XMP and
 EXIF tabs, an applied Primary badge, retained versions, field comparison/filtering and
 recorded-tag disclosure. Catalog reads do not activate sources or modify files.
-Date taken editing/copying with a filing preview is built and validated. A later Move
+Date taken editing/copying with a filing preview is built and validated, as are saved
+rotations (inline on the large preview, or **Rotate…** for a selection) and **Use as
+primary…** on a Library photo's other metadata sources. XMP ownership and competing
+versions for first imports are resolved in Not organized → Needs attention, and
+incomplete photo/XMP imports have **Retry**. A later Move
 now offers one job-scoped Include/Leave confirmation for edited originals, with a bound
 selection and engine recheck; maintainer acceptance of this confirmation passed
 on 2026-10-14 (tests M1–M3).
@@ -314,9 +319,8 @@ Specified but not yet on screen:
     engine records per full Index (`webui-spec.md` §5.1).
 *   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built),
     and undated photos with suggested dates (`webui-spec.md` §7.5). Date taken editing/copying
-    with a filing preview is built and validated. Other fields remain read-only; broader
-    engine capabilities do not imply a general-purpose web editor. Saved orientation is
-    separately planned.
+    with a filing preview is built and validated, as are saved rotations. Other fields
+    remain read-only; broader engine capabilities do not imply a general-purpose web editor.
 *   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file resolution, and the similar-to-a-reject check
     (`webui-spec.md` §7.8); the destination
     folder `dest/raw-originals` (`engine-spec.md` §9.9);

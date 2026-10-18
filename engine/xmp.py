@@ -1,4 +1,4 @@
-"""Bounded read-only XMP capture for the planned import pipeline.
+"""Bounded read-only XMP capture for the import pipeline.
 
 Index retains captured evidence for verified Copy/Move. Preserve original
 bytes and qualified XML trees;

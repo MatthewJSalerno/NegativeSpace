@@ -23,7 +23,8 @@ development until the maintainer decides.
 - "A job is already running" just after a job finishes
 - Last-scanned time for each source folder
 - Not organized filters: small images, identical copies, processing errors
-- Not organized: sidecar and version decisions ("Which photo is this sidecar for?")
+- 💬 Source-folder handling behind the scenes
+- 💬 A content-history link from a photo to its earlier versions
 
 **Review**
 - Answer many photos at once within one reason
@@ -32,19 +33,20 @@ development until the maintainer decides.
 - "No capture date": suggested dates from the name, folder or a look-alike
 - Record in history when a review reason clears itself
 - Review history speed with many decisions
+- 💬 Needs review as its own place or a Library filter
+- 💬 Filters that persist across places (Rejects can look empty)
 
 **Similar photos**
 - Merge the two "Reject?" dialogs into one (decided)
 - 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
-- [x] Rotated matches: compare photos as displayed
-- [x] Mark low-detail (mostly black or flat) matches — implemented and validated (`docs/engine-spec.md` §9.3)
 - Large-library measurement (250,000 and 500,000 photos)
 - 💬 Local AI image embeddings for look-alikes, crops included (the maintainer is reading up first)
 
 **Metadata**
-- Choose an organized photo's primary metadata source
 - Notices for metadata choices, and their queue in Not organized
-- Saved rotation (Rotate…)
+- A simpler prompt when leaving an unsaved rotation
+- Metadata decisions for arrivals matching photos already in Library or Rejects
+- Filename examples beside the metadata choices in setup and Settings
 - Notice for Google Takeout and Flickr export sidecars
 - Motion-photo editing, qualified separately
 - RAW, TIFF/HEIC and extended-XMP fixtures for the metadata scenario builder
@@ -54,6 +56,7 @@ development until the maintainer decides.
 - 💬 Metadata-independent image hashing and content-based duplicate consolidation (deferred)
 - 💬 Sidecars edited between Index and Copy or Move
 - 💬 Similar photos and metadata together
+- 💬 Copying all metadata, or a wider choice of fields
 
 **Checking and maintenance**
 - Destination check on screen, then a broader inventory and repair
@@ -62,11 +65,12 @@ development until the maintainer decides.
 - Import summary, and a filter for files that could not be previewed
 - Resolving files that cannot be read
 - Stats: dates chart on its own row
+- Stats: count metadata edits and near-duplicates (both still empty)
 - Every warning offers a way out
 - Filter counts: distinguish zero, unavailable and incompatible
 - Re-audit durability claims whenever a write path changes
 - The `dest/raw-originals` folder
-- Spacing and alignment pass; refresh the user-guide screenshots
+- Spacing and alignment pass, the sidebar's Look into filters, and the user-guide screenshots
 
 **Before the first release**
 - One sign-in password
@@ -622,6 +626,9 @@ Saved orientation stays a separate action from temporary preview rotation.
   thumbnails link from Stats (`docs/webui-spec.md` §4.2.1).
 - [ ] The Dates chart on its own full-width row, with suspicious years set apart at each
   end, so a few impossible dates cannot squash it (`docs/webui-spec.md` §5.9).
+- [ ] Stats Activity shows **EXIF edits** as "Not built yet" and the API returns null for
+  `exif_edits` and `near_duplicates`, though date edits, saved rotations, primary changes
+  and similar photos are built. Decide what each figure counts, then fill them in.
 
 ## Warnings that need a way out
 

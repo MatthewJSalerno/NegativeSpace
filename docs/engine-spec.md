@@ -1411,18 +1411,18 @@ entered values go to the same place. Retained source originals are not edited. A
 that cannot take the chosen method fails explicitly: never a silent fallback to the other
 method, and never a correction stored only in the catalog.
 
-**Where edits are saved** (planned, decided 2026-10-02). Photographers keep RAW edits in
+**Where edits are saved** (built). Photographers keep RAW edits in
 XMP sidecars rather than inside the RAW, so this is a setting with two groups, set
 separately (Settings › Metadata): **RAW formats** default to an **XMP sidecar**, with **In
 the file** as the opt-in that brings the RAW consent and warnings; **other formats**
 (JPEG, HEIC, TIFF…) default to **In the file**, with **XMP sidecar** as the option. A
 sidecar leaves the photo's bytes unchanged, so its SHA-1, duplicates and lineage stay put.
 
-**Established primary overrides those defaults (planned).** Edits target only the
+**Established primary overrides those defaults (built).** Edits target only the
 photo's established primary source, including fields currently displayed via fallback.
 Changing primary is a separate explicit action with a preview of values, refiling and
 future edit target, followed by confirmation. Viewing tabs or changing format defaults
-never changes primary. Copying values between sources remains a separate future action.
+never changes primary. Copying a value between sources is built for Date taken only.
 The format's default determines the write target when none has been established.
 
 *   **Naming:** the full filename plus `.xmp` (`IMG_0001.CR2.xmp`). Immich reads this form
