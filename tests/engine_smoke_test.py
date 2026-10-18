@@ -961,6 +961,30 @@ def phash_is_computed_for_real_images():
 
 
 @test
+def phash_is_taken_from_the_photo_as_displayed():
+    """engine-spec 9.3: a photo stored turned, with an EXIF orientation tag to display it
+    upright, hashes like the same picture stored upright, as cameras and phones store it
+    and as a RAW decodes. Hashing the stored pixels put them about 50% apart."""
+    from PIL import Image, ImageDraw
+    import imagehash
+    case = new_case("phash_oriented")
+    upright = Image.new("RGB", (300, 200), (30, 60, 90))
+    draw = ImageDraw.Draw(upright)
+    draw.rectangle((20, 20, 140, 90), fill=(240, 220, 40))
+    draw.ellipse((180, 110, 280, 190), fill=(200, 30, 30))
+    draw.line((0, 199, 299, 120), fill=(255, 255, 255), width=9)
+    upright.save(case / "src" / "upright.jpg", quality=92)
+    tagged = Image.Exif()
+    tagged[0x0112] = 6  # display by turning 90 degrees clockwise
+    upright.transpose(Image.Transpose.ROTATE_90).save(case / "src" / "stored-turned.jpg", quality=92, exif=tagged)
+    run_engine(case)
+    hashes = {Path(r["source_path"]).name: r["phash"] for r in rows(case, "SELECT source_path, phash FROM photos")}
+    distance = imagehash.hex_to_hash(hashes["upright.jpg"]) - imagehash.hex_to_hash(hashes["stored-turned.jpg"])
+    check(distance <= 6, f"a photo stored turned with an orientation tag did not match it upright: "
+                         f"{distance} of 64 bits apart ({hashes})")
+
+
+@test
 def raw_extension_routes_to_rawpy_and_fails_gracefully():
     """
     An unreadable RAW is recorded Failed without aborting Index or falling back

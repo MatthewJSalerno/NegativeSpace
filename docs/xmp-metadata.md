@@ -24,7 +24,7 @@ embedded EXIF fields and validated XMP sources; see the adapter boundary below.
 Both are independently tested, including generated ExifTool output.
 
 `engine/xmp_store.py` now retains exact originals, parsed snapshots and immutable
-arrival/participant records (introduced in schema 23; current catalog schema 28), with
+arrival/participant records (introduced in schema 23; current catalog schema 29), with
 verified catalog backup coverage.
 
 **Index now reads associated XMP as capture-only evidence.** It retains qualified
@@ -322,8 +322,13 @@ and a stalled tool. Public RAW smoke checks do not qualify embedded RAW writing.
 Index can record source observations while retaining the edited Library content and an
 unfinished operation's retry binding. The original source snapshot stays immutable.
 Caches for the new SHA-1 use the edited retained file; old-source bytes cannot supply
-its preview. An Orientation change updates displayed dimensions; pHash uses unchanged
-stored pixels. Exact-byte results matching another organized photo are reported as
+its preview. Embedded EXIF and XMP writes recompute the visual hash from the verified
+published JPEG and record it alongside the new SHA-1 in the photo, content and save
+receipt. Orientation changes can change that hash even when stored pixels are unchanged.
+A failed hash calculation records unavailable matching rather than reusing the old hash.
+Apply and Retry compare new visual hashes once at the end of the batch; unchanged hashes
+need no further comparisons. Interrupted comparison remains recoverable through similarity
+repair. Exact-byte results matching another organized photo are reported as
 `exact_duplicate_photo_ids`; both files and histories remain. Old duplicate source
 pointers are detached because they no longer prove equality to the edited destination.
 

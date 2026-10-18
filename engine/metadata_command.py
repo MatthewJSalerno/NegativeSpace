@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import sys
 
-from engine import backups, jobs, metadata_edits, metadata_incoming_apply, metadata_reproduce, metadata_save, ns_db, runtime, xmp
+from engine import backups, jobs, metadata_edits, metadata_incoming_apply, metadata_reproduce, metadata_save, ns_db, ns_similarity, runtime, xmp
 from engine.ns_db import RunStatus
 
 
@@ -104,6 +104,25 @@ def previews(db_path, root, request):
                          for edit in request['edits']]}
 
 
+def _refresh_matching(conn, prepared):
+    """Compare new visual hashes once per batch, including resumed embedded saves.
+
+    Date-only writes usually retain a known visual hash and need no comparisons.
+    Failed/cancelled comparison leaves honest pending coverage for similarity repair;
+    it cannot turn a verified metadata save into an unrecorded file change.
+    """
+    for op, _ in prepared:
+        saved = metadata_save._event(conn, op, 'metadata_saved')
+        value = saved.get('phash') if saved and saved.get('content_changed') else None
+        if (ns_similarity.usable(value) and not conn.execute(
+                'SELECT 1 FROM similarity_hashes WHERE phash=?', (value,)).fetchone()):
+            try:
+                ns_similarity.refresh(conn, cancelled=runtime.cancel_requested.is_set)
+            except Exception as exc:
+                runtime.logger.warning(f'Metadata was saved, but similarity comparisons remain incomplete: {exc}')
+            return
+
+
 def run(args, db_path, base_dir, lock_fd, request):
     """One accepted batch; no retries implicit in an HTTP/client request replay."""
     validate(request, args.metadata)
@@ -176,6 +195,7 @@ def run(args, db_path, base_dir, lock_fd, request):
                 except (ValueError, OSError, ns_db.RevisionConflict) as exc:
                     outcomes.append({'operation_id':op, 'outcome':'failed', 'error':str(exc)})
                     blocked = isinstance(exc, OSError)
+            _refresh_matching(conn, prepared)
         backups.backup_after_job(db_path, Path(args.backups), base_dir, run_id)
         print(json.dumps({'run_id':run_id, 'outcomes':outcomes}))
         if runtime.cancel_requested.is_set():

@@ -39,7 +39,8 @@ development until the maintainer decides.
 - Remove Explore reference sets (decided)
 - 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
 - Overlapping sets beyond one step
-- Rotated matches: compare photos as displayed
+- [x] Rotated matches: compare photos as displayed
+- 💬 Low-detail photos matching unrelated images at high percentages
 - Large-library measurement (250,000 and 500,000 photos)
 - 💬 Local AI image embeddings for look-alikes, crops included (the maintainer is reading up first)
 
@@ -170,7 +171,9 @@ Found 2026-10-05 looking for screens that do the same job twice.
   Copy/Move and Library matching. Missing EXIF/hash-only/cache-write failures do not
   block readable images. External repair plus Index reassesses failed sources.
 - [ ] Discuss a SHA-1 content-history link, first comparing it with existing photo
-  history/lineage to avoid redundant navigation. No pHash history link planned.
+  history/lineage to avoid redundant navigation. No pHash history link planned. A concrete
+  use: since the hash is taken as displayed, a photo NegativeSpace rotates no longer looks
+  like its unrotated original; content history is how a returning original is recognised.
 
 - [x] Stable filter guidance and navigation: shared guidance sizing for Logs/gallery/
   review reasons; fixed Logs position when Jobs is absent; stable status shortcuts,
@@ -268,8 +271,12 @@ Found 2026-10-05 looking for screens that do the same job twice.
   selected already exists; discuss before adding another control.
 - [ ] Broader relationships between overlapping sets beyond the current explicit
   one-hop exploration. Do not infer transitive matches.
-- [ ] Assess finding rotated matches that the current pHash search misses. Rotating a
-  preview helps a person compare but does not change retrieval or scores.
+- [x] Rotated matches assessed (`docs/engine-spec.md` §9.3): pHash is taken from the photo
+  as displayed, which matches a portrait RAW to its own JPEG and copies stored turned with
+  an orientation tag. Searching every rotation as well was measured and declined: on the
+  demo library its new matches were two different, mostly black photos.
+- [ ] Assess low-detail photos (mostly black or flat), which match unrelated photos at high
+  percentages today: whether to mark them unreliable for matching. Discussion first.
 - [ ] Follow the [large-library measurement plan](docs/large-library-performance.md):
   query performance at 250k/500k, dense and overlapping sets, memory, invalidated caches
   and response times. Repeat A/B runs before claiming supported capacity. Original-file

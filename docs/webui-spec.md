@@ -1675,7 +1675,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 28 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 29 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -2369,8 +2369,9 @@ reference preview and each candidate independently, in 90° steps, with a reset 
 visible temporary-orientation state. It must compose with zoom/pan and never carry
 one candidate's rotation onto a different photo. These viewing controls
 do not write files, edit EXIF, regenerate hashes or recalculate match scores.
-They help assess returned candidates; retrieval of rotated photos missed by the
-current matcher is a separate concern. The expanded workspace (§7.4) is the
+They help assess returned candidates. Matching uses each photo as displayed, with its
+orientation applied (`engine-spec.md` §9.3); a copy whose pixels were rewritten rotated
+is not found. The expanded workspace (§7.4) is the
 side-by-side review surface.
 
 **Future end-of-review save** (confirmed 2026-10-05): after a verified orientation-write

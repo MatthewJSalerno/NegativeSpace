@@ -699,7 +699,7 @@ cases a real library on a NAS brings:
 | `date-in-name/` | no EXIF, a file time in 2011, and a date only in the name (`IMG_20190615_…`, WhatsApp, Pixel, Samsung, a screenshot) |
 | `clock-off-by-a-year/` | one trip from a camera a year early and a phone that was right |
 | `day-boundary/`, `burst/` | 23:30 at +09:00 and at −05:00, midnight; five frames in one second, told apart only by sub-seconds |
-| `look-alikes/` | an original rotated in its pixels, cropped, black-and-white, colour-graded, watermarked |
+| `look-alikes/` | an original rotated in its pixels (not found, by design), cropped, black-and-white, colour-graded, watermarked; the original stored turned with an orientation tag (`scn-turned-tagged-…`); and, with a portrait RAW in the seed, a camera's JPEG of it stored unrotated with the RAW's orientation tag (`scn-raw-twin-<RAW name>.jpg`) |
 | `formats/` | 96 and 200 megapixels (past Pillow's decompression limits), 16-bit PNG, CMYK JPEG, multi-page TIFF, animated GIF, progressive JPEG |
 | `unicode-names/`, `case-at-destination/` | one name in NFC and NFD; names differing only in case, one day, two folders |
 | `edge/locked-folder/` | a folder the Index cannot open |
@@ -1530,6 +1530,10 @@ image with the checkout mounted read-only. Generated fixtures cover CLI preview/
 request replay, new content/cache identity, original source preservation, date/Undated
 refiling, unchanged inactive sidecars, no-op inode preservation, discarded unsaved edits,
 unexpected path bytes, failed verification, interrupted publication and move-only retry.
+Asymmetric generated photos check embedded-orientation rehashing, new SHA-1/content/save
+receipt agreement, unchanged visual identity after embedded date edits, unavailable
+hashing without stale reuse, comparison refresh on Apply/Retry, and recoverable comparison
+failure. Original source bytes and historical content hashes remain unchanged.
 Reindex both completed and unfinished edits; exercise Reject/Return, detached duplicate
 sources and exact-result duplicate reporting without consolidation. Run all metadata,
 XMP, database/API/recovery suites and engine smoke checks after shared catalog changes.

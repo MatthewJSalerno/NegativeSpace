@@ -128,7 +128,8 @@ class MakeScenarios(unittest.TestCase):
                        "same_picture_2024", "same_picture_1969", "nas_synology_thumbnail", "nas_qnap_thumbnail",
                        "nas_recycle_bin", "live_photo_still", "live_photo_video", "motion_photo", "date_in_name_only",
                        "clock_off_camera", "clock_off_phone", "day_boundary", "burst_same_second",
-                       "look_alike_rotated_90", "look_alike_cropped", "large_image", "format_cmyk_jpeg",
+                       "look_alike_rotated_90", "look_alike_cropped", "look_alike_turned_tagged", "large_image",
+                       "format_cmyk_jpeg",
                        "format_multi_page_tiff", "unicode_nfc", "unicode_nfd", "case_at_destination",
                        "edge_locked_folder"):
             self.assertIn(wanted, scenarios)
@@ -233,6 +234,13 @@ class MakeScenarios(unittest.TestCase):
                                     (f"%/{name}",)).fetchone()
             self.assertTrue(pair[year][0].startswith(year), f"{name} was filed {pair[year][0]}")
         self.assertEqual(pair["2024"][1], pair["1969"][1], "the same pixels should give the same pHash")
+        # Stored turned with an orientation tag, it hashes like its original (engine-spec 9.3).
+        import imagehash
+        turned = next(f for f in files if f["scenario"] == "look_alike_turned_tagged")
+        hashes = [db.execute("SELECT phash FROM photos WHERE source_path LIKE ?", (f"%/{Path(p).name}",)).fetchone()[0]
+                  for p in (turned["path"], turned["from"])]
+        self.assertLessEqual(imagehash.hex_to_hash(hashes[0]) - imagehash.hex_to_hash(hashes[1]), 6,
+                             f"a copy stored turned with an orientation tag did not match its original: {hashes}")
         # What the engine does today with the harder cases (gaps are reported, not asserted).
         statuses = {Path(p).relative_to(self.out / "library").as_posix(): s
                     for p, s in db.execute("SELECT source_path, status FROM photos")}
