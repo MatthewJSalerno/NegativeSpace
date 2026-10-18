@@ -609,6 +609,164 @@ Answers within the reason are made in bulk, a batch at a time, through the edito
 capture, digitization and modification dates. Do not automatically promote a clue
 to a capture date. Preserve original and subsequent placement decisions in lineage.
 
+**Evidence behind a suggestion** (agreed 2026-10-17; not built). Beside its suggestions,
+the one-by-one review shows the evidence as counts, and a card's suggestion shows a
+short summary on hover:
+
+* **look-alikes with a capture date:** how many, the most common year, month and day,
+  their range, and a small chart by month;
+* **photos from the same original folder** with a capture date: how many, range, most
+  common day;
+* **neighbours by name:** the dated photos just before and after it in the same folder;
+* where sources disagree, a plain note saying so ("Look-alikes point to 2018; the
+  folder and the neighbours point to July 2019"), never a silent choice.
+
+Each line offers **Show in gallery**: the existing temporary member gallery, sorted by
+date, with the undated photo pinned first and marked, each card showing its date and
+where it came from, and **Back to review** returning to the same photo. Suggestions may
+be ordered by how many sources agree; that only ranks them, it never applies one.
+
+Rules for what counts as evidence:
+
+* **Names and folders come from the source side, from every copy.** A photo that arrived
+  more than once is matched on every recorded original path and name, including copies
+  never organized or since removed: the telling name may be on any of them.
+* **Names are the names each copy had at Index,** recorded in lineage, never a current
+  destination name: a destination name can carry a collision suffix (`IMG_0412_1.jpg`,
+  engine-spec §4.2) that would break a counter sequence, or a name the user chose
+  through Rename (§7.3). A user's rename is the user's input, like a date the user set:
+  shown, never counted as independent evidence. Earlier names stay visible ("arrived as
+  `IMG_20190704_153012.jpg`").
+* **Destination folders are never evidence.** The Library is organized by date, so a
+  destination path only repeats the date used to file the photo, including the
+  file-date fallback; moves caused by date edits do not matter for the same reason.
+* **A date carries its origin:** from the camera (EXIF), from a sidecar, or set by the
+  user, which includes an accepted suggestion. Dates the user set are shown separately
+  and never counted as independent evidence for another photo: otherwise one guess,
+  passed from look-alike to look-alike, would read as many confirmations.
+* Low-detail matches (a mostly black or flat photo on either side,
+  `engine-spec.md` §9.3) can be unrelated photos: the evidence lists them with that
+  note rather than hiding them, and they never count towards a suggestion or its level.
+
+The catalog already holds every copy's original path, name and file time, and each date
+edit's before and after values; Library photos may need a gallery filter by original
+source folder for **Show in gallery**.
+
+**Combining evidence into a score** (agreed 2026-10-17; not built). Start from data every
+photo has: every copy's name and original path, file times, its appearance (perceptual
+hash, dimensions, format) and reference photos with a capture date. The photo's own
+metadata joins later.
+
+* **Each source gives a range,** not a point: a dated filename an exact time, a folder a
+  year or month, neighbours by name the span between their dates, the earliest file time
+  of any copy "not after", the earliest expected year (§3) "not before".
+* **Overlapping ranges narrow the answer; limits remove candidates;** disagreement is
+  reported, never averaged. Independent sources are counted once: copies of one file
+  with one name are a single source.
+* **The score is a level with its reasons**, not a percentage: **Strong** ("name sequence
+  and folder agree: early July 2019"), **Likely** (one good source, nothing against it),
+  **Weak or conflicting** (shown, never offered for bulk apply). Bulk review offers Strong
+  first.
+* **Agreeing look-alikes weigh heavily by concentration:** many distinct look-alikes on
+  one day ("38 of 40 on 4 Jul 2019") make a suggestion Strong on their own, since
+  unrelated matches scatter across dates; the same number spread over years is weak.
+  Count distinct contents, not copies or near-copies of one photo, and leave out dates
+  the user set. Weights for the other sources come from the back-test.
+* **Name counters use the nearest dated photo on each side,** not a fixed window: the
+  same naming pattern, same folder first, then the folder tree, then the library. Dates
+  must rise with the counter around the photo; if they do not (two cameras share a
+  prefix, a counter wrapped past 9999), the result is weak.
+
+Combinations considered, strongest first: a look-alike with the next counter (the same
+moment); counter neighbours in one folder; a partner by name (`IMG_5521.CR2` beside
+`.jpg`) trusted only when it also looks the same; a dated filename confirmed by its
+folder; a copy's name (`IMG_5521 (1).jpg`, `Copy of`, `-edited`) leading to its original;
+look-alikes that also share the folder; neighbouring dated folders. Checks rather than
+suggestions: a name date after the earliest file time is impossible; app naming
+semantics (a screenshot or camera name is the taken time, WhatsApp's is when it was
+received, so "on or before"; Pixel names are UTC); files copied in together bound a batch
+only as "not after". A device fingerprint without metadata (dimensions, format, naming
+pattern and a JPEG's quantization tables) keeps counters from different cameras apart and
+bounds a photo by the dated span of photos sharing it. Quantization tables are part of the
+compressed image, not EXIF, so they usually survive when metadata is stripped; they
+identify a camera make and model series rather than one camera, and a re-saved JPEG
+carries its editor's tables instead, itself a sign the file is a copy
+([Sorell](https://digital.library.adelaide.edu.au/items/43f08727-f88b-4830-aee8-ec6b246bae8d);
+[Kornblum, DFRWS 2008](https://dfrws.org/presentation/using-jpeg-quantization-tables-to-identify-imagery-processed-by-software/)).
+
+*Considered and set aside:* estimating a date from the picture's content with a trained
+model ([Date Estimation in the Wild](https://oa.tib.eu/renate/items/1617ef10-5757-4e6b-97d0-a33d6b8745cc/full)),
+which gives a year or decade where these suggestions look for a day; and sensor-noise
+(PRNU) camera identification, which is heavy and weakened by recompression. Other photo
+tools fall back to the file time or a filename date only, so there is no established
+combined method to follow; the back-test is the evidence.
+
+Further rules (agreed 2026-10-17): photos flagged as suspicious dates and known default
+camera dates (`2000:01:01`, `1970:01:01`) are left out of the evidence or shown apart;
+identical copies are one photo, so answering one answers all; sources whose time zone is
+unknown may differ by a day without disagreeing; only unambiguous date formats are read
+from names (`03042019` is skipped unless another source settles it); accepting a
+suggestion records in the photo's history the evidence it rested on. Photos still waiting
+for a date get fresh suggestions as new evidence arrives, while a date the user set never
+changes by itself. Evidence is computed once and refreshed when the library changes, not
+on every view.
+
+**Built to grow: new evidence is added, not designed in.** Sources and combinations will
+change as features arrive and larger libraries are tried, so each source is a separate
+provider behind one shape, and nothing else knows the list:
+
+* a provider takes a photo and returns zero or more pieces of evidence, each with a
+  **date range** (an exact time, a day, a month, a year, or a "not before" / "not after"
+  bound), its **origin** (which source, and for a date whether it came from a camera,
+  a sidecar or the user), an **independence key** (what makes two pieces the same witness:
+  one file's copies, one look-alike's near-copies) and a short **reason** for display;
+* combining, the levels, the evidence lines, **Show in gallery** and the back-test work
+  only from that shape, so a new provider needs no change to them: it appears in the
+  evidence, joins the score and is measured by the back-test from its first run;
+* a provider's weight is never hard-coded: the back-test gives it one per library, so a
+  weak or misleading source shows as such instead of needing tuning by hand;
+* providers can be added, switched off or replaced without changing stored decisions:
+  history records the evidence a decision rested on, by provider and reason.
+
+The sources above are the first providers. The parked and set-aside ideas (other
+applications' records, content-based dating) are candidates for later ones.
+
+**Parked for discussion:** dates from other applications’ records, such as a Lightroom
+catalog’s capture times, Google Takeout `.json`, Picasa `.picasa.ini` and Apple `.AAE`.
+These may be the strongest source for some photos, but require real effort for an
+unknown payoff; revisit if a library shows it matters.
+
+**Measure before building, and in every library:** hide the capture date of photos that
+have one and run the estimator on them. How often each source and combination is right,
+and by how much it misses, sets the Strong, Likely and Weak levels **for that library**;
+the back-test is part of the feature, run when a library is indexed, not a one-off. No
+threshold is tuned to one sample: any library, including the maintainer's, represents only
+itself.
+
+**Build order** follows cost and accuracy in general, not one sample's coverage: dates
+in names first (cheap, and nearly always right where present); grouping bulk review by
+fingerprint and original folder; folder years for year-level suggestions and checks;
+look-alikes and the remaining sources for the hard cases; name counters kept, since other
+libraries may depend on them.
+
+*Measurement, one partial sample* (2026-10-17; a single share of the maintainer's photos,
+read-only, 29,079 photos; not representative of other libraries or of the maintainer's
+whole collection):
+
+| Measure | Result |
+| :--- | :--- |
+| Photos with no usable capture date | 2,370 (8.2%) |
+| Of those, with a date in the name | 1,764 (74%) |
+| Back-test: name date against capture date (17,856 photos) | 99.9% same day; 0.1% one day off |
+| Of the undated, in a folder whose name holds a year | 1,327 (56%) |
+| Back-test: folder year against capture year (582 photos) | 100% |
+| Undated with neither a name date nor a year folder | 581 (25%) |
+| Undated sharing one identical set of quantization tables | 1,419 (60%), all with dates in their names, in 2 folders |
+| Fingerprints whose dated photos fall within 2 years | half of photos in fingerprints with 5+ dated |
+| Back-test: within dated name-counter neighbours, same folder (1,078 photos) | 89% |
+| Undated with dated counter neighbours on both sides | 2 |
+| Of the undated, with any metadata clue (date, camera, GPS, software) | 29%; GPS date stamp 9%; no serial numbers or shot counters |
+
 
 **Year subdivision is a filing aid, not a capture-date claim.** Use the placed
 file's own modification year to keep Undated navigable. For byte-identical copies,

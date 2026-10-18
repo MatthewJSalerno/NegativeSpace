@@ -274,6 +274,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
   Reject actions. Keep-reference and gallery grouping remain Library-only. Review
   links retain candidate scope. Not organized and emptied rejects stay excluded.
 - [ ] "Looks like a reject": designed, not built (`docs/webui-spec.md` §7.8).
+- [ ] 💬 Dates from other applications’ records: parked for discussion (`docs/webui-spec.md` §3.1).
 - [ ] "No capture date": suggested dates from the name, the folder or a dated look-alike,
   answered in bulk through the editor; the photo stays under `Undated/` meanwhile
   (`docs/webui-spec.md` §3.1).
