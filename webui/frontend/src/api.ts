@@ -77,6 +77,7 @@ export interface MetadataAttention {
 }
 
 export interface PhotoItem {
+  name_context?: { clashes: boolean; folder: string | null; original_paths: string[]; renamed_on_arrival: boolean };
   metadata_attention?: MetadataAttention | null;
   id: number;
   status: string;

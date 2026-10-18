@@ -24,7 +24,6 @@ development until the maintainer decides.
 - Last-scanned time for each source folder
 - Not organized filters: small images, identical copies, processing errors
 - Not organized: sidecar and version decisions ("Which photo is this sidecar for?")
-- Telling apart two different photos with the same name on their cards (decided)
 
 **Review**
 - Answer many photos at once within one reason
@@ -187,8 +186,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
   processing errors; date filters already work. Source similarity comparisons are
   not calculated and must not be presented as zero.
 
-- [ ] Telling apart same-named photos on cards: designed, not built
-  (`docs/webui-spec.md`, Telling same-named photos apart).
+- [ ] Same-named photo cards: built; maintainer validation pending ([spec](docs/webui-spec.md#telling-same-named-photos-apart)).
 
 - [ ] **"A job is already running" just after a job finishes:** the engine keeps its lock
   while it takes the catalog backup that follows a settled run, so a start in that moment

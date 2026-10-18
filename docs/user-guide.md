@@ -83,6 +83,11 @@ years down the right edge jump through the gallery: point to see the month, clic
 at a time, and with **Still in source**, find the originals of photos you have already
 copied and move them off the source.
 
+When different photos in your results have the same name, their cards show the shortest
+part of the original source folder that tells them apart. Hover over a photo’s name to
+see its original path and any identical copies’ paths. A name changed on arrival also
+explains that another photo already had that name.
+
 ![The gallery, showing one year](images/library.png)
 
 Click a photo to open it in the panel on the right: its file, its dates and where they came

@@ -324,6 +324,9 @@ jobs:
       - name: Appearance palettes in a browser
         run: DRIVER=appearance_browser_drive.py sh tests/browser/webui_browser_test.sh
 
+      - name: Same-name photo cards in a browser
+        run: DRIVER=same_name_browser_drive.py sh tests/browser/webui_browser_test.sh
+
       - name: Gallery photo positioning in a browser
         run: DRIVER=gallery_position_browser_drive.py sh tests/browser/webui_browser_test.sh
 

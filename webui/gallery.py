@@ -9,7 +9,7 @@ from typing import Optional
 from engine import ns_db, review, attention
 from engine import ns_similarity_cache
 from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
-from . import catalog, metadata_view
+from . import catalog, metadata_view, card_names
 
 
 # An uncorrelated settings lookup is evaluated once per statement, not per photo.
@@ -27,13 +27,15 @@ def _date_warning_sql():
             f"WHEN {year}>{latest} THEN 'Recorded year is more than one year ahead of the current year.' END END")
 
 
+_FILENAME_SQL = f"""basename(COALESCE(CASE WHEN p.status IN ({ns_db.sql_values(catalog.AT_DESTINATION)}) THEN p.dest_path END, p.source_path))"""
+
+
 _LIST_COLUMNS = f"""
     p.id, p.status, p.file_size, p.sha1_hash,
     json_extract(p.metadata_json, '$.date_taken') AS date_taken,
     json_extract(p.metadata_json, '$.date_source') AS date_source,
     {_date_warning_sql()} AS date_warning,
-    basename(COALESCE(CASE WHEN p.status IN ({ns_db.sql_values(catalog.AT_DESTINATION)}) THEN p.dest_path END,
-                      p.source_path)) AS filename
+    {_FILENAME_SQL} AS filename
 """
 
 
@@ -262,12 +264,14 @@ def _index_summary(conn):
     return result
 
 
-def _items(conn, rows, *, include_review=False) -> list:
+def _items(conn, rows, *, name_scope, name_params, include_review=False) -> list:
     items = []
+    names = card_names.describe(conn, rows, name_scope, name_params, _FILENAME_SQL)
     review_cards = _review_cards(conn, rows) if include_review else {}
     metadata_notes = metadata_view.source_attention(conn, [r["id"] for r in rows])
     for r in rows:
         item = dict(r)
+        item["name_context"] = names[r["id"]]
         item["metadata_attention"] = metadata_notes.get(r["id"])
         sha1 = item.pop("sha1_hash")
         item["duplicates"] = conn.execute(
@@ -397,7 +401,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             prefix + f"SELECT {columns} {source} WHERE {where}"
             + filtered + f" ORDER BY {catalog.SORTS[sort]} LIMIT ? OFFSET ?",
             filtered_params + (page_size, (page - 1) * page_size)).fetchall()
-        items = _items(conn, rows, include_review=view in ("review", "organized", "similar"))
+        items = _items(conn, rows, name_scope=where + filtered, name_params=filtered_params, include_review=view in ("review", "organized", "similar"))
         state = ns_similarity_cache.comparison_state(conn) if view == "similar" or similar else None
         rejects = catalog.rejects_summary(conn) if view == "rejects" else None
         date_min_year = conn.execute(f"SELECT {_DATE_MIN_YEAR_SQL}").fetchone()[0]
@@ -496,6 +500,7 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, ma
     # json_each reads the list as a table, with no write to the catalog.
     join = "FROM photos p JOIN json_each(?) w ON w.value = p.id"
     with catalog.connect(db_path) as conn:
+        conn.execute('BEGIN')
         places = conn.execute(f"SELECT p.id, p.status IN ({ns_db.sql_values(IN_REJECTS_STATUSES)}) {join}",
                               (json.dumps(wanted),)).fetchall()
         found = {r[0] for r in places}
@@ -503,7 +508,7 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, ma
         rows = conn.execute(prefix + f"SELECT {columns} {source} JOIN json_each(?) w ON w.value=p.id "
                             f"ORDER BY {catalog.SORTS[sort]} LIMIT ? OFFSET ?",
                             (json.dumps(wanted), page_size, (page - 1) * page_size)).fetchall()
-        items = _items(conn, rows)
+        items = _items(conn, rows, name_scope="p.id IN (SELECT value FROM json_each(?))", name_params=(json.dumps(wanted),))
         # What each action would take of them, for the selection bar.
         counts = conn.execute(
             "SELECT " + ", ".join(f"COALESCE(SUM(p.status IN ({ns_db.sql_values(v)})), 0)" for v in ACTION_STATUSES.values())

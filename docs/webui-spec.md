@@ -433,8 +433,8 @@ changes the selected photos or arms new action targets.
 ### Telling same-named photos apart
 
 Two different photos can share a filename: two cameras each with an `IMG_0412.jpg`.
-A card shows only the name, so they would read as one photo in two places (decided
-2026-10-17; not built).
+Cards distinguish their original folders when both photos are in the result (decided
+2026-10-17; built, maintainer validation pending).
 
 * **Only when names clash,** a card adds one muted line under its name with the shortest
   part of its **original source folder** that tells it apart (`…/Canon 2014`, `…/Phone/DCIM`),
@@ -452,7 +452,7 @@ A card shows only the name, so they would read as one photo in two places (decid
   §4.2, Unique Filename Enforcement), from the photo's history.
 * **Identical copies are not a clash:** one photo with its duplicates badge.
 
-The list API would report, per item, whether its name clashes within the result and the
+The list API reports, per item, whether its name clashes within the result and the
 distinguishing folder text; which folder to show is a display choice, easy to change.
 
 ## 3. Dedicated Settings Management (`/settings`)

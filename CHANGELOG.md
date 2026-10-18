@@ -9,6 +9,9 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Same-named photo cards show distinguishing original-source folders across the whole
+  filtered result. Name hovers include original paths and explain recorded arrival renames.
+
 - Set help correctly distinguishes reference sets and stays within the viewport at
   enlarged text sizes, with keyboard scrolling when the explanation needs more room.
 
