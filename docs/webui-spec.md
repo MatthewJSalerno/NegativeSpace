@@ -2643,10 +2643,18 @@ duplicates of the reject, `engine-spec.md` §10), is never rejected automaticall
   and **Reject…** flow, with its preview, handles them; **Select the closest matches** picks
   those at 99% or more; photos are grouped by the reject they resemble ("37 photos look
   like IMG_0412.jpg, rejected 3 March"). Keeping many arrives with bulk review answers.
-* **What an emptied reject looked like:** when a photo is rejected, while its file
-  exists, a small picture of it (about a gallery thumbnail) is stored in the catalog,
+* **What an emptied reject looked like:** when a photo is rejected, in the same
+  transaction that records the rejection and while its file is certainly in Rejects, a
+  small picture of it (160 px on the long edge, about 4–5 KB) is stored in the catalog,
   made from the file, not copied from the thumbnail cache, which is disposable
-  (§4.2.1). Catalog backups include it. A reject without one (emptied before this existed)
+  (§4.2.1). Pictures are keyed by content, so identical copies share one. Catalog backups
+  include it; since JPEG data does not compress further, each backup grows by the
+  pictures' size (about 5 MB per 1,000 rejects), multiplied by the backups kept; a 320 px
+  picture would be about 16 KB. Rejects made before this exists get their picture during
+  the next job while their file is still in Rejects. Returning a photo to the Library,
+  including **Keep the old one instead**, removes its picture in the same step: its file
+  and ordinary thumbnails are back, and its history keeps the rejection; rejecting it
+  again stores a new one. Pictures remain only for photos still rejected, emptied or not. A reject without one (emptied before this existed)
   shows "No picture kept" with everything recorded about it: every copy's original name and
   folder, size, dimensions, format, capture date and its origin, when and by which job it
   was rejected, when its file was found gone, and the match percentage.
