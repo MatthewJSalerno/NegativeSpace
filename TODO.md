@@ -25,6 +25,7 @@ development until the maintainer decides.
 - Start a requested job after the preceding backup — decided, not built (`docs/webui-spec.md` §5.7)
 - Last-indexed time for each source folder — decided, not built (`docs/webui-spec.md` §2)
 - Source filters and clickable Index summary figures — decided, not built (`docs/ui-design.md`, Which Look into filters apply where; `docs/webui-spec.md` §2)
+- Copy all and Move all count photos held in Needs attention
 - 💬 Source-folder handling behind the scenes
 - 💬 A content-history link from a photo to its earlier versions
 
@@ -49,6 +50,7 @@ development until the maintainer decides.
 - A simpler prompt when leaving an unsaved rotation
 - Metadata decisions for arrivals matching photos already in Library or Rejects
 - Filename examples beside the metadata choices in setup and Settings
+- Setup and Settings still say choosing sidecar owners is not available
 - Notice for Google Takeout and Flickr export sidecars
 - Motion-photo editing, qualified separately
 - RAW, TIFF/HEIC and extended-XMP fixtures for the metadata scenario builder
@@ -71,6 +73,7 @@ development until the maintainer decides.
 - Every warning offers a way out
 - Filter counts: distinguish zero, unavailable and incompatible
 - Re-audit durability claims whenever a write path changes
+- `metadata.resolve_sources` is called only by tests: wire it in or remove it
 - The `dest/raw-originals` folder
 - Spacing and alignment pass, the sidebar's Look into filters, and the user-guide screenshots
 
@@ -211,6 +214,18 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 - [x] Location views, overlapping Needs review inbox, combined filter chips, cross-location
   filename search and first-visit default (`webui-spec.md` §2).
+
+- [ ] **Copy all and Move all count photos held in Needs attention.** Found 2026-10-18 on
+  the NASA demo set: the Index summary says 4,496 photos are ready and 7 are held in Needs
+  attention, but the confirmation asks "Copy every photo not yet copied (4,503)?". The job
+  then reports "4,496 of 4,503 files copied · 7 skipped". The question should count only
+  the photos it will copy and name the held ones separately. The same mismatch was seen
+  on a 300-photo NASA subset (300 against 281).
+- [ ] **Setup and Settings still say choosing sidecar owners is not available.** The
+  Metadata step's text "Choosing owners for individual files is not available yet. After
+  changing this setting, run Index again to check unresolved sidecars."
+  (`webui/frontend/src/components/SettingsDialog.tsx`) predates #122, which built choosing
+  owners and versions in Not organized → Needs attention. Point to that place instead.
 
 ## Needs review
 
@@ -686,6 +701,9 @@ Deferred performance work — the unchanged-file check loading every settled row
 Stalled read-only workers now support user-requested cancellation of decoder process
 groups, with a no-progress reminder and Keep waiting. Kernel-blocked storage remains
 an explicit limitation in engine-spec §8; automatic file skipping is not planned.
+- [ ] `engine/metadata.py` `resolve_sources` is exercised only by tests; Index, transfer and
+  the metadata tabs do their own resolution. Decide whether to wire it in as the single
+  resolver or remove it (found in the 2026-10-18 docs sweep).
 
 ## Navigation refinement
 
