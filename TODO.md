@@ -29,7 +29,7 @@ development until the maintainer decides.
 **Review**
 - Answer many photos at once within one reason
 - Suspicious dates in the review queue, with "this date is correct"
-- "Looks like a reject"
+- "Looks like a reject" (decided)
 - "No capture date": suggested dates from the name, folder or a look-alike
 - Record in history when a review reason clears itself
 - Review history speed with many decisions
