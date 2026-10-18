@@ -67,9 +67,8 @@ An existing primary or deliberate source choice is not replaced by this default 
 including when another archive arrives or Settings changes. Read precedence does not
 silently change the established write target or authorize embedded RAW writes.
 
-The original pure resolver has one embedded source plus sidecar versions. Index now
-uses a separate three-source observation resolver over qualified EXIF, embedded XMP and
-sidecar views. Its results explicitly say `capture_only` / `applied: false`; they are not
+Index uses the three-source observation resolver in `metadata_capture` over qualified
+EXIF, embedded XMP and sidecar views. Its results explicitly say `capture_only` / `applied: false`; they are not
 an established primary or an edit target. Legacy IPTC mapping/precedence is not decided
 by this rule; retain extracted evidence without guessing aliases.
 

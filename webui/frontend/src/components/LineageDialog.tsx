@@ -114,7 +114,7 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
           </details>
         )}
         {tree && <MetadataHistory onNavigate={onClose} filters={{photo:photoId,run:[],status:[],q:"",since:"",until:""}} />}
-        <p><a href={logUrl({ photo: photoId })} onClick={(e) => { onClose(); follow(e); }}>Open in the log</a></p>
+        <p><a href={logUrl({ photo: photoId })} onClick={(e) => { onClose(); follow(e); }}>View photo logs</a></p>
     </Modal>
   );
 }

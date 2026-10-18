@@ -93,7 +93,13 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 .sidebar .sidebar-item[aria-pressed=true] { box-shadow: inset 3px 0 0 var(--accent); }
 .sidebar .sidebar-item[aria-disabled=true] { color: var(--muted); cursor: default; }
 .sidebar-filter-row { display: flex; align-items: stretch; }
+.sidebar-filter-row > .tip { flex: 1; min-width: 0; }
 .sidebar-filter-row .sidebar-item { flex: 1; min-width: 0; }
+.sidebar-filter-row .sidebar-item, .sidebar-filter-row a { padding-right: var(--space-1); gap: var(--space-1); }
+.sidebar-filter-link { padding-right: 32px; }
+.help-passive { pointer-events: none; }
+.sidebar-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar .sidebar-count { flex: 0 0 7ch; text-align: right; }
 .filter-pin { flex: 0 0 32px; padding: 0; display: grid; place-items: center; color: var(--muted); }
 .filter-pin[aria-pressed=true] { color: var(--accent); background: var(--surface-2); }
 .filter-pin[aria-pressed=true] svg { fill: var(--accent); }
@@ -640,6 +646,14 @@ a.stat-tile:hover, button.stat-tile:hover { border-color: var(--accent); }
 .bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
 .bar-value { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .stat-links { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.dates-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(220px, 1fr); gap: var(--space-6); }
+.dates-undated { display: inline-block; margin-bottom: var(--space-2); }
+.year-range { display: flex; align-items: stretch; gap: var(--space-2); min-width: 0; }
+.year-range > .year-scroll { flex: 1; min-width: 0; }
+.year-outlier { flex: 0 0 5rem; border-left: 3px solid var(--warn); padding: var(--space-2); font-size: var(--type-xs);
+  display: flex; flex-direction: column; justify-content: center; gap: var(--space-1); }
+.year-outlier strong { font-size: var(--type-md); color: var(--text); }
+@media (max-width: 1000px) { .dates-layout { grid-template-columns: minmax(0, 1fr); } }
 .year-chart { margin: 0; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
 .year-chart figcaption { font-size: var(--type-sm); color: var(--muted); }
 .year-scroll { overflow-x: auto; padding: var(--space-1); }

@@ -19,7 +19,7 @@ const GROUPS: { value: Group; label: string }[] = [
 ];
 // Where each field and each saved setting lives.
 const FIELD_GROUP: Record<string, Group> = {
-  association: "metadata", rawWrite: "metadata", nonRawWrite: "metadata",
+  association: "metadata", nonRawWrite: "metadata",
   workers: "performance", retention: "backups", exts: "files", reminderSize: "files", reminderAge: "files", small: "files", year: "files",
 };
 const SETTING_GROUP: Record<string, Group> = {
@@ -49,7 +49,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
   const accessChanged = access != null && JSON.stringify(addressList) !== JSON.stringify(access.hosts);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [association, setAssociation] = useState<XmpAssociation | "">("");
-  const [rawWrite, setRawWrite] = useState<MetadataWriteTarget>("xmp");
+
   const [nonRawWrite, setNonRawWrite] = useState<MetadataWriteTarget>("embedded");
   const [workers, setWorkers] = useState("");
   const [retention, setRetention] = useState("");
@@ -87,7 +87,6 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
 
   function showMetadata(s: Settings) {
     setAssociation(firstRun && s.xmp_association.revision === 0 ? "" : s.xmp_association.value);
-    setRawWrite(s.metadata_write_raw.value);
     setNonRawWrite(s.metadata_write_non_raw.value);
   }
 
@@ -114,7 +113,6 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     if (!settings) return {};
     const out: Record<string, unknown> = {};
     if (association && (association !== settings.xmp_association.value || (firstRun && settings.xmp_association.revision === 0))) out.xmp_association = association;
-    if (rawWrite !== settings.metadata_write_raw.value) out.metadata_write_raw = rawWrite;
     if (nonRawWrite !== settings.metadata_write_non_raw.value) out.metadata_write_non_raw = nonRawWrite;
     if (Number(workers) !== settings.workers.value) out.workers = Number(workers);
     if (Number(retention) !== settings.backup_retention.value) out.backup_retention = Number(retention);
@@ -125,7 +123,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     const small = smallChoice === "on" ? Number(smallMin) : null;
     if (small !== settings.small_image_min.value || (firstRun && smallChoice && settings.small_image_min.revision === 0)) out.small_image_min = small;
     return out;
-  }, [settings, workers, retention, exts, reminderBytes, reminderDays, smallChoice, smallMin, minYear, association, rawWrite, nonRawWrite, firstRun]);
+  }, [settings, workers, retention, exts, reminderBytes, reminderDays, smallChoice, smallMin, minYear, association, nonRawWrite, firstRun]);
 
   const toggleExt = (ext: string) =>
     setExts((cur) => (cur.includes(ext) ? cur.filter((e) => e !== ext) : [...cur, ext]));
@@ -264,8 +262,8 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     <p>If a field is missing, NegativeSpace checks the next source. An explicitly empty field stays empty.
       You can view all recorded sources in the photo’s Metadata tab.</p>
     <h3>Shared XMP sidecars</h3>
-    <p>A short name such as <code>photo.xmp</code> can match both <code>photo.CR2</code> and <code>photo.jpg</code>.
-      A full name such as <code>photo.CR2.xmp</code> identifies one photo.</p>
+    <p>A short name such as <code>photo.xmp</code> can match both <code>photo.jpg</code> and <code>photo.png</code>.
+      A full name such as <code>photo.jpg.xmp</code> identifies <code>photo.jpg</code> specifically.</p>
     {firstRun && <p id="association-required"><strong>Choose how to handle shared sidecars to continue.</strong> You can change this later in Settings.</p>}
     <label htmlFor="settings-association">When an XMP sidecar matches multiple photos{firstRun && <strong> (required)</strong>}</label>
     <select id="settings-association" required={firstRun} disabled={saving} value={association}
@@ -282,17 +280,11 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     <div id="association-hint" className="muted message-copy">
       <p>Saved associations stay unchanged. This choice applies to new or unresolved sidecars.</p>
       <p>If it is unclear which photo owns a sidecar, those photos stay in <strong>Not organized → Needs attention</strong>. Other photos can proceed.</p>
-      <p>Choosing owners for individual files is not available yet. After changing this setting, run Index again to check unresolved sidecars.</p>
+      <p>Open an affected photo and choose Resolve XMP to select which photos use the sidecar. After changing this setting, run Index again to check unresolved sidecars.</p>
     </div>
     <h3>Where future edits are saved</h3>
     <p>These defaults apply to photos without a primary source for edits. Photos that already have one keep it. Changing these settings does not edit or move files.</p>
-    <label htmlFor="settings-rawWrite">RAW photos</label>
-    <select id="settings-rawWrite" value={rawWrite} disabled={saving} aria-describedby="raw-write-hint"
-      onChange={e=>setRawWrite(e.target.value as MetadataWriteTarget)}>
-      <option value="xmp">XMP sidecar (default)</option>
-      <option value="embedded" disabled>In the photo (not supported for RAW)</option>
-    </select>
-    <p id="raw-write-hint" className="muted">Edits go in a separate XMP file. The RAW photo stays unchanged; writing metadata inside it is not supported.</p>
+    <p id="raw-write-hint"><strong>RAW photos:</strong> edits are always saved to an XMP sidecar beside the photo; the RAW file is never changed.</p>
     <label htmlFor="settings-nonRawWrite">Other photo formats</label>
     <select id="settings-nonRawWrite" value={nonRawWrite} disabled={saving} aria-describedby="non-raw-write-hint"
       onChange={e=>setNonRawWrite(e.target.value as MetadataWriteTarget)}>

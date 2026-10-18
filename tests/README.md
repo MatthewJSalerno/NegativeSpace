@@ -1307,8 +1307,8 @@ by the bundled ExifTool. Coverage includes absent/empty values, qualified/unknow
 arrays/localized values, original encoding/bytes, DTD/entity refusal, resource ceilings,
 malformed/unsupported content, traversal and symlinks, special files, permission failures,
 file/directory changes during reads, full-name/shared ownership, policy ambiguity,
-orphans and tentative primary precedence. The 11 `metadata_test.py` tests separately
-cover resolution. These suites do not establish XMP catalog durability or transfer
+orphans and tentative primary precedence. The `metadata_test.py` tests cover shared lossless JSON validation. Parser and adapter
+integration assertions exercise the production `metadata_capture.resolve` path. These suites do not establish XMP catalog durability or transfer
 safety: storage and normal single-sidecar transfers have separate suites below. No photo samples or running app are used.
 
 
@@ -2964,3 +2964,16 @@ instance, after its Index/Copy:
 The generated moon versions depict the same scene. The streetlight is a different
 scene with the same coarse hash; 100% is not proof of identical photos. Expected
 counts here assume the generated scenario library prepared for this review.
+
+
+### Sidebar and Stats cleanup validation
+
+Automated coverage runs in the existing CI suites: `webui_api_test.py` verifies distinct
+photo counts for saved metadata edits, failed refiles, no-op/failed writes, filtered Logs
+and exports, and configured year bounds. `ui_browser_checks.py` verifies long year
+ranges, separate suspicious-year counts, empty year slots, keyboard links and narrow
+reflow. `filter_pins_browser_drive.py` checks aligned row/count/pin columns and the
+zero versus incompatible-count explanations; `metadata_settings_browser_drive.py`
+checks the RAW sidecar-only statement. These browser checks use generated fixtures.
+
+Maintainer checks for this batch use Tests U1–U4 in `docs/ui-stats-validation.md`.

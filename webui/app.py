@@ -572,19 +572,19 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/operations")
     def get_operations(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
                        photo: Optional[int] = None, q: Optional[str] = None, since: Optional[str] = None,
-                       until: Optional[str] = None, page: int = Query(1, ge=1),
+                       until: Optional[str] = None, metadata_edits: bool = False, page: int = Query(1, ge=1),
                        page_size: int = Query(100, ge=1, le=oplog.LOG_PAGE_MAX)):
         return oplog.list_operations(cfg.db_path, page=page, page_size=page_size,
-                                       **_log_filters(run, status, photo, q, since, until))
+                                       metadata_edits=metadata_edits, **_log_filters(run, status, photo, q, since, until))
 
     @app.get("/api/v1/operations/export")
     def export_operations(format: str = "csv", run: Optional[List[int]] = Query(None),
                           status: Optional[List[str]] = Query(None), photo: Optional[int] = None,
-                          q: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None):
+                          q: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None, metadata_edits: bool = False):
         """The whole filtered log as CSV or JSON, streamed, oldest first."""
         if format not in ("csv", "json"):
             raise HTTPException(400, {"error": "invalid_request", "message": "format is csv or json."})
-        filters = _log_filters(run, status, photo, q, since, until)
+        filters = dict(metadata_edits=metadata_edits, **_log_filters(run, status, photo, q, since, until))
         with catalog.connect(cfg.db_path):               # refuse with 409 before streaming, not midway
             pass
         columns = ["id", "timestamp", "run_id", "mode", "status", "source_path", "dest_path", "error_message",
@@ -616,10 +616,10 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/operations/photo-ids")
     def operation_photo_ids(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
                             photo: Optional[int] = None, q: Optional[str] = None, since: Optional[str] = None,
-                            until: Optional[str] = None, requested_only: bool = False):
+                            until: Optional[str] = None, metadata_edits: bool = False, requested_only: bool = False):
         """The distinct photos behind the filtered operations, for Retry: all of them."""
         return {"photo_ids": oplog.operation_photo_ids(cfg.db_path, requested_only,
-                                                         **_log_filters(run, status, photo, q, since, until))}
+                                                         metadata_edits=metadata_edits, **_log_filters(run, status, photo, q, since, until))}
 
     @app.get("/api/v1/runs")
     def get_runs(limit: int = Query(100, ge=1, le=500)):

@@ -56,6 +56,7 @@ const CALLS_FOR_INDEX = /run an index/i;
 function readFilters(): LogFilters {
   const p = new URLSearchParams(window.location.search);
   return {
+    metadata_edits: p.get("metadata_edits") === "true",
     run: p.getAll("run").map(Number).filter((n) => n > 0),
     status: p.getAll("status"),
     photo: p.get("photo") ? Number(p.get("photo")) : null,
@@ -134,6 +135,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
     const p = new URLSearchParams();
     filters.run.forEach((r) => p.append("run", String(r)));
     filters.status.forEach((s) => p.append("status", s));
+    if (filters.metadata_edits) p.set("metadata_edits", "true");
     if (filters.photo != null) p.set("photo", String(filters.photo));
     if (filters.q) p.set("q", filters.q);
     if (dates.from) p.set("from", dates.from);
@@ -262,6 +264,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
             <p>Read the cause before retrying. You may need to reconnect storage, fix permissions, or repair a file outside the app.</p>
           </div>
         }} />
+        {filters.metadata_edits && <p className="section-note">Saved metadata edits. Includes saves whose later move failed. <a href="/logs" onClick={follow}>Show all log entries</a></p>}
         {filters.photo != null && (
           <p className="muted">
             Everything recorded for this photo across jobs, including its copies and moves.{" "}
@@ -311,7 +314,7 @@ export function LogsPage({ status, refreshStatus, onOpenSettings }: {
           <span>{active.length ? `Showing: ${active.join(" · ")}` : "Showing all log entries"}</span>
           <button className="link" aria-hidden={!active.length} inert={!active.length} onClick={clearAll}>Clear all filters</button>
         </p>
-        <MetadataHistory filters={apiFilters} refreshKey={refreshKey} />
+        {!filters.metadata_edits && <MetadataHistory filters={apiFilters} refreshKey={refreshKey} />}
         {runs && totals && (
           <div className="job-list-head">
             <span className="muted">

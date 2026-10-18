@@ -421,6 +421,7 @@ export interface OperationPage {
 }
 
 export interface LogFilters {
+  metadata_edits?: boolean;
   run: number[];
   status: string[];
   photo: number | null;
@@ -433,6 +434,7 @@ export function logQuery(f: LogFilters): URLSearchParams {
   const p = new URLSearchParams();
   f.run.forEach((r) => p.append("run", String(r)));
   f.status.forEach((s) => p.append("status", s));
+  if (f.metadata_edits) p.set("metadata_edits", "true");
   if (f.photo != null) p.set("photo", String(f.photo));
   if (f.q) p.set("q", f.q);
   if (f.since) p.set("since", f.since);
@@ -530,13 +532,14 @@ export interface Stats {
   };
   dates: {
     per_year: { year: string; photos: number }[];
+    min_year: number; max_year: number;
     oldest: string | null; newest: string | null;
     busiest_day: { day: string; photos: number } | null;
     undated: number; undated_no_date: number; undated_unusable: number; with_time_zone: number;
   };
   duplicates: {
     groups: number; extra_copies: number; bytes: number; saved_at_destination: number;
-    move_would_free: number; freed_by_moves: number; near_duplicates: number | null; copies_not_written: number;
+    move_would_free: number; freed_by_moves: number; copies_not_written: number;
     coverage: { last_complete_scan: string | null; established_by_run: number | null;
                 scans_with_issues_since: number; run_ids_since: number[] };
     by_folder: { folder: string; files: number; duplicates: number; duplicate_bytes: number }[];
@@ -544,7 +547,7 @@ export interface Stats {
   activity: {
     jobs: Record<string, number>; last_index: string | null; copied: number; moved: number;
     bytes_transferred: number; bytes_per_second: number | null; failures: Record<string, number>;
-    renames: number; exif_edits: number | null;
+    renames: number; metadata_edits: { photos: number; dates: number; rotations: number; primary_source: number; other: number };
   };
   health: {
     low_detail_photos: number;

@@ -1074,8 +1074,7 @@ the gallery, and later manual scrolling is not forced back to the Inspector phot
 Position lookups return rank and neighbors without downloading earlier pages.
 Failed lookups offer a retry while leaving the Inspector open.
 
-**History label change** (decided 2026-10-17; not built): rename **Open in the log** to
-**View photo logs** in History and the lineage tree. The existing link already opens
+**History label** (built): **View photo logs** in History and the lineage tree. The existing link already opens
 that photo’s operations across jobs, including linked identities and identical copies;
 this changes its label, not its filtering.
 
@@ -1608,7 +1607,7 @@ what it names. Each has its count and an **only** link to narrow to it in one cl
 **All statuses** ticks every one again, and the last ticked box cannot be unticked, since a
 log of no statuses shows nothing. *Why not buttons:* a row of toggle buttons grew crowded
 and did not say whether it meant one status or several. The Inspector's
-**View photo logs** (the planned label for **Open in the log**, §4.2), under History, opens the log for that photo. Each failure carries a plain hint drawn from its
+**View photo logs** (§4.2), under History, opens the log for that photo. Each failure carries a plain hint drawn from its
 recorded reason, and **Retry**, inside the job it belongs to, runs the same mode again over the photos behind
 that job's shown failures, however many, and says what it did beside the button. A Move's
 retry takes its copied-only photos too, so nothing is left out; a selection's retry leaves
@@ -1782,7 +1781,7 @@ The general principle: the engine guarantees it will never act on something it h
 
 ### 5.9 Duplicate Space: Reclaimable, Reclaimed, and Saved
 
-**Built on the Stats page** (`GET /api/v1/stats`, reached from an icon beside Settings):
+**Built on the Stats page** (`GET /api/v1/stats`, reached from the sidebar):
 these three figures, the coverage line, duplicates by top-level folder of the source (for a
 library fed as archives in their own folders, how much each archive duplicated), and the
 rest of the library in figures (formats,
@@ -1797,10 +1796,8 @@ The Dates chart stays within its panel: long year ranges scroll horizontally, wi
 readable year labels and keyboard-accessible year links. The complete counts remain
 available under **As a table**.
 
-**Planned: the Dates chart stays readable whatever the dates** (decided 2026-10-05). A few
-impossible years (year 1, a camera clock set to 2218) currently squash the chart: the
-first screenful shows only stray early years with bars too short to see, and the real
-spread of the library is scrolled out of sight.
+**Built: the Dates chart stays readable whatever the dates** (decided 2026-10-05).
+Suspicious dates have separate counts so they do not distort the normal year range.
 
 * **Its own full-width row** below the tiles, instead of one of the three panels, so many
   years fit side by side.
@@ -1815,17 +1812,20 @@ spread of the library is scrolled out of sight.
   empty slot, so gaps read as gaps; the bars scale to the busiest real year.
 * Year links, keyboard access and **As a table** stay as they are.
 
-**Metadata edits, and what counts as wasted space** (decided 2026-10-18; not built).
+**Metadata edits, and what counts as wasted space** (built; decided 2026-10-18).
 
 * **Activity's "EXIF edits" becomes "Metadata edits".** Edits are saved to XMP sidecars as
   well as inside photos, so "EXIF" names only part of them. It counts the photos whose
   metadata was changed, split by kind (dates, rotations, primary source), e.g. "12
-  photos: 9 dates, 3 rotations", linking to those entries in Logs.
+  photos: 9 dates, 3 rotations", linking to those entries in Logs. Each photo is counted
+  once overall and once per kind, so categories can overlap. Verified saves count even
+  when a later refile fails; failed writes and no-op saves do not. Counts use the saved
+  file identity even when the current photo row no longer exists.
 * **Wasted space is exact duplicates only.** Identical files are interchangeable, so their
   extra copies are space that can be reclaimed. Look-alikes are never counted as waste or
   as near-duplicates on Stats: whether a similar photo is worth keeping is the user's
   call, and **Has similar photos** already shows how many have look-alikes at any
-  percentage. The API's `near_duplicates` field goes when this is built.
+  percentage. The API has no `near_duplicates` field.
 
 
 "How much space are my duplicates wasting?" is a headline figure for the Stats page, and the catalog already answers it without any engine change. Deduplication acts on two different volumes, though, and conflating them produces a number that is wrong in whichever direction the user's mode does not apply:
@@ -2732,7 +2732,7 @@ Preserve full lineage across hash and path changes; see `engine-spec.md` §10.
   sets it for other formats (default **In the file**). RAW formats always use an XMP
   sidecar; Settings and setup state this rather than showing a disabled choice, e.g.
   "RAW photos: edits are always saved to an XMP sidecar beside the photo; the RAW file
-  is never changed" (decided 2026-10-18; the disabled option is still shown). These defaults apply when no primary write target is established; an existing
+  is never changed" (built; decided 2026-10-18). These defaults apply when no primary write target is established; an existing
   primary overrides them. A primary change requires an explicit preview and confirmation,
   including its effect on future edits and any refiling. Tabs do not change it.
   This release qualifies embedded JPEG writes and XMP sidecars only. Embedded

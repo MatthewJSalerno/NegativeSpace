@@ -516,7 +516,7 @@ function PhotoHistory({ id, onLineage, refreshKey }: { id: number; onLineage: ()
             ))}
           </ol>
           <div className="history-links">
-            <a href={logUrl({ photo: id })} onClick={follow}>Open in the log</a>
+            <a href={logUrl({ photo: id })} onClick={follow}>View photo logs</a>
             <button className="link" onClick={onLineage}>View lineage tree</button>
           </div>
         </>

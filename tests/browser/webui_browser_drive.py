@@ -682,7 +682,7 @@ with sync_playwright() as p:
     expect(page.locator(".job-head[aria-expanded=true]")).to_have_count(1)
     page.go_back()
     expect(page.locator(".inspector")).to_be_visible()
-    page.locator(".inspector").get_by_role("link", name="Open in the log").click()
+    page.locator(".inspector").get_by_role("link", name="View photo logs").click()
     expect(page.get_by_role("heading", name=re.compile(r"^Log for photo #\d+"))).to_be_visible()
     expect(page.locator(".job-group").first).to_be_visible()
     heads = page.locator(".job-head")
@@ -711,8 +711,14 @@ with sync_playwright() as p:
     expect(undated_tile).to_have_attribute("href", "/?view=all&undated=1")
     expect(page.locator(".stat-panel h3")).to_have_count(6)
     expect(page.locator(".stat-panel", has_text="Duplicates")).to_contain_text("Extra copies")
-    # Aligned: fixed columns, and every panel in a row as tall as the row.
-    boxes = page.locator(".stat-panel").evaluate_all(
+    # Dates occupies its own full-width row; the remaining panels keep aligned columns.
+    dates_panel = page.locator('.stat-panel').filter(has=page.get_by_role('heading',name='Dates',exact=True)).bounding_box()
+    grid = page.locator('.stat-panels').bounding_box()
+    assert abs(dates_panel['x'] - grid['x']) <= 1
+    assert abs(dates_panel['width'] - grid['width']) <= 1
+    assert dates_panel['y'] + dates_panel['height'] <= grid['y']
+    # Every panel in a grid row is as tall as that row.
+    boxes = page.locator(".stat-panels .stat-panel").evaluate_all(
         "ps => ps.map(p => { const r = p.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; })")
     rows = {}
     for left, top, width, height in boxes:

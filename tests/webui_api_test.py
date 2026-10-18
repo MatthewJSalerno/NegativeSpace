@@ -94,6 +94,68 @@ class ApiCase(unittest.TestCase):
             yield
 
 
+class StatsEdits(ApiCase):
+    def test_verified_saves_count_photos_once_and_link_to_the_exact_entries(self):
+        self.create_catalog()
+        wanted = []
+        with ns_db.connect(self.cfg.db_path) as conn:
+            run = ns_db.create_run(conn, mode='METADATA', source='/source', destination='/destination')[0]
+            with ns_db.transaction(conn):
+                for pid in (1,3,4,5,6):
+                    conn.execute("INSERT INTO photos(id,source_path,file_size,status) VALUES(?,?,100,'Copied')",
+                        (pid,f'/source/edit-{pid}.jpg'))
+                for identity, preview, saved, status in [
+                    (1, {'changes': {'date_taken':'2000-01-01'}}, True, 'Completed'),
+                    (1, {'changes': {'date_taken':'2001-01-01'}}, True, 'Completed'),
+                    (1, {'changes': {'orientation':6}}, True, 'Completed'),
+                    (2, {'primary_activation': {'primary_id':'exif'}}, True, 'Failed'),
+                    (3, {'changes': {'date_taken':'2002-01-01', 'orientation':3}}, True, 'Completed'),
+                    (4, {'changes': {'rating':'3'}}, True, 'Completed'),
+                    (5, {'changes': {'date_taken':'2003-01-01'}}, False, 'Failed'),
+                    (6, {'changes': {}}, False, 'Skipped')]:
+                    op = conn.execute("INSERT INTO operations(run_id,photo_id,status,timestamp) VALUES(?,?,?,?)",
+                        (run, identity if identity != 2 else None, status, ns_db.utc_now())).lastrowid
+                    ns_db.record_event(conn, operation_id=op, step='intent', outcome='recorded',
+                        detail={'kind':'metadata_edit', 'expected':{'preview':preview}})
+                    if saved:
+                        wanted.append(op)
+                        # Retained identity still counts when no current photo row remains.
+                        ns_db.record_event(conn, operation_id=op, step='metadata_saved', outcome='verified',
+                            detail={'file_id':identity})
+            conn.commit()
+        activity = self.client.get('/api/v1/stats').json()['activity']
+        self.assertEqual((activity['copied'], activity['moved'], activity['bytes_transferred']), (0,0,0),
+            'Completed metadata jobs are not Copy or Move operations')
+        self.assertIsNone(activity['bytes_per_second'])
+        result = activity['metadata_edits']
+        self.assertEqual(result, dict(photos=4, dates=2, rotations=2, primary_source=1, other=1))
+        params = {'metadata_edits':'true'}
+        log = self.client.get('/api/v1/operations', params=params).json()
+        self.assertEqual(sorted(item['id'] for item in log['items']), wanted)
+        self.assertEqual(log['total'], 6)
+        self.assertEqual(log['status_counts']['Failed'], 1, 'Saved metadata survives a later refile failure')
+        exported = self.client.get('/api/v1/operations/export', params={**params, 'format':'json'}).json()
+        self.assertEqual([item['id'] for item in exported], wanted)
+        self.assertEqual(self.client.get('/api/v1/operations', params={**params,'status':'Failed'}).json()['total'], 1)
+        self.assertEqual(self.client.get('/api/v1/operations', params={'metadata_edits':'invalid'}).status_code, 422)
+
+    def test_chart_bounds_use_the_configured_minimum_and_current_utc_year(self):
+        self.create_catalog()
+        settings = self.client.get('/api/v1/settings').json()['suspicious_min_year']
+        response = self.client.put('/api/v1/settings', json={'values':{'suspicious_min_year':1999},
+            'revisions':{'suspicious_min_year':settings['revision']}})
+        self.assertEqual(response.status_code, 200, response.text)
+        with ns_db.connect(self.cfg.db_path) as conn:
+            latest = conn.execute("SELECT CAST(strftime('%Y','now') AS INTEGER)+1").fetchone()[0]
+            for i, year in enumerate(('0001','1998','1999',str(latest),str(latest+1))):
+                conn.execute("INSERT INTO photos(source_path,status,metadata_json) VALUES(?, 'Pending', ?)",
+                    (f'/source/generated-{i}.jpg',json.dumps({'date_taken':f'{year}-01-01', 'date_source':'exif'})))
+            conn.commit()
+        dates = self.client.get('/api/v1/stats').json()['dates']
+        self.assertEqual((dates['min_year'], dates['max_year']), (1999,latest))
+        self.assertEqual(sum(row['photos'] for row in dates['per_year']), 5, 'All years remain available in the table')
+
+
 class SameNameCards(ApiCase):
     def test_scope_pagination_selection_and_exact_copies(self):
         self.create_catalog()
@@ -1057,12 +1119,12 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual(st["duplicates"]["saved_at_destination"], st["duplicates"]["bytes"],
                          "once the original is copied, the duplicate was never written")
         self.assertGreater(st["duplicates"]["move_would_free"], 0, "the duplicate's source is still there")
-        self.assertIsNone(st["duplicates"]["near_duplicates"], "not recorded yet: no figure is invented")
+        self.assertNotIn("near_duplicates", st["duplicates"])
         self.assertEqual(sum(y["photos"] for y in st["dates"]["per_year"]) + st["dates"]["undated"], 2)
         self.assertEqual(st["activity"]["copied"], 2)
         self.assertGreater(st["activity"]["bytes_transferred"], 0)
         self.assertEqual(st["activity"]["failures"], {}, "nothing failed")
-        self.assertIsNone(st["activity"]["exif_edits"])
+        self.assertEqual(st["activity"]["metadata_edits"], dict(photos=0, dates=0, rotations=0, primary_source=0, other=0))
         self.assertGreaterEqual(st["health"]["backups"], 1, "each job took a backup")
         self.assertGreater(st["health"]["catalog_bytes"], 0)
 

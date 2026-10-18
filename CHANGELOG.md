@@ -9,6 +9,16 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Align sidebar filter labels, counts and pins; explain unavailable counts and incompatible
+  filters on hover or keyboard focus. Clarify shared-sidecar examples, RAW edit storage
+  and photo-log links.
+- Show Stats dates across a full-width row with suspicious years kept apart and undated
+  photos beside it. Count verified metadata edits by photo and kind, with filtered log
+  links; keep duplicate-space figures limited to exact duplicates. Metadata jobs no
+  longer inflate Copy/Move activity totals.
+- Remove the unused metadata resolver while retaining shared JSON validation and
+  production reader/precedence coverage.
+
 - Run documentation checks without the application suites for verified documentation-only
   changes. Preserve full validation for code, mixed changes and manual runs, with a
   required merge gate that rejects failed checks and unintended skips.

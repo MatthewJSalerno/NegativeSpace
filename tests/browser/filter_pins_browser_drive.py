@@ -49,6 +49,12 @@ with sync_playwright() as p:
     expect(page.locator('.card')).to_have_count(min(60, total))
     expect(summary).to_have_count(0)
     expect(page.locator('.pager').get_by_text(f'{total:,} photos', exact=True)).to_have_count(0)
+    rows = main.locator('.sidebar-filter-row')
+    boxes = rows.evaluate_all('(rows)=>rows.map(e=>{const r=e.getBoundingClientRect();const c=e.querySelector(".sidebar-count").getBoundingClientRect();const p=e.querySelector(".filter-pin").getBoundingClientRect();return {height:r.height,count:c.right,pin:p.x};})')
+    assert len({round(b['height'],1) for b in boxes}) == 1, boxes
+    assert len({round(b['count'],1) for b in boxes}) == 1, boxes
+    assert len({round(b['pin'],1) for b in boxes}) == 1, boxes
+    expect(choose('Review later').locator('.sidebar-count')).to_have_text('0')
     baseline_gallery_y = page.locator('.gallery-head').bounding_box()['y']
     if os.environ.get('SHOTS'): page.screenshot(path=f"{os.environ['SHOTS']}/gallery-unfiltered-count.png")
     pin('Has similar photos').click()
@@ -305,6 +311,10 @@ with sync_playwright() as p:
     main.get_by_role('link', name=re.compile('^Needs review')).click()
     expect(choose('Review later')).to_have_attribute('aria-disabled', 'true')
     expect(choose('Review later')).to_have_attribute('title', re.compile('Unpin Small images'))
+    expect(choose('Review later').locator('.sidebar-count')).to_have_text('—')
+    choose('Review later').focus()
+    expect(page.get_by_role('note').filter(has_text='Unpin Small images')).to_be_visible()
+    page.keyboard.press('Escape')
     unpin('Small images').click()
     expect(choose('Small images')).to_have_attribute('aria-pressed', 'false')
     expect(choose('Review later')).not_to_have_attribute('aria-disabled', 'true')

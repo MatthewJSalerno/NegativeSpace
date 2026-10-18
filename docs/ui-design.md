@@ -185,8 +185,14 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   counts describe the current intersection. Small images, Review later and Files needing verification share
   one reason scope and remain exclusive:
   pinning either disables the other with an explanation telling the user which to unpin. A filter that does not apply to the
-  place stays in its row, dimmed (`aria-disabled`), reserving a hidden count slot so
-  long labels do not unwrap and move the rows below. It says why on hover: Has similar
+  place stays in its row, dimmed (`aria-disabled`), with an em dash in its reserved count
+  column. A true zero displays 0. An unavailable count also displays a dash with a
+  distinct explanation. Hover or keyboard focus explains whether the count is unavailable
+  or the filter cannot apply, including which pin to clear. Rows use fixed label/count/pin
+  columns and uniform heights. The compact labels Similar photos, No usable date and
+  Needs verification retain their full names in accessible labels and hover/focus help. Long
+  labels truncate instead of wrapping. Logs and Stats reserve the same pin gutter.
+  It says why on hover and focus: Has similar
   photos, Small images, Files needing verification and Review later are for Library and Needs review.
   On Logs and Stats each is a link that opens Library (Review later: Needs review) with
   only that filter on, counted as it opens. Pins are remembered per browser (`ns.filterPins`),
