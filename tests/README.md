@@ -1530,6 +1530,10 @@ image with the checkout mounted read-only. Generated fixtures cover CLI preview/
 request replay, new content/cache identity, original source preservation, date/Undated
 refiling, unchanged inactive sidecars, no-op inode preservation, discarded unsaved edits,
 unexpected path bytes, failed verification, interrupted publication and move-only retry.
+Asymmetric generated photos check embedded-orientation rehashing, new SHA-1/content/save
+receipt agreement, unchanged visual identity after embedded date edits, unavailable
+hashing without stale reuse, comparison refresh on Apply/Retry, and recoverable comparison
+failure. Original source bytes and historical content hashes remain unchanged.
 Reindex both completed and unfinished edits; exercise Reject/Return, detached duplicate
 sources and exact-result duplicate reporting without consolidation. Run all metadata,
 XMP, database/API/recovery suites and engine smoke checks after shared catalog changes.

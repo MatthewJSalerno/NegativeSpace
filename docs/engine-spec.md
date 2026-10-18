@@ -1004,6 +1004,12 @@ detail preview. Standard images use Pillow; RAW files use rawpy half-size demosa
 before hashing. The small visual fingerprint does not require a full-resolution
 render. Preview rotation in the browser never recomputes the hash.
 
+Embedded metadata saves also recompute pHash from the verified published photo,
+including during interrupted-save recovery. The photo record, new content identity
+and saved receipt change together; the original content history remains intact.
+New visual hashes are compared once per metadata batch before its counts settle.
+A sidecar-only edit does not change the photo bytes or its visual hash.
+
 **The hash is taken from the photo as it is displayed**, the rule thumbnails follow:
 a standard image's EXIF orientation is applied, and LibRaw already decodes a RAW
 upright. Hashing stored pixels instead left a portrait RAW and its own JPEG (stored
@@ -1509,14 +1515,17 @@ backup list names each kind and what triggered it.
 warning that manufacturers do not follow the standard consistently. Enabling it asks
 whether to keep a copy of each RAW file before its first edit, in `dest/raw-originals/`
 (§9.9); with copies on, a failed copy stops the edit with nothing changed. Both choices
-can change at any time and affect only later edits. **pHash after a rotation:** for
-JPEG, HEIC and TIFF the pHash is computed from stored pixels without applying the
-Orientation tag (`compute_phash`), so an orientation edit leaves it and the photo's
-matches unchanged; the RAW decoder applies rotation, so after a RAW orientation edit
-the photo's pHash and matches are recomputed (to be confirmed with real RAW samples).
+can change at any time and affect only later edits. These RAW-editing controls remain
+planned; the supported embedded writer is limited to JPEG.
 
-**Not implemented.** Needs: the embedded write and verification path, coordinated
-refiling, provenance and change records, and failure recovery.
+**pHash after a rotation:** standard images are hashed with EXIF Orientation applied;
+RAW is hashed after the decoder applies orientation (§9.3). Embedded JPEG saves refresh
+the visual hash, displayed dimensions and content history, then compare new hashes at
+batch completion. Sidecar-only writes do not alter the photo's embedded orientation.
+
+**Built for JPEG:** verified embedded writes, coordinated refiling, provenance and
+change records, and failure recovery. Embedded RAW, TIFF and HEIC writes still need
+separate preservation qualification.
 
 ### 9.7. The destination contract
 
