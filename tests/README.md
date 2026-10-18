@@ -448,7 +448,8 @@ thresholds, paging, positioning, destination-only eligibility and no DB writes.
 Run the browser harness with `DRIVER=reference_sets_browser_drive.py` and
 `SIMILARITY_RECOVERY_FIXTURE=1`, specifying the built `IMAGE` and `WEB_IMAGE`.
 It uses only the harness's disposable generated catalog. Checks include grouping, the
-explanation of sets and its diagram (hover and the ⓘ button), set review, selection
+explanation of sets and its accurate diagram membership; hover, keyboard focus, the ⓘ
+button, Escape and scrollable viewport bounds at 200% text; set review, selection
 preservation, a dense set's members paged in the gallery, and per-file recovery failure
 details in Logs.
 

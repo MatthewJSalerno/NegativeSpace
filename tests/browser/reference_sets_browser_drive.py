@@ -145,6 +145,43 @@ with sync_playwright() as p:
     expect(note.get_by_role('img',name='Two sets that share a photo')).to_be_visible()
     guidance.get_by_role('button',name='More information').click()
     expect(note).to_have_count(0)
+    # Focus and Escape work without a click; the popup remains pointer-accessible.
+    help_button=guidance.get_by_role('button',name='More information')
+    help_button.blur()
+    help_button.focus()
+    expect(note).to_be_visible()
+    help_button.press('Escape')
+    expect(note).to_have_count(0)
+    page.mouse.move(5,5)
+    guidance.get_by_text('Each card is a set',exact=False).hover()
+    note.hover()
+    expect(note).to_be_visible()
+    page.mouse.move(5,5)
+    help_button.blur()
+    expect(note).to_have_count(0)
+    # Reflow while open must measure actual rich content, not an estimated height.
+    help_button.focus()
+    page.set_viewport_size({'width':800,'height':450})
+    scale=page.add_style_tag(content='html { font-size: 200% !important; }')
+    help_button.scroll_into_view_if_needed()
+    expect(note).to_be_visible()
+    page.wait_for_function("""() => {
+      const e=document.querySelector('.help-wide'); if (!e) return false;
+      const r=e.getBoundingClientRect();
+      return r.top >= 15 && r.left >= 15 && r.bottom <= innerHeight-15 && r.right <= innerWidth-15;
+    }""")
+    assert note.evaluate('e => e.scrollHeight > e.clientHeight'), 'fixture must exercise overflow'
+    note.focus()
+    note.press('End')
+    page.wait_for_function("document.querySelector('.help-wide').scrollTop > 0")
+    shot('sets-help-scaled-scrolled')
+    note.press('Home')
+    page.wait_for_function("document.querySelector('.help-wide').scrollTop === 0")
+    shot('sets-help-scaled')
+    note.press('Escape')
+    expect(note).to_have_count(0)
+    scale.evaluate('e => e.remove()')
+    page.set_viewport_size({'width':1440,'height':1000})
     review=page.get_by_role('dialog',name='Review photo match',exact=True)
     # Review from the tile opens the ordinary direct-match workspace.
     card.get_by_role('button',name='Review this set',exact=True).click()

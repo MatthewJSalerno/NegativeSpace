@@ -80,7 +80,9 @@ tokens; the font is served with the app, with no external font request.
 
 Help popups use the subdued `--surface-2` background and normal text color in both
 themes. They occupy the browser's top layer so sticky sidebars and adjacent photos
-cannot clip or cover the text.
+cannot clip or cover the text. Help is positioned using its rendered size, stays within
+the viewport when it resizes or scrolls, and scrolls internally if needed at larger text
+sizes. Its content is keyboard-focusable so arrow keys can scroll it; Escape dismisses it.
 
 Stats warning and failure tiles retain their semantic colored left borders so
 problems are easy to notice. Folder-table cells retain the shared spacing, including
