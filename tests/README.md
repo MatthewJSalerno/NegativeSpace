@@ -2976,7 +2976,9 @@ reflow. `filter_pins_browser_drive.py` checks aligned row/count/pin columns and 
 zero versus incompatible-count explanations, including full filter labels beside large
 counts in normal and selected states. `fresh_start_browser_drive.py` holds back the
 live feed to check immediate accepted-job display, stale snapshots and delayed start
-responses after completion; `metadata_settings_browser_drive.py`
+responses after completion. It also checks HTTP recovery of a silent active feed,
+progress and completion, stale HTTP replies, no idle polling, and the Index summary
+waiting for completion; `metadata_settings_browser_drive.py`
 checks the RAW sidecar-only statement. These browser checks use generated fixtures.
 
 Maintainer checks for this batch use Tests U1–U4 in `docs/ui-stats-validation.md`.

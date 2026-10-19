@@ -5,10 +5,11 @@ and file-transfer rules stay the same. Automated results are recorded separately
 these maintainer checks. Report results by test and step, for example **U2c passed**.
 
 Maintainer results: U1–U4 passed, and **U2b** passed after the label-width fix.
-Only **U1b** remains: repeat the first Index from a fresh setup, as requested after
-seeing the delay twice on first Index. The review instance is reset with an empty
-catalog and destination. Complete setup, then run Index and report the delay between
-clicking it and seeing progress. No Copy or metadata-edit repeat is needed.
+Only **U1b** remains. Immediate display passed, but live progress stayed at zero and
+the summary appeared before the drawer caught up. Recheck from fresh setup after the
+live-feed recovery fix: counts must advance, the drawer must disappear on completion,
+and the summary and Notifications result must agree. No Copy or metadata-edit repeat
+is needed.
 
 ## Test U1 — Setup and photo-log wording
 
@@ -21,9 +22,11 @@ for shared sidecars. Leave the earliest expected year at 1800 and enable small-i
 reminders at 800 pixels.
 
 **b.** Run Index. The initiating control should show Starting immediately; once accepted,
-progress should appear below the top toolbar without waiting for the next live update;
-when it finishes, open the Notifications bell for the result. A later unchanged re-index
-can finish in under two seconds. Then run Copy. The source is the full demo library plus four generated
+progress should appear below the top toolbar without waiting for the next live update.
+Check that the processed count advances. The Index summary should wait until Index
+finishes, then the progress drawer should disappear and the Notifications bell should
+show the result. A later unchanged re-index can finish in under two seconds. Copy is
+needed only for the original full walkthrough, not this U1b recheck. The source is the full demo library plus four generated
 validation photos. Processing issues in the demo may leave some files in Not organized;
 these do not prevent the checks below. No Move is needed.
 

@@ -22,6 +22,9 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
     let socket: WebSocket | null = null;
     let retryTimer: number | undefined;
     let fallbackTimer: number | undefined;
+    let checking = false, revision = 0;
+    let lastMessageAt = Date.now(), lastCheckAt = Date.now() - 1000;
+    let fallbackController: AbortController | null = null;
     let stopped = false, received = false, retry = 0;
     let snapshot: JobState | null = null;
     let accepted: Run | null = null;
@@ -39,14 +42,37 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
     const unsubscribe = subscribeJobAccepted((run) => {
       // The feed may already have reported this job finished before the POST returns.
       if (run.id == null || run.id <= newestId(snapshot)) return;
+      revision += 1;
       accepted = { ...run, cancellable: false };
       publish(isActive(run) ? { active: accepted, last: snapshot?.last ?? null } : { active: null, last: run });
     });
-    const fallback = () => {
-      if (stopped || received) return;
-      api.jobState().then((state) => {
-        if (!stopped && !received) receive(state);
-      }, (e) => { if (!stopped && !received) setError(e instanceof ApiError ? e.message : "Job state could not be loaded."); });
+    const fallback = async () => {
+      const now = Date.now();
+      if (stopped || checking || now - lastCheckAt < 3000) return;
+      // Idle feeds legitimately send nothing. Check only before the first snapshot,
+      // while disconnected, or when a known active job has had no live update for 3s.
+      const quietJob = snapshot?.active && !snapshot.active.awaiting_reconciliation && now - lastMessageAt >= 3000;
+      if (received && socket?.readyState === WebSocket.OPEN && !quietJob) return;
+      checking = true; lastCheckAt = now;
+      const startedRevision = revision;
+      const controller = new AbortController(); fallbackController = controller;
+      const timeout = window.setTimeout(() => controller.abort(), 5000);
+      try {
+        const state = await api.jobState(controller.signal);
+        // A newer live update or accepted submission wins over an older HTTP request.
+        if (!stopped && revision === startedRevision) {
+          receive(state);
+          if (socket?.readyState === WebSocket.OPEN) setConnection("open");
+        }
+      } catch (e) {
+        if (!stopped && revision === startedRevision) {
+          if (!snapshot) setError(e instanceof ApiError ? e.message : "Job state could not be loaded.");
+          else setConnection("lost");
+        }
+      } finally {
+        window.clearTimeout(timeout);
+        fallbackController = null; checking = false;
+      }
     };
     const connect = () => {
       const scheme = window.location.protocol === "https:" ? "wss" : "ws";
@@ -54,7 +80,7 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
       socket.onopen = () => { retry = 0; setConnection("open"); };
       socket.onmessage = (event) => {
         if (stopped) return;
-        received = true;
+        received = true; revision += 1; lastMessageAt = Date.now();
         receive(JSON.parse(event.data) as JobState);
       };
       socket.onclose = () => {
@@ -65,13 +91,14 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
       };
     };
     connect();
-    // A proxy without WebSocket support must not prevent browsing. The drawer
-    // still reports the lost live connection; a later snapshot catches up.
-    fallbackTimer = window.setTimeout(fallback, 2000);
+    // The timer checks freshness only; healthy live feeds and idle connections
+    // make no extra HTTP requests. At most one fallback request runs at a time.
+    fallbackTimer = window.setInterval(() => void fallback(), 1000);
     return () => {
       stopped = true;
       unsubscribe();
-      window.clearTimeout(retryTimer); window.clearTimeout(fallbackTimer);
+      window.clearTimeout(retryTimer); window.clearInterval(fallbackTimer);
+      fallbackController?.abort();
       socket?.close();
     };
   }, [attempt]);

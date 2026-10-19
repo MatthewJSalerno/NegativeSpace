@@ -938,7 +938,8 @@ verification) work only on organized photos. A filter that does not apply stays 
 dimmed, saying why. Small images therefore also applies in Not organized, beside a new
 **Has identical copies**.
 
-Not organized starts with Index source. After Index, its neutral Index summary describes
+Not organized starts with Index source. While Index runs, hide its summary so partial
+counts cannot claim indexing has finished. After Index, its neutral Index summary describes
 remaining indexed photos, identical extra copies, size and date facts, plus a clear
 Copy/Move next step using the existing confirmation. Counts cover the whole location,
 not gallery filters; disabled size rules and uncalculated similarity are explicit.

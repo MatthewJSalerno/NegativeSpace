@@ -759,7 +759,7 @@ export const api = {
     request<MatchPair>("GET", `/api/v1/similar/${reference}/pair/${candidate}`),
   matches: (query: URLSearchParams, photo: number | null = null) =>
     request<MatchPage>("GET", `/api/v1/similar${photo == null ? "" : `/${photo}`}?${query}`),
-  jobState: () => request<JobState>("GET", "/api/v1/jobs/active"),
+  jobState: (signal?: AbortSignal) => request<JobState>("GET", "/api/v1/jobs/active", undefined, signal),
   status: () => request<Status>("GET", "/api/v1/status"),
   createCatalog: () => request<Status>("POST", "/api/v1/catalog"),
   settings: () => request<Settings>("GET", "/api/v1/settings"),

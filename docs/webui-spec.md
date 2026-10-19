@@ -967,7 +967,12 @@ browser independently of the overall Inspector width.
   not a newly completed job. A changed terminal run refreshes page data and status once,
   including after reconnect and jobs too short to observe running. Initial WebSocket
   failure falls back to the job-state HTTP endpoint so browsing remains available;
-  loss of the live connection stays visible. Settings saves and return-to-window status
+  loss of the live connection stays visible. An active job with no live update for
+  three seconds is checked through the same HTTP endpoint, at most once every three
+  seconds with one request in flight and a five-second timeout. Idle connected feeds
+  do not poll. Newer live updates or acceptances override an older HTTP response.
+  This fallback also detects completion and refreshes the page once.
+  Settings saves and return-to-window status
   refreshes still update Library. No gallery, facet, log or Stats response cache is added.
 * **Data contract:** the API reads `ns_db.read_progress(run_id)`, which the engine writes
   about once a second (`engine-spec.md` §4.3, table `run_progress`). It holds one entry

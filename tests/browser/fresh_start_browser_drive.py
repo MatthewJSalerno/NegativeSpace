@@ -129,6 +129,41 @@ with sync_playwright() as p:
     late[0].fulfill(status=202,json=fake)
     page.wait_for_timeout(100)
     expect(drawer).to_have_count(0)
+    # An open but silent socket must not strand progress or completion. Healthy
+    # idle sockets do not poll. A newer live frame wins over a delayed HTTP result.
+    fake={**fake,'id':fake['id']+1}
+    active={'active':fake,'last':latest}
+    sockets[-1].send(json.dumps(active))
+    expect(drawer).to_contain_text(f"Job #{fake['id']} · Index running")
+    expect(page.get_by_role('region',name='Index summary',exact=True)).to_have_count(0)
+    polls=[]
+    page.route('**/api/v1/jobs/active',lambda route:polls.append(route))
+    for _ in range(100):
+        if polls:break
+        page.wait_for_timeout(100)
+    assert polls,'A silent active feed must be checked over HTTP'
+    phase={'phase':'scanning','total':100,'done':20,'counts':{'indexed':20},'updated_at':fake['started_at']}
+    progress={**fake,'progress':[phase]}
+    polls.pop(0).fulfill(json={'active':progress,'last':latest})
+    expect(drawer).to_contain_text('20 of 100')
+    for _ in range(100):
+        if polls:break
+        page.wait_for_timeout(100)
+    assert polls
+    sockets[-1].send(json.dumps({'active':{**progress,'progress':[{**phase,'done':70}]},'last':latest}))
+    expect(drawer).to_contain_text('70 of 100')
+    polls.pop(0).fulfill(json={'active':progress,'last':latest})
+    page.wait_for_timeout(100)
+    expect(drawer).to_contain_text('70 of 100')
+    for _ in range(100):
+        if polls:break
+        page.wait_for_timeout(100)
+    assert polls
+    polls.pop(0).fulfill(json={'active':None,'last':{**latest,'id':fake['id']}})
+    expect(drawer).to_have_count(0)
+    expect(page.get_by_role('region',name='Index summary',exact=True)).to_be_visible()
+    page.wait_for_timeout(3500)
+    assert not polls,'An idle connected feed should not poll'
     assert not errors,errors
     browser.close()
 print('PASS: missing-catalog URL replacement, preserved valid links, and stable Index submission')
