@@ -52,14 +52,14 @@ settings; they start collapsed to keep this step shorter. **Metadata** explains 
 handle shared XMP sidecars and where to save edits. **Backups** explains catalog backups, **Performance** sets how
 many photos are read at once, and **Access** saves additional addresses used to open the app.
 
-![The Files step: small-image reminders and the earliest expected year](images/setup-files.png)
+![The Files step: small-image reminders and the earliest expected year](images/setup-files-disclosures.png)
 
 ## 2. Index: read your photos
 
 The library starts empty. **Jobs** holds the jobs for the whole library; each item says
 what it does, and why when it cannot run yet.
 
-![The Jobs menu before anything is indexed](images/jobs-menu-before-index.png)
+![The Jobs menu before anything is indexed](images/jobs-before-index-sidebar.png)
 
 **Index** reads every photo in your source: its date, a checksum of its content, and a
 small thumbnail. It moves and copies nothing, and never writes to your source. Its progress
@@ -84,7 +84,7 @@ part of the original source folder that tells them apart. Hover over a photo’s
 see its original path and any identical copies’ paths. A name changed on arrival also
 explains that another photo already had that name.
 
-![The Library, showing one year, with two same-named photos told apart by their folders](images/library-year.png)
+![The Library, showing photos from one year](images/library-sidebar.png)
 
 Click a photo to open it in the panel on the right: its file, its dates and where they came
 from, and its history.
@@ -101,7 +101,7 @@ one thing. When a job finishes, you are where you were, and the bell at the top 
 lists it under **Notifications**: **Show these photos** shows what it did, and you can
 search and filter them like any other photos.
 
-![A finished Copy in Notifications](images/notifications.png)
+![A finished Copy in Notifications](images/notifications-sidebar.png)
 
 Which to use is your choice. If you would rather not give any app write access to your
 originals, use Copy only: the source stays read-only, you check the library your own way,
@@ -145,7 +145,7 @@ If you Move, a rejected photo's original in your source is deleted too, once its
 Rejects is verified, so the source can end up empty. That copy is then the only one:
 empty Rejects and the photo is gone. Every Move that includes rejected photos says so first.
 
-![The Rejects view](images/rejects-view.png)
+![The Rejects view](images/rejects-sidebar.png)
 
 ## 7. Check dates
 
@@ -154,7 +154,7 @@ empty Rejects and the photo is gone. Every Move that includes rejected photos sa
 in **Settings › Files** to suit your collection. These are clues to investigate, not proof
 of a wrong date; NegativeSpace changes no date by itself.
 
-![Photos with suspicious dates](images/suspicious-dates-filter.png)
+![Photos with suspicious dates](images/suspicious-dates-sidebar.png)
 
 **No usable date** lists photos with no usable date in their metadata. A missing date alone does not prevent **Copy** or **Move**. A photo can also appear under **Not organized › Needs attention** if a separate issue prevents organizing it; open its information pane for the specific reason. They are filed
 under `library/Undated/<year>/`, where the year comes from the file's modification time,
@@ -188,7 +188,7 @@ every job that touched it. **View lineage tree** in the panel shows it.
 applied them. The same section appears in the photo’s lineage; **Compare metadata…**
 compares a saved choice with the photo’s current primary source without changing it.
 
-![The log](images/log-page.png)
+![The log](images/logs-sidebar.png)
 
 **Stats**, under Logs in the sidebar, gives figures for the whole library.
 
@@ -204,7 +204,7 @@ and Docker-configured addresses remain available for recovery.
 the next time you open it, and **Repair grid thumbnails** remakes any gallery thumbnails
 that have gone missing. **Rebuild all grid thumbnails** remakes every one.
 
-![Settings › Performance, with the thumbnail cache](images/settings-performance.png)
+![Settings › Performance, with the thumbnail cache](images/settings-performance-sidebar.png)
 
 **Metadata** keeps the same choices you made during setup. Changing its defaults does
 not change photos that already have a primary metadata source.
