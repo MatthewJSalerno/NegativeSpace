@@ -4,9 +4,11 @@ This batch changes wording, sidebar presentation and Stats. Filtering, metadata 
 and file-transfer rules stay the same. Automated results are recorded separately from
 these maintainer checks. Report results by test and step, for example **U2c passed**.
 
-Maintainer results: U1–U4 passed. Two follow-ups remain for recheck: **U1b** (about
-five seconds before Index progress appeared) and **U2b** (Needs verification truncated).
-The existing catalog can be kept; no setup, Copy or metadata-edit repeat is needed.
+Maintainer results: U1–U4 passed, and **U2b** passed after the label-width fix.
+Only **U1b** remains: repeat the first Index from a fresh setup, as requested after
+seeing the delay twice on first Index. The review instance is reset with an empty
+catalog and destination. Complete setup, then run Index and report the delay between
+clicking it and seeing progress. No Copy or metadata-edit repeat is needed.
 
 ## Test U1 — Setup and photo-log wording
 
