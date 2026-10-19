@@ -2873,7 +2873,9 @@ source against the copy in Rejects (or puts it there, when Rejects was emptied).
     library, and the button is absent when there are none. Each asks first, starting
     on Cancel: "Reject IMG_0412.jpg?" (or "Reject 12 photos?") and "It moves to the Rejects
     folder and leaves your library. You can bring it back any time until you manually
-    empty Rejects." No folder reject: select the folder's photos instead.
+    empty Rejects." Bulk review's final Reject action opens the same dialog with its
+    selected count; Cancel preserves the reviewed selection. No folder reject: select
+    the folder's photos instead.
 *   **The Rejects view** (`view=rejects`): rejected photos leave every other view and
     count. Normal cards with a Rejected badge (when, on hover). Above them: "Rejects
     holds 12 photos · 22 KB · oldest rejected Oct 1, 2026" and **How to empty Rejects**,

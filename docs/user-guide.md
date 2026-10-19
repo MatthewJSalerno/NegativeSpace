@@ -141,6 +141,11 @@ library** brings a photo back, and you empty the folder yourself (**How to empty
 Rejects** says how). A reminder appears on every page once Rejects grows past a size or
 age you set in Settings.
 
+For several photos, review the selection, choose **Reject these n photos**, then confirm
+**Reject**. **Cancel** keeps your selection so you can adjust it. The same question
+appears for one photo; only side-by-side comparison offers **Don't ask again while
+comparing**. Rejecting its last Library photo always asks again.
+
 If you Move, a rejected photo's original in your source is deleted too, once its copy in
 Rejects is verified, so the source can end up empty. That copy is then the only one:
 empty Rejects and the photo is gone. Every Move that includes rejected photos says so first.

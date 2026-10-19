@@ -9,6 +9,9 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Use one Reject confirmation across the gallery, photo review and comparison, including
+  reviewed selections. Keep comparison-only preferences and the last-photo warning.
+
 - Recover progress and completion through a bounded status check when live job updates
   stop; do not show the Index summary while indexing is still running.
 

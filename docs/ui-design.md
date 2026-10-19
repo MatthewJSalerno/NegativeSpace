@@ -434,7 +434,7 @@ it; the **lineage tree** traces the photo back to its origin through every file 
 the **log** shows the jobs and the work each did. Keep each to its job rather than merging
 them.
 
-**One "Reject?" dialog everywhere** (decided 2026-10-05). Every reject question, from the
+**One "Reject?" dialog everywhere** (built; decided 2026-10-05). Every reject question, from the
 gallery, the photo panel, the comparison or Needs review, is the same dialog with the same
 wording, spacing and button order: the title names the photo ("Reject IMG_0412.jpg?", or
 "Reject 12 photos?"), then "It moves to the Rejects folder and leaves your library. You can
@@ -442,7 +442,10 @@ bring it back any time until you manually empty Rejects.", Cancel focused first.
 appear only where they apply: **Don't ask again while comparing** in the comparison, and
 the last-photo warning ("None of these photos would be left in the library") with **Reject
 it too** as the button. *Why not a dialog per screen:* two separate ones already drifted
-and had to be reworded in both places.
+and had to be reworded in both places. `ConfirmDialog` and `rejectConfirm` share the
+question across these entry points; comparison-only controls are contextual options.
+Bulk selection and Keep/reject-rest retain their photo-review step, then open this
+same confirmation. Cancelling returns to the reviewed selection without changing it.
 
 ## Similarity belongs in the gallery
 

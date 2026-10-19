@@ -15,6 +15,8 @@ Everything here is for developing NegativeSpace; running the engine needs none o
 - Keep private sample filenames in the direct validation message or private handoff;
   tracked checklists use generated fixture names and aggregate results.
 
+Shared Reject confirmation: [remaining maintainer checks RC1–RC3](../docs/shared-reject-validation.md).
+
 ## CI coverage
 
 CI coverage is split between two workflows:
@@ -401,6 +403,9 @@ from Similar photos and side by side: Reject… per look-alike; in the compariso
 under each photo, asked once with Don't ask again, the next look-alike with Return it to
 the library, a new comparison asking again, and the last photo always asked about; Keep
 this one, reject the rest with the kept photo first, full size and never ticked.
+The shared confirmation checks cover matching text and button order, Cancel not saving
+the comparison preference, bulk confirmation after reviewing the selection, and the
+last-photo warning even when the comparison preference is enabled.
 It also checks the single large reference preview, its heading and accent border,
 no repeated reference thumbnail in the matches pane, and no Keeping label before
 an explicit Keep choice, across wide/stacked layouts and forced colors.
@@ -412,7 +417,9 @@ should label it **Keeping**; Cancel should return without rejecting anything.
 `DRIVER=rejects_browser_drive.py sh tests/browser/webui_browser_test.sh` checks Rejects: one
 photo rejected from the Inspector (asked first by name, starting on Cancel), a selection
 reviewed before rejecting, the Rejects view with what it holds and How to empty Rejects,
-Return to library, the selection bar for photos in Rejects (Return first, and a Move that
+the shared bulk confirmation (Cancel preserves selection), Cancel/Escape focus restoration,
+and the dialog in light/dark mode and 200% text reflow. It also covers Return to library,
+the selection bar for photos in Rejects (Return first, and a Move that
 warns its copies in Rejects become the only ones), one place per selection (library
 photos' tick boxes disabled while a photo in Rejects is selected), the view at a narrow width, the reminder past a size limit on every
 page and switched off in Settings, and the Rejects tile on Stats.
