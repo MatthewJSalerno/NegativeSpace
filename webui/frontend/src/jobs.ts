@@ -1,6 +1,6 @@
 // The job feed (WS /api/v1/ws/jobs) and the words the drawer uses for it.
 import { createContext, createElement, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { api, ApiError, type JobState, type Outcome, type Phase, type Run } from "./api";
+import { api, ApiError, subscribeJobAccepted, type JobState, type Outcome, type Phase, type Run } from "./api";
 import { count, plural } from "./format";
 
 export type Connection = "connecting" | "open" | "lost";
@@ -23,10 +23,29 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
     let retryTimer: number | undefined;
     let fallbackTimer: number | undefined;
     let stopped = false, received = false, retry = 0;
+    let snapshot: JobState | null = null;
+    let accepted: Run | null = null;
+    const newestId = (state: JobState | null) => Math.max(state?.active?.id ?? 0, state?.last?.id ?? 0);
+    const publish = (state: JobState) => { snapshot = state; setJobs(state); setError(null); };
+    const isActive = (run: Run) => ["Preparing", "Running", "Cancelling"].includes(run.status);
+    const receive = (state: JobState) => {
+      // A snapshot computed before acceptance can arrive after the POST response.
+      // Keep the confirmed job visible until the feed reaches that run or a newer one.
+      if (accepted && newestId(state) < (accepted.id ?? 0)) {
+        publish(isActive(accepted) ? { ...state, active: accepted } : { active: null, last: accepted });
+      }
+      else { accepted = null; publish(state); }
+    };
+    const unsubscribe = subscribeJobAccepted((run) => {
+      // The feed may already have reported this job finished before the POST returns.
+      if (run.id == null || run.id <= newestId(snapshot)) return;
+      accepted = { ...run, cancellable: false };
+      publish(isActive(run) ? { active: accepted, last: snapshot?.last ?? null } : { active: null, last: run });
+    });
     const fallback = () => {
       if (stopped || received) return;
       api.jobState().then((state) => {
-        if (!stopped && !received) { setJobs(state); setError(null); }
+        if (!stopped && !received) receive(state);
       }, (e) => { if (!stopped && !received) setError(e instanceof ApiError ? e.message : "Job state could not be loaded."); });
     };
     const connect = () => {
@@ -36,7 +55,7 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
       socket.onmessage = (event) => {
         if (stopped) return;
         received = true;
-        setJobs(JSON.parse(event.data) as JobState); setError(null);
+        receive(JSON.parse(event.data) as JobState);
       };
       socket.onclose = () => {
         if (stopped) return;
@@ -51,6 +70,7 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
     fallbackTimer = window.setTimeout(fallback, 2000);
     return () => {
       stopped = true;
+      unsubscribe();
       window.clearTimeout(retryTimer); window.clearTimeout(fallbackTimer);
       socket?.close();
     };

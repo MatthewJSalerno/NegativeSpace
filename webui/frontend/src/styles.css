@@ -67,7 +67,7 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 /* The page frame (AppFrame.tsx; ui-design.md "Page frame"): the top bar, then the
    navigation sidebar beside the page. The brand spans the sidebar, so the search starts
    where the page does. */
-:root { --sidebar-w: 240px; }
+:root { --sidebar-w: 17rem; }
 .topbar { display: flex; align-items: center; gap: var(--space-4); min-height: 64px; padding: var(--space-2) var(--space-6); }
 .topbar.selecting { background: var(--surface-2); }
 .topbar .brand { flex: 0 0 calc(var(--sidebar-w) - var(--space-6) - var(--space-4)); }

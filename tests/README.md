@@ -2973,7 +2973,10 @@ photo counts for saved metadata edits, failed refiles, no-op/failed writes, filt
 and exports, and configured year bounds. `ui_browser_checks.py` verifies long year
 ranges, separate suspicious-year counts, empty year slots, keyboard links and narrow
 reflow. `filter_pins_browser_drive.py` checks aligned row/count/pin columns and the
-zero versus incompatible-count explanations; `metadata_settings_browser_drive.py`
+zero versus incompatible-count explanations, including full filter labels beside large
+counts in normal and selected states. `fresh_start_browser_drive.py` holds back the
+live feed to check immediate accepted-job display, stale snapshots and delayed start
+responses after completion; `metadata_settings_browser_drive.py`
 checks the RAW sidecar-only statement. These browser checks use generated fixtures.
 
 Maintainer checks for this batch use Tests U1–U4 in `docs/ui-stats-validation.md`.

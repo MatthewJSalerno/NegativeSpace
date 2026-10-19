@@ -9,6 +9,8 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Show accepted jobs immediately while the live feed catches up; keep all current sidebar filter labels readable beside aligned counts.
+
 - Reduce setup scrolling by making File types and Rejects reminder expandable; open
   either section automatically when a field needs correction.
 

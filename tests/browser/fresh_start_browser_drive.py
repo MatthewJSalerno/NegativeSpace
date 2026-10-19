@@ -1,5 +1,6 @@
 """Fresh catalog addresses and ordinary submission progress must not flash a global row."""
 import json
+import re
 import os
 import sys
 import time
@@ -93,6 +94,40 @@ with sync_playwright() as p:
     expect(drawer).to_contain_text('Cancellation requested')
     expect(drawer.get_by_role('button',name='Cancelling…',exact=True)).to_be_disabled()
     sockets[-1].send(json.dumps({'active':None,'last':latest}))
+    expect(drawer).to_have_count(0)
+    # A delayed feed must not hide a job that the start response already accepted.
+    # Later snapshots must not resurrect a finished job or erase a newer acceptance.
+    idle={'active':None,'last':latest}
+    preparing=idle
+    page.goto(base+'/?view=unorganized')
+    sockets[-1].send(json.dumps(idle))
+    fake={**latest,'id':latest['id']+1,'mode':'INDEX','status':'Running','progress':[],
+          'outcome':None,'cancellable':False}
+    page.route('**/api/v1/jobs/start',lambda route:route.fulfill(status=202,json=fake))
+    page.get_by_role('button',name='Jobs',exact=True).click()
+    started=time.monotonic()
+    page.get_by_role('menuitem',name=re.compile('^Index')).click()
+    expect(drawer).to_contain_text(f"Job #{fake['id']} · Index running",timeout=1000)
+    print(f"Accepted Index visible without a feed update: {time.monotonic()-started:.3f}s")
+    sockets[-1].send(json.dumps(idle))
+    expect(drawer).to_contain_text(f"Job #{fake['id']} · Index running")
+    finished={**latest,'id':fake['id']}
+    sockets[-1].send(json.dumps({'active':None,'last':finished}))
+    expect(drawer).to_have_count(0)
+    page.unroute('**/api/v1/jobs/start')
+    late=[]
+    page.route('**/api/v1/jobs/start',lambda route:late.append(route))
+    page.get_by_role('button',name='Jobs',exact=True).click()
+    page.get_by_role('menuitem',name=re.compile('^Index')).click()
+    for _ in range(100):
+        if late:break
+        page.wait_for_timeout(10)
+    assert late
+    fake={**fake,'id':fake['id']+1}
+    sockets[-1].send(json.dumps({'active':None,'last':{**latest,'id':fake['id']}}))
+    expect(drawer).to_have_count(0)
+    late[0].fulfill(status=202,json=fake)
+    page.wait_for_timeout(100)
     expect(drawer).to_have_count(0)
     assert not errors,errors
     browser.close()

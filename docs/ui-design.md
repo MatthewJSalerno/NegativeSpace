@@ -158,7 +158,7 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   Settings and **Notifications**. On narrow layouts the Menu button stays at the
   top padding even when other controls wrap. The bell remains available during selection. Logs and Stats have neither search nor Jobs, and no disabled stand-in for
   them. Active progress, safety questions and Rejects reminders sit under the top bar.
-- **Sidebar** (`Sidebar.tsx`, 240px), on every page: the four places in workflow order
+- **Sidebar** (`Sidebar.tsx`, 17rem), on every page: the four places in workflow order
   (Not organized, Library, Needs review, Rejects), each with how many photos it holds,
   whatever the search or filters; **Look into**, the gallery's filters; **Activity**: Logs
   and Stats; the build at the foot. Places and pages are real links with the current one
@@ -196,7 +196,8 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   or the filter cannot apply, including which pin to clear. Rows use fixed label/count/pin
   columns and uniform heights. The compact labels Similar photos, No usable date and
   Needs verification retain their full names in accessible labels and hover/focus help. Long
-  labels truncate instead of wrapping. Logs and Stats reserve the same pin gutter.
+  labels truncate instead of wrapping. The sidebar fits all current compact labels,
+  including selected Needs verification, beside a six-digit count. Logs and Stats reserve the same pin gutter.
   It says why on hover and focus: Has similar
   photos, Small images, Files needing verification and Review later are for Library and Needs review.
   On Logs and Stats each is a link that opens Library (Review later: Needs review) with

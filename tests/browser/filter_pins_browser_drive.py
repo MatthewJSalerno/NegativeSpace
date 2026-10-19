@@ -357,6 +357,16 @@ with sync_playwright() as p:
             page.set_viewport_size({'width': width, 'height': height})
             if width <= 800: page.get_by_role('button', name='Menu', exact=True).click()
             expect(unpin('Small images')).to_be_visible()
+            page.evaluate('document.fonts.ready')
+            for label in main.locator('.sidebar-label').all():
+                assert label.evaluate('(e) => e.scrollWidth <= e.clientWidth'), label.inner_text()
+            # The longest filter still fits when selected (semibold), with a large count.
+            verification=choose('Files needing verification')
+            before=verification.get_attribute('aria-pressed')
+            old_count=verification.locator('.sidebar-count').inner_text()
+            verification.evaluate("e => {e.setAttribute('aria-pressed','true');e.querySelector('.sidebar-count').textContent='500,000';}")
+            assert verification.locator('.sidebar-label').evaluate('(e) => e.scrollWidth <= e.clientWidth')
+            verification.evaluate("(e,v) => {e.setAttribute('aria-pressed',v[0]);e.querySelector('.sidebar-count').textContent=v[1];}",[before,old_count])
             assert not page.evaluate('document.documentElement.scrollWidth > innerWidth + 1')
             if os.environ.get('SHOTS'): page.screenshot(path=f"{os.environ['SHOTS']}/filter-pins-{mode}-{width}.png")
             if width <= 800: page.keyboard.press('Escape')

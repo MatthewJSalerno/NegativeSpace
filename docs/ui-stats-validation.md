@@ -4,6 +4,10 @@ This batch changes wording, sidebar presentation and Stats. Filtering, metadata 
 and file-transfer rules stay the same. Automated results are recorded separately from
 these maintainer checks. Report results by test and step, for example **U2c passed**.
 
+Maintainer results: U1–U4 passed. Two follow-ups remain for recheck: **U1b** (about
+five seconds before Index progress appeared) and **U2b** (Needs verification truncated).
+The existing catalog can be kept; no setup, Copy or metadata-edit repeat is needed.
+
 ## Test U1 — Setup and photo-log wording
 
 **a.** On the fresh review instance, complete setup. In Step 2, Small-image review and
@@ -14,7 +18,8 @@ photo. The RAW rule is a statement, with no disabled storage selector. Choose **
 for shared sidecars. Leave the earliest expected year at 1800 and enable small-image
 reminders at 800 pixels.
 
-**b.** Run Index. While it runs, check for progress immediately below the top toolbar;
+**b.** Run Index. The initiating control should show Starting immediately; once accepted,
+progress should appear below the top toolbar without waiting for the next live update;
 when it finishes, open the Notifications bell for the result. A later unchanged re-index
 can finish in under two seconds. Then run Copy. The source is the full demo library plus four generated
 validation photos. Processing issues in the demo may leave some files in Not organized;
@@ -35,7 +40,8 @@ height, with labels, numbers and pins in straight columns. Repeat in Logs and St
 the filter labels and counts should stay aligned even though those pages have no pins.
 
 **b.** Hover and keyboard-focus **No usable date** and **Needs verification**. The help should
-show their full names. A long label should not wrap and push other rows down.
+show their full names. Needs verification should be readable in full, including when
+selected. A long label should not wrap and push other rows down.
 
 **c.** Before saving any reminder, Review later should show **0**. Pin Small images:
 Review later should show **—**, be unavailable, and explain that Small images must be

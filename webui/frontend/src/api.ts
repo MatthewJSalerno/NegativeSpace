@@ -592,6 +592,11 @@ try {
 } catch { /* No valid saved submission. New submissions still require persistence. */ }
 let submissionState = { pending: savedSubmission, checking: !!savedSubmission, resolved: null as Run | null, error: null as string | null };
 const submissionListeners = new Set<() => void>();
+const acceptedJobListeners = new Set<(run: Run) => void>();
+export const subscribeJobAccepted = (listener: (run: Run) => void) => {
+  acceptedJobListeners.add(listener);
+  return () => { acceptedJobListeners.delete(listener); };
+};
 let submissionPromise: Promise<Run> | null = null;
 let resolveSubmission: ((run: Run) => void) | null = null;
 let rejectSubmission: ((error: ApiError) => void) | null = null;
@@ -616,7 +621,10 @@ function settleSubmission(run: Run | null, error?: ApiError) {
   resolveSubmission = null; rejectSubmission = null; submissionPromise = null;
   submissionState = { pending: null, checking: false, resolved: wasUncertain ? run : null, error: error?.message ?? null };
   notifySubmission();
-  if (run) resolve?.(run); else if (error) reject?.(error);
+  if (run) {
+    acceptedJobListeners.forEach((listener) => listener(run));
+    resolve?.(run);
+  } else if (error) reject?.(error);
 }
 export async function checkSubmission() {
   const pending = submissionState.pending;

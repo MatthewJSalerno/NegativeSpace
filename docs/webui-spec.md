@@ -844,7 +844,12 @@ wrong for every such file that does carry a date.
 ## 4. UI Layouts & Component Specs
 
 ### 4.1 Real-Time Operations Drawer
-When a job is active, its progress shows at the top of the page, under the toolbar. When
+When a job is active, its progress shows at the top of the page, under the toolbar.
+An accepted start response shows the job immediately, without waiting for the next live
+snapshot. Older snapshots cannot hide that accepted job; a delayed acceptance cannot
+revive a job the feed has already finished. Cancel becomes available when the live feed
+confirms the server can cancel it. Pending acceptance stays on the initiating control.
+When
 it finishes, its result appears in the Notifications bell. Only jobs requiring a safety
 decision retain an actionable banner. Opening notifications never answers those decisions.
 
