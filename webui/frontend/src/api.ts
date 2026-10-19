@@ -34,9 +34,8 @@ export interface Status {
 
 // The navigation sidebar's counts (GET /photos/places): each place whole, and each Look
 // into shortcut as Library with only that filter on.
-export type PlaceView = "unorganized" | "organized" | "review" | "rejects";
-export type LookInto = "similar" | "suspicious" | "undated" | "small" | "later" | "issues" | "attention";
-export interface Places { places: Record<PlaceView, number>; look_into: Record<LookInto, number> }
+export type PlaceView = "unorganized" | "organized" | "review" | "rejects" | "similar";
+export interface Places { places: Record<PlaceView, number>; warnings: { attention: number } }
 
 // "source": every photo whose original is still in the source (Source folders).
 export type View = "review" | "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects" | "source";
@@ -47,7 +46,7 @@ export type ActionMode = "copy" | "move" | "reject" | "return";
 export type Place = "library" | "rejects";
 export const placeOf = (status: string): Place =>
   status === "Rejected" || status === "Rejected_Copied" ? "rejects" : "library";
-export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name" | "matches";
+export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name" | "matches" | "bookmark";
 
 export interface MetadataSourceView {
   id: string; kind: string; label: string; version_id?: number;
@@ -125,8 +124,8 @@ export interface PhotoItem {
 }
 
 export interface ReviewDetail {
-  reasons: { reason: string; label: string; message: string }[];
-  history: { id: number; reason: string; action: string; note: string; created_at: string }[];
+  reasons: { reason: string; label: string; message: string; bookmark_reason?: string }[];
+  history: { id: number; reason: string; action: string; note: string; created_at: string; bookmark_reason?: string }[];
   revision: number; sha1: string | null; location: string;
 }
 export interface PhotoPage {
@@ -159,7 +158,7 @@ export interface PhotoPosition {
 // What narrows the gallery: the view, the search, No usable capture date, and the date tree's
 // "Show only" years and months ("2023", "2023-06", "none").
 export interface BrowseFilters {
-  similar?: boolean; suspicious?: boolean; reason?: string;
+  similar?: boolean; suspicious?: boolean; reason?: string; size_below?: number;
   set_reference?: number;
   group_sets?: boolean;
   match_min?: number;
@@ -199,6 +198,7 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
   if (f.run != null) query.set("run", String(f.run));
   if (f.similar) query.set("similar", "true");
   if (f.suspicious) query.set("suspicious", "true");
+  if (f.size_below != null) query.set("size_below", String(f.size_below));
   if (f.reason) query.set("reason", f.reason);
   if (f.q) query.set("q", f.q);
   if (f.undated) query.set("undated", "true");
@@ -746,9 +746,9 @@ export const api = {
   saveAccess: (hosts: string[], revision: number, confirm_current_host = false) =>
     request<AccessSettings>("PUT", "/api/v1/access", { hosts, revision, confirm_current_host }),
   review: (id: number) => request<ReviewDetail>("GET", `/api/v1/photos/${id}/review`),
-  reviewDecision: (id: number, detail: ReviewDetail, reason: string, action: string, note: string, request_id: string) =>
+  reviewDecision: (id: number, detail: ReviewDetail, reason: string, action: string, note: string, request_id: string, bookmark_reason?: string) =>
     request<ReviewDetail>("POST", `/api/v1/photos/${id}/review`, {
-      photo_id: id, sha1: detail.sha1, revision: detail.revision, reason, action, note, request_id,
+      photo_id: id, sha1: detail.sha1, revision: detail.revision, reason, action, note, request_id, ...(bookmark_reason ? { bookmark_reason } : {}),
     }),
   similarityRecovery: (page = 1, photoId?: number) => request<SimilarityRecoveryPage>("GET", `/api/v1/similar/recovery?page=${page}${photoId == null ? "" : `&photo_id=${photoId}`}`),
   repairSimilarity: (scope: "missing" | "comparisons", photo_id?: number) => submitJob("/api/v1/similar/recovery", { scope, ...(photo_id == null ? {} : { photo_id }) }),
@@ -767,12 +767,11 @@ export const api = {
     request<Settings>("PUT", "/api/v1/settings", { values, revisions }),
   validateExtension: (extension: string) =>
     request<ExtensionSupport>("POST", "/api/v1/settings/validate-extension", { extension }),
-  photos: (params: BrowseFilters & { sort: Sort; page: number; page_size: number; filter_pins?: string }) => {
+  photos: (params: BrowseFilters & { sort: Sort; page: number; page_size: number }) => {
     const query = browseQuery(params);
     query.set("sort", params.sort);
     query.set("page", String(params.page));
     query.set("page_size", String(params.page_size));
-    if (params.filter_pins !== undefined) query.set("filter_pins", params.filter_pins);
     return request<PhotoPage>("GET", `/api/v1/photos?${query}`);
   },
   photoPosition: (params: BrowseFilters & { photo_id: number; sort: Sort; page_size: number; ids?: number[] }) =>

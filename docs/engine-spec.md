@@ -1897,8 +1897,12 @@ history keyed by photo, content, reason and action, with unique request IDs and 
 payload. Identical retries do not append another event; conflicting reuse or stale
 photo/review revisions are refused. Small-image eligibility is a query over delivered
 content dimensions and `small_image_min` (positive integer pixels, null for off).
-Acknowledgements survive re-indexing unchanged content and rule changes. Review later
-is independently resolved by Done. Review events are included in catalog backups and
+Acknowledgements survive re-indexing unchanged content and rule changes. Bookmarks
+use the internal `later` reason. Creation records one of seven validated preset IDs and
+an optional note of at most 60 characters in the exact request payload. `done` removes
+only the bookmark; `keep` is accepted only for a Decide whether to keep it bookmark
+and records the explicit decision. Completion preserves the original preset and note
+in history. Metadata edits never remove a bookmark automatically. Review events are included in catalog backups and
 unbacked-change accounting. Development catalogs require schema 30; no migration.
 
 

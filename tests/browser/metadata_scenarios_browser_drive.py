@@ -123,7 +123,7 @@ with sync_playwright() as p:
     page.set_viewport_size({'width':1440,'height':1000})
     page.goto(base+'/?view=unorganized')
     sidebar=page.get_by_role('navigation',name='Main')
-    attention=sidebar.get_by_role('link',name=re.compile(r'^Needs attention'))
+    attention=sidebar.get_by_role('link',name=re.compile(r'need attention$'))
     attention_count=get('/photos?view=unorganized&reason=attention')['total']
     expect(attention).to_contain_text(str(attention_count))
     # The whole-summary shortcut clears an unrelated search, so it cannot hide holds.

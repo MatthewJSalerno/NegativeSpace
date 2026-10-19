@@ -110,10 +110,11 @@ export function Gallery({ page: shown, pageOf, refreshKey, selected, place, sele
             {onNeedsReview && !!item.review?.reasons.length && <div className="review-card-notes">
               <a href={`/?view=review&reason=${item.review.reasons.length === 1 ? item.review.reasons[0].reason : "all"}&photo=${item.id}&review_photo=${item.id}`}
                 onClick={e => { if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); onNeedsReview(item); } }}>
-                Needs review · {item.review.reasons.map(n => n.label).join(", ")}
+                Needs review · {item.review.reasons.filter(n => n.reason !== "later").map(n => n.label).join(", ")}
+                {item.review.reasons.filter(n => n.reason === "later").map(n => <span key={n.reason} className="bookmark-card-note"><strong>{n.label}</strong>{n.message && <span className="bookmark-card-note">{n.message}</span>}</span>)}
               </a>
             </div>}
-            {onReview && item.review && <div className="review-card-notes"><span className="section-note">Location: {item.review.location}</span>{item.review.reasons.map(n=><p key={n.reason}>{n.reason === "small" ? <Tip text={n.message}><span>Below minimum image size</span></Tip> : `${n.label}: ${n.message}`}</p>)}<button onClick={()=>onReview(item.id)}>Inspect photo</button></div>}
+            {onReview && item.review && <div className="review-card-notes"><span className="section-note">Location: {item.review.location}</span>{item.review.reasons.map(n=><p key={n.reason}>{n.reason === "small" ? <Tip text={n.message}><span>Below minimum image size</span></Tip> : <><strong>{n.label}</strong>{n.message && <span className="bookmark-card-note">{n.message}</span>}</>}</p>)}<button onClick={()=>onReview(item.id)}>Inspect photo</button></div>}
             {onReviewSet && <div className="set-card-actions">
               <strong>Reference set · {plural((item.similar_count ?? 0) + 1, "photo")}</strong>
               <button onClick={() => onReviewSet(item.id)}>Review this set</button>

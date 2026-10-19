@@ -20,7 +20,7 @@ CI coverage is split between two workflows:
   `tools/check-*.py`, synthetic similarity validation, container CPU/timezone/CLI
   checks, and the PR/main browser drivers listed below. `ci_scope_test.py` runs
   in the small Git-equipped CI test image; application suites use the app image.
-  `filter_pins_test.py` and `notifications_test.py` use `PYTHONPATH=/app/tests:/app`.
+  `sidebar_refinements_test.py` and `notifications_test.py` use `PYTHONPATH=/app/tests:/app`.
   RAW smoke tests require the optional read-only public samples locally; GitHub has
   no such samples and reports those two skips.
 - **Nightly at 05:37 UTC and manual Extended browser tests runs**:
@@ -43,7 +43,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | `appearance_browser_drive.py` | PR / main / manual | — |
 | `attention_browser_drive.py` | PR / main / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
 | `copied_source_browser_drive.py` | PR / main / manual | — |
-| `filter_pins_browser_drive.py` | PR / main / manual | — |
+| `sidebar_refinements_browser_drive.py` | PR / main / manual | — |
 | `fresh_start_browser_drive.py` | PR / main / manual | — |
 | `gallery_position_browser_drive.py` | PR / main / manual | — |
 | `import_choices_browser_drive.py` | PR / main / manual | `IMPORT_CHOICES_FIXTURE=1` |
@@ -833,7 +833,7 @@ and `NS_TEST_KEEP=1` to retain artifacts; `TMPDIR` sets the app-data fixture roo
 The first-run Files step now requires an explicit small-image reminder choice.
 
 `DRIVER=review_browser_drive.py sh tests/browser/webui_browser_test.sh` covers first-run
-choice, Copy, independent Small images/Review later decisions, refused-save retry,
+choice, Copy, independent Small images/Bookmark decisions, refused-save retry,
 Previous/Next, confirmed Reject, persistence after reload and Index, Settings links,
 selection preservation, combined chips and narrow workspace reflow. The default browser
 driver exercises choosing Off during first run. Both are in CI.
@@ -922,7 +922,7 @@ not intentional expansion of jobs, errors, Inspectors or similarity tools.
 
 Manual steps and recorded results: [Alignment and filter persistence](../docs/manual-validation.md#alignment).
 
-Automated source-filter checks passed: filter pins, file-attention recovery, and
+Automated source-filter checks passed: sidebar refinements, file-attention recovery, and
 cross-location browser workflows, plus the frontend build and all three contract
 checks. Generated fixtures cover source entry points, refresh, pinned/unpinned
 restoration, clearing/forgetting preferences, and exact cross-location search links.
@@ -978,7 +978,7 @@ current-address confirmation, live WebSocket revocation, origin checks and symli
 corrupt/write-failure handling. `access_browser_drive.py` checks setup, saving,
 conflicts, lockout confirmation, and desktop/narrow appearance with generated hosts.
 
-Review queue completion: clear the final Review later reminder with its Inspector
+Review queue completion: remove the final bookmark with its Inspector
 open. The workspace and preview close, the filtered gallery shows zero photos and a
 completion message, and the URL no longer points to that photo/review. With other
 queue items remaining, Back closes only a preview that no longer matches the view;
@@ -998,19 +998,22 @@ through the bell. Safety questions remain in actionable banners independently of
 
 Manual steps and recorded results: [Notification bell and selection stability](../docs/manual-validation.md#notifications).
 
-## Gallery filter pins
+## Sidebar refinements and Bookmarks
 
-Run `filter_pins_test.py` inside the app image with `PYTHONPATH=/app/tests:/app` for
-replacement-versus-intersection counts, unchanged gallery membership, search scope and
-invalid/exclusive pins. `DRIVER=filter_pins_browser_drive.py` in the normal generated
-browser harness covers replacement, pin persistence, exclusive reminders, exact job
-links, retained selection, keyboard access and light/dark desktop reflow. It checks
-Clear all filters in the sidebar, stable filter-row positions, and clearing Source
-folders/search without changing place. It also
-holds Inspector detail responses to check that gallery clicks and arrow navigation
-keep both tab labels and widths stable while loading.
+Run `sidebar_refinements_test.py` inside the app image with `PYTHONPATH=/app/tests:/app`.
+It checks intersecting counts, unchanged gallery membership, search scope, source warnings
+and invalid inputs. `review_test.py` also checks preset validation, exact request replay,
+Keep it history, independent size browsing and stable Bookmark ordering across pages.
 
-Manual steps and recorded results: [Filter pins and tab navigation](../docs/manual-validation.md#filter-pins).
+`DRIVER=sidebar_refinements_browser_drive.py` uses the normal generated browser harness.
+It checks combining refinements, exact navigation and Back, source scopes, selection,
+Bookmark creation/completion, delayed Inspector tabs, independent size browsing, keyboard
+access, both themes and enlarged text. Existing review, attention, layout and similarity
+drivers exercise the same controls in their complete workflows. Both suites and this
+driver run in PR CI; extended navigation/layout/set drivers retain nightly/manual coverage.
+
+Manual steps and results: [pending validation](../docs/manual-validation.md#pending-checks).
+The historical pin walkthrough remains an acceptance record for the replaced design.
 
 ## Uncertain-operation recovery
 
@@ -1697,14 +1700,14 @@ Source/destination navigation checks passed locally: frontend build; generated-f
 filter-pin, source-scope, general UI and reference-set browser workflows; 475 spec
 references and diff whitespace checks. Live read-only checks and inspected screenshots
 cover desktop/narrow source navigation, attention counts and Library date filters.
-The grouping test now explicitly pins similarity before combining other filters; its
+The grouping test uses the Similar photos destination and combines refinements; its
 old folder-popup expectations were replaced with the current source-only contract.
 No engine change or catalog reset was needed for those navigation checks. Final editor
 acceptance passed; GitHub checks remain a separate merge gate.
 
 ### Filter pin and gallery count follow-up
 
-`filter_pins_browser_drive.py` covers pinning two filters and unpinning each one:
+`sidebar_refinements_browser_drive.py` covers pinning two filters and unpinning each one:
 active states, URL restrictions, chip counts and gallery rows update, and refresh keeps
 both off. Removing an unapplied pin preserves an explicit job link. The unfiltered
 place total appears in the sidebar, without another total above the gallery or in its
@@ -1717,7 +1720,7 @@ Manual steps and recorded results: [Filter pin and gallery count follow-up](../d
 
 Automated follow-up validation: generated-photo filter-pin, layout-stability, review,
 reference-set, gallery-position, source-scope and full browser workflows all pass.
-The pin fixture uses a date boundary that excludes some photos, so clearing pins must
+The refinement fixture uses a date boundary that excludes some photos, so clearing filters must
 actually broaden results. Desktop/narrow light/dark screenshots inspected; build and
 specification checks pass. Maintainer acceptance passed (Test 1).
 
@@ -1727,7 +1730,7 @@ specification checks pass. Maintainer acceptance passed (Test 1).
 Manual steps and recorded results: [Date-editor branch and follow-ups](../docs/manual-validation.md#date-editor).
 
 Automated review-control cleanup checks: frontend build; nine generated Docker browser
-workflows (filter pins, layout stability, similarity comparison, Reject/Keep, review,
+workflows (sidebar refinements, layout stability, similarity comparison, Reject/Keep, review,
 cross-location, source scope, metadata sources and date editing); all three spec checkers
 and whitespace checks pass. Comparison checks assert dropdown/refresh alignment and
 reference-only Keep placement at desktop and narrow widths. Layout checks retain the
@@ -2081,7 +2084,7 @@ Automated coverage runs in the existing CI suites: `webui_api_test.py` verifies 
 photo counts for saved metadata edits, failed refiles, no-op/failed writes, filtered Logs
 and exports, and configured year bounds. `ui_browser_checks.py` verifies long year
 ranges, separate suspicious-year counts, empty year slots, keyboard links and narrow
-reflow. `filter_pins_browser_drive.py` checks aligned row/count/pin columns and the
+reflow. `sidebar_refinements_browser_drive.py` checks aligned row/count/pin columns and the
 zero versus incompatible-count explanations, including full filter labels beside large
 counts in normal and selected states. `fresh_start_browser_drive.py` holds back the
 live feed to check immediate accepted-job display, stale snapshots and delayed start

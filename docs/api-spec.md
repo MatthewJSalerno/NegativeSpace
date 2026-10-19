@@ -246,14 +246,12 @@ navigation agree. Invalid query/position percentages return 422.
 ### `GET /api/v1/photos/places`
 
 The navigation sidebar's counts (`webui-spec.md` §2, the page frame): each place whole,
-before any gallery filter, and each **Look into** filter where its link from Logs or Stats
-opens it: Library with only that filter on, Needs review for Review later,
-or Not organized for Needs attention. On the
-Library page the Look into counts come from `chips` and `reasons` instead, for the place
-shown. `match_min` (default 90) sets Has similar photos:
+before any gallery filter, including Similar photos and the Needs review subset.
+`warnings.attention` counts source files needing attention;
+the gallery's contextual `chips` and `reasons` counts are separate.
 
-    {"places": {"unorganized": 0, "organized": 4499, "review": 31, "rejects": 4},
-     "look_into": {"similar": 167, "suspicious": 8, "undated": 1356, "small": 9, "later": 3, "issues": 1, "attention": 0}}
+    {"places": {"unorganized": 0, "organized": 4499, "similar": 167, "review": 31, "rejects": 4},
+     "warnings": {"attention": 0}}
 
 ### `GET /api/v1/photos/timeline`
 
@@ -1265,8 +1263,8 @@ and `later`. A missing photo returns 404 `unknown_photo`. This endpoint only rea
 ### `POST /api/v1/photos/{photo_id}/review`
 
 Body: `photo_id`, `sha1` (string or null), `revision` (nonnegative integer), `reason`,
-`action`, `note` (up to 500 characters), `request_id` (1–128 alphanumeric, underscore
-or hyphen characters). Actions: small/reviewed, later/later, later/done. The engine
+`action`, `note` (up to 60 characters), `request_id` (1–128 alphanumeric, underscore
+or hyphen characters). Optional `bookmark_reason` selects a preset. Actions: small/reviewed, later/later, later/done, later/keep. The engine
 records the decision under its lock; no photo files or selection are changed.
 Returns the current review detail on success. Identical request replay is idempotent.
 400 `invalid_request` rejects malformed input; 409 `review_changed` refuses stale
@@ -1279,27 +1277,33 @@ reload before retrying. Success is shown only after acknowledgement.
 Gallery listing, IDs, position, types, folders and timeline accept `similar` and
 `suspicious` booleans and `reason` (all/small/later/issues/attention). These combine with existing
 filters. `view=review` selects distinct active Library photos with an unresolved supported reason. Reminders on source/rejected files do not contribute. History remains readable; new decisions require a delivered active photo.
-`GET /photos` optionally accepts `filter_pins`, a comma-separated subset of similar,
-suspicious, undated, small, later, issues and attention (empty string means no pins). Unknown keys or
-multiple reason pins (small/later/issues/attention) return 400. Files needing verification pins apply
-in Library and Needs review; attention pins apply only in Not organized. This changes only sidebar counts, not gallery membership:
-an inactive filter's count replaces unpinned Look into conditions, while active counts
-retain the current intersection. Place, search, date, type, folder and run constraints
-remain; pins unavailable in the place do not apply. Omit the parameter for existing
-combining-filter count behavior. No server-side preference or schema change is added.
+Refinement counts in `chips` and `reasons` combine search and other active filters;
+exclusive Reason choices replace only that reason. Pins and `filter_pins` are removed.
+All browse endpoints accept optional `size_below` (integer 1–100000), matching known,
+positive shorter-side dimensions strictly below the cutoff, excluding Failed records.
+This fact filter ignores review acknowledgments and the reminder setting. Listing,
+IDs, position and facets use the same predicate.
+
+`sort=bookmark` orders by the preset reason's picker order, then photo ID. The internal
+review reason/action `later` represents a bookmark. Creation accepts `bookmark_reason`
+(date/compare/rotation/details/keep/ask/other) and a note of at most 60 characters.
+`done` removes it; `keep` records an explicit Keep it answer for a keep-decision bookmark.
+Completion retains its original note and preset in history. Request replay, revision,
+content and engine-lock guards are unchanged. Review detail and gallery reason objects
+include `bookmark_reason`; detail history also includes it. No photo bytes change.
 
 `reason=attention` selects only Not organized photos whose status is Failed or whose
 latest metadata capture records needs_attention. The union counts each photo once;
 older holds do not survive a clean capture. This predicate also applies to IDs,
 position and facets, never to Library's review membership.
 
-Listings include `chips` (similar/suspicious/undated/small/attention), `reasons` and filename-only
+Listings include `chips` (similar/suspicious/undated/small/attention/size), `reasons` and filename-only
 `elsewhere` location counts. Library and job listings also include `reasons.later`,
 scoped to the current browsing constraints; the inbox includes all reason counts.
 `reason=later` filters Library as well as the inbox to active review reminders.
 `reason=small` filters Library as well as the inbox, using
 unacknowledged destination size reminders; it never restricts imports. Chip counts
-apply the other current filters; the small count evaluates that reminder scope.
+apply the other current filters; `small` evaluates outstanding reminders and `size` counts known dimensions below the reminder cutoff without acknowledgments. An independent `size_below` cutoff is a separate fact filter.
 Review and organized/similar cards include compact location and current reason details
 (`review: {location,reasons}`), without decision history. Full history remains in the
 per-photo review endpoint. Unorganized listings include `index_summary` (null elsewhere):

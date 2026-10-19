@@ -23,22 +23,20 @@ development until the maintainer decides.
 - Copy/Move preview grouped by destination folder, and a downloadable plan
 - Start a requested job after the preceding backup — decided, not built (`docs/webui-spec.md` §5.7)
 - Last-indexed time for each source folder — decided, not built (`docs/webui-spec.md` §2)
-- Clickable Index summary figures — decided, not built (`docs/ui-design.md`, Which Look into filters apply where; `docs/webui-spec.md` §2)
+- Clickable Index summary figures — decided, not built (`docs/ui-design.md`, Which filters apply where; `docs/webui-spec.md` §2)
 - Copy all and Move all count photos held in Needs attention
 - 💬 Source-folder handling behind the scenes
 - 💬 A content-history link from a photo to its earlier versions
 
 **Review**
 - Answer many photos at once within one reason — decided, not built (`docs/webui-spec.md` §7.9)
-- Sidebar and refinements, replacing Look into and its pins — decided, not built (`docs/ui-design.md`, Page frame)
-- Bookmark, replacing Review later, with preset reasons — decided, not built (`docs/ui-design.md`, Bookmarks)
+- Sidebar and refinements, replacing Look into and its pins — implemented; SB1–SB6 manual validation passed (`docs/ui-design.md`, Page frame)
+- Bookmark, replacing Review later, with preset reasons — implemented; SB1–SB6 manual validation passed (`docs/ui-design.md`, Bookmarks)
 - Suspicious dates in the review queue, with "this date is correct"
 - "Looks like a reject" (decided)
 - Undated-photo evidence and per-library back-test — decided, not built (`docs/webui-spec.md` §3.1)
 - Record in history when a review reason clears itself
 - Review history speed with many decisions
-- 💬 Needs review as its own place or a Library filter
-- 💬 Filters that persist across places (Rejects can look empty)
 
 **Similar photos**
 - 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
@@ -138,7 +136,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Fit portrait previews inside their available height in the Inspector and enlarged
   view; prevent intrinsic image sizing from clipping the bottom. Maintainer Test 6 passed.
 
-- [x] Sidebar labels/counts/pins align in uniform rows, with compact labels and hover/focus help (`docs/ui-design.md`, Page frame).
+- [x] Sidebar place labels/counts align; refinements live above results (`docs/ui-design.md`, Page frame).
 - [x] Shared page frame already keeps navigation and Jobs geometry stable across Library, Logs and Stats (`docs/ui-design.md`, Page frame).
 - [x] Refresh user-guide screenshots for the current setup and review workflows (dark,
   1440 × 900, NASA demo set), including Notifications and Settings › Performance.
@@ -708,8 +706,8 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
   flash during gallery clicks and Previous/Next navigation. Held-response browser
   checks verify both labels, selection and widths before details arrive; the full
   similarity browser flow passes. Maintainer confirmed the tabs look good.
-- [x] Filter pins: click to replace unpinned Look into filters, pin to retain; pins survive
-  refresh in the browser. Clear all filters removes pins. Small images/Review later stay
+- [x] Historical filter pins (superseded by always-combined refinements): pins survived
+  refresh in the browser. Clear all filters removed pins. Small images/Review later stayed
   exclusive, with an Unpin explanation. Existing gallery queries supply next-click counts.
 - [x] Final automated validation: 116 API/review tests, focused pin browser flow, full
   browser/shared UI and review workflows, spec/API/schema checks and light/dark/narrow
@@ -748,3 +746,9 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 - [x] Saved rotation log wording: Logs, recent History and lineage derive action labels
   from recorded metadata intent, including existing operations. Date/source edits also
   avoid Move labels; status filters and stored outcomes remain intact.
+
+- Bulk bookmark removal — deferred, lower priority; single-photo completion first (`docs/ui-design.md`, Bookmarks).
+
+- Guide screenshots for sidebar and Bookmarks — refresh in a separate documentation PR; stale sidebar images removed from the guide (`docs/user-docs-standard.md`, Screenshots).
+
+- Date-bookmark entry — proposed follow-up: show reason/note and metadata before Edit metadata date; decision and SB5a recheck pending (`docs/manual-validation.md`, Sidebar and Bookmarks).

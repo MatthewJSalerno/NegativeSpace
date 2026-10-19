@@ -45,6 +45,7 @@ AT_DESTINATION = DELIVERED + IN_REJECTS_STATUSES
 REJECTS_LISTING_SECONDS = 5.0
 _rejects_listings = {}
 SORTS = {
+    "bookmark": "COALESCE((SELECT CASE json_extract(e.payload,'$.bookmark_reason') WHEN 'date' THEN 0 WHEN 'compare' THEN 1 WHEN 'rotation' THEN 2 WHEN 'details' THEN 3 WHEN 'keep' THEN 4 WHEN 'ask' THEN 5 ELSE 6 END FROM review_events e WHERE e.photo_id=p.id AND e.reason='later' AND e.action='later' ORDER BY e.id DESC LIMIT 1),7), p.id ASC",
     "matches": "similar_count DESC, p.id ASC",
     # Undated rows carry their modification-time fallback in date_taken, labelled by
     # date_source (webui-spec 3.1); a row with no date at all sorts last either way.

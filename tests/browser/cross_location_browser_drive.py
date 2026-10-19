@@ -111,7 +111,7 @@ with sync_playwright() as p:
     b = get(f'similar/{a}?scope=rejects')['items'][0]['id']
     page.goto(f'{BASE}/?view=rejects&photo={b}')
     inspector = page.locator('.inspector')
-    expect(inspector.get_by_role('button', name='Review later…', exact=True)).to_have_count(0)
+    expect(inspector.get_by_role('button', name='Bookmark…', exact=True)).to_have_count(0)
     expect(inspector.get_by_role('button', name='Inspect photo…', exact=True)).to_have_count(0)
     inspector.get_by_role('tab', name='Similar photos in Library', exact=True).click()
     expect(inspector.locator('.inspector-match').first).to_be_visible()

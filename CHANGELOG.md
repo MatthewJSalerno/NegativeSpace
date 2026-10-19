@@ -9,6 +9,14 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Put places in the sidebar and combining refinements above photos. Make Similar photos
+  a destination; move Needs review into Library with one exclusive Reason choice.
+  Place links clear optional filters, while browser Back restores the previous view.
+- Replace Review later with Bookmarks: seven reasons, short notes, existing review tools
+  and explicit removal. Keep it records a decision without clearing other concerns.
+- Add independent shorter-side size browsing, including reviewed photos and libraries
+  with small-image reminders off.
+
 - Use one Reject confirmation across the gallery, photo review and comparison, including
   reviewed selections. Keep comparison-only preferences and the last-photo warning.
 

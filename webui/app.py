@@ -44,6 +44,7 @@ class PhotoPositionRequest(BaseModel):
     similar: bool = False
     suspicious: bool = False
     reason: str = "all"
+    size_below: Optional[int] = Field(default=None, ge=1, le=100000)
     undated: bool = False
     dates: Optional[List[str]] = None
     types: Optional[List[str]] = None
@@ -284,16 +285,16 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_photos(view: str = "all", sort: str = "newest", q: Optional[str] = None,
                    page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=240), undated: bool = False,
                    date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                   folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", filter_pins: Optional[str] = None):
+                   folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000)):
         try:
             return gallery.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size,
-                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason, filter_pins=filter_pins)
+                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/places")
     def get_places(match_min: int = Query(90, ge=75, le=100)):
-        """The navigation sidebar's counts: each place whole, and each Look into shortcut."""
+        """Whole-place navigation counts and source warning totals."""
         try:
             return gallery.places(cfg.db_path, match_min=match_min)
         except ValueError as exc:
@@ -302,33 +303,33 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/photos/timeline")
     def get_timeline(view: str = "all", q: Optional[str] = None, undated: bool = False,
                      date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                     folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all"):
+                     folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000)):
         try:
             return gallery.timeline(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
-                                    folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason)
+                                    folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/types")
     def get_types(view: str = "all", q: Optional[str] = None, undated: bool = False,
-                  date: Optional[List[str]] = Query(None), folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all"):
+                  date: Optional[List[str]] = Query(None), folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000)):
         try:
             return {"types": gallery.file_types(cfg.db_path, view=view, q=q, undated=undated, dates=date,
-                                                folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason)}
+                                                folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below)}
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/folders")
     def get_folders(view: str = "all", q: Optional[str] = None, undated: bool = False,
                     date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                    folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all",
+                    folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000),
                     every: bool = False):
         """The source's folders with their counts; `folder` names ticked folders, which stay
         listed at 0 but do not narrow the counts (the tree ignores its own filter); `every`
         lists every catalogued folder, at 0 where nothing is shown."""
         try:
             return gallery.folder_tree(cfg.db_path, cfg.source, view=view, q=q, undated=undated, dates=date,
-                                       types=type, keep=folder, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason,
+                                       types=type, keep=folder, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below,
                                        every=every)
         except ValueError as exc:
             raise _bad_request(exc)
@@ -336,10 +337,10 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/photos/ids")
     def get_photo_ids(view: str = "all", q: Optional[str] = None, undated: bool = False,
                       date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                      folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all"):
+                      folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000)):
         try:
             return gallery.photo_ids(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
-                                     folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason)
+                                     folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below)
         except ValueError as exc:
             raise _bad_request(exc)
 

@@ -4,7 +4,14 @@ import json
 import re
 from engine import ns_db, attention
 
+# Internal event reason 'later' is the personal bookmark, separate from size review.
+BOOKMARK_REASONS = {
+    'date': 'Check the date', 'compare': 'Compare versions', 'rotation': 'Fix rotation',
+    'details': 'Check the details', 'keep': 'Decide whether to keep it',
+    'ask': 'Ask someone', 'other': 'Other',
+}
 REASONS = ('small', 'later')
+
 DELIVERED = "'Completed','Copied','Found_At_Destination'"
 LIMIT_SQL = "(SELECT CAST(value_json AS INTEGER) FROM settings WHERE key='small_image_min' AND value_json!='null')"
 
@@ -26,8 +33,14 @@ def details(conn, photo_id):
     row = conn.execute("SELECT id,status,sha1_hash FROM photos WHERE id=?", (photo_id,)).fetchone()
     if row is None:
         return None
-    history = [dict(zip(('id','reason','action','note','created_at'), e)) for e in conn.execute(
-        'SELECT id,reason,action,note,created_at FROM review_events WHERE photo_id=? ORDER BY id DESC', (photo_id,))]
+    history = [dict(zip(('id','reason','action','note','created_at', 'payload'), e)) for e in conn.execute(
+        'SELECT id,reason,action,note,created_at,payload FROM review_events WHERE photo_id=? ORDER BY id DESC', (photo_id,))]
+    preset = 'other'
+    for event in reversed(history):
+        payload = event.pop('payload')
+        if event['reason'] == 'later' and event['action'] == 'later':
+            preset = json.loads(payload).get('bookmark_reason', 'date')
+        event['bookmark_reason'] = preset if event['reason'] == 'later' else None
     reasons = []
     for reason in REASONS:
         if conn.execute(f'SELECT 1 FROM photos p WHERE p.id=? AND ({predicate(reason)})', (photo_id,)).fetchone():
@@ -38,22 +51,29 @@ def details(conn, photo_id):
                     'message': f'{dims[0]} × {dims[1]} — below your {limit}-pixel minimum on the shorter side.'})
             else:
                 note = next((e['note'] for e in history if e['reason']=='later'), '')
-                reasons.append({'reason': reason, 'label': 'Review later', 'message': note or 'You asked to come back to this photo.'})
+                preset = next(e['bookmark_reason'] for e in history if e['reason'] == 'later')
+                reasons.append({'reason': reason, 'label': BOOKMARK_REASONS.get(preset, 'Other'),
+                                'message': note, 'bookmark_reason': preset})
     return {'reasons': reasons, 'history': history, 'revision': history[0]['id'] if history else 0,
             'sha1': row[2], 'location': 'Library' if row[1] in ('Completed','Copied','Found_At_Destination') else
             'Rejects' if row[1] in ns_db.REJECTED_STATUSES else 'Not organized'}
 
 
 def decide(db_path, body):
-    if not isinstance(body, dict) or set(body) != {'photo_id','sha1','revision','reason','action','note','request_id'}:
+    if not isinstance(body, dict) or set(body) - {'bookmark_reason'} != {'photo_id','sha1','revision','reason','action','note','request_id'}:
         raise ValueError('Send the photo, content, revision, reason, action, note and request ID.')
     pid, reason, action = body['photo_id'], body['reason'], body['action']
     if type(pid) is not int or not 1 <= pid <= 2**63-1 or type(body['revision']) is not int or body['revision'] < 0:
         raise ValueError('Invalid photo or revision')
-    if not isinstance(reason, str) or not isinstance(action, str) or reason not in REASONS or action not in ({'small': ('reviewed',), 'later': ('later','done')}[reason]):
+    if not isinstance(reason, str) or not isinstance(action, str) or reason not in REASONS or action not in ({'small': ('reviewed',), 'later': ('later','done','keep')}[reason]):
         raise ValueError('Unknown review action')
-    if not isinstance(body['note'], str) or len(body['note']) > 500 or (reason != 'later' and body['note']):
-        raise ValueError('The optional Review later note must be at most 500 characters.')
+    if not isinstance(body['note'], str) or len(body['note']) > 60 or (reason != 'later' and body['note']):
+        raise ValueError('The optional Bookmark note must be at most 60 characters.')
+    preset = body.get('bookmark_reason', 'date')
+    if not isinstance(preset, str) or preset not in BOOKMARK_REASONS:
+        raise ValueError('Choose a valid Bookmark reason.')
+    if reason != 'later' and 'bookmark_reason' in body:
+        raise ValueError('Bookmark reasons apply only to bookmarks.')
     if not isinstance(body['request_id'], str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', body['request_id']):
         raise ValueError('Invalid request ID')
     if body['sha1'] is not None and (not isinstance(body['sha1'], str) or not re.fullmatch(r'[0-9a-fA-F]{40}', body['sha1'])):
@@ -74,6 +94,14 @@ def decide(db_path, body):
                 raise ns_db.RevisionConflict('Only organized photos in Library can be reviewed.')
             if action != 'later' and reason not in [n['reason'] for n in current['reasons']]:
                 raise ns_db.RevisionConflict('This reminder is no longer current. Reload the photo.')
+            note = body['note']
+            if reason == 'later' and action != 'later':
+                latest = next(e for e in current['history'] if e['reason'] == 'later')
+                preset, note = latest['bookmark_reason'], latest['note']
+                if action == 'keep' and preset != 'keep':
+                    raise ValueError('Keep it applies to a keep-decision bookmark.')
+            # Payload remains exact request evidence for replay. Completion inherits the
+            # reason/note through history; creation records a validated preset.
             conn.execute('INSERT INTO review_events(photo_id,sha1,reason,action,note,created_at,request_id,payload) VALUES(?,?,?,?,?,?,?,?)',
-                         (pid, body['sha1'], reason, action, body['note'], ns_db.utc_now(), body['request_id'], payload))
+                         (pid, body['sha1'], reason, action, note, ns_db.utc_now(), body['request_id'], payload))
         return details(conn, pid)

@@ -46,8 +46,8 @@ work through the web interface; the engine's command line is in
 - Names on screen are **bold** and spelled exactly as shown, ellipsis included:
   **Reject…**, **Copy all photos…**. Menus and settings use ›: **Jobs › Copy**,
   **Settings › Files**.
-- Places keep their sidebar names: **Not organized**, **Library**, **Needs review**,
-  **Rejects**; never "the gallery" or "the inbox".
+- Places keep their sidebar names: **Not organized**, **Library**, **Similar photos**,
+  **Rejects**; never "the gallery" or "the inbox". **Needs review** is a refinement within Library or Similar photos.
 - "Select", never "tick". A step the user takes is a button that does it, not a manual
   workaround.
 

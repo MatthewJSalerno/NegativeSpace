@@ -79,22 +79,29 @@ with sync_playwright() as p:
         for place in ('organized','review'):
             page.goto(sys.argv[1]+f'/?view={place}')
             expect(page.locator('.card')).to_have_count(60)
-            expect(page.locator('.gallery-result-count')).to_have_count(0)
-            expect(page.get_by_role('navigation',name='Main',include_hidden=True).get_by_role('link',name=re.compile(r'^' + ('Library' if place == 'organized' else 'Needs review') + r'\b'),include_hidden=True).locator('.sidebar-count')).to_have_text('130')
+            if place == 'review': expect(page.locator('.gallery-result-count')).to_have_text('Showing 130 of 130 photos')
+            else: expect(page.locator('.gallery-result-count')).to_have_count(0)
+            expect(page.get_by_role('navigation',name='Main',include_hidden=True).get_by_role('link',name=re.compile(r'^' + 'Library' + r'\b'),include_hidden=True).locator('.sidebar-count')).to_have_text('130')
             before=anchors(('.gallery-summary','.gallery-filter-summary','.gallery-head','.pager'))
-            chips=page.get_by_role('group',name='Look into',include_hidden=True)  # narrow, the menu closes after a choice
-            for name in ('Suspicious dates','No usable capture date','Small images'):
-                button=chips.get_by_role('button',name=re.compile('^'+name),include_hidden=True)
-                if width<=800: page.get_by_role('button',name='Menu',exact=True).click()
+            chips=page.get_by_role('group',name='Refine photos')
+            for name in ('Odd dates','No date'):
+                button=chips.get_by_role('button',name=re.compile('^'+name+':'))
                 button.click()
                 expect(button).to_have_attribute('aria-pressed','true')
-                expect(page.locator('.gallery-result-count')).to_have_text({'Suspicious dates':'Showing 60 of 130 photos','No usable capture date':'Showing 128 of 130 photos','Small images':'Showing 130 of 130 photos'}[name])
+                expect(page.locator('.gallery-result-count')).to_have_text({'Odd dates':'Showing 60 of 130 photos','No date':'Showing 128 of 130 photos'}[name])
                 unchanged(before)
-                if width<=800: page.get_by_role('button',name='Menu',exact=True).click()
                 button.click()
                 expect(button).to_have_attribute('aria-pressed','false')
-                expect(page.locator('.gallery-result-count')).to_have_count(0)
+                if place == 'review': expect(page.locator('.gallery-result-count')).to_have_text('Showing 130 of 130 photos')
+                else: expect(page.locator('.gallery-result-count')).to_have_count(0)
                 expect(page.locator('.card')).to_have_count(60)
+                unchanged(before)
+            if place == 'review':
+                reason=page.get_by_label('Review reason',exact=True)
+                reason.select_option('small')
+                expect(page.locator('.gallery-result-count')).to_have_text('Showing 130 of 130 photos')
+                unchanged(before)
+                reason.select_option('all')
                 unchanged(before)
             if os.environ.get('SHOTS'):page.screenshot(path=os.path.join(os.environ['SHOTS'],f'gallery-stable-{place}-{width}.png'))
     # Ordinary On/Off choices retain the minimum field and the controls beneath it.
