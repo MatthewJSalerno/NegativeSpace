@@ -48,7 +48,9 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
     setRevision(n=>n+1);
   }, !!jobs.active, rotationSaver.busy);
   const scope = JSON.stringify(filters);
-  const bookmarkReason = filters.reason === "later" && bookmark?.photo === photo?.id ? bookmark?.reason : null;
+  // A bookmark's tool leads under Bookmarked and under All; another chosen reason keeps its own tools first.
+  const bookmarkScope = !filters.reason || filters.reason === "all" || filters.reason === "later";
+  const bookmarkReason = bookmarkScope && bookmark?.photo === photo?.id ? bookmark?.reason : null;
   // A date bookmark shows its reason, note and recorded dates first; the editor opens on request.
   useEffect(() => {
     if (photo && bookmarkReason === "date") dateEditButton.current?.focus();

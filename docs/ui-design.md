@@ -203,7 +203,8 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   Check the details, Decide whether to keep it, Ask someone, Other (the first is
   preselected), and an optional **Note** of at most 60 characters with a live counter.
   Cards show the reason in bold, then the note; the Bookmarked list sorts by reason, with
-  no per-reason filter. **Review one by one** opens each bookmark with its tool ready:
+  no per-reason filter. **Review one by one** opens each bookmark with its tool ready,
+  from Bookmarked or All (another chosen reason keeps its own tools first):
   the recorded dates with **Edit metadata date…** focused (the editor opens only when
   chosen, so the reason and note stay in view), the side-by-side comparison, the rotation controls, the
   Metadata tab, Keep it or Reject…, or just the photo with its note. **Remove bookmark**

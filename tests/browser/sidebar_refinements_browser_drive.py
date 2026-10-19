@@ -192,6 +192,12 @@ with sync_playwright() as p:
         expect(workspace).to_be_visible()
         expect(workspace).to_contain_text('Generated tool check')
         if preset == 'date':
+            # Opened from Reason: All, a bookmark still brings its own tool.
+            page.goto(base+f'/?view=review&photo={pid}&review_photo={pid}')
+            expect(workspace).to_be_visible()
+            expect(workspace.locator('.metadata-sources')).to_be_visible()
+            page.goto(base+f'/?view=review&reason=later&photo={pid}&review_photo={pid}')
+            expect(workspace).to_be_visible()
             # The reason, note and recorded dates come first; the editor waits to be chosen.
             editor=page.get_by_role('dialog',name='Edit Date taken',exact=True)
             expect(editor).to_have_count(0)
