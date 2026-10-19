@@ -1,5 +1,4 @@
 """Generated XML and isolated files only; no catalog, sample or library access."""
-import base64
 import errno
 import json
 import os
@@ -9,7 +8,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from engine import metadata, xmp, xmp_association
+from engine import metadata_capture, xmp, xmp_association
 
 
 def packet(properties='', attributes='', *, prefix='exif'):
@@ -36,14 +35,13 @@ class ReaderTests(unittest.TestCase):
 
     def test_empty_is_not_absent_through_resolver(self):
         result = parsed('<exif:DateTimeOriginal/>', 'tiff:Model=""')
-        resolved = metadata.resolve_sources(metadata.MetadataSource(
-            'embedded', 'embedded', {}, {'date_taken': '1999', 'camera_make': 'Camera',
-                                       'camera_model': 'Model'}), [result.source], active_xmp_id='generated')
-        self.assertEqual(resolved['effective'], {'date_taken': '', 'camera_model': '', 'camera_make': 'Camera'})
+        resolved = metadata_capture.resolve({
+            'exif': {'fields': {'date_taken': '1999', 'camera_make': 'Camera', 'camera_model': 'Model'}},
+            'generated': {'fields': result.source.fields}}, ['generated', 'exif'])
+        self.assertEqual(resolved['proposed_effective'], {'date_taken': '', 'camera_model': '', 'camera_make': 'Camera'})
         self.assertEqual(resolved['field_sources']['date_taken'], 'generated')
         self.assertNotIn('camera_make', result.source.fields)
-        self.assertEqual(base64.b64decode(resolved['sources']['generated']['original_base64']),
-                         result.original_bytes)
+        self.assertEqual(result.source.original_bytes, result.original_bytes)
 
     def test_arrays_localized_and_empty_containers(self):
         result = parsed('''<dc:subject><rdf:Bag><rdf:li>one</rdf:li><rdf:li>two</rdf:li></rdf:Bag></dc:subject>
@@ -212,10 +210,10 @@ class ValueValidationTests(unittest.TestCase):
     def test_explicit_blanks_clear_typed_fields_and_unknown_values_stay_uninterpreted(self):
         result = parsed('<exif:DateTimeOriginal/><tiff:Orientation/><xmp:Rating/>'
                         '<custom:Rating>5000</custom:Rating><custom:date>invalid</custom:date>')
-        embedded = metadata.MetadataSource('embedded', 'embedded', {},
-                    {'date_taken': '2004', 'orientation': 6, 'rating': 5})
-        resolved = metadata.resolve_sources(embedded, [result.source], active_xmp_id='generated')
-        self.assertEqual(resolved['effective'], {'date_taken': '', 'orientation': '', 'rating': ''})
+        resolved = metadata_capture.resolve({
+            'exif': {'fields': {'date_taken': '2004', 'orientation': 6, 'rating': 5}},
+            'generated': {'fields': result.source.fields}}, ['generated', 'exif'])
+        self.assertEqual(resolved['proposed_effective'], {'date_taken': '', 'orientation': '', 'rating': ''})
         self.assertEqual(len(result.tags['properties']), 5)
 
 

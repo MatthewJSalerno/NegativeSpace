@@ -94,7 +94,7 @@ with sync_playwright() as p:
     expect(page.locator('.gallery-summary')).to_contain_text('5 sets')
     photo_count = request.get('/api/v1/photos?view=similar&match_min=90').json()['total']
     expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_text(
-        f'Has similar photos {photo_count:,}')
+        f'Similar photos {photo_count:,}')
     page.get_by_role('button', name=re.compile('^Filters')).click()
     expect(page.get_by_role('navigation', name='Dates', exact=True)).to_be_visible()
     expect(page.get_by_role('navigation', name='Folders', exact=True)).to_have_count(0)

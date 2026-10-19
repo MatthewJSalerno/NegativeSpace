@@ -313,6 +313,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const { jobs, connection } = useJobFeed();
   const submission = useSyncExternalStore(subscribeSubmission, submissionSnapshot);
   const jobRunning = !!submission.pending || (jobs.active != null && jobs.active.presented_status !== "Interrupted");
+  const indexing = submission.pending?.body.mode === "index" ||
+    (jobs.active?.mode === "INDEX" && jobs.active.presented_status !== "Interrupted");
   // The job whose photos are shown, for the line above them; read again as jobs end.
   const [jobInfo, setJobInfo] = useState<Run | null>(null);
   const lastStatus = jobs.last ? `${jobs.last.id}:${jobs.last.status}` : "";
@@ -1145,7 +1147,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             </div>
           )}
           {!focus && browseView === "rejects" && data?.rejects && <RejectsLine rejects={data.rejects} />}
-          {!focus && view === "unorganized" && !sourceTree && data?.index_summary && data.index_summary.photos > 0 && (indexSummaryClosed
+          {!focus && !indexing && view === "unorganized" && !sourceTree && data?.index_summary && data.index_summary.photos > 0 && (indexSummaryClosed
             ? <button ref={summaryToggle} onClick={() => { setPreviewSummaryExpanded(true); toggleIndexSummary(null); }}>Show index summary</button>
             : <section className="notice index-summary" aria-label="Index summary">
             <div className="index-summary-heading"><h3>{indexNeedsAttention ? `${plural(indexAttentionCount, "file")} ${indexAttentionCount === 1 ? "needs" : "need"} attention` : "Index summary"}</h3>

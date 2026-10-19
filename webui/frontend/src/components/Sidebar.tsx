@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState, type MouseEvent } from "react";
 import { api, savedMatchMinimum, type LookInto, type PlaceView, type Places, type Status } from "../api";
 import { count } from "../format";
 import { follow } from "../nav";
+import { Tip } from "./Tip";
 import { VersionTag } from "./VersionTag";
 
 // What the sidebar marks as current: a place, Source folders, or Logs or Stats.
@@ -28,12 +29,12 @@ const PLACES: { view: PlaceView; label: string }[] = [
 ];
 // Where each filter opens from Logs and Stats: Library with only it on; Review later is
 // Needs review's. Source attention has its own navigation entry under Not organized.
-const LOOK: { key: LookInto; label: string; href: string }[] = [
-  { key: "similar", label: "Has similar photos", href: "/?view=organized&similar=1" },
+const LOOK: { key: LookInto; label: string; short?: string; href: string }[] = [
+  { key: "similar", label: "Has similar photos", short: "Similar photos", href: "/?view=organized&similar=1" },
   { key: "suspicious", label: "Suspicious dates", href: "/?view=organized&suspicious=1" },
-  { key: "undated", label: "No usable capture date", href: "/?view=organized&undated=1" },
+  { key: "undated", label: "No usable capture date", short: "No usable date", href: "/?view=organized&undated=1" },
   { key: "small", label: "Small images", href: "/?view=organized&reason=small" },
-  { key: "issues", label: "Files needing verification", href: "/?view=organized&reason=issues" },
+  { key: "issues", label: "Files needing verification", short: "Needs verification", href: "/?view=organized&reason=issues" },
   { key: "later", label: "Review later", href: "/?view=review&reason=later" },
 ];
 
@@ -74,9 +75,9 @@ export function Sidebar({ current, version, matchMin, refresh, filters, onPlace,
   };
   const attentionCurrent = current.place === "unorganized" && filters?.on.attention;
   const content = (label: string, n: number | undefined, reserveCount = false) => <>
-    <span>{label}</span>{" "}
-    {(n !== undefined || reserveCount) && <span className="sidebar-count" aria-hidden={n === undefined ? true : undefined}
-      style={{ visibility: n === undefined ? "hidden" : undefined }}>{count(n ?? 0)}</span>}
+    <span className="sidebar-label">{label}</span>{" "}
+    {(n != null || reserveCount) && <span className="sidebar-count" aria-hidden={n == null ? true : undefined}
+      >{n == null ? "—" : count(n)}</span>}
   </>;
   const link = (href: string, label: string, on: boolean, n: number | undefined, view?: PlaceView) => (
     <a key={href} href={href} aria-current={on ? "page" : undefined} onClick={(e) => go(e, view)}>{content(label, n)}</a>
@@ -85,13 +86,17 @@ export function Sidebar({ current, version, matchMin, refresh, filters, onPlace,
   // and to assistive technology, so the sidebar never shifts between places.
   const toggle = (l: (typeof LOOK)[number], f: SidebarFilters) => {
     const why = f.why[l.key];
+    const n = why ? undefined : f.counts[l.key];
+    const help = why ?? (n == null ? "Count unavailable. Open the filter to check its photos." : `${count(n)} matching photos.`);
     return (
       <div key={l.key} className="sidebar-filter-row">
-      <button type="button" className="sidebar-item" aria-pressed={f.on[l.key]}
+      <Tip text={`${l.label}. ${help}`} showIcon={false}>
+      <button type="button" className="sidebar-item" aria-label={`${l.label}${n == null ? "" : ` ${count(n)}`}`} aria-description={help} aria-pressed={f.on[l.key]}
               aria-disabled={why ? true : undefined} title={why ?? undefined}
               onClick={() => { if (why) return; onNavigate?.(); f.onToggle(l.key); }}>
-        {content(l.label, why ? undefined : f.counts[l.key], true)}
+        {content(l.short ?? l.label, n, true)}
       </button>
+      </Tip>
       <button type="button" className="filter-pin" aria-pressed={f.pinned.includes(l.key) && !f.suspended?.includes(l.key)}
               aria-label={`${f.pinned.includes(l.key) ? "Unpin" : "Pin"} ${l.label}`}
               aria-disabled={why && !f.pinned.includes(l.key) ? true : undefined}
@@ -123,7 +128,11 @@ export function Sidebar({ current, version, matchMin, refresh, filters, onPlace,
                 onClick={() => { filters?.onClear?.(); onNavigate?.(); }}>Clear all filters</button>
       </div>
       <div className="sidebar-group" role="group" aria-labelledby="look-into">
-        {LOOK.map((l) => filters ? toggle(l, filters) : link(l.href, l.label, false, counts?.look_into[l.key]))}
+        {LOOK.map((l) => filters ? toggle(l, filters) : <div key={l.key} className="sidebar-filter-row sidebar-filter-link">
+          <Tip text={`${l.label}. ${counts?.look_into[l.key] == null ? "Count unavailable. Open the filter to check its photos." : `${count(counts.look_into[l.key])} matching photos.`}`} showIcon={false}><a href={l.href} aria-label={`${l.label}${counts?.look_into[l.key] == null ? "" : ` ${count(counts.look_into[l.key])}`}`} onClick={e => go(e)}>
+            {content(l.short ?? l.label, counts?.look_into[l.key], true)}
+          </a></Tip>
+        </div>)}
       </div>
       <h2 className="sidebar-heading">Activity</h2>
       {link("/logs", "Logs", current.page === "logs", undefined)}

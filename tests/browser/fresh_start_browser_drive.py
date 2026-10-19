@@ -1,4 +1,6 @@
 """Fresh catalog addresses and ordinary submission progress must not flash a global row."""
+import json
+import re
 import os
 import sys
 import time
@@ -74,6 +76,94 @@ with sync_playwright() as p:
     page.goto(base+'/logs?run='+str(run))
     expect(page.locator('.job-list-head')).to_be_visible()
     assert 'run='+str(run) in page.url
+    # Preparation/after-job bookkeeping has no run ID. A null ID must not match
+    # the initial "no cancellation requested" state and invent a cancellation.
+    sockets=[]
+    latest=request.get('/api/v1/jobs/active').json()['last']
+    preparing={'active':{'id':None,'mode':None,'status':'Preparing','unrecorded':True},'last':latest}
+    def job_feed(socket):
+        sockets.append(socket)
+        socket.send(json.dumps(preparing))
+    page.route_web_socket('**/api/v1/ws/jobs',job_feed)
+    page.reload()
+    drawer=page.locator('.drawer')
+    expect(drawer).to_contain_text('Starting a job')
+    expect(drawer).not_to_contain_text('Cancellation requested')
+    expect(drawer.get_by_role('button',name='Cancel job',exact=True)).to_be_disabled()
+    sockets[-1].send(json.dumps({'active':{**latest,'status':'Cancelling','cancellable':True},'last':None}))
+    expect(drawer).to_contain_text('Cancellation requested')
+    expect(drawer.get_by_role('button',name='Cancelling…',exact=True)).to_be_disabled()
+    sockets[-1].send(json.dumps({'active':None,'last':latest}))
+    expect(drawer).to_have_count(0)
+    # A delayed feed must not hide a job that the start response already accepted.
+    # Later snapshots must not resurrect a finished job or erase a newer acceptance.
+    idle={'active':None,'last':latest}
+    preparing=idle
+    page.goto(base+'/?view=unorganized')
+    sockets[-1].send(json.dumps(idle))
+    fake={**latest,'id':latest['id']+1,'mode':'INDEX','status':'Running','progress':[],
+          'outcome':None,'cancellable':False}
+    page.route('**/api/v1/jobs/start',lambda route:route.fulfill(status=202,json=fake))
+    page.get_by_role('button',name='Jobs',exact=True).click()
+    started=time.monotonic()
+    page.get_by_role('menuitem',name=re.compile('^Index')).click()
+    expect(drawer).to_contain_text(f"Job #{fake['id']} · Index running",timeout=1000)
+    print(f"Accepted Index visible without a feed update: {time.monotonic()-started:.3f}s")
+    sockets[-1].send(json.dumps(idle))
+    expect(drawer).to_contain_text(f"Job #{fake['id']} · Index running")
+    finished={**latest,'id':fake['id']}
+    sockets[-1].send(json.dumps({'active':None,'last':finished}))
+    expect(drawer).to_have_count(0)
+    page.unroute('**/api/v1/jobs/start')
+    late=[]
+    page.route('**/api/v1/jobs/start',lambda route:late.append(route))
+    page.get_by_role('button',name='Jobs',exact=True).click()
+    page.get_by_role('menuitem',name=re.compile('^Index')).click()
+    for _ in range(100):
+        if late:break
+        page.wait_for_timeout(10)
+    assert late
+    fake={**fake,'id':fake['id']+1}
+    sockets[-1].send(json.dumps({'active':None,'last':{**latest,'id':fake['id']}}))
+    expect(drawer).to_have_count(0)
+    late[0].fulfill(status=202,json=fake)
+    page.wait_for_timeout(100)
+    expect(drawer).to_have_count(0)
+    # An open but silent socket must not strand progress or completion. Healthy
+    # idle sockets do not poll. A newer live frame wins over a delayed HTTP result.
+    fake={**fake,'id':fake['id']+1}
+    active={'active':fake,'last':latest}
+    sockets[-1].send(json.dumps(active))
+    expect(drawer).to_contain_text(f"Job #{fake['id']} · Index running")
+    expect(page.get_by_role('region',name='Index summary',exact=True)).to_have_count(0)
+    polls=[]
+    page.route('**/api/v1/jobs/active',lambda route:polls.append(route))
+    for _ in range(100):
+        if polls:break
+        page.wait_for_timeout(100)
+    assert polls,'A silent active feed must be checked over HTTP'
+    phase={'phase':'scanning','total':100,'done':20,'counts':{'indexed':20},'updated_at':fake['started_at']}
+    progress={**fake,'progress':[phase]}
+    polls.pop(0).fulfill(json={'active':progress,'last':latest})
+    expect(drawer).to_contain_text('20 of 100')
+    for _ in range(100):
+        if polls:break
+        page.wait_for_timeout(100)
+    assert polls
+    sockets[-1].send(json.dumps({'active':{**progress,'progress':[{**phase,'done':70}]},'last':latest}))
+    expect(drawer).to_contain_text('70 of 100')
+    polls.pop(0).fulfill(json={'active':progress,'last':latest})
+    page.wait_for_timeout(100)
+    expect(drawer).to_contain_text('70 of 100')
+    for _ in range(100):
+        if polls:break
+        page.wait_for_timeout(100)
+    assert polls
+    polls.pop(0).fulfill(json={'active':None,'last':{**latest,'id':fake['id']}})
+    expect(drawer).to_have_count(0)
+    expect(page.get_by_role('region',name='Index summary',exact=True)).to_be_visible()
+    page.wait_for_timeout(3500)
+    assert not polls,'An idle connected feed should not poll'
     assert not errors,errors
     browser.close()
 print('PASS: missing-catalog URL replacement, preserved valid links, and stable Index submission')

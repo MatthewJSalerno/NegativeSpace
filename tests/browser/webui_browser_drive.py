@@ -106,15 +106,22 @@ with sync_playwright() as p:
         if n == 2:
             page.get_by_label("Small-image reminders (required)", exact=True).select_option("off")
             # Next checks only this step: with no file type it stays, and says why.
+            file_types = page.locator('details.settings-disclosure', has=page.locator('summary', has_text='File types'))
+            expect(file_types).not_to_have_attribute('open', '')
+            file_types.locator('summary').click()
             boxes = page.locator("#settings-exts input[type=checkbox]")
             ticked = [i for i in range(boxes.count()) if boxes.nth(i).is_checked()]
             for i in ticked:
                 boxes.nth(i).uncheck()
+            file_types.locator('summary').click()
             action.click()
+            expect(file_types).to_have_attribute('open', '')
+            expect(page.locator('#settings-exts')).to_be_focused()
             expect(step).to_have_text("Step 2 of 6 Files")
             expect(page.locator("#settings-exts-error")).to_contain_text("at least one file type")
             for i in ticked:
                 boxes.nth(i).check()
+            file_types.locator('summary').click()
             # Explained for someone seeing the app for the first time.
             expect(page.locator(".settings")).to_contain_text("Reject moves a photo out of Library")
             shot("1b-welcome-files")
@@ -382,7 +389,7 @@ with sync_playwright() as p:
     # The divider: drag it, and a wide panel puts the details beside the photo.
     page.set_viewport_size({"width": 2000, "height": 900})
     divider = page.get_by_role("separator", name="Resize the photo panel")
-    expect(divider).to_have_attribute("aria-valuemax", "1284")   # beside the date scrubber
+    expect(divider).to_have_attribute("aria-valuemax", "1252")   # beside the 17rem sidebar and date scrubber
     before = inspector.bounding_box()["width"]
     box = divider.bounding_box()
     page.mouse.move(box["x"] + 4, box["y"] + 200)
@@ -682,7 +689,7 @@ with sync_playwright() as p:
     expect(page.locator(".job-head[aria-expanded=true]")).to_have_count(1)
     page.go_back()
     expect(page.locator(".inspector")).to_be_visible()
-    page.locator(".inspector").get_by_role("link", name="Open in the log").click()
+    page.locator(".inspector").get_by_role("link", name="View photo logs").click()
     expect(page.get_by_role("heading", name=re.compile(r"^Log for photo #\d+"))).to_be_visible()
     expect(page.locator(".job-group").first).to_be_visible()
     heads = page.locator(".job-head")
@@ -711,8 +718,14 @@ with sync_playwright() as p:
     expect(undated_tile).to_have_attribute("href", "/?view=all&undated=1")
     expect(page.locator(".stat-panel h3")).to_have_count(6)
     expect(page.locator(".stat-panel", has_text="Duplicates")).to_contain_text("Extra copies")
-    # Aligned: fixed columns, and every panel in a row as tall as the row.
-    boxes = page.locator(".stat-panel").evaluate_all(
+    # Dates occupies its own full-width row; the remaining panels keep aligned columns.
+    dates_panel = page.locator('.stat-panel').filter(has=page.get_by_role('heading',name='Dates',exact=True)).bounding_box()
+    grid = page.locator('.stat-panels').bounding_box()
+    assert abs(dates_panel['x'] - grid['x']) <= 1
+    assert abs(dates_panel['width'] - grid['width']) <= 1
+    assert dates_panel['y'] + dates_panel['height'] <= grid['y']
+    # Every panel in a grid row is as tall as that row.
+    boxes = page.locator(".stat-panels .stat-panel").evaluate_all(
         "ps => ps.map(p => { const r = p.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; })")
     rows = {}
     for left, top, width, height in boxes:

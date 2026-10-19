@@ -19,7 +19,6 @@ development until the maintainer decides.
 
 **Organizing**
 - Earlier versions arriving again — decided, not built (`docs/engine-spec.md` §10)
-- "View photo logs" label — decided, not built (`docs/webui-spec.md` §4.2)
 - Rename and "Also arrived as" from the photo panel
 - Copy/Move preview grouped by destination folder, and a downloadable plan
 - Start a requested job after the preceding backup — decided, not built (`docs/webui-spec.md` §5.7)
@@ -49,8 +48,6 @@ development until the maintainer decides.
 - Notices for metadata choices, and their queue in Not organized
 - A simpler prompt when leaving an unsaved rotation
 - Metadata decisions for arrivals matching photos already in Library or Rejects
-- Filename examples beside the metadata choices in setup and Settings
-- Setup and Settings still say choosing sidecar owners is not available
 - Notice for Google Takeout and Flickr export sidecars
 - Motion-photo editing, qualified separately
 - RAW, TIFF/HEIC and extended-XMP fixtures for the metadata scenario builder
@@ -59,7 +56,6 @@ development until the maintainer decides.
 - 💬 Legacy IPTC precedence and additional RDF mappings
 - 💬 Metadata-independent image hashing and content-based duplicate consolidation (deferred)
 - 💬 Sidecars edited between Index and Copy or Move
-- RAW edit target shown as a statement, not a disabled choice — decided, not built (`docs/webui-spec.md` §7.5)
 - 💬 Similar photos and metadata together
 - 💬 Copying all metadata, or a wider choice of fields
 
@@ -69,13 +65,8 @@ development until the maintainer decides.
 - Index summary by file type — decided, not built (`docs/webui-spec.md` §2)
 - Import summary, and a filter for files that could not be previewed
 - Skip unreadable files at Index, counted by kind — decided, not built (`docs/engine-spec.md` §4.1)
-- Stats dates chart, with undated count beside it — decided, not built (`docs/webui-spec.md` §6)
-- Stats: Metadata edits figure, exact duplicates only as waste — decided, not built (`docs/webui-spec.md` §5.9)
 - Every warning offers a way out
-- Filter counts: distinguish zero, unavailable and incompatible
 - Re-audit durability claims whenever a write path changes
-- Remove the unused `metadata.resolve_sources` — decided, not built (see Other below)
-- Spacing and alignment pass, and the sidebar's Look into filters
 
 **Before the first release**
 - Decide on catalog migration
@@ -88,7 +79,6 @@ development until the maintainer decides.
 - Videos and other non-photo files
 
 **💬 Waiting on the maintainer**
-- Repairing a rearranged library without losing lineage
 - Needs review: a separate place or a Library filter
 - Discovering filters across places
 - Full-screen preview clutter; copying all metadata; source folders handled behind the scenes
@@ -143,12 +133,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 ## Views
 
-- [ ] Add concrete filename examples beside metadata choices in setup and Settings.
-  For shared-sidecar association, show `photo.jpg`, `photo.png`, and `photo.xmp`:
-  the sidecar could belong to both photos, so the user must choose how to associate it.
-  Contrast with `photo.jpg.xmp`, which identifies `photo.jpg` specifically. Keep examples
-  next to the relevant prompt so users understand the choice before answering.
-  Requested for a future UI update; not implemented yet.
+- [x] Shared-sidecar filename examples and RAW sidecar-only statement in setup/Settings (`docs/webui-spec.md` §7.5).
 
 - [x] Metadata choices in Logs and lineage has a shared bordered disclosure with a
   strong heading and short description. It stays collapsed by default. Maintainer Tests 7a/7b passed.
@@ -156,13 +141,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Fit portrait previews inside their available height in the Inspector and enlarged
   view; prevent intrinsic image sizing from clipping the bottom. Maintainer Test 6 passed.
 
-- [ ] **After metadata work:** tidy the left sidebar's Look into filters without
-  changing behavior. Align labels, counts and pins in consistent columns; use uniform
-  row heights and spacing. Prefer shorter, single-line labels (for example, Similar
-  photos); truncate only when necessary, with full labels available on hover and
-  keyboard focus. Check active states and narrow layouts. Deferred, not implemented.
-- [ ] Check Library/Jobs/Logs spacing and alignment in a future UI batch; preserve
-  the reserved Jobs position so Logs does not shift when Jobs is unavailable.
+- [x] Sidebar labels/counts/pins align in uniform rows, with compact labels and hover/focus help (`docs/ui-design.md`, Page frame).
+- [x] Shared page frame already keeps navigation and Jobs geometry stable across Library, Logs and Stats (`docs/ui-design.md`, Page frame).
 - [x] Refresh user-guide screenshots for the current setup and review workflows (dark,
   1440 × 900, NASA demo set), including Notifications and Settings › Performance.
 
@@ -209,11 +189,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
   then reports "4,496 of 4,503 files copied · 7 skipped". The question should count only
   the photos it will copy and name the held ones separately. The same mismatch was seen
   on a 300-photo NASA subset (300 against 281).
-- [ ] **Setup and Settings still say choosing sidecar owners is not available.** The
-  Metadata step's text "Choosing owners for individual files is not available yet. After
-  changing this setting, run Index again to check unresolved sidecars."
-  (`webui/frontend/src/components/SettingsDialog.tsx`) predates #122, which built choosing
-  owners and versions in Not organized → Needs attention. Point to that place instead.
+- [x] Metadata setup/Settings point to Resolve XMP in Not organized → Needs attention (`docs/webui-spec.md` §7.5).
 
 ## Needs review
 
@@ -367,7 +343,7 @@ related tags together, with no invented or mixed components. See
 
 These are completed capabilities, not additional open closeout tasks.
 
-- [x] Pure metadata provenance resolver and qualified EXIF/embedded-XMP comparison:
+- [x] Production metadata capture/precedence and qualified EXIF/embedded-XMP comparison:
   separate source snapshots, exact field origins, explicit empty-versus-absent rules,
   linked date/GPS components and retained unknown evidence. Legacy flat metadata is not
   used as qualified input; this is not full XMP conformance certification.
@@ -616,10 +592,8 @@ Saved orientation stays a separate action from temporary preview rotation.
 - [x] The thumbnail cache panel in Settings › Performance (Free up previews, Repair grid
   thumbnails, Rebuild all), with API routes for the existing engine jobs, and a Manage
   thumbnails link from Stats (`docs/webui-spec.md` §4.2.1).
-- [ ] The Dates chart on its own full-width row, with suspicious years set apart at each
-  end, so a few impossible dates cannot squash it (`docs/webui-spec.md` §5.9).
-- [ ] Stats: "EXIF edits" becomes Metadata edits, and wasted space stays exact duplicates
-  only (no near-duplicates figure): decided, not built (`docs/webui-spec.md` §5.9).
+- [x] Full-width Dates chart, separate suspicious-year counts and adjacent undated count (`docs/webui-spec.md` §5.9).
+- [x] Metadata edits count verified saves by photo and kind; waste means exact duplicates only (`docs/webui-spec.md` §5.9).
 
 ## Warnings that need a way out
 
@@ -688,9 +662,7 @@ Deferred performance work — the unchanged-file check loading every settled row
 Stalled read-only workers now support user-requested cancellation of decoder process
 groups, with a no-progress reminder and Keep waiting. Kernel-blocked storage remains
 an explicit limitation in engine-spec §8; automatic file skipping is not planned.
-- [ ] Remove `engine/metadata.py` `resolve_sources` and its tests (decided 2026-10-18): only
-  tests call it; Index, transfer and the metadata tabs resolve sources themselves. Do it
-  in the next code change that touches metadata.
+- [x] Removed the unused `metadata.resolve_sources`; retained shared JSON validation and moved adapter/parser integration coverage to the production resolver (`docs/xmp-metadata.md`).
 
 ## Navigation refinement
 
@@ -706,8 +678,7 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 - [x] Suspend Library-only filters and pin highlights in source views; remember the
   Library choices per tab and restore them on sidebar return, without overriding URLs.
 - [x] Maintainer validated revised Test 5b: source navigation and restored filters.
-- [ ] Filter-count UX follow-up: distinguish an actual zero from an unavailable count
-  or incompatible filter; explain restrictions without misleading zero totals.
+- [x] Filter counts distinguish zero, unavailable and incompatible, with hover/focus explanations (`docs/ui-design.md`, Page frame).
 
 - [x] Replace the enlarged-photo layout with the shared two-pane Inspector: large
   preview beside information, Metadata and eligible Similar photos tabs; retain the
@@ -774,7 +745,7 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 
 - [ ] Future discussion (accepted Test 3b): could source-folder handling happen behind
   the scenes? Clarify the desired behavior before changing selection or action rules.
-- [ ] Rename Open in the log to View photo logs, in History and the lineage tree: decided, not built (`docs/webui-spec.md` §4.2).
+- [x] History and lineage use View photo logs (`docs/webui-spec.md` §4.2).
 
 - [x] Saved rotation log wording: Logs, recent History and lineage derive action labels
   from recorded metadata intent, including existing operations. Date/source edits also

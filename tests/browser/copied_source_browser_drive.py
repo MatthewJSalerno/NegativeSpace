@@ -45,7 +45,7 @@ with sync_playwright() as pw:
     expect(history).to_contain_text('Found at destination')
     if os.environ.get('SHOTS'):
         page.screenshot(path=os.environ['SHOTS'] + '/copied-source-library.png')
-    history.get_by_role('link', name='Open in the log').click()
+    history.get_by_role('link', name='View photo logs').click()
     page.locator('.job-head').filter(has_text=f"Job #{result['id']} ·").click()
     expect(page.get_by_text('The original is no longer at its source location', exact=False).first).to_be_visible()
     if os.environ.get('SHOTS'):

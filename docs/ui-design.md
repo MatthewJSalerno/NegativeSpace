@@ -61,6 +61,11 @@ Tabs are one shared control (`ui/Tabs.tsx`, WAI-ARIA "Tabs with automatic activa
 one tab stop, ← → move and choose, Home/End go to the ends. The Inspector and Settings
 use it. The setup wizard places the shared logo and NegativeSpace name at the top left of
 its header on every step, with the step title below; do not repeat a welcome heading.
+In first-run Files, Small-image review and Suspicious dates stay visible. File types
+and Rejects reminder start collapsed in native disclosures; validation opens the affected
+section before focusing its field. Back/Next stay visible. Settings after setup keeps
+these sections expanded.
+
 Settings' tabs and first-run steps are the same six groups (`webui-spec.md` §3);
 a tab with unsaved changes shows a dot, named "unsaved changes" to assistive technology.
 
@@ -153,7 +158,7 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   Settings and **Notifications**. On narrow layouts the Menu button stays at the
   top padding even when other controls wrap. The bell remains available during selection. Logs and Stats have neither search nor Jobs, and no disabled stand-in for
   them. Active progress, safety questions and Rejects reminders sit under the top bar.
-- **Sidebar** (`Sidebar.tsx`, 240px), on every page: the four places in workflow order
+- **Sidebar** (`Sidebar.tsx`, 17rem), on every page: the four places in workflow order
   (Not organized, Library, Needs review, Rejects), each with how many photos it holds,
   whatever the search or filters; **Look into**, the gallery's filters; **Activity**: Logs
   and Stats; the build at the foot. Places and pages are real links with the current one
@@ -185,8 +190,15 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   counts describe the current intersection. Small images, Review later and Files needing verification share
   one reason scope and remain exclusive:
   pinning either disables the other with an explanation telling the user which to unpin. A filter that does not apply to the
-  place stays in its row, dimmed (`aria-disabled`), reserving a hidden count slot so
-  long labels do not unwrap and move the rows below. It says why on hover: Has similar
+  place stays in its row, dimmed (`aria-disabled`), with an em dash in its reserved count
+  column. A true zero displays 0. An unavailable count also displays a dash with a
+  distinct explanation. Hover or keyboard focus explains whether the count is unavailable
+  or the filter cannot apply, including which pin to clear. Rows use fixed label/count/pin
+  columns and uniform heights. The compact labels Similar photos, No usable date and
+  Needs verification retain their full names in accessible labels and hover/focus help. Long
+  labels truncate instead of wrapping. The sidebar fits all current compact labels,
+  including selected Needs verification, beside a six-digit count. Logs and Stats reserve the same pin gutter.
+  It says why on hover and focus: Has similar
   photos, Small images, Files needing verification and Review later are for Library and Needs review.
   On Logs and Stats each is a link that opens Library (Review later: Needs review) with
   only that filter on, counted as it opens. Pins are remembered per browser (`ns.filterPins`),
@@ -926,7 +938,8 @@ verification) work only on organized photos. A filter that does not apply stays 
 dimmed, saying why. Small images therefore also applies in Not organized, beside a new
 **Has identical copies**.
 
-Not organized starts with Index source. After Index, its neutral Index summary describes
+Not organized starts with Index source. While Index runs, hide its summary so partial
+counts cannot claim indexing has finished. After Index, its neutral Index summary describes
 remaining indexed photos, identical extra copies, size and date facts, plus a clear
 Copy/Move next step using the existing confirmation. Counts cover the whole location,
 not gallery filters; disabled size rules and uncalculated similarity are explicit.

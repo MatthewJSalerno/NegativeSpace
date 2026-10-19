@@ -35,7 +35,7 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
 
     const phase = currentPhase(active);
     const interrupted = active.presented_status === "Interrupted";
-    const cancelling = active.status === "Cancelling" || cancelSent === active.id;
+    const cancelling = active.status === "Cancelling" || (cancelSent != null && cancelSent === active.id);
     const started = active.started_at ? Date.parse(active.started_at) : null;
     const recorded = phase?.updated_at ? Date.parse(phase.updated_at) : started;
     const lastActivity = Math.max(recorded ?? now, waiting?.id === active.id ? waiting.since : 0);

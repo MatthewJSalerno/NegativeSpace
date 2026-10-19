@@ -11,7 +11,7 @@ from . import catalog, outcomes, operation_actions, lineage
 LOG_PAGE_MAX = 500
 
 
-def _operations_where(*, runs=None, statuses=None, photo=None, q=None, since=None, until=None):
+def _operations_where(*, runs=None, statuses=None, photo=None, q=None, since=None, until=None, metadata_edits=False):
     """The WHERE clause for a log view. Every filter narrows; none is required.
 
     `photo` follows the photo's file identities, not only its photos.id: operations
@@ -21,6 +21,9 @@ def _operations_where(*, runs=None, statuses=None, photo=None, q=None, since=Non
     compare correctly as text once both sides carry an offset.
     """
     clauses, params = [], []
+    if metadata_edits:
+        clauses.append("EXISTS (SELECT 1 FROM operation_events e WHERE e.operation_id=o.id "
+                       "AND e.step='metadata_saved' AND e.outcome='verified')")
     if runs:
         clauses.append(f"o.run_id IN ({','.join('?' * len(runs))})")
         params += list(runs)

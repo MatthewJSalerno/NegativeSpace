@@ -12,7 +12,7 @@ def check_stats_dates(browser, base):
     def wide_dates(route):
         response = route.fetch()
         data = response.json()
-        data["dates"]["per_year"] = years
+        data["dates"].update(per_year=years, min_year=1800, max_year=2027)
         route.fulfill(response=response, json=data)
 
     page.route("**/api/v1/stats", wide_dates)
@@ -48,6 +48,30 @@ def check_stats_dates(browser, base):
     expect(chart.locator("tbody tr").last).to_contain_text("2026")
     chart.locator('a[href="/?date=2023"]').click()
     expect(page).to_have_url(re.compile(r"[?&]date=2023(?:&|$)"))
+    # Outliers never set normal bar height; omitted real years remain empty slots.
+    years[:] = [{'year':'0001','photos':9000}, {'year':'1999','photos':4},
+                {'year':'2001','photos':8}, {'year':'2218','photos':8000}]
+    page.set_viewport_size({'width':1400,'height':900})
+    page.goto(f'{base}/stats')
+    expect(bars).to_have_count(3)
+    expect(bars.nth(1)).to_have_attribute('aria-label','2000: 0 photos')
+    assert bars.first.locator('.year-fill').evaluate('(e)=>e.style.height') == '50%'
+    assert bars.nth(1).locator('.year-fill').evaluate('(e)=>e.style.height') == '0%'
+    expect(chart.get_by_role('link',name=re.compile('Before 1800'))).to_contain_text('9,000')
+    expect(chart.get_by_role('link',name=re.compile('Future'))).to_contain_text('8,000')
+    for width in (1400,720,390):
+        page.set_viewport_size({'width':width,'height':900})
+        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), width
+        if os.environ.get('SHOTS'):
+            page.emulate_media(color_scheme='dark')
+            page.screenshot(path=f"{os.environ['SHOTS']}/stats-outliers-{width}.png")
+    chart.get_by_text('As a table',exact=True).click()
+    expect(chart.locator('tbody tr')).to_have_count(4)
+    expect(chart.locator('tbody tr').last).to_contain_text('2218')
+    page.get_by_role('link',name=re.compile('photos: .*dates, .*rotations')).click()
+    expect(page).to_have_url(re.compile('metadata_edits=true'))
+    expect(page.get_by_text('Saved metadata edits.',exact=False)).to_be_visible()
+    expect(page.locator('.metadata-history')).to_have_count(0)
     page.unroute_all(behavior="wait")  # Finish an in-flight Stats poll before disposing its request context.
     page.close()
     print("Stats Dates: 227 years contained, scrollable and linked at desktop and narrow widths")
@@ -285,7 +309,7 @@ def check_ui(browser, base, _shot):
     expect(outer).to_be_visible()
     assert page.locator(".inspector").bounding_box()["width"] <= float(outer.get_attribute("aria-valuemax")) + 1
     page.set_viewport_size({"width": 1100, "height": 900})
-    expect(outer).to_have_attribute("aria-valuemax", "384")   # beside the date scrubber
+    expect(outer).to_have_attribute("aria-valuemax", "352")   # beside the 17rem sidebar and date scrubber
     assert page.locator(".gallery-pane").bounding_box()["width"] >= 419
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.set_viewport_size({"width": 1400, "height": 900})
@@ -311,7 +335,7 @@ def check_ui(browser, base, _shot):
     outer = page.get_by_role("separator", name="Resize the photo panel", exact=True)
     # Wait for the page to measure the wider window; keys pressed before then are clamped
     # to the old width.
-    expect(outer).to_have_attribute("aria-valuemax", "1684")
+    expect(outer).to_have_attribute("aria-valuemax", "1652")
     outer.focus()
     for _ in range(20):
         page.keyboard.press("ArrowLeft")

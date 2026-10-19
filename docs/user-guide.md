@@ -47,7 +47,8 @@ one can be changed later from the gear icon at the top right.
 The **Appearance** step sets the palette and light/dark preference. **Files** chooses
 file types, the earliest expected photo year, and when to be reminded to empty Rejects.
 It also requires a choice to enable or disable small-image reminders; these never
-restrict Copy or Move. **Metadata** explains which source supplies metadata and asks how to
+restrict Copy or Move. Expand **File types** or **Rejects reminder** to adjust those
+settings; they start collapsed to keep this step shorter. **Metadata** explains which source supplies metadata and asks how to
 handle shared XMP sidecars and where to save edits. **Backups** explains catalog backups, **Performance** sets how
 many photos are read at once, and **Access** saves additional addresses used to open the app.
 
@@ -109,7 +110,7 @@ to delete anything for its library to be complete.
 
 ## 5. Similar photos
 
-**Has similar photos** lists organized Library photos with look-alikes; unorganized
+**Similar photos** lists organized Library photos with look-alikes; unorganized
 source files are not compared in this view. Open one and choose **Similar
 photos**: the counts show how many matches it has at each percentage. The percentage
 measures visual similarity, not certainty; below 90%, matches are more likely to be
@@ -155,7 +156,7 @@ of a wrong date; NegativeSpace changes no date by itself.
 
 ![Photos with suspicious dates](images/suspicious-dates-filter.png)
 
-**No usable capture date** lists photos with no usable date in their metadata. A missing date alone does not prevent **Copy** or **Move**. A photo can also appear under **Not organized › Needs attention** if a separate issue prevents organizing it; open its information pane for the specific reason. They are filed
+**No usable date** lists photos with no usable date in their metadata. A missing date alone does not prevent **Copy** or **Move**. A photo can also appear under **Not organized › Needs attention** if a separate issue prevents organizing it; open its information pane for the specific reason. They are filed
 under `library/Undated/<year>/`, where the year comes from the file's modification time,
 rather than among photos the camera dated. A file's time is often when it was downloaded
 or exported, not when the photo was taken. Filing it with camera-dated photos would make

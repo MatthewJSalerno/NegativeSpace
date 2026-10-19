@@ -919,17 +919,17 @@ uses the same Catalog photos scope and excludes unknown measurements:
                  "cameras": [{"name", "photos"}, ...], "lenses": [...],       // top eight each
                  "megapixels": [{"band": "under 1 MP", "photos"}, ...], "under_1mp",
                  "orientation": {"landscape", "portrait", "square"}, "with_location"},
-     "dates": {"per_year": [{"year", "photos"}, ...], "oldest", "newest",
+     "dates": {"per_year": [{"year", "photos"}, ...], "min_year", "max_year", "oldest", "newest",
                "busiest_day": {"day", "photos"} | null,
                "undated", "undated_no_date", "undated_unusable", "with_time_zone"},
      "duplicates": {"groups", "extra_copies", "bytes", "saved_at_destination", "copies_not_written",
-                    "move_would_free", "freed_by_moves", "near_duplicates": null,
+                    "move_would_free", "freed_by_moves",
                     "coverage": {"last_complete_scan" | null, "established_by_run" | null,
                                  "scans_with_issues_since", "run_ids_since": [ids]},
                     "by_folder": [{"folder": "archive-2021", "files", "duplicates", "duplicate_bytes"}, ...]},
      "activity": {"jobs": {"INDEX": 3, ...}, "last_index", "copied", "moved",
                   "bytes_transferred", "bytes_per_second" | null,
-                  "failures": {"not_an_image": 2, "permission": 1, ...}, "renames", "exif_edits": null},
+                  "failures": {"not_an_image": 2, "permission": 1, ...}, "renames", "metadata_edits": {"photos", "dates", "rotations", "primary_source", "other"}},
      "health": {"low_detail_photos", "last_backup", "backup_bytes", "backups", "unbacked_changes", "catalog_bytes",
                 "thumbnail_cache": [{"size", "photos", "bytes"}, ...],
                 "destination_check": {"at", "findings": {"missing": 1, ...}} | null},
@@ -940,8 +940,14 @@ failed sources are counted in `library.failed_source`, and duplicates separately
 `duplicates`. Dates count a date taken only; a photo filed by its file time is
 `undated`, split into no date in its EXIF and an unusable one. `failures` counts failed
 **attempts** by the start of the recorded reason, so one file failing in two jobs counts
-twice, as the log lists it. Figures that need unbuilt features (`near_duplicates`,
-`exif_edits`) are `null`, never a guess. `rejects` is as in `GET /status`. The duplicate figures follow `webui-spec.md` §5.9:
+twice, as the log lists it. `activity.metadata_edits` counts distinct file identities with
+verified metadata saves, once overall and once per category; categories can overlap.
+Failed writes and no-op saves do not count. A successful save whose later refile fails
+still counts. Transfer counts, bytes and throughput include Copy/Move jobs only;
+metadata jobs are not transfers. `GET /operations`, its export and photo-ID routes accept
+`metadata_edits=true` to show only verified saves, combined with existing log filters.
+`dates.min_year` is the configured earliest expected year; `max_year` is the current
+UTC year plus one. `per_year` retains all recorded years, including suspicious ones. `rejects` is as in `GET /status`. The duplicate figures follow `webui-spec.md` §5.9:
 `move_would_free` is Reclaimable, `freed_by_moves` Reclaimed, and `saved_at_destination`
 counts only duplicates whose original is already `Copied` or `Completed`. `coverage`
 follows `webui-spec.md` §6.2: `last_complete_scan` and `established_by_run` come from the

@@ -1,6 +1,6 @@
 // The job feed (WS /api/v1/ws/jobs) and the words the drawer uses for it.
 import { createContext, createElement, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { api, ApiError, type JobState, type Outcome, type Phase, type Run } from "./api";
+import { api, ApiError, subscribeJobAccepted, type JobState, type Outcome, type Phase, type Run } from "./api";
 import { count, plural } from "./format";
 
 export type Connection = "connecting" | "open" | "lost";
@@ -22,12 +22,57 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
     let socket: WebSocket | null = null;
     let retryTimer: number | undefined;
     let fallbackTimer: number | undefined;
+    let checking = false, revision = 0;
+    let lastMessageAt = Date.now(), lastCheckAt = Date.now() - 1000;
+    let fallbackController: AbortController | null = null;
     let stopped = false, received = false, retry = 0;
-    const fallback = () => {
-      if (stopped || received) return;
-      api.jobState().then((state) => {
-        if (!stopped && !received) { setJobs(state); setError(null); }
-      }, (e) => { if (!stopped && !received) setError(e instanceof ApiError ? e.message : "Job state could not be loaded."); });
+    let snapshot: JobState | null = null;
+    let accepted: Run | null = null;
+    const newestId = (state: JobState | null) => Math.max(state?.active?.id ?? 0, state?.last?.id ?? 0);
+    const publish = (state: JobState) => { snapshot = state; setJobs(state); setError(null); };
+    const isActive = (run: Run) => ["Preparing", "Running", "Cancelling"].includes(run.status);
+    const receive = (state: JobState) => {
+      // A snapshot computed before acceptance can arrive after the POST response.
+      // Keep the confirmed job visible until the feed reaches that run or a newer one.
+      if (accepted && newestId(state) < (accepted.id ?? 0)) {
+        publish(isActive(accepted) ? { ...state, active: accepted } : { active: null, last: accepted });
+      }
+      else { accepted = null; publish(state); }
+    };
+    const unsubscribe = subscribeJobAccepted((run) => {
+      // The feed may already have reported this job finished before the POST returns.
+      if (run.id == null || run.id <= newestId(snapshot)) return;
+      revision += 1;
+      accepted = { ...run, cancellable: false };
+      publish(isActive(run) ? { active: accepted, last: snapshot?.last ?? null } : { active: null, last: run });
+    });
+    const fallback = async () => {
+      const now = Date.now();
+      if (stopped || checking || now - lastCheckAt < 3000) return;
+      // Idle feeds legitimately send nothing. Check only before the first snapshot,
+      // while disconnected, or when a known active job has had no live update for 3s.
+      const quietJob = snapshot?.active && !snapshot.active.awaiting_reconciliation && now - lastMessageAt >= 3000;
+      if (received && socket?.readyState === WebSocket.OPEN && !quietJob) return;
+      checking = true; lastCheckAt = now;
+      const startedRevision = revision;
+      const controller = new AbortController(); fallbackController = controller;
+      const timeout = window.setTimeout(() => controller.abort(), 5000);
+      try {
+        const state = await api.jobState(controller.signal);
+        // A newer live update or accepted submission wins over an older HTTP request.
+        if (!stopped && revision === startedRevision) {
+          receive(state);
+          if (socket?.readyState === WebSocket.OPEN) setConnection("open");
+        }
+      } catch (e) {
+        if (!stopped && revision === startedRevision) {
+          if (!snapshot) setError(e instanceof ApiError ? e.message : "Job state could not be loaded.");
+          else setConnection("lost");
+        }
+      } finally {
+        window.clearTimeout(timeout);
+        fallbackController = null; checking = false;
+      }
     };
     const connect = () => {
       const scheme = window.location.protocol === "https:" ? "wss" : "ws";
@@ -35,8 +80,8 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
       socket.onopen = () => { retry = 0; setConnection("open"); };
       socket.onmessage = (event) => {
         if (stopped) return;
-        received = true;
-        setJobs(JSON.parse(event.data) as JobState); setError(null);
+        received = true; revision += 1; lastMessageAt = Date.now();
+        receive(JSON.parse(event.data) as JobState);
       };
       socket.onclose = () => {
         if (stopped) return;
@@ -46,12 +91,14 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
       };
     };
     connect();
-    // A proxy without WebSocket support must not prevent browsing. The drawer
-    // still reports the lost live connection; a later snapshot catches up.
-    fallbackTimer = window.setTimeout(fallback, 2000);
+    // The timer checks freshness only; healthy live feeds and idle connections
+    // make no extra HTTP requests. At most one fallback request runs at a time.
+    fallbackTimer = window.setInterval(() => void fallback(), 1000);
     return () => {
       stopped = true;
-      window.clearTimeout(retryTimer); window.clearTimeout(fallbackTimer);
+      unsubscribe();
+      window.clearTimeout(retryTimer); window.clearInterval(fallbackTimer);
+      fallbackController?.abort();
       socket?.close();
     };
   }, [attempt]);

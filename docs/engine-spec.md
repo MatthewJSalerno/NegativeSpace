@@ -1473,12 +1473,12 @@ The format's default determines the write target when none has been established.
     Settings or a later arrival never silently replaces an established primary.
     Read priority is separate from write-target defaults; RAW metadata writes use XMP sidecars only.
     [xmp-metadata.md](xmp-metadata.md) defines version conflicts, shared associations,
-    malformed sidecars and the pending UI contract. Its pure resolution helper is
-    built along with three-source observations and saved explicit ownership/primary
-    decisions. Resolved first-import Copy/Move now activates the filing date only after
+    malformed sidecars and the UI contract. Three-source observations use
+    `metadata_capture.resolve`; explicit ownership/primary decisions are saved. Resolved first-import Copy/Move now activates the filing date only after
     verified transfer; other canonical values/origins remain in the activation receipt.
     Embedded-source activation and qualified JPEG/XMP editing use the engine CLI.
-    Decision routes and source tabs remain pending.
+    Decision routes and source tabs are built; incoming decisions for organized
+    photos have their own remaining UI scope.
 *   **Original XMP storage (capture and resolved first-import jobs connected):** exact originals
     are catalog BLOBs, Zstandard level 1 only when smaller, with original size/SHA-256
     and encoding. Arrivals/participants are separate immutable records. Retention reparses
