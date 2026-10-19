@@ -9,14 +9,12 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-| Batch | Remaining steps | Starting state |
-| --- | --- | --- |
-| [Shared Reject confirmation](#shared-reject) | **RC1a–c, RC2a–c, RC3a–d — pending** | Fresh review instance prepared; six named generated photos already in Library. No Index/Copy needed. |
+**None for the current batch.** The maintainer reported RC1, RC2 and RC3 passed;
+all ten steps (RC1a–c, RC2a–c and RC3a–d) are accepted.
 
-Only the row above is currently requested. Moving these instructions does not reopen
-accepted tests. After each maintainer report, update this table and the batch's status;
-record partial passes by step. A relevant behavior change must explicitly identify the
-steps needing a retest. Do not infer manual acceptance from automated results.
+After each maintainer report, update this queue and the batch's status; record partial
+passes by step. A relevant behavior change must explicitly identify the steps needing
+a retest. Do not infer manual acceptance from automated results.
 
 ## Maintainer validation rules
 
@@ -48,12 +46,14 @@ steps needing a retest. Do not infer manual acceptance from automated results.
 
 <a id="shared-reject"></a>
 
-Maintainer validation is pending. Report results by test and step, for example
-**RC2b passed**. These checks cover the shared Reject question; no Index or Copy is
-needed. The review instance contains the full demo library and six generated check
-photos, already copied into Library. Clear other filters before searching.
+**Accepted:** the maintainer reported **RC1 Pass, RC2 Pass, RC3 pass**.
+RC1a–c, RC2a–c and RC3a–d are complete; no repeat checks are requested.
+The steps below remain as the regression record. The review instance has been used;
+its photos may now be in Rejects. Reverify or prepare their starting state before a
+future run, without resetting the instance unasked. Automated publication checks
+remain a separate gate.
 
-Verified starting state: `rc-single.jpg`, `rc-bulk-a.jpg`, `rc-bulk-b.jpg`,
+Starting state verified before the accepted run: `rc-single.jpg`, `rc-bulk-a.jpg`, `rc-bulk-b.jpg`,
 `rc-burst-1.jpg`, `rc-burst-2.jpg` and `rc-burst-3.jpg` are each present once in
 Library. At 100%, each burst photo matches only the other two. Run RC3 after RC1/RC2;
 leave the burst photos in Library until RC3.

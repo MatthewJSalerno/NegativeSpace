@@ -2102,7 +2102,6 @@ the final Rejects rerun passed. Existing coverage remains intact. The web build,
 spec/schema/API checks and user-document link checks passed. Rendered questions were
 inspected in dark/light mode and at narrow width with 200% text sizing.
 
-Full publication checks and maintainer acceptance remain separate gates before push
-and merge.
-
-Manual checks: [RC1–RC3](../docs/manual-validation.md#shared-reject).
+Maintainer acceptance passed: [RC1–RC3, all steps](../docs/manual-validation.md#shared-reject).
+Full publication checks remain due before push; GitHub checks and merge approval
+remain separate gates.

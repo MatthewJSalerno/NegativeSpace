@@ -111,7 +111,7 @@ development until the maintainer decides.
 
 Found 2026-10-05 looking for screens that do the same job twice.
 
-- [x] Shared Reject confirmation for gallery, photo review and comparison, including bulk confirmation (`docs/ui-design.md`, Rejecting while comparing); maintainer validation pending (`docs/manual-validation.md`, RC1–RC3).
+- [x] Shared Reject confirmation for gallery, photo review and comparison, including bulk confirmation (`docs/ui-design.md`, Rejecting while comparing); maintainer validation passed (`docs/manual-validation.md`, RC1–RC3).
 - [x] **Remove Explore reference sets** (decided 2026-10-05), leaving no trace: the window
   (`ReferenceSets.tsx`), the Explore related sets button on set cards, its API route
   (`/similar/{id}/sets`), its tests and its spec and API-spec text. The comparison covers it:
