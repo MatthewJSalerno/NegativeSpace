@@ -52,7 +52,7 @@ settings; they start collapsed to keep this step shorter. **Metadata** explains 
 handle shared XMP sidecars and where to save edits. **Backups** explains catalog backups, **Performance** sets how
 many photos are read at once, and **Access** saves additional addresses used to open the app.
 
-![The Files step: small-image reminders and the earliest expected year](images/setup-files.png)
+![The Files step: small-image reminders and the earliest expected year](images/setup-files-disclosures.png)
 
 ## 2. Index: read your photos
 
