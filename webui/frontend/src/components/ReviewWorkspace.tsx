@@ -25,7 +25,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
   const [dateEdit, setDateEdit] = useState<{photo: number; donor?: MetadataSourceView} | null>(null);
   const [matchView, setMatchView] = useState<MatchView>({threshold: filters.match_min ?? 90, page: 1});
   const [comparison, setComparison] = useState<ComparisonState | null>(null);
-  const openedDate = useRef(new Set<number>());
+  const dateEditButton = useRef<HTMLButtonElement>(null);
   const [page, setPage] = useState<number | null>(null);
   const [data, setData] = useState<PhotoPage | null>(null);
   const [photo, setPhoto] = useState<PhotoDetail | null>(null);
@@ -49,11 +49,10 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
   }, !!jobs.active, rotationSaver.busy);
   const scope = JSON.stringify(filters);
   const bookmarkReason = filters.reason === "later" && bookmark?.photo === photo?.id ? bookmark?.reason : null;
+  // A date bookmark shows its reason, note and recorded dates first; the editor opens on request.
   useEffect(() => {
-    if (photo && bookmarkReason === "date" && !jobs.active && !openedDate.current.has(photo.id)) {
-      openedDate.current.add(photo.id); setDateEdit({photo:photo.id});
-    }
-  }, [photo?.id, bookmarkReason, !!jobs.active]);
+    if (photo && bookmarkReason === "date") dateEditButton.current?.focus();
+  }, [photo?.id, bookmarkReason]);
   useEffect(() => {
     const update = () => setRevision(n=>n+1);
     window.addEventListener("ns-settings-saved",update);
@@ -127,7 +126,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
             const run=await api.startJob({mode:"reject",file_ids:[photo.id]});if (run.id == null) throw new Error("The Reject job was not accepted. Reload before trying again."); setRejectRun({run:run.id,photo:photo.id});setBusy(true);
           },undefined,photo.filename))}>Reject…</button>} />
         {(bookmarkReason === "date" || bookmarkReason === "details") && <section aria-label="Bookmark metadata">
-          {bookmarkReason === "date" && <button disabled={!!jobs.active} title={jobs.active ? "Wait for the running job to finish." : undefined} onClick={() => setDateEdit({photo:photo.id})}>Edit metadata date…</button>}
+          {bookmarkReason === "date" && <button ref={dateEditButton} disabled={!!jobs.active} title={jobs.active ? "Wait for the running job to finish." : undefined} onClick={() => setDateEdit({photo:photo.id})}>Edit metadata date…</button>}
           <MetadataSources photoId={photo.id} refreshKey={revision} editable jobRunning={!!jobs.active} onEdit={donor => setDateEdit({photo:photo.id,donor})} />
         </section>}
         {bookmarkReason === "compare" && <PhotoMatches key={photo.id} id={photo.id} name={photo.filename} delivered view={matchView} onView={setMatchView}

@@ -11,8 +11,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 **Sidebar and Bookmarks:** the maintainer passed [Tests SB1–SB6](#sidebar-bookmarks),
 including all lettered steps. No manual checks remain for the tested behavior.
-SB5a has a proposed UX follow-up: show the date bookmark’s reason and recorded metadata
-before opening the editor. If implemented, request only the affected SB5a recheck.
+**SB5a needs a recheck:** a Check the date bookmark now shows its reason, note and
+recorded dates first, with **Edit metadata date…** focused, instead of opening the editor.
 RC1–RC3 remain accepted historical results.
 
 After each maintainer report, update this queue and the batch's status; record partial
@@ -50,12 +50,10 @@ a retest. Do not infer manual acceptance from automated results.
 <a id="sidebar-bookmarks"></a>
 
 **Accepted:** the maintainer passed SB1–SB6, including SB1a–c, SB2a–d, SB3a–c,
-SB4a–d, SB5a–g and SB6a–c.
-
-**SB5a comment:** automatically opening the date editor for `generated-035.jpg` hides
-the bookmark’s reason. Proposed follow-up: open its review workspace with the reason,
-note and recorded date visible, and let the user choose **Edit metadata date…**.
-This proposal has not changed the tested behavior; only SB5a would need a recheck.
+SB4a–d, SB5b–g and SB6a–c. **SB5a is pending a recheck:** it passed, but the
+maintainer found that opening the date editor automatically hid the bookmark's reason,
+so the date bookmark now shows the reason, note and recorded dates first and the editor
+opens from **Edit metadata date…**.
 
 The review instance was prepared with Index and Copy against the demo library and
 additional generated scenarios. Starting state: 4,904 Library photos, 25 source files
@@ -156,8 +154,10 @@ For each step, start in Library → Needs review → Bookmarked, search the spec
 filename, and choose **Review one by one**. Return to Library between steps to clear the
 previous search. The prepared notes read `Generated Bookmark walkthrough`.
 
-**a.** `generated-035.jpg` — **Check the date** opens the existing date editor. Change
-the calendar date to **2023-12-09**, preview and save. The photo should remain bookmarked
+**a.** `generated-035.jpg` — **Check the date** shows the bookmark's reason and note and
+the photo's recorded dates, with **Edit metadata date…** focused; the editor must not open
+by itself. Choose **Edit metadata date…**, change the calendar date to **2023-12-09**,
+preview and save. The photo should remain bookmarked
 after the save; its new date should be visible. Close the editor before returning.
 
 **b.** `generated-053.jpg` — **Compare versions** shows the existing similarity controls

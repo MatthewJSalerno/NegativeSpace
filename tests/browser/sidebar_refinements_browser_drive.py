@@ -192,7 +192,15 @@ with sync_playwright() as p:
         expect(workspace).to_be_visible()
         expect(workspace).to_contain_text('Generated tool check')
         if preset == 'date':
+            # The reason, note and recorded dates come first; the editor waits to be chosen.
             editor=page.get_by_role('dialog',name='Edit Date taken',exact=True)
+            expect(editor).to_have_count(0)
+            expect(workspace).to_contain_text('Check the date')
+            expect(workspace.locator('.metadata-sources')).to_be_visible()
+            # The bookmark's own button comes before the Date taken row's inline link.
+            edit=workspace.get_by_role('button',name='Edit metadata date…',exact=True).first
+            expect(edit).to_be_focused()
+            edit.click()
             expect(editor).to_be_visible()
             editor.get_by_label('Date taken',exact=True).fill('2021-04-05T06:07:08')
             editor.get_by_role('button',name='Preview change',exact=True).click()
