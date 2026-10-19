@@ -4,12 +4,10 @@ This batch changes wording, sidebar presentation and Stats. Filtering, metadata 
 and file-transfer rules stay the same. Automated results are recorded separately from
 these maintainer checks. Report results by test and step, for example **U2c passed**.
 
-Maintainer results: U1–U4 passed, and **U2b** passed after the label-width fix.
-Only **U1b** remains. Immediate display passed, but live progress stayed at zero and
-the summary appeared before the drawer caught up. Recheck from fresh setup after the
-live-feed recovery fix: counts must advance, the drawer must disappear on completion,
-and the summary and Notifications result must agree. No Copy or metadata-edit repeat
-is needed.
+Maintainer results: **U1–U4 passed**, including U2b after the label-width fix and
+U1b after the live-feed recovery fix. The final U1b check began with fresh setup and
+no previous Index; the maintainer confirmed it worked. **No manual checks remain
+for this batch.** Automated results are recorded separately.
 
 ## Test U1 — Setup and photo-log wording
 
