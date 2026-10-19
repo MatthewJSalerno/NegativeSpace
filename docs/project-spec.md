@@ -48,6 +48,12 @@ Two consequences follow, and both shape decisions in each component spec:
     file does not is a date the gallery will get wrong. That is what eventually
     forces metadata corrections out of the catalog and into the files, or into
     sidecars beside them; see `engine-spec.md` §9.6.
+*   **Every signal that could date a photo is worth recording.** Undated photos are
+    the hardest part of organizing, and clues turn up while building unrelated
+    features. When one does, it is added to the evidence design (`webui-spec.md`
+    §3.1) as a candidate, in that design's shape, and is trusted only once the
+    back-test measures it in each library. Nothing is tuned to one sample. Clues
+    that need no metadata come first, since an undated photo often has none.
 
 ## 2. Target Audience
 

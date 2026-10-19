@@ -747,6 +747,23 @@ provider behind one shape, and nothing else knows the list:
 The sources above are the first providers. The parked and set-aside ideas (other
 applications' records, content-based dating) are candidates for later ones.
 
+**Candidate clues, not yet assessed** (2026-10-18). An undated photo often has no metadata
+at all, so most of these help only when metadata was stripped selectively or the clock
+was wrong; clues that need none of the photo's own metadata come first. Each would be a
+provider, and the back-test decides whether it earns any weight.
+
+| Clue | Gives | Needs |
+| :--- | :--- | :--- |
+| When NegativeSpace first indexed the file | "Not after" | Nothing; every photo has it |
+| Dated videos and other files in the same original folder | The folder's span, like dated photos there | The videos' metadata, not the photo's |
+| GPS date and time (`GPSDateStamp`, `GPSTimeStamp`) | An exact UTC time, independent of the camera clock | The photo's GPS metadata |
+| Other date fields: XMP/IPTC date created, `DateTimeDigitized` | A capture date in another field; for a scan, "not after" | The photo's XMP, IPTC or EXIF |
+| Edit history (`xmpMM:History`) and `OriginalDocumentID` | "Not after" the first edit; a link to the original for the relationship layer | The photo's XMP |
+| Camera body serial number with its shot counter (maker notes) | Between the dates of neighbouring shots from the same body | Maker notes, which differ by brand |
+| Live Photo pairing (`ContentIdentifier`) | The paired video's date | Apple metadata in both files |
+| Camera model or phone software version | "Not before" its release | The photo's EXIF, and a release-date list to maintain |
+| Camera clock offset, from same-moment pairs with a correctly set device | A correction for wrong dates rather than a date for undated ones | Dated photos of the same moment from two devices |
+
 **Parked for discussion:** dates from other applications’ records, such as a Lightroom
 catalog’s capture times, Google Takeout `.json`, Picasa `.picasa.ini` and Apple `.AAE`.
 These may be the strongest source for some photos, but require real effort for an
