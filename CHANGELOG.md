@@ -9,6 +9,8 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Avoid a false cancellation warning while a job has not yet received a run ID.
+
 - Align sidebar filter labels, counts and pins; explain unavailable counts and incompatible
   filters on hover or keyboard focus. Clarify shared-sidecar examples, RAW edit storage
   and photo-log links.

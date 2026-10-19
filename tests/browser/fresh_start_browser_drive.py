@@ -1,4 +1,5 @@
 """Fresh catalog addresses and ordinary submission progress must not flash a global row."""
+import json
 import os
 import sys
 import time
@@ -74,6 +75,25 @@ with sync_playwright() as p:
     page.goto(base+'/logs?run='+str(run))
     expect(page.locator('.job-list-head')).to_be_visible()
     assert 'run='+str(run) in page.url
+    # Preparation/after-job bookkeeping has no run ID. A null ID must not match
+    # the initial "no cancellation requested" state and invent a cancellation.
+    sockets=[]
+    latest=request.get('/api/v1/jobs/active').json()['last']
+    preparing={'active':{'id':None,'mode':None,'status':'Preparing','unrecorded':True},'last':latest}
+    def job_feed(socket):
+        sockets.append(socket)
+        socket.send(json.dumps(preparing))
+    page.route_web_socket('**/api/v1/ws/jobs',job_feed)
+    page.reload()
+    drawer=page.locator('.drawer')
+    expect(drawer).to_contain_text('Starting a job')
+    expect(drawer).not_to_contain_text('Cancellation requested')
+    expect(drawer.get_by_role('button',name='Cancel job',exact=True)).to_be_disabled()
+    sockets[-1].send(json.dumps({'active':{**latest,'status':'Cancelling','cancellable':True},'last':None}))
+    expect(drawer).to_contain_text('Cancellation requested')
+    expect(drawer.get_by_role('button',name='Cancelling…',exact=True)).to_be_disabled()
+    sockets[-1].send(json.dumps({'active':None,'last':latest}))
+    expect(drawer).to_have_count(0)
     assert not errors,errors
     browser.close()
 print('PASS: missing-catalog URL replacement, preserved valid links, and stable Index submission')

@@ -12,7 +12,9 @@ photo. The RAW rule is a statement, with no disabled storage selector. Choose **
 for shared sidecars. Leave the earliest expected year at 1800 and enable small-image
 reminders at 800 pixels.
 
-**b.** Run Index, then Copy. The source is the full demo library plus four generated
+**b.** Run Index. While it runs, check for progress immediately below the top toolbar;
+when it finishes, open the Notifications bell for the result. A later unchanged re-index
+can finish in under two seconds. Then run Copy. The source is the full demo library plus four generated
 validation photos. Processing issues in the demo may leave some files in Not organized;
 these do not prevent the checks below. No Move is needed.
 
