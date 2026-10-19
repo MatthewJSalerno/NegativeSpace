@@ -39,7 +39,6 @@ development until the maintainer decides.
 - 💬 Filters that persist across places (Rejects can look empty)
 
 **Similar photos**
-- Merge the two "Reject?" dialogs into one (decided)
 - 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
 - Large-library measurement (250,000 and 500,000 photos)
 - 💬 Local AI image embeddings for look-alikes, crops included (the maintainer is reading up first)
@@ -112,11 +111,7 @@ development until the maintainer decides.
 
 Found 2026-10-05 looking for screens that do the same job twice.
 
-- [ ] **Merge the two "Reject?" dialogs into one** (decided 2026-10-05,
-  `docs/ui-design.md`, "Rejecting while comparing"): the general confirmation
-  (`Confirm.tsx`) and the comparison's own (`RejectConfirm.tsx`) become a single dialog,
-  with "Don't ask again while comparing" and the last-photo warning appearing only where
-  they apply. Every later reject question uses it.
+- [x] Shared Reject confirmation for gallery, photo review and comparison, including bulk confirmation (`docs/ui-design.md`, Rejecting while comparing); maintainer validation passed (`docs/manual-validation.md`, RC1–RC3).
 - [x] **Remove Explore reference sets** (decided 2026-10-05), leaving no trace: the window
   (`ReferenceSets.tsx`), the Explore related sets button on set cards, its API route
   (`/similar/{id}/sets`), its tests and its spec and API-spec text. The comparison covers it:
@@ -227,7 +222,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] First-import XMP ownership/version choices in Not organized → Needs attention:
   read captured candidates/fields, preview and confirm under the engine lock, preserve
   source files, and apply through normal verified Copy/Move. Source repair remains separate.
-  Automated validation and maintainer acceptance are tracked in tests/README.md.
+  Automated validation is tracked in tests/README.md; maintainer steps and acceptance are in docs/manual-validation.md.
 - [ ] Incoming-alternative decisions for already organized/rejected matches, with independent
   metadata/location choices. Durable BLOB storage and engine primitives are built;
   their decision UI remains unfinished. Import-pair retry is already built.

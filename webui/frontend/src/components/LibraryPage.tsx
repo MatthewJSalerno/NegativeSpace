@@ -869,7 +869,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       }
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : "The job could not be started.");
-      if (move) throw e;
+      if (move || mode === "reject") throw e;
     }
   };
 
@@ -897,7 +897,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [committing, setCommitting] = useState(false);
   const commit = async () => {
     if (!review) return;
-    if (review.move) { setConfirm(review); return; }
+    if (review.move || review.reject) { setConfirm(review); return; }
     setCommitting(true);
     try { await review.run(); } finally { setCommitting(false); }
   };
