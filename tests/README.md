@@ -2103,5 +2103,10 @@ spec/schema/API checks and user-document link checks passed. Rendered questions 
 inspected in dark/light mode and at narrow width with 200% text sizing.
 
 Maintainer acceptance passed: [RC1–RC3, all steps](../docs/manual-validation.md#shared-reject).
-Full publication checks remain due before push; GitHub checks and merge approval
-remain separate gates.
+Publication validation completed in Docker: 157 engine smoke tests (no skips, including
+both public RAW checks), 575 metadata tests, 301 contract tests and 16 CI-routing tests
+passed. All 38 browser workflows have passing results. The initial reference-set browser
+run timed out waiting for the help window to scroll to the top; its unchanged isolated
+rerun passed. No assertion was removed or weakened. All three tools/check-*.py checks
+passed, along with 206 local documentation links/images and 117 linked anchors.
+GitHub checks remain the final merge gate; maintainer approval has been given.
