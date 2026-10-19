@@ -198,6 +198,44 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   Needs verification retain their full names in accessible labels and hover/focus help. Long
   labels truncate instead of wrapping. The sidebar fits all current compact labels,
   including selected Needs verification, beside a six-digit count. Logs and Stats reserve the same pin gutter.
+- **Sidebar and refinements** (decided 2026-10-19; not built; replaces Look into, its pins
+  and its dimmed rows). The sidebar holds only where photos are; what narrows them sits
+  above the photos, and shows only what works in the place shown, so nothing is dimmed.
+  - **Sidebar:** Not organized (with Source folders under it), Library, **Similar
+    photos**, Rejects; then Activity (Logs, Stats). Similar photos stays a top-level row
+    because it changes the gallery (sets, percentage, its sort), not just its contents.
+    Rows whose problems moved into refinements keep a one-line note so they stay in
+    sight from every page: "⚠ 7 need attention" under Not organized, "12 to review" under
+    Library.
+  - **Refinements:** a row of toggle buttons under the page title, in the place's own
+    order, each with its count; they always combine, so pins go. Library: **Needs
+    review**, **Odd dates**, **No date**. Similar photos: **Odd dates**, **No date** and the
+    percentage. Not organized: **Needs attention** (warning colour), **Small**, **Odd
+    dates**, **No date** (Small is a fact of the file there, as the rule below says). Rejects: **Odd dates**, **No date**.
+  - **Needs review becomes a Library refinement, not a place.** Turned on, it adds a
+    **Reason** switch (All, Small, Bookmarked, Needs verification) that picks one reason
+    at a time, since each brings its own answers; the date toggles still combine with it.
+  - **Needs attention and Needs verification appear only when their count is above 0**,
+    in warning colour: both are rare, and an alert, not something to browse.
+  - **Short labels:** Odd dates (Suspicious dates), No date (No usable capture date),
+    Small (Small images), with the full names in accessible labels and on hover.
+  - *Why a row above the photos again:* the 2026-10-09 removal of the chip row was right
+    while the sidebar also listed the filters; here the sidebar no longer does, so
+    nothing repeats. *Why not grouped headings or nested sidebar filters:* both were
+    mocked; headings still dim what does not apply, and nesting repeats the date filters
+    under every place.
+- **Bookmarks** (decided 2026-10-19; not built; renames Review later, since "review"
+  already names Needs review and Review one by one). **Bookmark…** beside **Reject…**
+  opens a small window: **Why?**, one of Check the date, Compare versions, Fix rotation,
+  Check the details, Decide whether to keep it, Ask someone, Other (the first is
+  preselected), and an optional **Note** of at most 60 characters with a live counter.
+  Cards show the reason in bold, then the note; the Bookmarked list sorts by reason, with
+  no per-reason filter. **Review one by one** opens each bookmark with its tool ready:
+  the date editor and evidence, the side-by-side comparison, the rotation controls, the
+  Metadata tab, Keep it or Reject…, or just the photo with its note. **Remove bookmark**
+  clears one, or many from the selection bar. *Why preset reasons and no custom ones:*
+  free text alone gets inconsistent, and user-made reasons would become the tagging that
+  belongs to gallery applications.
   It says why on hover and focus: Has similar
   photos, Small images, Files needing verification and Review later are for Library and Needs review.
   On Logs and Stats each is a link that opens Library (Review later: Needs review) with
@@ -937,9 +975,11 @@ Once Library exists, an unscoped visit remembers the last place in this browser.
 **Which Look into filters apply where** (decided 2026-10-17; not built): filters about facts of a
 file, known from the Index (its dates, its size, whether it has identical copies), work in
 every place; filters about comparisons or decisions (look-alikes, review reminders,
-verification) work only on organized photos. A filter that does not apply stays in place,
-dimmed, saying why. Small images therefore also applies in Not organized, beside a new
-**Has identical copies**.
+verification) work only on organized photos. The 2026-10-19 sidebar design expresses
+this by showing each place only its own refinements, instead of dimming. *Dropped
+(2026-10-19): a Has identical copies filter.* In the Library it offers nothing to do,
+and the overlap it would show before organizing is the Index summary's clickable
+"Additional identical copies" figure.
 
 Not organized starts with Index source. While Index runs, hide its summary so partial
 counts cannot claim indexing has finished. After Index, its neutral Index summary describes
