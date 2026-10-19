@@ -30,8 +30,6 @@ development until the maintainer decides.
 
 **Review**
 - Answer many photos at once within one reason — decided, not built (`docs/webui-spec.md` §7.9)
-- Sidebar and refinements, replacing Look into and its pins — implemented; SB1–SB6 manual validation passed (`docs/ui-design.md`, Page frame)
-- Bookmark, replacing Review later, with preset reasons — implemented; SB1–SB6 manual validation passed (`docs/ui-design.md`, Bookmarks)
 - Suspicious dates in the review queue, with "this date is correct"
 - "Looks like a reject" (decided)
 - Undated-photo evidence and per-library back-test — decided, not built (`docs/webui-spec.md` §3.1)
@@ -78,7 +76,6 @@ development until the maintainer decides.
 - Videos and other non-photo files
 
 **💬 Waiting on the maintainer**
-- Needs review: a separate place or a Library filter
 - Discovering filters across places
 - Full-screen preview clutter; copying all metadata; source folders handled behind the scenes
 - Visual check of where Clear all filters sits
@@ -162,9 +159,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Stable filter guidance and navigation: shared guidance sizing for Logs/gallery/
   review reasons; fixed Logs position when Jobs is absent; stable status shortcuts,
   filter summaries and action heights. Browser positions checked at desktop/reflow widths.
-- [ ] Discuss whether Needs review remains a separate location or becomes a Library
-  summary with reason filters. Keep navigation unchanged until decided; define the
-  distinct-photo count and provide a visible Review later filter in any replacement.
+- [x] Needs review became a Library refinement with a Reason selector, in the sidebar and
+  refinements design (`docs/ui-design.md`, Page frame); SB1–SB6 passed.
 
 - [x] Workflow order, Not organized guidance and Index summary; Library review markers
   open the photo’s reason in Needs review without changing selection, with a return
