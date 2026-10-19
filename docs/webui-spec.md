@@ -335,7 +335,8 @@ already is. *Why:* the places then answer one question, where is it, and drop fr
 six to four. Settled 2026-10-07:
 
 * **The filters are the sidebar's Look into** (maintainer, 2026-10-09; they were a chip
-  row above the photos, which repeated Look into), each with its count in the place shown
+  row above the photos, which repeated Look into; to be replaced by the 2026-10-19 sidebar
+  and refinements design in `ui-design.md`, Page frame, not built), each with its count in the place shown
   ("Has similar photos 167 · Suspicious dates 8 · No usable capture date 1,356"), with Needs
   review's reasons (§7.9): one pattern for narrowing a place.
 * **Small images** stays beside **No usable capture date** as a toggle in Library and
@@ -357,8 +358,9 @@ height were recorded; help explains possible unsupported formats, unreadable fil
 incomplete processing without labelling these files corrupt or non-photos. These counts cover the whole location, not active
 filters. A scope note says similarity compares destination photos, not source files; a disabled size rule says
 **Rule disabled**. Date chips already filter the source gallery. Decided 2026-10-17, not built: every
-summary figure opens the photos it counts (Small images and **Has identical copies** as
-filters, processing failures as Needs attention), and a fold-out **By file type**, closed by
+summary figure opens the photos it counts (Small images as a refinement, additional
+identical copies as a temporary gallery of the photos that have them, processing failures
+as Needs attention), and a fold-out **By file type**, closed by
 default and repeated in the Index's log entry, shows photos taken by type, photo types
 turned off in Settings (linking to Settings › Files), sidecars and videos as one count
 each, and every other file as one number, "4,312 other files, left untouched", never
@@ -3020,7 +3022,8 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   corrected in job #52"), as the engine's needs-attention issues clear only on evidence.
   *Why not make the user dismiss it:* answering something that is no longer a problem is
   busywork, and nothing is lost.
-* **Review later** (decided 2026-10-05): the one note a user sets. **Review later** sits
+* **Review later**, to become **Bookmark** with a preset reason and an optional 60-character
+  note (decided 2026-10-19, not built; `ui-design.md`, Bookmarks) (decided 2026-10-05): the one note a user sets. **Review later** sits
   beside **Reject…** in the photo panel, with an optional short note ("check the date");
   **Done** clears it. Setting it is not in the selection bar: it is a photo-by-photo bookmark,
   and it holds nothing. Clearing it is: **Done** is a bulk answer like the others. It stays a plain "come back to this": no names, colours or lists, which

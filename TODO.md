@@ -23,13 +23,15 @@ development until the maintainer decides.
 - Copy/Move preview grouped by destination folder, and a downloadable plan
 - Start a requested job after the preceding backup — decided, not built (`docs/webui-spec.md` §5.7)
 - Last-indexed time for each source folder — decided, not built (`docs/webui-spec.md` §2)
-- Source filters and clickable Index summary figures — decided, not built (`docs/ui-design.md`, Which Look into filters apply where; `docs/webui-spec.md` §2)
+- Clickable Index summary figures — decided, not built (`docs/ui-design.md`, Which Look into filters apply where; `docs/webui-spec.md` §2)
 - Copy all and Move all count photos held in Needs attention
 - 💬 Source-folder handling behind the scenes
 - 💬 A content-history link from a photo to its earlier versions
 
 **Review**
 - Answer many photos at once within one reason — decided, not built (`docs/webui-spec.md` §7.9)
+- Sidebar and refinements, replacing Look into and its pins — decided, not built (`docs/ui-design.md`, Page frame)
+- Bookmark, replacing Review later, with preset reasons — decided, not built (`docs/ui-design.md`, Bookmarks)
 - Suspicious dates in the review queue, with "this date is correct"
 - "Looks like a reject" (decided)
 - Undated-photo evidence and per-library back-test — decided, not built (`docs/webui-spec.md` §3.1)
@@ -174,7 +176,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Workflow order, Not organized guidance and Index summary; Library review markers
   open the photo’s reason in Needs review without changing selection, with a return
   to the entry Library context.
-- [ ] Not organized filters and clickable Index summary figures: decided, not built (`docs/ui-design.md`, Which Look into filters apply where; `docs/webui-spec.md` §2).
+- [ ] Clickable Index summary figures: decided, not built (`docs/webui-spec.md` §2). The
+  filters themselves are part of the sidebar and refinements design (`docs/ui-design.md`, Page frame).
 
 - [x] Same-named photo cards: built and maintainer validated ([spec](docs/webui-spec.md#telling-same-named-photos-apart)).
 
