@@ -61,6 +61,11 @@ Tabs are one shared control (`ui/Tabs.tsx`, WAI-ARIA "Tabs with automatic activa
 one tab stop, ← → move and choose, Home/End go to the ends. The Inspector and Settings
 use it. The setup wizard places the shared logo and NegativeSpace name at the top left of
 its header on every step, with the step title below; do not repeat a welcome heading.
+In first-run Files, Small-image review and Suspicious dates stay visible. File types
+and Rejects reminder start collapsed in native disclosures; validation opens the affected
+section before focusing its field. Back/Next stay visible. Settings after setup keeps
+these sections expanded.
+
 Settings' tabs and first-run steps are the same six groups (`webui-spec.md` §3);
 a tab with unsaved changes shows a dot, named "unsaved changes" to assistive technology.
 

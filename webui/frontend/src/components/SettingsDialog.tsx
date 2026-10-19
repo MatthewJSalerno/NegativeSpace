@@ -161,7 +161,12 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
     const first = Object.keys(shown)[0];
     if (first) {
       setGroup(FIELD_GROUP[first]);
-      requestAnimationFrame(() => document.getElementById(first === "small" && smallChoice !== "on" ? "settings-small-choice" : `settings-${first}`)?.focus());
+      requestAnimationFrame(() => {
+        const field = document.getElementById(first === "small" && smallChoice !== "on" ? "settings-small-choice" : `settings-${first}`);
+        const disclosure = field?.closest("details");
+        if (disclosure) disclosure.open = true;
+        field?.focus();
+      });
     }
     return !first;
   };
@@ -321,8 +326,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
           hint="Dates before this year are flagged for review. For example, choose 2000 to flag 1999 and earlier. Allow for older scans or family photos you want to keep." />
         <p className="muted">Starts at 1800. Dates more than one year ahead are also flagged. Saving updates warnings immediately; photo dates, Copy and Move are unchanged.</p>
       </section>
-      <section>
-        <h3>File types</h3>
+      <SettingsSection title="File types" collapsible={firstRun}>
         <p className="muted">NegativeSpace looks for these kinds of files in your source folder. Files of other types are left where they are.</p>
         <div className="ext-grid" id="settings-exts" role="group" aria-label="File types" tabIndex={-1}
              aria-invalid={!!fieldErrors.exts || undefined} aria-describedby={fieldErrors.exts ? "settings-exts-error" : undefined}>
@@ -341,10 +345,9 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
                  onKeyDown={(e) => e.key === "Enter" && addCustom()} aria-label="Add a file type" />
           <button disabled={saving} onClick={addCustom}>Add file type</button>
         </div>
-      </section>
+      </SettingsSection>
       {!firstRun && smallImageSettings}
-      <section>
-        <h3>Rejects reminder</h3>
+      <SettingsSection title="Rejects reminder" collapsible={firstRun}>
         <p className="muted">
           Reject moves a photo out of Library into the destination’s Rejects folder. You can return it to Library
           until you empty that folder yourself. NegativeSpace does not empty Rejects for you.
@@ -354,7 +357,7 @@ export function SettingsDialog({ firstRun, onClose, onSaved, initialGroup = "app
           before="Remind me when Rejects holds at least" after="GB" min={0.1} step={0.1} disabled={saving} error={fieldErrors.reminderSize} />
         <LimitRow id="settings-reminderAge" on={ageOn} onToggle={setAgeOn} value={ageDays} onValue={setAgeDays}
           before="Remind me when a photo has been in Rejects for" after="days" min={1} step={1} disabled={saving} error={fieldErrors.reminderAge} />
-      </section>
+      </SettingsSection>
     </>),
     metadata: metadataSettings,
     backups: (
@@ -499,4 +502,15 @@ function SettingsJobNotice() {
       {text} Appearance, review reminders and access changes still apply immediately.
     </div>)}
   </section>;
+}
+
+// Setup keeps optional Files controls available without hiding its required choice.
+// Native disclosure state survives edits; validation opens it before focusing a field.
+function SettingsSection({ title, collapsible, children }: {
+  title: string; collapsible: boolean; children: ReactNode;
+}) {
+  return <section>{collapsible
+    ? <details className="settings-disclosure"><summary>{title}</summary>
+        <div className="settings-section-body">{children}</div></details>
+    : <><h3>{title}</h3>{children}</>}</section>;
 }

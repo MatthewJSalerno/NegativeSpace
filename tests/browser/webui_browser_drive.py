@@ -106,15 +106,22 @@ with sync_playwright() as p:
         if n == 2:
             page.get_by_label("Small-image reminders (required)", exact=True).select_option("off")
             # Next checks only this step: with no file type it stays, and says why.
+            file_types = page.locator('details.settings-disclosure', has=page.locator('summary', has_text='File types'))
+            expect(file_types).not_to_have_attribute('open', '')
+            file_types.locator('summary').click()
             boxes = page.locator("#settings-exts input[type=checkbox]")
             ticked = [i for i in range(boxes.count()) if boxes.nth(i).is_checked()]
             for i in ticked:
                 boxes.nth(i).uncheck()
+            file_types.locator('summary').click()
             action.click()
+            expect(file_types).to_have_attribute('open', '')
+            expect(page.locator('#settings-exts')).to_be_focused()
             expect(step).to_have_text("Step 2 of 6 Files")
             expect(page.locator("#settings-exts-error")).to_contain_text("at least one file type")
             for i in ticked:
                 boxes.nth(i).check()
+            file_types.locator('summary').click()
             # Explained for someone seeing the app for the first time.
             expect(page.locator(".settings")).to_contain_text("Reject moves a photo out of Library")
             shot("1b-welcome-files")

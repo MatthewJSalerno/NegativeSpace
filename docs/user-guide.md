@@ -47,7 +47,8 @@ one can be changed later from the gear icon at the top right.
 The **Appearance** step sets the palette and light/dark preference. **Files** chooses
 file types, the earliest expected photo year, and when to be reminded to empty Rejects.
 It also requires a choice to enable or disable small-image reminders; these never
-restrict Copy or Move. **Metadata** explains which source supplies metadata and asks how to
+restrict Copy or Move. Expand **File types** or **Rejects reminder** to adjust those
+settings; they start collapsed to keep this step shorter. **Metadata** explains which source supplies metadata and asks how to
 handle shared XMP sidecars and where to save edits. **Backups** explains catalog backups, **Performance** sets how
 many photos are read at once, and **Access** saves additional addresses used to open the app.
 

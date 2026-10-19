@@ -9,6 +9,9 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Reduce setup scrolling by making File types and Rejects reminder expandable; open
+  either section automatically when a field needs correction.
+
 - Avoid a false cancellation warning while a job has not yet received a run ID.
 
 - Align sidebar filter labels, counts and pins; explain unavailable counts and incompatible

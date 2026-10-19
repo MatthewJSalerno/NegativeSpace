@@ -495,6 +495,12 @@ saved until **Save and continue** on the last. Saving lands in Not organized, wh
 source** waits, whatever page an earlier session left in the address bar. After
 first run, Settings opens as a window over the current view.
 
+**Files setup disclosures (decided 2026-10-18; built):** Small-image review and
+Suspicious dates remain visible. File types and Rejects reminder start collapsed,
+with native expandable headings. Validation opens a section containing an error before
+focusing that field. Back/Next stay visible; the regular Settings tab keeps all sections
+expanded.
+
 **Metadata preferences:** the Metadata step and Settings › Metadata show the same visible **Which metadata is used?** explanation beside
 association and write preferences. Show the default order: **XMP sidecar** (a separate
 file beside the photo), **Embedded XMP** (inside the photo), then **Embedded EXIF** (inside

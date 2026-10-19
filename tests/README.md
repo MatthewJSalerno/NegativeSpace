@@ -331,7 +331,7 @@ of the checkout, build that copy under another tag, and run with `IMAGE` set to 
 | `stalled_job_browser_drive.py` | `STALLED_FIXTURE=1` | Real stalled generated decoder, no-progress reminder, Keep waiting, explicit cancellation and lock release |
 | `request_freshness_browser_drive.py` | | One initial Stats/log/facet request, refresh after a real job, retained Stats border/spacing in both themes and desktop reflow |
 | `appearance_browser_drive.py` | | Palettes, explicit/system modes, contrast, cross-tab storage, shared page tools and narrow controls |
-| `date_settings_browser_drive.py` | | Setup year choice, settings validation/persistence, immediate filter and Inspector updates |
+| `date_settings_browser_drive.py` | | Setup year choice and optional Files disclosures/error focus, settings validation/persistence, immediate filter and Inspector updates |
 | `thumbnails_browser_drive.py` | | Settings › Performance thumbnail cache: sizes by kind, Free up, Repair as a job followed in the panel, the Stats link, reflow |
 | `navigation_browser_drive.py` | | Links, Back/Forward, restoration |
 | `gallery_position_browser_drive.py` | | Positioning a photo from Logs, hidden photos |

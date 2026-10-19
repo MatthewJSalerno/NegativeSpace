@@ -6,7 +6,9 @@ these maintainer checks. Report results by test and step, for example **U2c pass
 
 ## Test U1 — Setup and photo-log wording
 
-**a.** On the fresh review instance, complete setup. In Metadata, check the shared-sidecar
+**a.** On the fresh review instance, complete setup. In Step 2, Small-image review and
+Suspicious dates should be visible; expand File types and Rejects reminder to inspect
+them, then collapse them. Back/Next should stay visible. In Metadata, check the shared-sidecar
 example: `photo.jpg` and `photo.png` can share `photo.xmp`; `photo.jpg.xmp` identifies one
 photo. The RAW rule is a statement, with no disabled storage selector. Choose **Ask me**
 for shared sidecars. Leave the earliest expected year at 1800 and enable small-image

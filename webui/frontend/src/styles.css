@@ -1136,3 +1136,6 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 
 /* Reserve the primary-choice row when viewing the current or an absent source. */
 .metadata-primary-action { min-height: var(--control-height); display: flex; align-items: center; }
+
+.settings-disclosure > summary { cursor: pointer; font-size: var(--type-md); font-weight: var(--weight-strong); }
+.settings-section-body { display: grid; gap: var(--space-3); padding-top: var(--space-3); }
