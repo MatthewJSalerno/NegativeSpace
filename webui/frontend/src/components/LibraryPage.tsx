@@ -1,3 +1,4 @@
+import { DiscoverySummary } from "./DiscoverySummary";
 import { RotationEditor } from "./RotationEditor";
 import { useDismissedRun } from "../dismissal";
 import { StableContent } from "./ui/StableContent";
@@ -83,6 +84,11 @@ function savedPlace(hasLibrary: boolean): View {
   return "organized";
 }
 
+const SOURCE_SUMMARY_LABELS: Record<string, string> = {
+  ready: "Ready to organize", indexed: "Successfully indexed photos", identical: "Photos with additional identical copies",
+  unknown_dimensions: "Image size unavailable", unfinished: "Unfinished processing", failed: "Processing errors", metadata_held: "Metadata holds",
+};
+
 // Browsing state lives in the URL, so a refresh or a shared link keeps the place.
 function readUrl(hasLibrary = true) {
   const p = new URLSearchParams(window.location.search);
@@ -100,6 +106,7 @@ function readUrl(hasLibrary = true) {
     groupSets: p.has("group_sets") ? p.get("group_sets") !== "0" : savedGrouping(),
     suspicious: legacy === "suspicious" || p.get("suspicious") === "1",
     reason: REASON_KEYS.includes(reason) && filterApplies(reason, view) ? reason : "all",
+    sourceSummary: view === "unorganized" && Object.hasOwn(SOURCE_SUMMARY_LABELS, p.get("source_summary") ?? "") ? p.get("source_summary")! : undefined,
     sizeBelow: Number(p.get("size_below")) > 0 ? Number(p.get("size_below")) : undefined,
     reviewPhoto: Number(p.get("review_photo")) || null,
     sort: p.get("reason") === "later" && !p.has("sort") ? "bookmark" as Sort : p.get("sort") === "matches" && !similar ? "newest" as Sort : (p.get("sort") as Sort) || savedSort(similar ? "similar" : view),
@@ -158,6 +165,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [reason, setReason] = useState(initial.reason);
   const [reviewPhoto, setReviewPhoto] = useState<number | null>(initial.reviewPhoto);
   const reviewFilter = reason;
+  const [sourceSummary, setSourceSummary] = useState<string | undefined>(initial.sourceSummary);
   const [sizeBelow, setSizeBelow] = useState<number | undefined>(initial.sizeBelow);
   const [sizeDraft, setSizeDraft] = useState(String(initial.sizeBelow ?? 800));
 
@@ -221,7 +229,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [jumpTimeline, setJumpTimeline] = useState<Timeline | null>(null);
   const [focus, setFocus] = useState<Focus | null>(null);
   const similarityPlace = view === "organized" || view === "review";
-  const hasAdditionalFilters = view === "review" || sizeBelow != null || suspicious || undated || reason !== "all" || !!q || dates.length > 0 || types.length > 0 || folders.length > 0;
+  const hasAdditionalFilters = !!sourceSummary || view === "review" || sizeBelow != null || suspicious || undated || reason !== "all" || !!q || dates.length > 0 || types.length > 0 || folders.length > 0;
   const groupingUnavailable = hasAdditionalFilters ? "Clear the other filters to group similar photos. Filtered results show every matching photo."
     : focus || jobRun != null ? "Grouping is available in the regular Similar photos results." : null;
   const grouped = similar && similarityPlace && groupSets && !groupingUnavailable;
@@ -255,7 +263,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   useNavigation(() => {
     if (window.location.pathname !== "/") return;
     const next = readUrl((status.library_photos ?? 0) > 0);
-    setSimilar(next.similar); setGroupSets(next.groupSets); setSuspicious(next.suspicious); setReason(next.reason); setSizeBelow(next.sizeBelow); setSizeDraft(String(next.sizeBelow ?? 800)); setReviewPhoto(next.reviewPhoto);
+    setSimilar(next.similar); setGroupSets(next.groupSets); setSuspicious(next.suspicious); setReason(next.reason); setSizeBelow(next.sizeBelow); setSourceSummary(next.sourceSummary); setSizeDraft(String(next.sizeBelow ?? 800)); setReviewPhoto(next.reviewPhoto);
     setView(next.view); setSourceTree(next.sourceTree); setSort(next.sort); setMatchMin(next.matchMin);
     setQ(next.q); setSearch(next.q);
     setPage(next.page); setPageSize(next.size);
@@ -352,6 +360,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     if (similar) { p.set("similar", "1"); p.set("group_sets", groupSets ? "1" : "0"); }
     if (suspicious) p.set("suspicious", "1");
     if (reason !== "all") p.set("reason", reason);
+    if (sourceSummary) p.set("source_summary", sourceSummary);
     if (sizeBelow != null) p.set("size_below", String(sizeBelow));
     if (reviewPhoto != null) p.set("review_photo", String(reviewPhoto));
     p.set("sort", sort);
@@ -377,10 +386,10 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     const url = `${window.location.pathname}${p.size ? `?${p}` : ""}`;
     window.history.replaceState(null, "", url);
     rememberLibraryQuery(p.toString());
-  }, [sizeBelow, similar, groupSets, suspicious, reason, view, sort, matchMin, q, page, pageSize, undated, dates, types, folders, jobRun, openId, matchView, inspectorTab, comparison, reviewPhoto]);
+  }, [sourceSummary, sizeBelow, similar, groupSets, suspicious, reason, view, sort, matchMin, q, page, pageSize, undated, dates, types, folders, jobRun, openId, matchView, inspectorTab, comparison, reviewPhoto]);
 
-  const results = usePaged((p) => api.photos({ view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, run: jobRun ?? undefined, sort: browseSort, match_min: galleryMinimum, group_sets: grouped, q, page: p, page_size: pageSize, undated, dates, types, folders }),
-                           JSON.stringify([sizeBelow, similar, suspicious, reason, browseView, jobRun, browseSort, galleryMinimum, grouped, q, undated, dates, types, folders]), jump, pageSize, refreshKey, setLoadError);
+  const results = usePaged((p) => api.photos({ view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, source_summary: sourceSummary, run: jobRun ?? undefined, sort: browseSort, match_min: galleryMinimum, group_sets: grouped, q, page: p, page_size: pageSize, undated, dates, types, folders }),
+                           JSON.stringify([sourceSummary, sizeBelow, similar, suspicious, reason, browseView, jobRun, browseSort, galleryMinimum, grouped, q, undated, dates, types, folders]), jump, pageSize, refreshKey, setLoadError);
   const data: PhotoPage | null = results.meta;
   // The Rejects view sees an emptied file first; the reminder follows it.
   const rejectsShown = browseView === "rejects" ? data?.rejects?.photos : undefined;
@@ -393,15 +402,15 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   // jumping needs the filtered months, to land on the right page.
   useEffect(() => {
     let live = true;
-    api.timeline({ view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, run: jobRun ?? undefined, match_min: galleryMinimum, q, undated, types, folders }).then((t) => live && setTimeline(t), () => live && setTimeline(null));
+    api.timeline({ view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, source_summary: sourceSummary, run: jobRun ?? undefined, match_min: galleryMinimum, q, undated, types, folders }).then((t) => live && setTimeline(t), () => live && setTimeline(null));
     return () => { live = false; };
-  }, [sizeBelow, similar, suspicious, reason, browseView, jobRun, galleryMinimum, q, undated, types, folders, refreshKey]);
+  }, [sourceSummary, sizeBelow, similar, suspicious, reason, browseView, jobRun, galleryMinimum, q, undated, types, folders, refreshKey]);
   useEffect(() => {
     let live = true;
     if (dates.length === 0) { setJumpTimeline(null); return; }
-    api.timeline({ view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, run: jobRun ?? undefined, match_min: galleryMinimum, group_sets: grouped, q, undated, dates, types, folders }).then((t) => live && setJumpTimeline(t), () => live && setJumpTimeline(null));
+    api.timeline({ view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, source_summary: sourceSummary, run: jobRun ?? undefined, match_min: galleryMinimum, group_sets: grouped, q, undated, dates, types, folders }).then((t) => live && setJumpTimeline(t), () => live && setJumpTimeline(null));
     return () => { live = false; };
-  }, [sizeBelow, similar, suspicious, reason, browseView, jobRun, galleryMinimum, grouped, q, undated, dates, types, folders, refreshKey]);
+  }, [sourceSummary, sizeBelow, similar, suspicious, reason, browseView, jobRun, galleryMinimum, grouped, q, undated, dates, types, folders, refreshKey]);
   // The Types section's counts follow the view, search, dates and folders, never its own filter.
   useEffect(() => {
     let live = true;
@@ -413,23 +422,23 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   }, [selected, galleryMinimum, refreshKey]);
   useEffect(() => {
     let live = true;
-    api.types({ view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, run: jobRun ?? undefined, match_min: galleryMinimum, q, undated, dates, folders }).then((t) => live && setTypeCounts(t.types), () => live && setTypeCounts(null));
+    api.types({ view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, source_summary: sourceSummary, run: jobRun ?? undefined, match_min: galleryMinimum, q, undated, dates, folders }).then((t) => live && setTypeCounts(t.types), () => live && setTypeCounts(null));
     return () => { live = false; };
-  }, [sizeBelow, similar, suspicious, reason, browseView, jobRun, galleryMinimum, q, undated, dates, folders, refreshKey]);
+  }, [sourceSummary, sizeBelow, similar, suspicious, reason, browseView, jobRun, galleryMinimum, q, undated, dates, folders, refreshKey]);
   // Only Source folders needs a folder inventory. Its counts follow other filters;
   // selected folders stay listed at zero.
   useEffect(() => {
     if (!sourceTree) { setFolderTree(null); return; }
     let live = true;
-    api.folders({ view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, run: jobRun ?? undefined, match_min: galleryMinimum, q, undated, dates, types, folders, every: sourceTree }).then((t) => live && setFolderTree(t), () => live && setFolderTree(null));
+    api.folders({ view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, source_summary: sourceSummary, run: jobRun ?? undefined, match_min: galleryMinimum, q, undated, dates, types, folders, every: sourceTree }).then((t) => live && setFolderTree(t), () => live && setFolderTree(null));
     return () => { live = false; };
-  }, [sizeBelow, similar, suspicious, reason, browseView, jobRun, galleryMinimum, q, undated, dates, types, folders, sourceTree, refreshKey]);
+  }, [sourceSummary, sizeBelow, similar, suspicious, reason, browseView, jobRun, galleryMinimum, q, undated, dates, types, folders, sourceTree, refreshKey]);
 
   const memberBrowse = focus?.kind === "set" ? { view: "all" as const, q: "", undated: false,
     set_reference: focus.reference!, match_min: focus.threshold!, dates: [], types: [], folders: [] } : null;
-  const setBrowse = useMemo(() => grouped ? ({ view, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, sort, match_min: galleryMinimum,
+  const setBrowse = useMemo(() => grouped ? ({ view, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, source_summary: sourceSummary, sort, match_min: galleryMinimum,
     group_sets: true, q, undated, dates, types, folders, page_size: pageSize }) : undefined,
-    [sizeBelow, similar, suspicious, reason, grouped, view, sort, galleryMinimum, q, undated, dates, types, folders, pageSize, refreshKey]);
+    [sourceSummary, sizeBelow, similar, suspicious, reason, grouped, view, sort, galleryMinimum, q, undated, dates, types, folders, pageSize, refreshKey]);
   const showSet = (reference: number, threshold: number) => inspectorLeave.current(() => {
     setComparison(null); setOpenId(null); setLocate(null); setRevealId(null);
     setFocus({ kind: "set", ids: [], reference, threshold }); setFocusPage(1);
@@ -469,7 +478,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   useEffect(() => {
     if (!locate) return;
     let live = true;
-    api.photoPosition({ photo_id: locate.id, view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, run: jobRun ?? undefined, sort: browseSort, match_min: galleryMinimum, group_sets: grouped, q, undated, dates, types, folders,
+    api.photoPosition({ photo_id: locate.id, view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, source_summary: sourceSummary, run: jobRun ?? undefined, sort: browseSort, match_min: galleryMinimum, group_sets: grouped, q, undated, dates, types, folders,
                         ...(memberBrowse ?? {}), page_size: pageSize, ids: memberBrowse ? undefined : focus?.ids }).then((found) => {
       if (!live) return;
       setLocate(null);
@@ -497,12 +506,12 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
         { label: "Retry locating photo", run: () => setLocate({ ...locate }) }]);
     });
     return () => { live = false; };
-  }, [sizeBelow, similar, suspicious, reason, locate, view, sort, galleryMinimum, grouped, q, undated, dates, types, folders, pageSize, focus, refreshKey]);
+  }, [sourceSummary, sizeBelow, similar, suspicious, reason, locate, view, sort, galleryMinimum, grouped, q, undated, dates, types, folders, pageSize, focus, refreshKey]);
 
   // A search or filter change closes the open photo once it no longer matches, as leaving a
   // review does; one that still matches stays open where it is. A pending locate (a link
   // to a photo) keeps its own course.
-  const filterKey = JSON.stringify([sizeBelow, similar, suspicious, reason, undated, dates, types, folders, q, matchMin]);
+  const filterKey = JSON.stringify([sourceSummary, sizeBelow, similar, suspicious, reason, undated, dates, types, folders, q, matchMin]);
   const lastFilterKey = useRef(filterKey);
   useEffect(() => {
     if (lastFilterKey.current === filterKey) return;
@@ -639,15 +648,15 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   };
   // A job's photos open unfiltered, so none of them is hidden by a filter left on; Back to
   // results puts the filters back. A view button leaves the job with the filters as they are.
-  const jobFilters = useRef<{ q: string; similar: boolean; suspicious: boolean; reason: string; sizeBelow?: number; undated: boolean; dates: string[]; types: string[]; folders: string[] } | null>(null);
+  const jobFilters = useRef<{ q: string; similar: boolean; suspicious: boolean; reason: string; sizeBelow?: number; sourceSummary?: string; undated: boolean; dates: string[]; types: string[]; folders: string[] } | null>(null);
   useEffect(() => {
     if (followJob == null || jobs.active || jobs.last?.id !== followJob) return;
     setFollowJob(null);
     if (jobRun != null) { setJobRun(followJob); setPage(1); }
   }, [followJob, jobs.active, jobs.last?.id]);
   const showJob = (id: number) => {
-    if (jobRun == null) jobFilters.current = { q, similar, suspicious, reason, sizeBelow, undated, dates, types, folders };
-    setFocus(null); setJobRun(id); setSizeBelow(undefined); setSimilar(false); setSuspicious(false); setReason("all");
+    if (jobRun == null) jobFilters.current = { q, similar, suspicious, reason, sizeBelow, sourceSummary, undated, dates, types, folders };
+    setFocus(null); setJobRun(id); setSizeBelow(undefined); setSourceSummary(undefined); setSimilar(false); setSuspicious(false); setReason("all");
     setQ(""); setSearch(""); setUndated(false); setDates([]); setTypes([]); setFolders([]); setPage(1);
   };
   const leaveJob = () => {
@@ -655,7 +664,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     const was = jobFilters.current;
     jobFilters.current = null;
     setJobRun(null);
-    if (was) { setSizeBelow(was.sizeBelow); setSimilar(was.similar); setSuspicious(was.suspicious); setReason(was.reason); setQ(was.q); setSearch(was.q); setUndated(was.undated); setDates(was.dates); setTypes(was.types); setFolders(was.folders); }
+    if (was) { setSizeBelow(was.sizeBelow); setSourceSummary(was.sourceSummary); setSimilar(was.similar); setSuspicious(was.suspicious); setReason(was.reason); setQ(was.q); setSearch(was.q); setUndated(was.undated); setDates(was.dates); setTypes(was.types); setFolders(was.folders); }
     setPage(1);
   };
   const openNeedsReview = (item: PhotoItem) => {
@@ -699,7 +708,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     setPage(1);
     if (v === "unorganized" || v === "rejects" || v === "source") setSimilar(false);
     if (reason === "attention" || (reason !== "all" && !filterApplies(reason, v))) setReason("all");
-    if (!keepSourceFolder) { setSizeBelow(undefined); setQ(""); setSearch(""); setSuspicious(false); setUndated(false); setReason("all"); setDates([]); setTypes([]); }
+    if (!keepSourceFolder) { setSizeBelow(undefined); setSourceSummary(undefined); setQ(""); setSearch(""); setSuspicious(false); setUndated(false); setReason("all"); setDates([]); setTypes([]); }
     if (v === "all") { setUndated(false); setDates([]); setTypes([]); setFolders([]); }
   });
   // Source folders' switch: what is waiting, or everything still in the source.
@@ -766,7 +775,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     try {
       const got = focus && !memberBrowse
         ? { ids: focus.ids, in_rejects: (await api.selection(focus.ids, "newest", 1, 1, galleryMinimum)).in_rejects ?? [] }
-        : await api.photoIds(memberBrowse ?? { view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, run: jobRun ?? undefined, match_min: galleryMinimum, group_sets: grouped, q, undated, dates, types, folders });
+        : await api.photoIds(memberBrowse ?? { view: browseView, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, source_summary: sourceSummary, run: jobRun ?? undefined, match_min: galleryMinimum, group_sets: grouped, q, undated, dates, types, folders });
       const rejected = new Set(got.in_rejects);
       const library = got.ids.filter((id) => !rejected.has(id));
       const target: Place = place ?? (library.length > 0 ? "library" : "rejects");
@@ -929,9 +938,9 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     && indexAttentionCount > 0;
 
   const placeShown = jobRun == null && (PLACE_VIEWS as View[]).includes(view) ? view as PlaceView : null;
-  const hasFilters = undated || dates.length > 0 || types.length > 0 || folders.length > 0
+  const hasFilters = !!sourceSummary || undated || dates.length > 0 || types.length > 0 || folders.length > 0
     || !!q || !!search || similar || suspicious || reason !== "all" || sizeBelow != null || view === "review";
-  const hasResultFilters = sizeBelow != null || view === "review" || undated || dates.length > 0 || types.length > 0 || folders.length > 0
+  const hasResultFilters = !!sourceSummary || sizeBelow != null || view === "review" || undated || dates.length > 0 || types.length > 0 || folders.length > 0
     || !!q || similar || suspicious || reason !== "all";
   const resultCount = !gallerySummary ? "Loading photos…"
     : focus ? plural(gallerySummary.total, galleryNoun)
@@ -940,7 +949,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     : placeShown == null ? plural(gallerySummary.total, galleryNoun) : null;
   const reasonLabels = { small: "Small images", later: "Bookmarked", issues: "Files needing verification", attention: "Needs attention" };
   const clearFilters = () => inspectorLeave.current(() => {
-    setSuspicious(false); setUndated(false); setReason("all"); setSizeBelow(undefined);
+    setSuspicious(false); setUndated(false); setReason("all"); setSizeBelow(undefined); setSourceSummary(undefined);
     if (sort === "bookmark") setSort(similar ? "matches" : "newest");
     if (view === "review") setView("organized");
     setQ(""); setSearch(""); setDates([]); setTypes([]); setFolders([]); setPage(1);
@@ -1003,8 +1012,8 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           <div className="gallery-context">
             {!focus && <h2>{sourceTree && folderShown ? folderLabel(folderShown.path) : sourceTree ? "Source folders" : similar ? "Similar photos" : view === "review" ? "Library" : VIEW_LABEL[view]}</h2>}
             {!focus && sourceTree && folderShown && <span className="folder-indexed" title={indexedExact(folderShown.last_indexed)}>{lastIndexed(folderShown.last_indexed)}</span>}
-            {!focus && (undated || dates.length > 0 || types.length > 0 || (folders.length > 0 && !sourceTree) || !!q || similar || suspicious || reason !== "all" || sizeBelow != null) && <p className="section-note">
-              {[sizeBelow != null && `Shorter side below ${sizeBelow} pixels`, similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No usable capture date", reason === "small" && "Small images", reason === "later" && "Bookmarked", reason === "issues" && "Files needing verification", reason === "attention" && "Needs attention", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
+            {!focus && (!!sourceSummary || undated || dates.length > 0 || types.length > 0 || (folders.length > 0 && !sourceTree) || !!q || similar || suspicious || reason !== "all" || sizeBelow != null) && <p className="section-note">
+              {[sourceSummary && SOURCE_SUMMARY_LABELS[sourceSummary], sizeBelow != null && `Shorter side below ${sizeBelow} pixels`, similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No usable capture date", reason === "small" && "Small images", reason === "later" && "Bookmarked", reason === "issues" && "Files needing verification", reason === "attention" && "Needs attention", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
             </p>}
             <span className="gallery-tools">
               <FiltersButton active={filtersActive} open={filtersOpen && !focus} onOpen={setFiltersOpen} disabled={!!focus}>
@@ -1117,30 +1126,31 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             </div>
           )}
           {!focus && browseView === "rejects" && data?.rejects && <RejectsLine rejects={data.rejects} />}
-          {!focus && !indexing && view === "unorganized" && !sourceTree && data?.index_summary && data.index_summary.photos > 0 && (indexSummaryClosed
+          {!focus && !indexing && view === "unorganized" && !sourceTree && data?.index_summary && (data.index_summary.photos > 0 || status.photos === 0 && data.index_summary.discovery != null) && (indexSummaryClosed
             ? <button ref={summaryToggle} onClick={() => { setPreviewSummaryExpanded(true); toggleIndexSummary(null); }}>Show index summary</button>
             : <section className="notice index-summary" aria-label="Index summary">
             <div className="index-summary-heading"><h3>{indexNeedsAttention ? `${plural(indexAttentionCount, "file")} ${indexAttentionCount === 1 ? "needs" : "need"} attention` : "Index summary"}</h3>
               <button ref={summaryToggle} className="icon" aria-label="Close index summary" title="Close index summary"
                 onClick={() => toggleIndexSummary(indexSummaryKey)}>✕</button>
             </div>
-            <p>{indexNeedsAttention ? "The remaining files have processing errors or metadata issues. Open a marked photo below to see the affected source files and next steps." : "Your photos are indexed. Copy or move them to build your library."}</p>
+            <p>{indexNeedsAttention ? "The remaining files have processing errors or metadata issues. Open a marked photo below to see the affected source files and next steps." : data.index_summary.photos === 0 ? "No photos are waiting to be organized. Open By file type to see what Index found." : "Your photos are indexed. Copy or move them to build your library."}</p>
             {indexNeedsAttention ? <p><a href="/?view=unorganized&reason=attention" onClick={follow}>View {plural(indexAttentionCount, "file")} needing attention</a></p> : <>
             <p className="section-note">These totals cover all successfully indexed photos, regardless of filters. Failed files are counted separately. Small sizes and suspicious dates do not prevent Copy or Move.</p>
             <dl>
-              <div><dt>Photos ready to organize</dt><dd>{count(data.index_summary.ready)}</dd></div>
-              <div><dt>Additional identical copies</dt><dd>{count(data.index_summary.duplicates)}</dd></div>
-              <div><dt>Small images</dt><dd>{data.index_summary.minimum == null ? "Rule disabled" : `${count(data.index_summary.small)} below ${count(data.index_summary.minimum)} pixels on the shorter side`}</dd></div>
-              <div><dt>Suspicious dates</dt><dd>{count(data.index_summary.suspicious)}</dd></div>
-              <div><dt>No usable capture date</dt><dd>{count(data.index_summary.undated)}</dd></div>
-              <div><dt><Tip text="No usable width and height were recorded. The format may be unsupported, the file may be unreadable, or processing may be incomplete. This alone does not mean the file is damaged or is not a photo. These files are not counted as small images.">Image size unavailable</Tip></dt><dd>{count(data.index_summary.unknown_dimensions)}</dd></div>
+              <div><dt>Photos ready to organize</dt><dd><a href="/?view=unorganized&source_summary=ready" onClick={follow} aria-label="View photos ready to organize">{count(data.index_summary.ready)}</a></dd></div>
+              <div><dt>Additional identical copies</dt><dd><a href="/?view=unorganized&source_summary=identical" onClick={follow} aria-label="View photos with additional identical copies">{count(data.index_summary.duplicates)}</a></dd></div>
+              <div><dt>Small images</dt><dd>{data.index_summary.minimum == null ? "Rule disabled" : <a href={`/?view=unorganized&source_summary=indexed&size_below=${data.index_summary.minimum}`} onClick={follow}>{count(data.index_summary.small)} below {count(data.index_summary.minimum)} pixels on the shorter side</a>}</dd></div>
+              <div><dt>Suspicious dates</dt><dd><a href="/?view=unorganized&source_summary=indexed&suspicious=1" onClick={follow} aria-label="View photos with suspicious dates">{count(data.index_summary.suspicious)}</a></dd></div>
+              <div><dt>No usable capture date</dt><dd><a href="/?view=unorganized&source_summary=indexed&undated=1" onClick={follow} aria-label="View photos with no usable capture date">{count(data.index_summary.undated)}</a></dd></div>
+              <div><dt><Tip text="No usable width and height were recorded. The format may be unsupported, the file may be unreadable, or processing may be incomplete. This alone does not mean the file is damaged or is not a photo. These files are not counted as small images.">Image size unavailable</Tip></dt><dd><a href="/?view=unorganized&source_summary=unknown_dimensions" onClick={follow} aria-label="View photos with unavailable image sizes">{count(data.index_summary.unknown_dimensions)}</a></dd></div>
               <div><dt>Files needing attention</dt><dd><a href="/?view=unorganized&reason=attention" onClick={follow} aria-label={`View ${plural(indexAttentionCount, "file")} needing attention`}>{count(indexAttentionCount)}</a></dd></div>
-              {data.index_summary.unfinished > 0 && <div><dt>Unfinished processing</dt><dd>{count(data.index_summary.unfinished)}</dd></div>}
+              {data.index_summary.unfinished > 0 && <div><dt>Unfinished processing</dt><dd><a href="/?view=unorganized&source_summary=unfinished" onClick={follow} aria-label="View files with unfinished processing">{count(data.index_summary.unfinished)}</a></dd></div>}
             </dl>
-            <p className="section-note">Similar photos compares organized photos in Library only. Identical content is organized once. Files with processing errors: {count(data.index_summary.failed)}. Metadata holds: {count(data.index_summary.metadata_held ?? 0)}. <a href={data.index_summary.failed > 0 ? "/logs?status=Failed" : "/logs"} onClick={follow}>{data.index_summary.failed > 0 ? "View failures" : "View job details"}</a></p>
+            <p className="section-note">Similar photos compares organized photos in Library only. Identical content is organized once. Files with processing errors: <a href="/?view=unorganized&reason=attention&source_summary=failed" onClick={follow}>{count(data.index_summary.failed)}</a>. Metadata holds: <a href="/?view=unorganized&reason=attention&source_summary=metadata_held" onClick={follow}>{count(data.index_summary.metadata_held ?? 0)}</a>. <a href={data.index_summary.failed > 0 ? "/logs?status=Failed" : "/logs"} onClick={follow}>{data.index_summary.failed > 0 ? "View failures" : "View job details"}</a></p>
             <button className="primary" disabled={jobRunning || !status.eligible.copy} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.copy ? "No photos are eligible for Copy." : undefined} onClick={() => askTransfer("copy")}>Copy all photos…</button>{" "}
             <button disabled={jobRunning || !status.eligible.move} title={jobRunning ? "Wait for the current job to finish." : !status.eligible.move ? "No photos are eligible for Move." : undefined} onClick={() => askTransfer("move")}>Move all photos…</button>
             </>}
+            <DiscoverySummary data={data.index_summary.discovery} runId={data.index_summary.last_index?.id} />
           </section>)}
           {!focus && view === "review" && <>
             {reviewReturn && <button onClick={backToLibrary}>← Back to Library</button>}
@@ -1288,7 +1298,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
         )}
       </main>
 
-      {reviewPhoto != null && <ReviewWorkspace initialPhoto={reviewPhoto} filters={{ view: browseView, q, undated, dates, types, folders, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, match_min: matchMin }} sort={browseSort} status={status}
+      {reviewPhoto != null && <ReviewWorkspace initialPhoto={reviewPhoto} filters={{ view: browseView, q, undated, dates, types, folders, similar, suspicious, reason: reviewFilter, size_below: sizeBelow, source_summary: sourceSummary, match_min: matchMin }} sort={browseSort} status={status}
         onBack={() => {
           setReviewPhoto(null); setRefreshKey(n => n + 1);
           // A review decision can remove the previewed photo from these results.

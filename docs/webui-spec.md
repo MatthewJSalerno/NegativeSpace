@@ -354,15 +354,29 @@ unavailable** and processing failures. Image size unavailable means no usable wi
 height were recorded; help explains possible unsupported formats, unreadable files or
 incomplete processing without labelling these files corrupt or non-photos. These counts cover the whole location, not active
 filters. A scope note says similarity compares destination photos, not source files; a disabled size rule says
-**Rule disabled**. Date chips already filter the source gallery. Decided 2026-10-17, not built: every
+**Rule disabled**. Date refinements filter the source gallery. Every
 summary figure opens the photos it counts (Small images as a refinement, additional
 identical copies as a temporary gallery of the photos that have them, processing failures
 as Needs attention), and a fold-out **By file type**, closed by
 default and repeated in the Index's log entry, shows photos taken by type, photo types
 turned off in Settings (linking to Settings › Files), sidecars and videos as one count
 each, and every other file as one number, "4,312 other files, left untouched", never
-listed by type. Copy all/Move all lead to
-the same confirmations as Jobs. Index failures link to Logs for specific evidence.
+listed by type. Counts describe the recorded walk's extension selection, not successful
+photo processing, and remain unchanged after later jobs or settings changes. Unreadable
+folders/entries mark the breakdown incomplete. A scoped Index with no walk has no
+breakdown. Sidecar types are XMP, AAE and THM; a generic JSON extension alone does not
+establish a sidecar and stays in Other. Known video extensions are grouped together.
+Summary links clear unrelated filters; their temporary source scope survives refresh
+and Back/Forward and clears on place navigation or Clear all filters. Zero counts
+open an empty result. The additional-copies figure opens their representative photos,
+so the gallery can show fewer cards than the number of additional copies.
+Copy all/Move all lead to
+the same confirmations as Jobs. Their counts exclude recorded source metadata holds;
+held source files are named separately and stay in Not organized → Needs attention.
+Move still counts already-copied originals, including those retained in Rejects, and
+performs the existing live verification and edited-original confirmation. These counts
+are recorded eligibility, not a guarantee against a later permission or storage failure.
+Index failures link to Logs for specific evidence.
 Decided 2026-10-18, not built: files Index cannot use are skipped, not catalogued
 (`engine-spec.md` §4.1), and the summary counts them by kind, e.g. "4,503 found · 4,490
 indexed · 13 skipped: 3 empty, 2 not images, 5 permission denied, 3 couldn't be

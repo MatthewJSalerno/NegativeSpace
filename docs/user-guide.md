@@ -67,6 +67,11 @@ shows at the top of the page; closing the browser does not stop it.
 ## 3. Look around
 
 When Index finishes, **Not organized** shows the source photos and an Index summary.
+Select a summary count to see those photos. **Additional identical copies** shows the
+photos that have them, so there may be fewer cards than extra files. **By file type**
+shows what Index found, including photo types turned off in Settings and files left
+in the source. You can find the same breakdown in that Index's entry in **Logs**.
+Copy and Move confirmations count ready photos separately from files that need attention.
 **Library**, **Similar photos** and **Rejects** remain empty until photos are organized.
 The places are in the sidebar on the left. Choose **Similar photos** to compare Library
 photos. Buttons above the photos narrow the view; choose more than one to combine them.

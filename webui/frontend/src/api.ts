@@ -18,6 +18,8 @@ export interface Status {
   library_photos?: number;
   // What a Copy all and a Move all would take, across the whole catalog.
   eligible: { copy: number; move: number };
+  // Unorganized source files held for attention, separate from ready transfers.
+  held?: number;
   copied: number;
   // Rejected after a Copy, their source still in place: a Move removes it (engine-spec 9.5).
   rejected_with_source: number;
@@ -130,7 +132,7 @@ export interface ReviewDetail {
 }
 export interface PhotoPage {
   date_min_year: number;
-  index_summary?: { last_index: { id: number; started_at: string } | null; photos: number; ready: number; unfinished: number; metadata_held?: number; duplicates: number; small: number; minimum: number | null; unknown_dimensions: number; suspicious: number; undated: number; failed: number; similar: null } | null;
+  index_summary?: { discovery: Discovery | null; last_index: { id: number; started_at: string } | null; photos: number; ready: number; unfinished: number; metadata_held?: number; duplicates: number; small: number; minimum: number | null; unknown_dimensions: number; suspicious: number; undated: number; failed: number; similar: null } | null;
   elsewhere?: Record<string, number>;
   chips?: Record<string, number>;
   reasons?: Record<string, number>;
@@ -158,7 +160,7 @@ export interface PhotoPosition {
 // What narrows the gallery: the view, the search, No usable capture date, and the date tree's
 // "Show only" years and months ("2023", "2023-06", "none").
 export interface BrowseFilters {
-  similar?: boolean; suspicious?: boolean; reason?: string; size_below?: number;
+  similar?: boolean; suspicious?: boolean; reason?: string; size_below?: number; source_summary?: string;
   set_reference?: number;
   group_sets?: boolean;
   match_min?: number;
@@ -201,6 +203,7 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
   if (f.similar) query.set("similar", "true");
   if (f.suspicious) query.set("suspicious", "true");
   if (f.size_below != null) query.set("size_below", String(f.size_below));
+  if (f.source_summary) query.set("source_summary", f.source_summary);
   if (f.reason) query.set("reason", f.reason);
   if (f.q) query.set("q", f.q);
   if (f.undated) query.set("undated", "true");
@@ -325,7 +328,14 @@ export interface Outcome {
   counts: Record<string, number>;
 }
 
+export interface Discovery {
+  files_found: number; eligible: number; photos: Record<string, number>;
+  disabled_photos: Record<string, number>; sidecars: number; videos: number; other: number;
+  partial: boolean; unreadable: number;
+}
+
 export interface Run {
+  discovery?: Discovery | null;
   id: number | null;
   mode: string | null;
   status: string;

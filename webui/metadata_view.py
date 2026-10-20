@@ -125,9 +125,7 @@ def inspect_connection(conn, photo_id):
 
 def source_attention_predicate():
     """Latest recorded metadata hold for the gallery's internal photo alias p."""
-    return """COALESCE((SELECT json_extract(m.report_json,'$.state')='needs_attention'
-        FROM photo_files pf JOIN metadata_captures m ON m.file_id=pf.file_id
-        WHERE pf.photo_id=p.id ORDER BY m.capture_id DESC LIMIT 1),0)"""
+    return catalog.source_metadata_hold_sql()
 
 
 def source_attention(conn, photo_ids):

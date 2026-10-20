@@ -1,6 +1,7 @@
 """The command line: arguments, the single-instance lock and the job each mode runs."""
 
 import argparse
+from collections import Counter
 import contextlib
 import json
 import signal
@@ -648,7 +649,7 @@ def main():
                                                excluded=excluded_by_ext, on_directory=discovered)
             runtime.run_progress.write_now()
             with contextlib.closing(store.get_db_connection(str(db_path))) as conn:
-                ns_db.record_discovery(conn, run_id, eligible=len(candidates),
+                ns_db.record_discovery(conn, run_id, eligible_by_extension=Counter(Path(path).suffix.lower() for path in candidates),
                                        excluded_by_extension=excluded_by_ext,
                                        unreadable=len(discovery_errors))
             excluded_total = sum(excluded_by_ext.values())

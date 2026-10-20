@@ -1,3 +1,4 @@
+import { DiscoverySummary } from "./DiscoverySummary";
 import { MetadataHistory } from "./MetadataHistory";
 import { FileLocations } from "./ui/FileLocations";
 import { FileIssues } from "./FileIssues";
@@ -400,6 +401,7 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
 
   return (
     <div className="job-body">
+      <DiscoverySummary data={run.discovery} runId={run.id} />
       {(canRetry || note || showsPhotos(run)) && (
         <div className="retry">
           {showsPhotos(run) && <a className="button-link" href={`/?run=${run.id}`} onClick={follow}>Show these photos in the library</a>}

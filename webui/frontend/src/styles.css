@@ -1023,6 +1023,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 
 .review-card-notes { margin-top: auto; padding: var(--space-2); }
 
+.discovery-summary { margin-block: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--border); }
 .index-summary { margin-block: var(--space-3); }
 .index-summary-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .index-summary h3 { margin: 0; font-size: var(--type-md); }
