@@ -85,15 +85,15 @@ def check_ui(browser, base, _shot):
     page.goto(base)
     expect(page.locator(".card").first).to_be_visible()
 
-    # Tile changes keep both a pending search draft and its applied URL query.
+    # Place changes clear both a pending search draft and its applied URL query.
     places = page.get_by_role("navigation", name="Main")
     initial_location = places.locator("a[aria-current=page] span").first.inner_text()
     search_box = page.get_by_role("searchbox", name="Search filenames")
-    for label in ("Not organized", "Needs review", "Rejects", "Library"):
+    for label in ("Not organized", "Similar photos", "Rejects", "Library"):
         search_box.fill("photo-010")
         places.get_by_role("link", name=re.compile(r"^" + label + r"\b")).click()
-        expect(search_box).to_have_value("photo-010")
-        expect(page).to_have_url(re.compile(r"q=photo-010"))
+        expect(search_box).to_have_value("")
+        expect(page).not_to_have_url(re.compile(r"q=photo-010"))
     places.get_by_role("link", name=re.compile(r"^" + initial_location + r"\b")).click()
     search_box.fill("")
     expect(page).not_to_have_url(re.compile(r"q="))

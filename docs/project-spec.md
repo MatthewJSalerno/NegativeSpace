@@ -232,7 +232,7 @@ service. Built and tested:
         download);
     *   the page frame: a top bar with the filename search and the **Jobs** menu on the
         Library page (Index; Copy and Move for the one folder shown or all), and a sidebar
-        on every page with the places and their counts, Look into shortcuts, Logs, Stats
+        on every page with the places and their counts, warning shortcuts, Logs, Stats
         and the build; the selection bar (Copy, Move, Reject or Return to library for the
         ticked photos, only what applies) takes the top bar while photos are ticked;
     *   the gallery, with its places, sorts and search, a **Filters** panel with
@@ -285,18 +285,15 @@ service. Built and tested:
     the library** for each job that acted on photos; and CSV/JSON export.
 
 Built review workflow: Library, Not organized and Rejects are location views; Needs review
-is an overlapping inbox of organized Library photos. The sidebar holds the Look into filters; Small images
-and Review later filter both Library and the inbox in place, with counts in both. Active filters
-clear on a second click. The Inspector groups information and actions, while the dedicated
-review workspace puts a large photo beside its reasons, decision buttons and matching clues.
-Place changes close stale previews; source previews temporarily collapse the Index summary.
-Filter clicks replace unpinned conditions, pinned conditions combine, reminder filters choose one scope, and
-filename searches offer matches in other locations. Small-image cleanup is opt-in at
-first run and never blocks transfers. Mark reviewed acknowledges only the size concern;
-Review later / Done records a separate reminder. Both persist in the catalog with review
-history. The common review workspace preserves gallery selection and uses the existing
-Reject flow. EXIF/XMP changes and the additional reason-specific recovery flows remain
-separate work.
+is an overlapping inbox of organized Library photos. Refinements above the gallery combine without pins. Needs review narrows Library or
+Similar photos by one reason; size browsing in Filters is independent of reminders.
+Sidebar place links clear optional restrictions; Back restores prior state. Small-image
+reminders are opt-in and never block transfers. Mark reviewed acknowledges only the
+size concern. Bookmarks carry preset reasons and optional notes, sort by reason and
+open existing review tools. Removal and Keep it decisions retain review history without
+clearing unrelated concerns. Bulk bookmark removal and automatic date evidence are
+separate deferred work. The shared workspace preserves selection and normal Reject
+confirmation. See `ui-design.md` for the navigation and Bookmark contract.
 
 The read-only metadata source viewer is built: separate XMP Sidecar, Embedded XMP and
 EXIF tabs, an applied Primary badge, retained versions, field comparison/filtering and
@@ -312,7 +309,6 @@ on 2026-10-14 (tests M1–M3).
 
 Specified but not yet on screen:
 *   The unbacked-changes line on every page, and Retry backup in a persistent backup notice.
-*   Each folder's last-indexed time in Source folders.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
 *   The Index file-type summary (files found, eligible and excluded by type), which the
@@ -351,7 +347,7 @@ compares active organized Library photos by default, with rejected matches separ
 Cross-location similarity is built: Library matches remain primary, with separately paged
 matches in Rejects; a rejected photo can compare against Library photos. Location labels
 and explicit Reject/Return actions follow current photo state. Source files and emptied
-rejects remain excluded. Review later and Mark reviewed remain Library-only. Automatic
+rejects remain excluded. Bookmark and Mark reviewed remain Library-only. Automatic
 similar-to-reject inbox reminders and historical evidence for emptied rejects are pending.
 
 Instance access configuration is separate from photo-processing settings: setup and

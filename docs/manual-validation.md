@@ -9,8 +9,21 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**None for the current batch.** The maintainer reported RC1, RC2 and RC3 passed;
-all ten steps (RC1a–c, RC2a–c and RC3a–d) are accepted.
+**Consolidated audit fixes:** the maintainer passed [Tests CA1–CA3](#consolidated-audit-fixes),
+including all lettered steps. No manual checks remain for this batch.
+Original SB1–SB6 and LI1–LI2 acceptance remains recorded below. Folder-coverage
+failure cases and query-result equivalence are checked automatically with generated
+fixtures; they do not require repeating the original sidebar walkthrough.
+
+**Sidebar and Bookmarks:** the maintainer passed [Tests SB1–SB6](#sidebar-bookmarks),
+including all lettered steps. CA2 also passed after removing the duplicate standalone
+date-bookmark button; other accepted steps remain accepted.
+SB5a was rechecked and passed after a Check the date bookmark changed to show its reason,
+note and recorded dates first, with **Edit metadata date…** focused.
+RC1–RC3 remain accepted historical results.
+
+**Folder last-indexed times:** the maintainer passed [Tests LI1–LI2](#folder-last-indexed),
+including all lettered steps.
 
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
@@ -41,6 +54,242 @@ a retest. Do not infer manual acceptance from automated results.
   as “not built”, “next”, “remaining” or “before merge” inside those archived instructions
   are historical scope, not the current backlog or permission to reset/run jobs.
   Use the component specs and [TODO.md](../TODO.md) for current feature status.
+
+## Consolidated audit fixes
+
+<a id="consolidated-audit-fixes"></a>
+
+**Accepted:** the maintainer passed CA1a–c, CA2a–b and CA3a, with the observations below.
+The review instance used for these steps has
+completed Index and Copy jobs from generated metadata scenarios, including expected
+source failures. No particular photo or filename is needed for this Logs-only check.
+
+**Observations retained:** switching from All to Bookmarked hides the date scrubber
+because Bookmarked sorts by bookmark reason, not date. Removing its gutter made the
+responsive cards grow. The maintainer approved keeping an empty gutter; this is now
+implemented and accepted in CA3a. Horizontal and Vertical preview controls are disabled at
+1× zoom and become available after zooming in. Neither comment changes the reported pass.
+
+### Test CA1 — Logs reflow and keyboard access
+
+**a.** Open **Logs** in dark mode. Increase browser zoom to **200%** and resize the
+window if needed. The heading, export links, search and date fields should remain
+readable without horizontal page overflow. Enter a date in **From**; the whole value
+should fit. Clear that date before continuing.
+
+**b.** Use Tab to reach a job heading, then Enter to expand it. The job summary and
+entries should wrap within the available width. You should be able to scroll through
+file details and use Enter on the heading to collapse them. Keyboard focus stays visible.
+
+**c.** Return to **100%** zoom. Use **only** beside Failed, then **All statuses**.
+The search/date controls and results heading should stay in place as the explanatory
+text changes. Export links should remain separate from the filter controls.
+
+### Test CA2 — One date-edit action for a bookmark
+
+This is the focused SB5a recheck. Searchable fixture: **`md-exif-only.jpg`** in Library,
+EXIF primary, Date taken **2019-06-15 12:00:00**, bookmarked **Check the date** with the
+note **Check the recorded date**. These values were verified in the review catalog.
+
+**a.** Open Library, enable **Needs review**, choose Reason **Bookmarked**, and search
+`md-exif-only.jpg`. Choose **Review one by one**. The reason, note and metadata should
+appear without opening an editor. There should be exactly one **Edit metadata date…**
+link, beside the primary Date taken value, with keyboard focus. There should be no
+standalone edit button above Metadata sources.
+
+**b.** Choose that link. The existing Date taken editor should open. Choose **Cancel**
+without saving; the photo and bookmark should remain unchanged. Return to the gallery,
+choose Reason **All**, and reopen **Review one by one** for the same search. The same
+single focused link should appear, with the editor closed.
+
+### Test CA3 — Stable cards when switching bookmark order
+
+**a.** In Library, enable **Needs review** and search **`md-exif-only.jpg`** (the same
+prepared Check the date bookmark used in CA2). Close the photo preview if open. Switch
+Reason **All → Bookmarked → All**. The year controls should disappear for Bookmarked
+and return for All, but the card should keep the same width and horizontal position. Repeat with
+the photo preview open; its width should also remain unchanged.
+
+## Sidebar and Bookmarks
+
+<a id="sidebar-bookmarks"></a>
+
+**Accepted:** the maintainer passed SB1–SB6, including SB1a–c, SB2a–d, SB3a–c,
+SB4a–d, SB5a–g and SB6a–c. SB5a was rechecked after a change: opening the date editor
+automatically hid the bookmark's reason, so a date bookmark now shows its reason, note
+and recorded dates first, and the editor opens from **Edit metadata date…**. The recheck
+also found that a bookmark's tool appeared only under Reason **Bookmarked**; it now also
+leads under **All**. Both passed on a fresh generated review instance.
+
+The review instance was prepared with Index and Copy against the demo library and
+additional generated scenarios. Starting state: 4,904 Library photos, 25 source files
+needing attention, no Rejects, small-image reminders enabled below 800 pixels, and seven
+prepared bookmarks. These are the original starting values; validation has used this
+catalog, so reverify fixtures before any future retest.
+Use the review address supplied with this checklist, and start at its base URL.
+
+These generated filenames were verified in **Library**. Search the whole filename;
+if a search also finds an identical source alias, open the card with the exact name.
+
+| Filename | Starting date | Purpose / prepared bookmark |
+| --- | --- | --- |
+| `generated-005.jpg` | 2020-06-06 | Create your own bookmark; initially none |
+| `generated-022.jpg` | 2019-11-23 | Small-image reminder; initially not reviewed |
+| `generated-035.jpg` | 2023-12-08 | Check the date |
+| `generated-053.jpg` | 2023-06-26 | Compare versions; four matches at 90% |
+| `generated-026.jpg` | 2023-03-27 | Fix rotation |
+| `generated-034.jpg` | 2022-11-07 | Check the details |
+| `generated-043.jpg` | 2022-08-16 | Decide whether to keep it |
+| `generated-052.jpg` | 2022-05-25 | Ask someone |
+| `generated-033.jpg` | 2021-10-06 | Other |
+
+### Test SB1 — Places and navigation
+
+**a.** Choose **Library**. The sidebar should contain Not organized, Source folders,
+Library, Similar photos and Rejects. Activity, Logs and Stats should sit at the bottom
+of the sidebar above the version, separated from the photo places. There should be no Look into
+section, pins or separate Needs review place. The notes under Not organized and Library
+should link to the affected files.
+
+**b.** Search `generated-005.jpg`. Choose **Similar photos**: search should clear and
+similarity controls should appear. Use browser **Back**: the Library search should return.
+Choose **Library** again: search and optional refinements should clear.
+
+**c.** Open Logs, then Stats. The sidebar should keep its places and whole-place counts.
+Use **to review** under Library: it should open the complete review list, without keeping
+an unrelated search or filter.
+
+### Test SB2 — Combined refinements and reasons
+
+**a.** In Library, select **Odd dates**, then **No date**. Both should remain selected;
+results must satisfy both. Empty results are valid. Counts should reflect the combination,
+while the sidebar's Library total stays unchanged. Turn either off, then use
+**Clear all filters**.
+
+**b.** Select **Needs review**. Its **Reason** selector should offer All, Small and
+Bookmarked; Needs verification should be absent while none exist. Choose Bookmarked:
+the seven prepared cards should show their reasons and notes, sorted in preset order.
+Switch to Small and back: only one Reason should be active at a time.
+
+**c.** In **Similar photos**, turn on Needs review. It should combine with similarity;
+percentage controls remain available, and grouping should explain why other filters
+must be cleared. Clear refinements and try grouping again. Library and Similar photos
+should use the same review controls.
+
+**d.** Open the **need attention** sidebar note. It should clear unrelated filters and
+show source issues. Only source refinements should appear; there should be no Bookmark
+or Library review controls. Add a search that matches nothing: the active Needs attention
+control should remain clearable at zero. Clear the search before continuing.
+
+### Test SB3 — Size facts and reviewed photos
+
+**a.** In Library, search `generated-022.jpg`. Select Needs review → Small, then
+**Review one by one** and **Mark reviewed**. It should leave that Small queue without
+rejecting or removing the photo from Library.
+
+**b.** Return to Library, search the same filename, open **Filters**, enter **750** for
+**Shorter side below (pixels)**, and apply. The reviewed photo should still appear:
+size browsing is independent of its reminder.
+
+**c.** In Settings → Files, change the reminder minimum from 800 to 750. The photo should
+stay out of Needs review → Small. Turn small-image reminders off: the independent size
+filter should still find it. Finally restore reminders to **800**; the reviewed photo
+should not reappear in Small. Clear filters afterward.
+
+### Test SB4 — Create and remove a bookmark
+
+**a.** In Library search `generated-005.jpg`, open its information pane, and choose
+**Bookmark…**. Check the date should be selected initially. There should be seven reasons,
+an optional note, a visible character counter and a 60-character limit. The note field,
+labels and buttons should align with the rest of the app.
+
+**b.** Choose **Ask someone**, enter `Ask about this generated photo`, and save.
+Open Library → Needs review → Bookmarked. Its card should show that reason and note.
+Refresh the browser: both should remain.
+
+**c.** Search the same filename within Bookmarked and choose **Review one by one**.
+The photo and note should appear without an unrelated editing dialog. Choose
+**Remove bookmark**. If this empties the filtered result, the old preview should close.
+
+**d.** Search `generated-005.jpg` in Library again. It should still exist, retain its
+Small reminder, and show the bookmark addition/removal in **Review history**.
+
+### Test SB5 — Each bookmark opens the right tools
+
+For each step, start in Library → Needs review → Bookmarked, search the specified
+filename, and choose **Review one by one**. Return to Library between steps to clear the
+previous search. The prepared notes read `Generated Bookmark walkthrough`.
+
+**a.** `generated-035.jpg` (from Reason **Bookmarked** or **All**) — **Check the date** shows the bookmark's reason and note and
+the photo's recorded dates, with **Edit metadata date…** focused; the editor must not open
+by itself. Choose **Edit metadata date…**, change the calendar date to **2023-12-09**,
+preview and save. The photo should remain bookmarked
+after the save; its new date should be visible. Close the editor before returning.
+
+**b.** `generated-053.jpg` — **Compare versions** shows the existing similarity controls
+and matches. Choose one for side-by-side comparison, then return. No match should be
+chosen automatically, and the bookmark should remain until explicitly removed.
+
+**c.** `generated-026.jpg` — **Fix rotation** offers the familiar curved arrows and
+Save rotation. Turn right and save. The photo should remain bookmarked after the turn.
+
+**d.** `generated-034.jpg` — **Check the details** shows its recorded metadata and
+primary source. No edit or primary-source change should happen merely by opening it.
+
+**e.** `generated-043.jpg` — **Decide whether to keep it** offers Keep it, Remove bookmark
+and Reject. Choose **Keep it**. Back in Library, the photo should remain and Review history
+should record the keep decision with the original reason and note. Only its bookmark
+should be removed; a separate Small reminder can remain.
+
+**f.** `generated-052.jpg` — **Ask someone** displays the photo and note. Choose
+Remove bookmark; the photo should remain in Library.
+
+**g.** `generated-033.jpg` — **Other** displays the photo and note without opening an
+unrelated editor. Remove bookmark should clear only that reminder.
+
+### Test SB6 — Readability, keyboard and resizing
+
+**a.** In Library, turn Needs review on and off and switch Reasons. Controls and counts
+should remain readable; no unexpected banner should push the page around. Check both
+dark and light modes.
+
+**b.** At **200% browser zoom**, check the sidebar/menu, refinement row, Reason selector,
+Filters panel and Bookmark dialog. Use `generated-005.jpg` to reopen Bookmark… and
+**Cancel**. Controls may wrap, but should stay reachable without clipped text or
+horizontal page overflow. Restore normal zoom afterward.
+
+**c.** Use Tab and Shift+Tab through refinements and the Bookmark dialog. Focus should
+be visible; Space should toggle a refinement, arrow keys should choose a bookmark
+reason, and Escape should close the dialog and return focus to its opener.
+
+<a id="folder-last-indexed"></a>
+
+## Folder last-indexed times
+
+**Accepted:** the maintainer passed LI1–LI2, including LI1a–b and LI2a–b. Each source
+folder shows when an Index last read it in full, and **Index this
+folder** re-reads one folder. The review instance holds a generated scenario library,
+indexed in full once; `scenarios / edge` was then indexed on its own, so it has a later
+time than its siblings. Times show in your browser's time zone; the exact time is on hover.
+
+### Test LI1 — Times per folder
+
+**a.** Open Not organized › **Source folders** and unfold **scenarios**. Hover the name
+`burst`, then `edge`. Each shows "Last indexed today" and an exact time; `edge`'s time
+should be later than `burst`'s.
+
+**b.** Tick only `edge`. The heading reads **scenarios / edge** with **Last indexed today**
+beside it in muted text; hovering that note shows the same exact time as in step a.
+
+### Test LI2 — Index this folder
+
+**a.** Tick only `burst` and choose **Index this folder**. It starts without a confirmation;
+when the job finishes, the note beside **scenarios / burst** shows a new exact time on hover.
+`date-in-name`, a sibling, keeps its earlier time.
+
+**b.** Tick a second folder as well. **Index this folder** is disabled, and its hover text
+asks you to choose exactly one folder. **Copy this folder** and **Move this folder** behave
+the same way.
 
 ## Shared Reject confirmation
 

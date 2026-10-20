@@ -773,8 +773,8 @@ with sync_playwright() as p:
     expect(page.get_by_role("dialog")).to_have_count(0)
 
     # The quick filter for photos with no capture date in their EXIF.
-    undated_filter = page.get_by_role("button", name=re.compile(r"^No usable capture date"))
-    expect(undated_filter.locator(".sidebar-count")).to_have_text(f"{PHOTOS - 2:,}")
+    undated_filter = page.get_by_role("button", name=re.compile(r"^No date:"))
+    expect(undated_filter.locator(".refinement-count")).to_have_text(f"{PHOTOS - 2:,}")
     library = place_count(page, "Library").inner_text()
     labels = page.get_by_role("navigation", name="Main").locator("a > span:first-child")
     where = "ss => ss.map(s => { const r = s.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y)]; })"
@@ -795,6 +795,7 @@ with sync_playwright() as p:
     page.get_by_role("navigation", name="Dates").get_by_label("Show only 2019").check()
     page.get_by_role("searchbox", name="Search filenames").fill("photo")
     expect(page).to_have_url(re.compile(r"q=photo"))
+    page.get_by_role("button", name="Close filters", exact=True).click()
     page.get_by_role("button", name="Clear all filters", exact=True).click()
     page.get_by_role("searchbox", name="Search filenames").fill("photo")
     expect(page).not_to_have_url(re.compile(r"undated=1|date="))
@@ -845,6 +846,14 @@ with sync_playwright() as p:
     expect(page.get_by_role("button", name="Copy this folder (0)…")).to_be_disabled()
     expect(page.get_by_role("button", name="Move this folder (10)…")).to_be_enabled()
     expect(page.locator(".card .badge-copied")).to_have_count(10)
+    # The opened folder says when an Index last read it in full; Index this folder refreshes it.
+    indexed = page.locator(".gallery-context .folder-indexed")
+    expect(indexed).to_have_text(re.compile(r"^Last indexed "))
+    before = indexed.get_attribute("title")
+    page.get_by_role("button", name="Index this folder", exact=True).click()
+    expect(indexed).not_to_have_attribute("title", before, timeout=60000)
+    expect(tree.locator(".folder-row", has_text="trip / day 1").locator("label")).to_have_attribute(
+        "title", re.compile(r"Last indexed "))
     shot("source-folders")
 
     phone = browser.new_page(viewport={"width": 390, "height": 844}, is_mobile=True)

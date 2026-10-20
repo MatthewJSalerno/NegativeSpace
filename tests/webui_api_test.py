@@ -1240,6 +1240,112 @@ class JobsAndCatalog(ApiCase):
         listed = [f["path"] for f in self.client.get("/api/v1/photos/folders", params={"view": "unorganized"}).json()["folders"]]
         self.assertNotIn("Phone", listed, "without every, an empty folder drops out")
 
+    def test_each_folder_says_when_an_index_last_read_it_in_full(self):
+        for rel, seed in [("Phone/2019/a.jpg", "a"), ("Phone/2021/b.jpg", "b"), ("Camera/c.jpg", "c"), ("top.jpg", "top")]:
+            make_photo(self.cfg.source / rel, seed)
+        self.create_catalog()
+        full = self.wait_for(self.start(mode="index"))
+        tree = self.client.get("/api/v1/photos/folders", params={"every": "true"}).json()
+        rows = {f["path"]: f for f in tree["folders"]}
+        self.assertEqual(rows["Phone"]["last_indexed"], full["ended_at"], "a full Index reads every folder")
+        self.assertEqual(rows["Camera"]["last_indexed"], full["ended_at"])
+        self.assertEqual(tree["top_files"]["last_indexed"], full["ended_at"])
+        # An Index of one folder updates that folder and its subfolders, nothing else.
+        scoped = self.wait_for(self.start(mode="index", source_subdir="Phone"))
+        self.assertGreater(scoped["ended_at"], full["ended_at"])
+        tree = self.client.get("/api/v1/photos/folders", params={"every": "true"}).json()
+        rows = {f["path"]: f for f in tree["folders"]}
+        self.assertEqual(rows["Phone"]["last_indexed"], scoped["ended_at"])
+        self.assertEqual({f["path"]: f["last_indexed"] for f in rows["Phone"]["folders"]},
+                         {"Phone/2019": scoped["ended_at"], "Phone/2021": scoped["ended_at"]})
+        self.assertEqual(rows["Camera"]["last_indexed"], full["ended_at"], "a sibling keeps the full Index's time")
+        self.assertEqual(tree["top_files"]["last_indexed"], full["ended_at"])
+
+    def test_folder_index_times_do_not_advance_when_any_folder_is_unreadable(self):
+        if os.geteuid() == 0:
+            self.skipTest("root reads any folder")
+        for folder in ("readable", "sealed"):
+            make_photo(self.cfg.source / folder / "generated.jpg", folder)
+        self.create_catalog()
+        first = self.wait_for(self.start(mode="index"))
+        before = self.client.get("/api/v1/photos/folders?every=true").json()
+        sealed = self.cfg.source / "sealed"
+        sealed.chmod(0)
+        try:
+            failed = self.wait_for(self.start(mode="index"))
+        finally:
+            sealed.chmod(0o755)
+        self.assertEqual(failed["status"], "Completed")
+        failures = self.client.get("/api/v1/operations", params={"run":failed["id"], "status":"Failed"}).json()
+        self.assertEqual([(op["run_level"], op["photo_id"]) for op in failures["items"]], [(True, None)])
+        after = self.client.get("/api/v1/photos/folders?every=true").json()
+        self.assertGreater(failed["ended_at"], first["ended_at"])
+        self.assertEqual(after, before, "a partially read Index must not advance even its readable sibling")
+        recovered = self.wait_for(self.start(mode="index"))
+        tree = self.client.get("/api/v1/photos/folders?every=true").json()
+        self.assertEqual([n["last_indexed"] for n in tree["folders"]], [recovered["ended_at"]] * 2)
+        self.assertEqual(tree["top_files"]["last_indexed"], recovered["ended_at"])
+
+    def test_folder_index_times_do_not_advance_on_repeated_empty_source_refusals(self):
+        photo = self.cfg.source / "album" / "generated.jpg"
+        make_photo(photo, "empty")
+        self.create_catalog()
+        first = self.wait_for(self.start(mode="index"))
+        photo.unlink()
+        for _ in range(2):
+            refused = self.wait_for(self.start(mode="index"))
+            self.assertEqual(refused["status"], "Completed")
+            self.assertIn("source_empty", refused["questions"])
+            tree = self.client.get("/api/v1/photos/folders?every=true").json()
+            self.assertEqual(tree["folders"][0]["last_indexed"], first["ended_at"])
+            self.assertEqual(tree["top_files"]["last_indexed"], first["ended_at"])
+
+    def test_folder_index_times_count_a_complete_scan_with_an_individual_decode_failure(self):
+        make_photo(self.cfg.source / "album" / "generated.jpg", "readable")
+        (self.cfg.source / "album" / "broken.jpg").write_bytes(b"generated unreadable image")
+        self.create_catalog()
+        run = self.wait_for(self.start(mode="index"))
+        failures = self.client.get("/api/v1/operations", params={"run":run["id"], "status":"Failed"}).json()
+        self.assertTrue(failures["items"])
+        self.assertTrue(all(op["photo_id"] is not None for op in failures["items"]))
+        tree = self.client.get("/api/v1/photos/folders?every=true").json()
+        self.assertEqual(tree["folders"][0]["last_indexed"], run["ended_at"])
+        self.assertEqual(tree["top_files"]["last_indexed"], run["ended_at"])
+
+    def test_folder_index_times_inherit_through_folded_chains_and_literal_ancestors(self):
+        self.create_catalog()
+        names = ("album/one/deep/a.jpg", "album/two/b.jpg", "album2/c.jpg",
+                 " café_100% /inner /d.jpg", " café_100%/e.jpg")
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            conn.executemany("INSERT INTO photos(source_path,status) VALUES(?,'Pending')",
+                             ((str(self.cfg.source / name),) for name in names))
+            for scope, ended in ((None, "2026-01-01T00:00:00+00:00"),
+                                 ("album", "2026-01-03T00:00:00+00:00"),
+                                 ("album/one", "2026-01-02T00:00:00+00:00"),
+                                 ("album/two", "2026-01-04T00:00:00+00:00"),
+                                 (" café_100% ", "2026-01-05T00:00:00+00:00")):
+                conn.execute("INSERT INTO runs(mode,source_path,dest_path,status,started_at,ended_at,file_ids_filter) "
+                             "VALUES('INDEX',?,?,'Completed',?,?,?)",
+                             (str(self.cfg.source),str(self.cfg.dest),ended,ended,
+                              json.dumps({'source_subdir':scope}) if scope else None))
+            conn.commit()
+        tree = self.client.get('/api/v1/photos/folders', params={'every':'true'}).json()
+        def flatten(nodes):
+            result = {}
+            for node in nodes:
+                result[node['path']] = node['last_indexed']
+                result.update(flatten(node['folders']))
+            return result
+        self.assertEqual(flatten(tree['folders']), {
+            'album':'2026-01-03T00:00:00+00:00',
+            'album/one/deep':'2026-01-03T00:00:00+00:00',
+            'album/two':'2026-01-04T00:00:00+00:00',
+            'album2':'2026-01-01T00:00:00+00:00',
+            ' café_100% /inner ':'2026-01-05T00:00:00+00:00',
+            ' café_100%':'2026-01-01T00:00:00+00:00',
+        })
+        self.assertEqual(tree['top_files']['last_indexed'], '2026-01-01T00:00:00+00:00')
+
     def test_folder_jobs_preserve_literal_names_and_leave_siblings_untouched(self):
         cases = (("album ", "album"), (" album", "album"), (" ", "neighbor"),
                  ("outer / inner ", "outer / inner"), ("café_100% ", "café_100%"),
@@ -1324,7 +1430,8 @@ class JobsAndCatalog(ApiCase):
                         tree = response.json()
                         self.assertEqual(tree["outside"], 0)
                         self.assertEqual(tree["top_files"],
-                                         {"photos": 0, "eligible": {"copy": 0, "move": 0}})
+                                         {"photos": 0, "eligible": {"copy": 0, "move": 0}, "last_indexed": None},
+                                         "no Index ran, so no folder has a last-indexed time")
                         folders = list(tree["folders"])
                         if "/" in relative:
                             self.assertTrue(folders, "the selected empty folder must remain listed")

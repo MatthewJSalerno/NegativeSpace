@@ -244,8 +244,8 @@ jobs:
       - name: Instance access policy
         run: docker run --rm --entrypoint python3 -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p access_test.py -v
 
-      - name: Gallery filter pin counts
-        run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p filter_pins_test.py -v
+      - name: Gallery refinement counts
+        run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p sidebar_refinements_test.py -v
 
       - name: Notification read receipts
         run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p notifications_test.py -v
@@ -390,8 +390,8 @@ jobs:
       - name: Instance access in a browser
         run: DRIVER=access_browser_drive.py sh tests/browser/webui_browser_test.sh
 
-      - name: Gallery filter pins in a browser
-        run: DRIVER=filter_pins_browser_drive.py sh tests/browser/webui_browser_test.sh
+      - name: Sidebar refinements and Bookmarks in a browser
+        run: DRIVER=sidebar_refinements_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Fresh setup in a browser
         run: DRIVER=fresh_start_browser_drive.py sh tests/browser/webui_browser_test.sh

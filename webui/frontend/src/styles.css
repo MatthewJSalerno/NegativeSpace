@@ -83,40 +83,22 @@ button.icon { font-size: var(--type-md); padding: var(--space-1) var(--space-2);
 .sidebar { flex: 0 0 var(--sidebar-w); position: sticky; top: var(--header-offset); height: calc(100vh - var(--header-offset));
   overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: var(--space-3) var(--space-2);
   background: var(--surface); border-right: 1px solid var(--border); }
-.sidebar a, .sidebar .sidebar-item { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 40px;
+.sidebar a { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 40px;
   padding: 0 var(--space-3); border: 0; border-radius: var(--control-radius); background: none; color: var(--text);
   font: inherit; text-align: left; text-decoration: none; }
-.sidebar a:hover, .sidebar .sidebar-item:hover:not([aria-disabled=true]) { background: var(--surface-2); }
-.sidebar a[aria-current], .sidebar .sidebar-item[aria-pressed=true] { background: var(--surface-2); color: var(--accent); font-weight: var(--weight-strong); }
-/* A Look into filter that is on also carries a bar at its start, so on reads without colour
-   (generated text would join its accessible name). */
-.sidebar .sidebar-item[aria-pressed=true] { box-shadow: inset 3px 0 0 var(--accent); }
-.sidebar .sidebar-item[aria-disabled=true] { color: var(--muted); cursor: default; }
-.sidebar-filter-row { display: flex; align-items: stretch; }
-.sidebar-filter-row > .tip { flex: 1; min-width: 0; }
-.sidebar-filter-row .sidebar-item { flex: 1; min-width: 0; }
-.sidebar-filter-row .sidebar-item, .sidebar-filter-row a { padding-right: var(--space-1); gap: var(--space-1); }
-.sidebar-filter-link { padding-right: 32px; }
+.sidebar a:hover { background: var(--surface-2); }
+.sidebar a[aria-current] { background: var(--surface-2); color: var(--accent); font-weight: var(--weight-strong); }
 .help-passive { pointer-events: none; }
 .sidebar-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar .sidebar-count { flex: 0 0 7ch; text-align: right; }
-.filter-pin { flex: 0 0 32px; padding: 0; display: grid; place-items: center; color: var(--muted); }
-.filter-pin[aria-pressed=true] { color: var(--accent); background: var(--surface-2); }
-.filter-pin[aria-pressed=true] svg { fill: var(--accent); }
-.filter-pin[aria-disabled=true] { color: var(--muted); cursor: default; }
-@media (forced-colors: active) { .filter-pin[aria-pressed=true] { outline: 2px solid Highlight; outline-offset: -2px; } }
-.sidebar-group { display: flex; flex-direction: column; gap: 2px; }
 /* Source folders, under Not organized. */
 .sidebar a.sidebar-sub { min-height: 36px; padding-left: var(--space-8); }
 .sidebar-count { margin-left: auto; color: var(--muted); font-size: var(--type-xs); font-weight: var(--weight-normal); font-variant-numeric: tabular-nums; }
 .sidebar-heading { margin: var(--space-4) var(--space-3) var(--space-1); font-size: var(--type-xs); color: var(--muted); }
-.sidebar-filter-heading { display: flex; align-items: center; justify-content: space-between;
-  gap: var(--space-1); margin: var(--space-4) var(--space-3) var(--space-1); font-size: var(--type-xs); }
-.sidebar-filter-heading .sidebar-heading { margin: 0; }
-.sidebar-filter-heading .link { white-space: nowrap; }
-.sidebar-foot { margin-top: auto; padding: var(--space-4) var(--space-3) 0; }
+.sidebar-activity { margin-top: auto; flex-shrink: 0; padding-top: var(--space-4); }
+.sidebar-foot { padding: var(--space-4) var(--space-3) 0; }
 .sidebar-backdrop { display: none; }
-@media (forced-colors: active) { .sidebar a[aria-current], .sidebar .sidebar-item[aria-pressed=true] { outline: 2px solid Highlight; outline-offset: -2px; } }
+@media (forced-colors: active) { .sidebar a[aria-current] { outline: 2px solid Highlight; outline-offset: -2px; } }
 /* Narrow windows: the sidebar hides behind the menu button and opens over the page. */
 @media (max-width: 800px) {
   .menu-toggle { display: inline-grid; place-items: center; align-self: flex-start; }
@@ -173,7 +155,7 @@ button.link { border: 0; padding: 0; background: none; color: var(--accent); tex
 
 /* The log and the Error Center. */
 /* align-content: start, or the frame's full-height page spreads the rows apart. */
-.logs { padding: var(--space-6); display: grid; gap: var(--space-4); align-content: start; }
+.logs { padding: var(--space-6); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-content: start; }
 .logs h2 { font-size: var(--type-lg); }
 .logs p { margin: 0; }
 .log-filters { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); align-items: stretch; }
@@ -224,7 +206,7 @@ button.link.status-only { font-size: var(--type-xs); }
 .gallery-pane { flex: 1; padding: var(--space-3) var(--space-4) var(--space-8); min-width: 0; }
 .with-inspector .gallery-pane { flex: 1 1 0; }
 @media (min-width: 801px) {
-  .gallery-pane { min-width: 420px; }
+  .gallery-pane { min-width: min(420px, calc(100% - 48px)); }
 }
 
 /* Source folders (webui-spec 2): the source's folder tree beside the gallery, in view as
@@ -473,6 +455,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 .field input { width: 100px; }
 .field-inline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-1); }
 .field-inline input { width: 120px; }
+.field-inline input[type="date"] { width: auto; max-width: 100%; }
 .ext-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: var(--space-1) var(--space-2); }
 .ext { display: flex; gap: var(--space-1); align-items: center; }
 .ext input { padding: 0; }
@@ -511,7 +494,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 
 /* The log, grouped by job: one line per job until opened. */
 .job-list-head { display: flex; justify-content: space-between; align-items: center; gap: var(--gap); min-height: var(--control-height); }
-.job-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.job-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); container: log-jobs / inline-size; }
 .job-group { background: var(--surface); border: 0; border-radius: var(--radius); }
 .job-group.job-bad { border-left: 4px solid var(--bad); }
 .job-group.job-warn { border-left: 4px solid var(--warn); }
@@ -522,9 +505,15 @@ body.dragging { cursor: col-resize; user-select: none; }
 .job-detail { color: var(--muted); }
 .job-count { white-space: nowrap; color: var(--muted); }
 .job-body { padding: 0 var(--space-3) var(--space-3); display: grid; gap: var(--space-2); }
-@media (max-width: 700px) {
-  .job-head { grid-template-columns: auto 1fr; }
+/* Reflow against the space beside the sidebar, including enlarged text. */
+@container log-jobs (max-width: 56rem) {
+  .job-head { grid-template-columns: auto minmax(0, 1fr); }
   .job-detail, .job-count { grid-column: 2; }
+  .log-table, .log-table tbody { display: block; }
+  .log-table colgroup, .log-table thead { display: none; }
+  .log-table tr { display: grid; grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--border); }
+  .log-table td { border-top: 0; padding: var(--space-1) var(--space-2); }
+  .log-table .nowrap { white-space: normal; }
 }
 
 /* The Jobs menu, in the top bar. */
@@ -1029,8 +1018,6 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .review-note h3, .review-evidence h3 { font-size: var(--type-md); margin: var(--space-3) 0; }
 .review-reason { padding-block: var(--space-2); }
 .review-reason p { color: var(--muted); }
-.review-note-form { display: grid; gap: var(--space-2); margin-block: var(--space-3); }
-.review-note-form textarea { width: 100%; min-height: 80px; }
 .review-evidence { border-top: 1px solid var(--border); margin-top: var(--space-4); padding-top: var(--space-2); }
 @media (max-width: 1000px) { .review-photos { grid-template-columns: minmax(0, 1fr); } }
 
@@ -1139,3 +1126,27 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 
 .settings-disclosure > summary { cursor: pointer; font-size: var(--type-md); font-weight: var(--weight-strong); }
 .settings-section-body { display: grid; gap: var(--space-3); padding-top: var(--space-3); }
+
+/* Refinements live with their results; the sidebar contains navigation only. */
+.sidebar .sidebar-label { white-space: normal; overflow: visible; text-overflow: clip; }
+.sidebar a.sidebar-note { font-size: var(--type-xs); padding-left: var(--space-6); min-height: 36px; }
+.refinements { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; }
+.refinements button[aria-pressed] { border-color: var(--control-border); }
+.refinements button[aria-pressed=true] { background: var(--surface-2); box-shadow: inset 0 0 0 2px var(--accent); }
+.refinement-count { display: inline-block; min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; margin-left: var(--space-2); }
+.refinement-reason { display: inline-flex; flex-wrap: wrap; max-width: 100%; align-items: center; gap: var(--space-2); }
+.refinement-reason select { max-width: 100%; }
+.warning-text, .sidebar a.warning-text { color: var(--warn); }
+.size-filter { padding: var(--space-3); border-bottom: 1px solid var(--border); }
+.size-filter input { width: 8rem; }
+.bookmark-choice { display: flex; align-items: center; gap: var(--space-2); min-height: 36px; }
+.bookmark-card-note { display: block; overflow-wrap: anywhere; }
+.bookmark-form { display: grid; gap: var(--space-3); }
+.bookmark-form fieldset { margin: 0; }
+.bookmark-form .bookmark-choice { margin: 0; }
+@media (max-width: 800px) { .bookmark-choice { min-height: 44px; } }
+
+.sidebar a.sidebar-note .sidebar-count { margin: 0; flex: initial; color: inherit; }
+
+/* An opened source folder's last full Index, beside its name (webui-spec 2). */
+.folder-indexed { color: var(--muted); font-size: var(--type-xs); font-weight: var(--weight-normal); }
