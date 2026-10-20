@@ -155,7 +155,7 @@ button.link { border: 0; padding: 0; background: none; color: var(--accent); tex
 
 /* The log and the Error Center. */
 /* align-content: start, or the frame's full-height page spreads the rows apart. */
-.logs { padding: var(--space-6); display: grid; gap: var(--space-4); align-content: start; }
+.logs { padding: var(--space-6); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-content: start; }
 .logs h2 { font-size: var(--type-lg); }
 .logs p { margin: 0; }
 .log-filters { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); align-items: stretch; }
@@ -455,6 +455,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 .field input { width: 100px; }
 .field-inline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-1); }
 .field-inline input { width: 120px; }
+.field-inline input[type="date"] { width: auto; max-width: 100%; }
 .ext-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: var(--space-1) var(--space-2); }
 .ext { display: flex; gap: var(--space-1); align-items: center; }
 .ext input { padding: 0; }
@@ -493,7 +494,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 
 /* The log, grouped by job: one line per job until opened. */
 .job-list-head { display: flex; justify-content: space-between; align-items: center; gap: var(--gap); min-height: var(--control-height); }
-.job-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.job-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); container: log-jobs / inline-size; }
 .job-group { background: var(--surface); border: 0; border-radius: var(--radius); }
 .job-group.job-bad { border-left: 4px solid var(--bad); }
 .job-group.job-warn { border-left: 4px solid var(--warn); }
@@ -504,9 +505,15 @@ body.dragging { cursor: col-resize; user-select: none; }
 .job-detail { color: var(--muted); }
 .job-count { white-space: nowrap; color: var(--muted); }
 .job-body { padding: 0 var(--space-3) var(--space-3); display: grid; gap: var(--space-2); }
-@media (max-width: 700px) {
-  .job-head { grid-template-columns: auto 1fr; }
+/* Reflow against the space beside the sidebar, including enlarged text. */
+@container log-jobs (max-width: 56rem) {
+  .job-head { grid-template-columns: auto minmax(0, 1fr); }
   .job-detail, .job-count { grid-column: 2; }
+  .log-table, .log-table tbody { display: block; }
+  .log-table colgroup, .log-table thead { display: none; }
+  .log-table tr { display: grid; grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--border); }
+  .log-table td { border-top: 0; padding: var(--space-1) var(--space-2); }
+  .log-table .nowrap { white-space: normal; }
 }
 
 /* The Jobs menu, in the top bar. */

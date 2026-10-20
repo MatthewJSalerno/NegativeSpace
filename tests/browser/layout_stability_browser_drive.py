@@ -104,6 +104,29 @@ with sync_playwright() as p:
                 reason.select_option('all')
                 unchanged(before)
             if os.environ.get('SHOTS'):page.screenshot(path=os.path.join(os.environ['SHOTS'],f'gallery-stable-{place}-{width}.png'))
+    # Enlarged text must fit beside the sidebar, including expanded job entries.
+    page.evaluate("localStorage.setItem('ns.theme','dark')")
+    for width in (1000,720,1440):
+        page.set_viewport_size({'width':width,'height':1100})
+        page.goto(sys.argv[1]+'/logs')
+        expect(page.locator('.job-list-head')).to_be_visible()
+        page.evaluate("document.documentElement.style.fontSize='200%'")
+        def fits():
+            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), (width, 'Logs overflow at 200% text')
+        fits()
+        export=page.get_by_role('group',name='Export filtered log')
+        export.get_by_role('link',name='CSV',exact=True).focus()
+        expect(export.get_by_role('link',name='CSV',exact=True)).to_be_focused()
+        head=page.locator('.job-head').first
+        head.focus()
+        head.press('Enter')
+        expect(head).to_have_attribute('aria-expanded','true')
+        expect(page.locator('.job-body .log-table').first).to_be_visible()
+        fits()
+        if os.environ.get('SHOTS'):page.screenshot(path=os.path.join(os.environ['SHOTS'],f'logs-text-200-{width}.png'))
+        head.press('Enter')
+        expect(head).to_have_attribute('aria-expanded','false')
+        fits()
     # Ordinary On/Off choices retain the minimum field and the controls beneath it.
     # Measure relative to the dialog, independent of browser focus scrolling.
     for width,theme in ((1440,'light'),(1000,'dark'),(720,'light')):
