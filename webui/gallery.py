@@ -601,32 +601,33 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
         whole, by_folder = _last_indexed(conn, base[:-1])
     kept = {_folder(root, k) for k in keep or []}
 
-    def indexed(path):
-        # The latest completed Index that read the whole folder: a full Index, or one of
-        # this folder or a folder holding it.
-        times = [whole] + [t for f, t in by_folder.items() if path == f or path.startswith(f + "/")]
-        return max((t for t in times if t), default=None)
+    def indexed(path, inherited):
+        # Carry ancestor coverage through the tree, including collapsed chains.
+        # One lookup per node avoids comparing every folder with every prior scope.
+        return max((t for t in (inherited, by_folder.get(path)) if t), default=None)
 
     def listed(path, node):
         return every or node["photos"] > 0 or path in kept or any(k.startswith(path + "/") for k in kept)
 
-    def build(prefix, sub):
+    def build(prefix, sub, inherited):
         out = []
         for name in sorted(sub, key=lambda n: (n.casefold(), n)):
             node, path, label = sub[name], f"{prefix}{name}", name
+            last_indexed = indexed(path, inherited)
             # One folder holding only one folder and no photos of its own: one row.
             while len(node["sub"]) == 1 and path not in kept:
                 (child_name, child), = node["sub"].items()
                 if child["all"] != node["all"]:          # it holds files of its own
                     break
                 node, path, label = child, f"{path}/{child_name}", f"{label} / {child_name}"
+                last_indexed = indexed(path, last_indexed)
             if listed(path, node):
                 out.append({"path": path, "name": label, "photos": node["photos"],
-                            "eligible": {k: node[k] for k in acts}, "last_indexed": indexed(path),
-                            "folders": build(path + "/", node["sub"])})
+                            "eligible": {k: node[k] for k in acts}, "last_indexed": last_indexed,
+                            "folders": build(path + "/", node["sub"], last_indexed)})
         return out
 
-    return {"folders": build("", tree["sub"]),
+    return {"folders": build("", tree["sub"], whole),
             "top_files": {"photos": top["photos"], "eligible": {k: top[k] for k in acts}, "last_indexed": whole},
             "outside": outside}
 

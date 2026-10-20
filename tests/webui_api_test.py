@@ -1261,6 +1261,40 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual(rows["Camera"]["last_indexed"], full["ended_at"], "a sibling keeps the full Index's time")
         self.assertEqual(tree["top_files"]["last_indexed"], full["ended_at"])
 
+    def test_folder_index_times_inherit_through_folded_chains_and_literal_ancestors(self):
+        self.create_catalog()
+        names = ("album/one/deep/a.jpg", "album/two/b.jpg", "album2/c.jpg",
+                 " café_100% /inner /d.jpg", " café_100%/e.jpg")
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            conn.executemany("INSERT INTO photos(source_path,status) VALUES(?,'Pending')",
+                             ((str(self.cfg.source / name),) for name in names))
+            for scope, ended in ((None, "2026-01-01T00:00:00+00:00"),
+                                 ("album", "2026-01-03T00:00:00+00:00"),
+                                 ("album/one", "2026-01-02T00:00:00+00:00"),
+                                 ("album/two", "2026-01-04T00:00:00+00:00"),
+                                 (" café_100% ", "2026-01-05T00:00:00+00:00")):
+                conn.execute("INSERT INTO runs(mode,source_path,dest_path,status,started_at,ended_at,file_ids_filter) "
+                             "VALUES('INDEX',?,?,'Completed',?,?,?)",
+                             (str(self.cfg.source),str(self.cfg.dest),ended,ended,
+                              json.dumps({'source_subdir':scope}) if scope else None))
+            conn.commit()
+        tree = self.client.get('/api/v1/photos/folders', params={'every':'true'}).json()
+        def flatten(nodes):
+            result = {}
+            for node in nodes:
+                result[node['path']] = node['last_indexed']
+                result.update(flatten(node['folders']))
+            return result
+        self.assertEqual(flatten(tree['folders']), {
+            'album':'2026-01-03T00:00:00+00:00',
+            'album/one/deep':'2026-01-03T00:00:00+00:00',
+            'album/two':'2026-01-04T00:00:00+00:00',
+            'album2':'2026-01-01T00:00:00+00:00',
+            ' café_100% /inner ':'2026-01-05T00:00:00+00:00',
+            ' café_100%':'2026-01-01T00:00:00+00:00',
+        })
+        self.assertEqual(tree['top_files']['last_indexed'], '2026-01-01T00:00:00+00:00')
+
     def test_folder_jobs_preserve_literal_names_and_leave_siblings_untouched(self):
         cases = (("album ", "album"), (" album", "album"), (" ", "neighbor"),
                  ("outer / inner ", "outer / inner"), ("café_100% ", "café_100%"),
