@@ -15,7 +15,8 @@ SB5a was rechecked and passed after a Check the date bookmark changed to show it
 note and recorded dates first, with **Edit metadata date…** focused.
 RC1–RC3 remain accepted historical results.
 
-**Folder last-indexed times:** [Tests LI1–LI2](#folder-last-indexed) are pending.
+**Folder last-indexed times:** the maintainer passed [Tests LI1–LI2](#folder-last-indexed),
+including all lettered steps.
 
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
@@ -203,7 +204,8 @@ reason, and Escape should close the dialog and return focus to its opener.
 
 ## Folder last-indexed times
 
-Pending. Each source folder shows when an Index last read it in full, and **Index this
+**Accepted:** the maintainer passed LI1–LI2, including LI1a–b and LI2a–b. Each source
+folder shows when an Index last read it in full, and **Index this
 folder** re-reads one folder. The review instance holds a generated scenario library,
 indexed in full once; `scenarios / edge` was then indexed on its own, so it has a later
 time than its siblings. Times show in your browser's time zone; the exact time is on hover.

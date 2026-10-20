@@ -22,7 +22,6 @@ development until the maintainer decides.
 - Rename and "Also arrived as" from the photo panel
 - Copy/Move preview grouped by destination folder, and a downloadable plan
 - Start a requested job after the preceding backup — decided, not built (`docs/webui-spec.md` §5.7)
-- Last-indexed time for each source folder — built, awaiting validation (`docs/webui-spec.md` §2)
 - Clickable Index summary figures — decided, not built (`docs/ui-design.md`, Which filters apply where; `docs/webui-spec.md` §2)
 - Copy all and Move all count photos held in Needs attention
 - 💬 Source-folder handling behind the scenes
