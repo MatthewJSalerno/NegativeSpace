@@ -9,13 +9,14 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Consolidated audit fixes:** [Test CA1](#consolidated-audit-fixes) is pending for Logs
-reflow. Original SB1–SB6 and LI1–LI2 acceptance remains recorded below. Folder-coverage
+**Consolidated audit fixes:** [Tests CA1–CA2](#consolidated-audit-fixes) are pending for
+Logs reflow and the single inline date-bookmark action. Original SB1–SB6 and LI1–LI2 acceptance remains recorded below. Folder-coverage
 failure cases and query-result equivalence are checked automatically with generated
 fixtures; they do not require repeating the original sidebar walkthrough.
 
 **Sidebar and Bookmarks:** the maintainer passed [Tests SB1–SB6](#sidebar-bookmarks),
-including all lettered steps. No manual checks remain for the tested behavior.
+including all lettered steps. CA2 below rechecks only the date-bookmark action
+after removing its duplicate standalone button; other accepted steps remain accepted.
 SB5a was rechecked and passed after a Check the date bookmark changed to show its reason,
 note and recorded dates first, with **Edit metadata date…** focused.
 RC1–RC3 remain accepted historical results.
@@ -57,7 +58,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 <a id="consolidated-audit-fixes"></a>
 
-**Pending:** CA1a–c. Use the fresh review instance supplied with these steps. It has
+**Pending:** CA1a–c and CA2a–b. Use the fresh review instance supplied with these steps. It has
 completed Index and Copy jobs from generated metadata scenarios, including expected
 source failures. No particular photo or filename is needed for this Logs-only check.
 
@@ -75,6 +76,23 @@ file details and use Enter on the heading to collapse them. Keyboard focus stays
 **c.** Return to **100%** zoom. Use **only** beside Failed, then **All statuses**.
 The search/date controls and results heading should stay in place as the explanatory
 text changes. Export links should remain separate from the filter controls.
+
+### Test CA2 — One date-edit action for a bookmark
+
+This is the focused SB5a recheck. Searchable fixture: **`md-exif-only.jpg`** in Library,
+EXIF primary, Date taken **2019-06-15 12:00:00**, bookmarked **Check the date** with the
+note **Check the recorded date**. These values were verified in the review catalog.
+
+**a.** Open Library, enable **Needs review**, choose Reason **Bookmarked**, and search
+`md-exif-only.jpg`. Choose **Review one by one**. The reason, note and metadata should
+appear without opening an editor. There should be exactly one **Edit metadata date…**
+link, beside the primary Date taken value, with keyboard focus. There should be no
+standalone edit button above Metadata sources.
+
+**b.** Choose that link. The existing Date taken editor should open. Choose **Cancel**
+without saving; the photo and bookmark should remain unchanged. Return to the gallery,
+choose Reason **All**, and reopen **Review one by one** for the same search. The same
+single focused link should appear, with the editor closed.
 
 ## Sidebar and Bookmarks
 

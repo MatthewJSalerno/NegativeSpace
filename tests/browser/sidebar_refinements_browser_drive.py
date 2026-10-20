@@ -196,6 +196,9 @@ with sync_playwright() as p:
             page.goto(base+f'/?view=review&photo={pid}&review_photo={pid}')
             expect(workspace).to_be_visible()
             expect(workspace.locator('.metadata-sources')).to_be_visible()
+            all_edit=workspace.get_by_role('button',name='Edit metadata date…',exact=True)
+            expect(all_edit).to_have_count(1)
+            expect(all_edit).to_be_focused()
             page.goto(base+f'/?view=review&reason=later&photo={pid}&review_photo={pid}')
             expect(workspace).to_be_visible()
             # The reason, note and recorded dates come first; the editor waits to be chosen.
@@ -203,9 +206,18 @@ with sync_playwright() as p:
             expect(editor).to_have_count(0)
             expect(workspace).to_contain_text('Check the date')
             expect(workspace.locator('.metadata-sources')).to_be_visible()
-            # The bookmark's own button comes before the Date taken row's inline link.
-            edit=workspace.get_by_role('button',name='Edit metadata date…',exact=True).first
+            # One shared action beside the primary date, after metadata finishes loading.
+            edit=workspace.get_by_role('button',name='Edit metadata date…',exact=True)
+            expect(edit).to_have_count(1)
+            expect(workspace.locator('.review-metadata-table').get_by_role('button',name='Edit metadata date…',exact=True)).to_have_count(1)
             expect(edit).to_be_focused()
+            # Revisiting primary metadata must not take focus away from its tab.
+            tabs=workspace.get_by_role('tablist',name='Metadata sources',exact=True)
+            tabs.get_by_role('tab',name='XMP Sidecar',exact=False).click()
+            primary_tab=tabs.get_by_role('tab',name='EXIF',exact=False)
+            primary_tab.click()
+            expect(edit).to_be_visible()
+            expect(primary_tab).to_be_focused()
             edit.click()
             expect(editor).to_be_visible()
             editor.get_by_label('Date taken',exact=True).fill('2021-04-05T06:07:08')

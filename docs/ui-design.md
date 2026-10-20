@@ -207,8 +207,9 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   Cards show the reason in bold, then the note; the Bookmarked list sorts by reason, with
   no per-reason filter. **Review one by one** opens each bookmark with its tool ready,
   from Bookmarked or All (another chosen reason keeps its own tools first):
-  the recorded dates with **Edit metadata date…** focused (the editor opens only when
-  chosen, so the reason and note stay in view), the side-by-side comparison, the rotation controls, the
+  the recorded dates with the existing **Edit metadata date…** link beside the primary
+  Date taken value focused, without a duplicate standalone button (the editor opens only
+  when chosen, so the reason and note stay in view), the side-by-side comparison, the rotation controls, the
   Metadata tab, Keep it or Reject…, or just the photo with its note. **Remove bookmark**
   clears one bookmark. *Why preset reasons and no custom ones:*
   free text alone gets inconsistent, and user-made reasons would become the tagging that

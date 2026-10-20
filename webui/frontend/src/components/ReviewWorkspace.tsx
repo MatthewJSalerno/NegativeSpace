@@ -10,7 +10,7 @@ import { FileIssues } from "./FileIssues";
 import { follow } from "../nav";
 import { SimilarityRecovery } from "./SimilarityRecovery";
 import { ReviewPreview, DEFAULT_VIEW, type PreviewView } from "./ReviewPreview";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type BrowseFilters, type PhotoDetail, type PhotoPage, type Sort, type Status, type MatchPage, type MetadataSourceView } from "../api";
 import { Workspace } from "./ui/Workspace";
 import { ReviewNote } from "./ReviewNote";
@@ -25,7 +25,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
   const [dateEdit, setDateEdit] = useState<{photo: number; donor?: MetadataSourceView} | null>(null);
   const [matchView, setMatchView] = useState<MatchView>({threshold: filters.match_min ?? 90, page: 1});
   const [comparison, setComparison] = useState<ComparisonState | null>(null);
-  const dateEditButton = useRef<HTMLButtonElement>(null);
+  const focusedDatePhoto = useRef<number | null>(null);
   const [page, setPage] = useState<number | null>(null);
   const [data, setData] = useState<PhotoPage | null>(null);
   const [photo, setPhoto] = useState<PhotoDetail | null>(null);
@@ -52,9 +52,12 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
   const bookmarkScope = !filters.reason || filters.reason === "all" || filters.reason === "later";
   const bookmarkReason = bookmarkScope && bookmark?.photo === photo?.id ? bookmark?.reason : null;
   // A date bookmark shows its reason, note and recorded dates first; the editor opens on request.
-  useEffect(() => {
-    if (photo && bookmarkReason === "date") dateEditButton.current?.focus();
-  }, [photo?.id, bookmarkReason]);
+  const focusDateAction = useCallback((button: HTMLButtonElement | null) => {
+    if (button && !button.disabled && photo && bookmarkReason === "date" && focusedDatePhoto.current !== photo.id) {
+      focusedDatePhoto.current = photo.id;
+      button.focus({ preventScroll: true });
+    }
+  }, [photo?.id, bookmarkReason, !!jobs.active]);
   useEffect(() => {
     const update = () => setRevision(n=>n+1);
     window.addEventListener("ns-settings-saved",update);
@@ -128,8 +131,7 @@ export function ReviewWorkspace({ initialPhoto, filters, sort, status, onBack, o
             const run=await api.startJob({mode:"reject",file_ids:[photo.id]});if (run.id == null) throw new Error("The Reject job was not accepted. Reload before trying again."); setRejectRun({run:run.id,photo:photo.id});setBusy(true);
           },undefined,photo.filename))}>Reject…</button>} />
         {(bookmarkReason === "date" || bookmarkReason === "details") && <section aria-label="Bookmark metadata">
-          {bookmarkReason === "date" && <button ref={dateEditButton} disabled={!!jobs.active} title={jobs.active ? "Wait for the running job to finish." : undefined} onClick={() => setDateEdit({photo:photo.id})}>Edit metadata date…</button>}
-          <MetadataSources photoId={photo.id} refreshKey={revision} editable jobRunning={!!jobs.active} onEdit={donor => setDateEdit({photo:photo.id,donor})} />
+          <MetadataSources photoId={photo.id} refreshKey={revision} dateActionRef={focusDateAction} editable jobRunning={!!jobs.active} onEdit={donor => setDateEdit({photo:photo.id,donor})} />
         </section>}
         {bookmarkReason === "compare" && <PhotoMatches key={photo.id} id={photo.id} name={photo.filename} delivered view={matchView} onView={setMatchView}
           refreshKey={revision} changes={revision} jobRunning={!!jobs.active} onReview={(candidate, scope = "library", page = 1) => rotationExit.requestLeave(() => setComparison({

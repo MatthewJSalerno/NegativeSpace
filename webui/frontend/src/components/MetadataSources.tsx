@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type Ref } from "react";
 import { api, type MetadataView, type MetadataSourceView } from "../api";
 import { TabList, tabPanel } from "./ui/Tabs";
 import { logUrl, follow } from "../nav";
@@ -7,7 +7,7 @@ import { SearchField } from "./ui/SearchField";
 import { LABELS, own, stable, comparable, display } from "./metadataFields";
 import { MetadataFieldTable } from "./MetadataFieldTable";
 
-export function MetadataSources({ photoId, refreshKey, editable = false, jobRunning = false, onEdit, onPrimary }: { photoId: number; refreshKey: number; editable?: boolean; jobRunning?: boolean; onEdit?: (donor?: MetadataSourceView) => void; onPrimary?: (source: MetadataSourceView, captureId: number) => void }) {
+export function MetadataSources({ photoId, refreshKey, editable = false, jobRunning = false, onEdit, onPrimary, dateActionRef }: { photoId: number; refreshKey: number; dateActionRef?: Ref<HTMLButtonElement>; editable?: boolean; jobRunning?: boolean; onEdit?: (donor?: MetadataSourceView) => void; onPrimary?: (source: MetadataSourceView, captureId: number) => void }) {
   const [data, setData] = useState<MetadataView | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -86,7 +86,7 @@ export function MetadataSources({ photoId, refreshKey, editable = false, jobRunn
           fields={shown} source={source.fields} primary={comparing ? primary.fields : undefined}
           extra={k => <>
           {k === "date_taken" && editable && onEdit && <>
-            {source.id === primary?.id ? <>{" · "}<button className="link" disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Edit Date taken in the primary metadata source."} onClick={() => onEdit()}>Edit metadata date…</button></>
+            {source.id === primary?.id ? <>{" · "}<button ref={dateActionRef} className="link" disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Edit Date taken in the primary metadata source."} onClick={() => onEdit()}>Edit metadata date…</button></>
               : canCopyDate && <>{" · "}<button className="link" disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Copy only Date taken into the primary metadata source."} onClick={() => onEdit(source)}>Copy date to primary…</button></>}
           </>}
           {k === "date_taken" && source.id === primary?.id && dateAlternatives.length > 0 && <p className="section-note">Primary has no Date taken. A date is recorded in {dateAlternatives.map((alternative, i) => <span key={alternative.id}>{i > 0 && ", "}<button className="link" onClick={() => {setSelected(alternative.id); setQuery("");}}>{alternative.label}</button></span>)}. Review it before deciding whether to copy.</p>}
