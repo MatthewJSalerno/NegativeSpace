@@ -306,8 +306,11 @@ opened folder's name: "Last indexed 12 days ago" within a year, a date for older
 the exact time on hover. It is the end of the latest **completed** Index that read the
 whole folder: a full Index, or one scoped to that folder or a folder holding it. A
 cancelled, failed or interrupted Index, or one scoped to selected photos, may not have
-read the whole folder and does not count; with none, the folder says "No completed Index
-yet". Relative times reuse the app's existing format (days, then months), not weeks.
+read the whole folder and does not count. A Completed Index with any run-level failure
+(such as an unreadable folder or an empty-source refusal) also leaves every prior
+timestamp unchanged, including readable siblings. A failure decoding an individual
+photo does not invalidate traversal coverage. With no qualifying run, the folder says
+"No completed Index yet". Relative times reuse the app's existing format (days, then months), not weeks.
 Opening a copied photo from Still in source shows its current destination Inspector,
 not an independent source-file preview. A notice above its tabs identifies the Library
 or Rejects copy and warns that its metadata may differ from the original. Inspector

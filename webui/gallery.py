@@ -636,11 +636,15 @@ def _last_indexed(conn, source: str):
     """When each part of this source was last read in full: the end of the latest Completed
     Index of the whole source, and of each folder an Index was scoped to. A cancelled,
     failed or interrupted Index, or one scoped to selected photos, may not have read a whole
-    folder, so it does not count."""
+    folder, so it does not count. Completed runs with run-level failures also leave
+    prior coverage unchanged, even for readable siblings; individual photo failures
+    do not mean traversal was incomplete."""
     whole, by_folder = None, {}
     for targeting, ended in conn.execute(
-            "SELECT file_ids_filter, ended_at FROM runs WHERE mode = 'INDEX' AND status = 'Completed' "
-            "AND ended_at IS NOT NULL AND rtrim(source_path, '/') = ?", (source,)):
+            "SELECT r.file_ids_filter, r.ended_at FROM runs r WHERE r.mode = 'INDEX' AND r.status = 'Completed' "
+            "AND r.ended_at IS NOT NULL AND rtrim(r.source_path, '/') = ? "
+            "AND NOT EXISTS (SELECT 1 FROM operations o WHERE o.run_id = r.id "
+            "AND o.photo_id IS NULL AND o.status = 'Failed')", (source,)):
         scope = json.loads(targeting) if targeting else {}
         if not scope:
             whole = max(whole or ended, ended)

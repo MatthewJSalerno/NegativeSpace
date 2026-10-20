@@ -1261,6 +1261,57 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual(rows["Camera"]["last_indexed"], full["ended_at"], "a sibling keeps the full Index's time")
         self.assertEqual(tree["top_files"]["last_indexed"], full["ended_at"])
 
+    def test_folder_index_times_do_not_advance_when_any_folder_is_unreadable(self):
+        if os.geteuid() == 0:
+            self.skipTest("root reads any folder")
+        for folder in ("readable", "sealed"):
+            make_photo(self.cfg.source / folder / "generated.jpg", folder)
+        self.create_catalog()
+        first = self.wait_for(self.start(mode="index"))
+        before = self.client.get("/api/v1/photos/folders?every=true").json()
+        sealed = self.cfg.source / "sealed"
+        sealed.chmod(0)
+        try:
+            failed = self.wait_for(self.start(mode="index"))
+        finally:
+            sealed.chmod(0o755)
+        self.assertEqual(failed["status"], "Completed")
+        failures = self.client.get("/api/v1/operations", params={"run":failed["id"], "status":"Failed"}).json()
+        self.assertEqual([(op["run_level"], op["photo_id"]) for op in failures["items"]], [(True, None)])
+        after = self.client.get("/api/v1/photos/folders?every=true").json()
+        self.assertGreater(failed["ended_at"], first["ended_at"])
+        self.assertEqual(after, before, "a partially read Index must not advance even its readable sibling")
+        recovered = self.wait_for(self.start(mode="index"))
+        tree = self.client.get("/api/v1/photos/folders?every=true").json()
+        self.assertEqual([n["last_indexed"] for n in tree["folders"]], [recovered["ended_at"]] * 2)
+        self.assertEqual(tree["top_files"]["last_indexed"], recovered["ended_at"])
+
+    def test_folder_index_times_do_not_advance_on_repeated_empty_source_refusals(self):
+        photo = self.cfg.source / "album" / "generated.jpg"
+        make_photo(photo, "empty")
+        self.create_catalog()
+        first = self.wait_for(self.start(mode="index"))
+        photo.unlink()
+        for _ in range(2):
+            refused = self.wait_for(self.start(mode="index"))
+            self.assertEqual(refused["status"], "Completed")
+            self.assertIn("source_empty", refused["questions"])
+            tree = self.client.get("/api/v1/photos/folders?every=true").json()
+            self.assertEqual(tree["folders"][0]["last_indexed"], first["ended_at"])
+            self.assertEqual(tree["top_files"]["last_indexed"], first["ended_at"])
+
+    def test_folder_index_times_count_a_complete_scan_with_an_individual_decode_failure(self):
+        make_photo(self.cfg.source / "album" / "generated.jpg", "readable")
+        (self.cfg.source / "album" / "broken.jpg").write_bytes(b"generated unreadable image")
+        self.create_catalog()
+        run = self.wait_for(self.start(mode="index"))
+        failures = self.client.get("/api/v1/operations", params={"run":run["id"], "status":"Failed"}).json()
+        self.assertTrue(failures["items"])
+        self.assertTrue(all(op["photo_id"] is not None for op in failures["items"]))
+        tree = self.client.get("/api/v1/photos/folders?every=true").json()
+        self.assertEqual(tree["folders"][0]["last_indexed"], run["ended_at"])
+        self.assertEqual(tree["top_files"]["last_indexed"], run["ended_at"])
+
     def test_folder_index_times_inherit_through_folded_chains_and_literal_ancestors(self):
         self.create_catalog()
         names = ("album/one/deep/a.jpg", "album/two/b.jpg", "album2/c.jpg",

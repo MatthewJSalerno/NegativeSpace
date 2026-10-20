@@ -293,6 +293,9 @@ disk listing, so every folder offered holds photos a job can act on:
 *   **`last_indexed`** is when the latest Completed Index that read the whole folder
     ended: a full Index of this source, or one scoped to the folder or a folder holding
     it; `null` when there is none. `top_files.last_indexed` counts full Indexes only.
+    Any run-level Failed operation (`photo_id IS NULL`) excludes that entire run,
+    retaining earlier timestamps even for readable siblings. Individual photo failures
+    do not exclude a completed traversal.
 *   **`eligible`** is what a Copy or a Move of the folder would take (`--source-subdir`,
     `ns_db.TRANSFER_ELIGIBLE`), whatever the filters: Jobs' "this folder".
 *   **`name`** folds a chain of folders, each holding one folder and no photos of its own,
