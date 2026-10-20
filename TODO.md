@@ -199,9 +199,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 - [x] Inspector actions at the top, rejected-match disclosure above Library candidates,
   and bottom-aligned Review side by side labels across matching cards.
-- [ ] Discuss cross-location filter discoverability: an active Suspicious dates filter
-  can make Rejects appear empty after navigation. Filters currently persist; decide
-  whether clearer feedback or per-place preferences would help before changing this.
+- [x] Cross-location filter discoverability — resolved by place navigation clearing refinements and Back restoring them (`docs/ui-design.md`, Sidebar and refinements).
 
 - [x] UX consistency batch: one toggle row per place, in-place Small images filter,
   closed Inspector on place changes, contextual/collapsible source summary, grouped
@@ -657,17 +655,18 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 
 ## Navigation refinement
 
-- [x] Rename File issues to Files needing verification and expose the same filter,
-  counts and pins in Library and Needs review. Source import failures remain under
-  Not organized → Needs attention.
+Completed entries below retain earlier validation results. References to pins, Review
+later and remembered per-place filters are historical; the current sidebar/refinements
+and Bookmark contract is in `docs/ui-design.md`, Page frame.
+
+- [x] Verification navigation — historical filter/pins superseded by the sidebar warning note; source failures remain under Not organized (`docs/ui-design.md`, Sidebar and refinements).
 
 - [x] UI alignment/stability pass: separate filtered-log exports from filters, align
   log input edges and shared inline controls, keep small-image settings and preview
   zoom/rotation controls stationary, and reuse the confirmation action-row spacing.
 - [x] Maintainer visual acceptance: alignment/stability Tests 1a–4a and the renamed
   verification filter Test 5a passed.
-- [x] Suspend Library-only filters and pin highlights in source views; remember the
-  Library choices per tab and restore them on sidebar return, without overriding URLs.
+- [x] Source-view filter isolation — historical saved pins superseded by clean place navigation and URL-based Back/Forward (`docs/ui-design.md`, Sidebar and refinements).
 - [x] Maintainer validated revised Test 5b: source navigation and restored filters.
 - [x] Filter counts distinguish zero, unavailable and incompatible, with hover/focus explanations (`docs/ui-design.md`, Page frame).
 
@@ -715,7 +714,7 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 - [x] Maintainer validated filter pins.
 - [x] Move Clear all filters beside Look into, reserve its space, and clear search,
   folder/date/type restrictions and saved pins while retaining place and selection.
-- [ ] Maintainer visual check of the final Clear all filters placement.
+- [x] Clear all filters placement — superseded and validated in the sidebar/refinements batch (`docs/manual-validation.md`, Sidebar and Bookmarks).
 - [x] Consolidate page-frame/date-scrubber/refinement into the gallery UX PR. Metadata
   is merged; combined schema 28 preserves metadata tables and notification receipts.
 - [x] Validate the combined metadata/navigation integration locally: 195 database/API
@@ -746,4 +745,4 @@ an explicit limitation in engine-spec §8; automatic file skipping is not planne
 
 - Guide screenshots for sidebar and Bookmarks — refresh in a separate documentation PR; stale sidebar images removed from the guide (`docs/user-docs-standard.md`, Screenshots).
 
-- Date-bookmark entry — proposed follow-up: show reason/note and metadata before Edit metadata date; decision and SB5a recheck pending (`docs/manual-validation.md`, Sidebar and Bookmarks).
+- Date-bookmark entry — built; reason/note and metadata precede editing, SB5a recheck passed (`docs/manual-validation.md`, Sidebar and Bookmarks).
