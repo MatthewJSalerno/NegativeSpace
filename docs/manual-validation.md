@@ -9,9 +9,9 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Consolidated audit fixes:** the maintainer passed [Tests CA1–CA2](#consolidated-audit-fixes),
-including all lettered steps. Only **CA3a**, the approved follow-up for stable card widths,
-remains pending. Original SB1–SB6 and LI1–LI2 acceptance remains recorded below. Folder-coverage
+**Consolidated audit fixes:** the maintainer passed [Tests CA1–CA3](#consolidated-audit-fixes),
+including all lettered steps. No manual checks remain for this batch.
+Original SB1–SB6 and LI1–LI2 acceptance remains recorded below. Folder-coverage
 failure cases and query-result equivalence are checked automatically with generated
 fixtures; they do not require repeating the original sidebar walkthrough.
 
@@ -59,15 +59,15 @@ a retest. Do not infer manual acceptance from automated results.
 
 <a id="consolidated-audit-fixes"></a>
 
-**Accepted:** the maintainer passed CA1a–c and CA2a–b, with the observations below.
+**Accepted:** the maintainer passed CA1a–c, CA2a–b and CA3a, with the observations below.
 The review instance used for these steps has
 completed Index and Copy jobs from generated metadata scenarios, including expected
 source failures. No particular photo or filename is needed for this Logs-only check.
 
 **Observations retained:** switching from All to Bookmarked hides the date scrubber
-because Bookmarked sorts by bookmark reason, not date. Removing its gutter lets the
-responsive cards grew. The maintainer approved keeping an empty gutter; this is now
-implemented, with CA3a pending. Horizontal and Vertical preview controls are disabled at
+because Bookmarked sorts by bookmark reason, not date. Removing its gutter made the
+responsive cards grow. The maintainer approved keeping an empty gutter; this is now
+implemented and accepted in CA3a. Horizontal and Vertical preview controls are disabled at
 1× zoom and become available after zooming in. Neither comment changes the reported pass.
 
 ### Test CA1 — Logs reflow and keyboard access
