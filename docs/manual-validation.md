@@ -15,6 +15,8 @@ SB5a was rechecked and passed after a Check the date bookmark changed to show it
 note and recorded dates first, with **Edit metadata date…** focused.
 RC1–RC3 remain accepted historical results.
 
+**Folder last-indexed times:** [Tests LI1–LI2](#folder-last-indexed) are pending.
+
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
@@ -196,6 +198,34 @@ horizontal page overflow. Restore normal zoom afterward.
 **c.** Use Tab and Shift+Tab through refinements and the Bookmark dialog. Focus should
 be visible; Space should toggle a refinement, arrow keys should choose a bookmark
 reason, and Escape should close the dialog and return focus to its opener.
+
+<a id="folder-last-indexed"></a>
+
+## Folder last-indexed times
+
+Pending. Each source folder shows when an Index last read it in full, and **Index this
+folder** re-reads one folder. The review instance holds a generated scenario library,
+indexed in full once; `scenarios / edge` was then indexed on its own, so it has a later
+time than its siblings. Times show in your browser's time zone; the exact time is on hover.
+
+### Test LI1 — Times per folder
+
+**a.** Open Not organized › **Source folders** and unfold **scenarios**. Hover the name
+`burst`, then `edge`. Each shows "Last indexed today" and an exact time; `edge`'s time
+should be later than `burst`'s.
+
+**b.** Tick only `edge`. The heading reads **scenarios / edge** with **Last indexed today**
+beside it in muted text; hovering that note shows the same exact time as in step a.
+
+### Test LI2 — Index this folder
+
+**a.** Tick only `burst` and choose **Index this folder**. It starts without a confirmation;
+when the job finishes, the note beside **scenarios / burst** shows a new exact time on hover.
+`date-in-name`, a sibling, keeps its earlier time.
+
+**b.** Tick a second folder as well. **Index this folder** is disabled, and its hover text
+asks you to choose exactly one folder. **Copy this folder** and **Move this folder** behave
+the same way.
 
 ## Shared Reject confirmation
 
