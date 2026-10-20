@@ -1007,7 +1007,8 @@ Keep it history, independent size browsing and stable Bookmark ordering across p
 
 `DRIVER=sidebar_refinements_browser_drive.py` uses the normal generated browser harness.
 It checks combining refinements, exact navigation and Back, source scopes, selection,
-Bookmark creation/completion, delayed Inspector tabs, independent size browsing, keyboard
+Bookmark creation/completion, stable card widths when changing bookmark order,
+delayed Inspector tabs, independent size browsing, keyboard
 access, both themes and enlarged text. Existing review, attention, layout and similarity
 drivers exercise the same controls in their complete workflows. Both suites and this
 driver run in PR CI; extended navigation/layout/set drivers retain nightly/manual coverage.

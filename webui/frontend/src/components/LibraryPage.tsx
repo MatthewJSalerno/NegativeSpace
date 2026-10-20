@@ -794,9 +794,10 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   // The date scrubber, beside the gallery while it is sorted by date: the timeline under the
   // date filter when one is on, as a jump uses. Its column stays while the timeline loads or
   // a filter leaves one year. No usable capture date hides it because file-timestamp years
-  // do not describe capture dates; retain the gutter so controls and cards stay put.
+  // do not describe capture dates. Bookmark ordering also hides years; retain the gutter
+  // in both cases so controls, cards and the Inspector width stay put.
   const scrubTimeline = dates.length ? jumpTimeline : timeline;
-  const scrubber = !focus && !grouped && (browseSort === "newest" || browseSort === "oldest");
+  const scrubber = !focus && !grouped && (browseSort === "newest" || browseSort === "oldest" || browseSort === "bookmark");
   const inspectorMax = Math.max(MIN_SIDE, contentWidth - MIN_GALLERY - 8 - (scrubber ? SCRUBBER : 0) - (sourceTree ? SOURCE_TREE : 0));
   const boundedWidth = (px: number) => Math.round(Math.min(inspectorMax, Math.max(MIN_SIDE, px)));
   const effectivePanelWidth = boundedWidth(Number.isFinite(panelWidth) && panelWidth != null ? panelWidth : contentWidth / 2);
@@ -1262,7 +1263,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             </>
           )}
         </div>
-        {scrubber && (undated ? <div className="scrubber-space" aria-hidden="true" /> : <YearScrubber timeline={scrubTimeline} newestFirst={browseSort !== "oldest"}
+        {scrubber && (undated || browseSort === "bookmark" ? <div className="scrubber-space" aria-hidden="true" /> : <YearScrubber timeline={scrubTimeline} newestFirst={browseSort !== "oldest"}
                                                     current={currentDates} onJump={jumpTo} />)}
         {openId != null && (
           <>

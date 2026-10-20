@@ -415,6 +415,8 @@ in the other view, show its count and a link rather than implying no matches exi
 Refinements above the photos combine (AND); clicking an active toggle clears it.
 Needs review is a Library refinement, also available in Similar photos. Its Reason
 selector offers All, Small, Bookmarked and Needs verification, choosing one at a time.
+Bookmarked defaults to bookmark-reason ordering. It hides date-scrubber controls but
+keeps their empty gutter so switching from All does not resize gallery cards or the Inspector.
 Counts reflect the current search and other active filters. Sidebar totals remain
 whole-place. Selected warning controls remain visible at zero until cleared.
 

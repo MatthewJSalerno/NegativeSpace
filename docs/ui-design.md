@@ -249,6 +249,9 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   scrolls, while the gallery is sorted by date (not in Show only selected, a review, or
   grouped similar photos, or while **No usable capture date** is active, including combined refinements). Clearing No usable capture date restores it when the sort allows it.
   Keep its empty gutter to prevent gallery reflow; no year controls remain focusable.
+  Bookmark-reason sorting also retains this empty gutter: switching All ↔ Bookmarked
+  must not resize cards or the Inspector. The existing narrow-screen rule hides both
+  the scrubber and its empty gutter.
   This changes presentation only, not dates, ordering or filing. Otherwise its column
   stays while it loads or a filter leaves one year,
   so the gallery never shifts sideways: the years in the gallery's order, each
