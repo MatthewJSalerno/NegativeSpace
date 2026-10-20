@@ -1,7 +1,7 @@
 import { Tip } from "./Tip";
 import { useState } from "react";
 import type { FolderNode, FolderTree } from "../api";
-import { count, plural } from "../format";
+import { count, indexedExact, lastIndexed, plural } from "../format";
 
 // The files directly in the source folder, which no subfolder holds (GET /photos/folders).
 export const TOP_FILES = ".";
@@ -60,7 +60,8 @@ export function FoldersPanel({ tree, folders, onFolders, heading = "Folders" }: 
               {isOpen ? "▾" : "▸"}
             </button>
           ) : <span className="dates-caret" />}
-          <label htmlFor={id} className="dates-name folder-name" title={folderLabel(node.path)}>{node.name}</label>
+          <label htmlFor={id} className="dates-name folder-name"
+                 title={`${folderLabel(node.path)}\n${lastIndexed(node.last_indexed)} · ${indexedExact(node.last_indexed)}`}>{node.name}</label>
           <span className="dates-count">{count(node.photos)}</span>
         </div>
         {isOpen && node.folders.length > 0 && <ul>{node.folders.map((child) => row(child, depth + 1))}</ul>}

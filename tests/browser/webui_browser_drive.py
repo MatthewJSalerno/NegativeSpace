@@ -846,6 +846,14 @@ with sync_playwright() as p:
     expect(page.get_by_role("button", name="Copy this folder (0)…")).to_be_disabled()
     expect(page.get_by_role("button", name="Move this folder (10)…")).to_be_enabled()
     expect(page.locator(".card .badge-copied")).to_have_count(10)
+    # The opened folder says when an Index last read it in full; Index this folder refreshes it.
+    indexed = page.locator(".gallery-context .folder-indexed")
+    expect(indexed).to_have_text(re.compile(r"^Last indexed "))
+    before = indexed.get_attribute("title")
+    page.get_by_role("button", name="Index this folder", exact=True).click()
+    expect(indexed).not_to_have_attribute("title", before, timeout=60000)
+    expect(tree.locator(".folder-row", has_text="trip / day 1").locator("label")).to_have_attribute(
+        "title", re.compile(r"Last indexed "))
     shot("source-folders")
 
     phone = browser.new_page(viewport={"width": 390, "height": 844}, is_mobile=True)

@@ -309,7 +309,6 @@ on 2026-10-14 (tests M1–M3).
 
 Specified but not yet on screen:
 *   The unbacked-changes line on every page, and Retry backup in a persistent backup notice.
-*   Each folder's last-indexed time in Source folders.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
 *   The Index file-type summary (files found, eligible and excluded by type), which the

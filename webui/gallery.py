@@ -598,7 +598,14 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
         outside = conn.execute(
             f"SELECT COUNT(*) FROM photos p WHERE {shown} AND NOT (p.source_path >= ? AND p.source_path < ?)",
             params + (base, base[:-1] + "0")).fetchone()[0]
+        whole, by_folder = _last_indexed(conn, base[:-1])
     kept = {_folder(root, k) for k in keep or []}
+
+    def indexed(path):
+        # The latest completed Index that read the whole folder: a full Index, or one of
+        # this folder or a folder holding it.
+        times = [whole] + [t for f, t in by_folder.items() if path == f or path.startswith(f + "/")]
+        return max((t for t in times if t), default=None)
 
     def listed(path, node):
         return every or node["photos"] > 0 or path in kept or any(k.startswith(path + "/") for k in kept)
@@ -615,13 +622,31 @@ def folder_tree(db_path: Path, root: Path, *, view="all", q=None, undated=False,
                 node, path, label = child, f"{path}/{child_name}", f"{label} / {child_name}"
             if listed(path, node):
                 out.append({"path": path, "name": label, "photos": node["photos"],
-                            "eligible": {k: node[k] for k in acts},
+                            "eligible": {k: node[k] for k in acts}, "last_indexed": indexed(path),
                             "folders": build(path + "/", node["sub"])})
         return out
 
     return {"folders": build("", tree["sub"]),
-            "top_files": {"photos": top["photos"], "eligible": {k: top[k] for k in acts}},
+            "top_files": {"photos": top["photos"], "eligible": {k: top[k] for k in acts}, "last_indexed": whole},
             "outside": outside}
+
+
+def _last_indexed(conn, source: str):
+    """When each part of this source was last read in full: the end of the latest Completed
+    Index of the whole source, and of each folder an Index was scoped to. A cancelled,
+    failed or interrupted Index, or one scoped to selected photos, may not have read a whole
+    folder, so it does not count."""
+    whole, by_folder = None, {}
+    for targeting, ended in conn.execute(
+            "SELECT file_ids_filter, ended_at FROM runs WHERE mode = 'INDEX' AND status = 'Completed' "
+            "AND ended_at IS NOT NULL AND rtrim(source_path, '/') = ?", (source,)):
+        scope = json.loads(targeting) if targeting else {}
+        if not scope:
+            whole = max(whole or ended, ended)
+        elif "source_subdir" in scope:
+            folder = scope["source_subdir"].strip("/")
+            by_folder[folder] = max(by_folder.get(folder) or ended, ended)
+    return whole, by_folder
 
 
 def thumbnail_record(conn, photo_id: int, size: int):

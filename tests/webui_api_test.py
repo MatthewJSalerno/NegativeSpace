@@ -1240,6 +1240,27 @@ class JobsAndCatalog(ApiCase):
         listed = [f["path"] for f in self.client.get("/api/v1/photos/folders", params={"view": "unorganized"}).json()["folders"]]
         self.assertNotIn("Phone", listed, "without every, an empty folder drops out")
 
+    def test_each_folder_says_when_an_index_last_read_it_in_full(self):
+        for rel, seed in [("Phone/2019/a.jpg", "a"), ("Phone/2021/b.jpg", "b"), ("Camera/c.jpg", "c"), ("top.jpg", "top")]:
+            make_photo(self.cfg.source / rel, seed)
+        self.create_catalog()
+        full = self.wait_for(self.start(mode="index"))
+        tree = self.client.get("/api/v1/photos/folders", params={"every": "true"}).json()
+        rows = {f["path"]: f for f in tree["folders"]}
+        self.assertEqual(rows["Phone"]["last_indexed"], full["ended_at"], "a full Index reads every folder")
+        self.assertEqual(rows["Camera"]["last_indexed"], full["ended_at"])
+        self.assertEqual(tree["top_files"]["last_indexed"], full["ended_at"])
+        # An Index of one folder updates that folder and its subfolders, nothing else.
+        scoped = self.wait_for(self.start(mode="index", source_subdir="Phone"))
+        self.assertGreater(scoped["ended_at"], full["ended_at"])
+        tree = self.client.get("/api/v1/photos/folders", params={"every": "true"}).json()
+        rows = {f["path"]: f for f in tree["folders"]}
+        self.assertEqual(rows["Phone"]["last_indexed"], scoped["ended_at"])
+        self.assertEqual({f["path"]: f["last_indexed"] for f in rows["Phone"]["folders"]},
+                         {"Phone/2019": scoped["ended_at"], "Phone/2021": scoped["ended_at"]})
+        self.assertEqual(rows["Camera"]["last_indexed"], full["ended_at"], "a sibling keeps the full Index's time")
+        self.assertEqual(tree["top_files"]["last_indexed"], full["ended_at"])
+
     def test_folder_jobs_preserve_literal_names_and_leave_siblings_untouched(self):
         cases = (("album ", "album"), (" album", "album"), (" ", "neighbor"),
                  ("outer / inner ", "outer / inner"), ("café_100% ", "café_100%"),
@@ -1324,7 +1345,8 @@ class JobsAndCatalog(ApiCase):
                         tree = response.json()
                         self.assertEqual(tree["outside"], 0)
                         self.assertEqual(tree["top_files"],
-                                         {"photos": 0, "eligible": {"copy": 0, "move": 0}})
+                                         {"photos": 0, "eligible": {"copy": 0, "move": 0}, "last_indexed": None},
+                                         "no Index ran, so no folder has a last-indexed time")
                         folders = list(tree["folders"])
                         if "/" in relative:
                             self.assertTrue(folders, "the selected empty folder must remain listed")

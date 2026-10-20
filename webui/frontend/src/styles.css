@@ -1140,3 +1140,6 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 @media (max-width: 800px) { .bookmark-choice { min-height: 44px; } }
 
 .sidebar a.sidebar-note .sidebar-count { margin: 0; flex: initial; color: inherit; }
+
+/* An opened source folder's last full Index, beside its name (webui-spec 2). */
+.folder-indexed { color: var(--muted); font-size: var(--type-xs); font-weight: var(--weight-normal); }

@@ -78,9 +78,11 @@ restores the previous view.
 photos you have marked reviewed and works even with reminders off. It does not change
 reminder settings. The box at the top searches filenames; the years on the right jump
 through photos sorted by date: point to see the month, click to go.
-**Source folders**, under Not organized, lists the source's folders: copy or move a folder
-at a time, and with **Still in source**, find the originals of photos you have already
-copied and move them off the source.
+**Source folders**, under Not organized, lists the source's folders and when each was last
+indexed. Open one folder to index, copy or move just that folder; **Index this folder**
+reads it again after you add photos to it, without reading the whole source. With **Still
+in source**, find the originals of photos you have already copied and move them off the
+source.
 
 When different photos in your results have the same name, their cards show the shortest
 part of the original source folder that tells them apart. Hover over a photo’s name to

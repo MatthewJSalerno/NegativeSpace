@@ -264,8 +264,8 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   still in the source": what is waiting, plus the originals of photos already copied or
   rejected after a Copy). Every catalogued folder stays listed, dimmed at 0 when nothing in
   it is shown, so the tree keeps its shape as photos are organized. With one folder
-  ticked, the heading names it and **Copy this folder (n)…** / **Move this folder (n)…**
-  sit under it, counted as the Jobs menu counts them (with zero or multiple folders,
+  ticked, the heading names it, its last full Index sits beside it in muted text, and
+  **Index this folder**, **Copy this folder (n)…** and **Move this folder (n)…** sit under it, counted as the Jobs menu counts them (with zero or multiple folders,
   the buttons remain visible but disabled with an explanation): a Move also removes the originals of
   photos already copied, each once its copy is verified again. In this view the Filters
   panel holds Types and Dates only. Empty states offer the next step as a button (**Show

@@ -182,11 +182,13 @@ export interface FolderNode {
   name: string;
   photos: number;
   eligible: { copy: number; move: number };
+  // End of the latest completed Index that read this whole folder, or null.
+  last_indexed: string | null;
   folders: FolderNode[];
 }
 export interface FolderTree {
   folders: FolderNode[];
-  top_files: { photos: number; eligible: { copy: number; move: number } };
+  top_files: { photos: number; eligible: { copy: number; move: number }; last_indexed: string | null };
   outside: number;
 }
 

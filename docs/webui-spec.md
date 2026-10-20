@@ -296,11 +296,18 @@ are in the **Filters** panel beside Sort, opened over the photos. Under Not orga
 the gallery, every catalogued folder listed (`GET /photos/folders?every=true`), with
 **Waiting | Still in source** (`view=source`: photos whose original is still in the
 source, so the originals of copied photos can be found and moved off by folder) and, for
-one ticked folder, **Copy this folder (n)…** / **Move this folder (n)…**. With zero or
-multiple folders, those controls stay visible but disabled with an explanation.
-When each folder was last indexed (decided 2026-10-17; not built) shows on hover over its
-row and beside the opened folder's name and its Copy/Move controls: "Last indexed 3 weeks
-ago" for recent times, a date for older ones, the exact time on hover.
+one ticked folder, **Index this folder**, **Copy this folder (n)…** and **Move this folder
+(n)…**. Index this folder reads that folder and its subfolders again (an Index scoped
+to it) and, like a full Index, starts without a confirmation because it changes no
+files. With zero or multiple folders, those controls stay visible but disabled with an
+explanation.
+When each folder was last indexed (built) shows on hover over its row and beside the
+opened folder's name: "Last indexed 12 days ago" within a year, a date for older times,
+the exact time on hover. It is the end of the latest **completed** Index that read the
+whole folder: a full Index, or one scoped to that folder or a folder holding it. A
+cancelled, failed or interrupted Index, or one scoped to selected photos, may not have
+read the whole folder and does not count; with none, the folder says "No completed Index
+yet". Relative times reuse the app's existing format (days, then months), not weeks.
 Opening a copied photo from Still in source shows its current destination Inspector,
 not an independent source-file preview. A notice above its tabs identifies the Library
 or Rejects copy and warns that its metadata may differ from the original. Inspector

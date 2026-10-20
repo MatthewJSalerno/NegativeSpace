@@ -13,7 +13,7 @@ import { FiltersButton } from "./FiltersButton";
 import { YearScrubber } from "./YearScrubber";
 
 import { api, ApiError, savedMatchMinimum, submissionSnapshot, subscribeSubmission, MATCH_THRESHOLDS, type ActionMode, type PlaceView, type Place, placeOf, type PhotoItem, type PhotoPage, type FolderTree, type SelectionPage, type Run, type Sort, type Status, type Timeline, type View } from "../api";
-import { count, plural } from "../format";
+import { count, indexedExact, lastIndexed, plural } from "../format";
 import { jobLabel, summary, useJobCompletion, useJobFeed } from "../jobs";
 import { Gallery } from "./Gallery";
 import { Inspector } from "./Inspector";
@@ -894,6 +894,15 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   };
   // Copy targets the folder; Move freezes its catalogued selection in the confirmation.
   const folderShown = sourceTree ? shownFolder(folderTree, folders) : null;
+  // Index changes no files, so like a full Index it starts without a confirmation.
+  const startFolderIndex = async (path: string) => {
+    setActionError(null);
+    try {
+      await api.startJob({ mode: "index", source_subdir: path });
+    } catch (e) {
+      setActionError(e instanceof ApiError ? e.message : "The job could not be started.");
+    }
+  };
   const askFolder = (mode: ActionMode) => {
     if (!folderShown) return;
     setConfirm(transferConfirm(mode, status, { folder: folderLabel(folderShown.path) }, async (move) => {
@@ -992,6 +1001,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
         <div className="gallery-pane">
           <div className="gallery-context">
             {!focus && <h2>{sourceTree && folderShown ? folderLabel(folderShown.path) : sourceTree ? "Source folders" : similar ? "Similar photos" : view === "review" ? "Library" : VIEW_LABEL[view]}</h2>}
+            {!focus && sourceTree && folderShown && <span className="folder-indexed" title={indexedExact(folderShown.last_indexed)}>{lastIndexed(folderShown.last_indexed)}</span>}
             {!focus && (undated || dates.length > 0 || types.length > 0 || (folders.length > 0 && !sourceTree) || !!q || similar || suspicious || reason !== "all" || sizeBelow != null) && <p className="section-note">
               {[sizeBelow != null && `Shorter side below ${sizeBelow} pixels`, similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No usable capture date", reason === "small" && "Small images", reason === "later" && "Bookmarked", reason === "issues" && "Files needing verification", reason === "attention" && "Needs attention", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
             </p>}
@@ -1036,13 +1046,17 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
           </div>}
           {!focus && sourceTree && (
             <div className="photo-actions">
+                <button className="photo-action" disabled={jobRunning || !folderShown}
+                        onClick={() => folderShown && void startFolderIndex(folderShown.path)}
+                        title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : !folderShown ? "Choose exactly one folder to index." : "Read this folder and its subfolders again, finding new and changed photos. Nothing is moved or copied."}>
+                  Index this folder</button>
                 <button className="photo-action" disabled={jobRunning || !folderShown?.eligible.copy} onClick={() => askFolder("copy")}
                         title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : !folderShown ? "Choose exactly one folder to copy." : !folderShown.eligible.copy ? "No eligible photos to copy in this folder." : "Copy what is waiting in this folder and its subfolders. The source is left untouched."}>
                   Copy this folder{folderShown ? ` (${count(folderShown.eligible.copy)})` : ""}…</button>
                 <button className="photo-action" disabled={jobRunning || !folderShown?.eligible.move} onClick={() => askFolder("move")}
                         title={jobRunning ? "A job is running. Wait for it to finish or cancel it." : !folderShown ? "Choose exactly one folder to move." : !folderShown.eligible.move ? "No eligible photos to move in this folder." : "Move what is waiting, and remove the originals of photos already copied once each copy is verified again."}>
                   Move this folder{folderShown ? ` (${count(folderShown.eligible.move)})` : ""}…</button>
-                <span className="section-note">Copy and Move apply to exactly one folder, including its subfolders.</span>
+                <span className="section-note">Index, Copy and Move apply to exactly one folder, including its subfolders.</span>
             </div>
           )}
           {loadError && <p className="error">{loadError}</p>}

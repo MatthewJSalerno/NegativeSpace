@@ -280,14 +280,19 @@ The source's folders for the Folders tree, built from catalogued source paths, n
 disk listing, so every folder offered holds photos a job can act on:
 
     {"folders": [{"path": "Camera/Nikon D750", "name": "Camera / Nikon D750", "photos": 812,
-                  "eligible": {"copy": 812, "move": 812}, "folders": [...]}, ...],
-     "top_files": {"photos": 4, "eligible": {"copy": 4, "move": 4}}, "outside": 0}
+                  "eligible": {"copy": 812, "move": 812},
+                  "last_indexed": "2026-10-19T14:02:11+00:00", "folders": [...]}, ...],
+     "top_files": {"photos": 4, "eligible": {"copy": 4, "move": 4},
+                   "last_indexed": "2026-10-19T14:02:11+00:00"}, "outside": 0}
 
 *   **`photos`** counts a folder's photos, subfolders included, for the same `view`, `q`,
     `undated`, `date` and `type`; `folder` does not narrow it, so an unticked folder keeps
     its count. A folder named in `folder` stays listed at 0, so it can be unticked; with
     `every=true`, every catalogued folder stays listed, at 0 where nothing is shown
     (Source folders).
+*   **`last_indexed`** is when the latest Completed Index that read the whole folder
+    ended: a full Index of this source, or one scoped to the folder or a folder holding
+    it; `null` when there is none. `top_files.last_indexed` counts full Indexes only.
 *   **`eligible`** is what a Copy or a Move of the folder would take (`--source-subdir`,
     `ns_db.TRANSFER_ELIGIBLE`), whatever the filters: Jobs' "this folder".
 *   **`name`** folds a chain of folders, each holding one folder and no photos of its own,
