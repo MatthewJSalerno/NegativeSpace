@@ -9,6 +9,11 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Consolidated audit fixes:** [Test CA1](#consolidated-audit-fixes) is pending for Logs
+reflow. Original SB1–SB6 and LI1–LI2 acceptance remains recorded below. Folder-coverage
+failure cases and query-result equivalence are checked automatically with generated
+fixtures; they do not require repeating the original sidebar walkthrough.
+
 **Sidebar and Bookmarks:** the maintainer passed [Tests SB1–SB6](#sidebar-bookmarks),
 including all lettered steps. No manual checks remain for the tested behavior.
 SB5a was rechecked and passed after a Check the date bookmark changed to show its reason,
@@ -47,6 +52,29 @@ a retest. Do not infer manual acceptance from automated results.
   as “not built”, “next”, “remaining” or “before merge” inside those archived instructions
   are historical scope, not the current backlog or permission to reset/run jobs.
   Use the component specs and [TODO.md](../TODO.md) for current feature status.
+
+## Consolidated audit fixes
+
+<a id="consolidated-audit-fixes"></a>
+
+**Pending:** CA1a–c. Use the fresh review instance supplied with these steps. It has
+completed Index and Copy jobs from generated metadata scenarios, including expected
+source failures. No particular photo or filename is needed for this Logs-only check.
+
+### Test CA1 — Logs reflow and keyboard access
+
+**a.** Open **Logs** in dark mode. Increase browser zoom to **200%** and resize the
+window if needed. The heading, export links, search and date fields should remain
+readable without horizontal page overflow. Enter a date in **From**; the whole value
+should fit. Clear that date before continuing.
+
+**b.** Use Tab to reach a job heading, then Enter to expand it. The job summary and
+entries should wrap within the available width. You should be able to scroll through
+file details and use Enter on the heading to collapse them. Keyboard focus stays visible.
+
+**c.** Return to **100%** zoom. Use **only** beside Failed, then **All statuses**.
+The search/date controls and results heading should stay in place as the explanatory
+text changes. Export links should remain separate from the filter controls.
 
 ## Sidebar and Bookmarks
 
