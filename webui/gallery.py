@@ -353,6 +353,15 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
 
     with catalog.connect(db_path) as conn:
         conn.execute('BEGIN')
+        # All counts share this read transaction. Reuse identical requests only
+        # within it; the next request always sees new jobs and review decisions.
+        count_results = {}
+        def count(where, values=()):
+            key = (where, values)
+            if key not in count_results:
+                count_results[key] = conn.execute("SELECT COUNT(*) FROM photos p WHERE " + where, values).fetchone()[0]
+            return count_results[key]
+
         # Location counts cover all photos there; total covers this filtered page.
         # Legacy clients also receive filtered matches for each location.
         raw_filtered, raw_params = _filters(q, undated, dates, types, folders, root,
@@ -361,43 +370,42 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             match_min=match_min, set_reference=set_reference, similar=similar, suspicious=suspicious, size_below=size_below)
         counts, matches = {}, {}
         for name in catalog.VIEWS:
-            base = f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(name, match_min)}"
-            counts[name] = conn.execute(base).fetchone()[0]
+            base = _view_clause(name, match_min)
+            counts[name] = count(base)
             extra, values = (raw_filtered, raw_params) if name == "review" else (place_filtered, place_params)
             # Keep legacy per-view matches photo-based and preserve explicit run scope.
             if name == view:
                 extra, values = run_sql + extra, run_params + values
-            matches[name] = conn.execute(base + extra, values).fetchone()[0] if extra else counts[name]
-        total = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}" + filtered,
-                             filtered_params).fetchone()[0]
+            matches[name] = count(base + extra, values)
+        total = count(_view_clause(view, match_min) + filtered, filtered_params)
         if view not in catalog.VIEWS:
-            counts[view] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}" + run_sql, run_params).fetchone()[0]
+            counts[view] = count(_view_clause(view, match_min) + run_sql, run_params)
         # Refinement counts use the current search and other active restrictions.
         elsewhere = {}
         if q:
             search_sql, search_params = _search_clause(q)
             for place in ('organized', 'unorganized', 'rejects'):
-                elsewhere[place] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(place, match_min)}"+search_sql, search_params).fetchone()[0]
+                elsewhere[place] = count(_view_clause(place, match_min) + search_sql, search_params)
+        # Evaluate each reason once per eligible photo. A reason implies review
+        # membership, so evaluating the whole review predicate again is redundant.
+        reasons = {}
+        reason_keys = ('all', 'issues', *review.REASONS) if view in ('review', 'organized', 'similar') else ('later',) if view == 'job' else ()
+        if reason_keys:
+            extra, values = _filters(q, undated, dates, types, folders, root, match_min=match_min,
+                similar=similar, suspicious=suspicious, run=run, size_below=size_below, set_reference=set_reference)
+            scope = _view_clause('organized' if view == 'review' else view, match_min)
+            flags = ('issues', *review.REASONS) if 'all' in reason_keys else reason_keys
+            columns = ', '.join(f"COALESCE(({review.predicate(key)}),0) AS {key}" for key in flags)
+            sums = ', '.join(f"COALESCE(SUM({(' OR '.join(flags)) if key == 'all' else key}),0) AS \"{key}\"" for key in reason_keys)
+            reasons = dict(conn.execute(f"WITH reason_flags AS MATERIALIZED (SELECT {columns} "
+                f"FROM photos p WHERE {scope}{extra}) SELECT {sums} FROM reason_flags", values).fetchone())
         chips = {}
         for chip in ('similar', 'suspicious', 'undated', 'small', 'attention', 'size'):
             extra, values = count_filters(chip)
-            chips[chip] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}"+extra, values).fetchone()[0]
-        reasons = {}
-        # Review counts describe each exclusive reason under the other refinements.
-        reason_keys = ('all', 'issues', *review.REASONS) if view in ('review', 'organized', 'similar') else ('later',) if view == 'job' else ()
-        for key in reason_keys:
-            extra, values = _filters(q, undated, dates, types, folders, root, match_min=match_min,
-                                    similar=similar, suspicious=suspicious, reason=key, run=run, size_below=size_below, set_reference=set_reference)
-            reasons[key] = conn.execute(f"SELECT COUNT(*) FROM photos p WHERE ({review.predicate()}) AND ({_view_clause(view, match_min)})"+extra, values).fetchone()[0]
-        # No capture date under every other filter, for its button, as the views are counted.
-        no_date, no_date_params = _filters(q, True, dates, types, folders, root, match_min=match_min, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below)
-        matches["undated"] = conn.execute(
-            f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)}" + no_date,
-            no_date_params).fetchone()[0]
-        # How many photos in this view have no capture date, whatever else is on, for its label.
-        counts["undated"] = conn.execute(
-            f"SELECT COUNT(*) FROM photos p WHERE {_view_clause(view, match_min)} AND {_UNDATED}" + run_sql, run_params
-        ).fetchone()[0]
+            chips[chip] = reasons['small'] if chip == 'small' and 'small' in reasons else count(_view_clause(view, match_min) + extra, values)
+        matches["undated"] = chips['undated']
+        # How many photos in this view have no capture date, whatever else is on.
+        counts["undated"] = count(_view_clause(view, match_min) + f" AND {_UNDATED}" + run_sql, run_params)
         prefix, columns, source = _counted_list(sort, match_min, include=view == "similar" or similar)
         where = _view_clause(view, match_min)
         rows = conn.execute(
