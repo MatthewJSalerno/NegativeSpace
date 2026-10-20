@@ -9,14 +9,14 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Consolidated audit fixes:** [Tests CA1–CA2](#consolidated-audit-fixes) are pending for
-Logs reflow and the single inline date-bookmark action. Original SB1–SB6 and LI1–LI2 acceptance remains recorded below. Folder-coverage
+**Consolidated audit fixes:** the maintainer passed [Tests CA1–CA2](#consolidated-audit-fixes),
+including all lettered steps. No manual checks remain for this batch. Original SB1–SB6 and LI1–LI2 acceptance remains recorded below. Folder-coverage
 failure cases and query-result equivalence are checked automatically with generated
 fixtures; they do not require repeating the original sidebar walkthrough.
 
 **Sidebar and Bookmarks:** the maintainer passed [Tests SB1–SB6](#sidebar-bookmarks),
-including all lettered steps. CA2 below rechecks only the date-bookmark action
-after removing its duplicate standalone button; other accepted steps remain accepted.
+including all lettered steps. CA2 also passed after removing the duplicate standalone
+date-bookmark button; other accepted steps remain accepted.
 SB5a was rechecked and passed after a Check the date bookmark changed to show its reason,
 note and recorded dates first, with **Edit metadata date…** focused.
 RC1–RC3 remain accepted historical results.
@@ -58,9 +58,16 @@ a retest. Do not infer manual acceptance from automated results.
 
 <a id="consolidated-audit-fixes"></a>
 
-**Pending:** CA1a–c and CA2a–b. Use the fresh review instance supplied with these steps. It has
+**Accepted:** the maintainer passed CA1a–c and CA2a–b, with the observations below.
+The review instance used for these steps has
 completed Index and Copy jobs from generated metadata scenarios, including expected
 source failures. No particular photo or filename is needed for this Logs-only check.
+
+**Observations retained:** switching from All to Bookmarked hides the date scrubber
+because Bookmarked sorts by bookmark reason, not date. Removing its gutter lets the
+responsive cards grow. Keeping an empty gutter is a proposed layout improvement, not
+an approved behavior change. Horizontal and Vertical preview controls are disabled at
+1× zoom and become available after zooming in. Neither comment changes the reported pass.
 
 ### Test CA1 — Logs reflow and keyboard access
 
