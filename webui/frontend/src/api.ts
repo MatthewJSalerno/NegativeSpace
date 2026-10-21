@@ -493,6 +493,9 @@ export interface Backups {
 }
 
 export interface LineageFile {
+  created_run_id: number;
+  indexed_sha1: string | null;
+  place: "source" | "library" | "rejects" | null;
   file_id: number;
   origin_file_id: number | null;
   origin_kind: "indexed" | "copy" | "observed_destination" | null;
@@ -509,6 +512,7 @@ export interface LineageFile {
 }
 
 export interface LineageOperation {
+  consolidated_path: string | null;
   consolidated_into: number | null;
   action: "rotation" | "date" | "metadata_source" | "metadata" | null;
   id: number;

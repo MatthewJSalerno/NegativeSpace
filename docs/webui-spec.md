@@ -1128,15 +1128,18 @@ Failed, skipped, cancelled and unfinished attempts retain those outcomes; they n
 claim a save. A metadata completion is not labelled as a Move. The shared Completed
 status filter includes completed moves and metadata operations.
 
-**The lineage tree** (built; to be replaced by the lineage timeline in `ui-design.md`,
-decided 2026-10-21) (`GET /photos/{id}/lineage`, §6.3) is a window of its own: one node
-per file (the source, each copy made from it, each exact duplicate), each with its
-presence and the steps that happened to it. Each step appears once, on the file it
-produced (a copy's **Copied here** on the copy), else on the file it acted on. A
-duplicate's path opens that photo; a step's job opens the log on that job for this photo;
-a failed step opens to its recorded reason and **Retry this photo**; hovering or focusing
-a path shows its size, content fingerprint and whether it matches, and when it was
-recorded. Escape closes the window only, not the panel behind it.
+**The lineage tree** opens the lineage timeline (`ui-design.md`, The lineage timeline;
+`GET /photos/{id}/lineage`, §6.3). A summary and four place lanes accompany recorded
+operations in order. Identical discoveries in the same Index share a row, retaining
+all file paths; different Index jobs remain separate. Repeated events can collapse.
+Earlier source versions are classified from their original recorded content, not
+from today's edited photo. Different sources joined by an edit remain separate until
+that consolidation event. A duplicate path opens its photo; job and **View in log**
+links open its history. Failure details retain **Recheck after fixing** where supported.
+Path information retains size, fingerprints, matching state and first-recorded time.
+**Now** reports recorded presence and locations, not a live disk check. Metadata
+choices and jobs without a file step remain accessible. Escape closes only this window.
+
 
 **Source metadata holds.** Needs attention means the source photo cannot yet be
 organized; No usable capture date is a separate date property, not an import restriction

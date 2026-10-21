@@ -945,6 +945,18 @@ class JobsAndCatalog(ApiCase):
         copied = next(op for op in tree["operations"] if op["status"] == "Copied")
         self.assertEqual({(x["file_id"], x["role"]) for x in copied["files"]},
                          {(own["file_id"], "source"), (copy["file_id"], "destination")})
+        self.assertEqual(copy["place"], "library")
+        self.assertEqual(own["place"], "source")
+        first_index = next(op["run_id"] for op in tree["operations"] if op["mode"] == "INDEX")
+        self.assertTrue(all(f["created_run_id"] == first_index for f in sources))
+        copied_path = copy["path"]
+        self.wait_for(self.start(mode="reject", file_ids=[anchor["id"]]))
+        rejected = self.client.get(f"/api/v1/photos/{anchor['id']}/lineage").json()
+        self.assertEqual(next(f for f in rejected["files"] if f["file_id"] == copy["file_id"])["place"], "rejects")
+        self.assertEqual(next(op for op in rejected["operations"] if op["id"] == copied["id"])["dest_path"], copied_path)
+        self.wait_for(self.start(mode="return", file_ids=[anchor["id"]]))
+        returned = self.client.get(f"/api/v1/photos/{anchor['id']}/lineage").json()
+        self.assertEqual(next(f for f in returned["files"] if f["file_id"] == copy["file_id"])["place"], "library")
         self.assertEqual(self.client.get("/api/v1/photos/99999/lineage").status_code, 404)
 
     def test_repeated_empty_source_refusals_do_not_refresh_coverage(self):

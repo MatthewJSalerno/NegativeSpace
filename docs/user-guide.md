@@ -207,7 +207,15 @@ your current primary source.
 ## 8. History, logs and stats
 
 Every photo keeps its full history: each file it has been, each copy made of it, and
-every job that touched it. **View lineage tree** in the panel shows it.
+every job that touched it. **View lineage tree** opens a timeline with a summary,
+then the jobs in order and the files they worked on. Identical files found together
+share an Index entry; files found later have their own entries. **Show all** reveals
+additional paths, and **Show events** expands repeated steps in a long history.
+Later edits don't change which files matched when they arrived. If an edit makes
+two files identical, the timeline shows their separate arrivals and the edit that
+joined their histories.
+**View in log** opens the related job. **Now** shows the last recorded locations,
+not a live check of your files. Hover or focus a path for its recorded details.
 
 **Logs** lists every job and everything it did, with any failures, their reasons, and
 **Retry**. Expand **Metadata choices** to see saved import decisions and the jobs that

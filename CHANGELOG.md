@@ -9,6 +9,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Show photo lineage as a timeline with grouped identical arrivals, repeated-history
+  disclosures and recorded current locations. Earlier source files stay distinct
+  until an edit makes them identical; that step names the retained photo.
+
 - Rename organized photos from their information pane, choose a recorded alternative
   name, and find photos with other names. Preview collisions before confirming;
   active XMP sidecars follow the photo, while source files remain unchanged.

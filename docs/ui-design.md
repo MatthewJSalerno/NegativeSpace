@@ -474,7 +474,7 @@ it; the **lineage tree** traces the photo back to its origin through every file 
 the **log** shows the jobs and the work each did. Keep each to its job rather than merging
 them.
 
-**The lineage timeline** (decided 2026-10-21; not built; replaces the lineage tree's nested
+**The lineage timeline** (built; decided 2026-10-21; replaces the lineage tree's nested
 list in its window, `webui-spec.md` §6.3). It answers, in order: where the photo is now,
 what happened to it, and where its identical copies went.
 
@@ -499,6 +499,12 @@ what happened to it, and where its identical copies went.
   Colours use the tokens (muted source, accent Library, warning Rejects) and never stand
   alone: every lane is labelled and every event is written in its row. The graph is
   decorative for assistive technology; the rows and the summary carry the content.
+- **Relationships belong to the event's time** (confirmed 2026-10-21). Later edits
+  never reclassify earlier identical discoveries using today's hash. Use original
+  Index fingerprints and recorded duplicate decisions. Sources with different
+  original content remain separate entries in Source, labelled **Separate source
+  file**. If an edit later consolidates them, that edit says **Became identical;
+  kept [filename]**, linking the survivor. Only that event joins their histories.
 - **Copies found by the same Index are one row** with a count on its dot ("and 4 identical
   copies") and their paths listed under it, the first few then **Show all N**. **Copies
   found by different Indexes are separate rows** ("Found an identical copy (3rd)…"),

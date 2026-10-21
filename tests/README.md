@@ -69,6 +69,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | `request_freshness_browser_drive.py` | PR / main / manual | — |
 | `review_browser_drive.py` | PR / main / manual | — |
 | `similar_browser_drive.py` | PR / main / manual | — |
+| `lineage_browser_drive.py` | PR / main / manual | — |
 | `same_name_browser_drive.py` | PR / main / manual | — |
 | `low_detail_browser_drive.py` | PR / main / manual | `LOW_DETAIL_FIXTURE=1` |
 | `source_scope_browser_drive.py` | PR / main / manual | — |
@@ -2157,3 +2158,19 @@ objects and 4.20s using equivalent string parsing (three runs each). Ordinary
 browsing was 1.24s in the latter run. Query plans used status, SHA-1 and operation
 photo-ID indexes. This optional history filter remains heavier than ordinary browsing;
 these shared-host measurements are not a latency guarantee.
+
+## Lineage timeline
+
+`lineage_browser_drive.py` builds real generated histories for a simple Copy, five
+identical files in one Index, five later arrivals in separate Indexes, and repeated
+Reject/Return jobs. It checks grouped discovery paths, file-specific log links,
+unchanged re-Index behavior, long-history collapse, sticky summary/Now, scroll cues,
+keyboard dismissal/focus restoration, and narrow/200% text reflow. It runs in PR CI.
+The API suite checks first-Index identity, recorded places after Reject/Return and
+unchanged historical operation paths. The metadata consolidation suite retains
+both original fingerprints through later edits. Browser regressions verify that
+current hashes cannot rewrite discovery lanes, and that different sources join
+only at the edit that made them identical. Failure details and a refused retry
+remain accessible. The existing default and metadata-choice
+browser drivers retain their lineage navigation and metadata-history checks.
+Maintainer steps are in [manual validation](../docs/manual-validation.md#lineage-timeline).

@@ -561,9 +561,9 @@ Everything recorded about a photo's files, for the lineage tree (`webui-spec.md`
      "files": [{"file_id", "origin_file_id", "origin_kind": "indexed" | "copy" | "observed_destination",
                 "path", "role": "source" | "destination", "presence": "present" | "removed" | "missing",
                 "sha1_hash", "matches": true, "file_size", "indexed_path", "created_at",
-                "photo_id", "photo_status"}, ...],
+                "photo_id", "photo_status", "created_run_id", "indexed_sha1", "place": "source" | "library" | "rejects" | null}, ...],
      "operations": [{"id", "run_id", "mode", "action", "status", "timestamp", "error_message", "photo_id",
-                     "source_path", "dest_path", "recovery",
+                     "source_path", "dest_path", "recovery", "consolidated_into", "consolidated_path",
                      "files": [{"file_id", "role": "source" | "destination" | "retained_copy"}]}, ...],
      "selected_by": [{"run_id", "mode", "status", "started_at"}, ...]}
 
@@ -574,6 +574,19 @@ content is the photo's. `operations` is every operation that touched any of them
 first, with the role each file played. `selected_by` is every job the photo was chosen for
 in a selection (`run_selections`), whatever that job then did with it. A copy's size is
 its origin's: it was verified byte for byte when made. An unknown photo is `404 unknown_photo`.
+
+`created_run_id` identifies the first discovery, so later Index observations are not
+shown as new arrivals. `place` is the recorded source or destination place, resolved
+from participating catalog photos; unknown destination ownership returns null.
+`indexed_sha1` is the immutable original Index fingerprint, independent of the
+current `sha1_hash`/`matches` fields. Original fingerprints and recorded duplicate
+Index outcomes establish historical relationships; edits do not reclassify earlier
+arrivals. Sources with different original content stay separate until a recorded
+consolidation joins them. `consolidated_path` is the survivor path from that event,
+not the survivor's current name, and is null for other operations.
+These fields do not check disk presence. Operation paths remain historical even when
+the current file has been renamed, rejected or returned. The timeline groups identical first
+discoveries by Index while retaining each file and its operation-specific log link.
 
 ### `GET /api/v1/photos/{id}/thumbnail`
 

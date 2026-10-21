@@ -9,6 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Lineage timeline:** Tests LT1–LT6 below are pending maintainer validation.
+
 **Photo names and rotation exits:** [Tests NR1–NR3](#photo-names-and-rotation-exits)
 passed, including [focused follow-ups NR1d–e, NR2d and NR3d](#photo-name-follow-ups).
 No manual checks remain for this batch. The existing IS, CA, SB and LI checks
@@ -36,6 +38,77 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Lineage timeline
+
+**Status:** automated validation passed; LT1–LT6 await maintainer validation.
+Docker validation: 51 Python suites (903 tests), 157 smoke tests including both RAW
+checks, 41 browser drivers and 11 supporting checks passed. No tests were skipped.
+The two browser selectors affected by the replacement were corrected and rerun;
+final focused checks cover enlarged-text headings and both consolidation workflows.
+The fresh review catalog contains the generated filenames below, already indexed
+and copied. Each search finds one representative in Library; identical originals
+can appear under the representative's retained name.
+
+### Test LT1 — A simple Index and Copy
+
+a. In **Library**, search **`lineage-simple.jpg`**, open it, then choose
+**Photo information → View lineage tree**. Expect one Index discovery, one Copy,
+and **Now** reporting Library with one original remaining in the source. Two later
+Copy attempts show **Skipped** because the photo was already in Library.
+
+b. Hover or keyboard-focus a path. Expect its size, recorded SHA-1, content match
+and first-recorded time. **View in log** opens that job for this photo. Return and
+reopen lineage; Escape closes it and restores focus to its opener.
+
+### Test LT2 — Identical files found together
+
+a. Search **`lineage-one-index.jpg`** in Library. Open lineage. Expect one Index
+entry containing five source files, with three paths initially visible.
+
+b. Select **Show all 5**. Each file keeps its own path and recorded time. An
+identical-copy path opens that photo; **View in log** opens its job history.
+There are four labelled place lanes, regardless of the number of copies.
+
+### Test LT3 — Copies discovered in later Indexes
+
+a. Search **`lineage-later.jpg`** in Library and open lineage. The first Index
+and Copy are followed by a collapsed group of five later Index discoveries.
+
+b. Select **Show events**. Expect five separate later arrivals, each with a
+separate Index job and its own file path. **Hide events** collapses them again;
+the summary and Now still account for all six originals.
+
+### Test LT4 — Reject, Return and long-history scrolling
+
+a. Search **`lineage-long.jpg`** in Library and open lineage. Expect five
+Reject/Return pairs after Index and Copy. Now ends in Library.
+
+b. Scroll through its history. The summary/lane headings and Now remain visible,
+with More above/More below cues where content continues. Reject branches to
+Rejects; Return leads back to Library. A historical Copy path remains its original
+recorded path, regardless of later moves.
+
+### Test LT5 — Keyboard and larger text
+
+a. With **`lineage-long.jpg`** open, use Tab/Shift+Tab through the lineage
+window. Focus stays inside; paths, log links and disclosures are reachable.
+Escape returns to the opener.
+
+b. Reopen it at 200% text/browser zoom and resize the desktop window. Text wraps,
+controls remain usable and paths are not clipped. Return to normal zoom.
+
+### Test LT6 — Separate files joined by an edit
+
+a. In **Library**, search **`dedup-date-keep.jpg`** and open lineage. The two
+original files arrived in the same Index with different dates. Expect separate
+Index entries, including **Separate source file** for `dedup-date-edit.jpg`,
+rather than an identical-copy label.
+
+b. Scroll to the Metadata job after the two Copy entries. Expect **Date saved**
+and **Became identical; kept dedup-date-keep.jpg**. The join belongs to this edit;
+it does not change the earlier arrivals. The kept filename opens the survivor.
+**Now** reports Library and two originals remaining in the source.
 
 ## Photo names and rotation exits
 
