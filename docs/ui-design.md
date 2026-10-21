@@ -88,6 +88,10 @@ themes. They occupy the browser's top layer so sticky sidebars and adjacent phot
 cannot clip or cover the text. Help is positioned using its rendered size, stays within
 the viewport when it resizes or scrolls, and scrolls internally if needed at larger text
 sizes. Its content is keyboard-focusable so arrow keys can scroll it; Escape dismisses it.
+When an information icon is present, only that icon opens the help by hover, focus or
+click; the surrounding text and row are not hover targets. Moving onto the open help
+keeps it available for reading. Help without an information icon keeps its existing
+hover/focus behavior, including native filename and control tooltips.
 
 Stats warning and failure tiles retain their semantic colored left borders so
 problems are easy to notice. Folder-table cells retain the shared spacing, including
@@ -119,7 +123,7 @@ preview and confirmation controls. Navigation goes to its named destination/tab.
 | Filter trees | Consistent rows, counts and focus. Folder/type labels filter; date-name buttons jump and carry an arrow cue. Parent/child inclusion rules remain those in the web spec. |
 | Menus | `ui/MenuButton.tsx` manages focus, item traversal, nested scopes and dismissal. Domain components provide labels, counts, reasons and callbacks. |
 | Dialogs | `ui/Modal.tsx` uses native modal dialogs and top-layer inertness. Desktop Inspector stays nonmodal; on narrow screens its covering panel becomes modal. |
-| Supplemental help | `Tip.tsx`: hover/focus plus an explicit information button for touch; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. Richer help, such as a small diagram drawn with theme tokens, uses `content` with `wide`; `text` stays its plain form. |
+| Supplemental help | `Tip.tsx`: the information icon is the hover/focus/click target when present; without an icon, retain label hover/focus; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. Richer help, such as a small diagram drawn with theme tokens, uses `content` with `wide`; `text` stays its plain form. |
 | Paged loading | `ui/PageBoundary.tsx` and `paged.ts`: idle/load, pending, failed/retry and end states. Keep already-loaded photos and selection on failure. |
 
 History and Logs use the action and outcome together: **Rotation saved** or **Date

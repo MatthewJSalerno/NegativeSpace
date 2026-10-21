@@ -330,7 +330,6 @@ body.dragging { cursor: col-resize; user-select: none; }
 .info th, .info td { padding: var(--space-1) var(--space-2); text-align: left; vertical-align: top; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
 .info tr:first-child th, .info tr:first-child td { border-top: 0; }
 .info th { width: 34%; font-weight: var(--weight-normal); color: var(--muted); }
-.row-tip { cursor: help; }
 /* Recorded file details expand inside their information section. */
 .info .meta-row > td { padding: var(--space-2) var(--space-2); }
 .info-empty { margin: 0; padding: var(--space-2) var(--space-2); border: 1px solid var(--border); border-radius: var(--control-radius); }

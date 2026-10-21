@@ -333,8 +333,14 @@ with sync_playwright() as p:
     expect(inspector).not_to_contain_text("File created")
     expect(inspector).to_contain_text("File modified")
     # The file's time says what it is for, briefly; how it was recorded is on hover.
-    expect(inspector.locator(".row-tip", has_text="File modified")).to_have_attribute(
-        "title", "As recorded when NegativeSpace first indexed this file.")
+    modified = inspector.locator(".tip", has_text="File modified")
+    expect(modified).to_have_attribute("data-tip", "As recorded when NegativeSpace first indexed this file.")
+    modified.hover(position={"x": 2, "y": 2})
+    expect(modified.locator(".help-content")).to_have_count(0)
+    modified.get_by_role("button", name="More information").hover()
+    expect(modified.locator(".help-content")).to_contain_text("As recorded when NegativeSpace first indexed this file.")
+    page.mouse.move(5, 5)
+    expect(modified.locator(".help-content")).to_have_count(0)
     expect(inspector).to_contain_text("File modification year is used for Undated filing.")
     expect(inspector).not_to_contain_text("no EXIF date taken")
     # History, in a section of its own near the top, with the latest events.

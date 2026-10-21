@@ -9,8 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Lineage timeline:** LT1–LT7 passed. Only LT7d (information-icon trigger) remains
-a focused follow-up; the accepted checks do not need repeating.
+**Lineage timeline:** LT1–LT7 passed. Only LT7d–e (shared information-icon triggers) remain
+focused follow-ups; the accepted checks do not need repeating.
 
 **Photo names and rotation exits:** [Tests NR1–NR3](#photo-names-and-rotation-exits)
 passed, including [focused follow-ups NR1d–e, NR2d and NR3d](#photo-name-follow-ups).
@@ -44,7 +44,9 @@ a retest. Do not infer manual acceptance from automated results.
 
 **Status:** LT1–LT6 passed maintainer validation. Comments: widen path help,
 clarify repeated discovery timestamps, and remove the Rejects line extending past
-Return. LT7a–c subsequently passed; LT7d covers the requested icon-only help trigger.
+Return. LT7a–c subsequently passed; LT7d–e cover the shared icon-only help rule.
+Shared-help follow-up: build, spec checks, default/shared UI, reference sets, review,
+lineage and same-name browser workflows passed, including keyboard access and reflow.
 Docker validation: 51 Python suites (903 tests), 157 smoke tests including both RAW
 checks, 41 browser drivers and 11 supporting checks passed. No tests were skipped.
 The two browser selectors affected by the replacement were corrected and rerun;
@@ -141,6 +143,11 @@ for **`lineage-later.jpg`** still have their own dated rows.
 d. Search **`lineage-simple.jpg`** and open lineage. Hovering the filename should
 not open file help. Hover or keyboard-focus its adjacent information icon to open
 it; Escape dismisses the help while leaving lineage open.
+
+e. Open **Filters** and hover the **Show only** text: no help opens. Hover its
+information icon: help opens. Move onto the help to read it; keyboard focus and
+Escape still work. On **`lineage-simple.jpg`**, check the **File modified** icon in
+File information follows the same rule. Filename hovers without icons remain unchanged.
 
 ## Photo names and rotation exits
 

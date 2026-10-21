@@ -251,6 +251,9 @@ def check_ui(browser, base, _shot):
     # closes only the help, not the Filters panel around it.
     page.get_by_role("button", name="Filters", exact=True).click()
     help_button = page.locator(".filters-panel .help-trigger:visible").first
+    help_label = help_button.locator("..").locator(".dates-show-only")
+    help_label.hover()
+    expect(page.locator(".filters-panel .help-content")).to_have_count(0)
     help_button.click()
     expect(help_button).to_have_attribute("aria-expanded", "true")
     expect(page.locator(".filters-panel .help-content")).not_to_be_empty()
@@ -262,6 +265,10 @@ def check_ui(browser, base, _shot):
     actions.hover()  # Leave the help target before testing a fresh pointer entry.
     help_button.hover()
     help_content = page.locator(".filters-panel .help-content")
+    expect(help_content).to_be_visible()
+    help_label.hover()
+    expect(help_content).to_have_count(0)
+    help_button.hover()
     expect(help_content).to_be_visible()
     help_content.hover()
     page.wait_for_timeout(200)  # The pointer has crossed the bubble's dismissal grace period.

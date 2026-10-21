@@ -5,6 +5,8 @@ Appearance uses shared spacing, type and surface tokens with locally served Inte
 Settings starts with Appearance, an immediate, browser-local Cool neutral / Warm neutral preference;
 both palettes follow the system light/dark setting, independently of saved engine settings.
 It covers controls, keyboard focus, dialogs, help, form validation and loading/retry states.
+Help with an information icon opens from that icon only (hover, focus or click), not
+the surrounding line. Existing hover behavior without an icon remains unchanged.
 Desktop browsers are the required target; mobile support is optional. Existing narrow-layout
 behavior is documented as implemented, not as a mobile support requirement.
 
@@ -1112,7 +1114,7 @@ status preserves the tab layout; an unknown status reserves space rather than fl
 a single tab. Actions continue to depend on loaded details.
 
 **The file's modification time** is the time the file carried when the first Index read
-it, not a date the photo was scanned; its label says so on hover (**"As recorded when
+it, not a date the photo was scanned; its information icon says so on hover (**"As recorded when
 NegativeSpace first indexed this file"**). The Date taken row explains when the file
 modification year is used for Undated filing. Do not repeat that explanation under File
 modified or claim EXIF is missing when XMP supplies the date.

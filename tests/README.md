@@ -328,6 +328,8 @@ of the checkout, build that copy under another tag, and run with `IMAGE` set to 
 
 The default driver and `ui_browser_drive.py` run `ui_browser_checks.py` for shared control behavior: modal
 focus, menus, field errors, help, theme contrast, failed-page retry and narrow layouts.
+Help checks require icon-only activation when an information icon is present, preserve
+pointer access to open help, and verify keyboard focus, click and Escape dismissal.
 Selection checks preserve the toolbar height and navigation position while keeping
 the selection actions' full-height click targets.
 Single-photo Copy/Move confirms in a dialog without replacing the gallery or hiding
@@ -493,8 +495,8 @@ thresholds, paging, positioning, destination-only eligibility and no DB writes.
 Run the browser harness with `DRIVER=reference_sets_browser_drive.py` and
 `SIMILARITY_RECOVERY_FIXTURE=1`, specifying the built `IMAGE` and `WEB_IMAGE`.
 It uses only the harness's disposable generated catalog. Checks include grouping, the
-explanation of sets and its accurate diagram membership; hover, keyboard focus, the ⓘ
-button, Escape and scrollable viewport bounds at 200% text; set review, selection
+explanation of sets and its accurate diagram membership; icon hover (not label hover),
+keyboard focus, the ⓘ button, Escape and scrollable viewport bounds at 200% text; set review, selection
 preservation, a dense set's members paged in the gallery, and per-file recovery failure
 details in Logs.
 

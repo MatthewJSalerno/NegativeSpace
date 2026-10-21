@@ -118,12 +118,14 @@ with sync_playwright() as p:
     card.locator('.card-check input').check()
     shot('reference-set-gallery')
     # The cards carry no repeated explanation and no Explore window; one line above the
-    # sets says what a set is, and hovering it shows the diagram.
+    # sets says what a set is; its information icon opens the diagram.
     expect(card.get_by_role('button',name='Explore related sets',exact=True)).to_have_count(0)
     expect(card.get_by_text('Identical sets shown once',exact=False)).to_have_count(0)
     guidance=page.locator('.gallery-guidance > div:not([aria-hidden=true])')
     expect(guidance).to_contain_text('Each card is a set: a reference photo and every photo that matches it.')
     guidance.get_by_text('Each card is a set',exact=False).hover()
+    expect(page.get_by_role('note')).to_have_count(0)
+    guidance.get_by_role('button',name='More information').hover()
     note=page.get_by_role('note')
     expect(note.get_by_role('img',name='Two sets that share a photo')).to_be_visible()
     expect(note).to_contain_text("A and C don't match each other")
@@ -133,7 +135,7 @@ with sync_playwright() as p:
     shot('sets-help')
     if os.environ.get('SHOTS'):
         page.emulate_media(color_scheme='dark')
-        guidance.get_by_text('Each card is a set',exact=False).hover()
+        guidance.get_by_role('button',name='More information').hover()
         expect(note.get_by_role('img',name='Two sets that share a photo')).to_be_visible()
         shot('sets-help-dark')
         page.emulate_media(color_scheme='light')
@@ -152,7 +154,7 @@ with sync_playwright() as p:
     help_button.press('Escape')
     expect(note).to_have_count(0)
     page.mouse.move(5,5)
-    guidance.get_by_text('Each card is a set',exact=False).hover()
+    guidance.get_by_role('button',name='More information').hover()
     note.hover()
     expect(note).to_be_visible()
     page.mouse.move(5,5)
