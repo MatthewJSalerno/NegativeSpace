@@ -3,6 +3,7 @@
 import contextlib
 import ctypes
 import errno
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -66,7 +67,7 @@ def _rename_noreplace(old: str, new: str) -> str:
 
 
 def rename_candidates(db_path: Path, photo_id: int) -> dict:
-    """The filenames a delivered photo's content has carried, for the Rename tab
+    """The filenames a delivered photo's content has carried, for the photo information panel
     (webui-spec 7.3): every catalogued copy's source name, current and historical,
     across its exact-duplicate group. Read only; no lock.
 
@@ -120,7 +121,7 @@ def plan_rename(conn, dest_root: Path, photo_id: int, name: str) -> dict:
     `_N` suffix on a collision (webui-spec 7.3 "a typed name validates live against
     the destination folder"). Reads only. Raises RenameRefused.
 
-    Returns {'photo_id', 'sha1', 'current_path', 'new_path', 'collision', 'unchanged'}."""
+    Returns the photo identity, status, current/new paths, collision and unchanged flags."""
     row = conn.execute("SELECT sha1_hash, dest_path, status FROM photos WHERE id = ?", (photo_id,)).fetchone()
     if row is None:
         raise RenameRefused("No catalogued photo has this id.")
@@ -136,9 +137,14 @@ def plan_rename(conn, dest_root: Path, photo_id: int, name: str) -> dict:
         candidate = metadata_relocate.choose_target(conn, dest_root, current_path, wanted, 'rename')
     except (OSError, ValueError) as exc:
         raise RenameRefused(str(exc)) from exc
-    return {"photo_id": photo_id, "sha1": sha1, "current_path": current, "new_path": str(candidate),
+    return {"photo_id": photo_id, "sha1": sha1, "status": status, "current_path": current, "new_path": str(candidate),
             "collision": candidate != wanted and candidate != current_path,
             "unchanged": candidate == current_path}
+
+
+def rename_token(plan: dict) -> str:
+    """Bind a confirmation to the content, location, status and resolved new name."""
+    return hashlib.sha256(json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def preview_rename(db_path: Path, dest_root: Path, photo_id: int, name: str) -> dict:
@@ -151,12 +157,14 @@ def preview_rename(db_path: Path, dest_root: Path, photo_id: int, name: str) -> 
             plan = plan_rename(conn, dest_root, photo_id, name)
         except RenameRefused as exc:
             return {"photo_id": photo_id, "error": str(exc)}
+    token = rename_token(plan)
     plan.pop("sha1")
-    return dict(plan, error=None)
+    plan.pop("status")
+    return dict(plan, token=token, error=None)
 
 
 def rename_delivered_file(db_path: Path, dest_root: Path, backups_dir: Path, base_dir: Path,
-                          run_id: int, photo_id: int, name: str) -> str:
+                          run_id: int, photo_id: int, name: str, preview_token=None) -> str:
     """Gives a delivered file a new name (engine-spec 9.4). Returns the run outcome.
 
     Planning, verification and backup precede any file changes. Once intent is
@@ -177,6 +185,11 @@ def rename_delivered_file(db_path: Path, dest_root: Path, backups_dir: Path, bas
             plan = plan_rename(conn, dest_root, photo_id, name)
         except RenameRefused as exc:
             runtime.logger.error(f"Rename refused: {exc} Nothing was changed.")
+            return RunStatus.FAILED
+        if preview_token is not None and preview_token != rename_token(plan):
+            note = "The photo or available filename changed. Refresh the rename preview before saving. Nothing was changed."
+            store.log_operation(conn, run_id, photo_id, plan['current_path'], plan['new_path'], PhotoStatus.FAILED, note)
+            runtime.logger.error(note)
             return RunStatus.FAILED
         old, new = plan["current_path"], plan["new_path"]
         if plan["unchanged"]:
@@ -318,10 +331,11 @@ def run_rename(args, db_path: Path, base_dir: Path, lock_fd) -> int:
     dest_root = Path(args.dest).resolve()
     return jobs.run_maintenance_job(
         args, db_path, lock_fd, mode="RENAME", label="Rename",
-        submitted={"photo_id": args.rename, "name": args.name, "dest": str(dest_root)},
+        submitted={"photo_id": args.rename, "name": args.name, "dest": str(dest_root),
+                   **({"preview_token": args.rename_preview_token} if args.rename_preview_token else {})},
         defaults={}, overrides={},
         body=lambda run_id, config: rename_delivered_file(db_path, dest_root, Path(args.backups), base_dir,
-                                                          run_id, args.rename, args.name))
+                                                          run_id, args.rename, args.name, args.rename_preview_token))
 
 
 def _status_before_reject(conn, photo_id: int, status: str) -> str:

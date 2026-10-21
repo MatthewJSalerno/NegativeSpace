@@ -9,6 +9,11 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Photo names and rotation exits:** [Tests NR1–NR3](#photo-names-and-rotation-exits)
+passed, including [focused follow-ups NR1d–e, NR2d and NR3d](#photo-name-follow-ups).
+No manual checks remain for this batch. The existing IS, CA, SB and LI checks
+remain accepted; do not repeat them.
+
 **Index summary batch:** the maintainer passed [Tests IS1–IS3](#index-summary-actions),
 including all lettered steps. No manual checks remain for this batch.
 
@@ -31,6 +36,95 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Photo names and rotation exits
+
+**Status:** NR1–NR3 and all focused follow-ups passed maintainer validation.
+Rename placement/result wording, filter layout and turned-preview fit are accepted. The review has the demo library and generated metadata
+scenarios already indexed and copied: 4,776 organized photos. Broken/held scenarios remain
+in Not organized. The filenames below were verified in Library. Use **Photo information**
+and its **Destination** section; the field label is **Destination path**.
+
+### Test NR1 — Rename and collision preview
+
+a. In **Library**, clear filters and search **`md-full-name.jpg`**. Open it and find
+**Rename…** beside its destination path. **Also arrived as** starts collapsed. Open
+Rename and enter **`md-stem-name.jpg`**, another verified photo in the same folder.
+The preview must offer **`md-stem-name_1.jpg`** and explain that the name is taken.
+Select **Cancel**; the photo must still be named `md-full-name.jpg`.
+
+b. Open **Rename…** again and enter **`review-renamed.jpg`**. Confirm the preview
+keeps the folder and `.jpg` extension, then select **Rename photo**. Wait for
+**Photo renamed** and close. The heading/destination should show `review-renamed.jpg`.
+Its existing XMP should still appear in **Metadata**, with its recorded values intact.
+
+c. In the photo's History, open **View lineage tree** and check the Rename event.
+Close lineage, then select **View photo logs**: the Rename result records the old and
+new names and one successful rename. Return to Library and search
+**`review-renamed.jpg`**. Open Rename at 200% browser zoom; the input, resulting name
+and buttons remain usable. Cancel and return to normal zoom.
+
+### Test NR2 — Recorded names and the gallery filter
+
+a. Search **`review-renamed.jpg`** in Library. Expand **Also arrived as**. Find
+**`md-full-name`** and select its **Use this name** link. The preview offers
+`md-full-name.jpg`. Confirm, then close the result. Search **`md-full-name.jpg`**;
+its photo is back under that name. The newer name remains in the recorded alternatives.
+
+b. Clear search. Open **Filters** and select **Has other names**. The result heading
+names the active filter and the sort becomes **Most duplicates first**. Search
+**`md-full-name.jpg`**; the renamed photo remains present. Reload the browser and check
+that the filter and result remain. **Clear all filters** restores the ordinary view.
+
+c. Turn **Has other names** on once more, then select **Not organized**. The naming
+filter clears and the source view does not offer it. Return to **Library**.
+
+### Test NR3 — One unsaved rotation
+
+a. Search **`md-exif-only.jpg`** in Library and open it. Turn it right with the curved
+arrow, then close the photo pane. The compact **Save rotation before leaving?** dialog
+names the photo and its metadata target. Select **Keep reviewing**: the photo and its
+temporary turn stay open.
+
+b. Close the pane again and select **Discard and continue**. Reopen
+**`md-exif-only.jpg`**; the turn was not saved.
+
+c. Turn right again and close the pane. Before saving, check the prompt at 200% browser
+zoom: its text and three actions remain accessible. Return to normal zoom and select
+**Save and continue**. The prompt stays while the job saves, then closes the photo pane.
+Reopen **`md-exif-only.jpg`** and check the saved orientation in Metadata.
+
+| Tests | Automated coverage | Maintainer result |
+| --- | --- | --- |
+| NR1 | Real photo/XMP relocation, preserved sources, collision races, literal filenames, request replay, history | Passed, including focused follow-ups |
+| NR2 | Lazy alternatives, shared list/IDs/position/facet membership, recorded names and URL state | Passed, including focused follow-ups |
+| NR3 | Save/discard/keep, refused submissions, partial-save turn reset, comparison and multi-photo regressions | Passed, including focused follow-ups |
+
+### Photo-name follow-ups
+
+The original NR1–NR3 checks passed. Do not repeat them. The review retains the
+maintainer's catalog; `md-full-name.jpg` and `md-exif-only.jpg` were verified in Library.
+
+**NR1d — Header Rename.** Search **`md-full-name.jpg`**, open its large preview and
+select **Rename…** beside the filename at the top. It opens the same dialog as the
+Destination link. Cancel. Enlarge the photo and confirm the header link is also present.
+Cancel any open dialog and close the enlarged view.
+
+**NR1e — Accurate job result.** For **`md-full-name.jpg`**, open **View photo logs**.
+Its existing Rename jobs should say **Rename finished**, with **1 renamed**;
+they must not say no files were processed. No new rename is necessary.
+
+**NR2d — Stable filter layout.** In Library, close the preview, clear search and
+filters, then toggle **Filters → Has other names** on and off. Card widths and the
+**Load 60 at a time** control should stay in place. The year controls may hide when
+the sort is not a date, but their space stays reserved.
+
+**NR3d — Whole turned photo.** Search **`md-exif-only.jpg`**, open its large preview
+and turn it with the curved arrow. Check the whole photo is visible and its proportions
+remain correct. Try resizing the preview divider, then enlarge it and check again.
+Use **Reset** before closing; no save is needed for this visual check.
+
+**Follow-up status:** NR1d–e, NR2d and NR3d passed. No manual checks remain.
 
 ## Index summary actions
 

@@ -57,8 +57,8 @@ def _outcome(conn, run: dict, progress: list) -> dict:
     earlier work and run-level issues by construction (engine-spec 4.3). For a Copy or
     Move the transfer phases are the requested work, plus prerequisite scan failures
     that prevented a photo from reaching those phases. Successful scans are not
-    deliveries and must not count the same photo twice. Metadata jobs instead use
-    their journaled photo operations and recorded selections, without progress phases.
+    deliveries and must not count the same photo twice. Metadata and Rename jobs instead use
+    their journaled photo operations, without progress phases. Metadata also records selections.
     """
     phases = {p["phase"]: p for p in progress}
     wanted = _REQUESTED_PHASES.get(run["mode"], ())
@@ -68,7 +68,7 @@ def _outcome(conn, run: dict, progress: list) -> dict:
     for p in main:
         for key, n in p["counts"].items():
             counts[key] = counts.get(key, 0) + n
-    metadata_total = None
+    journal_total = None
     if run['mode'] == 'METADATA':
         # Metadata saves journal one requested photo operation rather than scan/
         # transfer progress. Derive existing and new jobs from that durable evidence.
@@ -82,7 +82,16 @@ def _outcome(conn, run: dict, progress: list) -> dict:
             if status in _SUCCESS | _FAILURE | _SKIPPED | {OPERATION_CANCELLED}:
                 counts[status] = counts.get(status, 0) + 1
         selected = conn.execute('SELECT COUNT(*) FROM run_selections WHERE run_id=?', (run['id'],)).fetchone()[0]
-        metadata_total = max(selected, len(rows))
+        journal_total = max(selected, len(rows))
+    elif run['mode'] == 'RENAME':
+        # Rename has no progress phase. Count its requested photo operation, never
+        # reconciliation of an earlier job or a run-level startup issue.
+        rows = conn.execute("SELECT status FROM operations WHERE run_id=? "
+            "AND photo_id IS NOT NULL AND reconciles_operation_id IS NULL", (run['id'],)).fetchall()
+        for (status,) in rows:
+            if status in _SUCCESS | _FAILURE | _SKIPPED | {OPERATION_CANCELLED}:
+                counts[status] = counts.get(status, 0) + 1
+        journal_total = len(rows)
     scan_failed = 0
     if run["mode"] in ("COPY", "MOVE"):
         # The engine excludes failed scan results from both transfer and duplicate
@@ -142,8 +151,8 @@ def _outcome(conn, run: dict, progress: list) -> dict:
     else:
         verdict = "no_change"
     total = sum(p["total"] or 0 for p in main) if main and all(p["total"] is not None for p in main) else None
-    if metadata_total is not None:
-        total = metadata_total
+    if journal_total is not None:
+        total = journal_total
     if total is not None:
         total += scan_failed
     return {"verdict": verdict, "succeeded": succeeded, "failed": failed, "skipped": skipped,

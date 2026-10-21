@@ -130,8 +130,10 @@ Open a match to compare the two side by side: their size, format, dates and ever
 recorded detail. **Reject…** under a photo turns that one down; **Keep this one, reject
 the other…** keeps one and reviews the rest before anything moves.
 
-Turns stay temporary until you save them. Leaving with unsaved turns offers a choice
-to save, discard them, or return to the photos. Use the curved-arrow buttons beside
+Turns stay temporary until you save them. Leaving one turned photo offers **Save and
+continue**, **Discard and continue**, or **Keep reviewing**. Saving must finish before
+you leave; a failure keeps the photo open. With several turned photos, choose which
+rotations to save. Use the curved-arrow buttons beside
 the large preview to turn it left or right,
 then **Save rotation** to keep the change or **Reset** to undo the viewing turn.
 For several selected photos, **Rotate…** in the selection bar opens a confirmation.
@@ -140,6 +142,13 @@ It saves Orientation to the photo’s metadata source without changing image pix
 saved in an XMP sidecar needs a gallery that reads sidecar Orientation.
 
 ![Two look-alikes side by side](images/side-by-side.png)
+
+To change a Library filename, open **Photo information** and choose **Rename…** beside
+the destination filename. **Also arrived as** lists recorded alternative names;
+**Use this name** opens the same preview. The extension and date folder stay unchanged,
+and any active XMP sidecar follows the photo. Check the resulting name, then confirm
+**Rename photo**. A taken name gets a numbered suffix; source originals stay untouched. **Filters › Has
+other names** finds photos with naming alternatives, most duplicates first.
 
 ## 6. Reject what you do not want
 

@@ -92,7 +92,7 @@ security concern, specified in `webui-spec.md` §5.6.
     *   `--clear-previews` — the web UI's **Free up** (`webui-spec.md` §4.2.1): removes every recorded detail preview and prints one line of JSON, `removed`, `bytes_freed` and `not_removed`. It exits `1` when any file could not be removed. Grid thumbnails stay, and so do recorded preview failures, which name no file and keep the reason a photo has no preview. Only files the catalog records are removed, so the space freed matches the per-size total the page showed. Each file goes before its record, and a file that cannot be removed keeps its record. Like `--preview`, it starts no run and takes no engine lock. If it races a preview request, the worst case is a record whose file is gone, and the next request regenerates it.
     *   `--rebuild-thumbnails missing|all` — the web UI's grid repair and rebuild (`webui-spec.md` §4.2.1). A job: it takes the engine lock, opens a `REBUILD` run, reconciles interrupted work first, honours cancellation while awaiting worker results and settles `Completed`, `Cancelled` or `Failed`. It needs no `--source`. `missing` makes the grid thumbnails not on disk, and `all` regenerates every one. Each is made from `catalogued_copies`: a delivered destination copy first, then a live source, and only one whose size and modification time still match the catalog. Under `all`, an existing thumbnail is replaced only when a copy supplies a new one, never discarded for lack of one. It uses `--workers` like a scan, records no operation, takes no backup, and exits `1` only when the run Failed. Refused with `--no-thumbnails`.
     *   `--check-destination quick|full` — the destination check (§9.1). A read-only job under the engine lock, opening a `CHECK` run. It needs no `--source`, uses `--workers` and `--exts` like a scan, records findings in `destination_findings`, changes nothing, and exits `1` only when the run Failed.
-    *   `--rename PHOTO_ID --name NAME [--dry-run]` and `--rename-candidates PHOTO_ID` — renaming a delivered file (§9.4). The rename is a `RENAME` job under the engine lock that backs up the catalog first; `--dry-run` and `--rename-candidates` answer in one line of JSON, take no lock and change nothing.
+    *   `--rename PHOTO_ID --name NAME [--dry-run] [--rename-preview-token TOKEN]` and `--rename-candidates PHOTO_ID` — renaming a delivered file (§9.4). The rename is a `RENAME` job under the engine lock that backs up the catalog first; `--dry-run` and `--rename-candidates` answer in one line of JSON, take no lock and change nothing.
     *   `--reject` and `--return-to-library`, each with `--file-ids`, `--file-ids-from` or `--source-subdir` (required) — rejecting organized photos and returning rejected ones (§9.5). `REJECT` and `RETURN` jobs under the engine lock that back up the catalog first and record the selection as Copy and Move do.
     *   The database write-queue size is intentionally **not** configurable — left as a hardcoded internal constant rather than exposed, since there was no concrete need identified for tuning it separately from `--workers`.
 *   **Targeted Processing** (mutually exclusive with each other — pick at most one, or omit all three for a full directory scan):
@@ -342,7 +342,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 30 and refuses incompatible catalogs before processing.
+initializes schema version 31 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -1217,6 +1217,12 @@ Record both paths for lineage and manual correction. There is no user-facing und
 a later rename is a new action validated against the current state.
 
 **How it is built.** `--rename PHOTO_ID --name NAME` is a `RENAME` job under the engine lock (`rename_delivered_file`); `--rename ... --dry-run` prints the resolved path as JSON without the lock, which is the live check a typed name needs; `--rename-candidates PHOTO_ID` prints the group's other names, from every copy's source path current and historical. Planning, verification and backup precede any file changes; durable intent makes later uncertainty recoverable:
+
+The web confirmation includes `--rename-preview-token`, a SHA-256 of the resolved plan
+(content hash, status, current path and proposed path). The engine rechecks it under
+its lock before any write. Changed content, location, status or collision resolution
+refuses with a recorded failure and requires a fresh preview. CLI renames without a
+token retain their existing live planning. Request replay binds the token and name.
 
 1.  **Plan** against the files there now (`plan_rename`). The requested stem gets the file's real extension: a trailing extension the engine reads, or the current one, is dropped, so `Beach.PNG` on a JPEG becomes `Beach.jpg`, while `Trip.2019` keeps its dot. A name that is empty, holds `/`, starts with `.` (hidden files are skipped) or exceeds 255 bytes is refused. The same name again changes nothing and takes no backup.
 2.  **Verify the file live**: present, with the catalog's SHA-1. A missing or changed file is recorded `Failed` with the destination-mismatch guidance (`webui-spec.md` §7.6).

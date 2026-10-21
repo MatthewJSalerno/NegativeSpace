@@ -295,6 +295,30 @@ class JobRunner:
         with self._start_lock:
             return self._launch(['--metadata','apply'],body['request_id'],metadata_request=request)
 
+    def rename_photo(self, photo_id, body):
+        from . import renaming
+        try:
+            renaming.confirmed(photo_id, body)
+        except (ValueError, TypeError) as exc:
+            raise JobRefused(400, {'error':'invalid_request', 'message':str(exc)}) from exc
+        validate_request_id(body['request_id'])
+        if not body['request_id']:
+            raise JobRefused(400, {'error':'invalid_request', 'message':'A request ID is required.'})
+        flags = ['--rename', str(photo_id), '--name=' + body['name'], '--rename-preview-token', body['token']]
+        with self._start_lock:
+            replay = self._replay(flags, body['request_id'])
+            if replay is not None:
+                return replay
+            if self._probe_lock():
+                raise self._busy()
+            try:
+                plan = renaming.preview(self.cfg, photo_id, {'name':body['name']})
+                if plan['token'] != body['token']:
+                    raise ValueError('The photo or available filename changed. Refresh the rename preview.')
+            except (ValueError, OSError) as exc:
+                raise JobRefused(409, {'error':'rename_changed', 'message':str(exc)}) from exc
+            return self._launch(flags, body['request_id'])
+
     def save_primary(self, photo_id, body):
         from . import metadata_primary
         from engine import metadata_command
@@ -474,7 +498,7 @@ class JobRunner:
         if record is None:
             return None
         def argument(flag):
-            return flags[flags.index(flag) + 1] if flag in flags else None
+            return flags[flags.index(flag) + 1] if flag in flags else next((x[len(flag)+1:] for x in flags if x.startswith(flag + "=")), None)
         targeting = ({"selection": len(selection), "sha256": ns_db.selection_digest(selection)}
                      if selection else {"source_subdir": argument("--source-subdir")}
                      if "--source-subdir" in flags else None)
@@ -492,6 +516,10 @@ class JobRunner:
         for flag, mode in (("--reject", "REJECT"), ("--return-to-library", "RETURN")):
             if flag in flags:
                 expected = {**expected, "mode": mode, "submitted": {}}
+        if '--rename' in flags:
+            expected = {'mode':'RENAME','source':None,'destination':None,'targeting':None,'overrides':{},
+                        'submitted':{'photo_id':int(argument('--rename')), 'name':argument('--name'),
+                                     'dest':str(self.cfg.dest.resolve()), 'preview_token':argument('--rename-preview-token')}}
         if '--repair-similarity' in flags:
             expected = {'mode':'SIMILARITY', 'source':None, 'destination':None,
                         'targeting':None, 'overrides':{}, 'submitted':{

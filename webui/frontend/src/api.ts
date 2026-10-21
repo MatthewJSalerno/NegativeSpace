@@ -48,7 +48,7 @@ export type ActionMode = "copy" | "move" | "reject" | "return";
 export type Place = "library" | "rejects";
 export const placeOf = (status: string): Place =>
   status === "Rejected" || status === "Rejected_Copied" ? "rejects" : "library";
-export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name" | "matches" | "bookmark";
+export type Sort = "duplicates" | "newest" | "oldest" | "largest" | "smallest" | "name" | "matches" | "bookmark";
 
 export interface MetadataSourceView {
   id: string; kind: string; label: string; version_id?: number;
@@ -63,6 +63,8 @@ export interface MetadataView {
 }
 
 export interface EditDuplicate { photo_id: number; filename: string; path: string }
+export interface PhotoNames { photo_id: number; current_path: string; candidates: {name: string; seen_at: string[]}[] }
+export interface RenamePreview { photo_id: number; current_path: string; new_path: string; collision: boolean; unchanged: boolean; token: string }
 export interface RotationChoice { photo_id: number; turns: number }
 export interface RotationPlan { items: { photo_id: number; filename: string; turns: number; error: string | null;
   before?: number; after?: number; duplicate?: EditDuplicate | null; target?: DateEditContext["target"]; no_change?: boolean; edit?: Record<string, unknown> }[] }
@@ -160,7 +162,7 @@ export interface PhotoPosition {
 // What narrows the gallery: the view, the search, No usable capture date, and the date tree's
 // "Show only" years and months ("2023", "2023-06", "none").
 export interface BrowseFilters {
-  similar?: boolean; suspicious?: boolean; reason?: string; size_below?: number; source_summary?: string;
+  similar?: boolean; suspicious?: boolean; reason?: string; size_below?: number; source_summary?: string; other_names?: boolean;
   set_reference?: number;
   group_sets?: boolean;
   match_min?: number;
@@ -203,6 +205,7 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
   if (f.similar) query.set("similar", "true");
   if (f.suspicious) query.set("suspicious", "true");
   if (f.size_below != null) query.set("size_below", String(f.size_below));
+  if (f.other_names) query.set("other_names", "1");
   if (f.source_summary) query.set("source_summary", f.source_summary);
   if (f.reason) query.set("reason", f.reason);
   if (f.q) query.set("q", f.q);
@@ -837,6 +840,9 @@ export const api = {
   importChoices: (id:number) => request<ImportChoiceContext>("GET", `/api/v1/photos/${id}/import-choices`),
   previewImportChoice: (id:number, choice:ImportChoice) => request<ImportChoicePreview>("POST", `/api/v1/photos/${id}/import-choices/preview`, choice),
   confirmImportChoice: (id:number, preview:ImportChoicePreview, request_id:string) => request<{revision:number;message:string}>("POST", `/api/v1/photos/${id}/import-choices/confirm`, {choice:preview.choice,token:preview.token,request_id}),
+  photoNames: (id: number) => request<PhotoNames>("GET", `/api/v1/photos/${id}/names`),
+  renamePreview: (id: number, name: string) => request<RenamePreview>("POST", `/api/v1/photos/${id}/rename-preview`, { name }),
+  renamePhoto: (id: number, name: string, token: string) => submitJob(`/api/v1/photos/${id}/rename`, { name, token }),
   rotationPreview: (rotations: RotationChoice[]) => request<RotationPlan>("POST", "/api/v1/rotations/preview", { rotations }),
   saveRotations: (edits: Record<string, unknown>[]) => submitJob("/api/v1/rotations/save", { edits }),
   dateContext: (id: number) => request<DateEditContext>("GET", `/api/v1/photos/${id}/date-edit`),

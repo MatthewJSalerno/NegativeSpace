@@ -258,8 +258,8 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   scrolls, while the gallery is sorted by date (not in Show only selected, a review, or
   grouped similar photos, or while **No usable capture date** is active, including combined refinements). Clearing No usable capture date restores it when the sort allows it.
   Keep its empty gutter to prevent gallery reflow; no year controls remain focusable.
-  Bookmark-reason sorting also retains this empty gutter: switching All ↔ Bookmarked
-  must not resize cards or the Inspector. The existing narrow-screen rule hides both
+  Non-date sorting also retains this empty gutter: switching All ↔ Bookmarked or
+  enabling Has other names must not resize cards or the Inspector. The existing narrow-screen rule hides both
   the scrubber and its empty gutter.
   This changes presentation only, not dates, ordering or filing. Otherwise its column
   stays while it loads or a filter leaves one year,
@@ -401,6 +401,23 @@ editors labelling same-named tabs with their folder
 ([VS Code](https://zenn.dev/bmth/articles/vscode-tab-display-name-alias?locale=en),
 [Sublime Text](https://forum.sublimetext.com/t/tab-name-with-multiple-files-of-same-name-open/3619)).
 Behaviour: `webui-spec.md`, Telling same-named photos apart.
+
+Pagination keeps Go to page and the page-size control together at the trailing edge.
+Ellipses between page numbers must not act as layout spacers; filtering from many
+pages to a few must not move those controls across the row. Narrow layouts may wrap.
+
+### Photo filenames
+
+For organized Library photos, place **Rename…** beside the preview header filename
+and beside the destination filename in Photo information. Both open the same dialog.
+Keep a collapsed **Also arrived as** list directly below the destination. Load that list
+only when opened. Each recorded alternative shows its source paths and **Use this name**;
+both controls open the same rename dialog. Keep the real extension and date folder,
+preview an available numbered name on collision, and require explicit confirmation.
+Disable writes during a job with an explanation. No rename controls in source-only
+or Rejects information. **Has other names** is a Library checkbox inside Filters;
+turning it on selects Most duplicates first. It combines with other filters and clears
+on place navigation or Clear all filters. It is not a review reason.
 
 ## Workspaces
 
@@ -633,14 +650,24 @@ match set must not leave hidden targets armed. Show proposed metadata changes
 before execution and record each result. Do not show nonfunctional edit controls
 while those actions are unbuilt.
 
+**Single-photo rotation exit:** when only one photo has a pending turn, use a compact
+**Save rotation before leaving?** dialog with **Keep reviewing** (initial focus),
+**Discard and continue**, and **Save and continue**. Name the photo and metadata target;
+show required duplicate-removal confirmation or refusal in the same dialog. A successful,
+verified save resumes the requested navigation. A failed or uncertain save keeps the
+photo and explanation visible. More than one turned photo keeps the existing per-photo
+save selection. Bulk Rotate remains unchanged.
+
 **Orientation-save interaction:** turns remain temporary during comparison. Back,
-Escape and navigation offer one Save rotations dialog for every photo turned in
-that review, including candidates no longer displayed and promoted references.
+Escape and navigation offer one exit decision covering every photo turned in
+that review, including candidates no longer displayed and promoted references. Use
+the compact prompt for one pending photo and Save rotations for more than one.
 Save selected changes, discard viewing turns and leave, or return to the photo.
 Reset to zero needs no save. The Inspector (including its enlarged view), Photo Review
 and each comparison preview show curved-arrow icon buttons for Rotate left and Rotate
 right, with tooltips and accessible names. Turns act on the existing large preview,
-fit inside its bounds, and never open a separate rotation editor. After a turn, show
+fit the entire photo inside its bounds without changing its aspect ratio, and never
+open a separate rotation editor. Recalculate the fit when the preview pane is resized. After a turn, show
 **Save rotation** and **Reset** beside it, reserving their space when hidden so the
 photo does not jump. Show the metadata write target or refusal before enabling Save;
 saving is explicit and progress/results remain inline. If the verified edit would create

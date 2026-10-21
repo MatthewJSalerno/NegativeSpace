@@ -2124,3 +2124,36 @@ run timed out waiting for the help window to scroll to the top; its unchanged is
 rerun passed. No assertion was removed or weakened. All three tools/check-*.py checks
 passed, along with 206 local documentation links/images and 117 linked anchors.
 GitHub checks remain the final merge gate; maintainer approval has been given.
+
+## Photo naming and compact rotation exit
+
+CI runs `rename_ui_test.py` for verified photo/XMP renames, unchanged sources, request
+replay, invalid inputs, collision races and filter/list/position agreement.
+`photo_names_browser_drive.py` covers lazy alternative names, explicit rename,
+Has other names without card/pagination shifts, both Rename entry points, enlarged-text
+layout and compact rotation save/discard/refusal. Generated wide and tall image responses
+check whole-photo fitting and aspect ratio after each turn in split and enlarged previews.
+The Python suite also checks Rename outcome counts, no-op/failure/recovery separation,
+and names from exact duplicates whose source was removed.
+Existing import-choice and comparison drivers retain multi-photo exit coverage.
+Run these with the standard Docker suite/browser harness instructions above.
+Maintainer checks and acceptance: [NR1–NR3](../docs/manual-validation.md#photo-names-and-rotation-exits).
+
+Initial batch Docker validation covered 51 Python suites (900 tests after the naming
+additions), 157 engine smoke tests including both public RAW checks, all 40 browser
+harness drivers and 11 supporting checks including all three `tools/check-*.py` tools.
+The isolated metadata-scenario acceptance tool is read-only and separate from those
+harness drivers; no reader/editor behavior changed in this batch.
+
+Follow-up Docker validation passed 138 Python tests (naming, date editing and API),
+seven affected browser workflows, the web build, all three specification/schema checks,
+and 129 local documentation references including 99 anchors. The existing demo Rename
+jobs now report their recorded successes without rerunning them. All manual follow-ups passed; acceptance is
+recorded in the validation document.
+
+On a generated 250,000-photo catalog with 2,500 different source names, the new
+Has other names page query took a median 8.55s using per-comparison `Path.stem`
+objects and 4.20s using equivalent string parsing (three runs each). Ordinary
+browsing was 1.24s in the latter run. Query plans used status, SHA-1 and operation
+photo-ID indexes. This optional history filter remains heavier than ordinary browsing;
+these shared-host measurements are not a latency guarantee.

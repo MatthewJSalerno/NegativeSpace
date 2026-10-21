@@ -19,11 +19,8 @@ development until the maintainer decides.
 
 **Organizing**
 - Earlier versions arriving again — decided, not built (`docs/engine-spec.md` §10)
-- Rename and "Also arrived as" from the photo panel
 - Copy/Move preview grouped by destination folder, and a downloadable plan
 - Start a requested job after the preceding backup — decided, not built (`docs/webui-spec.md` §5.7)
-- Clickable Index summary figures — built on branch, maintainer validated (IS1–IS3) (`docs/ui-design.md`, Which filters apply where; `docs/webui-spec.md` §2)
-- Copy all/Move all ready and held counts — built on branch, maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2)
 - 💬 Source-folder handling behind the scenes
 - 💬 A content-history link from a photo to its earlier versions
 
@@ -42,7 +39,6 @@ development until the maintainer decides.
 
 **Metadata**
 - Notices for metadata choices, and their queue in Not organized
-- A simpler prompt when leaving an unsaved rotation
 - Metadata decisions for arrivals matching photos already in Library or Rejects
 - Notice for Google Takeout and Flickr export sidecars
 - Motion-photo editing, qualified separately
@@ -58,7 +54,6 @@ development until the maintainer decides.
 **Checking and maintenance**
 - Check my library and Repair in place — decided, not built (`docs/engine-spec.md` §9.2)
 - Unbacked-changes line on every page, and Retry backup
-- Index summary by file type — built on branch, maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2)
 - Import summary, and a filter for files that could not be previewed
 - Skip unreadable files at Index, counted by kind — decided, not built (`docs/engine-spec.md` §4.1)
 - Every warning offers a way out
@@ -99,9 +94,7 @@ development until the maintainer decides.
 
 ## Names
 
-- [ ] "Also arrived as" in the photo panel: the other names and folders of identical
-  copies, each with Use this name, plus Rename… and a Has other names filter; the engine's
-  rename and candidate list already exist (`docs/webui-spec.md` §7.3).
+- [x] Rename, recorded alternative names and Has other names — automated and maintainer checks passed, including focused follow-ups (`docs/webui-spec.md` §7.3).
 
 ## One screen per job
 
@@ -164,7 +157,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Workflow order, Not organized guidance and Index summary; Library review markers
   open the photo’s reason in Needs review without changing selection, with a return
   to the entry Library context.
-- [x] Clickable Index summary figures — built on branch; maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2).
+- [x] Clickable Index summary figures — merged in PR #138; maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2).
 
 - [x] Same-named photo cards: built and maintainer validated ([spec](docs/webui-spec.md#telling-same-named-photos-apart)).
 
@@ -173,8 +166,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Location views, overlapping Needs review inbox, combined filter chips, cross-location
   filename search and first-visit default (`webui-spec.md` §2).
 
-- [x] Copy all/Move all ready and held counts — built on branch; maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2).
-- [x] Index summary by file type — built on branch; maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2).
+- [x] Copy all/Move all ready and held counts — merged in PR #138; maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2).
+- [x] Index summary by file type — merged in PR #138; maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2).
 - [x] Metadata setup/Settings point to Resolve XMP in Not organized → Needs attention (`docs/webui-spec.md` §7.5).
 
 ## Needs review
@@ -545,11 +538,8 @@ Saved orientation stays a separate action from temporary preview rotation.
   and refuse Rejects or different primary metadata. Recheck on retry and preserve source
   originals until a separately confirmed Move. Generated engine/browser validation and
   maintainer Test 9 are tracked in tests/README.md; all steps 9a–9d passed.
-- [ ] UI polish: simplify the unsaved single-photo rotation exit prompt. The existing
-  navigation behavior passed maintainer Test 8c; this is a separate unimplemented redesign:
-  compact save/discard/keep-reviewing decision instead of the full bulk editor.
-  Proposed labels: Save and continue, Discard and continue, Keep reviewing. Failed saves
-  must retain the photo and explanation. Placement/wording to confirm before changing.
+- [x] Compact single-photo rotation exit — automated and maintainer checks passed (`docs/ui-design.md`, Orientation-save interaction).
+- [x] Turned Inspector preview fits the whole photo without stretching; NR3d passed (`docs/manual-validation.md`, Photo-name follow-ups).
 
 ### Deferred work and open discussions
 

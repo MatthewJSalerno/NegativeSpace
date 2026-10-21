@@ -52,6 +52,7 @@ export function Pager({ page, pages, total, pageSize, onPage, onPageSize, sizes 
                   onClick={() => onPage(p)}>{count(p)}</button>)}
       <button onClick={() => onPage(page + 1)} disabled={page >= pages} aria-label="Next page" title="Next page">›</button>
       <button onClick={() => onPage(pages)} disabled={page >= pages} aria-label="Last page" title="Last page">»</button>
+      <span className="pager-options">
       <span className="pager-goto">
         <input value={goto} onChange={(e) => setGoto(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()}
                placeholder="Page" aria-label="Go to page" inputMode="numeric" />
@@ -62,6 +63,7 @@ export function Pager({ page, pages, total, pageSize, onPage, onPageSize, sizes 
         {sizes.map((n) => <option key={n} value={n}>{continuous ? `Load ${n} at a time` : `${n} per page`}</option>)}
       </select>
       {showTotal && <span className="muted">{plural(total, noun, nouns)}</span>}
+      </span>
     </nav>
   );
 }
