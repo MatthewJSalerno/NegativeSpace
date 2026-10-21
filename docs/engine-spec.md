@@ -342,7 +342,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 30 and refuses incompatible catalogs before processing.
+initializes schema version 31 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
