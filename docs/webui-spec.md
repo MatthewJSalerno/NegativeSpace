@@ -1128,7 +1128,8 @@ Failed, skipped, cancelled and unfinished attempts retain those outcomes; they n
 claim a save. A metadata completion is not labelled as a Move. The shared Completed
 status filter includes completed moves and metadata operations.
 
-**The lineage tree** (`GET /photos/{id}/lineage`, §6.3) is a window of its own: one node
+**The lineage tree** (built; to be replaced by the lineage timeline in `ui-design.md`,
+decided 2026-10-21) (`GET /photos/{id}/lineage`, §6.3) is a window of its own: one node
 per file (the source, each copy made from it, each exact duplicate), each with its
 presence and the steps that happened to it. Each step appears once, on the file it
 produced (a copy's **Copied here** on the copy), else on the file it acted on. A
@@ -2031,10 +2032,11 @@ from it and its duplicates live under other rows. **So gather the photo's whole 
 
 `GET /photos/{id}/lineage` and the log's `photo=` filter both read this set.
 
-**Keep distinct files distinct.** A duplicate is a different file, however alike: the
-lineage tree shows each file as its own branch with its own steps, and every log entry
-names the file it concerns, so a duplicate's arrival never reads as something that
-happened to the original file itself. Label each file with its original Index time.
+**Keep distinct files distinct.** A duplicate is a different file, however alike: every
+lineage row and every log entry names the file it concerns, so a duplicate's arrival
+never reads as something that happened to the original file itself. The lineage
+timeline's lanes group places (Source, Identical copies, Library, Rejects); its rows keep
+each file distinct. Label each file with its original Index time.
 
 **Separate requested work from recovery.** An operation with a non-NULL
 `reconciles_operation_id` is a repair of earlier work, not something this run was asked

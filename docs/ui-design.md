@@ -474,6 +474,52 @@ it; the **lineage tree** traces the photo back to its origin through every file 
 the **log** shows the jobs and the work each did. Keep each to its job rather than merging
 them.
 
+**The lineage timeline** (decided 2026-10-21; not built; replaces the lineage tree's nested
+list in its window, `webui-spec.md` §6.3). It answers, in order: where the photo is now,
+what happened to it, and where its identical copies went.
+
+- **A summary sentence first**, generated from the events: "Found in 5 places on 12 Oct:
+  identical copies. Moved to your library by Move #3 on 14 Oct; the other 4 were recorded,
+  not copied, and their originals removed from the source. Now: in Library." It covers
+  the whole history, collapsed parts included, and is the text equivalent of the graph.
+- **A vertical timeline below it, one row per event** in recorded order (`operations.id`):
+  date and local time (exact time on hover), the job (**Index #1**, **Copy #6**…), what it
+  did in plain words with the paths involved, and **View in log**. The existing behaviours
+  stay: a duplicate's path opens that photo, a job opens the log on that job for this
+  photo, a failed step shows its reason and **Retry this photo**, and hovering a path
+  shows its size, content fingerprint, whether it matches and when it was recorded. A
+  final **Now** row says where the photo is and what is left in the source.
+- **Beside the rows, four fixed lanes, one per place, never one per file:** Source (the
+  photo's own source file), Identical copies (every other file with the same content),
+  Library and Rejects. Twenty copies still make four columns; a lane is drawn only while
+  something is there. Dots mark events; a copy or move curves from its source lane into
+  Library; identical copies join with a dashed line (recorded, not copied); a Reject
+  branches out to Rejects and a Return back, the Library line dashed while the photo is
+  away; a Move ends the source line with an end mark; a ring marks where the photo is now.
+  Colours use the tokens (muted source, accent Library, warning Rejects) and never stand
+  alone: every lane is labelled and every event is written in its row. The graph is
+  decorative for assistive technology; the rows and the summary carry the content.
+- **Copies found by the same Index are one row** with a count on its dot ("and 4 identical
+  copies") and their paths listed under it, the first few then **Show all N**. **Copies
+  found by different Indexes are separate rows** ("Found an identical copy (3rd)…"),
+  because when they arrived is part of the story.
+- **Long histories:** the window scrolls inside itself with the summary and lane headings
+  pinned at the top and the Now row pinned at the bottom, using the shared More above /
+  More below cues. Three or more consecutive events of one kind collapse into one row
+  ("5 more identical copies found between 2 Nov and 3 Jan · Show"), with a counted dot. At
+  1440 × 900 about ten rows fit; most photos have three to ten (Index, Copy, Now, plus
+  edits, rejects or later copies). A re-Index of an unchanged photo adds no row (measured).
+- *Why this layout:* W3C PROV is the established provenance model (files as entities,
+  jobs as activities, the user or the app as agents) and its diagram conventions note that
+  a drawing conveys the gist, not the record ([PROV diagrams](https://www.w3.org/2011/prov/wiki/Diagrams));
+  preservation systems show PREMIS events as a per-object trail with a summary by type;
+  asset-management products use a vertical, chronological timeline; Git clients use
+  lanes for branching; and provenance research shows flow (merges) as a Sankey because a
+  plain graph loses it ([PROV-O-Viz](https://www.scitepress.org/Papers/2024/123547/123547.pdf)).
+  *Why not a horizontal lane graph:* compact for short histories, but it grows sideways
+  and hides the event details behind hovers. *Why not one lane per file:* four copies
+  already make six columns. *Undecided:* exporting a history as PROV-JSON.
+
 **One "Reject?" dialog everywhere** (built; decided 2026-10-05). Every reject question, from the
 gallery, the photo panel, the comparison or Needs review, is the same dialog with the same
 wording, spacing and button order: the title names the photo ("Reject IMG_0412.jpg?", or
