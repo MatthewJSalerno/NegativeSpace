@@ -132,7 +132,9 @@ not among search/date/status filters. Refresh comparison is a viewing control. T
 heading carries a labelled **Export filtered log** group; both export formats retain
 all active filters. Shared `page-heading`/`page-actions` rows wrap and align their targets.
 Logs job headings and expanded entries reflow to the available content width, including
-at 200% text. Date fields retain enough space to display their value.
+at 200% text. Indent the expanded job body, including nested disclosures such as
+**By file type**, so its controls read as children of the job heading. The job heading
+and its outer caret remain the control for collapsing the whole job. Date fields retain enough space to display their value.
 
 File locations share labelled **Source** and **Destination** groups with a token-colored
 hairline and spacing between them (`ui/FileLocations.tsx`). Apply this to information
