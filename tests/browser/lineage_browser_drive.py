@@ -96,6 +96,7 @@ with sync_playwright() as p:
     path = dialog.locator('.lineage-path').first
     path.focus()
     expect(page.locator('.help-content')).to_contain_text('SHA-1')
+    assert page.locator('.help-content').bounding_box()['width'] >= 390, 'File details should use the wide shared help'
     page.keyboard.press('Escape')  # dismiss help before the window
     expect(dialog).to_be_visible()
     shot('lt1-simple')
@@ -129,6 +130,9 @@ with sync_playwright() as p:
     dialog, _ = open_history(names[3])
     expect(dialog.locator('.lineage-step', has_text='Moved to Rejects')).to_have_count(5)
     expect(dialog.locator('.lineage-step', has_text='Returned to Library')).to_have_count(5)
+    for returned in dialog.locator('.lineage-event').filter(has_text='Returned to Library').all():
+        expect(returned.locator('g.lineage-lane-3 path')).to_have_count(0)
+        expect(returned.locator('svg > path.lineage-lane-2')).to_have_count(1)
     content = dialog.locator('.lineage-dialog')
     top = content.bounding_box()['y'] + dialog.locator('.lineage-head').bounding_box()['height']
     now = dialog.locator('.lineage-now').bounding_box()['y']

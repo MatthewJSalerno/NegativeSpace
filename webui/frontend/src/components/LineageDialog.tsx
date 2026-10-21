@@ -97,7 +97,7 @@ function FilePath({ file, path, photoId, onOpenPhoto, indexed = false }: { index
     indexed && file?.indexed_sha1 ? `At first Index: SHA-1 ${file.indexed_sha1}` : null,
     file?.sha1_hash ? `Latest recorded SHA-1 ${file.sha1_hash} (${file.matches ? "same content as this photo" : "different content"})` : null,
     file?.created_at ? `First recorded ${instant(file.created_at)}` : null].filter(Boolean).join("\n");
-  return <Tip text={details || "No path was recorded."}>{file?.photo_id != null && file.photo_id !== photoId
+  return <Tip wide text={details || "No path was recorded."} content={(details || "No path was recorded.").split("\n").map((line, i) => <span key={i}>{line}</span>)}>{file?.photo_id != null && file.photo_id !== photoId
     ? <button className="link lineage-path" onClick={() => onOpenPhoto(file.photo_id!)} title={`Open photo #${file.photo_id}`}><code>{path ?? "Path not recorded"}</code></button>
     : <code className="lineage-path" tabIndex={0}>{path ?? "Path not recorded"}</code>}</Tip>;
 }
@@ -170,7 +170,7 @@ function LaneGraphic({ row, count, now = false }: { row: LaneRow; count?: number
   const x = (lane: number) => 24 + lane * 48;
   return <div className="lineage-graph" aria-hidden="true"><svg viewBox="0 0 192 100" preserveAspectRatio="none" focusable="false">
     {LANES.map((_, lane) => <g key={lane} className={`lineage-lane-${lane}`}>
-      {row.before[lane] && <path d={`M ${x(lane)} 0 V 50`} strokeDasharray={lane === 2 && row.libraryDashed ? "5 4" : undefined} />}
+      {row.before[lane] && !(!row.after[lane] && !row.ended.includes(lane) && row.curves.some(([from, to]) => from === lane && to !== lane)) && <path d={`M ${x(lane)} 0 V 50`} strokeDasharray={lane === 2 && row.libraryDashed ? "5 4" : undefined} />}
       {!now && row.after[lane] && <path d={`M ${x(lane)} 50 V 100`} strokeDasharray={lane === 2 && (row.curves.some(c => c[1] === 3) || row.libraryDashed && !row.curves.some(c => c[1] === 2)) ? "5 4" : undefined} />}
       {row.ended.includes(lane) && <path d={`M ${x(lane) - 5} 50 h 10`} />}
     </g>)}

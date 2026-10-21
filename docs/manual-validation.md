@@ -9,7 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Lineage timeline:** Tests LT1–LT6 below are pending maintainer validation.
+**Lineage timeline:** LT1–LT6 passed. Follow-up LT7 below covers the reported
+formatting comments; the original checks do not need repeating.
 
 **Photo names and rotation exits:** [Tests NR1–NR3](#photo-names-and-rotation-exits)
 passed, including [focused follow-ups NR1d–e, NR2d and NR3d](#photo-name-follow-ups).
@@ -41,7 +42,9 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Lineage timeline
 
-**Status:** automated validation passed; LT1–LT6 await maintainer validation.
+**Status:** LT1–LT6 passed maintainer validation. Comments: widen path help,
+clarify repeated discovery timestamps, and remove the Rejects line extending past
+Return. Follow-up LT7 is pending.
 Docker validation: 51 Python suites (903 tests), 157 smoke tests including both RAW
 checks, 41 browser drivers and 11 supporting checks passed. No tests were skipped.
 The two browser selectors affected by the replacement were corrected and rerun;
@@ -120,6 +123,14 @@ b. Scroll to the Metadata job after the two Copy entries. Expect **Date saved**
 and **Became identical; kept dedup-date-keep.jpg**. The join belongs to this edit;
 it does not change the earlier arrivals. The kept filename opens the survivor.
 **Now** reports Library and two originals remaining in the source.
+
+### Test LT7 — Validation comments
+
+a. In Library, search **`lineage-simple.jpg`**, open lineage and hover or focus a
+file path. The wider help keeps the SHA-1 readable, with file details on separate lines.
+
+b. Search **`lineage-long.jpg`** and open lineage. At each Return, the yellow
+Rejects line joins the blue curve without a yellow stub extending below the branch.
 
 ## Photo names and rotation exits
 

@@ -491,7 +491,8 @@ what happened to it, and where its identical copies went.
   did in plain words with the paths involved, and **View in log**. The existing behaviours
   stay: a duplicate's path opens that photo, a job opens the log on that job for this
   photo, a failed step shows its reason and **Retry this photo**, and hovering a path
-  shows its size, content fingerprint, whether it matches and when it was recorded. A
+  shows its size, content fingerprint, whether it matches and when it was recorded.
+  Use the shared wide help for file details, with each detail on a separate line. A
   final **Now** row says where the photo is and what is left in the source.
 - **Beside the rows, four fixed lanes, one per place, never one per file:** Source (the
   photo's own source file), Identical copies (every other file with the same content),
