@@ -94,7 +94,14 @@ with sync_playwright() as p:
     assert all(node.get_attribute('aria-hidden') == 'true' for node in dialog.locator('.lineage-graph').all())
     expect(dialog.get_by_role('button', name='Close', exact=True)).to_be_focused()
     path = dialog.locator('.lineage-path').first
-    path.focus()
+    path.hover()
+    expect(page.locator('.help-content')).to_have_count(0)
+    info = path.locator('xpath=following-sibling::span[contains(@class,"tip")]').first.get_by_role('button', name='More information')
+    info.hover()
+    expect(page.locator('.help-content')).to_contain_text('First recorded')
+    dialog.get_by_role('button', name='Close', exact=True).hover()
+    expect(page.locator('.help-content')).to_have_count(0)
+    info.focus()
     expect(page.locator('.help-content')).to_contain_text('SHA-1')
     assert page.locator('.help-content').bounding_box()['width'] >= 390, 'File details should use the wide shared help'
     page.keyboard.press('Escape')  # dismiss help before the window

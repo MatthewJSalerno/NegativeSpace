@@ -97,9 +97,9 @@ function FilePath({ file, path, photoId, onOpenPhoto, indexed = false }: { index
     indexed && file?.indexed_sha1 ? `At first Index: SHA-1 ${file.indexed_sha1}` : null,
     file?.sha1_hash ? `Latest recorded SHA-1 ${file.sha1_hash} (${file.matches ? "same content as this photo" : "different content"})` : null,
     file?.created_at ? `First recorded ${instant(file.created_at)}` : null].filter(Boolean).join("\n");
-  return <Tip wide text={details || "No path was recorded."} content={(details || "No path was recorded.").split("\n").map((line, i) => <span key={i}>{line}</span>)}>{file?.photo_id != null && file.photo_id !== photoId
+  return <>{file?.photo_id != null && file.photo_id !== photoId
     ? <button className="link lineage-path" onClick={() => onOpenPhoto(file.photo_id!)} title={`Open photo #${file.photo_id}`}><code>{path ?? "Path not recorded"}</code></button>
-    : <code className="lineage-path" tabIndex={0}>{path ?? "Path not recorded"}</code>}</Tip>;
+    : <code className="lineage-path">{path ?? "Path not recorded"}</code>}{" "}<Tip wide text={details || "No path was recorded."} content={(details || "No path was recorded.").split("\n").map((line, i) => <span key={i}>{line}</span>)}>{null}</Tip></>;
 }
 
 function EventRow({ event, tree, row, sources, jobRunning, onRetry, onOpenPhoto }: {

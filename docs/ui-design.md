@@ -490,8 +490,10 @@ what happened to it, and where its identical copies went.
   date and local time (exact time on hover), the job (**Index #1**, **Copy #6**…), what it
   did in plain words with the paths involved, and **View in log**. The existing behaviours
   stay: a duplicate's path opens that photo, a job opens the log on that job for this
-  photo, a failed step shows its reason and **Retry this photo**, and hovering a path
-  shows its size, content fingerprint, whether it matches and when it was recorded.
+  photo, a failed step shows its reason and **Retry this photo**, and the information
+  icon beside a path shows its size, content fingerprint, whether it matches and when
+  it was recorded. Only the icon triggers this help (hover, keyboard focus or click);
+  hovering the filename does not open it.
   Use the shared wide help for file details, with each detail on a separate line. A
   final **Now** row says where the photo is and what is left in the source.
 - **Beside the rows, four fixed lanes, one per place, never one per file:** Source (the

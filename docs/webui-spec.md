@@ -2043,7 +2043,8 @@ never reads as something that happened to the original file itself. The lineage
 timeline's lanes group places (Source, Identical copies, Library, Rejects); its rows keep
 each file distinct. Show the row's first discovery time on the left; keep each
 file's exact original Index time in its path help rather than repeating it beside
-the filename.
+the filename. Open file help through the adjacent information icon (hover, keyboard
+focus or click), not by hovering the path itself.
 
 **Separate requested work from recovery.** An operation with a non-NULL
 `reconciles_operation_id` is a repair of earlier work, not something this run was asked

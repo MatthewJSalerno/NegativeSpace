@@ -9,8 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Lineage timeline:** LT1–LT6 passed. Follow-up LT7 below covers the reported
-formatting comments; the original checks do not need repeating.
+**Lineage timeline:** LT1–LT7 passed. Only LT7d (information-icon trigger) remains
+a focused follow-up; the accepted checks do not need repeating.
 
 **Photo names and rotation exits:** [Tests NR1–NR3](#photo-names-and-rotation-exits)
 passed, including [focused follow-ups NR1d–e, NR2d and NR3d](#photo-name-follow-ups).
@@ -44,7 +44,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 **Status:** LT1–LT6 passed maintainer validation. Comments: widen path help,
 clarify repeated discovery timestamps, and remove the Rejects line extending past
-Return. Follow-up LT7 is pending.
+Return. LT7a–c subsequently passed; LT7d covers the requested icon-only help trigger.
 Docker validation: 51 Python suites (903 tests), 157 smoke tests including both RAW
 checks, 41 browser drivers and 11 supporting checks passed. No tests were skipped.
 The two browser selectors affected by the replacement were corrected and rerun;
@@ -63,7 +63,7 @@ a. In **Library**, search **`lineage-simple.jpg`**, open it, then choose
 and **Now** reporting Library with one original remaining in the source. Two later
 Copy attempts show **Skipped** because the photo was already in Library.
 
-b. Hover or keyboard-focus a path. Expect its size, recorded SHA-1, content match
+b. Hover or keyboard-focus the information icon beside a path. Expect its size, recorded SHA-1, content match
 and first-recorded time. **View in log** opens that job for this photo. Return and
 reopen lineage; Escape closes it and restores focus to its opener.
 
@@ -127,7 +127,7 @@ it does not change the earlier arrivals. The kept filename opens the survivor.
 
 ### Test LT7 — Validation comments
 
-a. In Library, search **`lineage-simple.jpg`**, open lineage and hover or focus a
+a. In Library, search **`lineage-simple.jpg`**, open lineage and hover or focus the information icon beside a
 file path. The wider help keeps the SHA-1 readable, with file details on separate lines.
 
 b. Search **`lineage-long.jpg`** and open lineage. At each Return, the yellow
@@ -135,8 +135,12 @@ Rejects line joins the blue curve without a yellow stub extending below the bran
 
 c. Search **`lineage-one-index.jpg`** and open lineage. The discovery row has one
 visible timestamp on the left, with no repeated date beside each filename. Hover or
-focus an individual path to see its exact first-recorded time. Separate Index jobs
+focus the information icon beside an individual path to see its exact first-recorded time. Separate Index jobs
 for **`lineage-later.jpg`** still have their own dated rows.
+
+d. Search **`lineage-simple.jpg`** and open lineage. Hovering the filename should
+not open file help. Hover or keyboard-focus its adjacent information icon to open
+it; Escape dismisses the help while leaving lineage open.
 
 ## Photo names and rotation exits
 

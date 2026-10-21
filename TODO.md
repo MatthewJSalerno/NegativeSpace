@@ -52,7 +52,7 @@ development until the maintainer decides.
 - 💬 Copying all metadata, or a wider choice of fields
 
 **Checking and maintenance**
-- Lineage timeline replacing the lineage tree window — built; LT1–LT6 passed; formatting follow-up LT7 pending (`docs/ui-design.md`, The lineage timeline)
+- Lineage timeline replacing the lineage tree window — built; LT1–LT7 passed; icon-trigger follow-up LT7d pending (`docs/ui-design.md`, The lineage timeline)
 - Check my library and Repair in place — decided, not built (`docs/engine-spec.md` §9.2)
 - Unbacked-changes line on every page, and Retry backup
 - Import summary, and a filter for files that could not be previewed
