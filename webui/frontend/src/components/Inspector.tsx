@@ -521,6 +521,10 @@ function PhotoHistory({ id, onLineage, refreshKey }: { id: number; onLineage: ()
   return (
     <section className="info-section photo-history">
       <h3>History{page && page.total > 0 ? ` (${page.total})` : ""}</h3>
+      {page && page.total > 0 && <div className="history-links">
+        <a href={logUrl({ photo: id })} onClick={follow}>View photo logs</a>
+        <button className="link" onClick={onLineage}>View lineage tree</button>
+      </div>}
       {!page ? <p className="muted info-empty">Loading…</p> : page.total === 0 ? (
         <p className="muted info-empty">Nothing recorded yet.</p>
       ) : (
@@ -536,10 +540,6 @@ function PhotoHistory({ id, onLineage, refreshKey }: { id: number; onLineage: ()
               </li>
             ))}
           </ol>
-          <div className="history-links">
-            <a href={logUrl({ photo: id })} onClick={follow}>View photo logs</a>
-            <button className="link" onClick={onLineage}>View lineage tree</button>
-          </div>
         </>
       )}
     </section>

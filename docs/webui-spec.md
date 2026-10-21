@@ -1118,8 +1118,8 @@ modification year is used for Undated filing. Do not repeat that explanation und
 modified or claim EXIF is missing when XMP supplies the date.
 
 **History in the panel, lineage in its own window.** A **History (n)** section under
-**File** shows the latest three events as a small timeline, with two links: **Open in the
-log** and **View lineage tree**; each event also opens the tree. **Why not every event in
+**File** puts **View photo logs** and **View lineage tree** directly below its heading,
+then shows the latest three events as a small timeline; each event also opens the tree. **Why not every event in
 the panel:** it crowded the photo's details; the full record is one click away.
 
 Logs, recent History and lineage name saved metadata actions from recorded intent:

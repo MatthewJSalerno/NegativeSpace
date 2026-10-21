@@ -68,6 +68,10 @@ c. **Formatting follow-up:** Metadata choices starts collapsed above the timelin
 with View photo logs nearby. The four lane headings have vertical separators.
 Scroll to the bottom: the events lead into Now without those controls between them.
 
+d. **History links:** with **`lineage-simple.jpg`** open in Photo information,
+find History. View photo logs and View lineage tree sit immediately under its
+heading, before the recent events. Both still open the photo's corresponding history.
+
 ### Test LT2 — Identical files found together
 
 a. Search **`lineage-one-index.jpg`** in Library. Open lineage. Expect one Index
