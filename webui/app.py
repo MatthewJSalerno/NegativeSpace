@@ -22,6 +22,7 @@ from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, metadata_history, oplog, outcomes, stats
 from . import access, matching, notifications, security, metadata_view, metadata_dates, metadata_primary, rotations, photo_orientation
+from . import renaming
 from . import config, jobs as job_commands
 from .config import Config
 from .jobs import JobRefused, JobRunner
@@ -44,6 +45,7 @@ class PhotoPositionRequest(BaseModel):
     similar: bool = False
     suspicious: bool = False
     reason: str = "all"
+    other_names: bool = False
     source_summary: Optional[str] = None
     size_below: Optional[int] = Field(default=None, ge=1, le=100000)
     undated: bool = False
@@ -286,10 +288,10 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_photos(view: str = "all", sort: str = "newest", q: Optional[str] = None,
                    page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=240), undated: bool = False,
                    date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                   folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None):
+                   folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None, other_names: bool = False):
         try:
             return gallery.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size,
-                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary)
+                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary, other_names=other_names)
         except ValueError as exc:
             raise _bad_request(exc)
 
@@ -304,33 +306,33 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/photos/timeline")
     def get_timeline(view: str = "all", q: Optional[str] = None, undated: bool = False,
                      date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                     folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None):
+                     folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None, other_names: bool = False):
         try:
             return gallery.timeline(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
-                                    folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary)
+                                    folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary, other_names=other_names)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/types")
     def get_types(view: str = "all", q: Optional[str] = None, undated: bool = False,
-                  date: Optional[List[str]] = Query(None), folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None):
+                  date: Optional[List[str]] = Query(None), folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None, other_names: bool = False):
         try:
             return {"types": gallery.file_types(cfg.db_path, view=view, q=q, undated=undated, dates=date,
-                                                folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary)}
+                                                folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary, other_names=other_names)}
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/folders")
     def get_folders(view: str = "all", q: Optional[str] = None, undated: bool = False,
                     date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                    folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None,
+                    folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None, other_names: bool = False,
                     every: bool = False):
         """The source's folders with their counts; `folder` names ticked folders, which stay
         listed at 0 but do not narrow the counts (the tree ignores its own filter); `every`
         lists every catalogued folder, at 0 where nothing is shown."""
         try:
             return gallery.folder_tree(cfg.db_path, cfg.source, view=view, q=q, undated=undated, dates=date,
-                                       types=type, keep=folder, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary,
+                                       types=type, keep=folder, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary, other_names=other_names,
                                        every=every)
         except ValueError as exc:
             raise _bad_request(exc)
@@ -338,10 +340,10 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/photos/ids")
     def get_photo_ids(view: str = "all", q: Optional[str] = None, undated: bool = False,
                       date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                      folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None):
+                      folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None, other_names: bool = False):
         try:
             return gallery.photo_ids(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
-                                     folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary)
+                                     folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary, other_names=other_names)
         except ValueError as exc:
             raise _bad_request(exc)
 
@@ -446,6 +448,24 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise HTTPException(400, {'error':'invalid_request','message':'Send the issue ID and optional request ID only.'})
         run_id = jobs.check_issue(body.get('issue_id'), body.get('request_id'))
         return outcomes.get_run(cfg.db_path, run_id)
+
+    @app.get("/api/v1/photos/{photo_id}/names")
+    def photo_names(photo_id: int):
+        try:
+            return renaming.candidates(cfg, photo_id)
+        except (ValueError, OSError) as exc:
+            raise _bad_request(exc)
+
+    @app.post("/api/v1/photos/{photo_id}/rename-preview")
+    def rename_preview(photo_id: int, body: dict = Body(...)):
+        try:
+            return renaming.preview(cfg, photo_id, body)
+        except (ValueError, TypeError, OSError) as exc:
+            raise _bad_request(exc)
+
+    @app.post("/api/v1/photos/{photo_id}/rename", status_code=202)
+    def rename_photo(photo_id: int, body: dict = Body(...)):
+        return outcomes.get_run(cfg.db_path, jobs.rename_photo(photo_id, body))
 
     @app.post("/api/v1/rotations/preview")
     def rotation_preview(body: dict = Body(...)):

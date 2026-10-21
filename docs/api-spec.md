@@ -188,13 +188,14 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 | Parameter | Values | Default |
 | :--- | :--- | :--- |
 | `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed), `similar` (destination photos with visual matches at `match_min` or higher), `suspicious` (recorded date outside review bounds), `rejects` (Rejected, Rejected_Copied, whose file is still in `dest/rejects`), `source` (every photo whose original is still in the source: `unorganized` plus Copied and Rejected_Copied, for Source folders) | `all` |
-| `sort` | `newest`, `oldest`, `largest`, `smallest`, `name`, `matches` (`view=similar` only) | `newest` |
+| `sort` | `newest`, `oldest`, `largest`, `smallest`, `name`, `duplicates` (most duplicate rows first), `matches` (`view=similar` only) | `newest` |
 | `match_min` | integer percentage 75–100, applies to similarity membership/counts | 75 |
 | `q` | filename search: current and original names, including removed duplicates' names; never folder names | none |
 | `undated` | `true` for only photos without a usable effective capture date, including missing/partial/empty dates filed under Undated | `false` |
 | `date` | repeatable: a year (`2023`), a month (`2023-06`) or `none` (no date at all); the date tree's "Show only". Several add up | none: every date |
 | `type` | repeatable: a file extension, lower case, no dot (`jpg`, `heic`); the Types section's "Show only". Several add up | none: every type |
 | `folder` | repeatable: a folder relative to the source (`Phone/2019`), taking its subfolders, or `.` for the files directly in the source folder; the Folders tree's "Show only". Several add up. Matched as a literal path, never a wildcard or case-blind; a path outside the source is `400` | none: every folder |
+| `other_names` | `true` to restrict to organized Library photos with a different recorded filename stem, across exact-content source and operation history; shared by list, IDs, position and facets | `false` |
 | `source_summary` | `ready`, `indexed`, `identical`, `unknown_dimensions`, `unfinished`, `failed`, `metadata_held`; temporary source-only membership, combined with other filters; unknown values return 400 | none |
 | `page`, `page_size` | page from 1; 1 to 240 photos | 1, 60 |
 
@@ -1411,6 +1412,32 @@ issue and explanation. `reason=issues` filters active Library photos with unreso
 issues, contributing to Needs review counts and card reasons. Source and rejected
 photos retain their issues in information and Logs without entering that inbox.
 
+## Photo naming
+
+### `GET /api/v1/photos/{photo_id}/names`
+
+Library-only recorded alternative names. Returns `{photo_id, current_path, candidates}`;
+each candidate has `name` (stem) and `seen_at` (recorded paths). The current stem is
+excluded. Reads catalog history only; no filesystem mutation. Invalid/non-Library IDs
+return 400 with `invalid_request`.
+
+### `POST /api/v1/photos/{photo_id}/rename-preview`
+
+Body `{name}`. Reads the live destination via the engine planner; returns
+`{photo_id, current_path, new_path, collision, unchanged, token, error:null}`. Preserves
+extension and folder, accounts for occupied photo/sidecar names, and changes nothing.
+Invalid names or unavailable/non-Library photos return 400. No-op previews cannot save
+through the UI. A token binds content/status/current and resolved paths.
+
+### `POST /api/v1/photos/{photo_id}/rename`
+
+Body `{name, token, request_id}`; all required. Returns the recorded Rename run (202).
+Uses the engine lock, verified relocation and pre-action backup. Invalid payloads
+return 400; a changed preview or non-Library state returns 409 `rename_changed`, busy
+returns 409 `job_already_running`. Same-ID/same-input replay returns the original run;
+different input returns 409 `request_conflict`. The engine rechecks the token under its
+lock; a later race records a failed run without silently choosing another filename.
+
 ## 8. Designed, not built
 
 These are designed in `webui-spec.md` and will be described here when they exist:
@@ -1418,7 +1445,7 @@ These are designed in `webui-spec.md` and will be described here when they exist
 *   A live per-operation stream, for replaying a running job's individual events on
     reconnect (`webui-spec.md` §4.1, §5.2). `GET /operations?run=` covers the history;
     the drawer needs only the aggregate feed.
-*   The curation actions: rename, the destination check (offered from a lineage
+*   The curation actions: the destination check (offered from a lineage
     tree's copy), and metadata editing beyond Date taken, rotation and the primary
     source, all of which the engine already supports or is specified to (`engine-spec.md` §9).
 

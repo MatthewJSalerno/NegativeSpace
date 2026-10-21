@@ -1,3 +1,4 @@
+import { OtherNames, RenameDialog } from "./PhotoNames";
 import { RotationControls, useRotationSave } from "./RotationControls";
 import { useRotationExit } from "./RotationEditor";
 import { blockingDateIssue, captureDateMessage } from "../photoDates";
@@ -364,6 +365,8 @@ function Section({ title, note, children }: { title: string; note?: ReactNode; c
 
 function Details({ onImportChoices, detail: d, onLineage, refreshKey, review, jobRunning, onEdit, onMetadata }: { onImportChoices: () => void; onMetadata: () => void; onEdit: (donor?: MetadataSourceView) => void; jobRunning: boolean; detail: PhotoDetail; onLineage: () => void; refreshKey: number; review?: ReactNode }) {
   const fallback = isFallbackDate(d.date_source);
+  const [renameName, setRenameName] = useState<string | null>(null);
+  useEffect(() => setRenameName(null), [d.id]);
   return (
     <div className="inspector-body">
       <FileIssues key={`issues:${d.id}`} photoId={d.id} initialIssues={d.issues ?? []} />
@@ -398,7 +401,9 @@ function Details({ onImportChoices, detail: d, onLineage, refreshKey, review, jo
           source={[{label:"Source path",path:d.source_path ?? "—"}]}
           destinationLabel={d.dest_path_is_projection ? "Proposed destination" : "Destination"}
           destination={[{label:d.dest_path_is_projection ? "Proposed destination path" : "Destination path",path:d.dest_path ?? "—",
-            note:<>{d.dest_path_is_projection && <div>Not written yet.</div>}{d.has_collision_rename && <div>Renamed: another file already had this name.</div>}</>}]} />
+            actions: IN_LIBRARY.includes(d.status) && !d.dest_path_is_projection ? <button className="link" disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined} onClick={() => setRenameName(d.filename)}>Rename…</button> : undefined,
+            note:<>{d.dest_path_is_projection && <div>Not written yet.</div>}{d.has_collision_rename && <div>Renamed: another file already had this name.</div>}
+              {IN_LIBRARY.includes(d.status) && !d.dest_path_is_projection && <OtherNames id={d.id} refreshKey={refreshKey} disabled={jobRunning} onChoose={setRenameName}/>}</>}]} />
         </td></tr>
         <Row label="Size">{bytes(d.file_size)}{d.width && d.height ? ` · ${d.width} × ${d.height}` : ""}</Row>
         <Row label={<span className="row-tip" title="As recorded when NegativeSpace first indexed this file.">
@@ -407,6 +412,7 @@ function Details({ onImportChoices, detail: d, onLineage, refreshKey, review, jo
         </Row>
       </Section>
 
+      {renameName != null && <RenameDialog id={d.id} name={renameName} jobRunning={jobRunning} onClose={() => setRenameName(null)}/>}
       <PhotoHistory refreshKey={refreshKey} id={d.id} onLineage={onLineage} />
       {d.thumbnail.availability === "failed" && (
         <p className="muted">Thumbnail unavailable: {d.thumbnail.failure_detail ?? "reason not recorded"}</p>

@@ -148,6 +148,7 @@ default Index):
   is missing, changed, unreadable or not put there by NegativeSpace.
 - --rename PHOTO_ID --name NAME [--dry-run] / --rename-candidates PHOTO_ID: give a
   delivered file a new name, or list the names its duplicate group carried.
+  --rename-preview-token TOKEN binds confirmation to the unchanged dry-run result.
 - --reject / --return-to-library, with --file-ids(-from) or --source-subdir: move organized
   photos from dest/library to dest/rejects, or back (spec §9.5). Nothing is deleted.
 - --check-issue ISSUE_ID: verify one uncertain operation and record fresh evidence;

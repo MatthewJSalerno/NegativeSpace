@@ -437,9 +437,9 @@ with sync_playwright() as p:
     expect(reference_preview).to_contain_text('Viewing rotation: 270°')
     shot('match-new-reference')
     dialog.get_by_role('button', name='Back to gallery', exact=True).click()
-    rotation_save=page.get_by_role('dialog',name='Save rotations',exact=True)
+    rotation_save=page.get_by_role('alertdialog',name='Save rotation before leaving?',exact=True)
     expect(rotation_save).to_be_visible()
-    rotation_save.get_by_role('button',name='Discard viewing turns and leave',exact=True).click()
+    rotation_save.get_by_role('button',name='Discard and continue',exact=True).click()
     expect(inspector.locator('.inspector-head h2')).to_have_text(original_name)
     expect(page).not_to_have_url(re.compile("review="))
     assert gallery_context(page.url) == gallery_context(original_url)
@@ -454,10 +454,11 @@ with sync_playwright() as p:
     assert dialog.evaluate('e => e.scrollWidth <= e.clientWidth + 1'), 'review overflow at narrow width'
     shot('match-review-narrow')
     page.set_viewport_size({'width': 1440, 'height': 1000})
-    # Esc and Back offer the same save/discard decision for temporary turns.
+    # A single remaining turn uses the compact save/discard decision.
+    rotation_save=page.get_by_role('alertdialog',name='Save rotation before leaving?',exact=True)
     page.keyboard.press('Escape')
     expect(rotation_save).to_be_visible()
-    rotation_save.get_by_role('button',name='Discard viewing turns and leave',exact=True).click()
+    rotation_save.get_by_role('button',name='Discard and continue',exact=True).click()
     expect(dialog).to_be_hidden()
     # Focus returns to a real control, so the keyboard carries on (Immich once lost
     # keyboard scrolling after its viewer): the opener while it still exists, otherwise the

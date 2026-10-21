@@ -45,6 +45,7 @@ AT_DESTINATION = DELIVERED + IN_REJECTS_STATUSES
 REJECTS_LISTING_SECONDS = 5.0
 _rejects_listings = {}
 SORTS = {
+    "duplicates": "(SELECT COUNT(*) FROM photos d WHERE d.sha1_hash=p.sha1_hash AND d.id!=p.id) DESC, p.id ASC",
     "bookmark": "COALESCE((SELECT CASE json_extract(e.payload,'$.bookmark_reason') WHEN 'date' THEN 0 WHEN 'compare' THEN 1 WHEN 'rotation' THEN 2 WHEN 'details' THEN 3 WHEN 'keep' THEN 4 WHEN 'ask' THEN 5 ELSE 6 END FROM review_events e WHERE e.photo_id=p.id AND e.reason='later' AND e.action='later' ORDER BY e.id DESC LIMIT 1),7), p.id ASC",
     "matches": "similar_count DESC, p.id ASC",
     # Undated rows carry their modification-time fallback in date_taken, labelled by
@@ -75,6 +76,19 @@ def _extension(path):
 
 def _basename(path):
     return path.rsplit("/", 1)[-1] if path else None
+
+
+def _filename_stem(path):
+    """The final filename without its last extension, for catalogued file paths.
+
+    Avoid constructing a Path for each side of every gallery name comparison.
+    Leading dots and a trailing dot are part of the stem, as in Path.stem.
+    """
+    if not path:
+        return None
+    name = _basename(path)
+    dot = name.rfind('.')
+    return name[:dot] if 0 < dot < len(name) - 1 else name
 
 
 def in_rejects(path) -> int:
@@ -120,6 +134,7 @@ def connect(db_path: Path):
             raise CatalogUnavailable(
                 "incompatible", f"{exc}. The catalog was left as it is; this version of NegativeSpace "
                                 f"cannot read it.") from exc
+        conn.create_function("filename_stem", 1, _filename_stem, deterministic=True)
         conn.create_function("basename", 1, _basename, deterministic=True)
         conn.create_function("extension", 1, _extension, deterministic=True)
         conn.create_function("in_rejects", 1, in_rejects)

@@ -1152,3 +1152,7 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 
 /* An opened source folder's last full Index, beside its name (webui-spec 2). */
 .folder-indexed { color: var(--muted); font-size: var(--type-xs); font-weight: var(--weight-normal); }
+
+.file-location-value { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
+.other-names { margin-block-start: var(--space-2); }
+.other-names li { margin-block: var(--space-2); overflow-wrap: anywhere; }

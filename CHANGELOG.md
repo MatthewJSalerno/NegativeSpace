@@ -9,6 +9,12 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Rename organized photos from their information pane, choose a recorded alternative
+  name, and find photos with other names. Preview collisions before confirming;
+  active XMP sidecars follow the photo, while source files remain unchanged.
+- Use a compact Save / Discard / Keep reviewing decision when leaving one unsaved
+  rotation; verified saves continue navigation and failures remain visible.
+
 - Separate ready photos from source files held for attention in Copy all/Move all
   confirmations. Make Index summary figures open their matching source photos.
 - Show a collapsed By file type breakdown in the Index summary and job log, using

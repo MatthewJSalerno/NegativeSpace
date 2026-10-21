@@ -402,6 +402,18 @@ editors labelling same-named tabs with their folder
 [Sublime Text](https://forum.sublimetext.com/t/tab-name-with-multiple-files-of-same-name-open/3619)).
 Behaviour: `webui-spec.md`, Telling same-named photos apart.
 
+### Photo filenames
+
+In Photo information, place **Rename…** beside the destination filename for organized
+Library photos, with a collapsed **Also arrived as** list directly below. Load that list
+only when opened. Each recorded alternative shows its source paths and **Use this name**;
+both controls open the same rename dialog. Keep the real extension and date folder,
+preview an available numbered name on collision, and require explicit confirmation.
+Disable writes during a job with an explanation. No rename controls in source-only
+or Rejects information. **Has other names** is a Library checkbox inside Filters;
+turning it on selects Most duplicates first. It combines with other filters and clears
+on place navigation or Clear all filters. It is not a review reason.
+
 ## Workspaces
 
 The Library is for finding photos; a **workspace** is for working on them. Deep tasks
@@ -633,9 +645,18 @@ match set must not leave hidden targets armed. Show proposed metadata changes
 before execution and record each result. Do not show nonfunctional edit controls
 while those actions are unbuilt.
 
+**Single-photo rotation exit:** when only one photo has a pending turn, use a compact
+**Save rotation before leaving?** dialog with **Keep reviewing** (initial focus),
+**Discard and continue**, and **Save and continue**. Name the photo and metadata target;
+show required duplicate-removal confirmation or refusal in the same dialog. A successful,
+verified save resumes the requested navigation. A failed or uncertain save keeps the
+photo and explanation visible. More than one turned photo keeps the existing per-photo
+save selection. Bulk Rotate remains unchanged.
+
 **Orientation-save interaction:** turns remain temporary during comparison. Back,
-Escape and navigation offer one Save rotations dialog for every photo turned in
-that review, including candidates no longer displayed and promoted references.
+Escape and navigation offer one exit decision covering every photo turned in
+that review, including candidates no longer displayed and promoted references. Use
+the compact prompt for one pending photo and Save rotations for more than one.
 Save selected changes, discard viewing turns and leave, or return to the photo.
 Reset to zero needs no save. The Inspector (including its enlarged view), Photo Review
 and each comparison preview show curved-arrow icon buttons for Rotate left and Rotate

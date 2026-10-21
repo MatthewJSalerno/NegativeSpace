@@ -9,6 +9,10 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Photo names and rotation exits:** [Tests NR1–NR3](#photo-names-and-rotation-exits)
+are ready and await maintainer validation. The existing IS, CA, SB and LI checks
+remain accepted; do not repeat them for this batch.
+
 **Index summary batch:** the maintainer passed [Tests IS1–IS3](#index-summary-actions),
 including all lettered steps. No manual checks remain for this batch.
 
@@ -31,6 +35,69 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Photo names and rotation exits
+
+**Status:** implemented on `feat/photo-name-rotation-controls`; automated checks passed,
+maintainer checks pending. The fresh review has the demo library and generated metadata
+scenarios already indexed and copied: 4,776 organized photos. Broken/held scenarios remain
+in Not organized. The filenames below were verified in Library. Use **Photo information**
+and its **Destination** section; the field label is **Destination path**.
+
+### Test NR1 — Rename and collision preview
+
+a. In **Library**, clear filters and search **`md-full-name.jpg`**. Open it and find
+**Rename…** beside its destination path. **Also arrived as** starts collapsed. Open
+Rename and enter **`md-stem-name.jpg`**, another verified photo in the same folder.
+The preview must offer **`md-stem-name_1.jpg`** and explain that the name is taken.
+Select **Cancel**; the photo must still be named `md-full-name.jpg`.
+
+b. Open **Rename…** again and enter **`review-renamed.jpg`**. Confirm the preview
+keeps the folder and `.jpg` extension, then select **Rename photo**. Wait for
+**Photo renamed** and close. The heading/destination should show `review-renamed.jpg`.
+Its existing XMP should still appear in **Metadata**, with its recorded values intact.
+
+c. In the photo's History, open **View lineage tree** and check the Rename event.
+Close lineage, then select **View photo logs**: the Rename result records the old and
+new names and one successful rename. Return to Library and search
+**`review-renamed.jpg`**. Open Rename at 200% browser zoom; the input, resulting name
+and buttons remain usable. Cancel and return to normal zoom.
+
+### Test NR2 — Recorded names and the gallery filter
+
+a. Search **`review-renamed.jpg`** in Library. Expand **Also arrived as**. Find
+**`md-full-name`** and select its **Use this name** link. The preview offers
+`md-full-name.jpg`. Confirm, then close the result. Search **`md-full-name.jpg`**;
+its photo is back under that name. The newer name remains in the recorded alternatives.
+
+b. Clear search. Open **Filters** and select **Has other names**. The result heading
+names the active filter and the sort becomes **Most duplicates first**. Search
+**`md-full-name.jpg`**; the renamed photo remains present. Reload the browser and check
+that the filter and result remain. **Clear all filters** restores the ordinary view.
+
+c. Turn **Has other names** on once more, then select **Not organized**. The naming
+filter clears and the source view does not offer it. Return to **Library**.
+
+### Test NR3 — One unsaved rotation
+
+a. Search **`md-exif-only.jpg`** in Library and open it. Turn it right with the curved
+arrow, then close the photo pane. The compact **Save rotation before leaving?** dialog
+names the photo and its metadata target. Select **Keep reviewing**: the photo and its
+temporary turn stay open.
+
+b. Close the pane again and select **Discard and continue**. Reopen
+**`md-exif-only.jpg`**; the turn was not saved.
+
+c. Turn right again and close the pane. Before saving, check the prompt at 200% browser
+zoom: its text and three actions remain accessible. Return to normal zoom and select
+**Save and continue**. The prompt stays while the job saves, then closes the photo pane.
+Reopen **`md-exif-only.jpg`** and check the saved orientation in Metadata.
+
+| Tests | Automated coverage | Maintainer result |
+| --- | --- | --- |
+| NR1 | Real photo/XMP relocation, preserved sources, collision races, literal filenames, request replay, history | Pending a–c |
+| NR2 | Lazy alternatives, shared list/IDs/position/facet membership, recorded names and URL state | Pending a–c |
+| NR3 | Save/discard/keep, refused submissions, partial-save turn reset, comparison and multi-photo regressions | Pending a–c |
 
 ## Index summary actions
 

@@ -307,14 +307,15 @@ now offers one job-scoped Include/Leave confirmation for edited originals, with 
 selection and engine recheck; maintainer acceptance of this confirmation passed
 on 2026-10-14 (tests M1–M3).
 
+Index summaries link to their exact source scopes and share a recorded file-type
+breakdown with Logs. Photo information offers Rename and recorded alternative names;
+the single-photo unsaved-rotation exit has a compact save/discard decision.
+
 Specified but not yet on screen:
 *   The unbacked-changes line on every page, and Retry backup in a persistent backup notice.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
-*   The Index file-type summary (files found, eligible and excluded by type), which the
-    engine records per full Index (`webui-spec.md` §5.1).
-*   Renaming from the photo panel ("Also arrived as" and Use this name; the engine side is built),
-    and undated-photo evidence with a per-library back-test (`webui-spec.md` §3.1). Date taken editing/copying
+*   Undated-photo evidence with a per-library back-test (`webui-spec.md` §3.1). Date taken editing/copying
     with a filing preview is built and validated, as are saved rotations. Other fields
     remain read-only; broader engine capabilities do not imply a general-purpose web editor.
 *   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file resolution, and the similar-to-a-reject check

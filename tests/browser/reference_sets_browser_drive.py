@@ -221,9 +221,9 @@ with sync_playwright() as p:
     shot('review-actions')
     review.get_by_role('button',name='Show this set in gallery',exact=True).click()
     # Leaving a turned comparison requires the deliberate discard choice.
-    rotations=page.get_by_role('dialog',name='Save rotations',exact=True)
+    rotations=page.get_by_role('alertdialog',name='Save rotation before leaving?',exact=True)
     expect(rotations).to_be_visible()
-    rotations.get_by_role('button',name='Discard viewing turns and leave',exact=True).click()
+    rotations.get_by_role('button',name='Discard and continue',exact=True).click()
     expect(review).to_have_count(0)
     expect(page.locator('.card')).to_have_count(2)
     expect(page.locator(f'.card[data-id="{a}"] .card-check input')).to_be_checked()
@@ -236,7 +236,7 @@ with sync_playwright() as p:
     expect(review.locator('.review-score')).to_contain_text('90.62%')
     review.get_by_role('button',name='Back to gallery',exact=True).click()
     expect(rotations).to_be_visible()
-    rotations.get_by_role('button',name='Discard viewing turns and leave',exact=True).click()
+    rotations.get_by_role('button',name='Discard and continue',exact=True).click()
     expect(review).to_have_count(0)
     # A dense set's members are paged in the gallery, reached from the set's review.
     page.locator(f'.card[data-id="{large}"]').get_by_role('button',name='Review this set',exact=True).click()

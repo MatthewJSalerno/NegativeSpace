@@ -2171,15 +2171,18 @@ name held the information. This is a presentation problem, not an engine one:
 the alternatives are already catalogued on the `Duplicate`/`Removed_Duplicate`
 rows and on every `operations` row, groupable by `sha1_hash`.
 
-**In the photo panel, not a tab** (decided 2026-10-05). Identical copies are the same
+**In the photo panel, not a tab** (built; placement confirmed 2026-10-21). Identical copies are the same
 photo, so no choice of name can be wrong and nothing asks: the first-indexed name stays
 until the user changes it.
 
-* The panel lists **Also arrived as**: every other name and folder the group carried,
-  each with **Use this name** (the breadcrumbs of `ui-design.md`, "Validation and
-  feedback"), and **Rename…** to type one.
+* **Rename…** sits beside the destination filename in Photo information, with a
+  collapsed, lazily loaded **Also arrived as** list beneath it: every other name and folder the group carried,
+  each with **Use this name**, opening the same confirmation as **Rename…**.
 * A Library filter, **Has other names**, finds the photos whose group holds a different
-  filename stem, sorted most duplicates first, for working through them.
+  filename stem, sorted most duplicates first, for working through them. It is in
+  Filters, combines with other restrictions, persists in the URL, and clears on place
+  navigation or Clear all filters. Renaming is Library-only; job-running controls explain
+  why they are disabled. Neither source-only nor rejected photos offer Rename.
 * *Why not a Needs review note per group:* a large library holds thousands, and none is a
   problem. *Why not pick the "best" name automatically:* rules such as "a typed name beats
   a camera number" fail often enough to annoy; the user decides.
@@ -2192,7 +2195,8 @@ files it never wrote. Confirm immediately. The write is no-overwrite with the
 `_N` suffix rule, `photos.dest_path` is updated, and an `operations` row records
 **both** old and new path for lineage. There is no undo control; a later correction
 is a new rename checked against current files. Preview the resolved collision name,
-report the actual result, preserve the real extension and date folder, and update
+bind confirmation to the unchanged resolved plan under the engine lock, report the
+actual result, preserve the real extension and date folder, and update
 related current references without rewriting history. A missing or changed target
 stops the operation and shows §7.6 guidance.
 
@@ -2640,6 +2644,12 @@ They help assess returned candidates. Matching uses each photo as displayed, wit
 orientation applied (`engine-spec.md` §9.3); a copy whose pixels were rewritten rotated
 is not found. The expanded workspace (§7.4) is the
 side-by-side review surface.
+
+**Single-photo exit:** one pending turn opens **Save rotation before leaving?** with
+Keep reviewing, Discard and continue, and Save and continue. Show the filename, target
+and any duplicate confirmation or refusal. Resume navigation only after a verified
+success; failures keep the photo and explanation. Multiple turned photos retain the
+per-photo selection below.
 
 **End-of-review save:** Back, Escape and navigation offer one decision for remaining
 rotation changes. Show affected photos and final turns, with Save selected, Discard
