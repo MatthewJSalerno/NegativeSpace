@@ -536,7 +536,7 @@ with sync_playwright() as p:
     page.get_by_role("searchbox", name="Search filenames").fill("photo-00")
     open_actions(page, "Copy").get_by_role("menuitem", name=f"Copy all ({PHOTOS - 3:,})").click()
     dialog = page.get_by_role("alertdialog")
-    expect(dialog).to_contain_text(f"every photo not yet copied ({PHOTOS - 3:,})")
+    expect(dialog).to_contain_text(f"Copy {PHOTOS - 3:,} ready photos?")
     dialog.get_by_role("button", name="Copy").click()
     page.get_by_role("searchbox", name="Search filenames").fill("")
     expect(finished_notice(page)).to_contain_text(re.compile(r"Job #\d+ · Copy finished with failures"), timeout=120_000)

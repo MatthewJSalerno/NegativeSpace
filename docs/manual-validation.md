@@ -9,6 +9,9 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Index summary batch:** the maintainer passed [Tests IS1–IS3](#index-summary-actions),
+including all lettered steps. No manual checks remain for this batch.
+
 **Consolidated audit fixes:** the maintainer passed [Tests CA1–CA3](#consolidated-audit-fixes),
 including all lettered steps. No manual checks remain for this batch.
 Original SB1–SB6 and LI1–LI2 acceptance remains recorded below. Folder-coverage
@@ -28,6 +31,67 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Index summary actions
+
+<a id="index-summary-actions"></a>
+
+**Status:** built on `feat/index-summary-actions`; automated checks passed. The
+maintainer passed IS1a–c, IS2a–c and IS3a–c on 2026-10-20. The accepted walkthrough
+used the demo library and generated metadata cases, indexed with only JPEG/JPG
+enabled and no organized photos. Filenames below were verified in that catalog. Start with Not organized;
+clear search and optional filters. If dismissed, select **Show index summary**.
+
+### Test IS1 — Ready and held counts
+
+a. Note **Photos ready to organize** and **Files needing attention** in the summary.
+Select **Copy all photos…**. Its heading counts only ready photos; a separate sentence
+counts source files needing attention. Select **Cancel** without starting Copy.
+
+b. Open **Jobs › Copy**, then **Copy all**. Check the same ready/held counts and Cancel.
+Open **Move all photos…** in the summary, check the same distinction, then Cancel.
+Do not start Move; this review's photo source is read-only.
+
+c. Open the summary's **Files needing attention** count and search
+`md-malformed-xml.jpg`. It is in Not organized with a metadata hold. Return to
+Not organized, open **Photos ready to organize**, and search `md-exif-only.jpg`;
+it is present and ready. Searching `md-malformed-xml.jpg` in that ready scope finds
+nothing. Clear all filters afterward.
+
+### Test IS2 — Summary links and navigation
+
+a. Open **Small images**, **Suspicious dates** and **No usable capture date** from the
+summary, one at a time. Each result matches its summary count. Use browser Back
+between links; Forward returns to the same filtered result.
+
+b. Open **Additional identical copies**. The cards are photos with extra identical
+copies, so the number of cards can be smaller than the summary's extra-copy count.
+Clear all filters to restore the full source view.
+
+c. Open **Image size unavailable**. This prepared catalog has zero: an empty result is
+correct. **Clear all filters** restores the source photos. Open any summary link,
+then switch to Library and back to Not organized; the temporary summary scope is gone.
+
+### Test IS3 — File-type breakdown and layout
+
+a. In the summary, **By file type** starts closed. Expand it: JPG/JPEG counts appear
+under selected photo types, PNG and RAW types under turned-off types, followed by
+one sidecar count, one video count and one Other count. Other files are not listed
+by extension. **Change in Settings → Files** opens Files; close without saving.
+
+b. Open **Logs**, expand **Job #1 · Index**, then its **By file type** disclosure.
+It shows the same recorded totals as the source summary. Those are the Index walk's
+counts, not how many photos have subsequently been copied.
+
+c. Check the collapsed/expanded summary and a Copy confirmation at normal size and
+200% browser zoom/text. Labels, links and buttons remain readable and reachable;
+Copy/Move controls stay visually separate from the informational disclosure.
+
+| Tests | Automated evidence | Maintainer result |
+| --- | --- | --- |
+| IS1 | Metadata holds, cleared holds, copied originals, default browser confirmation | Passed a–c (2026-10-20) |
+| IS2 | Shared membership across list/IDs/facets/position, browser Back/Forward and zero results | Passed a–c (2026-10-20) |
+| IS3 | Recorded counts, partial/scoped walks, shared Logs panel, dark-mode enlarged-text check | Passed a–c (2026-10-20) |
 
 ## Maintainer validation rules
 

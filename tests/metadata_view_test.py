@@ -185,6 +185,11 @@ class MetadataViewTests(ApiCase):
         self.assertIn('Index again',note['action'])
         self.assertEqual(page['index_summary']['metadata_held'],1)
         self.assertEqual(page['index_summary']['ready'],0)
+        self.assertEqual(self.client.get('/api/v1/photos?view=unorganized&source_summary=ready').json()['total'],0)
+        self.assertEqual(self.client.get('/api/v1/photos?view=unorganized&source_summary=metadata_held').json()['total'],1)
+        state=self.client.get('/api/v1/status').json()
+        self.assertEqual(state['eligible'],{'copy':0,'move':0})
+        self.assertEqual(state['held'],1)
         self.assertEqual(self.client.get('/api/v1/photos?view=unorganized&reason=attention').json()['total'],1)
         detail=self.client.get(f'/api/v1/photos/{self.pid}/inspect').json()
         self.assertEqual(detail['metadata_attention'],note)
@@ -192,6 +197,9 @@ class MetadataViewTests(ApiCase):
         page=self.client.get('/api/v1/photos?view=unorganized').json()
         self.assertEqual(page['index_summary']['metadata_held'],0)
         self.assertEqual(page['index_summary']['ready'],1)
+        state=self.client.get('/api/v1/status').json()
+        self.assertEqual(state['eligible'],{'copy':1,'move':1})
+        self.assertEqual(state['held'],0)
         self.assertIsNone(page['items'][0]['metadata_attention'])
         self.assertEqual(self.client.get('/api/v1/photos?view=unorganized&reason=attention').json()['total'],0)
         self.assertEqual(self.client.get('/api/v1/photos/places').json()['warnings']['attention'],0)
@@ -200,6 +208,9 @@ class MetadataViewTests(ApiCase):
         with ns_db.connect(self.cfg.db_path) as conn:
             conn.execute("UPDATE photos SET status='Copied' WHERE id=?",(self.pid,))
         self.assertIsNone(self.client.get(f'/api/v1/photos/{self.pid}/inspect').json()['metadata_attention'])
+        state=self.client.get('/api/v1/status').json()
+        self.assertEqual(state['eligible'],{'copy':0,'move':1})
+        self.assertEqual(state['held'],0)
 
     def test_attention_filter_paging_facets_selection_and_combined_counts(self):
         with ns_db.connect(self.cfg.db_path) as conn:

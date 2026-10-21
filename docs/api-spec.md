@@ -50,7 +50,7 @@ The first screen's state. It never creates anything.
 
     {"state": "missing" | "ok" | "incompatible" | "error", "detail": "<reason or null>",
      "photos": 1160, "indexed": true, "eligible": {"copy": 0, "move": 1160}, "copied": 1160,
-     "rejected_with_source": 0,
+     "rejected_with_source": 0, "held": 0,
      "rejects": {"photos": 340, "bytes": 1200000000, "oldest_rejected_at": "<UTC instant or null>",
                  "emptied": {"photos": 1200, "bytes": 4800000000},
                  "reminder": {"over_size": true, "over_age": false,
@@ -63,7 +63,11 @@ The first screen's state. It never creates anything.
 rule (`ns_db.TRANSFER_ELIGIBLE`): Copy takes `Pending`; Move also takes `Copied`, deleting
 each source against its verified copy, and `Rejected_Copied`, deleting it against its copy
 in Rejects. `copied` and `rejected_with_source` are how many of Move's are each of those.
-Both count the whole catalog, whatever the gallery's view or search.
+Both count the whole catalog, whatever the gallery's view or search. Pending photos
+whose latest source metadata capture holds import are excluded. `held` counts
+unorganized Failed photos and other unorganized photos with that latest metadata hold,
+without double counting. A newer source observation does not remove Copied or
+Rejected_Copied originals from Move's existing confirmation and live verification.
 
 `rejects` is what Rejects holds now and what has been emptied from it so far: every
 rejected photo whose file is gone from `dest/rejects`, whether or not a job has recorded
@@ -191,6 +195,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 | `date` | repeatable: a year (`2023`), a month (`2023-06`) or `none` (no date at all); the date tree's "Show only". Several add up | none: every date |
 | `type` | repeatable: a file extension, lower case, no dot (`jpg`, `heic`); the Types section's "Show only". Several add up | none: every type |
 | `folder` | repeatable: a folder relative to the source (`Phone/2019`), taking its subfolders, or `.` for the files directly in the source folder; the Folders tree's "Show only". Several add up. Matched as a literal path, never a wildcard or case-blind; a path outside the source is `400` | none: every folder |
+| `source_summary` | `ready`, `indexed`, `identical`, `unknown_dimensions`, `unfinished`, `failed`, `metadata_held`; temporary source-only membership, combined with other filters; unknown values return 400 | none |
 | `page`, `page_size` | page from 1; 1 to 240 photos | 1, 60 |
 
     {"items": [{"id": 12, "status": "Pending", "file_size": 3012443,
@@ -200,6 +205,20 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
      "page": 1, "page_size": 60, "total": 1160,
      "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160},
      "matches": {"all": 1160, "organized": 0, "unorganized": 1160}}
+
+`source_summary` also applies to IDs, photo position, timeline, Types and Folders.
+`ready` is Pending without a source metadata hold; `indexed` is Pending;
+`identical` selects unorganized representatives with additional Duplicate rows;
+`unknown_dimensions` is Pending with no positive recorded width/height; `unfinished`
+is Processing; `failed` is Failed; `metadata_held` is a non-Failed unorganized hold.
+All scopes intersect Not organized, so none exposes Library or Rejects photos.
+
+Not organized's `index_summary.discovery` and Index Run responses' `discovery` share
+one recorded full-walk breakdown: `files_found`, `eligible`, `photos` (extension/count),
+`disabled_photos` (known photo extensions excluded from this walk), `sidecars`, `videos`,
+`other`, `partial` and `unreadable`. No filenames or per-type Other breakdown are exposed.
+Null means no discovery record for that Index, including a scoped job. Summary facts
+are current; discovery is that job's snapshot, independent of current filters/settings.
 
 Each list item also includes `name_context: {clashes, folder, original_paths,
 renamed_on_arrival}`. `clashes` compares displayed filenames across the whole current

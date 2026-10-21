@@ -316,3 +316,26 @@ The name query scans the eligible status index because displayed filenames are
 derived from source/destination paths; copy paths use the SHA-1 index, and history
 uses the photo-operation index. There is no per-card name query, persisted name
 cache, new index or schema change. Filters and labels share the list's read snapshot.
+
+## Index summary scopes — 2026-10-20
+
+A generated 250,000-photo catalog from the synthetic query builder was copied into
+an isolated measurement fixture, with all photos Pending and one metadata capture per
+photo. Every hundredth capture held import (2,500 held, 247,500 ready). No photo
+files were read. Three calls per helper gave these medians, with other validation
+running on the shared host; these are indicative costs, not a before/after speedup or
+latency percentile claim.
+
+| Helper | Median |
+| --- | ---: |
+| Status, including ready/held totals | 151 ms |
+| Ready-source gallery, with its facets and summary | 2,983 ms |
+| Held-source gallery, with its facets and summary | 2,839 ms |
+| All ready photo IDs | 339 ms |
+
+Every call returned the expected membership/count. `EXPLAIN QUERY PLAN` for ready
+membership used `idx_photos_status`, the photo/file primary key and
+`idx_metadata_file_capture`; the latest-capture lookup did not scan all captures per
+photo. Summary/gallery calls still aggregate the current source facts and facets;
+this batch does not cache them. By file type reads the Index's single recorded
+`run_discovery` row, independent of catalog size or current photo state.

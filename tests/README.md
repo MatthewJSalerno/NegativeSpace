@@ -1,6 +1,16 @@
 # Tests
 
 Everything here is for developing NegativeSpace; running the engine needs none of it.
+## Index summary checks
+
+`review_test.py` checks summary membership across pages, IDs, facets and photo
+navigation, invalid scopes, and immutable per-job file-type accounting.
+`metadata_view_test.py` covers held versus ready transfer counts and cleared holds.
+The existing review browser driver covers summary links, empty results, Back/Forward
+and the file-type disclosure; the default driver checks Copy all confirmation counts.
+These run in the existing Python/browser CI jobs. Maintainer checks are recorded in
+[manual validation](../docs/manual-validation.md#index-summary-actions).
+
 ## Manual validation instructions
 
 Use [Manual validation](../docs/manual-validation.md) for the pending queue, all browser

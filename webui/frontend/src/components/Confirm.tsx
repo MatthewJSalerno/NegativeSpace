@@ -2,7 +2,7 @@ import { Modal } from "./ui/Modal";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type ActionMode, type Status, type MoveScope, type MovePreview, type MoveSubmission } from "../api";
 import { Pager } from "./Pager";
-import { count, plural } from "../format";
+import { plural } from "../format";
 import { SubmissionStatus } from "./SubmissionStatus";
 
 type RejectComparison = { last: boolean; rejectedHere: number; onDontAskAgain: () => void };
@@ -34,8 +34,8 @@ export function transferConfirm(mode: ActionMode, status: Status, ids: number[] 
                                 inRejects = false, sourceSubdir?: string): Confirm {
   const scope = Array.isArray(ids) ? (ids.length === 1 && (mode === "reject" || mode === "return") ? "this photo" : plural(ids.length, "selected photo"))
     : ids ? `the photos under ${ids.folder}`
-    : mode === "copy" ? `every photo not yet copied (${count(status.eligible.copy)})`
-      : `every photo not yet moved (${count(status.eligible.move)})`;
+    : mode === "copy" ? `${plural(status.eligible.copy, "ready photo")}`
+      : `${plural(status.eligible.move, "ready photo")}`;
   const one = Array.isArray(ids) && ids.length === 1;
   if (mode === "reject") return rejectConfirm(Array.isArray(ids) ? ids.length : 1, () => run(), { filename, onCancel });
   if (mode === "return") return {
@@ -50,7 +50,7 @@ export function transferConfirm(mode: ActionMode, status: Status, ids: number[] 
     action: mode === "move" ? "Move" : "Copy",
     danger: mode === "move",
     move: mode === "move" ? (Array.isArray(ids) ? { file_ids: ids } : sourceSubdir ? { source_subdir: sourceSubdir } : {}) : undefined,
-    body: mode === "move" && inRejects ? [
+    body: [...(mode === "move" && inRejects ? [
       // A selection in Rejects (webui-spec 2): the warning first, as the review shows only it.
       `${one ? "This photo is" : "These photos are"} in Rejects. Move deletes ${one ? "its original" : "their originals"} from your source once ${one ? "its copy" : "each copy"} in Rejects is verified. ${one ? "That copy becomes the only one" : "Those copies become the only ones"}: empty Rejects and ${one ? "it is" : "they are"} gone.`,
     ] : mode === "move" ? [
@@ -60,7 +60,7 @@ export function transferConfirm(mode: ActionMode, status: Status, ids: number[] 
       "Duplicate copies in the source are removed once a matching copy is confirmed at the destination.",
     ] : [
       "Each photo is copied into the destination's date folders and checked byte for byte. Nothing in the source is changed or deleted.",
-    ],
+    ]), ...(!ids && !sourceSubdir && status.held ? [`${plural(status.held, "source file needs", "source files need")} attention and will stay in the source. Find them in Not organized → Needs attention.`] : [])],
     run,
     onCancel,
   };

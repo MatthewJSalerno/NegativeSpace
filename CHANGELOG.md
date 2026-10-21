@@ -9,6 +9,12 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Separate ready photos from source files held for attention in Copy all/Move all
+  confirmations. Make Index summary figures open their matching source photos.
+- Show a collapsed By file type breakdown in the Index summary and job log, using
+  recorded discovery counts. Catalog schema 31 records selected types; a fresh
+  development catalog is required.
+
 - Put places in the sidebar and combining refinements above photos. Make Similar photos
   a destination; move Needs review into Library with one exclusive Reason choice.
   Place links clear optional filters, while browser Back restores the previous view.

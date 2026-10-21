@@ -22,8 +22,8 @@ development until the maintainer decides.
 - Rename and "Also arrived as" from the photo panel
 - Copy/Move preview grouped by destination folder, and a downloadable plan
 - Start a requested job after the preceding backup — decided, not built (`docs/webui-spec.md` §5.7)
-- Clickable Index summary figures — decided, not built (`docs/ui-design.md`, Which filters apply where; `docs/webui-spec.md` §2)
-- Copy all and Move all count photos held in Needs attention
+- Clickable Index summary figures — built on branch, maintainer validated (IS1–IS3) (`docs/ui-design.md`, Which filters apply where; `docs/webui-spec.md` §2)
+- Copy all/Move all ready and held counts — built on branch, maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2)
 - 💬 Source-folder handling behind the scenes
 - 💬 A content-history link from a photo to its earlier versions
 
@@ -58,7 +58,7 @@ development until the maintainer decides.
 **Checking and maintenance**
 - Check my library and Repair in place — decided, not built (`docs/engine-spec.md` §9.2)
 - Unbacked-changes line on every page, and Retry backup
-- Index summary by file type — decided, not built (`docs/webui-spec.md` §2)
+- Index summary by file type — built on branch, maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2)
 - Import summary, and a filter for files that could not be previewed
 - Skip unreadable files at Index, counted by kind — decided, not built (`docs/engine-spec.md` §4.1)
 - Every warning offers a way out
@@ -164,8 +164,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Workflow order, Not organized guidance and Index summary; Library review markers
   open the photo’s reason in Needs review without changing selection, with a return
   to the entry Library context.
-- [ ] Clickable Index summary figures: decided, not built (`docs/webui-spec.md` §2). The
-  filters themselves are part of the sidebar and refinements design (`docs/ui-design.md`, Page frame).
+- [x] Clickable Index summary figures — built on branch; maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2).
 
 - [x] Same-named photo cards: built and maintainer validated ([spec](docs/webui-spec.md#telling-same-named-photos-apart)).
 
@@ -174,12 +173,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [x] Location views, overlapping Needs review inbox, combined filter chips, cross-location
   filename search and first-visit default (`webui-spec.md` §2).
 
-- [ ] **Copy all and Move all count photos held in Needs attention.** Found 2026-10-18 on
-  the NASA demo set: the Index summary says 4,496 photos are ready and 7 are held in Needs
-  attention, but the confirmation asks "Copy every photo not yet copied (4,503)?". The job
-  then reports "4,496 of 4,503 files copied · 7 skipped". The question should count only
-  the photos it will copy and name the held ones separately. The same mismatch was seen
-  on a 300-photo NASA subset (300 against 281).
+- [x] Copy all/Move all ready and held counts — built on branch; maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2).
+- [x] Index summary by file type — built on branch; maintainer validated (IS1–IS3) (`docs/webui-spec.md` §2).
 - [x] Metadata setup/Settings point to Resolve XMP in Not organized → Needs attention (`docs/webui-spec.md` §7.5).
 
 ## Needs review

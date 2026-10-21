@@ -8,7 +8,7 @@ from typing import Optional
 
 from engine import ns_db
 from engine.ns_db import (PhotoStatus, RunStatus, OPERATION_SKIPPED, OPERATION_CANCELLED, OPERATION_RENAMED, OPERATION_RETURNED)
-from . import catalog
+from . import catalog, discovery
 
 
 # --- Runs and their derived outcome (webui-spec 5.5) -------------------------
@@ -183,6 +183,8 @@ def _run_dict(conn, row) -> dict:
     run["targeting"] = json.loads(run.pop("file_ids_filter")) if run.get("file_ids_filter") else None
     run["progress"] = ns_db.read_progress(conn, run["id"])
     run["outcome"] = _outcome(conn, run, run["progress"])
+    if run["mode"] == "INDEX":
+        run["discovery"] = discovery.breakdown(conn, run["id"])
     run["questions"] = safety_questions(conn, run)
     if "network_destination" in run["questions"]:
         prior = conn.execute("SELECT submitted_request_json FROM job_requests WHERE run_id=?", (run["id"],)).fetchone()

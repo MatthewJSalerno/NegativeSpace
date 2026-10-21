@@ -4128,7 +4128,7 @@ def index_records_what_the_walk_found_by_file_type():
 
     out = engine_output(run_engine(case))
     d = discovery(1)
-    check(d == {"files_found": 7, "eligible": 3, "excluded": 4,
+    check(d == {"files_found": 7, "eligible": 3, "excluded": 4, "eligible_by_extension": {".jpg": 2, ".png": 1},
                 "excluded_by_extension": {"": 1, ".mov": 1, ".xmp": 2}, "unreadable": 0, "partial": False},
           f"wrong discovery accounting for a full Index: {d}")
     check("Discovered 7 file(s): 3 eligible by file type, 4 excluded by file type" in out,

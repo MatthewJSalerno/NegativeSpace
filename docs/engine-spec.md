@@ -233,7 +233,7 @@ catalogue, not the tree, so relocating them is a separate action.
 
 ### 4.3. Reporting & Feedback
 *   **Logging:** Structured logs to both console and `<base>/logs/organizer.log`, covering every stage (scan discovery, hashing, metadata resolution, space checks, copy/verify/delete, duplicate cleanup, cancellation). At startup, once the engine holds the single-instance lock, a log over 50 MB is rotated to `organizer.log.1`, keeping five older logs. It is never rotated mid-run, because every worker process writes to the same file, so one run's log is never split.
-*   **Discovery accounting:** a full Index (no `--file-ids`, no `--source-subdir`) records what its walk found in `run_discovery`: files found, eligible by the run's extension selection, and excluded by file type, with a per-extension breakdown in which `""` means no extension. Hidden entries are skipped before counting, as the walk always skipped them, and a symlink is not counted as a file. Any folder or entry the walk could not read sets `unreadable`, and the counts are then **partial**. The log states the same summary, for example *"Discovered 7 file(s): 3 eligible by file type, 4 excluded by file type (.xmp 2, .mov 1, no extension 1)."* Scoped runs walk nothing and record nothing rather than a guess. `ns_db.read_discovery(conn, run_id)` returns the summary for the API (`webui-spec.md` §5.1). Counting excluded files reads the file type `readdir` already returned, so it adds no round trip on a network share.
+*   **Discovery accounting:** a full Index (no `--file-ids`, no `--source-subdir`) records what its walk found in `run_discovery`: files found, eligible by the run's extension selection, and excluded by file type, with separate eligible and excluded per-extension breakdowns in which `""` means no extension. Hidden entries are skipped before counting, as the walk always skipped them, and a symlink is not counted as a file. Any folder or entry the walk could not read sets `unreadable`, and the counts are then **partial**. The log states the same summary, for example *"Discovered 7 file(s): 3 eligible by file type, 4 excluded by file type (.xmp 2, .mov 1, no extension 1)."* Scoped runs walk nothing and record nothing rather than a guess. `ns_db.read_discovery(conn, run_id)` returns the summary for the API (`webui-spec.md` §5.1). Counting excluded files reads the file type `readdir` already returned, so it adds no round trip on a network share.
 *   **Progress Reporting:** during a scan the engine reports, on a fixed interval, the *instantaneous* rate over the most recent window — both files/sec and MB/s — with an ETA derived from that recent rate rather than a cumulative average. The distinction is operational, not cosmetic: a cumulative average decays continuously while a run is healthy, which makes a saturated link look like a failing one. Reporting bytes alongside files is what separates the two cases — a RAW-heavy stretch runs at a few files/sec and a JPEG stretch at tens of files/sec while both saturate the same network link, and only the MB/s figure shows that.
 
 *   **Run Summary:** every Index ends with one line giving the total recorded and a per-status breakdown, plus warnings for files that produced no perceptual hash (they index and move normally but cannot participate in similarity matching (§9.3)) and for files dated from mtime rather than EXIF (the only files a timezone change can move between folders). Without it, a scan where hundreds of files failed would look identical to a clean one.
@@ -641,7 +641,7 @@ CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id);
 
 **Recovery, content, cache, discovery and backup records.** The first five are
 written by recovery (4.2), `contents` and `thumbnail_cache` by the scan,
-`run_discovery` by a full Index (4.3), `run_progress` by every job (4.3), `destination_findings` by the destination check (9.1), and the backup records by catalog backups
+`run_discovery` by a full Index (4.3; schema 31 adds the selected-extension counts, calculated from the already-discovered candidate list with no extra filesystem reads), `run_progress` by every job (4.3), `destination_findings` by the destination check (9.1), and the backup records by catalog backups
 (4.1); `file_changes` is defined but not yet written. Index writes `content_similarity`.
 Statement order matters here too:
 `contents` precedes everything referencing it, `operation_events` precedes
@@ -759,6 +759,7 @@ CREATE TABLE run_discovery (
     run_id INTEGER PRIMARY KEY REFERENCES runs(id),
     files_found INTEGER NOT NULL, eligible INTEGER NOT NULL, excluded INTEGER NOT NULL,
     excluded_by_extension_json TEXT NOT NULL, unreadable INTEGER NOT NULL,
+    eligible_by_extension_json TEXT NOT NULL,
     CHECK(files_found = eligible + excluded)
 );
 
@@ -1903,7 +1904,7 @@ an optional note of at most 60 characters in the exact request payload. `done` r
 only the bookmark; `keep` is accepted only for a Decide whether to keep it bookmark
 and records the explicit decision. Completion preserves the original preset and note
 in history. Metadata edits never remove a bookmark automatically. Review events are included in catalog backups and
-unbacked-change accounting. Development catalogs require schema 30; no migration.
+unbacked-change accounting. Development catalogs require schema 31; no migration.
 
 
 ## 11. Explicit uncertain-outcome verification

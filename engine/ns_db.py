@@ -17,7 +17,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 30
+SCHEMA_VERSION = 31
 
 # --- Status vocabularies -----------------------------------------------------
 #
@@ -750,6 +750,7 @@ FOUNDATION_DDL = (
         run_id INTEGER PRIMARY KEY REFERENCES runs(id),
         files_found INTEGER NOT NULL, eligible INTEGER NOT NULL, excluded INTEGER NOT NULL,
         excluded_by_extension_json TEXT NOT NULL, unreadable INTEGER NOT NULL,
+        eligible_by_extension_json TEXT NOT NULL,
         CHECK(files_found = eligible + excluded))""",
     # Live job progress for the web UI's drawer (webui-spec 4.1): one row per phase a
     # run entered, written by the engine about once a second, read by the API. `seq`
@@ -1247,25 +1248,27 @@ def record_thumbnail(conn, *, content_id, size, availability, cache_filename=Non
 NO_EXTENSION = ""
 
 
-def record_discovery(conn, run_id, *, eligible, excluded_by_extension, unreadable):
+def record_discovery(conn, run_id, *, eligible_by_extension, excluded_by_extension, unreadable):
     """Stores one full walk's file-type accounting. `excluded_by_extension` maps a
     lower-case extension (NO_EXTENSION for none) to a count."""
+    eligible = sum(eligible_by_extension.values())
     excluded = sum(excluded_by_extension.values())
     with transaction(conn):
-        conn.execute("INSERT INTO run_discovery VALUES (?,?,?,?,?,?)",
+        conn.execute("INSERT INTO run_discovery VALUES (?,?,?,?,?,?,?)",
                      (run_id, eligible + excluded, eligible, excluded,
-                      _json(dict(sorted(excluded_by_extension.items()))), unreadable))
+                      _json(dict(sorted(excluded_by_extension.items()))), unreadable,
+                      _json(dict(sorted(eligible_by_extension.items())))))
 
 
 def read_discovery(conn, run_id):
     """A run's discovery summary, or None when the run walked nothing (scoped runs)."""
     row = conn.execute("SELECT files_found, eligible, excluded, excluded_by_extension_json, "
-                       "unreadable FROM run_discovery WHERE run_id = ?", (run_id,)).fetchone()
+                       "unreadable, eligible_by_extension_json FROM run_discovery WHERE run_id = ?", (run_id,)).fetchone()
     if row is None:
         return None
-    found, eligible, excluded, by_ext, unreadable = row
+    found, eligible, excluded, by_ext, unreadable, eligible_ext = row
     return {'files_found': found, 'eligible': eligible, 'excluded': excluded,
-            'excluded_by_extension': json.loads(by_ext), 'unreadable': unreadable,
+            'excluded_by_extension': json.loads(by_ext), 'eligible_by_extension': json.loads(eligible_ext), 'unreadable': unreadable,
             'partial': unreadable > 0}
 
 

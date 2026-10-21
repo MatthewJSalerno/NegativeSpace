@@ -93,6 +93,13 @@ Stats warning and failure tiles retain their semantic colored left borders so
 problems are easy to notice. Folder-table cells retain the shared spacing, including
 8px left padding. Keep this geometry consistent in both themes and at desktop reflow.
 
+Index summary figures are real links to an exact source scope, including zero results.
+Links clear unrelated filters without selecting files. The additional-copies link opens
+representative photos, not duplicate cards. **By file type** uses a native disclosure,
+closed initially, shared with the expanded Index job in Logs. Its extension totals
+describe that recorded walk; mark incomplete discovery visibly. Keep file-changing
+Copy/Move controls separate from this informational disclosure.
+
 ## Shared controls
 
 Consistency applies across the whole app. Reuse shared controls for the same action,
@@ -125,7 +132,9 @@ not among search/date/status filters. Refresh comparison is a viewing control. T
 heading carries a labelled **Export filtered log** group; both export formats retain
 all active filters. Shared `page-heading`/`page-actions` rows wrap and align their targets.
 Logs job headings and expanded entries reflow to the available content width, including
-at 200% text. Date fields retain enough space to display their value.
+at 200% text. Indent the expanded job body, including nested disclosures such as
+**By file type**, so its controls read as children of the job heading. The job heading
+and its outer caret remain the control for collapsing the whole job. Date fields retain enough space to display their value.
 
 File locations share labelled **Source** and **Destination** groups with a token-colored
 hairline and spacing between them (`ui/FileLocations.tsx`). Apply this to information
@@ -940,7 +949,7 @@ Label locations on review cards and in the Inspector/workspace. Counts count dis
 photos and must not imply the inbox adds files to the library. A new unscoped visit
 starts at Not organized while Library is empty; explicit links retain their view.
 Once Library exists, an unscoped visit remembers the last place in this browser.
-**Which filters apply where** (built except the clickable Index summary): filters about facts of a
+**Which filters apply where** (built): filters about facts of a
 file, known from the Index (its dates, its size, whether it has identical copies), work in
 every place; filters about comparisons or decisions (look-alikes, review reminders,
 verification) work only on organized photos. The 2026-10-19 sidebar design expresses
