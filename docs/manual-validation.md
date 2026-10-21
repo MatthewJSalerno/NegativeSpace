@@ -9,10 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Index summary batch:** [Tests IS1–IS3](#index-summary-actions) await maintainer
-validation. No previous accepted checks need repeating. The fresh review catalog has
-been indexed but has no organized photos; only JPEG/JPG are enabled so disabled file
-types can be checked. Copy/Move tests below stop at confirmation.
+**Index summary batch:** the maintainer passed [Tests IS1–IS3](#index-summary-actions),
+including all lettered steps. No manual checks remain for this batch.
 
 **Consolidated audit fixes:** the maintainer passed [Tests CA1–CA3](#consolidated-audit-fixes),
 including all lettered steps. No manual checks remain for this batch.
@@ -38,9 +36,10 @@ a retest. Do not infer manual acceptance from automated results.
 
 <a id="index-summary-actions"></a>
 
-**Status:** built on `feat/index-summary-actions`; automated checks passed, manual
-acceptance pending. The review instance contains the demo library and generated
-metadata cases. Filenames below were verified in its catalog. Start with Not organized;
+**Status:** built on `feat/index-summary-actions`; automated checks passed. The
+maintainer passed IS1a–c, IS2a–c and IS3a–c on 2026-10-20. The accepted walkthrough
+used the demo library and generated metadata cases, indexed with only JPEG/JPG
+enabled and no organized photos. Filenames below were verified in that catalog. Start with Not organized;
 clear search and optional filters. If dismissed, select **Show index summary**.
 
 ### Test IS1 — Ready and held counts
@@ -90,9 +89,9 @@ Copy/Move controls stay visually separate from the informational disclosure.
 
 | Tests | Automated evidence | Maintainer result |
 | --- | --- | --- |
-| IS1 | Metadata holds, cleared holds, copied originals, default browser confirmation | Pending |
-| IS2 | Shared membership across list/IDs/facets/position, browser Back/Forward and zero results | Pending |
-| IS3 | Recorded counts, partial/scoped walks, shared Logs panel, dark-mode enlarged-text check | Pending |
+| IS1 | Metadata holds, cleared holds, copied originals, default browser confirmation | Passed a–c (2026-10-20) |
+| IS2 | Shared membership across list/IDs/facets/position, browser Back/Forward and zero results | Passed a–c (2026-10-20) |
+| IS3 | Recorded counts, partial/scoped walks, shared Logs panel, dark-mode enlarged-text check | Passed a–c (2026-10-20) |
 
 ## Maintainer validation rules
 
