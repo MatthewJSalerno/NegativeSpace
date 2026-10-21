@@ -10,7 +10,7 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 ## Pending checks
 
 **Photo names and rotation exits:** [Tests NR1–NR3](#photo-names-and-rotation-exits)
-are ready and await maintainer validation. The existing IS, CA, SB and LI checks
+passed with comments. Only the [focused follow-ups](#photo-name-follow-ups) remain: NR1d–e, NR2d and NR3d. The existing IS, CA, SB and LI checks
 remain accepted; do not repeat them for this batch.
 
 **Index summary batch:** the maintainer passed [Tests IS1–IS3](#index-summary-actions),
@@ -38,8 +38,8 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Photo names and rotation exits
 
-**Status:** implemented on `feat/photo-name-rotation-controls`; automated checks passed,
-maintainer checks pending. The fresh review has the demo library and generated metadata
+**Status:** NR1–NR3 passed with comments. Rename placement/result wording, filter
+layout and turned-preview fit have focused follow-ups below. The review has the demo library and generated metadata
 scenarios already indexed and copied: 4,776 organized photos. Broken/held scenarios remain
 in Not organized. The filenames below were verified in Library. Use **Photo information**
 and its **Destination** section; the field label is **Destination path**.
@@ -95,9 +95,35 @@ Reopen **`md-exif-only.jpg`** and check the saved orientation in Metadata.
 
 | Tests | Automated coverage | Maintainer result |
 | --- | --- | --- |
-| NR1 | Real photo/XMP relocation, preserved sources, collision races, literal filenames, request replay, history | Pending a–c |
-| NR2 | Lazy alternatives, shared list/IDs/position/facet membership, recorded names and URL state | Pending a–c |
-| NR3 | Save/discard/keep, refused submissions, partial-save turn reset, comparison and multi-photo regressions | Pending a–c |
+| NR1 | Real photo/XMP relocation, preserved sources, collision races, literal filenames, request replay, history | Passed a–c with comments; see focused follow-ups |
+| NR2 | Lazy alternatives, shared list/IDs/position/facet membership, recorded names and URL state | Passed a–c with comments; see focused follow-ups |
+| NR3 | Save/discard/keep, refused submissions, partial-save turn reset, comparison and multi-photo regressions | Passed a–c with comments; see focused follow-ups |
+
+### Photo-name follow-ups
+
+The original NR1–NR3 checks passed. Do not repeat them. The review retains the
+maintainer's catalog; `md-full-name.jpg` and `md-exif-only.jpg` were verified in Library.
+
+**NR1d — Header Rename.** Search **`md-full-name.jpg`**, open its large preview and
+select **Rename…** beside the filename at the top. It opens the same dialog as the
+Destination link. Cancel. Enlarge the photo and confirm the header link is also present.
+Cancel any open dialog and close the enlarged view.
+
+**NR1e — Accurate job result.** For **`md-full-name.jpg`**, open **View photo logs**.
+Its existing Rename jobs should say **Rename finished**, with **1 renamed**;
+they must not say no files were processed. No new rename is necessary.
+
+**NR2d — Stable filter layout.** In Library, close the preview, clear search and
+filters, then toggle **Filters → Has other names** on and off. Card widths and the
+**Load 60 at a time** control should stay in place. The year controls may hide when
+the sort is not a date, but their space stays reserved.
+
+**NR3d — Whole turned photo.** Search **`md-exif-only.jpg`**, open its large preview
+and turn it with the curved arrow. Check the whole photo is visible and its proportions
+remain correct. Try resizing the preview divider, then enlarge it and check again.
+Use **Reset** before closing; no save is needed for this visual check.
+
+**Follow-up status:** NR1d–e, NR2d and NR3d await maintainer validation.
 
 ## Index summary actions
 

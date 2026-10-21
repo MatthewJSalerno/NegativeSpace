@@ -2130,16 +2130,26 @@ GitHub checks remain the final merge gate; maintainer approval has been given.
 CI runs `rename_ui_test.py` for verified photo/XMP renames, unchanged sources, request
 replay, invalid inputs, collision races and filter/list/position agreement.
 `photo_names_browser_drive.py` covers lazy alternative names, explicit rename,
-Has other names, enlarged-text layout and compact rotation save/discard/refusal.
+Has other names without card/pagination shifts, both Rename entry points, enlarged-text
+layout and compact rotation save/discard/refusal. Generated wide and tall image responses
+check whole-photo fitting and aspect ratio after each turn in split and enlarged previews.
+The Python suite also checks Rename outcome counts, no-op/failure/recovery separation,
+and names from exact duplicates whose source was removed.
 Existing import-choice and comparison drivers retain multi-photo exit coverage.
 Run these with the standard Docker suite/browser harness instructions above.
 Maintainer checks and acceptance: [NR1–NR3](../docs/manual-validation.md#photo-names-and-rotation-exits).
 
-Local Docker validation covered 51 Python suites (900 tests after the final naming
+Initial batch Docker validation covered 51 Python suites (900 tests after the naming
 additions), 157 engine smoke tests including both public RAW checks, all 40 browser
 harness drivers and 11 supporting checks including all three `tools/check-*.py` tools.
 The isolated metadata-scenario acceptance tool is read-only and separate from those
 harness drivers; no reader/editor behavior changed in this batch.
+
+Follow-up Docker validation passed 138 Python tests (naming, date editing and API),
+seven affected browser workflows, the web build, all three specification/schema checks,
+and 129 local documentation references including 99 anchors. The existing demo Rename
+jobs now report their recorded successes without rerunning them. Manual follow-ups
+remain recorded in the validation document.
 
 On a generated 250,000-photo catalog with 2,500 different source names, the new
 Has other names page query took a median 8.55s using per-comparison `Path.stem`

@@ -5,7 +5,7 @@ import subprocess
 import sys
 import unittest
 from engine import ns_db, relocate
-from webui import catalog
+from webui import catalog, outcomes
 import metadata_dates_test
 
 
@@ -39,6 +39,8 @@ class RenameTests(unittest.TestCase):
         self.assertEqual(Path(plan['new_path']).parent, old.parent)
         run, body = self.save(c, 'Café trip.PNG', plan)
         self.assertEqual(run['status'], 'Completed', run)
+        self.assertEqual((run['outcome']['verdict'], run['outcome']['succeeded'], run['outcome']['total']), ('success', 1, 1))
+        self.assertEqual(run['outcome']['counts'], {'Renamed': 1})
         new = Path(plan['new_path'])
         self.assertEqual(new.read_bytes(), source)
         self.assertEqual(Path(str(new)+'.xmp').read_bytes(), sidecar)
@@ -73,6 +75,10 @@ class RenameTests(unittest.TestCase):
         Path(plan['new_path']).write_bytes(b'late arrival')
         result = subprocess.run([sys.executable, '-m', 'engine', '--base', str(self.root/'base'), '--dest', str(self.root/'dest'), '--backups', str(self.root/'backups'), '--rename', str(self.pid), '--name', 'A better name', '--rename-preview-token', plan['token']], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1, result.stdout+result.stderr)
+        with ns_db.connect(self.db) as conn:
+            rid = conn.execute("SELECT MAX(id) FROM runs WHERE mode='RENAME'").fetchone()[0]
+        outcome = c.get(f'/api/v1/runs/{rid}').json()['outcome']
+        self.assertEqual((outcome['verdict'], outcome['failed'], outcome['succeeded'], outcome['total']), ('stopped', 1, 0, 1))
         self.assertEqual(self.dest.read_bytes(), self.photo_bytes)
         self.assertEqual(Path(plan['new_path']).read_bytes(), b'late arrival')
 
@@ -86,6 +92,33 @@ class RenameTests(unittest.TestCase):
         replay=c.post(f'/api/v1/photos/{self.pid}/rename',json=body)
         self.assertEqual(replay.status_code,202,replay.text)
         self.assertEqual(replay.json()['id'],run['id'])
+
+    def test_same_name_job_has_no_work(self):
+        c = self.client()
+        self.run_engine('--rename', str(self.pid), '--name', self.dest.name)
+        with ns_db.connect(self.db) as conn:
+            rid = conn.execute("SELECT MAX(id) FROM runs WHERE mode='RENAME'").fetchone()[0]
+        outcome = c.get(f'/api/v1/runs/{rid}').json()['outcome']
+        self.assertEqual((outcome['verdict'], outcome['succeeded'], outcome['total']), ('no_change', 0, 0))
+
+    def test_recovery_and_run_issue_are_not_requested_renames(self):
+        self.client()
+        with ns_db.connect(self.db) as conn:
+            prior = conn.execute('SELECT id FROM operations WHERE photo_id=? LIMIT 1', (self.pid,)).fetchone()[0]
+            rid = conn.execute("INSERT INTO runs (mode,status,started_at) VALUES ('RENAME','Completed','2026-01-01')").lastrowid
+            conn.execute("INSERT INTO operations (run_id,photo_id,status,timestamp,reconciles_operation_id) VALUES (?,?,'Renamed','2026-01-01',?)", (rid,self.pid,prior))
+            conn.execute("INSERT INTO operations (run_id,status,timestamp,error_message) VALUES (?,'Failed','2026-01-01','Generated startup failure')", (rid,))
+        outcome = outcomes.get_run(self.db, rid)['outcome']
+        self.assertEqual((outcome['succeeded'], outcome['total'], outcome['run_level_issues'], outcome['recovered_earlier_work']), (0, 0, 1, 1))
+
+    def test_exact_duplicate_names_are_alternatives_even_after_source_removal(self):
+        c = self.client()
+        with ns_db.connect(self.db) as conn:
+            for name, status in [('archive-name', 'Duplicate'), ('removed-name', 'Removed_Duplicate')]:
+                conn.execute("INSERT INTO photos (source_path,sha1_hash,status) SELECT ?,sha1_hash,? FROM photos WHERE id=?", (f'/generated/{name}.jpg', status, self.pid))
+        names = c.get(f'/api/v1/photos/{self.pid}/names').json()['candidates']
+        self.assertEqual({n['name'] for n in names}, {'archive-name', 'removed-name'})
+        self.assertEqual(c.get('/api/v1/photos',params={'view':'organized','other_names':True}).json()['total'],1)
 
     def test_no_change_and_invalid_names(self):
         c = self.client()

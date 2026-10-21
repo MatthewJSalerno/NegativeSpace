@@ -19,7 +19,7 @@ development until the maintainer decides.
 
 **Organizing**
 - Earlier versions arriving again — decided, not built (`docs/engine-spec.md` §10)
-- Rename and "Also arrived as" — implemented; validation pending (`docs/webui-spec.md` §7.3)
+- Rename and "Also arrived as" — maintainer checks passed; placement, result and layout follow-ups pending (`docs/webui-spec.md` §7.3)
 - Copy/Move preview grouped by destination folder, and a downloadable plan
 - Start a requested job after the preceding backup — decided, not built (`docs/webui-spec.md` §5.7)
 - 💬 Source-folder handling behind the scenes
@@ -32,6 +32,7 @@ development until the maintainer decides.
 - Undated-photo evidence and per-library back-test — decided, not built (`docs/webui-spec.md` §3.1)
 - Record in history when a review reason clears itself
 - Review history speed with many decisions
+- Turned Inspector preview fit — explicit aspect-preserving bounds built; NR3d recheck pending (`docs/manual-validation.md`, Photo-name follow-ups).
 
 **Similar photos**
 - 💬 Selected-photo gallery discoverability and selecting photos inside grouped sets
@@ -40,7 +41,6 @@ development until the maintainer decides.
 
 **Metadata**
 - Notices for metadata choices, and their queue in Not organized
-- Compact single-photo rotation exit — implemented; validation pending (`docs/ui-design.md`, Orientation-save interaction)
 - Metadata decisions for arrivals matching photos already in Library or Rejects
 - Notice for Google Takeout and Flickr export sidecars
 - Motion-photo editing, qualified separately
@@ -96,7 +96,7 @@ development until the maintainer decides.
 
 ## Names
 
-- [ ] Rename, recorded alternative names and Has other names — implemented; automated checks passed; maintainer validation pending (`docs/webui-spec.md` §7.3).
+- [ ] Rename, recorded alternative names and Has other names — maintainer checks passed; focused follow-ups pending (`docs/webui-spec.md` §7.3).
 
 ## One screen per job
 
@@ -540,7 +540,7 @@ Saved orientation stays a separate action from temporary preview rotation.
   and refuse Rejects or different primary metadata. Recheck on retry and preserve source
   originals until a separately confirmed Move. Generated engine/browser validation and
   maintainer Test 9 are tracked in tests/README.md; all steps 9a–9d passed.
-- [ ] Compact single-photo rotation exit — implemented; automated checks passed; maintainer validation pending (`docs/ui-design.md`, Orientation-save interaction).
+- [x] Compact single-photo rotation exit — automated and maintainer checks passed (`docs/ui-design.md`, Orientation-save interaction).
 
 ### Deferred work and open discussions
 

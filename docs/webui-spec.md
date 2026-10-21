@@ -2175,7 +2175,8 @@ rows and on every `operations` row, groupable by `sha1_hash`.
 photo, so no choice of name can be wrong and nothing asks: the first-indexed name stays
 until the user changes it.
 
-* **Rename…** sits beside the destination filename in Photo information, with a
+* **Rename…** sits beside the preview header filename and the destination filename
+  in Photo information; both open the same dialog. The destination has a
   collapsed, lazily loaded **Also arrived as** list beneath it: every other name and folder the group carried,
   each with **Use this name**, opening the same confirmation as **Rename…**.
 * A Library filter, **Has other names**, finds the photos whose group holds a different
