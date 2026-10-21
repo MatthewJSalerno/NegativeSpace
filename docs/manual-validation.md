@@ -46,6 +46,9 @@ Docker validation: 51 Python suites (903 tests), 157 smoke tests including both 
 checks, 41 browser drivers and 11 supporting checks passed. No tests were skipped.
 The two browser selectors affected by the replacement were corrected and rerun;
 final focused checks cover enlarged-text headings and both consolidation workflows.
+Formatting follow-up: the timeline and metadata-choice browser checks, production
+build and spec check passed after moving related history above the timeline and
+adding lane dividers. LT1c, LT4b and LT5b cover this layout change.
 The fresh review catalog contains the generated filenames below, already indexed
 and copied. Each search finds one representative in Library; identical originals
 can appear under the representative's retained name.
@@ -60,6 +63,10 @@ Copy attempts show **Skipped** because the photo was already in Library.
 b. Hover or keyboard-focus a path. Expect its size, recorded SHA-1, content match
 and first-recorded time. **View in log** opens that job for this photo. Return and
 reopen lineage; Escape closes it and restores focus to its opener.
+
+c. **Formatting follow-up:** Metadata choices starts collapsed above the timeline,
+with View photo logs nearby. The four lane headings have vertical separators.
+Scroll to the bottom: the events lead into Now without those controls between them.
 
 ### Test LT2 — Identical files found together
 

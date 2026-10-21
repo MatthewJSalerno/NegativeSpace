@@ -586,12 +586,14 @@ body.dragging { cursor: col-resize; user-select: none; }
 
 /* A recorded event timeline: four fixed place lanes, independent of file count. */
 .lineage-dialog { --lineage-lanes: clamp(192px, 15rem, 40vw); width: min(1180px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; scroll-padding-block: 230px 130px; }
-.lineage-pinned-head { position: sticky; top: -24px; z-index: 2; background: var(--surface); padding-block: var(--space-3); }
-.lineage-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.lineage-pinned-head { position: sticky; top: calc(var(--lineage-title-height, 44px) - 24px); z-index: 2; background: var(--surface); padding-block: var(--space-3); }
+.lineage-head { position: sticky; top: -24px; z-index: 3; background: var(--surface); padding-block: var(--space-3); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.lineage-tools { margin-top: var(--space-3); }
 .lineage-head h2 { margin: 0; font-size: var(--type-lg); overflow-wrap: anywhere; }
 .lineage-summary { background: var(--surface-2); padding: var(--space-3); border-radius: var(--control-radius); margin-block: var(--space-3); }
 .lineage-lane-head { width: var(--lineage-lanes); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); text-align: center; font-size: var(--type-xs); color: var(--muted); overflow-wrap: anywhere; }
-.lineage-lane-head > span { padding-inline: var(--space-1); }
+.lineage-lane-head > span { padding: var(--space-1); font-weight: var(--weight-strong); }
+.lineage-lane-head > span + span { border-inline-start: 1px solid var(--border); }
 .lineage-timeline, .lineage-discoveries { list-style: none; margin: 0; padding: 0; }
 .lineage-timeline[hidden] { display: none; }
 .lineage-event { display: grid; grid-template-columns: var(--lineage-lanes) 6.25rem minmax(0, 1fr); column-gap: var(--space-3); min-height: 70px; }
@@ -624,7 +626,7 @@ body.dragging { cursor: col-resize; user-select: none; }
   .lineage-event-content { grid-column: 2; }
 }
 @media (max-height: 600px) {
-  .lineage-pinned-head, .lineage-now { position: static; }
+  .lineage-head, .lineage-pinned-head, .lineage-now { position: static; }
   .lineage-dialog { scroll-padding-block: var(--space-4); }
 }
 

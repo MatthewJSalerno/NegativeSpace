@@ -1138,7 +1138,9 @@ that consolidation event. A duplicate path opens its photo; job and **View in lo
 links open its history. Failure details retain **Recheck after fixing** where supported.
 Path information retains size, fingerprints, matching state and first-recorded time.
 **Now** reports recorded presence and locations, not a live disk check. Metadata
-choices and jobs without a file step remain accessible. Escape closes only this window.
+choices, photo logs and jobs without a file step remain accessible above the timeline;
+they do not interrupt the events leading into Now. Lane headings have vertical
+separators. Escape closes only this window.
 
 
 **Source metadata holds.** Needs attention means the source photo cannot yet be

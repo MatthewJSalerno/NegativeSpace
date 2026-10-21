@@ -478,7 +478,11 @@ them.
 list in its window, `webui-spec.md` §6.3). It answers, in order: where the photo is now,
 what happened to it, and where its identical copies went.
 
-- **A summary sentence first**, generated from the events: "Found in 5 places on 12 Oct:
+- **Related history at the top:** collapsed Metadata choices and View photo logs
+  sit below the title, before the timeline. They scroll away; they never interrupt
+  the path from events to Now. The four lane headings have subtle vertical separators
+  and use the shared strong text weight to read as column headings.
+- **A summary sentence above the events**, generated from the events: "Found in 5 places on 12 Oct:
   identical copies. Moved to your library by Move #3 on 14 Oct; the other 4 were recorded,
   not copied, and their originals removed from the source. Now: in Library." It covers
   the whole history, collapsed parts included, and is the text equivalent of the graph.

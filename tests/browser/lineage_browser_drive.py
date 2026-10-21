@@ -84,6 +84,13 @@ with sync_playwright() as p:
     expect(dialog.locator('.lineage-event')).to_have_count(2)
     expect(dialog.locator('.lineage-step')).to_have_text(['Copied and verified'])
     expect(dialog.locator('.lineage-now')).to_contain_text('1 original remains in the source')
+    tools = dialog.locator('.lineage-tools')
+    expect(tools.locator('.metadata-history')).not_to_have_attribute('open', '')
+    expect(tools.get_by_role('link', name='View photo logs', exact=True)).to_be_visible()
+    assert tools.bounding_box()['y'] < dialog.locator('.lineage-timeline').first.bounding_box()['y']
+    assert dialog.locator('.lineage-timeline').first.evaluate("e => e.nextElementSibling.classList.contains('lineage-now')")
+    for heading in dialog.locator('.lineage-lane-head > span').all()[1:]:
+        assert heading.evaluate("e => getComputedStyle(e).borderInlineStartWidth") == '1px'
     assert all(node.get_attribute('aria-hidden') == 'true' for node in dialog.locator('.lineage-graph').all())
     expect(dialog.get_by_role('button', name='Close', exact=True)).to_be_focused()
     path = dialog.locator('.lineage-path').first
@@ -123,7 +130,7 @@ with sync_playwright() as p:
     expect(dialog.locator('.lineage-step', has_text='Moved to Rejects')).to_have_count(5)
     expect(dialog.locator('.lineage-step', has_text='Returned to Library')).to_have_count(5)
     content = dialog.locator('.lineage-dialog')
-    top = dialog.locator('.lineage-pinned-head').bounding_box()['y']
+    top = content.bounding_box()['y'] + dialog.locator('.lineage-head').bounding_box()['height']
     now = dialog.locator('.lineage-now').bounding_box()['y']
     content.evaluate('e => e.scrollTop = e.scrollHeight')
     expect(dialog.locator('.modal-scroll-cue.above')).to_be_visible()
@@ -143,7 +150,9 @@ with sync_playwright() as p:
                 return Math.abs(box.left - expected) < 1 && Math.abs(box.width - cellWidth) < 1;
             });
         }"""), 'Lane headings drifted from their fixed graph columns'
-        dialog.get_by_role('button', name='Close', exact=True).focus()
+        close = dialog.get_by_role('button', name='Close', exact=True)
+        close.focus()
+        assert close.evaluate('e => {const r=e.getBoundingClientRect();return e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}'), 'Close was obscured by the pinned summary'
         page.keyboard.press('Shift+Tab')
         assert dialog.evaluate('e => e.contains(document.activeElement)')
         shot(f'lt5-access-{width}-{font}')

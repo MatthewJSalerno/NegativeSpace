@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MetadataHistory } from "./MetadataHistory";
 import { Modal } from "./ui/Modal";
 import { Tip } from "./Tip";
@@ -18,6 +18,15 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
   photoId: number; filename: string; jobRunning: boolean;
   onOpenPhoto: (id: number) => void; onClose: () => void;
 }) {
+  const heading = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const element = heading.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => element.parentElement?.style.setProperty(
+      "--lineage-title-height", `${element.getBoundingClientRect().height}px`));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const [tree, setTree] = useState<Lineage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -47,8 +56,19 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
   const renderEvent = (event: TimelineEvent) => tree && <EventRow key={event.key} event={event} tree={tree} row={rows.get(event.key)!}
     sources={sources} jobRunning={jobRunning || retrying} onRetry={retry} onOpenPhoto={onOpenPhoto} />;
   return <Modal className="dialog lineage-dialog" labelledBy="lineage-title" onClose={onClose}>
+    <header ref={heading} className="lineage-head"><h2 id="lineage-title">Lineage of {filename}</h2><button onClick={onClose} aria-label="Close">✕</button></header>
+    <div className="lineage-tools">
+    {unlinked.length > 0 && <details><summary>Files without a recorded operation ({unlinked.length})</summary>
+      <ul>{unlinked.map(file => <li key={file.file_id}><FilePath file={file} path={file.path} photoId={photoId} onOpenPhoto={onOpenPhoto} /></li>)}</ul>
+    </details>}
+    {selections.length > 0 && <details><summary>Jobs without a recorded file step ({selections.length})</summary>
+      <p className="section-note">This photo was selected for these jobs, but no file step was recorded. Open the job for its outcome.</p>
+      <ul>{selections.map(s => <li key={s.run_id}><a href={logUrl({ run: s.run_id })} onClick={e => { onClose(); follow(e); }}>{jobLabel(s.run_id, s.mode)} · {instant(s.started_at)}</a></li>)}</ul>
+    </details>}
+    {tree && <MetadataHistory onNavigate={onClose} filters={{ photo: photoId, run: [], status: [], q: "", since: "", until: "" }} />}
+    <p><a href={logUrl({ photo: photoId })} onClick={e => { onClose(); follow(e); }}>View photo logs</a></p>
+    </div>
     <div className="lineage-pinned-head">
-      <header className="lineage-head"><h2 id="lineage-title">Lineage of {filename}</h2><button onClick={onClose} aria-label="Close">✕</button></header>
       {tree && <p className="lineage-summary">{historySummary(tree, events)}</p>}
       <p className="section-note">Last recorded file history, not a live disk check. Path information includes size and content fingerprint.</p>
       {tree && <div className="lineage-lane-head" aria-hidden="true">{LANES.map(lane => <span key={lane}>{lane}</span>)}</div>}
@@ -60,15 +80,6 @@ export function LineageDialog({ photoId, filename, jobRunning, onOpenPhoto, onCl
       {groups.map(group => group.length === 1 ? renderEvent(group[0]) : <CollapsedEvents key={group[0].key} events={group} rows={rows} renderEvent={renderEvent} />)}
     </ol>}
     {tree && !events.length && <p>No file operations have been recorded.</p>}
-    {unlinked.length > 0 && <details><summary>Files without a recorded operation ({unlinked.length})</summary>
-      <ul>{unlinked.map(file => <li key={file.file_id}><FilePath file={file} path={file.path} photoId={photoId} onOpenPhoto={onOpenPhoto} /></li>)}</ul>
-    </details>}
-    {selections.length > 0 && <details><summary>Jobs without a recorded file step ({selections.length})</summary>
-      <p className="section-note">This photo was selected for these jobs, but no file step was recorded. Open the job for its outcome.</p>
-      <ul>{selections.map(s => <li key={s.run_id}><a href={logUrl({ run: s.run_id })} onClick={e => { onClose(); follow(e); }}>{jobLabel(s.run_id, s.mode)} · {instant(s.started_at)}</a></li>)}</ul>
-    </details>}
-    {tree && <MetadataHistory onNavigate={onClose} filters={{ photo: photoId, run: [], status: [], q: "", since: "", until: "" }} />}
-    <p><a href={logUrl({ photo: photoId })} onClick={e => { onClose(); follow(e); }}>View photo logs</a></p>
     {tree && <footer className="lineage-now">
       <LaneGraphic now row={{ before: [0, 1, 2, 3].map(lane => tree.files.some(file => file.presence === "present" && (file.role === "source" ? sources.get(file.file_id) === lane : file.place === "library" ? lane === 2 : file.place === "rejects" && lane === 3))), after: [], dots: [], curves: [], ended: [], libraryDashed: false }} />
       <div><strong>Now</strong><p>{recordedNow(tree)}</p>
