@@ -9,8 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Lineage timeline:** LT1–LT7 passed. Only LT7d–e (shared information-icon triggers) remain
-focused follow-ups; the accepted checks do not need repeating.
+**Lineage timeline:** LT1–LT6, LT7a–c and LT7e passed. Only LT7d (lineage icon
+trigger) awaits an explicit result; the accepted checks do not need repeating.
 
 **Photo names and rotation exits:** [Tests NR1–NR3](#photo-names-and-rotation-exits)
 passed, including [focused follow-ups NR1d–e, NR2d and NR3d](#photo-name-follow-ups).
@@ -44,7 +44,7 @@ a retest. Do not infer manual acceptance from automated results.
 
 **Status:** LT1–LT6 passed maintainer validation. Comments: widen path help,
 clarify repeated discovery timestamps, and remove the Rejects line extending past
-Return. LT7a–c subsequently passed; LT7d–e cover the shared icon-only help rule.
+Return. LT7a–c and LT7e subsequently passed; LT7d awaits an explicit result.
 Shared-help follow-up: build, spec checks, default/shared UI, reference sets, review,
 lineage and same-name browser workflows passed, including keyboard access and reflow.
 Docker validation: 51 Python suites (903 tests), 157 smoke tests including both RAW
