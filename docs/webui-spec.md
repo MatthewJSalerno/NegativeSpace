@@ -2041,7 +2041,9 @@ from it and its duplicates live under other rows. **So gather the photo's whole 
 lineage row and every log entry names the file it concerns, so a duplicate's arrival
 never reads as something that happened to the original file itself. The lineage
 timeline's lanes group places (Source, Identical copies, Library, Rejects); its rows keep
-each file distinct. Label each file with its original Index time.
+each file distinct. Show the row's first discovery time on the left; keep each
+file's exact original Index time in its path help rather than repeating it beside
+the filename.
 
 **Separate requested work from recovery.** An operation with a non-NULL
 `reconciles_operation_id` is a repair of earlier work, not something this run was asked

@@ -80,7 +80,8 @@ heading, before the recent events. Both still open the photo's corresponding his
 a. Search **`lineage-one-index.jpg`** in Library. Open lineage. Expect one Index
 entry containing five source files, with three paths initially visible.
 
-b. Select **Show all 5**. Each file keeps its own path and recorded time. An
+b. Select **Show all 5**. Each file keeps its own path and its recorded time in
+path help. An
 identical-copy path opens that photo; **View in log** opens its job history.
 There are four labelled place lanes, regardless of the number of copies.
 
@@ -131,6 +132,11 @@ file path. The wider help keeps the SHA-1 readable, with file details on separat
 
 b. Search **`lineage-long.jpg`** and open lineage. At each Return, the yellow
 Rejects line joins the blue curve without a yellow stub extending below the branch.
+
+c. Search **`lineage-one-index.jpg`** and open lineage. The discovery row has one
+visible timestamp on the left, with no repeated date beside each filename. Hover or
+focus an individual path to see its exact first-recorded time. Separate Index jobs
+for **`lineage-later.jpg`** still have their own dated rows.
 
 ## Photo names and rotation exits
 

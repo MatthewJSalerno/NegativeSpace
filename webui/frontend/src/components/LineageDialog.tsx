@@ -119,7 +119,7 @@ function EventRow({ event, tree, row, sources, jobRunning, onRetry, onOpenPhoto 
           const op = event.operations.find(op => op.files.some(link => link.file_id === file.file_id))!;
           return <li key={file.file_id}><span className="section-note">{file.photo_id === tree.photo_id ? "Source" : sources.get(file.file_id) === 1 ? "Identical copy" : "Separate source file"}: </span>
             <FilePath file={file} indexed path={file.indexed_path ?? op.source_path} photoId={tree.photo_id} onOpenPhoto={onOpenPhoto} />
-            <span className="section-note"> · {instant(file.created_at)} · </span><a href={logUrl({ run: op.run_id, photo: file.photo_id ?? tree.photo_id })} onClick={follow}>View in log</a>
+            <span className="section-note"> · </span><a href={logUrl({ run: op.run_id, photo: file.photo_id ?? tree.photo_id })} onClick={follow}>View in log</a>
             {op.status === "Failed" && <Failure op={op} jobRunning={jobRunning} onRetry={onRetry} />}
           </li>;
         })}</ul>

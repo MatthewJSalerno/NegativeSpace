@@ -513,7 +513,9 @@ what happened to it, and where its identical copies went.
 - **Copies found by the same Index are one row** with a count on its dot ("and 4 identical
   copies") and their paths listed under it, the first few then **Show all N**. **Copies
   found by different Indexes are separate rows** ("Found an identical copy (3rd)…"),
-  because when they arrived is part of the story.
+  because when they arrived is part of the story. The left timestamp identifies the
+  first recorded discovery in the row, not the Index job start. Each file's exact
+  first-recorded time stays in its path help; do not repeat dates beside filenames.
 - **Long histories:** the window scrolls inside itself with the summary and lane headings
   pinned at the top and the Now row pinned at the bottom, using the shared More above /
   More below cues. Three or more consecutive events of one kind collapse into one row
