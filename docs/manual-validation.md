@@ -10,8 +10,9 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 ## Pending checks
 
 **Photo names and rotation exits:** [Tests NR1–NR3](#photo-names-and-rotation-exits)
-passed with comments. Only the [focused follow-ups](#photo-name-follow-ups) remain: NR1d–e, NR2d and NR3d. The existing IS, CA, SB and LI checks
-remain accepted; do not repeat them for this batch.
+passed, including [focused follow-ups NR1d–e, NR2d and NR3d](#photo-name-follow-ups).
+No manual checks remain for this batch. The existing IS, CA, SB and LI checks
+remain accepted; do not repeat them.
 
 **Index summary batch:** the maintainer passed [Tests IS1–IS3](#index-summary-actions),
 including all lettered steps. No manual checks remain for this batch.
@@ -38,8 +39,8 @@ a retest. Do not infer manual acceptance from automated results.
 
 ## Photo names and rotation exits
 
-**Status:** NR1–NR3 passed with comments. Rename placement/result wording, filter
-layout and turned-preview fit have focused follow-ups below. The review has the demo library and generated metadata
+**Status:** NR1–NR3 and all focused follow-ups passed maintainer validation.
+Rename placement/result wording, filter layout and turned-preview fit are accepted. The review has the demo library and generated metadata
 scenarios already indexed and copied: 4,776 organized photos. Broken/held scenarios remain
 in Not organized. The filenames below were verified in Library. Use **Photo information**
 and its **Destination** section; the field label is **Destination path**.
@@ -95,9 +96,9 @@ Reopen **`md-exif-only.jpg`** and check the saved orientation in Metadata.
 
 | Tests | Automated coverage | Maintainer result |
 | --- | --- | --- |
-| NR1 | Real photo/XMP relocation, preserved sources, collision races, literal filenames, request replay, history | Passed a–c with comments; see focused follow-ups |
-| NR2 | Lazy alternatives, shared list/IDs/position/facet membership, recorded names and URL state | Passed a–c with comments; see focused follow-ups |
-| NR3 | Save/discard/keep, refused submissions, partial-save turn reset, comparison and multi-photo regressions | Passed a–c with comments; see focused follow-ups |
+| NR1 | Real photo/XMP relocation, preserved sources, collision races, literal filenames, request replay, history | Passed, including focused follow-ups |
+| NR2 | Lazy alternatives, shared list/IDs/position/facet membership, recorded names and URL state | Passed, including focused follow-ups |
+| NR3 | Save/discard/keep, refused submissions, partial-save turn reset, comparison and multi-photo regressions | Passed, including focused follow-ups |
 
 ### Photo-name follow-ups
 
@@ -123,7 +124,7 @@ and turn it with the curved arrow. Check the whole photo is visible and its prop
 remain correct. Try resizing the preview divider, then enlarge it and check again.
 Use **Reset** before closing; no save is needed for this visual check.
 
-**Follow-up status:** NR1d–e, NR2d and NR3d await maintainer validation.
+**Follow-up status:** NR1d–e, NR2d and NR3d passed. No manual checks remain.
 
 ## Index summary actions
 

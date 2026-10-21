@@ -2148,8 +2148,8 @@ harness drivers; no reader/editor behavior changed in this batch.
 Follow-up Docker validation passed 138 Python tests (naming, date editing and API),
 seven affected browser workflows, the web build, all three specification/schema checks,
 and 129 local documentation references including 99 anchors. The existing demo Rename
-jobs now report their recorded successes without rerunning them. Manual follow-ups
-remain recorded in the validation document.
+jobs now report their recorded successes without rerunning them. All manual follow-ups passed; acceptance is
+recorded in the validation document.
 
 On a generated 250,000-photo catalog with 2,500 different source names, the new
 Has other names page query took a median 8.55s using per-comparison `Path.stem`
