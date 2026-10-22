@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from PIL import Image
-from engine import metadata, metadata_adapter, xmp
+from engine import metadata_adapter, metadata_capture, xmp
 from engine.metadata import MetadataSource
 
 
@@ -30,8 +30,8 @@ class AdapterTests(unittest.TestCase):
                            '<tiff:Orientation>06</tiff:Orientation><tiff:Make>Generated</tiff:Make>'
                            '<tiff:Model>Camera</tiff:Model>')
         normalized = metadata_adapter.for_comparison(original)
-        result = metadata.resolve_sources(embedded, [normalized], active_xmp_id='sidecar')
-        self.assertEqual(result['different_fields'], [])
+        result = metadata_capture.resolve({'photo': {'fields': embedded.fields}, 'sidecar': {'fields': normalized.fields}}, ['sidecar', 'photo'])
+        self.assertEqual(embedded.fields, normalized.fields)
         self.assertEqual(result['field_sources']['date_taken'], 'sidecar')
         self.assertEqual(original.fields['orientation'], '06')
         self.assertEqual(normalized.original_bytes, original.original_bytes)
@@ -65,20 +65,20 @@ class AdapterTests(unittest.TestCase):
         for value in ('', '1999', '1999-04', '0000', '2218-01-01'):
             with self.subTest(value=value):
                 chosen = metadata_adapter.for_comparison(sidecar(f'<exif:DateTimeOriginal>{value}</exif:DateTimeOriginal>'))
-                result = metadata.resolve_sources(embedded, [chosen], active_xmp_id='sidecar')
-                self.assertEqual(result['effective']['date_taken'], value)
+                result = metadata_capture.resolve({'photo': {'fields': embedded.fields}, 'sidecar': {'fields': chosen.fields}}, ['sidecar', 'photo'])
+                self.assertEqual(result['proposed_effective']['date_taken'], value)
                 self.assertEqual(result['field_sources']['date_taken'], 'sidecar')
         absent = metadata_adapter.for_comparison(sidecar())
-        self.assertEqual(metadata.resolve_sources(embedded, [absent], active_xmp_id='sidecar')['effective'], embedded.fields)
+        self.assertEqual(metadata_capture.resolve({'photo': {'fields': embedded.fields}, 'sidecar': {'fields': absent.fields}}, ['sidecar', 'photo'])['proposed_effective'], embedded.fields)
 
     def test_no_timezone_or_fraction_is_invented_or_borrowed(self):
         embedded = metadata_adapter.from_embedded({'ExifIFD:DateTimeOriginal': '2020:01:02 03:04:05',
                                                   'ExifIFD:OffsetTimeOriginal': '+03:00',
                                                   'ExifIFD:SubSecTimeOriginal': '125'}, source_id='photo')
         chosen = metadata_adapter.for_comparison(sidecar('<exif:DateTimeOriginal>2020-01-02T03:04:05</exif:DateTimeOriginal>'))
-        result = metadata.resolve_sources(embedded, [chosen], active_xmp_id='sidecar')
-        self.assertEqual(result['effective']['date_taken'], '2020-01-02T03:04:05')
-        self.assertEqual(result['different_fields'], ['date_taken'])
+        result = metadata_capture.resolve({'photo': {'fields': embedded.fields}, 'sidecar': {'fields': chosen.fields}}, ['sidecar', 'photo'])
+        self.assertEqual(result['proposed_effective']['date_taken'], '2020-01-02T03:04:05')
+        self.assertNotEqual(embedded.fields['date_taken'], chosen.fields['date_taken'])
         plain = metadata_adapter.from_embedded({'ExifIFD:DateTimeOriginal': '2020:01:02 03:04:05'}, source_id='plain')
         self.assertEqual(plain.fields['date_taken'], '2020-01-02T03:04:05')
 

@@ -68,9 +68,9 @@ with sync_playwright() as p:
     expect(group).to_be_checked()
     sort.select_option('oldest')
     group.uncheck()
-    page.get_by_role('button', name=re.compile('^Has similar photos')).click()
+    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Library\b')).click()
     sort.select_option('largest')
-    page.get_by_role('button', name=re.compile('^Has similar photos')).click()
+    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Similar photos\b')).click()
     expect(sort).to_have_value('oldest')
     expect(group).not_to_be_checked()
     page.reload()
@@ -82,7 +82,7 @@ with sync_playwright() as p:
     expect(sort).to_have_value('newest')
     page.reload()
     expect(sort).to_have_value('newest')
-    page.get_by_role('button', name=re.compile('^Has similar photos')).click()
+    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Library\b')).click()
     expect(sort).to_have_value('largest')
     page.goto(sys.argv[1]+'/?view=similar&match_min=90&sort=name')
     expect(sort).to_have_value('name')  # Explicit links win over saved defaults.
@@ -93,8 +93,7 @@ with sync_playwright() as p:
     expect(page.locator('.card')).to_have_count(5)
     expect(page.locator('.gallery-summary')).to_contain_text('5 sets')
     photo_count = request.get('/api/v1/photos?view=similar&match_min=90').json()['total']
-    expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_text(
-        f'Has similar photos {photo_count:,}')
+    expect(page.get_by_role('navigation',name='Main').get_by_role('link',name=re.compile(r'^Similar photos\b')).locator('.sidebar-count')).to_have_text(f'{photo_count:,}')
     page.get_by_role('button', name=re.compile('^Filters')).click()
     expect(page.get_by_role('navigation', name='Dates', exact=True)).to_be_visible()
     expect(page.get_by_role('navigation', name='Folders', exact=True)).to_have_count(0)
@@ -119,12 +118,14 @@ with sync_playwright() as p:
     card.locator('.card-check input').check()
     shot('reference-set-gallery')
     # The cards carry no repeated explanation and no Explore window; one line above the
-    # sets says what a set is, and hovering it shows the diagram.
+    # sets says what a set is; its information icon opens the diagram.
     expect(card.get_by_role('button',name='Explore related sets',exact=True)).to_have_count(0)
     expect(card.get_by_text('Identical sets shown once',exact=False)).to_have_count(0)
     guidance=page.locator('.gallery-guidance > div:not([aria-hidden=true])')
     expect(guidance).to_contain_text('Each card is a set: a reference photo and every photo that matches it.')
     guidance.get_by_text('Each card is a set',exact=False).hover()
+    expect(page.get_by_role('note')).to_have_count(0)
+    guidance.get_by_role('button',name='More information').hover()
     note=page.get_by_role('note')
     expect(note.get_by_role('img',name='Two sets that share a photo')).to_be_visible()
     expect(note).to_contain_text("A and C don't match each other")
@@ -134,7 +135,7 @@ with sync_playwright() as p:
     shot('sets-help')
     if os.environ.get('SHOTS'):
         page.emulate_media(color_scheme='dark')
-        guidance.get_by_text('Each card is a set',exact=False).hover()
+        guidance.get_by_role('button',name='More information').hover()
         expect(note.get_by_role('img',name='Two sets that share a photo')).to_be_visible()
         shot('sets-help-dark')
         page.emulate_media(color_scheme='light')
@@ -153,7 +154,7 @@ with sync_playwright() as p:
     help_button.press('Escape')
     expect(note).to_have_count(0)
     page.mouse.move(5,5)
-    guidance.get_by_text('Each card is a set',exact=False).hover()
+    guidance.get_by_role('button',name='More information').hover()
     note.hover()
     expect(note).to_be_visible()
     page.mouse.move(5,5)
@@ -222,9 +223,9 @@ with sync_playwright() as p:
     shot('review-actions')
     review.get_by_role('button',name='Show this set in gallery',exact=True).click()
     # Leaving a turned comparison requires the deliberate discard choice.
-    rotations=page.get_by_role('dialog',name='Save rotations',exact=True)
+    rotations=page.get_by_role('alertdialog',name='Save rotation before leaving?',exact=True)
     expect(rotations).to_be_visible()
-    rotations.get_by_role('button',name='Discard viewing turns and leave',exact=True).click()
+    rotations.get_by_role('button',name='Discard and continue',exact=True).click()
     expect(review).to_have_count(0)
     expect(page.locator('.card')).to_have_count(2)
     expect(page.locator(f'.card[data-id="{a}"] .card-check input')).to_be_checked()
@@ -237,7 +238,7 @@ with sync_playwright() as p:
     expect(review.locator('.review-score')).to_contain_text('90.62%')
     review.get_by_role('button',name='Back to gallery',exact=True).click()
     expect(rotations).to_be_visible()
-    rotations.get_by_role('button',name='Discard viewing turns and leave',exact=True).click()
+    rotations.get_by_role('button',name='Discard and continue',exact=True).click()
     expect(review).to_have_count(0)
     # A dense set's members are paged in the gallery, reached from the set's review.
     page.locator(f'.card[data-id="{large}"]').get_by_role('button',name='Review this set',exact=True).click()
@@ -252,23 +253,19 @@ with sync_playwright() as p:
     page.locator('.focus-head').get_by_role('button',name='Back to results',exact=True).click()
     page.reload()
     expect(group).to_be_checked()
-    # Needs review exposes the same grouping, threshold, sort and set controls.
+    # Refinements retain the same threshold/sort but show matching photos, not whole sets.
     setting=request.get('/api/v1/settings').json()['small_image_min']
     assert request.put('/api/v1/settings',data={'values':{'small_image_min':800},
         'revisions':{'small_image_min':setting['revision']}}).ok
-    page.goto(sys.argv[1]+'/?view=review&similar=1&match_min=90&group_sets=1&sort=matches')
+    page.goto(sys.argv[1]+'/?view=organized&similar=1&match_min=90&group_sets=1&sort=matches')
     expect(group).to_be_checked()
     expect(threshold).to_have_value('90')
     expect(sort).to_have_value('matches')
     expect(page.get_by_role('button',name='Review this set',exact=True).first).to_be_visible()
-    expect(page.locator('.gallery-guidance > div:not([aria-hidden=true])')).to_contain_text('Each card is a set')
-    shot('needs-review-grouping')
-    # Pin similarity so choosing another filter combines with it rather than replacing it.
-    page.get_by_role("button", name="Pin Has similar photos", exact=True).click()
-    # Filters ungroup without changing the explicit saved preference or selection.
     page.locator('.card input[type=checkbox]').first.check()
-    for label in ('Suspicious dates','No usable capture date','Small images','Review later'):
-        chip=page.get_by_role('group',name='Look into').get_by_role('button',name=re.compile('^'+label))
+    refinements=page.get_by_role('group',name='Refine photos')
+    for label in ('Odd dates','No date','Needs review'):
+        chip=refinements.get_by_role('button',name=re.compile('^'+label+':'))
         chip.click()
         expect(group).not_to_be_checked()
         expect(group).to_be_disabled()
@@ -276,6 +273,11 @@ with sync_playwright() as p:
         expect(group).not_to_be_checked()
         expect(group).to_be_disabled()
         assert page.evaluate("localStorage.getItem('ns.groupSets')") != 'false'
+        if label == 'Needs review':
+            for reason in ('small','later','all'):
+                page.get_by_label('Review reason',exact=True).select_option(reason)
+                expect(group).not_to_be_checked()
+                expect(group).to_be_disabled()
         chip.click()
         expect(group).to_be_checked()
         expect(group).to_be_enabled()
@@ -291,11 +293,13 @@ with sync_playwright() as p:
     expect(page.locator(f'.card[data-id="{large}"]')).to_be_visible()
     shot('needs-review-filtered-photos')
     page.goto(sys.argv[1]+'/?view=review&similar=1&group_sets=1')
-    expect(group).to_be_checked()
-    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Library\b')).click()
+    expect(group).not_to_be_checked()
+    page.get_by_role('button',name=re.compile('^Needs review:')).click()
     expect(group).to_be_checked()
     expect(page.get_by_role('button',name='Review this set',exact=True).first).to_be_visible()
-    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Needs review\b')).click()
+    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Library\b')).click()
+    expect(group).to_have_count(0)
+    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Similar photos\b')).click()
     expect(group).to_be_checked()
     group.uncheck()
     page.reload()

@@ -17,7 +17,7 @@ const FAILURE_LABEL: Record<string, [string, string]> = {
   other: ["Other reasons", ""],
 };
 const JOB_LABEL: Record<string, string> = {
-  INDEX: "Index", COPY: "Copy", MOVE: "Move", RENAME: "Rename", REBUILD: "Thumbnail rebuild", CHECK: "Destination check",
+  INDEX: "Index", COPY: "Copy", MOVE: "Move", RENAME: "Rename", REBUILD: "Thumbnail rebuild", CHECK: "Destination check", METADATA: "Metadata edits",
 };
 
 // The Stats page (webui-spec 5.9): what the catalog records about the library, its
@@ -34,7 +34,7 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
   const [dismissedId, dismissRun, dismissal] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
   const [refreshKey, setRefreshKey] = useState(0);
-  useJobCompletion(() => { setRefreshKey(k => k + 1); refreshStatus(); });
+  useJobCompletion(() => { setRefreshKey(k => k + 1); refreshStatus(); }, true);
   const header = useRef<HTMLElement>(null);
 
   // A job finishing changes the figures.
@@ -64,7 +64,6 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
   );
 }
 
-// The Stats icon, beside Settings on every page.
 // A share as a percentage that never rounds to all or nothing: 4,681 of 4,684 reads
 // 99.9%, not 100%, and 100% means every one.
 function share(n: number, of: number): string {
@@ -96,6 +95,21 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: (group?: "
         <RejectsTile r={s.rejects} />
       </div>
 
+        <Panel title="Dates">
+          <div className="dates-layout">
+          <YearChart dates={s.dates} />
+          <div>
+          <a className="dates-undated" href="/?view=all&undated=1" onClick={follow}>Undated: {count(s.dates.undated)}</a>
+          <Facts rows={[
+            ["Oldest photo", s.dates.oldest ? photoDate(s.dates.oldest, false) : "–"],
+            ["Newest photo", s.dates.newest ? photoDate(s.dates.newest, false) : "–"],
+            ["Busiest day", s.dates.busiest_day ? `${photoDate(s.dates.busiest_day.day, false)} · ${plural(s.dates.busiest_day.photos, "photo")}` : "–"],
+            ["  no date in the EXIF", count(s.dates.undated_no_date)],
+            ["  an unusable date (e.g. 0000:00:00)", count(s.dates.undated_unusable)],
+            ["Recorded a time zone", count(s.dates.with_time_zone)],
+          ]} />
+          </div></div>
+        </Panel>
       <div className="stat-panels">
         <Panel title="Catalog overview">
           <p className="section-note">Includes Library and Not organized. Failed source files are counted separately below; they are excluded from photo size, camera and date statistics. Rejects has its own totals.</p>
@@ -126,18 +140,7 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: (group?: "
           )}
         </Panel>
 
-        <Panel title="Dates">
-          <YearChart years={s.dates.per_year} />
-          <Facts rows={[
-            ["Oldest photo", s.dates.oldest ? photoDate(s.dates.oldest, false) : "–"],
-            ["Newest photo", s.dates.newest ? photoDate(s.dates.newest, false) : "–"],
-            ["Busiest day", s.dates.busiest_day ? `${photoDate(s.dates.busiest_day.day, false)} · ${plural(s.dates.busiest_day.photos, "photo")}` : "–"],
-            ["No usable capture date", <a key="u" href="/?view=all&undated=1" onClick={follow}>{count(s.dates.undated)}</a>],
-            ["  no date in the EXIF", count(s.dates.undated_no_date)],
-            ["  an unusable date (e.g. 0000:00:00)", count(s.dates.undated_unusable)],
-            ["Recorded a time zone", count(s.dates.with_time_zone)],
-          ]} />
-        </Panel>
+
 
         <Panel title="Duplicates">
           <Facts rows={[
@@ -146,7 +149,6 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: (group?: "
             ["Saved at the destination", <Tipped key="s" tip="Extra copies of photos already copied or moved: the destination holds one copy, not two. A duplicate of a photo not yet delivered has saved nothing so far.">{`${bytes(s.duplicates.saved_at_destination)} · ${plural(s.duplicates.copies_not_written, "duplicate file")} not copied`}</Tipped>],
             ["A Move would free in the source", <Tipped key="m" tip="Extra copies still in the source: a Move removes each once a copy of its content is verified at the destination.">{bytes(s.duplicates.move_would_free)}</Tipped>],
             ["Freed by earlier Moves", bytes(s.duplicates.freed_by_moves)],
-            ["Near-duplicates (resized, re-saved)", <a key="nd" href="/?view=similar" onClick={follow}>Review similar photos</a>],
           ]} />
           <Coverage c={s.duplicates.coverage} />
           {s.duplicates.by_folder.length > 1 && (
@@ -174,8 +176,9 @@ function StatsBody({ s, onOpenSettings }: { s: Stats; onOpenSettings: (group?: "
             ["Copied · moved", `${plural(s.activity.copied, "photo")} copied · ${count(s.activity.moved)} moved`],
             ["Transferred", `${bytes(s.activity.bytes_transferred)}${s.activity.bytes_per_second ? ` · about ${bytes(s.activity.bytes_per_second)}/s` : ""}`],
             ["Renamed", count(s.activity.renames)],
-            ["EXIF edits", <span key="e" className="muted">Not built yet</span>],
+            ["Metadata edits", <a key="e" href="/logs?metadata_edits=true" onClick={follow}>{plural(s.activity.metadata_edits.photos, "photo")}: {count(s.activity.metadata_edits.dates)} dates, {count(s.activity.metadata_edits.rotations)} rotations, {count(s.activity.metadata_edits.primary_source)} primary source{ s.activity.metadata_edits.other > 0 && `, ${count(s.activity.metadata_edits.other)} other`}</a>],
           ]} />
+          <p className="section-note">Metadata edits count each photo once. A photo can appear in more than one kind of edit.</p>
           <h4>Failed attempts, by reason</h4>
           {Object.keys(s.activity.failures).length === 0 ? <p className="muted">None.</p> : (
             <ul className="stat-links">
@@ -291,27 +294,36 @@ function Bars({ rows }: { rows: { label: string; value: number; text: string; hr
 
 // Photos per year: a single series, each bar a link to that year in the Library, its
 // count on hover and focus; the same figures in a table beneath.
-function YearChart({ years }: { years: { year: string; photos: number }[] }) {
-  if (years.length === 0) return <p className="muted">No photo has a date taken yet.</p>;
-  const max = Math.max(...years.map((y) => y.photos));
+function YearChart({ dates }: { dates: Stats["dates"] }) {
+  const recorded = dates.per_year;
+  const early = recorded.filter(y => Number(y.year) < dates.min_year).reduce((n, y) => n + y.photos, 0);
+  const future = recorded.filter(y => Number(y.year) > dates.max_year).reduce((n, y) => n + y.photos, 0);
+  const real = recorded.filter(y => Number(y.year) >= dates.min_year && Number(y.year) <= dates.max_year);
+  const byYear = new Map(real.map(y => [Number(y.year), y.photos]));
+  const first = real.length ? Math.min(...byYear.keys()) : 0;
+  const last = real.length ? Math.max(...byYear.keys()) : -1;
+  const years = Array.from({ length: last - first + 1 }, (_, i) => ({ year: String(first + i).padStart(4, "0"), photos: byYear.get(first + i) ?? 0 }));
+  const max = Math.max(1, ...real.map(y => y.photos));
   return (
     <figure className="year-chart">
       <figcaption>Photos per year (date taken)</figcaption>
-      <div className="year-scroll" role="region" aria-label="Photos per year" tabIndex={0}>
-        <div className="year-bars" role="list">
-          {years.map((y) => (
-            <a key={y.year} role="listitem" className="year-bar" href={`/?date=${y.year}`} onClick={follow}
-               title={`${y.year}: ${plural(y.photos, "photo")}`} aria-label={`${y.year}: ${plural(y.photos, "photo")}`}>
-              <span className="year-fill" style={{ height: `${Math.max(2, (100 * y.photos) / max)}%` }} />
+      <div className="year-range">
+        {early > 0 && <a className="year-outlier" href="/?view=all&suspicious=1" onClick={follow}>Before {dates.min_year}<strong>{count(early)}</strong></a>}
+        <div className="year-scroll" role="region" aria-label="Photos per year" tabIndex={0}>
+          {years.length === 0 ? <p className="muted">{recorded.length ? "All recorded dates are outside your expected range." : "No photo has a date taken yet."}</p> : <div className="year-bars" role="list">
+            {years.map(y => <a key={y.year} role="listitem" className="year-bar" href={`/?date=${y.year}`} onClick={follow}
+                title={`${y.year}: ${plural(y.photos, "photo")}`} aria-label={`${y.year}: ${plural(y.photos, "photo")}`}>
+              <span className="year-fill" style={{ height: `${y.photos ? Math.max(2, 100 * y.photos / max) : 0}%` }} />
               <span className="year-label">{y.year}</span>
-            </a>
-          ))}
+            </a>)}
+          </div>}
         </div>
+        {future > 0 && <a className="year-outlier" href="/?view=all&suspicious=1" onClick={follow}>Future<strong>{count(future)}</strong><span>After {dates.max_year}</span></a>}
       </div>
       <details>
         <summary>As a table</summary>
         <table className="stat-facts"><tbody>
-          {years.map((y) => <tr key={y.year}><th>{y.year}</th><td>{count(y.photos)}</td></tr>)}
+          {recorded.map(y => <tr key={y.year}><th>{y.year}</th><td>{count(y.photos)}</td></tr>)}
         </tbody></table>
       </details>
     </figure>

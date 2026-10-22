@@ -2,10 +2,29 @@ import { Modal } from "./ui/Modal";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type ActionMode, type Status, type MoveScope, type MovePreview, type MoveSubmission } from "../api";
 import { Pager } from "./Pager";
-import { count, plural } from "../format";
+import { plural } from "../format";
 import { SubmissionStatus } from "./SubmissionStatus";
 
-export type Confirm = { title: string; body: string[]; action: string; danger?: boolean; run: (move?: MoveSubmission) => Promise<void>; move?: MoveScope; onCancel?: () => void };
+type RejectComparison = { last: boolean; rejectedHere: number; onDontAskAgain: () => void };
+export type Confirm = { title: string; body: string[]; action: string; danger?: boolean; run: (move?: MoveSubmission) => Promise<void>; move?: MoveScope; onCancel?: () => void;
+  reject?: { comparison?: RejectComparison } };
+
+// Every Reject question uses this content and ConfirmDialog. Only an open comparison
+// may offer a session preference; rejecting its last Library photo always asks.
+export function rejectConfirm(total: number, run: () => Promise<void>, options: {
+  filename?: string; onCancel?: () => void; comparison?: RejectComparison;
+} = {}): Confirm {
+  const one = total === 1;
+  const last = options.comparison?.last;
+  return {
+    title: `Reject ${one ? options.filename ?? "this photo" : plural(total, "photo")}${last ? " too" : ""}?`,
+    action: last ? "Reject it too" : "Reject",
+    body: [`${one ? "It moves" : "They move"} to the Rejects folder and ${one ? "leaves" : "leave"} your library. You can bring ${one ? "it" : "them"} back any time until you manually empty Rejects.`],
+    reject: { comparison: options.comparison },
+    run,
+    onCancel: options.onCancel,
+  };
+}
 
 // Copy, Move, Reject or Return to library, for selected photos or a folder (and Copy or
 // Move for all of them), asked the same way on every page. "All" counts what the engine
@@ -15,16 +34,10 @@ export function transferConfirm(mode: ActionMode, status: Status, ids: number[] 
                                 inRejects = false, sourceSubdir?: string): Confirm {
   const scope = Array.isArray(ids) ? (ids.length === 1 && (mode === "reject" || mode === "return") ? "this photo" : plural(ids.length, "selected photo"))
     : ids ? `the photos under ${ids.folder}`
-    : mode === "copy" ? `every photo not yet copied (${count(status.eligible.copy)})`
-      : `every photo not yet moved (${count(status.eligible.move)})`;
+    : mode === "copy" ? `${plural(status.eligible.copy, "ready photo")}`
+      : `${plural(status.eligible.move, "ready photo")}`;
   const one = Array.isArray(ids) && ids.length === 1;
-  if (mode === "reject") return {
-    title: one ? `Reject ${filename ?? "this photo"}?` : Array.isArray(ids) ? `Reject ${plural(ids.length, "photo")}?` : `Reject ${scope}?`,
-    action: "Reject",
-    body: [`${one ? "It moves" : "They move"} to the Rejects folder and ${one ? "leaves" : "leave"} your library. You can bring ${one ? "it" : "them"} back any time until you manually empty Rejects.`],
-    run,
-    onCancel,
-  };
+  if (mode === "reject") return rejectConfirm(Array.isArray(ids) ? ids.length : 1, () => run(), { filename, onCancel });
   if (mode === "return") return {
     title: `Return ${scope} to the library?`,
     action: "Return to library",
@@ -37,7 +50,7 @@ export function transferConfirm(mode: ActionMode, status: Status, ids: number[] 
     action: mode === "move" ? "Move" : "Copy",
     danger: mode === "move",
     move: mode === "move" ? (Array.isArray(ids) ? { file_ids: ids } : sourceSubdir ? { source_subdir: sourceSubdir } : {}) : undefined,
-    body: mode === "move" && inRejects ? [
+    body: [...(mode === "move" && inRejects ? [
       // A selection in Rejects (webui-spec 2): the warning first, as the review shows only it.
       `${one ? "This photo is" : "These photos are"} in Rejects. Move deletes ${one ? "its original" : "their originals"} from your source once ${one ? "its copy" : "each copy"} in Rejects is verified. ${one ? "That copy becomes the only one" : "Those copies become the only ones"}: empty Rejects and ${one ? "it is" : "they are"} gone.`,
     ] : mode === "move" ? [
@@ -47,7 +60,7 @@ export function transferConfirm(mode: ActionMode, status: Status, ids: number[] 
       "Duplicate copies in the source are removed once a matching copy is confirmed at the destination.",
     ] : [
       "Each photo is copied into the destination's date folders and checked byte for byte. Nothing in the source is changed or deleted.",
-    ],
+    ]), ...(!ids && !sourceSubdir && status.held ? [`${plural(status.held, "source file needs", "source files need")} attention and will stay in the source. Find them in Not organized → Needs attention.`] : [])],
     run,
     onCancel,
   };
@@ -55,6 +68,8 @@ export function transferConfirm(mode: ActionMode, status: Status, ids: number[] 
 
 export function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [dontAsk, setDontAsk] = useState(false);
+  const comparison = confirm.reject?.comparison;
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<MovePreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -76,6 +91,14 @@ export function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose:
     <Modal role="alertdialog" labelledBy="confirm-title" onClose={cancel} busy={busy}>
         <h2 id="confirm-title">{confirm.title}</h2>
         {confirm.body.map((line) => <p key={line}>{line}</p>)}
+        {comparison?.last && <p className="reject-last">
+          <strong>None of these photos would be left in the library.</strong>
+          {comparison.rejectedHere > 0 ? ` You have rejected ${comparison.rejectedHere === 1 ? "its look-alike" : `its ${comparison.rejectedHere} look-alikes`} in this comparison; this is the last one.` : ""}
+        </p>}
+        {comparison && !comparison.last && <label className="checkbox-row">
+          <input type="checkbox" checked={dontAsk} disabled={busy} onChange={e => setDontAsk(e.target.checked)} />
+          Don't ask again while comparing
+        </label>}
         {confirm.move && <section aria-label="Source originals">
           {!preview && !previewError && <p role="status">Checking the Move selection…</p>}
           {previewError && <p className="error" role="alert">{previewError}</p>}
@@ -110,6 +133,7 @@ export function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose:
                   onClick={async () => {
                     setBusy(true); setError(null);
                     try {
+                      if (dontAsk && comparison && !comparison.last) comparison.onDontAskAgain();
                       await confirm.run(preview ? { mode: "move", file_ids: preview.file_ids,
                         move_preview_token: preview.token, confirm_edited_sources: choice === "include" } : undefined);
                       onClose();

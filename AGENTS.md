@@ -38,9 +38,11 @@ agent-specific files.
 
 ## Maintainer validation
 
-When requesting manual checks, follow the [validation instructions](tests/README.md#manual-validation-instructions).
+When requesting manual checks, follow the [validation instructions](docs/manual-validation.md#maintainer-validation-rules).
 Provide numbered tests, lettered steps and verified searchable filenames for photo-specific
 checks. Do not make the maintainer find a suitable photo or infer it from a source path.
+Keep manual steps and reported results in docs/manual-validation.md; link there from other
+documents instead of creating another checklist.
 
 ## Code layout
 

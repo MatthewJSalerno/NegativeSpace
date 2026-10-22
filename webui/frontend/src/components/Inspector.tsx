@@ -1,3 +1,5 @@
+import { Tip } from "./Tip";
+import { OtherNames, RenameDialog } from "./PhotoNames";
 import { RotationControls, useRotationSave } from "./RotationControls";
 import { useRotationExit } from "./RotationEditor";
 import { blockingDateIssue, captureDateMessage } from "../photoDates";
@@ -90,7 +92,10 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
   const step = (delta: number) => rotationExit.requestLeave(() => onStep(delta));
   const imageFrame = useRef<HTMLDivElement>(null);
   const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
+  const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [importChoices, setImportChoices] = useState(false);
+  const [renameName, setRenameName] = useState<string | null>(null);
+  useEffect(() => setRenameName(null), [id]);
   const [dateEdit, setDateEdit] = useState<{ photoId: number; donor?: MetadataSourceView } | null>(null);
   const [primaryEdit, setPrimaryEdit] = useState<{ photoId: number; source: MetadataSourceView; captureId: number } | null>(null);
   const editDate = (donor?: MetadataSourceView) => { onTab("metadata"); setDateEdit({ photoId:id, donor }); };
@@ -105,7 +110,7 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
   useLayoutEffect(() => {
     const el = imageFrame.current;
     if (!el) return;
-    const observer = new ResizeObserver(() => setImageSize({ width: el.clientWidth, height: el.clientHeight }));
+    const observer = new ResizeObserver(([entry]) => setImageSize({ width: entry.contentRect.width, height: entry.contentRect.height }));
     observer.observe(el); return () => observer.disconnect();
   }, [enlarged, narrow]);
   const tabId = useId();
@@ -190,6 +195,7 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
     setDetail(null);
     setPreviewReady(false);
     setPreviewFailed(false);
+    setImageAspect(null);
   }, [id]);
 
   // Refresh metadata without replacing the preview or closing the panel.
@@ -217,9 +223,19 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose, onStep, enlarged, turns, saver.busy]);
 
+  // Fit the photo itself before turning it, using the available frame after the
+  // controls. Explicit aspect-preserving dimensions also bound very long images.
+  const availableWidth = turns % 2 ? imageSize.height : imageSize.width;
+  const availableHeight = turns % 2 ? imageSize.width : imageSize.height;
+  const fittedWidth = imageAspect ? Math.min(availableWidth, availableHeight * imageAspect) : availableWidth;
+  const fittedHeight = imageAspect ? fittedWidth / imageAspect : availableHeight;
   const photo = (
-    <div ref={imageFrame} className="inspector-turn-frame"><div className="inspector-turn" style={{ width: turns % 2 ? imageSize.height : imageSize.width,
-      height: turns % 2 ? imageSize.width : imageSize.height, transform: `translate(-50%, -50%) rotate(${turns * 90}deg)` }}>
+    <div ref={imageFrame} className="inspector-turn-frame" onLoadCapture={event => {
+      const img = event.target;
+      if (img instanceof HTMLImageElement && img.naturalWidth && img.naturalHeight)
+        setImageAspect(img.naturalWidth / img.naturalHeight);
+    }}><div className="inspector-turn" style={{ width: fittedWidth, height: fittedHeight,
+      transform: `translate(-50%, -50%) rotate(${turns * 90}deg)` }}>
       {!previewReady && <Thumb refreshKey={refreshKey} id={id} alt={detail?.filename ?? ""} />}
       {!previewFailed && (
         <img
@@ -246,7 +262,10 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
       }}>
       <header ref={header} className="inspector-head">
         <button onClick={() => step(-1)} aria-label="Previous photo">‹</button>
-        <h2 title={detail?.filename}>{detail?.filename ?? "…"}</h2>
+        <div className="inspector-title"><h2 title={detail?.filename}>{detail?.filename ?? "…"}</h2>
+          {!sourceView && inLibrary && <button className="link" disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined}
+            onClick={() => setRenameName(detail.filename)}>Rename…</button>}
+        </div>
         <button onClick={() => step(1)} aria-label="Next photo">›</button>
         <button onClick={enlarged ? () => setEnlarged(false) : close} aria-label={enlarged ? "Close the enlarged photo" : "Close"} data-initial-focus={enlarged || undefined}>✕</button>
       </header>
@@ -297,7 +316,7 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
               tabs={[{ value: "information", label: layoutInLibrary ? "Photo information" : "File information" }, { value: "metadata", label: "Metadata" }, ...(layoutCanCompare ? [{ value: "similar" as const, label: layoutInLibrary ? "Similar photos" : "Similar photos in Library" }] : [])]} />
           </div>
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", activeTab)}>
-            {detail && activeTab === "information" && <Details onImportChoices={() => setImportChoices(true)} onMetadata={openMetadata} onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
+            {detail && activeTab === "information" && <Details onRename={setRenameName} onImportChoices={() => setImportChoices(true)} onMetadata={openMetadata} onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
               review={inLibrary ? <ReviewNote key={`review:${id}`} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto ? () => rotationExit.requestLeave(onReviewPhoto) : undefined}
                 concerns={detail.date_warning ? [{label:"Suspicious date",message:`${detail.date_warning} Recorded value: ${detail.date_taken}. Source: ${isFallbackDate(detail.date_source) ? "file modification fallback" : detail.date_source === "exif" ? "photo EXIF" : detail.date_source ?? "unknown"}. Use Edit date or the Metadata tab to correct the date.`}]
                   : captureDateMessage(detail) ? [{label:"No usable capture date",message:captureDateMessage(detail)!}] : []}
@@ -326,6 +345,7 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
   return <>
     {lineage && detail && <LineageDialog photoId={id} filename={detail.filename} jobRunning={jobRunning}
       onOpenPhoto={(other) => rotationExit.requestLeave(() => { setLineage(false); onOpenPhoto(other); })} onClose={() => setLineage(false)} />}
+    {renameName != null && <RenameDialog id={id} name={renameName} jobRunning={jobRunning} onClose={() => setRenameName(null)}/>}
     {rotationExit.editor}
     {importChoices && <ImportChoiceDialog photoId={id} onClose={() => setImportChoices(false)} />}
     {primaryEdit && <PrimarySourceEditor {...primaryEdit} onClose={() => setPrimaryEdit(null)} onSaved={() => window.dispatchEvent(new Event("ns-review-changed"))} />}
@@ -362,7 +382,7 @@ function Section({ title, note, children }: { title: string; note?: ReactNode; c
   );
 }
 
-function Details({ onImportChoices, detail: d, onLineage, refreshKey, review, jobRunning, onEdit, onMetadata }: { onImportChoices: () => void; onMetadata: () => void; onEdit: (donor?: MetadataSourceView) => void; jobRunning: boolean; detail: PhotoDetail; onLineage: () => void; refreshKey: number; review?: ReactNode }) {
+function Details({ onRename, onImportChoices, detail: d, onLineage, refreshKey, review, jobRunning, onEdit, onMetadata }: { onRename: (name: string) => void; onImportChoices: () => void; onMetadata: () => void; onEdit: (donor?: MetadataSourceView) => void; jobRunning: boolean; detail: PhotoDetail; onLineage: () => void; refreshKey: number; review?: ReactNode }) {
   const fallback = isFallbackDate(d.date_source);
   return (
     <div className="inspector-body">
@@ -398,11 +418,12 @@ function Details({ onImportChoices, detail: d, onLineage, refreshKey, review, jo
           source={[{label:"Source path",path:d.source_path ?? "—"}]}
           destinationLabel={d.dest_path_is_projection ? "Proposed destination" : "Destination"}
           destination={[{label:d.dest_path_is_projection ? "Proposed destination path" : "Destination path",path:d.dest_path ?? "—",
-            note:<>{d.dest_path_is_projection && <div>Not written yet.</div>}{d.has_collision_rename && <div>Renamed: another file already had this name.</div>}</>}]} />
+            actions: IN_LIBRARY.includes(d.status) && !d.dest_path_is_projection ? <button className="link" disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined} onClick={() => onRename(d.filename)}>Rename…</button> : undefined,
+            note:<>{d.dest_path_is_projection && <div>Not written yet.</div>}{d.has_collision_rename && <div>Renamed: another file already had this name.</div>}
+              {IN_LIBRARY.includes(d.status) && !d.dest_path_is_projection && <OtherNames id={d.id} refreshKey={refreshKey} disabled={jobRunning} onChoose={onRename}/>}</>}]} />
         </td></tr>
         <Row label="Size">{bytes(d.file_size)}{d.width && d.height ? ` · ${d.width} × ${d.height}` : ""}</Row>
-        <Row label={<span className="row-tip" title="As recorded when NegativeSpace first indexed this file.">
-                      File modified <span aria-hidden="true">ⓘ</span></span>}>
+        <Row label={<Tip text="As recorded when NegativeSpace first indexed this file.">File modified</Tip>}>
           {epoch(d.file_modified)}
         </Row>
       </Section>
@@ -500,6 +521,10 @@ function PhotoHistory({ id, onLineage, refreshKey }: { id: number; onLineage: ()
   return (
     <section className="info-section photo-history">
       <h3>History{page && page.total > 0 ? ` (${page.total})` : ""}</h3>
+      {page && page.total > 0 && <div className="history-links">
+        <a href={logUrl({ photo: id })} onClick={follow}>View photo logs</a>
+        <button className="link" onClick={onLineage}>View lineage tree</button>
+      </div>}
       {!page ? <p className="muted info-empty">Loading…</p> : page.total === 0 ? (
         <p className="muted info-empty">Nothing recorded yet.</p>
       ) : (
@@ -515,10 +540,6 @@ function PhotoHistory({ id, onLineage, refreshKey }: { id: number; onLineage: ()
               </li>
             ))}
           </ol>
-          <div className="history-links">
-            <a href={logUrl({ photo: id })} onClick={follow}>Open in the log</a>
-            <button className="link" onClick={onLineage}>View lineage tree</button>
-          </div>
         </>
       )}
     </section>

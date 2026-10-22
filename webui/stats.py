@@ -6,7 +6,7 @@ from typing import Optional
 
 from engine import ns_db, ns_similarity
 from engine.ns_db import PhotoStatus, RunStatus, OPERATION_RENAMED
-from . import catalog, catalog_backups
+from . import catalog, catalog_backups, gallery
 
 
 # --- Library stats (webui-spec 5.9) ---------------------------------------------
@@ -79,12 +79,48 @@ def _by_folder(rows, source_root: Optional[Path]) -> list:
     return sorted(folders.values(), key=lambda f: f["folder"].lower())
 
 
+def _metadata_edits(conn):
+    """Distinct source-file identities with a verified save, not attempted jobs.
+
+    Receipt identities survive removed photo rows. A failed refile does not undo a
+    verified save; repeated saves/recovery receipts must not inflate photo counts.
+    """
+    groups = {key: set() for key in ('photos', 'dates', 'rotations', 'primary_source', 'other')}
+    rows = conn.execute(
+        "SELECT COALESCE('file:' || json_extract(saved.detail_json,'$.file_id'), 'photo:' || o.photo_id), "
+        "json_extract(intent.detail_json,'$.expected.preview') FROM operation_events saved "
+        "JOIN operations o ON o.id=saved.operation_id "
+        "JOIN operation_events intent ON intent.operation_id=o.id AND intent.step='intent' "
+        "WHERE saved.step='metadata_saved' AND saved.outcome='verified' "
+        "AND json_extract(intent.detail_json,'$.kind')='metadata_edit'")
+    for identity, raw in rows:
+        if identity is None:
+            continue
+        preview = json.loads(raw) if raw else {}
+        fields = set(preview.get('changes') or {}) | set(preview.get('remove_fields') or [])
+        kinds = set()
+        if 'date_taken' in fields:
+            kinds.add('dates')
+        if 'orientation' in fields:
+            kinds.add('rotations')
+        if 'primary_activation' in preview or 'activation' in preview:
+            kinds.add('primary_source')
+        if fields - {'date_taken', 'orientation'} or not kinds:
+            kinds.add('other')
+        for key in kinds | {'photos'}:
+            groups[key].add(identity)
+    return {key: len(ids) for key, ids in groups.items()}
+
+
 def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_root: Optional[Path] = None) -> dict:
     """Everything the Stats page shows, read from the catalog in one pass: the library,
     its dates, duplicates, the work done, and the catalog's health. Only what is
-    recorded: figures that need unbuilt features (near-duplicates, EXIF edits) are None."""
+    recorded, including verified metadata saves even when later refiling fails."""
     shown = ns_db.sql_values(tuple(s for s in catalog.VIEWS["all"] if s != PhotoStatus.FAILED))
     with catalog.connect(db_path) as conn:
+        date_min_year = conn.execute(f"SELECT {gallery._DATE_MIN_YEAR_SQL}").fetchone()[0]
+        date_max_year = conn.execute("SELECT CAST(strftime('%Y','now') AS INTEGER) + 1").fetchone()[0]
+        edits = _metadata_edits(conn)
         failed_source = conn.execute("SELECT COUNT(*) FROM photos WHERE status=?", (PhotoStatus.FAILED,)).fetchone()[0]
         photos = conn.execute(
             f"SELECT p.status, p.file_size, COALESCE(CASE WHEN p.status IN ({ns_db.sql_values(catalog.DELIVERED)}) "
@@ -117,10 +153,17 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
             "json_extract(c.effective_config_json, '$.exts') AS exts "
             "FROM runs r LEFT JOIN run_configs c ON c.run_id = r.id ORDER BY r.id", (PhotoStatus.FAILED,)).fetchall()
         every_file = conn.execute("SELECT source_path, status, file_size FROM photos WHERE source_path IS NOT NULL").fetchall()
-        ops = dict(conn.execute("SELECT status, COUNT(*) FROM operations GROUP BY status").fetchall())
+        op_counts = conn.execute("SELECT r.mode, o.status, COUNT(*) FROM operations o "
+            "JOIN runs r ON r.id=o.run_id GROUP BY r.mode, o.status").fetchall()
+        transfer_ops = {}
+        for mode, status, n in op_counts:
+            if mode in ('COPY', 'MOVE'):
+                transfer_ops[status] = transfer_ops.get(status, 0) + n
+        renamed = sum(n for _, status, n in op_counts if status == OPERATION_RENAMED)
         moved_bytes = conn.execute(
             "SELECT COALESCE(SUM(p.file_size), 0) FROM operations o JOIN photos p ON p.id = o.photo_id "
-            "WHERE o.status IN (?, ?)", (PhotoStatus.COPIED, PhotoStatus.COMPLETED)).fetchone()[0]
+            "JOIN runs r ON r.id=o.run_id WHERE r.mode IN ('COPY','MOVE') AND o.status IN (?, ?)",
+            (PhotoStatus.COPIED, PhotoStatus.COMPLETED)).fetchone()[0]
         failures = {}
         for (message,) in conn.execute("SELECT error_message FROM operations WHERE status = ?", (PhotoStatus.FAILED,)):
             kind = _failure_kind(message)
@@ -128,7 +171,8 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
         runs = conn.execute("SELECT id, mode, status, started_at, ended_at FROM runs ORDER BY id").fetchall()
         transfer_bytes = dict(conn.execute(
             "SELECT o.run_id, SUM(p.file_size) FROM operations o JOIN photos p ON p.id = o.photo_id "
-            "WHERE o.status IN (?, ?) GROUP BY o.run_id", (PhotoStatus.COPIED, PhotoStatus.COMPLETED)).fetchall())
+            "JOIN runs r ON r.id=o.run_id WHERE r.mode IN ('COPY','MOVE') AND o.status IN (?, ?) GROUP BY o.run_id",
+            (PhotoStatus.COPIED, PhotoStatus.COMPLETED)).fetchall())
         conn.row_factory = None
         cache = [{"size": s, "photos": n, "bytes": b} for s, n, b in ns_db.thumbnail_cache_totals(conn)]
         check = conn.execute("SELECT id, started_at FROM runs WHERE mode = 'CHECK' AND status = ? ORDER BY id DESC LIMIT 1",
@@ -210,6 +254,7 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
                     "orientation": {"landscape": landscape, "portrait": portrait, "square": square},
                     "with_location": sum(1 for p in photos if p["gps"] is not None)},
         "dates": {"per_year": [{"year": y, "photos": n} for y, n in sorted(years.items())],
+                  "min_year": date_min_year, "max_year": date_max_year,
                   "oldest": min((p["date_taken"] for p in dated), default=None),
                   "newest": max((p["date_taken"] for p in dated), default=None),
                   "busiest_day": {"day": busiest[0], "photos": busiest[1]} if busiest else None,
@@ -217,14 +262,14 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
                   "with_time_zone": sum(1 for p in dated if p["offset"])},
         "duplicates": {"groups": dup["groups"], "extra_copies": dup["copies"], "bytes": dup["bytes"],
                        "saved_at_destination": saved[1], "copies_not_written": saved[0],
-                       "move_would_free": dup["in_source"], "freed_by_moves": dup["removed"], "near_duplicates": None,
+                       "move_would_free": dup["in_source"], "freed_by_moves": dup["removed"],
                        "coverage": _coverage(coverage_runs),
                        "by_folder": _by_folder(every_file, source_root)},
         "activity": {"jobs": mode_counts, "last_index": last_index,
-                     "copied": ops.get(PhotoStatus.COPIED, 0), "moved": ops.get(PhotoStatus.COMPLETED, 0),
+                     "copied": transfer_ops.get(PhotoStatus.COPIED, 0), "moved": transfer_ops.get(PhotoStatus.COMPLETED, 0),
                      "bytes_transferred": moved_bytes,
                      "bytes_per_second": round(moved_run_bytes / moved_seconds) if moved_seconds else None,
-                     "failures": failures, "renames": ops.get(OPERATION_RENAMED, 0), "exif_edits": None},
+                     "failures": failures, "renames": renamed, "metadata_edits": edits},
         "rejects": rejects,
         "health": {"low_detail_photos": sum(p["phash_state"] == "ok" and ns_similarity.is_low_detail(
                        p["mean_brightness"], p["mean_gradient"]) for p in photos),

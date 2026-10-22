@@ -18,6 +18,8 @@ export interface Status {
   library_photos?: number;
   // What a Copy all and a Move all would take, across the whole catalog.
   eligible: { copy: number; move: number };
+  // Unorganized source files held for attention, separate from ready transfers.
+  held?: number;
   copied: number;
   // Rejected after a Copy, their source still in place: a Move removes it (engine-spec 9.5).
   rejected_with_source: number;
@@ -34,9 +36,8 @@ export interface Status {
 
 // The navigation sidebar's counts (GET /photos/places): each place whole, and each Look
 // into shortcut as Library with only that filter on.
-export type PlaceView = "unorganized" | "organized" | "review" | "rejects";
-export type LookInto = "similar" | "suspicious" | "undated" | "small" | "later" | "issues" | "attention";
-export interface Places { places: Record<PlaceView, number>; look_into: Record<LookInto, number> }
+export type PlaceView = "unorganized" | "organized" | "review" | "rejects" | "similar";
+export interface Places { places: Record<PlaceView, number>; warnings: { attention: number } }
 
 // "source": every photo whose original is still in the source (Source folders).
 export type View = "review" | "all" | "unorganized" | "organized" | "similar" | "suspicious" | "rejects" | "source";
@@ -47,7 +48,7 @@ export type ActionMode = "copy" | "move" | "reject" | "return";
 export type Place = "library" | "rejects";
 export const placeOf = (status: string): Place =>
   status === "Rejected" || status === "Rejected_Copied" ? "rejects" : "library";
-export type Sort = "newest" | "oldest" | "largest" | "smallest" | "name" | "matches";
+export type Sort = "duplicates" | "newest" | "oldest" | "largest" | "smallest" | "name" | "matches" | "bookmark";
 
 export interface MetadataSourceView {
   id: string; kind: string; label: string; version_id?: number;
@@ -62,6 +63,8 @@ export interface MetadataView {
 }
 
 export interface EditDuplicate { photo_id: number; filename: string; path: string }
+export interface PhotoNames { photo_id: number; current_path: string; candidates: {name: string; seen_at: string[]}[] }
+export interface RenamePreview { photo_id: number; current_path: string; new_path: string; collision: boolean; unchanged: boolean; token: string }
 export interface RotationChoice { photo_id: number; turns: number }
 export interface RotationPlan { items: { photo_id: number; filename: string; turns: number; error: string | null;
   before?: number; after?: number; duplicate?: EditDuplicate | null; target?: DateEditContext["target"]; no_change?: boolean; edit?: Record<string, unknown> }[] }
@@ -125,13 +128,13 @@ export interface PhotoItem {
 }
 
 export interface ReviewDetail {
-  reasons: { reason: string; label: string; message: string }[];
-  history: { id: number; reason: string; action: string; note: string; created_at: string }[];
+  reasons: { reason: string; label: string; message: string; bookmark_reason?: string }[];
+  history: { id: number; reason: string; action: string; note: string; created_at: string; bookmark_reason?: string }[];
   revision: number; sha1: string | null; location: string;
 }
 export interface PhotoPage {
   date_min_year: number;
-  index_summary?: { last_index: { id: number; started_at: string } | null; photos: number; ready: number; unfinished: number; metadata_held?: number; duplicates: number; small: number; minimum: number | null; unknown_dimensions: number; suspicious: number; undated: number; failed: number; similar: null } | null;
+  index_summary?: { discovery: Discovery | null; last_index: { id: number; started_at: string } | null; photos: number; ready: number; unfinished: number; metadata_held?: number; duplicates: number; small: number; minimum: number | null; unknown_dimensions: number; suspicious: number; undated: number; failed: number; similar: null } | null;
   elsewhere?: Record<string, number>;
   chips?: Record<string, number>;
   reasons?: Record<string, number>;
@@ -159,7 +162,7 @@ export interface PhotoPosition {
 // What narrows the gallery: the view, the search, No usable capture date, and the date tree's
 // "Show only" years and months ("2023", "2023-06", "none").
 export interface BrowseFilters {
-  similar?: boolean; suspicious?: boolean; reason?: string;
+  similar?: boolean; suspicious?: boolean; reason?: string; size_below?: number; source_summary?: string; other_names?: boolean;
   set_reference?: number;
   group_sets?: boolean;
   match_min?: number;
@@ -183,11 +186,13 @@ export interface FolderNode {
   name: string;
   photos: number;
   eligible: { copy: number; move: number };
+  // End of the latest completed Index that read this whole folder, or null.
+  last_indexed: string | null;
   folders: FolderNode[];
 }
 export interface FolderTree {
   folders: FolderNode[];
-  top_files: { photos: number; eligible: { copy: number; move: number } };
+  top_files: { photos: number; eligible: { copy: number; move: number }; last_indexed: string | null };
   outside: number;
 }
 
@@ -199,6 +204,9 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
   if (f.run != null) query.set("run", String(f.run));
   if (f.similar) query.set("similar", "true");
   if (f.suspicious) query.set("suspicious", "true");
+  if (f.size_below != null) query.set("size_below", String(f.size_below));
+  if (f.other_names) query.set("other_names", "1");
+  if (f.source_summary) query.set("source_summary", f.source_summary);
   if (f.reason) query.set("reason", f.reason);
   if (f.q) query.set("q", f.q);
   if (f.undated) query.set("undated", "true");
@@ -323,7 +331,14 @@ export interface Outcome {
   counts: Record<string, number>;
 }
 
+export interface Discovery {
+  files_found: number; eligible: number; photos: Record<string, number>;
+  disabled_photos: Record<string, number>; sidecars: number; videos: number; other: number;
+  partial: boolean; unreadable: number;
+}
+
 export interface Run {
+  discovery?: Discovery | null;
   id: number | null;
   mode: string | null;
   status: string;
@@ -338,11 +353,19 @@ export interface Run {
   awaiting_reconciliation?: boolean;
   cancellable?: boolean;
   unrecorded?: boolean;
+  backup_stage?: "post_job" | "manual";
+}
+
+export interface BackupStatus {
+  unbacked_count: number;
+  last_success: string | null;
+  latest: Pick<BackupAttempt, "attempt_id" | "trigger_kind" | "related_run_id" | "started_at" | "outcome" | "error_category" | "error_detail"> | null;
 }
 
 export interface JobState {
   active: Run | null;
   last: Run | null;
+  backup?: BackupStatus | null;
 }
 
 export type SafetyQuestion = "source_empty" | "network_destination";
@@ -421,6 +444,7 @@ export interface OperationPage {
 }
 
 export interface LogFilters {
+  metadata_edits?: boolean;
   run: number[];
   status: string[];
   photo: number | null;
@@ -433,6 +457,7 @@ export function logQuery(f: LogFilters): URLSearchParams {
   const p = new URLSearchParams();
   f.run.forEach((r) => p.append("run", String(r)));
   f.status.forEach((s) => p.append("status", s));
+  if (f.metadata_edits) p.set("metadata_edits", "true");
   if (f.photo != null) p.set("photo", String(f.photo));
   if (f.q) p.set("q", f.q);
   if (f.since) p.set("since", f.since);
@@ -476,6 +501,9 @@ export interface Backups {
 }
 
 export interface LineageFile {
+  created_run_id: number;
+  indexed_sha1: string | null;
+  place: "source" | "library" | "rejects" | null;
   file_id: number;
   origin_file_id: number | null;
   origin_kind: "indexed" | "copy" | "observed_destination" | null;
@@ -492,6 +520,7 @@ export interface LineageFile {
 }
 
 export interface LineageOperation {
+  consolidated_path: string | null;
   consolidated_into: number | null;
   action: "rotation" | "date" | "metadata_source" | "metadata" | null;
   id: number;
@@ -530,13 +559,14 @@ export interface Stats {
   };
   dates: {
     per_year: { year: string; photos: number }[];
+    min_year: number; max_year: number;
     oldest: string | null; newest: string | null;
     busiest_day: { day: string; photos: number } | null;
     undated: number; undated_no_date: number; undated_unusable: number; with_time_zone: number;
   };
   duplicates: {
     groups: number; extra_copies: number; bytes: number; saved_at_destination: number;
-    move_would_free: number; freed_by_moves: number; near_duplicates: number | null; copies_not_written: number;
+    move_would_free: number; freed_by_moves: number; copies_not_written: number;
     coverage: { last_complete_scan: string | null; established_by_run: number | null;
                 scans_with_issues_since: number; run_ids_since: number[] };
     by_folder: { folder: string; files: number; duplicates: number; duplicate_bytes: number }[];
@@ -544,7 +574,7 @@ export interface Stats {
   activity: {
     jobs: Record<string, number>; last_index: string | null; copied: number; moved: number;
     bytes_transferred: number; bytes_per_second: number | null; failures: Record<string, number>;
-    renames: number; exif_edits: number | null;
+    renames: number; metadata_edits: { photos: number; dates: number; rotations: number; primary_source: number; other: number };
   };
   health: {
     low_detail_photos: number;
@@ -589,6 +619,27 @@ try {
 } catch { /* No valid saved submission. New submissions still require persistence. */ }
 let submissionState = { pending: savedSubmission, checking: !!savedSubmission, resolved: null as Run | null, error: null as string | null };
 const submissionListeners = new Set<() => void>();
+const acceptedJobListeners = new Set<(run: Run) => void>();
+export const subscribeJobAccepted = (listener: (run: Run) => void) => {
+  acceptedJobListeners.add(listener);
+  return () => { acceptedJobListeners.delete(listener); };
+};
+const backupListeners = new Set<(busy: boolean) => void>();
+let backupRequest: Promise<BackupAttempt> | null = null;
+export const subscribeBackupActivity = (listener: (busy: boolean) => void) => {
+  backupListeners.add(listener);
+  listener(backupRequest != null);
+  return () => { backupListeners.delete(listener); };
+};
+function backUpNow(): Promise<BackupAttempt> {
+  if (backupRequest) return backupRequest;
+  backupRequest = request<BackupAttempt>("POST", "/api/v1/backups").finally(() => {
+    backupRequest = null;
+    backupListeners.forEach(listener => listener(false));
+  });
+  backupListeners.forEach(listener => listener(true));
+  return backupRequest;
+}
 let submissionPromise: Promise<Run> | null = null;
 let resolveSubmission: ((run: Run) => void) | null = null;
 let rejectSubmission: ((error: ApiError) => void) | null = null;
@@ -613,7 +664,10 @@ function settleSubmission(run: Run | null, error?: ApiError) {
   resolveSubmission = null; rejectSubmission = null; submissionPromise = null;
   submissionState = { pending: null, checking: false, resolved: wasUncertain ? run : null, error: error?.message ?? null };
   notifySubmission();
-  if (run) resolve?.(run); else if (error) reject?.(error);
+  if (run) {
+    acceptedJobListeners.forEach((listener) => listener(run));
+    resolve?.(run);
+  } else if (error) reject?.(error);
 }
 export async function checkSubmission() {
   const pending = submissionState.pending;
@@ -735,9 +789,9 @@ export const api = {
   saveAccess: (hosts: string[], revision: number, confirm_current_host = false) =>
     request<AccessSettings>("PUT", "/api/v1/access", { hosts, revision, confirm_current_host }),
   review: (id: number) => request<ReviewDetail>("GET", `/api/v1/photos/${id}/review`),
-  reviewDecision: (id: number, detail: ReviewDetail, reason: string, action: string, note: string, request_id: string) =>
+  reviewDecision: (id: number, detail: ReviewDetail, reason: string, action: string, note: string, request_id: string, bookmark_reason?: string) =>
     request<ReviewDetail>("POST", `/api/v1/photos/${id}/review`, {
-      photo_id: id, sha1: detail.sha1, revision: detail.revision, reason, action, note, request_id,
+      photo_id: id, sha1: detail.sha1, revision: detail.revision, reason, action, note, request_id, ...(bookmark_reason ? { bookmark_reason } : {}),
     }),
   similarityRecovery: (page = 1, photoId?: number) => request<SimilarityRecoveryPage>("GET", `/api/v1/similar/recovery?page=${page}${photoId == null ? "" : `&photo_id=${photoId}`}`),
   repairSimilarity: (scope: "missing" | "comparisons", photo_id?: number) => submitJob("/api/v1/similar/recovery", { scope, ...(photo_id == null ? {} : { photo_id }) }),
@@ -748,7 +802,7 @@ export const api = {
     request<MatchPair>("GET", `/api/v1/similar/${reference}/pair/${candidate}`),
   matches: (query: URLSearchParams, photo: number | null = null) =>
     request<MatchPage>("GET", `/api/v1/similar${photo == null ? "" : `/${photo}`}?${query}`),
-  jobState: () => request<JobState>("GET", "/api/v1/jobs/active"),
+  jobState: (signal?: AbortSignal) => request<JobState>("GET", "/api/v1/jobs/active", undefined, signal),
   status: () => request<Status>("GET", "/api/v1/status"),
   createCatalog: () => request<Status>("POST", "/api/v1/catalog"),
   settings: () => request<Settings>("GET", "/api/v1/settings"),
@@ -756,12 +810,11 @@ export const api = {
     request<Settings>("PUT", "/api/v1/settings", { values, revisions }),
   validateExtension: (extension: string) =>
     request<ExtensionSupport>("POST", "/api/v1/settings/validate-extension", { extension }),
-  photos: (params: BrowseFilters & { sort: Sort; page: number; page_size: number; filter_pins?: string }) => {
+  photos: (params: BrowseFilters & { sort: Sort; page: number; page_size: number }) => {
     const query = browseQuery(params);
     query.set("sort", params.sort);
     query.set("page", String(params.page));
     query.set("page_size", String(params.page_size));
-    if (params.filter_pins !== undefined) query.set("filter_pins", params.filter_pins);
     return request<PhotoPage>("GET", `/api/v1/photos?${query}`);
   },
   photoPosition: (params: BrowseFilters & { photo_id: number; sort: Sort; page_size: number; ids?: number[] }) =>
@@ -798,7 +851,7 @@ export const api = {
     request<{ photo_ids: number[] }>(
       "GET", `/api/v1/operations/photo-ids?${logQuery(f)}${requestedOnly ? "&requested_only=true" : ""}`),
   backups: () => request<Backups>("GET", "/api/v1/backups"),
-  backupNow: () => request<BackupAttempt>("POST", "/api/v1/backups"),
+  backupNow: backUpNow,
   backupDownloadUrl: (id: number) => `/api/v1/backups/${id}/download`,
   thumbnails: () => request<ThumbnailCache>("GET", "/api/v1/thumbnails"),
   rebuildThumbnails: (scope: "missing" | "all") => submitJob("/api/v1/thumbnails/rebuild", { scope }),
@@ -815,6 +868,9 @@ export const api = {
   importChoices: (id:number) => request<ImportChoiceContext>("GET", `/api/v1/photos/${id}/import-choices`),
   previewImportChoice: (id:number, choice:ImportChoice) => request<ImportChoicePreview>("POST", `/api/v1/photos/${id}/import-choices/preview`, choice),
   confirmImportChoice: (id:number, preview:ImportChoicePreview, request_id:string) => request<{revision:number;message:string}>("POST", `/api/v1/photos/${id}/import-choices/confirm`, {choice:preview.choice,token:preview.token,request_id}),
+  photoNames: (id: number) => request<PhotoNames>("GET", `/api/v1/photos/${id}/names`),
+  renamePreview: (id: number, name: string) => request<RenamePreview>("POST", `/api/v1/photos/${id}/rename-preview`, { name }),
+  renamePhoto: (id: number, name: string, token: string) => submitJob(`/api/v1/photos/${id}/rename`, { name, token }),
   rotationPreview: (rotations: RotationChoice[]) => request<RotationPlan>("POST", "/api/v1/rotations/preview", { rotations }),
   saveRotations: (edits: Record<string, unknown>[]) => submitJob("/api/v1/rotations/save", { edits }),
   dateContext: (id: number) => request<DateEditContext>("GET", `/api/v1/photos/${id}/date-edit`),

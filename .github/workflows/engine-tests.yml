@@ -100,6 +100,9 @@ jobs:
       - name: Rotation editing and display
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p rotations_test.py -v
 
+      - name: Rename API and preview safety
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p rename_ui_test.py -v
+
       - name: Date editing API
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_dates_test.py -v
 
@@ -244,8 +247,8 @@ jobs:
       - name: Instance access policy
         run: docker run --rm --entrypoint python3 -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p access_test.py -v
 
-      - name: Gallery filter pin counts
-        run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p filter_pins_test.py -v
+      - name: Gallery refinement counts
+        run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p sidebar_refinements_test.py -v
 
       - name: Notification read receipts
         run: docker run --rm --entrypoint python3 -e PYTHONPATH=/app/tests:/app -v "$PWD":/app:ro -w /app negativespace -m unittest discover -s tests -p notifications_test.py -v
@@ -368,6 +371,11 @@ jobs:
 
       - name: Same-name photo cards in a browser
         run: DRIVER=same_name_browser_drive.py sh tests/browser/webui_browser_test.sh
+      - name: Catalog backup status in a browser
+        run: BACKUP_FIXTURE=1 DRIVER=backup_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Lineage timeline in a browser
+        run: DRIVER=lineage_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Gallery photo positioning in a browser
         run: DRIVER=gallery_position_browser_drive.py sh tests/browser/webui_browser_test.sh
@@ -390,8 +398,8 @@ jobs:
       - name: Instance access in a browser
         run: DRIVER=access_browser_drive.py sh tests/browser/webui_browser_test.sh
 
-      - name: Gallery filter pins in a browser
-        run: DRIVER=filter_pins_browser_drive.py sh tests/browser/webui_browser_test.sh
+      - name: Sidebar refinements and Bookmarks in a browser
+        run: DRIVER=sidebar_refinements_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Fresh setup in a browser
         run: DRIVER=fresh_start_browser_drive.py sh tests/browser/webui_browser_test.sh
@@ -428,6 +436,9 @@ jobs:
 
       - name: File issue recovery in a browser
         run: SIMILARITY_RECOVERY_FIXTURE=1 DRIVER=attention_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Photo naming and compact rotation exit
+        run: DRIVER=photo_names_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Needs review in a browser
         run: DRIVER=review_browser_drive.py sh tests/browser/webui_browser_test.sh

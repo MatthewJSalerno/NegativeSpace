@@ -88,8 +88,13 @@ class ReviewTests(ApiCase):
             self.assertEqual(got['places'][name],self.client.get('/api/v1/photos?view='+name).json()['total'],name)
         for name,query in (('similar','view=organized&similar=true&match_min=90'),('suspicious','view=organized&suspicious=true'),
                            ('undated','view=organized&undated=true'),('small','view=organized&reason=small'),('later','view=review&reason=later'),('issues','view=organized&reason=issues')):
-            self.assertEqual(got['look_into'][name],self.client.get('/api/v1/photos?'+query).json()['total'],name)
-        self.assertEqual(got['look_into']['suspicious'],1)
+            listing=self.client.get('/api/v1/photos?view=organized').json()
+            counts=listing['reasons'] if name in ('small','later','issues') else listing['chips']
+            self.assertEqual(counts[name],self.client.get('/api/v1/photos?'+query).json()['total'],name)
+        self.assertEqual(listing['chips']['suspicious'],1)
+        self.assertEqual(got['places']['similar'],self.client.get('/api/v1/photos?view=similar&match_min=90').json()['total'])
+        self.assertEqual(got['warnings']['attention'],self.client.get('/api/v1/photos?view=unorganized&reason=attention').json()['total'])
+        self.assertNotIn('look_into',got)
         self.assertEqual(self.client.get('/api/v1/photos/places?match_min=50').status_code,422)
 
     def test_changed_content_is_not_silently_marked_reviewed(self):
@@ -149,12 +154,73 @@ class ReviewTests(ApiCase):
             c.execute("INSERT INTO photos(source_path,status) VALUES(?,'Failed')",(str(self.cfg.source/'broken.jpg'),))
             c.commit()
         summary=self.client.get('/api/v1/photos?view=unorganized&q=absent').json()['index_summary']
-        self.assertEqual(summary,dict(photos=2,ready=1,metadata_held=0,unfinished=0,duplicates=1,small=1,minimum=800,unknown_dimensions=0,suspicious=0,undated=1,failed=1,similar=None,last_index=None))
+        self.assertEqual(summary,dict(photos=2,ready=1,metadata_held=0,unfinished=0,duplicates=1,small=1,minimum=800,unknown_dimensions=0,suspicious=0,undated=1,failed=1,similar=None,last_index=None,discovery=None))
         self.assertEqual(self.client.get('/api/v1/photos?view=review').json()['total'],1)
         self.assertIsNone(self.client.get('/api/v1/photos?view=organized').json()['index_summary'])
         self.enable(None)
         summary=self.client.get('/api/v1/photos?view=unorganized').json()['index_summary']
         self.assertIsNone(summary['minimum'])
+
+    def test_summary_links_share_membership_across_pages_ids_facets_and_navigation(self):
+        self.enable()
+        with ns_db.connect(self.cfg.db_path) as c:
+            for pid, status, digest in [(4,'Pending','unknown'), (5,'Processing','unfinished'), (6,'Failed','failed'),
+                                        (7,'Duplicate',f'{3:040x}'), (8,'Duplicate',f'{3:040x}')]:
+                c.execute("INSERT INTO photos(id,source_path,status,sha1_hash) VALUES(?,?,?,?)",
+                          (pid,str(self.cfg.source/f'summary-{pid}.jpg'),status,digest))
+            c.commit()
+        scopes={'ready':[3,4], 'indexed':[3,4], 'identical':[3], 'unknown_dimensions':[4],
+                'unfinished':[5], 'failed':[6], 'metadata_held':[]}
+        for scope, ids in scopes.items():
+            with self.subTest(scope=scope):
+                query=f'view=unorganized&source_summary={scope}'
+                page=self.client.get('/api/v1/photos?'+query).json()
+                self.assertEqual(sorted(p['id'] for p in page['items']),ids)
+                self.assertEqual(page['total'],len(ids))
+                self.assertEqual(sorted(self.client.get('/api/v1/photos/ids?'+query).json()['ids']),ids)
+                types=self.client.get('/api/v1/photos/types?'+query).json()['types']
+                self.assertEqual(sum(t['photos'] for t in types),len(ids))
+                timeline=self.client.get('/api/v1/photos/timeline?'+query).json()
+                self.assertEqual(sum(t['count'] for t in timeline['months'])+timeline['undated'],len(ids))
+                folders=self.client.get('/api/v1/photos/folders?'+query).json()
+                self.assertEqual(folders['top_files']['photos'],len(ids))
+                for pid in ids:
+                    position=self.client.post('/api/v1/photos/position',json={
+                        'photo_id':pid,'view':'unorganized','source_summary':scope,'page_size':1}).json()
+                    result=self.client.get('/api/v1/photos?'+query+f"&page_size=1&page={position['page']}").json()
+                    self.assertEqual([p['id'] for p in result['items']],[pid])
+                self.assertEqual(self.client.get('/api/v1/photos?'+query+'&q=does-not-exist').json()['total'],0)
+                self.assertEqual(self.client.get('/api/v1/photos?view=organized&source_summary='+scope).json()['total'],0)
+        self.assertEqual(self.client.get('/api/v1/photos?view=unorganized').json()['index_summary']['duplicates'],2)
+        # Facts links count Pending photos; unfinished/failed records do not leak in.
+        self.assertEqual(self.client.get('/api/v1/photos?view=unorganized&source_summary=indexed&undated=true').json()['total'],2)
+        self.assertEqual(self.client.get('/api/v1/photos?view=unorganized&source_summary=indexed&size_below=800').json()['total'],1)
+        for endpoint in ('photos','photos/ids','photos/types','photos/timeline','photos/folders'):
+            self.assertEqual(self.client.get('/api/v1/'+endpoint+'?source_summary=invalid').status_code,400)
+
+    def test_discovery_breakdown_is_the_same_snapshot_in_summary_and_log(self):
+        with ns_db.connect(self.cfg.db_path) as c:
+            rid=c.execute("INSERT INTO runs(mode,status,started_at,ended_at) VALUES('INDEX','Completed','start','end')").lastrowid
+            c.commit()
+            ns_db.record_discovery(c,rid,eligible_by_extension={'.jpg':2,'.png':1},
+                excluded_by_extension={'.cr2':2,'.xmp':3,'.mov':4,'.txt':5,'':6,'.json':7},unreadable=1)
+            c.commit()
+        expected=dict(files_found=30,eligible=3,photos={'.jpg':2,'.png':1},disabled_photos={'.cr2':2},
+                      sidecars=3,videos=4,other=18,partial=True,unreadable=1)
+        def summary():
+            return self.client.get('/api/v1/photos?view=unorganized&q=absent').json()['index_summary']['discovery']
+        self.assertEqual(summary(),expected)
+        from webui import outcomes
+        self.assertEqual(outcomes.get_run(self.cfg.db_path,rid)['discovery'],expected)
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("UPDATE photos SET status='Copied' WHERE status='Pending'")
+            c.commit()
+        self.enable(None)
+        self.assertEqual(summary(),expected,'Copy and Settings must not rewrite the recorded walk')
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("INSERT INTO runs(mode,status,started_at,ended_at) VALUES('INDEX','Completed','scoped','end')")
+            c.commit()
+        self.assertIsNone(summary(),'A scoped run must not inherit counts from an earlier full walk')
 
     def test_summary_dismissal_identity_follows_finished_index_only(self):
         def summary_index():
@@ -212,3 +278,78 @@ class ReviewTests(ApiCase):
         self.assertEqual(stats['library']['failed_source'],1)
         self.assertEqual(stats['library']['photos'],2)
         self.assertEqual(stats['library']['organized'],2)
+
+
+    def test_bookmark_presets_keep_history_and_request_replay(self):
+        self.enable()
+        body = self.decision(reason='later', action='later', note='Compare family copies')
+        body['bookmark_reason'] = 'keep'
+        self.assertEqual(self.send(body).status_code, 200)
+        keep = self.decision(reason='later', action='keep')
+        result = self.send(keep)
+        self.assertEqual(result.status_code, 200, result.text)
+        history = result.json()['history']
+        self.assertEqual(history[0]['action'], 'keep')
+        self.assertEqual(history[0]['note'], 'Compare family copies')
+        self.assertEqual(history[0]['bookmark_reason'], 'keep')
+        self.assertEqual([r['reason'] for r in result.json()['reasons']], ['small'])
+        self.assertEqual(self.send(keep).json()['history'], history)
+        self.assertEqual(self.client.get('/api/v1/photos?view=organized').json()['total'], 2)
+
+    def test_bookmark_reason_and_note_limits(self):
+        for preset, note in [('unknown', ''), ('date', 'x'*61), ([], '')]:
+            body = self.decision(reason='later', action='later', note=note)
+            body['bookmark_reason'] = preset
+            self.assertEqual(self.send(body).status_code, 400)
+        body = self.decision(reason='later', action='later', note='x'*60)
+        body['bookmark_reason'] = 'ask'
+        self.assertEqual(self.send(body).status_code, 200)
+        self.assertEqual(self.send(self.decision(reason='later', action='keep')).status_code, 400)
+
+    def test_size_facts_apply_to_source_and_rejects_without_review_actions(self):
+        self.enable(None)
+        source=self.client.get('/api/v1/photos?view=unorganized&size_below=500').json()
+        self.assertEqual([p['id'] for p in source['items']],[3])
+        self.assertEqual(source['reasons'],{})
+        rejected_path = self.cfg.dest / 'rejects' / 'photo-1.jpg'
+        rejected_path.parent.mkdir(parents=True, exist_ok=True)
+        rejected_path.write_bytes(b'generated rejected fixture')
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("UPDATE photos SET status='Rejected_Copied',dest_path=? WHERE id=1", (str(rejected_path),))
+            c.commit()
+        rejected=self.client.get('/api/v1/photos?view=rejects&size_below=500').json()
+        self.assertEqual([p['id'] for p in rejected['items']],[1])
+        self.assertEqual(self.client.get('/api/v1/photos/ids?view=rejects&size_below=500').json()['ids'],[1])
+        self.assertEqual(self.client.get('/api/v1/photos?view=rejects&size_below=480').json()['total'],0)
+        self.assertEqual(self.client.get('/api/v1/photos?view=review&size_below=500').json()['total'],0)
+
+    def test_size_browsing_is_independent_and_agrees_across_queries(self):
+        self.enable()
+        self.assertEqual(self.send(self.decision()).status_code, 200)
+        self.enable(None)
+        self.assertEqual(self.client.get('/api/v1/photos?view=review&reason=small').json()['total'], 0)
+        params = {'view':'organized', 'size_below':750}
+        listing = self.client.get('/api/v1/photos', params=params).json()
+        self.assertEqual([p['id'] for p in listing['items']], [1])
+        self.assertEqual(self.client.get('/api/v1/photos/ids', params=params).json()['ids'], [1])
+        self.assertEqual(sum(t['photos'] for t in self.client.get('/api/v1/photos/types', params=params).json()['types']), 1)
+        self.assertEqual(sum(t['count'] for t in self.client.get('/api/v1/photos/timeline', params=params).json()['months']), 1)
+        position = self.client.post('/api/v1/photos/position', json={**params,'photo_id':1,'sort':'newest'}).json()
+        self.assertEqual(position['position'], 0)
+        self.assertIsNone(position['next_id'])
+        source = self.client.get('/api/v1/photos?view=unorganized&size_below=750').json()
+        self.assertEqual([p['id'] for p in source['items']], [3])
+        self.assertEqual(self.client.get('/api/v1/photos/folders', params={**params,'view':'source'}).status_code, 200)
+
+    def test_bookmark_order_agrees_with_position_and_pages(self):
+        for pid,preset in [(1,'ask'),(2,'date')]:
+            body=self.decision(pid=pid, reason='later', action='later')
+            body['bookmark_reason']=preset
+            self.assertEqual(self.send(body).status_code,200)
+        params={'view':'review','reason':'later','sort':'bookmark','page_size':1}
+        first=self.client.get('/api/v1/photos',params=params).json()
+        second=self.client.get('/api/v1/photos',params={**params,'page':2}).json()
+        self.assertEqual(first['items'][0]['id'],2)
+        self.assertEqual(second['items'][0]['id'],1)
+        position=self.client.post('/api/v1/photos/position',json={**params,'photo_id':2}).json()
+        self.assertEqual(position['next_id'],1)

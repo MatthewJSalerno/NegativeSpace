@@ -24,7 +24,7 @@ embedded EXIF fields and validated XMP sources; see the adapter boundary below.
 Both are independently tested, including generated ExifTool output.
 
 `engine/xmp_store.py` now retains exact originals, parsed snapshots and immutable
-arrival/participant records (introduced in schema 23; current catalog schema 30), with
+arrival/participant records (introduced in schema 23; current catalog schema 31), with
 verified catalog backup coverage.
 
 **Index now reads associated XMP as capture-only evidence.** It retains qualified
@@ -67,9 +67,8 @@ An existing primary or deliberate source choice is not replaced by this default 
 including when another archive arrives or Settings changes. Read precedence does not
 silently change the established write target or authorize embedded RAW writes.
 
-The original pure resolver has one embedded source plus sidecar versions. Index now
-uses a separate three-source observation resolver over qualified EXIF, embedded XMP and
-sidecar views. Its results explicitly say `capture_only` / `applied: false`; they are not
+Index uses the three-source observation resolver in `metadata_capture` over qualified
+EXIF, embedded XMP and sidecar views. Its results explicitly say `capture_only` / `applied: false`; they are not
 an established primary or an edit target. Legacy IPTC mapping/precedence is not decided
 by this rule; retain extracted evidence without guessing aliases.
 

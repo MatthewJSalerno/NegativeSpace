@@ -1,8 +1,10 @@
 """The command line: arguments, the single-instance lock and the job each mode runs."""
 
 import argparse
+from collections import Counter
 import contextlib
 import json
+import re
 import signal
 import sqlite3
 import sys
@@ -188,6 +190,7 @@ def main():
              "back to their date folder in dest/library. Backs up the catalog first. Takes the "
              "engine lock."
     )
+    parser.add_argument("--rename-preview-token", default=None, help="With --rename: require the unchanged dry-run preview token before writing.")
     parser.add_argument("--name", default=None, help="The new name for --rename.")
     parser.add_argument("--dry-run", action="store_true",
                         help="With --rename: print where the file would go, and change nothing.")
@@ -227,6 +230,8 @@ def main():
         parser.error("--check-issue requires a positive 64-bit issue ID.")
     if args.repair_photo is not None and (args.repair_photo < 1 or args.repair_photo > 2**63-1 or args.repair_similarity != 'missing'):
         parser.error('--repair-photo requires --repair-similarity missing and a positive photo ID.')
+    if args.rename_preview_token is not None and (args.rename is None or not re.fullmatch(r"[0-9a-f]{64}", args.rename_preview_token)):
+        parser.error("--rename-preview-token needs --rename and a SHA-256 preview token.")
     if args.rename is not None and not args.name:
         parser.error("--rename needs --name.")
     if (args.name is not None or args.dry_run) and args.rename is None:
@@ -648,7 +653,7 @@ def main():
                                                excluded=excluded_by_ext, on_directory=discovered)
             runtime.run_progress.write_now()
             with contextlib.closing(store.get_db_connection(str(db_path))) as conn:
-                ns_db.record_discovery(conn, run_id, eligible=len(candidates),
+                ns_db.record_discovery(conn, run_id, eligible_by_extension=Counter(Path(path).suffix.lower() for path in candidates),
                                        excluded_by_extension=excluded_by_ext,
                                        unreadable=len(discovery_errors))
             excluded_total = sum(excluded_by_ext.values())

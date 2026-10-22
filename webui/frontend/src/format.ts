@@ -65,6 +65,18 @@ export function ago(iso: string | null | undefined): string {
   return rtf.format(-Math.floor(days / 365.25), "year");
 }
 
+// When a source folder was last read in full: "Last indexed 12 days ago" within a year,
+// "Last indexed Oct 7, 2025" before that; the exact time goes on hover (indexedExact).
+export function lastIndexed(iso: string | null | undefined): string {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (Number.isNaN(t)) return "No completed Index yet";
+  return Date.now() - t < 365 * 86_400_000 ? `Last indexed ${ago(iso)}` : `Last indexed ${day(iso)}`;
+}
+
+export function indexedExact(iso: string | null | undefined): string {
+  return iso ? `Last indexed ${instant(iso)}` : "No Index has finished reading this whole folder yet.";
+}
+
 export function epoch(seconds: number | null | undefined): string {
   return seconds == null ? "unknown" : instant(new Date(seconds * 1000).toISOString());
 }

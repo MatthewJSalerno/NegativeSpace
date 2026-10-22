@@ -50,7 +50,7 @@ The first screen's state. It never creates anything.
 
     {"state": "missing" | "ok" | "incompatible" | "error", "detail": "<reason or null>",
      "photos": 1160, "indexed": true, "eligible": {"copy": 0, "move": 1160}, "copied": 1160,
-     "rejected_with_source": 0,
+     "rejected_with_source": 0, "held": 0,
      "rejects": {"photos": 340, "bytes": 1200000000, "oldest_rejected_at": "<UTC instant or null>",
                  "emptied": {"photos": 1200, "bytes": 4800000000},
                  "reminder": {"over_size": true, "over_age": false,
@@ -63,7 +63,11 @@ The first screen's state. It never creates anything.
 rule (`ns_db.TRANSFER_ELIGIBLE`): Copy takes `Pending`; Move also takes `Copied`, deleting
 each source against its verified copy, and `Rejected_Copied`, deleting it against its copy
 in Rejects. `copied` and `rejected_with_source` are how many of Move's are each of those.
-Both count the whole catalog, whatever the gallery's view or search.
+Both count the whole catalog, whatever the gallery's view or search. Pending photos
+whose latest source metadata capture holds import are excluded. `held` counts
+unorganized Failed photos and other unorganized photos with that latest metadata hold,
+without double counting. A newer source observation does not remove Copied or
+Rejected_Copied originals from Move's existing confirmation and live verification.
 
 `rejects` is what Rejects holds now and what has been emptied from it so far: every
 rejected photo whose file is gone from `dest/rejects`, whether or not a job has recorded
@@ -184,13 +188,15 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
 | Parameter | Values | Default |
 | :--- | :--- | :--- |
 | `view` | `all`, `organized` (Completed, Copied, Found_At_Destination), `unorganized` (Pending, Processing, Failed), `similar` (destination photos with visual matches at `match_min` or higher), `suspicious` (recorded date outside review bounds), `rejects` (Rejected, Rejected_Copied, whose file is still in `dest/rejects`), `source` (every photo whose original is still in the source: `unorganized` plus Copied and Rejected_Copied, for Source folders) | `all` |
-| `sort` | `newest`, `oldest`, `largest`, `smallest`, `name`, `matches` (`view=similar` only) | `newest` |
+| `sort` | `newest`, `oldest`, `largest`, `smallest`, `name`, `duplicates` (most duplicate rows first), `matches` (`view=similar` only) | `newest` |
 | `match_min` | integer percentage 75–100, applies to similarity membership/counts | 75 |
 | `q` | filename search: current and original names, including removed duplicates' names; never folder names | none |
 | `undated` | `true` for only photos without a usable effective capture date, including missing/partial/empty dates filed under Undated | `false` |
 | `date` | repeatable: a year (`2023`), a month (`2023-06`) or `none` (no date at all); the date tree's "Show only". Several add up | none: every date |
 | `type` | repeatable: a file extension, lower case, no dot (`jpg`, `heic`); the Types section's "Show only". Several add up | none: every type |
 | `folder` | repeatable: a folder relative to the source (`Phone/2019`), taking its subfolders, or `.` for the files directly in the source folder; the Folders tree's "Show only". Several add up. Matched as a literal path, never a wildcard or case-blind; a path outside the source is `400` | none: every folder |
+| `other_names` | `true` to restrict to organized Library photos with a different recorded filename stem, across exact-content source and operation history; shared by list, IDs, position and facets | `false` |
+| `source_summary` | `ready`, `indexed`, `identical`, `unknown_dimensions`, `unfinished`, `failed`, `metadata_held`; temporary source-only membership, combined with other filters; unknown values return 400 | none |
 | `page`, `page_size` | page from 1; 1 to 240 photos | 1, 60 |
 
     {"items": [{"id": 12, "status": "Pending", "file_size": 3012443,
@@ -200,6 +206,20 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
      "page": 1, "page_size": 60, "total": 1160,
      "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160},
      "matches": {"all": 1160, "organized": 0, "unorganized": 1160}}
+
+`source_summary` also applies to IDs, photo position, timeline, Types and Folders.
+`ready` is Pending without a source metadata hold; `indexed` is Pending;
+`identical` selects unorganized representatives with additional Duplicate rows;
+`unknown_dimensions` is Pending with no positive recorded width/height; `unfinished`
+is Processing; `failed` is Failed; `metadata_held` is a non-Failed unorganized hold.
+All scopes intersect Not organized, so none exposes Library or Rejects photos.
+
+Not organized's `index_summary.discovery` and Index Run responses' `discovery` share
+one recorded full-walk breakdown: `files_found`, `eligible`, `photos` (extension/count),
+`disabled_photos` (known photo extensions excluded from this walk), `sidecars`, `videos`,
+`other`, `partial` and `unreadable`. No filenames or per-type Other breakdown are exposed.
+Null means no discovery record for that Index, including a scoped job. Summary facts
+are current; discovery is that job's snapshot, independent of current filters/settings.
 
 Each list item also includes `name_context: {clashes, folder, original_paths,
 renamed_on_arrival}`. `clashes` compares displayed filenames across the whole current
@@ -246,14 +266,12 @@ navigation agree. Invalid query/position percentages return 422.
 ### `GET /api/v1/photos/places`
 
 The navigation sidebar's counts (`webui-spec.md` §2, the page frame): each place whole,
-before any gallery filter, and each **Look into** filter where its link from Logs or Stats
-opens it: Library with only that filter on, Needs review for Review later,
-or Not organized for Needs attention. On the
-Library page the Look into counts come from `chips` and `reasons` instead, for the place
-shown. `match_min` (default 90) sets Has similar photos:
+before any gallery filter, including Similar photos and the Needs review subset.
+`warnings.attention` counts source files needing attention;
+the gallery's contextual `chips` and `reasons` counts are separate.
 
-    {"places": {"unorganized": 0, "organized": 4499, "review": 31, "rejects": 4},
-     "look_into": {"similar": 167, "suspicious": 8, "undated": 1356, "small": 9, "later": 3, "issues": 1, "attention": 0}}
+    {"places": {"unorganized": 0, "organized": 4499, "similar": 167, "review": 31, "rejects": 4},
+     "warnings": {"attention": 0}}
 
 ### `GET /api/v1/photos/timeline`
 
@@ -282,14 +300,22 @@ The source's folders for the Folders tree, built from catalogued source paths, n
 disk listing, so every folder offered holds photos a job can act on:
 
     {"folders": [{"path": "Camera/Nikon D750", "name": "Camera / Nikon D750", "photos": 812,
-                  "eligible": {"copy": 812, "move": 812}, "folders": [...]}, ...],
-     "top_files": {"photos": 4, "eligible": {"copy": 4, "move": 4}}, "outside": 0}
+                  "eligible": {"copy": 812, "move": 812},
+                  "last_indexed": "2026-10-19T14:02:11+00:00", "folders": [...]}, ...],
+     "top_files": {"photos": 4, "eligible": {"copy": 4, "move": 4},
+                   "last_indexed": "2026-10-19T14:02:11+00:00"}, "outside": 0}
 
 *   **`photos`** counts a folder's photos, subfolders included, for the same `view`, `q`,
     `undated`, `date` and `type`; `folder` does not narrow it, so an unticked folder keeps
     its count. A folder named in `folder` stays listed at 0, so it can be unticked; with
     `every=true`, every catalogued folder stays listed, at 0 where nothing is shown
     (Source folders).
+*   **`last_indexed`** is when the latest Completed Index that read the whole folder
+    ended: a full Index of this source, or one scoped to the folder or a folder holding
+    it; `null` when there is none. `top_files.last_indexed` counts full Indexes only.
+    Any run-level Failed operation (`photo_id IS NULL`) excludes that entire run,
+    retaining earlier timestamps even for readable siblings. Individual photo failures
+    do not exclude a completed traversal.
 *   **`eligible`** is what a Copy or a Move of the folder would take (`--source-subdir`,
     `ns_db.TRANSFER_ELIGIBLE`), whatever the filters: Jobs' "this folder".
 *   **`name`** folds a chain of folders, each holding one folder and no photos of its own,
@@ -535,9 +561,9 @@ Everything recorded about a photo's files, for the lineage tree (`webui-spec.md`
      "files": [{"file_id", "origin_file_id", "origin_kind": "indexed" | "copy" | "observed_destination",
                 "path", "role": "source" | "destination", "presence": "present" | "removed" | "missing",
                 "sha1_hash", "matches": true, "file_size", "indexed_path", "created_at",
-                "photo_id", "photo_status"}, ...],
+                "photo_id", "photo_status", "created_run_id", "indexed_sha1", "place": "source" | "library" | "rejects" | null}, ...],
      "operations": [{"id", "run_id", "mode", "action", "status", "timestamp", "error_message", "photo_id",
-                     "source_path", "dest_path", "recovery",
+                     "source_path", "dest_path", "recovery", "consolidated_into", "consolidated_path",
                      "files": [{"file_id", "role": "source" | "destination" | "retained_copy"}]}, ...],
      "selected_by": [{"run_id", "mode", "status", "started_at"}, ...]}
 
@@ -548,6 +574,19 @@ content is the photo's. `operations` is every operation that touched any of them
 first, with the role each file played. `selected_by` is every job the photo was chosen for
 in a selection (`run_selections`), whatever that job then did with it. A copy's size is
 its origin's: it was verified byte for byte when made. An unknown photo is `404 unknown_photo`.
+
+`created_run_id` identifies the first discovery, so later Index observations are not
+shown as new arrivals. `place` is the recorded source or destination place, resolved
+from participating catalog photos; unknown destination ownership returns null.
+`indexed_sha1` is the immutable original Index fingerprint, independent of the
+current `sha1_hash`/`matches` fields. Original fingerprints and recorded duplicate
+Index outcomes establish historical relationships; edits do not reclassify earlier
+arrivals. Sources with different original content stay separate until a recorded
+consolidation joins them. `consolidated_path` is the survivor path from that event,
+not the survivor's current name, and is null for other operations.
+These fields do not check disk presence. Operation paths remain historical even when
+the current file has been renamed, rejected or returned. The timeline groups identical first
+discoveries by Index while retaining each file and its operation-specific log link.
 
 ### `GET /api/v1/photos/{id}/thumbnail`
 
@@ -723,7 +762,8 @@ confirmation flags, return 400 rather than being silently ignored.
 Returns `{"state":"accepted","run":{...}}` for that exact durable acceptance,
 including completed jobs and jobs preceding newer submissions from other tabs.
 Otherwise returns `{"state":"unknown","run":null}`. A missing row is not proof
-that an in-flight request cannot still be accepted. No job is started by lookup.
+that an in-flight request cannot still be accepted. No job is started by lookup. Acceptance and lookup responses include `backup_stage`
+when a fast job has already entered its final backup; its true result is retained.
 Invalid request-ID syntax returns 400. Database read failures are errors, not an
 unknown/no-job answer.
 
@@ -738,14 +778,26 @@ file in hand and records the rest (`webui-spec.md` §4.1). Refusals:
 
 ### `GET /api/v1/jobs/active`
 
-    {"active": <Run or null>, "last": <Run or null>}
+    {"active": <Run or null>, "last": <Run or null>, "backup": <BackupStatus or null>}
 
-`last` is the newest run, finished or not. `active` has three special forms:
+`last` is the newest run, finished or not. `backup` is null during active work.
+At idle it contains `unbacked_count`, `last_success`, and `latest` (attempt_id,
+trigger_kind, related_run_id, started_at, outcome, error_category, error_detail), or
+null when the catalog is unavailable. An unfinished attempt with no engine remains
+unfinished in storage and is presented as interrupted; reads do not retry it. This
+compact status does not list/probe backup files. Counts are reused while catalog
+identity, append-only record watermarks, last run and latest backup attempt are unchanged.
+
+`active` has these special forms:
 *   **An engine holds the lock but no run is recorded yet**, while it is starting or
     when one was run by hand: `{"id": null, "status": "Preparing", "unrecorded": true}`.
 *   **A run is recorded active but no engine holds the lock**, so it died: it is
     presented with `presented_status: "Interrupted"` and `awaiting_reconciliation: true`.
     The API never writes that; the next engine run records it.
+*   **File work finished, backup still running:** the finished Run remains `active`
+    with `backup_stage: "post_job"`, its true terminal status/outcome and
+    `cancellable: false`. A manual backup has a null ID and `backup_stage: "manual"`.
+    Controls stay blocked until the lock releases; no next-job queue exists.
 *   **`cancellable`** says whether this server can signal the engine.
 
 ### `GET /api/v1/runs/{id}`
@@ -919,17 +971,17 @@ uses the same Catalog photos scope and excludes unknown measurements:
                  "cameras": [{"name", "photos"}, ...], "lenses": [...],       // top eight each
                  "megapixels": [{"band": "under 1 MP", "photos"}, ...], "under_1mp",
                  "orientation": {"landscape", "portrait", "square"}, "with_location"},
-     "dates": {"per_year": [{"year", "photos"}, ...], "oldest", "newest",
+     "dates": {"per_year": [{"year", "photos"}, ...], "min_year", "max_year", "oldest", "newest",
                "busiest_day": {"day", "photos"} | null,
                "undated", "undated_no_date", "undated_unusable", "with_time_zone"},
      "duplicates": {"groups", "extra_copies", "bytes", "saved_at_destination", "copies_not_written",
-                    "move_would_free", "freed_by_moves", "near_duplicates": null,
+                    "move_would_free", "freed_by_moves",
                     "coverage": {"last_complete_scan" | null, "established_by_run" | null,
                                  "scans_with_issues_since", "run_ids_since": [ids]},
                     "by_folder": [{"folder": "archive-2021", "files", "duplicates", "duplicate_bytes"}, ...]},
      "activity": {"jobs": {"INDEX": 3, ...}, "last_index", "copied", "moved",
                   "bytes_transferred", "bytes_per_second" | null,
-                  "failures": {"not_an_image": 2, "permission": 1, ...}, "renames", "exif_edits": null},
+                  "failures": {"not_an_image": 2, "permission": 1, ...}, "renames", "metadata_edits": {"photos", "dates", "rotations", "primary_source", "other"}},
      "health": {"low_detail_photos", "last_backup", "backup_bytes", "backups", "unbacked_changes", "catalog_bytes",
                 "thumbnail_cache": [{"size", "photos", "bytes"}, ...],
                 "destination_check": {"at", "findings": {"missing": 1, ...}} | null},
@@ -940,8 +992,14 @@ failed sources are counted in `library.failed_source`, and duplicates separately
 `duplicates`. Dates count a date taken only; a photo filed by its file time is
 `undated`, split into no date in its EXIF and an unusable one. `failures` counts failed
 **attempts** by the start of the recorded reason, so one file failing in two jobs counts
-twice, as the log lists it. Figures that need unbuilt features (`near_duplicates`,
-`exif_edits`) are `null`, never a guess. `rejects` is as in `GET /status`. The duplicate figures follow `webui-spec.md` §5.9:
+twice, as the log lists it. `activity.metadata_edits` counts distinct file identities with
+verified metadata saves, once overall and once per category; categories can overlap.
+Failed writes and no-op saves do not count. A successful save whose later refile fails
+still counts. Transfer counts, bytes and throughput include Copy/Move jobs only;
+metadata jobs are not transfers. `GET /operations`, its export and photo-ID routes accept
+`metadata_edits=true` to show only verified saves, combined with existing log filters.
+`dates.min_year` is the configured earliest expected year; `max_year` is the current
+UTC year plus one. `per_year` retains all recorded years, including suspicious ones. `rejects` is as in `GET /status`. The duplicate figures follow `webui-spec.md` §5.9:
 `move_would_free` is Reclaimable, `freed_by_moves` Reclaimed, and `saved_at_destination`
 counts only duplicates whose original is already `Copied` or `Completed`. `coverage`
 follows `webui-spec.md` §6.2: `last_complete_scan` and `established_by_run` come from the
@@ -1259,8 +1317,8 @@ and `later`. A missing photo returns 404 `unknown_photo`. This endpoint only rea
 ### `POST /api/v1/photos/{photo_id}/review`
 
 Body: `photo_id`, `sha1` (string or null), `revision` (nonnegative integer), `reason`,
-`action`, `note` (up to 500 characters), `request_id` (1–128 alphanumeric, underscore
-or hyphen characters). Actions: small/reviewed, later/later, later/done. The engine
+`action`, `note` (up to 60 characters), `request_id` (1–128 alphanumeric, underscore
+or hyphen characters). Optional `bookmark_reason` selects a preset. Actions: small/reviewed, later/later, later/done, later/keep. The engine
 records the decision under its lock; no photo files or selection are changed.
 Returns the current review detail on success. Identical request replay is idempotent.
 400 `invalid_request` rejects malformed input; 409 `review_changed` refuses stale
@@ -1273,27 +1331,33 @@ reload before retrying. Success is shown only after acknowledgement.
 Gallery listing, IDs, position, types, folders and timeline accept `similar` and
 `suspicious` booleans and `reason` (all/small/later/issues/attention). These combine with existing
 filters. `view=review` selects distinct active Library photos with an unresolved supported reason. Reminders on source/rejected files do not contribute. History remains readable; new decisions require a delivered active photo.
-`GET /photos` optionally accepts `filter_pins`, a comma-separated subset of similar,
-suspicious, undated, small, later, issues and attention (empty string means no pins). Unknown keys or
-multiple reason pins (small/later/issues/attention) return 400. Files needing verification pins apply
-in Library and Needs review; attention pins apply only in Not organized. This changes only sidebar counts, not gallery membership:
-an inactive filter's count replaces unpinned Look into conditions, while active counts
-retain the current intersection. Place, search, date, type, folder and run constraints
-remain; pins unavailable in the place do not apply. Omit the parameter for existing
-combining-filter count behavior. No server-side preference or schema change is added.
+Refinement counts in `chips` and `reasons` combine search and other active filters;
+exclusive Reason choices replace only that reason. Pins and `filter_pins` are removed.
+All browse endpoints accept optional `size_below` (integer 1–100000), matching known,
+positive shorter-side dimensions strictly below the cutoff, excluding Failed records.
+This fact filter ignores review acknowledgments and the reminder setting. Listing,
+IDs, position and facets use the same predicate.
+
+`sort=bookmark` orders by the preset reason's picker order, then photo ID. The internal
+review reason/action `later` represents a bookmark. Creation accepts `bookmark_reason`
+(date/compare/rotation/details/keep/ask/other) and a note of at most 60 characters.
+`done` removes it; `keep` records an explicit Keep it answer for a keep-decision bookmark.
+Completion retains its original note and preset in history. Request replay, revision,
+content and engine-lock guards are unchanged. Review detail and gallery reason objects
+include `bookmark_reason`; detail history also includes it. No photo bytes change.
 
 `reason=attention` selects only Not organized photos whose status is Failed or whose
 latest metadata capture records needs_attention. The union counts each photo once;
 older holds do not survive a clean capture. This predicate also applies to IDs,
 position and facets, never to Library's review membership.
 
-Listings include `chips` (similar/suspicious/undated/small/attention), `reasons` and filename-only
+Listings include `chips` (similar/suspicious/undated/small/attention/size), `reasons` and filename-only
 `elsewhere` location counts. Library and job listings also include `reasons.later`,
 scoped to the current browsing constraints; the inbox includes all reason counts.
 `reason=later` filters Library as well as the inbox to active review reminders.
 `reason=small` filters Library as well as the inbox, using
 unacknowledged destination size reminders; it never restricts imports. Chip counts
-apply the other current filters; the small count evaluates that reminder scope.
+apply the other current filters; `small` evaluates outstanding reminders and `size` counts known dimensions below the reminder cutoff without acknowledgments. An independent `size_below` cutoff is a separate fact filter.
 Review and organized/similar cards include compact location and current reason details
 (`review: {location,reasons}`), without decision history. Full history remains in the
 per-photo review endpoint. Unorganized listings include `index_summary` (null elsewhere):
@@ -1374,6 +1438,32 @@ issue and explanation. `reason=issues` filters active Library photos with unreso
 issues, contributing to Needs review counts and card reasons. Source and rejected
 photos retain their issues in information and Logs without entering that inbox.
 
+## Photo naming
+
+### `GET /api/v1/photos/{photo_id}/names`
+
+Library-only recorded alternative names. Returns `{photo_id, current_path, candidates}`;
+each candidate has `name` (stem) and `seen_at` (recorded paths). The current stem is
+excluded. Reads catalog history only; no filesystem mutation. Invalid/non-Library IDs
+return 400 with `invalid_request`.
+
+### `POST /api/v1/photos/{photo_id}/rename-preview`
+
+Body `{name}`. Reads the live destination via the engine planner; returns
+`{photo_id, current_path, new_path, collision, unchanged, token, error:null}`. Preserves
+extension and folder, accounts for occupied photo/sidecar names, and changes nothing.
+Invalid names or unavailable/non-Library photos return 400. No-op previews cannot save
+through the UI. A token binds content/status/current and resolved paths.
+
+### `POST /api/v1/photos/{photo_id}/rename`
+
+Body `{name, token, request_id}`; all required. Returns the recorded Rename run (202).
+Uses the engine lock, verified relocation and pre-action backup. Invalid payloads
+return 400; a changed preview or non-Library state returns 409 `rename_changed`, busy
+returns 409 `job_already_running`. Same-ID/same-input replay returns the original run;
+different input returns 409 `request_conflict`. The engine rechecks the token under its
+lock; a later race records a failed run without silently choosing another filename.
+
 ## 8. Designed, not built
 
 These are designed in `webui-spec.md` and will be described here when they exist:
@@ -1381,7 +1471,7 @@ These are designed in `webui-spec.md` and will be described here when they exist
 *   A live per-operation stream, for replaying a running job's individual events on
     reconnect (`webui-spec.md` §4.1, §5.2). `GET /operations?run=` covers the history;
     the drawer needs only the aggregate feed.
-*   The curation actions: rename, the destination check (offered from a lineage
+*   The curation actions: the destination check (offered from a lineage
     tree's copy), and metadata editing beyond Date taken, rotation and the primary
     source, all of which the engine already supports or is specified to (`engine-spec.md` §9).
 

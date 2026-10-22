@@ -6,8 +6,7 @@ import { SimilarityRecovery } from "./SimilarityRecovery";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { api, LOW_DETAIL_NOTE, MATCH_THRESHOLDS, type MatchPage, type MatchPair, type MatchPhoto, type MatchScope } from "../api";
 import { moved, runAndWait } from "../rejecting";
-import { ConfirmDialog } from "./Confirm";
-import { RejectConfirm } from "./RejectConfirm";
+import { ConfirmDialog, rejectConfirm } from "./Confirm";
 import { count } from "../format";
 import { Thumb } from "./Thumb";
 import { Workspace } from "./ui/Workspace";
@@ -278,9 +277,13 @@ export function MatchReviewDialog({ reference: initialReference, candidate, init
       body: ["It moves back to its date folder in the library."],
       run: () => returnPhoto(returning.photo, returning.isReference),
     }} />}
-    {asking && <RejectConfirm filename={asking.photo.filename} last={asking.last} rejectedHere={rejectedHere} offerDontAsk
-      onCancel={() => setAsking(null)}
-      onConfirm={(again) => { const { photo, isReference } = asking; setAsking(null); if (again) setDontAsk(true); void reject(photo, isReference); }} />}
+    {asking && <ConfirmDialog onClose={() => setAsking(null)} confirm={rejectConfirm(1, async () => {
+      const { photo, isReference } = asking;
+      setAsking(null);
+      await reject(photo, isReference);
+    }, { filename: asking.photo.filename,
+      comparison: { last: asking.last, rejectedHere, onDontAskAgain: () => setDontAsk(true) },
+    })} />}
     {!review && active != null && !error && <p role="status">Loading comparison…</p>}
     {review && review.reference.id === reference && review.candidate.id === active && <>
       <div className="review-layout" ref={layout} style={{ "--review-share": `${share}%` } as CSSProperties}>

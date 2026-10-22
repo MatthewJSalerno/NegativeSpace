@@ -106,15 +106,22 @@ with sync_playwright() as p:
         if n == 2:
             page.get_by_label("Small-image reminders (required)", exact=True).select_option("off")
             # Next checks only this step: with no file type it stays, and says why.
+            file_types = page.locator('details.settings-disclosure', has=page.locator('summary', has_text='File types'))
+            expect(file_types).not_to_have_attribute('open', '')
+            file_types.locator('summary').click()
             boxes = page.locator("#settings-exts input[type=checkbox]")
             ticked = [i for i in range(boxes.count()) if boxes.nth(i).is_checked()]
             for i in ticked:
                 boxes.nth(i).uncheck()
+            file_types.locator('summary').click()
             action.click()
+            expect(file_types).to_have_attribute('open', '')
+            expect(page.locator('#settings-exts')).to_be_focused()
             expect(step).to_have_text("Step 2 of 6 Files")
             expect(page.locator("#settings-exts-error")).to_contain_text("at least one file type")
             for i in ticked:
                 boxes.nth(i).check()
+            file_types.locator('summary').click()
             # Explained for someone seeing the app for the first time.
             expect(page.locator(".settings")).to_contain_text("Reject moves a photo out of Library")
             shot("1b-welcome-files")
@@ -326,8 +333,14 @@ with sync_playwright() as p:
     expect(inspector).not_to_contain_text("File created")
     expect(inspector).to_contain_text("File modified")
     # The file's time says what it is for, briefly; how it was recorded is on hover.
-    expect(inspector.locator(".row-tip", has_text="File modified")).to_have_attribute(
-        "title", "As recorded when NegativeSpace first indexed this file.")
+    modified = inspector.locator(".tip", has_text="File modified")
+    expect(modified).to_have_attribute("data-tip", "As recorded when NegativeSpace first indexed this file.")
+    modified.hover(position={"x": 2, "y": 2})
+    expect(modified.locator(".help-content")).to_have_count(0)
+    modified.get_by_role("button", name="More information").hover()
+    expect(modified.locator(".help-content")).to_contain_text("As recorded when NegativeSpace first indexed this file.")
+    page.mouse.move(5, 5)
+    expect(modified.locator(".help-content")).to_have_count(0)
     expect(inspector).to_contain_text("File modification year is used for Undated filing.")
     expect(inspector).not_to_contain_text("no EXIF date taken")
     # History, in a section of its own near the top, with the latest events.
@@ -382,7 +395,7 @@ with sync_playwright() as p:
     # The divider: drag it, and a wide panel puts the details beside the photo.
     page.set_viewport_size({"width": 2000, "height": 900})
     divider = page.get_by_role("separator", name="Resize the photo panel")
-    expect(divider).to_have_attribute("aria-valuemax", "1284")   # beside the date scrubber
+    expect(divider).to_have_attribute("aria-valuemax", "1252")   # beside the 17rem sidebar and date scrubber
     before = inspector.bounding_box()["width"]
     box = divider.bounding_box()
     page.mouse.move(box["x"] + 4, box["y"] + 200)
@@ -529,7 +542,7 @@ with sync_playwright() as p:
     page.get_by_role("searchbox", name="Search filenames").fill("photo-00")
     open_actions(page, "Copy").get_by_role("menuitem", name=f"Copy all ({PHOTOS - 3:,})").click()
     dialog = page.get_by_role("alertdialog")
-    expect(dialog).to_contain_text(f"every photo not yet copied ({PHOTOS - 3:,})")
+    expect(dialog).to_contain_text(f"Copy {PHOTOS - 3:,} ready photos?")
     dialog.get_by_role("button", name="Copy").click()
     page.get_by_role("searchbox", name="Search filenames").fill("")
     expect(finished_notice(page)).to_contain_text(re.compile(r"Job #\d+ · Copy finished with failures"), timeout=120_000)
@@ -651,12 +664,10 @@ with sync_playwright() as p:
     # The lineage tree, in its own window: the source, the copy made from it, their steps.
     page.locator(".inspector").get_by_role("button", name="View lineage tree").click()
     tree = page.get_by_role("dialog", name=re.compile(r"^Lineage of "))
-    expect(tree.locator(".lineage-node.lineage-indexed .lineage-kind").first).to_have_text("Source")
-    copy_node = tree.locator(".lineage-node.lineage-copy")
-    expect(copy_node).to_have_count(1)
-    expect(copy_node).to_contain_text("Copied here")
-    expect(tree.locator(".lineage-step", has_text="Skipped")).to_have_count(1)   # each step once
-    expect(copy_node).to_contain_text("Present")
+    expect(tree.locator(".lineage-discoveries")).to_contain_text("Source")
+    expect(tree.locator(".lineage-step", has_text="Copied and verified")).to_have_count(1)
+    expect(tree.locator(".lineage-step", has_text="Skipped")).to_have_count(1)
+    expect(tree.locator(".lineage-now")).to_contain_text("In Library")
     shot("3c-lineage")
     page.keyboard.press("Escape")
     expect(tree).to_have_count(0)
@@ -677,12 +688,12 @@ with sync_playwright() as p:
     expect(lightbox).to_have_count(0)
     # A step's job opens the log on that job.
     events.nth(0).click()
-    tree.get_by_role("link", name=re.compile(r"^Job #\d+ · Index")).click()
+    tree.get_by_role("link", name=re.compile(r"^Index #\d+")).click()
     expect(page).to_have_url(re.compile(r"/logs\?run=\d+&photo=\d+"))
     expect(page.locator(".job-head[aria-expanded=true]")).to_have_count(1)
     page.go_back()
     expect(page.locator(".inspector")).to_be_visible()
-    page.locator(".inspector").get_by_role("link", name="Open in the log").click()
+    page.locator(".inspector").get_by_role("link", name="View photo logs").click()
     expect(page.get_by_role("heading", name=re.compile(r"^Log for photo #\d+"))).to_be_visible()
     expect(page.locator(".job-group").first).to_be_visible()
     heads = page.locator(".job-head")
@@ -711,8 +722,14 @@ with sync_playwright() as p:
     expect(undated_tile).to_have_attribute("href", "/?view=all&undated=1")
     expect(page.locator(".stat-panel h3")).to_have_count(6)
     expect(page.locator(".stat-panel", has_text="Duplicates")).to_contain_text("Extra copies")
-    # Aligned: fixed columns, and every panel in a row as tall as the row.
-    boxes = page.locator(".stat-panel").evaluate_all(
+    # Dates occupies its own full-width row; the remaining panels keep aligned columns.
+    dates_panel = page.locator('.stat-panel').filter(has=page.get_by_role('heading',name='Dates',exact=True)).bounding_box()
+    grid = page.locator('.stat-panels').bounding_box()
+    assert abs(dates_panel['x'] - grid['x']) <= 1
+    assert abs(dates_panel['width'] - grid['width']) <= 1
+    assert dates_panel['y'] + dates_panel['height'] <= grid['y']
+    # Every panel in a grid row is as tall as that row.
+    boxes = page.locator(".stat-panels .stat-panel").evaluate_all(
         "ps => ps.map(p => { const r = p.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; })")
     rows = {}
     for left, top, width, height in boxes:
@@ -760,8 +777,8 @@ with sync_playwright() as p:
     expect(page.get_by_role("dialog")).to_have_count(0)
 
     # The quick filter for photos with no capture date in their EXIF.
-    undated_filter = page.get_by_role("button", name=re.compile(r"^No usable capture date"))
-    expect(undated_filter.locator(".sidebar-count")).to_have_text(f"{PHOTOS - 2:,}")
+    undated_filter = page.get_by_role("button", name=re.compile(r"^No date:"))
+    expect(undated_filter.locator(".refinement-count")).to_have_text(f"{PHOTOS - 2:,}")
     library = place_count(page, "Library").inner_text()
     labels = page.get_by_role("navigation", name="Main").locator("a > span:first-child")
     where = "ss => ss.map(s => { const r = s.getBoundingClientRect(); return [Math.round(r.x), Math.round(r.y)]; })"
@@ -782,6 +799,7 @@ with sync_playwright() as p:
     page.get_by_role("navigation", name="Dates").get_by_label("Show only 2019").check()
     page.get_by_role("searchbox", name="Search filenames").fill("photo")
     expect(page).to_have_url(re.compile(r"q=photo"))
+    page.get_by_role("button", name="Close filters", exact=True).click()
     page.get_by_role("button", name="Clear all filters", exact=True).click()
     page.get_by_role("searchbox", name="Search filenames").fill("photo")
     expect(page).not_to_have_url(re.compile(r"undated=1|date="))
@@ -801,12 +819,12 @@ with sync_playwright() as p:
     # Its lineage has a duplicate branch; the duplicate's path opens that photo.
     inspector.get_by_role("button", name="View lineage tree").click()
     tree = page.get_by_role("dialog", name=re.compile(r"^Lineage of "))
-    duplicate = tree.locator(".lineage-kind", has_text="Duplicate")
+    duplicate = tree.locator(".lineage-discoveries .section-note", has_text="Identical copy:")
     expect(duplicate).to_have_count(1)
     # The gallery shows the copy the catalog keeps as the original; the other is the duplicate.
     shown = inspector.locator(".inspector-head h2").inner_text()
     other = "photo-000.jpg" if shown == "copy-of-000.jpg" else "copy-of-000.jpg"
-    tree.get_by_role("button", name=re.compile(re.escape(other))).click()
+    tree.locator(".lineage-discoveries").get_by_role("button", name=re.compile(re.escape(other))).click()
     expect(tree).to_have_count(0)
     expect(inspector.locator(".inspector-head h2")).to_have_text(other)
     page.keyboard.press("Escape")
@@ -832,6 +850,14 @@ with sync_playwright() as p:
     expect(page.get_by_role("button", name="Copy this folder (0)…")).to_be_disabled()
     expect(page.get_by_role("button", name="Move this folder (10)…")).to_be_enabled()
     expect(page.locator(".card .badge-copied")).to_have_count(10)
+    # The opened folder says when an Index last read it in full; Index this folder refreshes it.
+    indexed = page.locator(".gallery-context .folder-indexed")
+    expect(indexed).to_have_text(re.compile(r"^Last indexed "))
+    before = indexed.get_attribute("title")
+    page.get_by_role("button", name="Index this folder", exact=True).click()
+    expect(indexed).not_to_have_attribute("title", before, timeout=60000)
+    expect(tree.locator(".folder-row", has_text="trip / day 1").locator("label")).to_have_attribute(
+        "title", re.compile(r"Last indexed "))
     shot("source-folders")
 
     phone = browser.new_page(viewport={"width": 390, "height": 844}, is_mobile=True)

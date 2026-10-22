@@ -35,6 +35,16 @@ permissions. The part that reads and writes your photos runs as your own user (t
 `PUID`/`PGID` you set), so every file it creates belongs to you. The web container that
 serves the pages has no access to your photo folders at all.
 
+After a job finishes its file work, **Backing up catalog…** appears until its backup
+finishes. You can browse during this step; photo-changing actions become available
+afterward. Nothing is queued to start automatically.
+
+If a backup fails, the notice below the top navigation explains what needs attention.
+Fix the reported problem, then choose **Retry backup**. This backs up the catalog
+without repeating the file work. **Back up now** also appears if changes were left
+without a backup after an interruption. Open **Details** for the last backup time and
+technical information.
+
 **NegativeSpace is not a backup of your photos.** It backs up its catalog, never the
 photos themselves. Keep your own backups. See [If something goes wrong](recovery.md).
 
@@ -47,18 +57,18 @@ one can be changed later from the gear icon at the top right.
 The **Appearance** step sets the palette and light/dark preference. **Files** chooses
 file types, the earliest expected photo year, and when to be reminded to empty Rejects.
 It also requires a choice to enable or disable small-image reminders; these never
-restrict Copy or Move. **Metadata** explains which source supplies metadata and asks how to
+restrict Copy or Move. Expand **File types** or **Rejects reminder** to adjust those
+settings; they start collapsed to keep this step shorter. **Metadata** explains which source supplies metadata and asks how to
 handle shared XMP sidecars and where to save edits. **Backups** explains catalog backups, **Performance** sets how
 many photos are read at once, and **Access** saves additional addresses used to open the app.
 
-![The Files step: small-image reminders and the earliest expected year](images/setup-files.png)
+![The Files step: small-image reminders and the earliest expected year](images/setup-files-disclosures.png)
 
 ## 2. Index: read your photos
 
 The library starts empty. **Jobs** holds the jobs for the whole library; each item says
 what it does, and why when it cannot run yet.
 
-![The Jobs menu before anything is indexed](images/jobs-menu-before-index.png)
 
 **Index** reads every photo in your source: its date, a checksum of its content, and a
 small thumbnail. It moves and copies nothing, and never writes to your source. Its progress
@@ -67,23 +77,33 @@ shows at the top of the page; closing the browser does not stop it.
 ## 3. Look around
 
 When Index finishes, **Not organized** shows the source photos and an Index summary.
-**Library**, **Needs review**, and **Rejects** remain empty until photos are organized.
-The places are in the sidebar on the left. **Filters** beside the sort narrows by type,
-**Folders** or **Dates**, and the box at the top searches by filename. After Copy or Move,
-Library holds organized photos, Needs review filters those needing attention, and
-Rejects holds photos you have rejected. **Look into**, under the places, narrows the place
-you are in: photos with look-alikes, suspicious dates, no capture date, small images. The
-years down the right edge jump through the gallery: point to see the month, click to go.
-**Source folders**, under Not organized, lists the source's folders: copy or move a folder
-at a time, and with **Still in source**, find the originals of photos you have already
-copied and move them off the source.
+Select a summary count to see those photos. **Additional identical copies** shows the
+photos that have them, so there may be fewer cards than extra files. **By file type**
+shows what Index found, including photo types turned off in Settings and files left
+in the source. You can find the same breakdown in that Index's entry in **Logs**.
+Copy and Move confirmations count ready photos separately from files that need attention.
+**Library**, **Similar photos** and **Rejects** remain empty until photos are organized.
+The places are in the sidebar on the left. Choose **Similar photos** to compare Library
+photos. Buttons above the photos narrow the view; choose more than one to combine them.
+**Needs review** adds a **Reason** selector. Warning notes in the sidebar open the whole
+affected list. Choosing a place clears search and filters; your browser’s Back button
+restores the previous view.
+
+**Filters** beside the sort narrows by type, date or image size. Size browsing includes
+photos you have marked reviewed and works even with reminders off. It does not change
+reminder settings. The box at the top searches filenames; the years on the right jump
+through photos sorted by date: point to see the month, click to go.
+**Source folders**, under Not organized, lists the source's folders and when each was last
+indexed. Open one folder to index, copy or move just that folder; **Index this folder**
+reads it again after you add photos to it, without reading the whole source. With **Still
+in source**, find the originals of photos you have already copied and move them off the
+source.
 
 When different photos in your results have the same name, their cards show the shortest
 part of the original source folder that tells them apart. Hover over a photo’s name to
 see its original path and any identical copies’ paths. A name changed on arrival also
 explains that another photo already had that name.
 
-![The Library, showing one year, with two same-named photos told apart by their folders](images/library-year.png)
 
 Click a photo to open it in the panel on the right: its file, its dates and where they came
 from, and its history.
@@ -100,7 +120,6 @@ one thing. When a job finishes, you are where you were, and the bell at the top 
 lists it under **Notifications**: **Show these photos** shows what it did, and you can
 search and filter them like any other photos.
 
-![A finished Copy in Notifications](images/notifications.png)
 
 Which to use is your choice. If you would rather not give any app write access to your
 originals, use Copy only: the source stays read-only, you check the library your own way,
@@ -109,7 +128,7 @@ to delete anything for its library to be complete.
 
 ## 5. Similar photos
 
-**Has similar photos** lists organized Library photos with look-alikes; unorganized
+**Similar photos** lists organized Library photos with look-alikes; unorganized
 source files are not compared in this view. Open one and choose **Similar
 photos**: the counts show how many matches it has at each percentage. The percentage
 measures visual similarity, not certainty; below 90%, matches are more likely to be
@@ -121,8 +140,10 @@ Open a match to compare the two side by side: their size, format, dates and ever
 recorded detail. **Reject…** under a photo turns that one down; **Keep this one, reject
 the other…** keeps one and reviews the rest before anything moves.
 
-Turns stay temporary until you save them. Leaving with unsaved turns offers a choice
-to save, discard them, or return to the photos. Use the curved-arrow buttons beside
+Turns stay temporary until you save them. Leaving one turned photo offers **Save and
+continue**, **Discard and continue**, or **Keep reviewing**. Saving must finish before
+you leave; a failure keeps the photo open. With several turned photos, choose which
+rotations to save. Use the curved-arrow buttons beside
 the large preview to turn it left or right,
 then **Save rotation** to keep the change or **Reset** to undo the viewing turn.
 For several selected photos, **Rotate…** in the selection bar opens a confirmation.
@@ -132,6 +153,13 @@ saved in an XMP sidecar needs a gallery that reads sidecar Orientation.
 
 ![Two look-alikes side by side](images/side-by-side.png)
 
+To change a Library filename, open **Photo information** and choose **Rename…** beside
+the destination filename. **Also arrived as** lists recorded alternative names;
+**Use this name** opens the same preview. The extension and date folder stay unchanged,
+and any active XMP sidecar follows the photo. Check the resulting name, then confirm
+**Rename photo**. A taken name gets a numbered suffix; source originals stay untouched. **Filters › Has
+other names** finds photos with naming alternatives, most duplicates first.
+
 ## 6. Reject what you do not want
 
 **Reject…** moves a photo out of your library into a separate `rejects/` folder in your
@@ -140,22 +168,25 @@ library** brings a photo back, and you empty the folder yourself (**How to empty
 Rejects** says how). A reminder appears on every page once Rejects grows past a size or
 age you set in Settings.
 
+For several photos, review the selection, choose **Reject these n photos**, then confirm
+**Reject**. **Cancel** keeps your selection so you can adjust it. The same question
+appears for one photo; only side-by-side comparison offers **Don't ask again while
+comparing**. Rejecting its last Library photo always asks again.
+
 If you Move, a rejected photo's original in your source is deleted too, once its copy in
 Rejects is verified, so the source can end up empty. That copy is then the only one:
 empty Rejects and the photo is gone. Every Move that includes rejected photos says so first.
 
-![The Rejects view](images/rejects-view.png)
 
 ## 7. Check dates
 
-**Suspicious dates** flags recorded years earlier than the minimum you chose in setup
+**Odd dates** flags recorded years earlier than the minimum you chose in setup
 (default 1800), or more than one year ahead of the current UTC year. Change the minimum
 in **Settings › Files** to suit your collection. These are clues to investigate, not proof
 of a wrong date; NegativeSpace changes no date by itself.
 
-![Photos with suspicious dates](images/suspicious-dates-filter.png)
 
-**No usable capture date** lists photos with no usable date in their metadata. A missing date alone does not prevent **Copy** or **Move**. A photo can also appear under **Not organized › Needs attention** if a separate issue prevents organizing it; open its information pane for the specific reason. They are filed
+**No date** lists photos with no usable date in their metadata. A missing date alone does not prevent **Copy** or **Move**. A photo can also appear under **Not organized › need attention** if a separate issue prevents organizing it; open its information pane for the specific reason. They are filed
 under `library/Undated/<year>/`, where the year comes from the file's modification time,
 rather than among photos the camera dated. A file's time is often when it was downloaded
 or exported, not when the photo was taken. Filing it with camera-dated photos would make
@@ -164,12 +195,18 @@ The photo's original path and filename are kept with it, and they often hold the
 date.
 
 **Small images.** If you turned on small-image reminders in setup, photos whose shorter
-side is below your minimum appear in **Needs review › Small images**, with their size.
+side is below your minimum appear in **Library › Needs review › Small**, with their size.
 They are still copied and moved like any other photo. **Mark reviewed** stops the
 reminder for a photo you want to keep; select the ones you don't want and use
-**Reject…**. A larger look-alike is a hint, not an automatic choice. **Review later**
-takes an optional note, and **Done** clears it. **Review one by one** steps through them;
-**Next** moves on without deciding. Change or turn off the rule in **Settings › Files**.
+**Reject…**. A larger look-alike is a hint, not an automatic choice. Change or turn off
+the small-image rule in **Settings › Files**.
+
+**Bookmark…** lets you choose why you want to return to a photo and add a short note.
+Find these photos through **Library › Needs review**, then **Reason › Bookmarked**.
+**Remove bookmark** clears the bookmark; editing a photo does not clear it automatically.
+For a keep-decision bookmark, **Keep it** records your decision and removes that bookmark.
+Other review reasons remain unchanged. **Review one by one** steps through them;
+**Next** moves on without deciding.
 
 In a Library photo’s **Metadata** tab, open another recorded source and choose
 **Use as primary…** to make it take priority for that photo. Review the metadata and
@@ -180,14 +217,21 @@ your current primary source.
 ## 8. History, logs and stats
 
 Every photo keeps its full history: each file it has been, each copy made of it, and
-every job that touched it. **View lineage tree** in the panel shows it.
+every job that touched it. **View lineage tree** opens a timeline with a summary,
+then the jobs in order and the files they worked on. Identical files found together
+share an Index entry; files found later have their own entries. **Show all** reveals
+additional paths, and **Show events** expands repeated steps in a long history.
+Later edits don't change which files matched when they arrived. If an edit makes
+two files identical, the timeline shows their separate arrivals and the edit that
+joined their histories.
+**View in log** opens the related job. **Now** shows the last recorded locations,
+not a live check of your files. Hover or focus a path for its recorded details.
 
 **Logs** lists every job and everything it did, with any failures, their reasons, and
 **Retry**. Expand **Metadata choices** to see saved import decisions and the jobs that
 applied them. The same section appears in the photo’s lineage; **Compare metadata…**
 compares a saved choice with the photo’s current primary source without changing it.
 
-![The log](images/log-page.png)
 
 **Stats**, under Logs in the sidebar, gives figures for the whole library.
 
@@ -203,7 +247,6 @@ and Docker-configured addresses remain available for recovery.
 the next time you open it, and **Repair grid thumbnails** remakes any gallery thumbnails
 that have gone missing. **Rebuild all grid thumbnails** remakes every one.
 
-![Settings › Performance, with the thumbnail cache](images/settings-performance.png)
 
 **Metadata** keeps the same choices you made during setup. Changing its defaults does
 not change photos that already have a primary metadata source.

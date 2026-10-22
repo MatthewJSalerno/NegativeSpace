@@ -36,16 +36,16 @@ with sync_playwright() as p:
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.goto(sys.argv[1])
     expect(page.get_by_role('link', name='Similar', exact=True)).to_have_count(0)
-    # Not organized has no similar photos to look into: the filter stays in its row, dimmed.
-    expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_attribute('aria-disabled', 'true')
+    # Similar photos is a Library-only destination, even before anything is copied.
+    expect(page.get_by_role('navigation', name='Main').get_by_role('link', name=re.compile(r'^Similar photos\b'))).to_contain_text('0')
     page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Library\b')).click()
-    page.get_by_role('button', name=re.compile('^Has similar photos')).click()
+    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Similar photos\b')).click()
     expect(page.locator('.card')).to_have_count(0)
     expect(page.get_by_text('Copy or Move indexed photos to the destination first.', exact=False)).to_be_visible()
     # Only generated fixtures are copied in this isolated test catalog.
     run_job('copy')
     page.reload()
-    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Library\b')).click()
+    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Similar photos\b')).click()
     expect(page.locator('.card').first).to_be_visible()
     gallery_sort = page.get_by_role('combobox', name='Sort', exact=True)
     gallery_threshold = page.get_by_role('combobox', name='Gallery match threshold', exact=True)
@@ -90,10 +90,10 @@ with sync_playwright() as p:
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
     shot('gallery-match-sort-narrow')
     page.set_viewport_size({'width':1440,'height':1000})
-    page.get_by_role('button', name=re.compile('^Has similar photos')).click()
+    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Library\b')).click()
     expect(gallery_sort).to_have_value('newest')
     expect(gallery_threshold).to_have_count(0)
-    page.get_by_role('button', name=re.compile('^Has similar photos')).click()
+    page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Similar photos\b')).click()
     gallery_threshold.select_option('75')
     gallery_photo = page.locator('.card').first
     expected_group = request.get('/api/v1/photos?view=similar&group_sets=true&match_min=75&sort=matches').json()['items'][0]
@@ -437,9 +437,9 @@ with sync_playwright() as p:
     expect(reference_preview).to_contain_text('Viewing rotation: 270°')
     shot('match-new-reference')
     dialog.get_by_role('button', name='Back to gallery', exact=True).click()
-    rotation_save=page.get_by_role('dialog',name='Save rotations',exact=True)
+    rotation_save=page.get_by_role('alertdialog',name='Save rotation before leaving?',exact=True)
     expect(rotation_save).to_be_visible()
-    rotation_save.get_by_role('button',name='Discard viewing turns and leave',exact=True).click()
+    rotation_save.get_by_role('button',name='Discard and continue',exact=True).click()
     expect(inspector.locator('.inspector-head h2')).to_have_text(original_name)
     expect(page).not_to_have_url(re.compile("review="))
     assert gallery_context(page.url) == gallery_context(original_url)
@@ -454,10 +454,11 @@ with sync_playwright() as p:
     assert dialog.evaluate('e => e.scrollWidth <= e.clientWidth + 1'), 'review overflow at narrow width'
     shot('match-review-narrow')
     page.set_viewport_size({'width': 1440, 'height': 1000})
-    # Esc and Back offer the same save/discard decision for temporary turns.
+    # A single remaining turn uses the compact save/discard decision.
+    rotation_save=page.get_by_role('alertdialog',name='Save rotation before leaving?',exact=True)
     page.keyboard.press('Escape')
     expect(rotation_save).to_be_visible()
-    rotation_save.get_by_role('button',name='Discard viewing turns and leave',exact=True).click()
+    rotation_save.get_by_role('button',name='Discard and continue',exact=True).click()
     expect(dialog).to_be_hidden()
     # Focus returns to a real control, so the keyboard carries on (Immich once lost
     # keyboard scrolling after its viewer): the opener while it still exists, otherwise the
@@ -487,7 +488,7 @@ with sync_playwright() as p:
     page.get_by_role('link', name='Logs', exact=True).click()
     page.go_back()
     expect(summary.get_by_role('button', name=re.compile('^100% or higher:'))).to_have_attribute('aria-pressed', 'true')
-    expect(page.get_by_role('button', name=re.compile('^Has similar photos'))).to_have_attribute('aria-pressed', 'true')
+    expect(page.get_by_role('navigation', name='Main').get_by_role('link',name=re.compile(r'^Similar photos\b'))).to_have_attribute('aria-current', 'page')
     # A failed count load must not fabricate zeros or lose the selected threshold.
     page.route('**/api/v1/similar/*/counts?*', lambda route: route.fulfill(status=503, content_type='application/json', body='{}'))
     page.reload()

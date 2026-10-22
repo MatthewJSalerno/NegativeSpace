@@ -9,6 +9,57 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Keep photo changes blocked through the final catalog backup, with visible progress
+  and no next-job queue. Show persistent backup failures or unbacked changes across
+  Library, Logs and Stats; Retry backs up the catalog without repeating photo work.
+
+- Show photo lineage as a timeline with grouped identical arrivals, repeated-history
+  disclosures and recorded current locations. Earlier source files stay distinct
+  until an edit makes them identical; that step names the retained photo.
+
+- Rename organized photos from their information pane, choose a recorded alternative
+  name, and find photos with other names. Preview collisions before confirming;
+  active XMP sidecars follow the photo, while source files remain unchanged.
+- Use a compact Save / Discard / Keep reviewing decision when leaving one unsaved
+  rotation; verified saves continue navigation and failures remain visible.
+
+- Separate ready photos from source files held for attention in Copy all/Move all
+  confirmations. Make Index summary figures open their matching source photos.
+- Show a collapsed By file type breakdown in the Index summary and job log, using
+  recorded discovery counts. Catalog schema 31 records selected types; a fresh
+  development catalog is required.
+
+- Put places in the sidebar and combining refinements above photos. Make Similar photos
+  a destination; move Needs review into Library with one exclusive Reason choice.
+  Place links clear optional filters, while browser Back restores the previous view.
+- Replace Review later with Bookmarks: seven reasons, short notes, existing review tools
+  and explicit removal. Keep it records a decision without clearing other concerns.
+- Add independent shorter-side size browsing, including reviewed photos and libraries
+  with small-image reminders off.
+
+- Use one Reject confirmation across the gallery, photo review and comparison, including
+  reviewed selections. Keep comparison-only preferences and the last-photo warning.
+
+- Recover progress and completion through a bounded status check when live job updates
+  stop; do not show the Index summary while indexing is still running.
+
+- Show accepted jobs immediately while the live feed catches up; keep all current sidebar filter labels readable beside aligned counts.
+
+- Reduce setup scrolling by making File types and Rejects reminder expandable; open
+  either section automatically when a field needs correction.
+
+- Avoid a false cancellation warning while a job has not yet received a run ID.
+
+- Align sidebar filter labels, counts and pins; explain unavailable counts and incompatible
+  filters on hover or keyboard focus. Clarify shared-sidecar examples, RAW edit storage
+  and photo-log links.
+- Show Stats dates across a full-width row with suspicious years kept apart and undated
+  photos beside it. Count verified metadata edits by photo and kind, with filtered log
+  links; keep duplicate-space figures limited to exact duplicates. Metadata jobs no
+  longer inflate Copy/Move activity totals.
+- Remove the unused metadata resolver while retaining shared JSON validation and
+  production reader/precedence coverage.
+
 - Run documentation checks without the application suites for verified documentation-only
   changes. Preserve full validation for code, mixed changes and manual runs, with a
   required merge gate that rejects failed checks and unintended skips.

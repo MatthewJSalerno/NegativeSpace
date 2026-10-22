@@ -32,7 +32,7 @@ with sync_playwright() as p:
     errors=[]
     page.on('pageerror',lambda e: errors.append(str(e)))
     page.goto(sys.argv[1]+'/?view=organized')
-    page.get_by_role('button',name=re.compile('^Suspicious dates')).click()
+    page.get_by_role('button',name=re.compile('^Odd dates:')).click()
     expect(page.locator('.card')).to_have_count(2)
     expect(page).to_have_url(re.compile('suspicious=1'))
     page.reload()

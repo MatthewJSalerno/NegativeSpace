@@ -45,6 +45,8 @@ AT_DESTINATION = DELIVERED + IN_REJECTS_STATUSES
 REJECTS_LISTING_SECONDS = 5.0
 _rejects_listings = {}
 SORTS = {
+    "duplicates": "(SELECT COUNT(*) FROM photos d WHERE d.sha1_hash=p.sha1_hash AND d.id!=p.id) DESC, p.id ASC",
+    "bookmark": "COALESCE((SELECT CASE json_extract(e.payload,'$.bookmark_reason') WHEN 'date' THEN 0 WHEN 'compare' THEN 1 WHEN 'rotation' THEN 2 WHEN 'details' THEN 3 WHEN 'keep' THEN 4 WHEN 'ask' THEN 5 ELSE 6 END FROM review_events e WHERE e.photo_id=p.id AND e.reason='later' AND e.action='later' ORDER BY e.id DESC LIMIT 1),7), p.id ASC",
     "matches": "similar_count DESC, p.id ASC",
     # Undated rows carry their modification-time fallback in date_taken, labelled by
     # date_source (webui-spec 3.1); a row with no date at all sorts last either way.
@@ -74,6 +76,19 @@ def _extension(path):
 
 def _basename(path):
     return path.rsplit("/", 1)[-1] if path else None
+
+
+def _filename_stem(path):
+    """The final filename without its last extension, for catalogued file paths.
+
+    Avoid constructing a Path for each side of every gallery name comparison.
+    Leading dots and a trailing dot are part of the stem, as in Path.stem.
+    """
+    if not path:
+        return None
+    name = _basename(path)
+    dot = name.rfind('.')
+    return name[:dot] if 0 < dot < len(name) - 1 else name
 
 
 def in_rejects(path) -> int:
@@ -119,6 +134,7 @@ def connect(db_path: Path):
             raise CatalogUnavailable(
                 "incompatible", f"{exc}. The catalog was left as it is; this version of NegativeSpace "
                                 f"cannot read it.") from exc
+        conn.create_function("filename_stem", 1, _filename_stem, deterministic=True)
         conn.create_function("basename", 1, _basename, deterministic=True)
         conn.create_function("extension", 1, _extension, deterministic=True)
         conn.create_function("in_rejects", 1, in_rejects)
@@ -128,25 +144,49 @@ def connect(db_path: Path):
         conn.close()
 
 
+def source_metadata_hold_sql():
+    """Latest recorded source hold, for reads using photo alias p."""
+    return """COALESCE((SELECT json_extract(m.report_json,'$.state')='needs_attention'
+        FROM photo_files pf JOIN metadata_captures m ON m.file_id=pf.file_id
+        WHERE pf.photo_id=p.id ORDER BY m.capture_id DESC LIMIT 1),0)"""
+
+
+def transfer_eligible_sql(mode):
+    """Recorded transfer candidates, excluding known holds on unorganized photos.
+
+    Copied originals still follow Move's confirmation and live verification. Reading
+    a newer source observation must not hide an already delivered copy from Move.
+    """
+    return (f"p.status IN ({ns_db.sql_values(ns_db.TRANSFER_ELIGIBLE[mode])}) "
+            f"AND NOT (p.status='Pending' AND ({source_metadata_hold_sql()}))")
+
+
 def status(db_path: Path) -> dict:
     """What the first screen needs: whether a catalog exists and is usable, whether
     it holds anything yet, and how many photos a Copy all and a Move all would take
-    (ns_db.TRANSFER_ELIGIBLE, the engine's own rule), whatever the gallery shows."""
+    (the engine's eligible statuses, minus recorded source holds), whatever the gallery shows."""
     try:
         with connect(db_path) as conn:
             photos = conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
             indexed = conn.execute("SELECT COUNT(*) FROM runs WHERE mode = 'INDEX'").fetchone()[0]
-            by_status = dict(conn.execute("SELECT status, COUNT(*) FROM photos GROUP BY status").fetchall())
+            rows = conn.execute(f"""SELECT p.status, COUNT(*), SUM(CASE
+                WHEN p.status IN ({ns_db.sql_values(NOT_ORGANIZED)})
+                  AND (p.status='Failed' OR ({source_metadata_hold_sql()})) THEN 1 ELSE 0 END)
+                FROM photos p GROUP BY p.status""").fetchall()
+            by_status = {row[0]: row[1] for row in rows}
+            held_by_status = {row[0]: row[2] for row in rows}
+            eligible = {mode: sum(by_status.get(status, 0) - held_by_status.get(status, 0)
+                                  for status in statuses)
+                        for mode, statuses in ns_db.TRANSFER_ELIGIBLE.items()}
+            held = sum(held_by_status.values())
             rejects = rejects_summary(conn)
             rejects["reminder"] = rejects_reminder(conn, rejects)
-        eligible = {mode: sum(by_status.get(s, 0) for s in statuses)
-                    for mode, statuses in ns_db.TRANSFER_ELIGIBLE.items()}
         return {"state": "ok", "detail": None, "photos": photos, "indexed": indexed > 0,
-                "library_photos": sum(by_status.get(s, 0) for s in DELIVERED), "eligible": eligible, "copied": by_status.get(PhotoStatus.COPIED, 0),
+                "library_photos": sum(by_status.get(s, 0) for s in DELIVERED), "eligible": eligible, "held": held, "copied": by_status.get(PhotoStatus.COPIED, 0),
                 "rejected_with_source": by_status.get(PhotoStatus.REJECTED_COPIED, 0), "rejects": rejects}
     except CatalogUnavailable as exc:
         return {"state": exc.state, "detail": exc.detail, "photos": 0, "indexed": False,
-                "eligible": {"copy": 0, "move": 0}, "copied": 0, "rejected_with_source": 0, "rejects": None}
+                "eligible": {"copy": 0, "move": 0}, "held": 0, "copied": 0, "rejected_with_source": 0, "rejects": None}
 
 
 def create(db_path: Path) -> dict:

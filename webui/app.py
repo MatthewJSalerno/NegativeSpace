@@ -22,6 +22,7 @@ from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, metadata_history, oplog, outcomes, stats
 from . import access, matching, notifications, security, metadata_view, metadata_dates, metadata_primary, rotations, photo_orientation
+from . import renaming
 from . import config, jobs as job_commands
 from .config import Config
 from .jobs import JobRefused, JobRunner
@@ -44,6 +45,9 @@ class PhotoPositionRequest(BaseModel):
     similar: bool = False
     suspicious: bool = False
     reason: str = "all"
+    other_names: bool = False
+    source_summary: Optional[str] = None
+    size_below: Optional[int] = Field(default=None, ge=1, le=100000)
     undated: bool = False
     dates: Optional[List[str]] = None
     types: Optional[List[str]] = None
@@ -200,7 +204,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         if set(body) - {'scope','photo_id','request_id'}:
             raise HTTPException(400, {'error':'invalid_request', 'message':'Unknown recovery option.'})
         run_id = jobs.repair_similarity(body.get('scope'), body.get('photo_id'), body.get('request_id'))
-        return outcomes.get_run(cfg.db_path, run_id)
+        return jobs.accepted_run(run_id)
 
     @app.get("/api/v1/similar/{photo_id}/counts")
     def similarity_counts(photo_id: int, scope: str = "library"):
@@ -268,7 +272,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         if set(body) - {"scope", "request_id"}:
             raise HTTPException(400, {"error": "invalid_request", "message": "Send the scope and optional request ID only."})
         run_id = jobs.rebuild_thumbnails(body.get("scope"), body.get("request_id"))
-        return outcomes.get_run(cfg.db_path, run_id)
+        return jobs.accepted_run(run_id)
 
     @app.post("/api/v1/thumbnails/clear-previews")
     def clear_previews():
@@ -284,16 +288,16 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     def get_photos(view: str = "all", sort: str = "newest", q: Optional[str] = None,
                    page: int = Query(1, ge=1), page_size: int = Query(60, ge=1, le=240), undated: bool = False,
                    date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                   folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", filter_pins: Optional[str] = None):
+                   folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None, other_names: bool = False):
         try:
             return gallery.list_photos(cfg.db_path, view=view, sort=sort, q=q, page=page, page_size=page_size,
-                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason, filter_pins=filter_pins)
+                                       undated=undated, dates=date, types=type, folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary, other_names=other_names)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/places")
     def get_places(match_min: int = Query(90, ge=75, le=100)):
-        """The navigation sidebar's counts: each place whole, and each Look into shortcut."""
+        """Whole-place navigation counts and source warning totals."""
         try:
             return gallery.places(cfg.db_path, match_min=match_min)
         except ValueError as exc:
@@ -302,33 +306,33 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/photos/timeline")
     def get_timeline(view: str = "all", q: Optional[str] = None, undated: bool = False,
                      date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                     folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all"):
+                     folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None, other_names: bool = False):
         try:
             return gallery.timeline(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
-                                    folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason)
+                                    folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary, other_names=other_names)
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/types")
     def get_types(view: str = "all", q: Optional[str] = None, undated: bool = False,
-                  date: Optional[List[str]] = Query(None), folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all"):
+                  date: Optional[List[str]] = Query(None), folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None, other_names: bool = False):
         try:
             return {"types": gallery.file_types(cfg.db_path, view=view, q=q, undated=undated, dates=date,
-                                                folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason)}
+                                                folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary, other_names=other_names)}
         except ValueError as exc:
             raise _bad_request(exc)
 
     @app.get("/api/v1/photos/folders")
     def get_folders(view: str = "all", q: Optional[str] = None, undated: bool = False,
                     date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                    folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all",
+                    folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None, other_names: bool = False,
                     every: bool = False):
         """The source's folders with their counts; `folder` names ticked folders, which stay
         listed at 0 but do not narrow the counts (the tree ignores its own filter); `every`
         lists every catalogued folder, at 0 where nothing is shown."""
         try:
             return gallery.folder_tree(cfg.db_path, cfg.source, view=view, q=q, undated=undated, dates=date,
-                                       types=type, keep=folder, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason,
+                                       types=type, keep=folder, match_min=match_min, group_sets=group_sets, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary, other_names=other_names,
                                        every=every)
         except ValueError as exc:
             raise _bad_request(exc)
@@ -336,10 +340,10 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/photos/ids")
     def get_photo_ids(view: str = "all", q: Optional[str] = None, undated: bool = False,
                       date: Optional[List[str]] = Query(None), type: Optional[List[str]] = Query(None),
-                      folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all"):
+                      folder: Optional[List[str]] = Query(None), match_min: int = Query(75, ge=75, le=100), group_sets: bool = False, set_reference: Optional[int] = Query(None, ge=1, le=2**63-1), run: Optional[int] = Query(None, ge=1, le=2**63-1), similar: bool = False, suspicious: bool = False, reason: str = "all", size_below: Optional[int] = Query(None, ge=1, le=100000), source_summary: Optional[str] = None, other_names: bool = False):
         try:
             return gallery.photo_ids(cfg.db_path, view=view, q=q, undated=undated, dates=date, types=type,
-                                     folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason)
+                                     folders=folder, root=cfg.source, match_min=match_min, group_sets=group_sets, set_reference=set_reference, run=run, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary, other_names=other_names)
         except ValueError as exc:
             raise _bad_request(exc)
 
@@ -436,14 +440,32 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.post("/api/v1/pair-retries/start", status_code=202)
     def pair_retry_start(body: dict = Body(...)):
-        return outcomes.get_run(cfg.db_path,jobs.retry_pairs(body))
+        return jobs.accepted_run(jobs.retry_pairs(body))
 
     @app.post("/api/v1/issues/check", status_code=202)
     def check_issue(body: dict = Body(...)):
         if set(body) - {'issue_id','request_id'}:
             raise HTTPException(400, {'error':'invalid_request','message':'Send the issue ID and optional request ID only.'})
         run_id = jobs.check_issue(body.get('issue_id'), body.get('request_id'))
-        return outcomes.get_run(cfg.db_path, run_id)
+        return jobs.accepted_run(run_id)
+
+    @app.get("/api/v1/photos/{photo_id}/names")
+    def photo_names(photo_id: int):
+        try:
+            return renaming.candidates(cfg, photo_id)
+        except (ValueError, OSError) as exc:
+            raise _bad_request(exc)
+
+    @app.post("/api/v1/photos/{photo_id}/rename-preview")
+    def rename_preview(photo_id: int, body: dict = Body(...)):
+        try:
+            return renaming.preview(cfg, photo_id, body)
+        except (ValueError, TypeError, OSError) as exc:
+            raise _bad_request(exc)
+
+    @app.post("/api/v1/photos/{photo_id}/rename", status_code=202)
+    def rename_photo(photo_id: int, body: dict = Body(...)):
+        return jobs.accepted_run(jobs.rename_photo(photo_id, body))
 
     @app.post("/api/v1/rotations/preview")
     def rotation_preview(body: dict = Body(...)):
@@ -454,7 +476,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.post("/api/v1/rotations/save", status_code=202)
     def rotation_save(body: dict = Body(...)):
-        return outcomes.get_run(cfg.db_path, jobs.save_rotations(body))
+        return jobs.accepted_run(jobs.save_rotations(body))
 
     @app.get("/api/v1/photos/{photo_id}/date-edit")
     def date_edit_context(photo_id: int):
@@ -475,7 +497,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.post("/api/v1/photos/{photo_id}/date-save", status_code=202)
     def date_edit_save(photo_id: int, body: dict = Body(...)):
         run = jobs.save_date(photo_id,body)
-        return outcomes.get_run(cfg.db_path,run)
+        return jobs.accepted_run(run)
 
     @app.post("/api/v1/photos/{photo_id}/primary-preview")
     def primary_preview(photo_id: int, body: dict = Body(...)):
@@ -488,7 +510,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.post("/api/v1/photos/{photo_id}/primary-save", status_code=202)
     def primary_save(photo_id: int, body: dict = Body(...)):
-        return outcomes.get_run(cfg.db_path, jobs.save_primary(photo_id, body))
+        return jobs.accepted_run(jobs.save_primary(photo_id, body))
 
     @app.get("/api/v1/photos/{photo_id}/metadata")
     def photo_metadata(photo_id: int):
@@ -572,19 +594,19 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/operations")
     def get_operations(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
                        photo: Optional[int] = None, q: Optional[str] = None, since: Optional[str] = None,
-                       until: Optional[str] = None, page: int = Query(1, ge=1),
+                       until: Optional[str] = None, metadata_edits: bool = False, page: int = Query(1, ge=1),
                        page_size: int = Query(100, ge=1, le=oplog.LOG_PAGE_MAX)):
         return oplog.list_operations(cfg.db_path, page=page, page_size=page_size,
-                                       **_log_filters(run, status, photo, q, since, until))
+                                       metadata_edits=metadata_edits, **_log_filters(run, status, photo, q, since, until))
 
     @app.get("/api/v1/operations/export")
     def export_operations(format: str = "csv", run: Optional[List[int]] = Query(None),
                           status: Optional[List[str]] = Query(None), photo: Optional[int] = None,
-                          q: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None):
+                          q: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None, metadata_edits: bool = False):
         """The whole filtered log as CSV or JSON, streamed, oldest first."""
         if format not in ("csv", "json"):
             raise HTTPException(400, {"error": "invalid_request", "message": "format is csv or json."})
-        filters = _log_filters(run, status, photo, q, since, until)
+        filters = dict(metadata_edits=metadata_edits, **_log_filters(run, status, photo, q, since, until))
         with catalog.connect(cfg.db_path):               # refuse with 409 before streaming, not midway
             pass
         columns = ["id", "timestamp", "run_id", "mode", "status", "source_path", "dest_path", "error_message",
@@ -616,10 +638,10 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.get("/api/v1/operations/photo-ids")
     def operation_photo_ids(run: Optional[List[int]] = Query(None), status: Optional[List[str]] = Query(None),
                             photo: Optional[int] = None, q: Optional[str] = None, since: Optional[str] = None,
-                            until: Optional[str] = None, requested_only: bool = False):
+                            until: Optional[str] = None, metadata_edits: bool = False, requested_only: bool = False):
         """The distinct photos behind the filtered operations, for Retry: all of them."""
         return {"photo_ids": oplog.operation_photo_ids(cfg.db_path, requested_only,
-                                                         **_log_filters(run, status, photo, q, since, until))}
+                                                         metadata_edits=metadata_edits, **_log_filters(run, status, photo, q, since, until))}
 
     @app.get("/api/v1/runs")
     def get_runs(limit: int = Query(100, ge=1, le=500)):
@@ -658,20 +680,20 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise JobRefused(400, {"error": "invalid_request", "message": "Unsupported job fields. Answer safety questions through the original job."})
         run_id = jobs.start(body.get("mode"), body.get("file_ids"), body.get("source_subdir"), body.get("request_id"),
                             body.get("confirm_edited_sources", False), body.get("move_preview_token"))
-        return outcomes.get_run(cfg.db_path, run_id)
+        return jobs.accepted_run(run_id)
 
     @app.post("/api/v1/runs/{run_id}/answer", status_code=202)
     def answer_question(run_id: int, body: dict = Body(...)):
         if not {"question", "answer"} <= set(body) or set(body) - {"question", "answer", "request_id"}:
             raise JobRefused(400, {"error": "invalid_request", "message": "Provide question, answer and an optional request_id; the original job supplies the scope."})
         new_id = jobs.answer(run_id, body["question"], body["answer"], body.get("request_id"))
-        return outcomes.get_run(cfg.db_path, new_id)
+        return jobs.accepted_run(new_id)
 
     @app.get("/api/v1/job-requests/{request_id}")
     def lookup_request(request_id: str):
         job_commands.validate_request_id(request_id)
         record = outcomes.request_record(cfg.db_path, request_id)
-        return {"state": "accepted", "run": outcomes.get_run(cfg.db_path, record["run_id"])} if record else {"state": "unknown", "run": None}
+        return {"state": "accepted", "run": jobs.accepted_run(record["run_id"])} if record else {"state": "unknown", "run": None}
 
     @app.post("/api/v1/jobs/{run_id}/cancel", status_code=202)
     def cancel_job(run_id: int):
@@ -680,7 +702,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/api/v1/jobs/active")
     def active_job():
-        return {"active": jobs.active(), "last": outcomes.last_run(cfg.db_path)}
+        return jobs.state()
 
     @app.get("/api/v1/runs/{run_id}")
     def get_run(run_id: int):
@@ -712,8 +734,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
                 if not security.request_host_allowed(ws.headers, access.effective(cfg)):
                     await ws.close(code=1008)
                     return
-                state = await run_in_threadpool(lambda: {"active": jobs.active(),
-                                                         "last": outcomes.last_run(cfg.db_path)})
+                state = await run_in_threadpool(jobs.state)
                 encoded = json.dumps(state, sort_keys=True, default=str)
                 if encoded != previous:
                     await ws.send_text(encoded)

@@ -1,3 +1,4 @@
+import { useRotationSave } from "./RotationControls";
 import { DuplicateEditNotice } from "./DuplicateEditNotice";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, type RotationChoice, type RotationPlan, type Run } from "../api";
@@ -134,6 +135,7 @@ export function RotationEditor({ initial, onClose, onSaved, onDiscard, jobRunnin
 // One exit decision for all photos turned in a workspace, including former references.
 export function useRotationExit(choices: RotationChoice[], reset: (ids: number[], saved: boolean) => void, jobRunning: boolean, saving = false) {
   const [open, setOpen] = useState(false);
+  const [exitChoices, setExitChoices] = useState<RotationChoice[]>([]);
   const pending = useRef<(() => void) | null>(null);
   const bypass = useRef(false);
   const dirty = choices.some(x => x.turns !== 0);
@@ -141,7 +143,7 @@ export function useRotationExit(choices: RotationChoice[], reset: (ids: number[]
     if (bypass.current) { action(); return; }
     if (saving) return;
     if (!dirty) { action(); return; }
-    pending.current = action; setOpen(true);
+    pending.current = action; setExitChoices(choices.filter(x => x.turns !== 0)); setOpen(true);
   };
   useLayoutEffect(() => {
     if (!dirty && !saving) return;
@@ -152,13 +154,57 @@ export function useRotationExit(choices: RotationChoice[], reset: (ids: number[]
       const next = window.location.pathname + window.location.search;
       window.history.replaceState(null, "", location);
       pending.current = () => { bypass.current = true; navigate(next, true); };
-      if (!saving) setOpen(true); return false;
+      if (!saving) { setExitChoices(choices.filter(x => x.turns !== 0)); setOpen(true); } return false;
     });
     window.addEventListener("beforeunload", unload);
     return () => { unguard(); window.removeEventListener("beforeunload", unload); };
   }, [dirty, choices, saving]);
-  return { requestLeave, editor: open && <RotationEditor initial={choices.filter(x => x.turns !== 0)} jobRunning={jobRunning}
-    onSaved={ids => { reset(ids, true); window.dispatchEvent(new Event("ns-review-changed")); }}
-    onClose={() => { pending.current = null; setOpen(false); }}
-    onDiscard={() => { reset(choices.map(x => x.photo_id), false); setOpen(false); bypass.current = true; try { pending.current?.(); } finally { bypass.current = false; pending.current = null; } }} /> };
+  const keep = () => { pending.current = null; setOpen(false); };
+  const leave = () => {
+    setOpen(false); bypass.current = true;
+    try { pending.current?.(); } finally { bypass.current = false; pending.current = null; }
+  };
+  const saved = (ids: number[]) => { reset(ids, true); window.dispatchEvent(new Event("ns-review-changed")); };
+  const discard = () => { reset(exitChoices.map(x => x.photo_id), false); leave(); };
+  return { requestLeave, editor: open && (exitChoices.length === 1
+    ? <SingleRotationExit choice={exitChoices[0]} jobRunning={jobRunning} onKeep={keep} onDiscard={discard} onApplied={id => reset([id], true)} onContinue={leave}/>
+    : <RotationEditor initial={exitChoices} jobRunning={jobRunning} onSaved={saved} onClose={keep} onDiscard={discard}/>) };
+}
+
+// A single pending turn needs a decision, not the multi-photo editing workspace.
+function SingleRotationExit({ choice, jobRunning, onKeep, onDiscard, onApplied, onContinue }: {
+  choice: RotationChoice; jobRunning: boolean; onKeep: () => void; onDiscard: () => void; onApplied: (id: number) => void; onContinue: () => void;
+}) {
+  const [item, setItem] = useState<RotationPlan["items"][number] | null>(null);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const saver = useRotationSave(onApplied);
+  const continued = useRef(false);
+  useEffect(() => {
+    let live = true; setItem(null); setError("");
+    api.rotationPreview([choice]).then(plan => { if (live) setItem(plan.items[0]); }, e => { if (live) setError(e.message); });
+    return () => { live = false; };
+  }, [choice, retry]);
+  useEffect(() => {
+    if (!continued.current && saver.saved && !saver.error && saver.run?.status === "Completed") {
+      continued.current = true; onContinue();
+    }
+  }, [saver.saved, saver.error, saver.run, onContinue]);
+  const target = item?.target;
+  return <Modal label="Save rotation before leaving?" onClose={onKeep} busy={saver.busy} role="alertdialog">
+    <h2>Save rotation before leaving?</h2>
+    <p>{saver.saved ? "The rotation was saved, but the job needs attention." : item ? <><strong>{item.filename}</strong> has an unsaved turn.</> : "Checking the rotation…"}</p>
+    {target && <p className="section-note">Save to {target.kind === "sidecar_xmp" ? "XMP Sidecar" : target.kind === "embedded_xmp" ? "Embedded XMP" : "EXIF"}{target.create ? " (new sidecar)" : ""}. Image pixels stay unchanged.</p>}
+    {item?.duplicate && <DuplicateEditNotice duplicate={item.duplicate}/>}
+    {(error || item?.error || saver.error) && <p className="error" role="alert">{error || item?.error || saver.error}</p>}
+    {error && <button className="link" onClick={() => setRetry(n => n+1)}>Retry preview</button>}
+    {jobRunning && !saver.busy && <p className="section-note">Wait for the running job to finish before saving.</p>}
+    {saver.run && <p role="status">{saver.busy ? "Saving rotation…" : `Job #${saver.run.id} · ${saver.run.status}.`} <a href={logUrl({run:saver.run.id})} onClick={follow}>View job details</a></p>}
+    <footer className="settings-actions">
+      <button disabled={saver.busy} onClick={onKeep}>Keep reviewing</button>
+      <button disabled={saver.busy} onClick={onDiscard}>{saver.saved ? "Continue" : "Discard and continue"}</button>
+      <button className="primary" disabled={saver.busy || jobRunning || !item?.edit || !!item.error || item.no_change || saver.run != null}
+        onClick={() => item && void saver.save(item)}>{saver.busy ? "Saving…" : item?.duplicate ? "Save, keep existing photo and continue" : "Save and continue"}</button>
+    </footer>
+  </Modal>;
 }

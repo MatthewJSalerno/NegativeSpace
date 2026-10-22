@@ -104,7 +104,9 @@ for name in ("photo-000.jpg", "photo-001.jpg"):
 '
 fi
 set --
-if [ "${METADATA_SETTINGS_FIXTURE:-0}" = 1 ]; then
+if [ "${BACKUP_FIXTURE:-0}" = 1 ]; then
+    set -- -v "$HERE/backup_engine_fixture.py:/backup_engine_fixture.py:ro" -e NS_ENGINE=/backup_engine_fixture.py
+elif [ "${METADATA_SETTINGS_FIXTURE:-0}" = 1 ]; then
     set -- -v "$HERE/settings_engine_fixture.py:/settings_engine_fixture.py:ro" -e NS_ENGINE=/settings_engine_fixture.py
 elif [ "${PAIR_RETRY_FIXTURE:-0}" = 1 ]; then
     set -- -v "$HERE/pair_retry_engine_fixture.py:/pair_retry_engine_fixture.py:ro" -e NS_ENGINE=/pair_retry_engine_fixture.py
@@ -151,6 +153,7 @@ if [ "$DRIVER" = webui_browser_drive.py ]; then
 fi
 
 CATALOG_ARGS=""
+if [ "${BACKUP_FIXTURE:-0}" = 1 ]; then CATALOG_ARGS="-v $WORK/appdata:/catalog"; fi
 # The settings fixture opens only this generated catalog in SQLite read-only mode.
 # The mount allows SQLite to create its WAL shared-memory file while a job runs.
 if [ "${METADATA_SETTINGS_FIXTURE:-0}" = 1 ]; then CATALOG_ARGS="-v $WORK/appdata:/catalog"; fi

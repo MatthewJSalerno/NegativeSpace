@@ -94,6 +94,68 @@ class ApiCase(unittest.TestCase):
             yield
 
 
+class StatsEdits(ApiCase):
+    def test_verified_saves_count_photos_once_and_link_to_the_exact_entries(self):
+        self.create_catalog()
+        wanted = []
+        with ns_db.connect(self.cfg.db_path) as conn:
+            run = ns_db.create_run(conn, mode='METADATA', source='/source', destination='/destination')[0]
+            with ns_db.transaction(conn):
+                for pid in (1,3,4,5,6):
+                    conn.execute("INSERT INTO photos(id,source_path,file_size,status) VALUES(?,?,100,'Copied')",
+                        (pid,f'/source/edit-{pid}.jpg'))
+                for identity, preview, saved, status in [
+                    (1, {'changes': {'date_taken':'2000-01-01'}}, True, 'Completed'),
+                    (1, {'changes': {'date_taken':'2001-01-01'}}, True, 'Completed'),
+                    (1, {'changes': {'orientation':6}}, True, 'Completed'),
+                    (2, {'primary_activation': {'primary_id':'exif'}}, True, 'Failed'),
+                    (3, {'changes': {'date_taken':'2002-01-01', 'orientation':3}}, True, 'Completed'),
+                    (4, {'changes': {'rating':'3'}}, True, 'Completed'),
+                    (5, {'changes': {'date_taken':'2003-01-01'}}, False, 'Failed'),
+                    (6, {'changes': {}}, False, 'Skipped')]:
+                    op = conn.execute("INSERT INTO operations(run_id,photo_id,status,timestamp) VALUES(?,?,?,?)",
+                        (run, identity if identity != 2 else None, status, ns_db.utc_now())).lastrowid
+                    ns_db.record_event(conn, operation_id=op, step='intent', outcome='recorded',
+                        detail={'kind':'metadata_edit', 'expected':{'preview':preview}})
+                    if saved:
+                        wanted.append(op)
+                        # Retained identity still counts when no current photo row remains.
+                        ns_db.record_event(conn, operation_id=op, step='metadata_saved', outcome='verified',
+                            detail={'file_id':identity})
+            conn.commit()
+        activity = self.client.get('/api/v1/stats').json()['activity']
+        self.assertEqual((activity['copied'], activity['moved'], activity['bytes_transferred']), (0,0,0),
+            'Completed metadata jobs are not Copy or Move operations')
+        self.assertIsNone(activity['bytes_per_second'])
+        result = activity['metadata_edits']
+        self.assertEqual(result, dict(photos=4, dates=2, rotations=2, primary_source=1, other=1))
+        params = {'metadata_edits':'true'}
+        log = self.client.get('/api/v1/operations', params=params).json()
+        self.assertEqual(sorted(item['id'] for item in log['items']), wanted)
+        self.assertEqual(log['total'], 6)
+        self.assertEqual(log['status_counts']['Failed'], 1, 'Saved metadata survives a later refile failure')
+        exported = self.client.get('/api/v1/operations/export', params={**params, 'format':'json'}).json()
+        self.assertEqual([item['id'] for item in exported], wanted)
+        self.assertEqual(self.client.get('/api/v1/operations', params={**params,'status':'Failed'}).json()['total'], 1)
+        self.assertEqual(self.client.get('/api/v1/operations', params={'metadata_edits':'invalid'}).status_code, 422)
+
+    def test_chart_bounds_use_the_configured_minimum_and_current_utc_year(self):
+        self.create_catalog()
+        settings = self.client.get('/api/v1/settings').json()['suspicious_min_year']
+        response = self.client.put('/api/v1/settings', json={'values':{'suspicious_min_year':1999},
+            'revisions':{'suspicious_min_year':settings['revision']}})
+        self.assertEqual(response.status_code, 200, response.text)
+        with ns_db.connect(self.cfg.db_path) as conn:
+            latest = conn.execute("SELECT CAST(strftime('%Y','now') AS INTEGER)+1").fetchone()[0]
+            for i, year in enumerate(('0001','1998','1999',str(latest),str(latest+1))):
+                conn.execute("INSERT INTO photos(source_path,status,metadata_json) VALUES(?, 'Pending', ?)",
+                    (f'/source/generated-{i}.jpg',json.dumps({'date_taken':f'{year}-01-01', 'date_source':'exif'})))
+            conn.commit()
+        dates = self.client.get('/api/v1/stats').json()['dates']
+        self.assertEqual((dates['min_year'], dates['max_year']), (1999,latest))
+        self.assertEqual(sum(row['photos'] for row in dates['per_year']), 5, 'All years remain available in the table')
+
+
 class SameNameCards(ApiCase):
     def test_scope_pagination_selection_and_exact_copies(self):
         self.create_catalog()
@@ -217,10 +279,10 @@ class BrowserRequestBoundary(ApiCase):
         self.assertEqual(refused.exception.code, 1008)
         with self.client.websocket_connect('/api/v1/ws/jobs', headers={
                 'origin': 'https://photos.example:8443', 'host': 'photos.example:8443'}) as ws:
-            self.assertEqual(ws.receive_json(), {'active': None, 'last': None})
+            self.assertEqual(ws.receive_json(), {'active': None, 'last': None, 'backup': None})
         # Nonbrowser API clients have no Origin. This is not authentication.
         with self.client.websocket_connect('/api/v1/ws/jobs') as ws:
-            self.assertEqual(ws.receive_json(), {'active': None, 'last': None})
+            self.assertEqual(ws.receive_json(), {'active': None, 'last': None, 'backup': None})
 
 
 class FirstRunAndSettings(ApiCase):
@@ -883,6 +945,18 @@ class JobsAndCatalog(ApiCase):
         copied = next(op for op in tree["operations"] if op["status"] == "Copied")
         self.assertEqual({(x["file_id"], x["role"]) for x in copied["files"]},
                          {(own["file_id"], "source"), (copy["file_id"], "destination")})
+        self.assertEqual(copy["place"], "library")
+        self.assertEqual(own["place"], "source")
+        first_index = next(op["run_id"] for op in tree["operations"] if op["mode"] == "INDEX")
+        self.assertTrue(all(f["created_run_id"] == first_index for f in sources))
+        copied_path = copy["path"]
+        self.wait_for(self.start(mode="reject", file_ids=[anchor["id"]]))
+        rejected = self.client.get(f"/api/v1/photos/{anchor['id']}/lineage").json()
+        self.assertEqual(next(f for f in rejected["files"] if f["file_id"] == copy["file_id"])["place"], "rejects")
+        self.assertEqual(next(op for op in rejected["operations"] if op["id"] == copied["id"])["dest_path"], copied_path)
+        self.wait_for(self.start(mode="return", file_ids=[anchor["id"]]))
+        returned = self.client.get(f"/api/v1/photos/{anchor['id']}/lineage").json()
+        self.assertEqual(next(f for f in returned["files"] if f["file_id"] == copy["file_id"])["place"], "library")
         self.assertEqual(self.client.get("/api/v1/photos/99999/lineage").status_code, 404)
 
     def test_repeated_empty_source_refusals_do_not_refresh_coverage(self):
@@ -1057,12 +1131,12 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual(st["duplicates"]["saved_at_destination"], st["duplicates"]["bytes"],
                          "once the original is copied, the duplicate was never written")
         self.assertGreater(st["duplicates"]["move_would_free"], 0, "the duplicate's source is still there")
-        self.assertIsNone(st["duplicates"]["near_duplicates"], "not recorded yet: no figure is invented")
+        self.assertNotIn("near_duplicates", st["duplicates"])
         self.assertEqual(sum(y["photos"] for y in st["dates"]["per_year"]) + st["dates"]["undated"], 2)
         self.assertEqual(st["activity"]["copied"], 2)
         self.assertGreater(st["activity"]["bytes_transferred"], 0)
         self.assertEqual(st["activity"]["failures"], {}, "nothing failed")
-        self.assertIsNone(st["activity"]["exif_edits"])
+        self.assertEqual(st["activity"]["metadata_edits"], dict(photos=0, dates=0, rotations=0, primary_source=0, other=0))
         self.assertGreaterEqual(st["health"]["backups"], 1, "each job took a backup")
         self.assertGreater(st["health"]["catalog_bytes"], 0)
 
@@ -1178,6 +1252,112 @@ class JobsAndCatalog(ApiCase):
         listed = [f["path"] for f in self.client.get("/api/v1/photos/folders", params={"view": "unorganized"}).json()["folders"]]
         self.assertNotIn("Phone", listed, "without every, an empty folder drops out")
 
+    def test_each_folder_says_when_an_index_last_read_it_in_full(self):
+        for rel, seed in [("Phone/2019/a.jpg", "a"), ("Phone/2021/b.jpg", "b"), ("Camera/c.jpg", "c"), ("top.jpg", "top")]:
+            make_photo(self.cfg.source / rel, seed)
+        self.create_catalog()
+        full = self.wait_for(self.start(mode="index"))
+        tree = self.client.get("/api/v1/photos/folders", params={"every": "true"}).json()
+        rows = {f["path"]: f for f in tree["folders"]}
+        self.assertEqual(rows["Phone"]["last_indexed"], full["ended_at"], "a full Index reads every folder")
+        self.assertEqual(rows["Camera"]["last_indexed"], full["ended_at"])
+        self.assertEqual(tree["top_files"]["last_indexed"], full["ended_at"])
+        # An Index of one folder updates that folder and its subfolders, nothing else.
+        scoped = self.wait_for(self.start(mode="index", source_subdir="Phone"))
+        self.assertGreater(scoped["ended_at"], full["ended_at"])
+        tree = self.client.get("/api/v1/photos/folders", params={"every": "true"}).json()
+        rows = {f["path"]: f for f in tree["folders"]}
+        self.assertEqual(rows["Phone"]["last_indexed"], scoped["ended_at"])
+        self.assertEqual({f["path"]: f["last_indexed"] for f in rows["Phone"]["folders"]},
+                         {"Phone/2019": scoped["ended_at"], "Phone/2021": scoped["ended_at"]})
+        self.assertEqual(rows["Camera"]["last_indexed"], full["ended_at"], "a sibling keeps the full Index's time")
+        self.assertEqual(tree["top_files"]["last_indexed"], full["ended_at"])
+
+    def test_folder_index_times_do_not_advance_when_any_folder_is_unreadable(self):
+        if os.geteuid() == 0:
+            self.skipTest("root reads any folder")
+        for folder in ("readable", "sealed"):
+            make_photo(self.cfg.source / folder / "generated.jpg", folder)
+        self.create_catalog()
+        first = self.wait_for(self.start(mode="index"))
+        before = self.client.get("/api/v1/photos/folders?every=true").json()
+        sealed = self.cfg.source / "sealed"
+        sealed.chmod(0)
+        try:
+            failed = self.wait_for(self.start(mode="index"))
+        finally:
+            sealed.chmod(0o755)
+        self.assertEqual(failed["status"], "Completed")
+        failures = self.client.get("/api/v1/operations", params={"run":failed["id"], "status":"Failed"}).json()
+        self.assertEqual([(op["run_level"], op["photo_id"]) for op in failures["items"]], [(True, None)])
+        after = self.client.get("/api/v1/photos/folders?every=true").json()
+        self.assertGreater(failed["ended_at"], first["ended_at"])
+        self.assertEqual(after, before, "a partially read Index must not advance even its readable sibling")
+        recovered = self.wait_for(self.start(mode="index"))
+        tree = self.client.get("/api/v1/photos/folders?every=true").json()
+        self.assertEqual([n["last_indexed"] for n in tree["folders"]], [recovered["ended_at"]] * 2)
+        self.assertEqual(tree["top_files"]["last_indexed"], recovered["ended_at"])
+
+    def test_folder_index_times_do_not_advance_on_repeated_empty_source_refusals(self):
+        photo = self.cfg.source / "album" / "generated.jpg"
+        make_photo(photo, "empty")
+        self.create_catalog()
+        first = self.wait_for(self.start(mode="index"))
+        photo.unlink()
+        for _ in range(2):
+            refused = self.wait_for(self.start(mode="index"))
+            self.assertEqual(refused["status"], "Completed")
+            self.assertIn("source_empty", refused["questions"])
+            tree = self.client.get("/api/v1/photos/folders?every=true").json()
+            self.assertEqual(tree["folders"][0]["last_indexed"], first["ended_at"])
+            self.assertEqual(tree["top_files"]["last_indexed"], first["ended_at"])
+
+    def test_folder_index_times_count_a_complete_scan_with_an_individual_decode_failure(self):
+        make_photo(self.cfg.source / "album" / "generated.jpg", "readable")
+        (self.cfg.source / "album" / "broken.jpg").write_bytes(b"generated unreadable image")
+        self.create_catalog()
+        run = self.wait_for(self.start(mode="index"))
+        failures = self.client.get("/api/v1/operations", params={"run":run["id"], "status":"Failed"}).json()
+        self.assertTrue(failures["items"])
+        self.assertTrue(all(op["photo_id"] is not None for op in failures["items"]))
+        tree = self.client.get("/api/v1/photos/folders?every=true").json()
+        self.assertEqual(tree["folders"][0]["last_indexed"], run["ended_at"])
+        self.assertEqual(tree["top_files"]["last_indexed"], run["ended_at"])
+
+    def test_folder_index_times_inherit_through_folded_chains_and_literal_ancestors(self):
+        self.create_catalog()
+        names = ("album/one/deep/a.jpg", "album/two/b.jpg", "album2/c.jpg",
+                 " café_100% /inner /d.jpg", " café_100%/e.jpg")
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            conn.executemany("INSERT INTO photos(source_path,status) VALUES(?,'Pending')",
+                             ((str(self.cfg.source / name),) for name in names))
+            for scope, ended in ((None, "2026-01-01T00:00:00+00:00"),
+                                 ("album", "2026-01-03T00:00:00+00:00"),
+                                 ("album/one", "2026-01-02T00:00:00+00:00"),
+                                 ("album/two", "2026-01-04T00:00:00+00:00"),
+                                 (" café_100% ", "2026-01-05T00:00:00+00:00")):
+                conn.execute("INSERT INTO runs(mode,source_path,dest_path,status,started_at,ended_at,file_ids_filter) "
+                             "VALUES('INDEX',?,?,'Completed',?,?,?)",
+                             (str(self.cfg.source),str(self.cfg.dest),ended,ended,
+                              json.dumps({'source_subdir':scope}) if scope else None))
+            conn.commit()
+        tree = self.client.get('/api/v1/photos/folders', params={'every':'true'}).json()
+        def flatten(nodes):
+            result = {}
+            for node in nodes:
+                result[node['path']] = node['last_indexed']
+                result.update(flatten(node['folders']))
+            return result
+        self.assertEqual(flatten(tree['folders']), {
+            'album':'2026-01-03T00:00:00+00:00',
+            'album/one/deep':'2026-01-03T00:00:00+00:00',
+            'album/two':'2026-01-04T00:00:00+00:00',
+            'album2':'2026-01-01T00:00:00+00:00',
+            ' café_100% /inner ':'2026-01-05T00:00:00+00:00',
+            ' café_100%':'2026-01-01T00:00:00+00:00',
+        })
+        self.assertEqual(tree['top_files']['last_indexed'], '2026-01-01T00:00:00+00:00')
+
     def test_folder_jobs_preserve_literal_names_and_leave_siblings_untouched(self):
         cases = (("album ", "album"), (" album", "album"), (" ", "neighbor"),
                  ("outer / inner ", "outer / inner"), ("café_100% ", "café_100%"),
@@ -1262,7 +1442,8 @@ class JobsAndCatalog(ApiCase):
                         tree = response.json()
                         self.assertEqual(tree["outside"], 0)
                         self.assertEqual(tree["top_files"],
-                                         {"photos": 0, "eligible": {"copy": 0, "move": 0}})
+                                         {"photos": 0, "eligible": {"copy": 0, "move": 0}, "last_indexed": None},
+                                         "no Index ran, so no folder has a last-indexed time")
                         folders = list(tree["folders"])
                         if "/" in relative:
                             self.assertTrue(folders, "the selected empty folder must remain listed")
@@ -1917,6 +2098,127 @@ class ArchivesOverTime(ApiCase):
 
 class CatalogBackups(ApiCase):
     """webui-spec 9: the list, Back up now, and downloads."""
+
+    def settled_change(self):
+        self.create_catalog()
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            run, _ = ns_db.create_run(conn, mode="COPY", source=str(self.cfg.source), destination=str(self.cfg.dest))
+            ns_db.transition_run(conn, run, ns_db.RunStatus.RUNNING)
+            conn.execute("INSERT INTO operations(run_id,status,timestamp) VALUES(?,?,?)", (run, "Copied", ns_db.utc_now()))
+            conn.commit()
+            ns_db.transition_run(conn, run, ns_db.RunStatus.COMPLETED)
+            conn.commit()
+        return run
+
+    def test_post_job_backup_keeps_completed_work_busy_after_api_restart(self):
+        run = self.settled_change()
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            conn.execute("INSERT INTO backup_attempts(trigger_kind,related_run_id,started_at) VALUES('post_job',?,?)", (run, ns_db.utc_now()))
+            conn.commit()
+        with self.engine_lock_held():
+            state = self.client.get('/api/v1/jobs/active').json()
+            self.assertEqual((state['active']['id'], state['active']['status'], state['active']['backup_stage']), (run, 'Completed', 'post_job'))
+            self.assertFalse(state['active']['cancellable'])
+            self.assertIsNone(state['backup'])
+            refused = self.client.post('/api/v1/jobs/start', json={'mode':'index'})
+            self.assertEqual(refused.status_code, 409)
+            self.assertIn('catalog backup to finish', refused.json()['message'])
+        # A vanished engine leaves a warning, not an invented active job or replay.
+        state = self.client.get('/api/v1/jobs/active').json()
+        self.assertIsNone(state['active'])
+        self.assertIsNone(state['backup']['latest']['outcome'])
+        self.assertGreater(state['backup']['unbacked_count'], 0)
+        self.assertEqual(state['last']['status'], 'Completed')
+
+    def test_manual_backup_without_prior_job_is_busy_after_api_restart(self):
+        self.create_catalog()
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            conn.execute("INSERT INTO backup_attempts(trigger_kind,started_at) VALUES('manual',?)", (ns_db.utc_now(),))
+            conn.commit()
+        with self.engine_lock_held():
+            state = self.client.get('/api/v1/jobs/active').json()
+            self.assertEqual(state['active']['backup_stage'], 'manual')
+            self.assertIsNone(state['last'])
+            self.assertEqual(self.client.post('/api/v1/jobs/start', json={'mode':'index'}).status_code, 409)
+
+    def test_fast_acceptance_preserves_backup_busy_stage(self):
+        run = self.settled_change()
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            conn.execute("INSERT INTO backup_attempts(trigger_kind,related_run_id,started_at) VALUES('post_job',?,?)", (run, ns_db.utc_now()))
+            conn.commit()
+        with self.engine_lock_held(), patch.object(self.app_jobs(), 'start', return_value=run):
+            result = self.client.post('/api/v1/jobs/start', json={'mode':'copy'})
+            self.assertEqual(result.status_code, 202)
+            self.assertEqual(result.json()['backup_stage'], 'post_job')
+            self.assertEqual(result.json()['status'], 'Completed')
+            self.assertFalse(result.json()['cancellable'])
+        self.assertNotIn('backup_stage', self.client.get(f'/api/v1/runs/{run}').json())
+
+    def test_failed_backup_retry_only_backs_up_the_catalog_and_clears_status(self):
+        run = self.settled_change()
+        before = self.client.get(f'/api/v1/runs/{run}').json()
+        self.cfg.backups.rmdir()
+        failed = self.client.post('/api/v1/backups').json()
+        self.assertEqual(failed['outcome'], 'failed')
+        status = self.client.get('/api/v1/jobs/active').json()['backup']
+        self.assertEqual(status['latest']['error_category'], 'storage_unavailable')
+        self.assertGreater(status['unbacked_count'], 0)
+        # Repeated reads preserve the warning and do not retry automatically.
+        self.assertEqual(self.client.get('/api/v1/jobs/active').json()['backup'], status)
+        self.cfg.backups.mkdir()
+        self.assertEqual(self.client.post('/api/v1/backups').json()['outcome'], 'succeeded')
+        status = self.client.get('/api/v1/jobs/active').json()['backup']
+        self.assertEqual(status['unbacked_count'], 0)
+        self.assertEqual(status['latest']['outcome'], 'succeeded')
+        self.assertEqual(self.client.get(f'/api/v1/runs/{run}').json(), before)
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM runs').fetchone()[0], 1)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM operations').fetchone()[0], 1)
+
+    def test_manual_backup_refuses_new_work_without_queueing(self):
+        import threading
+        from webui import jobs
+        self.settled_change()
+        runner = self.app_jobs()
+        entered, release = threading.Event(), threading.Event()
+        original = jobs.subprocess.run
+        def paused(*args, **kwargs):
+            entered.set()
+            if not release.wait(10):
+                raise AssertionError('Backup test was not released')
+            return original(*args, **kwargs)
+        result = []
+        with patch.object(jobs.subprocess, 'run', side_effect=paused):
+            thread = threading.Thread(target=lambda: result.append(runner.backup_now()))
+            thread.start()
+            try:
+                self.assertTrue(entered.wait(5))
+                started = time.monotonic()
+                response = self.client.post('/api/v1/jobs/start', json={'mode':'index'})
+                self.assertEqual(response.status_code, 409)
+                self.assertLess(time.monotonic() - started, 1)
+                self.assertEqual(runner.active()['backup_stage'], 'manual')
+                self.assertEqual(self.client.post('/api/v1/backups').status_code, 409)
+            finally:
+                release.set(); thread.join(15)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(result[0]['outcome'], 'succeeded')
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM runs').fetchone()[0], 1, 'Refused work started later')
+
+    def test_backup_feed_reuses_idle_counts_and_invalidates_after_new_records(self):
+        self.settled_change()
+        with patch.object(ns_db, 'unbacked_changes', wraps=ns_db.unbacked_changes) as counted:
+            first = self.client.get('/api/v1/jobs/active').json()['backup']
+            for _ in range(5):
+                self.assertEqual(self.client.get('/api/v1/jobs/active').json()['backup'], first)
+            self.assertEqual(counted.call_count, 1)
+            with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+                conn.execute("INSERT INTO operations(run_id,status,timestamp) VALUES(1,'Copied',?)", (ns_db.utc_now(),))
+                conn.commit()
+            after = self.client.get('/api/v1/jobs/active').json()['backup']
+            self.assertEqual(after['unbacked_count'], first['unbacked_count'] + 1)
+            self.assertEqual(counted.call_count, 2)
 
     def test_backup_symlink_cannot_download_outside_backup_storage(self):
         self.create_catalog()

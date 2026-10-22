@@ -92,7 +92,7 @@ security concern, specified in `webui-spec.md` §5.6.
     *   `--clear-previews` — the web UI's **Free up** (`webui-spec.md` §4.2.1): removes every recorded detail preview and prints one line of JSON, `removed`, `bytes_freed` and `not_removed`. It exits `1` when any file could not be removed. Grid thumbnails stay, and so do recorded preview failures, which name no file and keep the reason a photo has no preview. Only files the catalog records are removed, so the space freed matches the per-size total the page showed. Each file goes before its record, and a file that cannot be removed keeps its record. Like `--preview`, it starts no run and takes no engine lock. If it races a preview request, the worst case is a record whose file is gone, and the next request regenerates it.
     *   `--rebuild-thumbnails missing|all` — the web UI's grid repair and rebuild (`webui-spec.md` §4.2.1). A job: it takes the engine lock, opens a `REBUILD` run, reconciles interrupted work first, honours cancellation while awaiting worker results and settles `Completed`, `Cancelled` or `Failed`. It needs no `--source`. `missing` makes the grid thumbnails not on disk, and `all` regenerates every one. Each is made from `catalogued_copies`: a delivered destination copy first, then a live source, and only one whose size and modification time still match the catalog. Under `all`, an existing thumbnail is replaced only when a copy supplies a new one, never discarded for lack of one. It uses `--workers` like a scan, records no operation, takes no backup, and exits `1` only when the run Failed. Refused with `--no-thumbnails`.
     *   `--check-destination quick|full` — the destination check (§9.1). A read-only job under the engine lock, opening a `CHECK` run. It needs no `--source`, uses `--workers` and `--exts` like a scan, records findings in `destination_findings`, changes nothing, and exits `1` only when the run Failed.
-    *   `--rename PHOTO_ID --name NAME [--dry-run]` and `--rename-candidates PHOTO_ID` — renaming a delivered file (§9.4). The rename is a `RENAME` job under the engine lock that backs up the catalog first; `--dry-run` and `--rename-candidates` answer in one line of JSON, take no lock and change nothing.
+    *   `--rename PHOTO_ID --name NAME [--dry-run] [--rename-preview-token TOKEN]` and `--rename-candidates PHOTO_ID` — renaming a delivered file (§9.4). The rename is a `RENAME` job under the engine lock that backs up the catalog first; `--dry-run` and `--rename-candidates` answer in one line of JSON, take no lock and change nothing.
     *   `--reject` and `--return-to-library`, each with `--file-ids`, `--file-ids-from` or `--source-subdir` (required) — rejecting organized photos and returning rejected ones (§9.5). `REJECT` and `RETURN` jobs under the engine lock that back up the catalog first and record the selection as Copy and Move do.
     *   The database write-queue size is intentionally **not** configurable — left as a hardcoded internal constant rather than exposed, since there was no concrete need identified for tuning it separately from `--workers`.
 *   **Targeted Processing** (mutually exclusive with each other — pick at most one, or omit all three for a full directory scan):
@@ -233,7 +233,7 @@ catalogue, not the tree, so relocating them is a separate action.
 
 ### 4.3. Reporting & Feedback
 *   **Logging:** Structured logs to both console and `<base>/logs/organizer.log`, covering every stage (scan discovery, hashing, metadata resolution, space checks, copy/verify/delete, duplicate cleanup, cancellation). At startup, once the engine holds the single-instance lock, a log over 50 MB is rotated to `organizer.log.1`, keeping five older logs. It is never rotated mid-run, because every worker process writes to the same file, so one run's log is never split.
-*   **Discovery accounting:** a full Index (no `--file-ids`, no `--source-subdir`) records what its walk found in `run_discovery`: files found, eligible by the run's extension selection, and excluded by file type, with a per-extension breakdown in which `""` means no extension. Hidden entries are skipped before counting, as the walk always skipped them, and a symlink is not counted as a file. Any folder or entry the walk could not read sets `unreadable`, and the counts are then **partial**. The log states the same summary, for example *"Discovered 7 file(s): 3 eligible by file type, 4 excluded by file type (.xmp 2, .mov 1, no extension 1)."* Scoped runs walk nothing and record nothing rather than a guess. `ns_db.read_discovery(conn, run_id)` returns the summary for the API (`webui-spec.md` §5.1). Counting excluded files reads the file type `readdir` already returned, so it adds no round trip on a network share.
+*   **Discovery accounting:** a full Index (no `--file-ids`, no `--source-subdir`) records what its walk found in `run_discovery`: files found, eligible by the run's extension selection, and excluded by file type, with separate eligible and excluded per-extension breakdowns in which `""` means no extension. Hidden entries are skipped before counting, as the walk always skipped them, and a symlink is not counted as a file. Any folder or entry the walk could not read sets `unreadable`, and the counts are then **partial**. The log states the same summary, for example *"Discovered 7 file(s): 3 eligible by file type, 4 excluded by file type (.xmp 2, .mov 1, no extension 1)."* Scoped runs walk nothing and record nothing rather than a guess. `ns_db.read_discovery(conn, run_id)` returns the summary for the API (`webui-spec.md` §5.1). Counting excluded files reads the file type `readdir` already returned, so it adds no round trip on a network share.
 *   **Progress Reporting:** during a scan the engine reports, on a fixed interval, the *instantaneous* rate over the most recent window — both files/sec and MB/s — with an ETA derived from that recent rate rather than a cumulative average. The distinction is operational, not cosmetic: a cumulative average decays continuously while a run is healthy, which makes a saturated link look like a failing one. Reporting bytes alongside files is what separates the two cases — a RAW-heavy stretch runs at a few files/sec and a JPEG stretch at tens of files/sec while both saturate the same network link, and only the MB/s figure shows that.
 
 *   **Run Summary:** every Index ends with one line giving the total recorded and a per-status breakdown, plus warnings for files that produced no perceptual hash (they index and move normally but cannot participate in similarity matching (§9.3)) and for files dated from mtime rather than EXIF (the only files a timezone change can move between folders). Without it, a scan where hundreds of files failed would look identical to a clean one.
@@ -342,7 +342,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 30 and refuses incompatible catalogs before processing.
+initializes schema version 31 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -641,7 +641,7 @@ CREATE INDEX idx_lineage_file ON operation_files(file_id,operation_id);
 
 **Recovery, content, cache, discovery and backup records.** The first five are
 written by recovery (4.2), `contents` and `thumbnail_cache` by the scan,
-`run_discovery` by a full Index (4.3), `run_progress` by every job (4.3), `destination_findings` by the destination check (9.1), and the backup records by catalog backups
+`run_discovery` by a full Index (4.3; schema 31 adds the selected-extension counts, calculated from the already-discovered candidate list with no extra filesystem reads), `run_progress` by every job (4.3), `destination_findings` by the destination check (9.1), and the backup records by catalog backups
 (4.1); `file_changes` is defined but not yet written. Index writes `content_similarity`.
 Statement order matters here too:
 `contents` precedes everything referencing it, `operation_events` precedes
@@ -759,6 +759,7 @@ CREATE TABLE run_discovery (
     run_id INTEGER PRIMARY KEY REFERENCES runs(id),
     files_found INTEGER NOT NULL, eligible INTEGER NOT NULL, excluded INTEGER NOT NULL,
     excluded_by_extension_json TEXT NOT NULL, unreadable INTEGER NOT NULL,
+    eligible_by_extension_json TEXT NOT NULL,
     CHECK(files_found = eligible + excluded)
 );
 
@@ -1217,6 +1218,12 @@ a later rename is a new action validated against the current state.
 
 **How it is built.** `--rename PHOTO_ID --name NAME` is a `RENAME` job under the engine lock (`rename_delivered_file`); `--rename ... --dry-run` prints the resolved path as JSON without the lock, which is the live check a typed name needs; `--rename-candidates PHOTO_ID` prints the group's other names, from every copy's source path current and historical. Planning, verification and backup precede any file changes; durable intent makes later uncertainty recoverable:
 
+The web confirmation includes `--rename-preview-token`, a SHA-256 of the resolved plan
+(content hash, status, current path and proposed path). The engine rechecks it under
+its lock before any write. Changed content, location, status or collision resolution
+refuses with a recorded failure and requires a fresh preview. CLI renames without a
+token retain their existing live planning. Request replay binds the token and name.
+
 1.  **Plan** against the files there now (`plan_rename`). The requested stem gets the file's real extension: a trailing extension the engine reads, or the current one, is dropped, so `Beach.PNG` on a JPEG becomes `Beach.jpg`, while `Trip.2019` keeps its dot. A name that is empty, holds `/`, starts with `.` (hidden files are skipped) or exceeds 255 bytes is refused. The same name again changes nothing and takes no backup.
 2.  **Verify the file live**: present, with the catalog's SHA-1. A missing or changed file is recorded `Failed` with the destination-mismatch guidance (`webui-spec.md` §7.6).
 3.  **Back up the catalog** (`pre_action`). A failed backup stops it: "No files were changed because the catalog backup failed."
@@ -1473,12 +1480,12 @@ The format's default determines the write target when none has been established.
     Settings or a later arrival never silently replaces an established primary.
     Read priority is separate from write-target defaults; RAW metadata writes use XMP sidecars only.
     [xmp-metadata.md](xmp-metadata.md) defines version conflicts, shared associations,
-    malformed sidecars and the pending UI contract. Its pure resolution helper is
-    built along with three-source observations and saved explicit ownership/primary
-    decisions. Resolved first-import Copy/Move now activates the filing date only after
+    malformed sidecars and the UI contract. Three-source observations use
+    `metadata_capture.resolve`; explicit ownership/primary decisions are saved. Resolved first-import Copy/Move now activates the filing date only after
     verified transfer; other canonical values/origins remain in the activation receipt.
     Embedded-source activation and qualified JPEG/XMP editing use the engine CLI.
-    Decision routes and source tabs remain pending.
+    Decision routes and source tabs are built; incoming decisions for organized
+    photos have their own remaining UI scope.
 *   **Original XMP storage (capture and resolved first-import jobs connected):** exact originals
     are catalog BLOBs, Zstandard level 1 only when smaller, with original size/SHA-256
     and encoding. Arrivals/participants are separate immutable records. Retention reparses
@@ -1897,9 +1904,13 @@ history keyed by photo, content, reason and action, with unique request IDs and 
 payload. Identical retries do not append another event; conflicting reuse or stale
 photo/review revisions are refused. Small-image eligibility is a query over delivered
 content dimensions and `small_image_min` (positive integer pixels, null for off).
-Acknowledgements survive re-indexing unchanged content and rule changes. Review later
-is independently resolved by Done. Review events are included in catalog backups and
-unbacked-change accounting. Development catalogs require schema 30; no migration.
+Acknowledgements survive re-indexing unchanged content and rule changes. Bookmarks
+use the internal `later` reason. Creation records one of seven validated preset IDs and
+an optional note of at most 60 characters in the exact request payload. `done` removes
+only the bookmark; `keep` is accepted only for a Decide whether to keep it bookmark
+and records the explicit decision. Completion preserves the original preset and note
+in history. Metadata edits never remove a bookmark automatically. Review events are included in catalog backups and
+unbacked-change accounting. Development catalogs require schema 31; no migration.
 
 
 ## 11. Explicit uncertain-outcome verification

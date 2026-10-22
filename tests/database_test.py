@@ -577,13 +577,13 @@ class DatabaseTests(unittest.TestCase):
     def test_discovery_is_stored_per_run_and_found_is_eligible_plus_excluded(self):
         run = self.run_record()
         self.assertIsNone(db.read_discovery(self.conn, run), 'a run that walked nothing has no summary')
-        db.record_discovery(self.conn, run, eligible=10, excluded_by_extension={'.mov': 3, '': 1}, unreadable=0)
+        db.record_discovery(self.conn, run, eligible_by_extension={'.jpg': 8, '.png': 2}, excluded_by_extension={'.mov': 3, '': 1}, unreadable=0)
         self.assertEqual(db.read_discovery(self.conn, run),
                          {'files_found': 14, 'eligible': 10, 'excluded': 4,
-                          'excluded_by_extension': {'': 1, '.mov': 3}, 'unreadable': 0, 'partial': False})
+                          'eligible_by_extension': {'.jpg': 8, '.png': 2}, 'excluded_by_extension': {'': 1, '.mov': 3}, 'unreadable': 0, 'partial': False})
         other = self.run_record()
         with self.assertRaises(sqlite3.IntegrityError), db.transaction(self.conn):
-            self.conn.execute("INSERT INTO run_discovery VALUES (?,5,3,1,'{}',0)", (other,))
+            self.conn.execute("INSERT INTO run_discovery VALUES (?,5,3,1,'{}',0,'{}')", (other,))
 
     def test_progress_is_one_row_per_phase_in_order_and_done_is_the_sum_of_counts(self):
         run = self.run_record()

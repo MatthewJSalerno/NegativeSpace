@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import type { PlaceView, Status } from "../api";
+import type { Status } from "../api";
 import { follow, useHeaderHeight } from "../nav";
 import { Logo } from "./Logo";
 import { Notifications } from "./Notifications";
 import { PageTools } from "./PageTools";
-import { Sidebar, type SidebarCurrent, type SidebarFilters } from "./Sidebar";
+import { Sidebar, type SidebarCurrent } from "./Sidebar";
 
 // The page frame (webui-spec 2; ui-design.md "Page frame"), shared by Library, Logs and
 // Stats: the sticky top bar, with the page's banners under it, then the navigation
 // sidebar beside the page. While photos are selected the selection bar takes the whole
 // top bar. Below 800px the sidebar hides behind the menu button and opens over the page;
-// the button stays while photos are selected, so the places and filters are still in reach.
+// the button stays while photos are selected, so navigation stays in reach.
 export function AppFrame({ header, current, status, onOpenSettings, search, jobs, selection, banners,
-                           matchMin, refresh, filters, onPlace, onShowPhotos, className = "", children }: {
+                           matchMin, refresh, onShowPhotos, className = "", children }: {
   header: RefObject<HTMLElement | null>;
   current: SidebarCurrent;
   status: Status;
@@ -23,8 +23,6 @@ export function AppFrame({ header, current, status, onOpenSettings, search, jobs
   banners?: ReactNode;
   matchMin?: number;
   refresh?: unknown;
-  filters?: SidebarFilters;
-  onPlace?: (view: PlaceView) => void;
   onShowPhotos?: (id: number) => void;
   className?: string;
   children: ReactNode;
@@ -61,7 +59,7 @@ export function AppFrame({ header, current, status, onOpenSettings, search, jobs
       <div className="frame-body">
         {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} />}
         <Sidebar current={current} version={status.version} matchMin={matchMin} refresh={refresh ?? status}
-                 filters={filters} onPlace={onPlace} onNavigate={() => setMenuOpen(false)} />
+                 onNavigate={() => setMenuOpen(false)} />
         {children}
       </div>
     </div>

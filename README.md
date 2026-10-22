@@ -14,7 +14,7 @@ explains each safeguard.
 > **NegativeSpace is not a backup.** It backs up its own catalog, never your photos. Keep
 > your own backups of your photos. See [If something goes wrong](docs/recovery.md).
 
-![The Library, with the sidebar on the left and the years down the right](docs/images/library-year.png)
+![The Library, with the sidebar on the left and the years down the right](docs/images/library-sidebar.png)
 
 ## Install
 
@@ -65,7 +65,7 @@ proxies, writing your own compose file, and stopping a job.
    source alone. **Move all photos…** also deletes each original once its copy is
    verified. You can also do one folder at a time from **Source folders**, or only the
    photos you select.
-4. **Review.** **Has similar photos** finds look-alikes to compare. **Needs review** lists
+4. **Review.** **Similar photos** finds look-alikes to compare. **Needs review** lists
    photos waiting for a decision, such as small images. **Reject…** sets a photo aside in
    **Rejects**, and **Return to library** brings it back.
 5. **Check.** **Logs** lists every job and failure, with **Retry**. Each photo's history

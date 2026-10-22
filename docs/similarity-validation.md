@@ -96,18 +96,7 @@ scope at all thresholds. This is not a replacement for the 250,000-record scale 
 
 ## Maintainer validation — 2026-09-29
 
-Reported against the validation branch after the destination and UI updates:
-
-| Check | Reported result |
-| --- | --- |
-| Index and Copy | Completed without errors |
-| Destination files | Present |
-| Similar threshold filtering | Adjusts results as expected |
-| Page refresh | Selection remained |
-
-These are manual functional results, not measurements of match accuracy or query
-performance. These checks preceded the 75% floor. Destination-query performance at
-250,000 records remains unvalidated.
+Manual acceptance record: [Similarity acceptance, 2026-09-29](manual-validation.md#similarity-2026-09-29).
 
 ## 75% floor — single-catalog check
 
@@ -144,6 +133,9 @@ catalog preservation and review/history retention. The API suite and focused Sim
 browser workflow passed, including setting 75% and retaining it after refresh.
 
 ## Next validation
+
+Historical research plan; current maintainer requests are in
+[Manual validation](manual-validation.md#pending-checks).
 
 - Run the documented tests on this branch. Index and Copy a sample catalog, then
   inspect the destination photos on the Similar page. An Index-only catalog shows
@@ -459,18 +451,7 @@ No real-library copy, move, repair, EXIF editing or deletion was performed.
 
 ## Maintainer manual review — 2026-10-01
 
-The maintainer reports all steps validated for defaults/preferences, identical and
-partially overlapping sets, filtering/counts, comparison and restoration, and
-selection. Previous/next set and Show this set in gallery also work.
-After receiving the detailed instructions, the maintainer confirmed all Copy review
-link steps validated.
-The maintainer reports recovery/logging passes: logs now explain what failed and
-why. Desktop zoom/reflow also passes: the screen scales to 200% and windows adapt.
-This completes the agreed manual functional checklist. Automated results above
-remain separate evidence. Representative 200,000+ photo capacity, dense matching
-and long-session performance remain outstanding; this sign-off does not establish
-those limits. The maintainer subsequently authorized documentation cleanup, merge
-into main and push.
+Manual acceptance record: [Similarity acceptance, 2026-10-01](manual-validation.md#similarity-2026-10-01).
 
 Future discussion requested: presenting selected photos in the gallery. The existing
 Show only selected command already provides a temporary selection gallery; discuss
