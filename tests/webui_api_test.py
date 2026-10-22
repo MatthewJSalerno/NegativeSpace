@@ -279,10 +279,10 @@ class BrowserRequestBoundary(ApiCase):
         self.assertEqual(refused.exception.code, 1008)
         with self.client.websocket_connect('/api/v1/ws/jobs', headers={
                 'origin': 'https://photos.example:8443', 'host': 'photos.example:8443'}) as ws:
-            self.assertEqual(ws.receive_json(), {'active': None, 'last': None})
+            self.assertEqual(ws.receive_json(), {'active': None, 'last': None, 'backup': None})
         # Nonbrowser API clients have no Origin. This is not authentication.
         with self.client.websocket_connect('/api/v1/ws/jobs') as ws:
-            self.assertEqual(ws.receive_json(), {'active': None, 'last': None})
+            self.assertEqual(ws.receive_json(), {'active': None, 'last': None, 'backup': None})
 
 
 class FirstRunAndSettings(ApiCase):
@@ -2098,6 +2098,127 @@ class ArchivesOverTime(ApiCase):
 
 class CatalogBackups(ApiCase):
     """webui-spec 9: the list, Back up now, and downloads."""
+
+    def settled_change(self):
+        self.create_catalog()
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            run, _ = ns_db.create_run(conn, mode="COPY", source=str(self.cfg.source), destination=str(self.cfg.dest))
+            ns_db.transition_run(conn, run, ns_db.RunStatus.RUNNING)
+            conn.execute("INSERT INTO operations(run_id,status,timestamp) VALUES(?,?,?)", (run, "Copied", ns_db.utc_now()))
+            conn.commit()
+            ns_db.transition_run(conn, run, ns_db.RunStatus.COMPLETED)
+            conn.commit()
+        return run
+
+    def test_post_job_backup_keeps_completed_work_busy_after_api_restart(self):
+        run = self.settled_change()
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            conn.execute("INSERT INTO backup_attempts(trigger_kind,related_run_id,started_at) VALUES('post_job',?,?)", (run, ns_db.utc_now()))
+            conn.commit()
+        with self.engine_lock_held():
+            state = self.client.get('/api/v1/jobs/active').json()
+            self.assertEqual((state['active']['id'], state['active']['status'], state['active']['backup_stage']), (run, 'Completed', 'post_job'))
+            self.assertFalse(state['active']['cancellable'])
+            self.assertIsNone(state['backup'])
+            refused = self.client.post('/api/v1/jobs/start', json={'mode':'index'})
+            self.assertEqual(refused.status_code, 409)
+            self.assertIn('catalog backup to finish', refused.json()['message'])
+        # A vanished engine leaves a warning, not an invented active job or replay.
+        state = self.client.get('/api/v1/jobs/active').json()
+        self.assertIsNone(state['active'])
+        self.assertIsNone(state['backup']['latest']['outcome'])
+        self.assertGreater(state['backup']['unbacked_count'], 0)
+        self.assertEqual(state['last']['status'], 'Completed')
+
+    def test_manual_backup_without_prior_job_is_busy_after_api_restart(self):
+        self.create_catalog()
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            conn.execute("INSERT INTO backup_attempts(trigger_kind,started_at) VALUES('manual',?)", (ns_db.utc_now(),))
+            conn.commit()
+        with self.engine_lock_held():
+            state = self.client.get('/api/v1/jobs/active').json()
+            self.assertEqual(state['active']['backup_stage'], 'manual')
+            self.assertIsNone(state['last'])
+            self.assertEqual(self.client.post('/api/v1/jobs/start', json={'mode':'index'}).status_code, 409)
+
+    def test_fast_acceptance_preserves_backup_busy_stage(self):
+        run = self.settled_change()
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            conn.execute("INSERT INTO backup_attempts(trigger_kind,related_run_id,started_at) VALUES('post_job',?,?)", (run, ns_db.utc_now()))
+            conn.commit()
+        with self.engine_lock_held(), patch.object(self.app_jobs(), 'start', return_value=run):
+            result = self.client.post('/api/v1/jobs/start', json={'mode':'copy'})
+            self.assertEqual(result.status_code, 202)
+            self.assertEqual(result.json()['backup_stage'], 'post_job')
+            self.assertEqual(result.json()['status'], 'Completed')
+            self.assertFalse(result.json()['cancellable'])
+        self.assertNotIn('backup_stage', self.client.get(f'/api/v1/runs/{run}').json())
+
+    def test_failed_backup_retry_only_backs_up_the_catalog_and_clears_status(self):
+        run = self.settled_change()
+        before = self.client.get(f'/api/v1/runs/{run}').json()
+        self.cfg.backups.rmdir()
+        failed = self.client.post('/api/v1/backups').json()
+        self.assertEqual(failed['outcome'], 'failed')
+        status = self.client.get('/api/v1/jobs/active').json()['backup']
+        self.assertEqual(status['latest']['error_category'], 'storage_unavailable')
+        self.assertGreater(status['unbacked_count'], 0)
+        # Repeated reads preserve the warning and do not retry automatically.
+        self.assertEqual(self.client.get('/api/v1/jobs/active').json()['backup'], status)
+        self.cfg.backups.mkdir()
+        self.assertEqual(self.client.post('/api/v1/backups').json()['outcome'], 'succeeded')
+        status = self.client.get('/api/v1/jobs/active').json()['backup']
+        self.assertEqual(status['unbacked_count'], 0)
+        self.assertEqual(status['latest']['outcome'], 'succeeded')
+        self.assertEqual(self.client.get(f'/api/v1/runs/{run}').json(), before)
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM runs').fetchone()[0], 1)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM operations').fetchone()[0], 1)
+
+    def test_manual_backup_refuses_new_work_without_queueing(self):
+        import threading
+        from webui import jobs
+        self.settled_change()
+        runner = self.app_jobs()
+        entered, release = threading.Event(), threading.Event()
+        original = jobs.subprocess.run
+        def paused(*args, **kwargs):
+            entered.set()
+            if not release.wait(10):
+                raise AssertionError('Backup test was not released')
+            return original(*args, **kwargs)
+        result = []
+        with patch.object(jobs.subprocess, 'run', side_effect=paused):
+            thread = threading.Thread(target=lambda: result.append(runner.backup_now()))
+            thread.start()
+            try:
+                self.assertTrue(entered.wait(5))
+                started = time.monotonic()
+                response = self.client.post('/api/v1/jobs/start', json={'mode':'index'})
+                self.assertEqual(response.status_code, 409)
+                self.assertLess(time.monotonic() - started, 1)
+                self.assertEqual(runner.active()['backup_stage'], 'manual')
+                self.assertEqual(self.client.post('/api/v1/backups').status_code, 409)
+            finally:
+                release.set(); thread.join(15)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(result[0]['outcome'], 'succeeded')
+        with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM runs').fetchone()[0], 1, 'Refused work started later')
+
+    def test_backup_feed_reuses_idle_counts_and_invalidates_after_new_records(self):
+        self.settled_change()
+        with patch.object(ns_db, 'unbacked_changes', wraps=ns_db.unbacked_changes) as counted:
+            first = self.client.get('/api/v1/jobs/active').json()['backup']
+            for _ in range(5):
+                self.assertEqual(self.client.get('/api/v1/jobs/active').json()['backup'], first)
+            self.assertEqual(counted.call_count, 1)
+            with contextlib.closing(ns_db.connect(self.cfg.db_path)) as conn:
+                conn.execute("INSERT INTO operations(run_id,status,timestamp) VALUES(1,'Copied',?)", (ns_db.utc_now(),))
+                conn.commit()
+            after = self.client.get('/api/v1/jobs/active').json()['backup']
+            self.assertEqual(after['unbacked_count'], first['unbacked_count'] + 1)
+            self.assertEqual(counted.call_count, 2)
 
     def test_backup_symlink_cannot_download_outside_backup_storage(self):
         self.create_catalog()

@@ -762,7 +762,8 @@ confirmation flags, return 400 rather than being silently ignored.
 Returns `{"state":"accepted","run":{...}}` for that exact durable acceptance,
 including completed jobs and jobs preceding newer submissions from other tabs.
 Otherwise returns `{"state":"unknown","run":null}`. A missing row is not proof
-that an in-flight request cannot still be accepted. No job is started by lookup.
+that an in-flight request cannot still be accepted. No job is started by lookup. Acceptance and lookup responses include `backup_stage`
+when a fast job has already entered its final backup; its true result is retained.
 Invalid request-ID syntax returns 400. Database read failures are errors, not an
 unknown/no-job answer.
 
@@ -777,14 +778,26 @@ file in hand and records the rest (`webui-spec.md` §4.1). Refusals:
 
 ### `GET /api/v1/jobs/active`
 
-    {"active": <Run or null>, "last": <Run or null>}
+    {"active": <Run or null>, "last": <Run or null>, "backup": <BackupStatus or null>}
 
-`last` is the newest run, finished or not. `active` has three special forms:
+`last` is the newest run, finished or not. `backup` is null during active work.
+At idle it contains `unbacked_count`, `last_success`, and `latest` (attempt_id,
+trigger_kind, related_run_id, started_at, outcome, error_category, error_detail), or
+null when the catalog is unavailable. An unfinished attempt with no engine remains
+unfinished in storage and is presented as interrupted; reads do not retry it. This
+compact status does not list/probe backup files. Counts are reused while catalog
+identity, append-only record watermarks, last run and latest backup attempt are unchanged.
+
+`active` has these special forms:
 *   **An engine holds the lock but no run is recorded yet**, while it is starting or
     when one was run by hand: `{"id": null, "status": "Preparing", "unrecorded": true}`.
 *   **A run is recorded active but no engine holds the lock**, so it died: it is
     presented with `presented_status: "Interrupted"` and `awaiting_reconciliation: true`.
     The API never writes that; the next engine run records it.
+*   **File work finished, backup still running:** the finished Run remains `active`
+    with `backup_stage: "post_job"`, its true terminal status/outcome and
+    `cancellable: false`. A manual backup has a null ID and `backup_stage: "manual"`.
+    Controls stay blocked until the lock releases; no next-job queue exists.
 *   **`cancellable`** says whether this server can signal the engine.
 
 ### `GET /api/v1/runs/{id}`

@@ -26,7 +26,7 @@ export function JobsMenu({ state, onIndex, onTransfer }: {
   onIndex: () => void;
   onTransfer: (mode: ActionMode, scope: "folder" | "all") => void;
 }) {
-  const busy = state.jobRunning ? "A job is running. Wait for it to finish or cancel it." : null;
+  const busy = state.jobRunning ? "An operation is running. Wait for it and its catalog backup to finish." : null;
   const empty = state.noPhotos ? "Index your library first - NegativeSpace acts on indexed photos." : null;
   const indexWhy = busy;
   const allWhy = (mode: Mode) => busy ?? empty

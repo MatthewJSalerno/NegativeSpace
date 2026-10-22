@@ -35,6 +35,16 @@ permissions. The part that reads and writes your photos runs as your own user (t
 `PUID`/`PGID` you set), so every file it creates belongs to you. The web container that
 serves the pages has no access to your photo folders at all.
 
+After a job finishes its file work, **Backing up catalog…** appears until its backup
+finishes. You can browse during this step; photo-changing actions become available
+afterward. Nothing is queued to start automatically.
+
+If a backup fails, the notice below the top navigation explains what needs attention.
+Fix the reported problem, then choose **Retry backup**. This backs up the catalog
+without repeating the file work. **Back up now** also appears if changes were left
+without a backup after an interruption. Open **Details** for the last backup time and
+technical information.
+
 **NegativeSpace is not a backup of your photos.** It backs up its catalog, never the
 photos themselves. Keep your own backups. See [If something goes wrong](recovery.md).
 

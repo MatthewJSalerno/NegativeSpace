@@ -1515,3 +1515,21 @@ No primary means no invented comparison column; explain its absence. Unavailable
 historical evidence, loading and retry are explicit. There are no edit, copy or
 association actions. Closing restores focus to the history action; history still starts
 collapsed. This inspection does not change ownership or primary metadata.
+
+
+## Catalog backup status
+
+The existing job-status area below the top navigation is shared by Library, Logs and
+Stats. An operation stays busy through its final catalog backup: show its actual
+result followed by **Backing up catalog…**, keeping file-changing actions disabled
+until the engine releases its lock. Browsing remains available. No queue, remembered
+next action or automatic submission after backup; the user starts the next action.
+
+At idle, show one compact notice if catalog changes are unbacked or the latest backup
+failed/interrupted. Offer **Back up now** or **Retry backup**, using the warning surface
+and shared inline controls. Keep counts, backup time, technical details and the job
+link in a collapsed Details disclosure. During a job or manual backup, progress uses
+the same area rather than stacking an unbacked-changes banner. Successful coverage
+clears the notice; it cannot be dismissed. Retry only backs up the current catalog,
+never repeats photo operations. Catalog backups contain recorded metadata/history,
+not photo files. Surface known causes plainly without guessing unknown failures.

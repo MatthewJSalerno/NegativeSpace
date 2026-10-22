@@ -51,6 +51,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | --- | --- | --- |
 | `access_browser_drive.py` | PR / main / manual | — |
 | `appearance_browser_drive.py` | PR / main / manual | — |
+| `backup_browser_drive.py` | PR / main / manual | `BACKUP_FIXTURE=1` |
 | `attention_browser_drive.py` | PR / main / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
 | `copied_source_browser_drive.py` | PR / main / manual | — |
 | `sidebar_refinements_browser_drive.py` | PR / main / manual | — |
@@ -2176,3 +2177,15 @@ only at the edit that made them identical. Failure details and a refused retry
 remain accessible. The existing default and metadata-choice
 browser drivers retain their lineage navigation and metadata-history checks.
 Maintainer steps are in [manual validation](../docs/manual-validation.md#lineage-timeline).
+
+
+### Catalog backup status
+
+`webui_api_test.py` covers completed-run backup activity after API restart, interrupted
+attempts, failure/retry without repeating file work, prompt busy refusals without a
+queue, and reuse/invalidation of idle backup counts. The browser harness with
+`BACKUP_FIXTURE=1 DRIVER=backup_browser_drive.py` runs real jobs and snapshots, holding
+or failing only a generated fixture's backup. It checks Library/Logs/Stats progress,
+disabled actions, failure notices, repeated retry, interrupted snapshots and successful
+clearance. The fixture control lives only in the harness's disposable appdata.
+Manual steps are in [manual-validation.md](../docs/manual-validation.md#catalog-backup-status).

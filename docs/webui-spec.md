@@ -1760,18 +1760,18 @@ operation ends, controls become available again; nothing starts automatically.
 The user must initiate and confirm a new action against current state. Curation jobs
 (rename, reject, return to library) take the same lock as any other job.
 
-**A job requested while the last one's catalog backup runs** (decided 2026-10-17; not
-built). After a job settles, the engine keeps its lock for the catalog backup, about a
-second, so a start in that moment would be refused with no job visible. Instead the page
-says "Finishing the last job's catalog backup… your Move will start in a moment" and
-starts the requested job itself once the lock frees. This is the one exception to
-"nothing starts automatically": the user asked for this job a moment earlier. If the
-backup takes over a minute (slow backup storage), it stops waiting, says so, and offers
-**Start now**.
+**The final catalog backup is part of the busy period** (decided 2026-10-21; built).
+After file work settles, keep new file-changing actions disabled until the engine
+releases its lock. The existing job-status area shows the actual result followed by
+**Backing up catalog…**. Browsing stays available. Do not queue or remember a requested
+next job, retry a submission automatically after backup, or offer a timeout bypass.
+Concurrent requests are refused promptly. Manual backups use the same busy indication.
+A post-job backup failure preserves the job's actual result and leaves a separate,
+persistent backup notice with **Retry backup**. That retry only backs up the catalog.
 
 Only one engine process may run at a time — see `engine-spec.md` §4.1/§7 for the engine-level guarantee (an OS-level `flock`, held for the whole process lifetime, released automatically even on a hard `SIGKILL`). This is enforced in two layers, not one:
 
-* **Fast pre-check (FastAPI):** Before spawning the engine, `POST /api/v1/jobs/start` probes the engine's own lock: a non-blocking `flock` on `<base>/engine.lock`. If the lock is held, an engine is running, and it returns `409 Conflict` immediately — no subprocess is spawned, and the response includes the newest active run's (`Preparing`, `Running` or `Cancelling`) `id`, `mode`, and `started_at` so the frontend can show *"A Move operation is already in progress (started 2 minutes ago) — wait for it to finish or cancel it."* The Rescan/Move/Copy buttons should all be disabled client-side whenever a job is known to be active, so this 409 is a backstop for races (e.g. two tabs), not the primary UX.
+* **Fast pre-check (FastAPI):** Before spawning the engine, `POST /api/v1/jobs/start` probes the engine's own lock: a non-blocking `flock` on `<base>/engine.lock`. If the lock is held, an engine is running, and it returns `409 Conflict` immediately — no subprocess is spawned, and the response includes the newest active run's (`Preparing`, `Running` or `Cancelling`) `id`, `mode`, and `started_at` so the frontend can show *"Another operation is running. Wait for it and its catalog backup to finish, then try again."* The Rescan/Move/Copy buttons should all be disabled client-side whenever a job is known to be active, so this 409 is a backstop for races (e.g. two tabs), not the primary UX.
 
   The pre-check must not decide from an active `runs.status` alone. A row orphaned by a crash stays active until the next engine run reconciles it, so a pre-check that trusted the table would refuse to start that very run: every job blocked, permanently, by a process that no longer exists. If the probe *acquires* the lock, any active rows are stale, and the engine about to be spawned marks them `Interrupted` during its own startup. Two requests can still race between the probe's release and the engine's own acquisition. The engine's lock decides, and the losing engine exits non-zero with its FATAL message, which the API reports as a 409.
 * **Authoritative guarantee (engine):** The `flock` in `engine-spec.md` §4.1 is what actually prevents data corruption if the fast check above is ever wrong or stale — see the FastAPI-restart case below. Even if FastAPI's own bookkeeping says "nothing running" incorrectly, a second engine process attempting to start will still be refused by the lock and exit cleanly with a logged error, never silently racing a real in-progress run.
@@ -3214,9 +3214,14 @@ offer **Retry backup** in a separate persistent backup notice. Do not describe
 completed file work as failed merely because its backup failed.
 
 **Where backups live:** in Settings, not on a page of their own; the top row is full, and
-Stats shows the backup state. While catalog changes are not in any backup, every page shows
-one line under the top row, **"N changes are not in any backup yet · Back up now"**, until a
-backup succeeds.
+Stats shows the backup state. On Library, Logs and Stats, use the existing job-status
+area under the top row for one compact **Catalog changes haven’t been backed up.**
+notice and **Back up now**. While an operation or backup is running, its progress
+replaces this notice. A failed or interrupted backup keeps the notice visible after
+work settles, with a specific known cause and **Retry backup**; no dismiss action.
+Details retain the count, last successful backup, technical cause and job link. A
+successful backup clears the notice once it covers all recorded changes. Do not
+repeat file work or automatically back up on startup. No photos are in this backup.
 
 **Missed backups after interruption:** on startup, reconcile and report the
 interrupted job without restarting its file operations. If its required post-job

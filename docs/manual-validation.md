@@ -9,6 +9,9 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Catalog backup status:** BK1–BK3 below are pending. These use a separate generated
+backup-failure fixture; the existing lineage review catalog is retained.
+
 **Lineage timeline:** LT1–LT6, LT7a–c and LT7e passed. Only LT7d (lineage icon
 trigger) awaits an explicit result; the accepted checks do not need repeating.
 
@@ -1987,3 +1990,40 @@ remain separate evidence. Representative 200,000+ photo capacity, dense matching
 and long-session performance remain outstanding; this sign-off does not establish
 those limits. The maintainer subsequently authorized documentation cleanup, merge
 into main and push.
+
+
+## Catalog backup status
+
+**Status:** automated checks passed; BK1–BK3 await maintainer.
+The review uses the full demo library, already indexed, with a fresh destination.
+A test-only fixture delays each backup and simulates full backup storage once after
+Copy. This does not fill a disk or change source photos. Retry uses real backup storage.
+
+### Test BK1 — Busy through the final backup
+
+a. In **Not organized**, use **Jobs → Copy → Copy all** and confirm. When the
+file work finishes, expect its result followed by **Backing up catalog…** in the
+existing status area. The fixture keeps this stage visible for several seconds.
+
+b. During that stage, browse Library, Logs and Stats. The backup stage remains
+visible. Index and other photo-changing actions remain unavailable. There is no
+queued next job or automatic start when the backup finishes.
+
+### Test BK2 — A backup failure preserves the Copy result
+
+a. After Copy’s backup finishes, expect **Catalog backup failed** with the storage-full
+explanation and **Retry backup**. This is the intentionally generated failure. Copy’s
+notification and log still show its actual photo results, not a backup-induced failure.
+
+b. Visit Library, Logs and Stats, then refresh. The notice remains. Expand **Details**
+for the backup count, technical cause and job link. It explains that Retry backs up
+the catalog without repeating photo operations.
+
+### Test BK3 — Retry clears the warning
+
+a. Select **Retry backup**. Expect **Backing up catalog…** immediately; browsing
+remains available and photo-changing actions stay unavailable until it finishes.
+
+b. After success, the warning clears across pages and remains cleared after refresh.
+The original Copy log and its processed-photo count stay unchanged. Settings → Backups
+shows the failed attempt and the subsequent successful manual backup.

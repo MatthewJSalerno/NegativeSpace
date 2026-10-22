@@ -371,6 +371,9 @@ jobs:
 
       - name: Same-name photo cards in a browser
         run: DRIVER=same_name_browser_drive.py sh tests/browser/webui_browser_test.sh
+      - name: Catalog backup status in a browser
+        run: BACKUP_FIXTURE=1 DRIVER=backup_browser_drive.py sh tests/browser/webui_browser_test.sh
+
       - name: Lineage timeline in a browser
         run: DRIVER=lineage_browser_drive.py sh tests/browser/webui_browser_test.sh
 
