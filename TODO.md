@@ -46,7 +46,7 @@ development until the maintainer decides.
 - Malformed or conflicting capture dates in date review
 - Deferred: bulk and cross-photo date editing
 - 💬 Legacy IPTC precedence and additional RDF mappings
-- 💬 Metadata-independent image hashing and content-based duplicate consolidation (deferred)
+- 💬 Photos arriving again in another form: a relationship layer with metadata-independent hashing (parked, `docs/webui-spec.md` §3.1)
 - 💬 Sidecars edited between Index and Copy or Move
 - 💬 Similar photos and metadata together
 - 💬 Copying all metadata, or a wider choice of fields
@@ -552,7 +552,8 @@ Saved orientation stays a separate action from temporary preview rotation.
   the configurable earliest suspicious year is already built.
 - [ ] **Deferred by maintainer:** production metadata-independent image hashing,
   broader fingerprint formats and image-content duplicate consolidation. Retain the
-  tested JPEG experiment; complete metadata preservation/editing first.
+  tested JPEG experiment; complete metadata preservation/editing first. Its intended use
+  is the parked relationship layer (`docs/webui-spec.md` §3.1).
 - [ ] Destination inventory and repair: **Check my library** and **Repair** in place,
   decided, not built (`docs/engine-spec.md` §9.2). Ordinary per-operation collision/write
   verification is required.
