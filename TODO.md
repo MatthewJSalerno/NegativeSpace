@@ -20,7 +20,7 @@ development until the maintainer decides.
 **Organizing**
 - Earlier versions arriving again — decided, not built (`docs/engine-spec.md` §10)
 - Copy/Move preview grouped by destination folder, and a downloadable plan
-- Backup busy period and persistent status/Retry — built; validation pending; no queue (`docs/webui-spec.md` §5.7 and §9)
+- Backup busy period and persistent status/Retry — built; BK1–BK3 passed; no queue (`docs/webui-spec.md` §5.7 and §9)
 - 💬 Source-folder handling behind the scenes
 - 💬 A content-history link from a photo to its earlier versions
 
@@ -161,7 +161,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 - [x] Same-named photo cards: built and maintainer validated ([spec](docs/webui-spec.md#telling-same-named-photos-apart)).
 
-- [x] Superseded requested-job waiting with blocking through the final backup; no queue (`docs/webui-spec.md` §5.7). Validation pending.
+- [x] Superseded requested-job waiting with blocking through the final backup; no queue (`docs/webui-spec.md` §5.7). BK1–BK3 passed.
 
 - [x] Location views, overlapping Needs review inbox, combined filter chips, cross-location
   filename search and first-visit default (`webui-spec.md` §2).

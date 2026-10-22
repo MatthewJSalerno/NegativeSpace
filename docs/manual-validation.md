@@ -9,8 +9,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
-**Catalog backup status:** BK1–BK3 below are pending. These use a separate generated
-backup-failure fixture; the existing lineage review catalog is retained.
+**Catalog backup status:** [BK1–BK3](#catalog-backup-status) passed, including all
+lettered steps. No manual checks remain for this batch.
 
 **Lineage timeline:** LT1–LT6, LT7a–c and LT7e passed. Only LT7d (lineage icon
 trigger) awaits an explicit result; the accepted checks do not need repeating.
@@ -1994,7 +1994,9 @@ into main and push.
 
 ## Catalog backup status
 
-**Status:** automated checks passed; BK1–BK3 await maintainer.
+**Status:** automated checks passed; the maintainer passed BK1–BK3, including all
+lettered steps, on 2026-10-22. BK1a/b explicitly confirmed the backup progress
+message appeared before the intentional failure warning. No manual checks remain.
 The review uses the full demo library, already indexed, with a fresh destination.
 A test-only fixture delays each backup and simulates full backup storage once after
 Copy. This does not fill a disk or change source photos. Retry uses real backup storage.
