@@ -12,8 +12,8 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 **Catalog backup status:** [BK1–BK3](#catalog-backup-status) passed, including all
 lettered steps. No manual checks remain for this batch.
 
-**Lineage timeline:** LT1–LT6, LT7a–c and LT7e passed. Only LT7d (lineage icon
-trigger) awaits an explicit result; the accepted checks do not need repeating.
+**Lineage timeline:** LT1–LT7 passed, including the explicit LT7d confirmation on
+2026-10-22. No manual checks remain for this batch.
 
 **Photo names and rotation exits:** [Tests NR1–NR3](#photo-names-and-rotation-exits)
 passed, including [focused follow-ups NR1d–e, NR2d and NR3d](#photo-name-follow-ups).
@@ -47,7 +47,8 @@ a retest. Do not infer manual acceptance from automated results.
 
 **Status:** LT1–LT6 passed maintainer validation. Comments: widen path help,
 clarify repeated discovery timestamps, and remove the Rejects line extending past
-Return. LT7a–c and LT7e subsequently passed; LT7d awaits an explicit result.
+Return. LT7a–c and LT7e subsequently passed; LT7d explicitly passed on 2026-10-22.
+All lineage manual checks are complete.
 Shared-help follow-up: build, spec checks, default/shared UI, reference sets, review,
 lineage and same-name browser workflows passed, including keyboard access and reflow.
 Docker validation: 51 Python suites (903 tests), 157 smoke tests including both RAW
