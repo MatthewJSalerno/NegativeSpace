@@ -163,7 +163,14 @@ class ExactEdits(unittest.TestCase):
         later=metadata_save.prepare(self.c,run_id=run,preview=plan,db_path=self.db,backups_dir=self.root/'backups',base_dir=self.root/'base')
         result=metadata_save.execute(self.c,later);self.assertEqual(result['outcome'],'completed',result)
         for pid in (self.pid,self.other_id):
-            self.assertIn(op,[x['id'] for x in lineage.photo_lineage(self.db,pid)['operations']])
+            history = lineage.photo_lineage(self.db,pid)
+            indexed = [f for f in history['files'] if f['origin_kind'] == 'indexed']
+            self.assertEqual(len({f['indexed_sha1'] for f in indexed}), 2,
+                             'Consolidation must preserve the different original content identities')
+            for f in indexed:
+                recorded = self.c.execute('SELECT sha1_hash FROM source_snapshots WHERE file_id=?', (f['file_id'],)).fetchone()[0]
+                self.assertEqual(f['indexed_sha1'], recorded)
+            self.assertIn(op,[x['id'] for x in history['operations']])
             self.assertIn(later,[x['id'] for x in lineage.photo_lineage(self.db,pid)['operations']])
             self.assertIn(op,[x['id'] for x in oplog.list_operations(self.db,photo=pid)['items']])
             self.assertIn(later,[x['id'] for x in oplog.list_operations(self.db,photo=pid)['items']])

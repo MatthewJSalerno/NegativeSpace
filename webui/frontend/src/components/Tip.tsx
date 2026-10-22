@@ -1,13 +1,15 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 // Supplemental help is available by hover, keyboard focus, or an explicit touch
-// button. Keep essential instructions in the page. Escape dismisses only this help.
+// button. When an icon is present, only that icon opens help; labels stay passive.
+// Keep essential instructions in the page. Escape dismisses only this help.
 // `content` replaces the plain text with richer help, such as a diagram; `wide` gives
 // it room. `text` stays the help's plain-text form.
 export function Tip({ text, content, wide = false, showIcon = true, children }: { text: string; content?: ReactNode; wide?: boolean; showIcon?: boolean; children: ReactNode }) {
   const id = useId();
   const root = useRef<HTMLSpanElement>(null);
   const bubble = useRef<HTMLSpanElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   const leaveTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(leaveTimer.current), []);
   const [open, setOpen] = useState(false);
@@ -18,7 +20,7 @@ export function Tip({ text, content, wide = false, showIcon = true, children }: 
     bubble.current.showPopover();
     const place = () => {
       // Passive label help sits outside the enclosing row, including adjacent controls.
-      const anchor = (showIcon ? root.current : root.current?.parentElement)?.getBoundingClientRect();
+      const anchor = (showIcon ? trigger.current : root.current?.parentElement)?.getBoundingClientRect();
       const help = bubble.current?.getBoundingClientRect();
       if (!anchor || !help) return;
       const next = {
@@ -45,19 +47,30 @@ export function Tip({ text, content, wide = false, showIcon = true, children }: 
     window.clearTimeout(leaveTimer.current);
     setOpen(true);
   };
+  const leave = () => {
+    window.clearTimeout(leaveTimer.current);
+    // Allow the pointer to cross the small gap from the trigger to the help.
+    leaveTimer.current = window.setTimeout(() => {
+      const focused = showIcon
+        ? document.activeElement === trigger.current || bubble.current?.contains(document.activeElement)
+        : root.current?.contains(document.activeElement);
+      if (!pinned && !focused) setOpen(false);
+    }, 150);
+  };
   return <span ref={root} className="tip" data-tip={text}
-    onMouseEnter={show} onMouseLeave={() => {
-      // Allow the pointer to cross the small gap to the help bubble.
-      leaveTimer.current = window.setTimeout(() => {
-        if (!pinned && !root.current?.contains(document.activeElement)) setOpen(false);
-      }, 150);
+    onMouseEnter={showIcon ? undefined : show} onMouseLeave={leave}
+    onFocus={showIcon ? undefined : show} onBlur={(e) => {
+      const withinHelp = showIcon
+        ? e.relatedTarget === trigger.current || bubble.current?.contains(e.relatedTarget)
+        : e.currentTarget.contains(e.relatedTarget);
+      if (!withinHelp) { setOpen(false); setPinned(false); }
     }}
-    onFocus={show} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) { setOpen(false); setPinned(false); } }}
     onKeyDown={(e) => { if (e.key === "Escape" && open) { e.preventDefault(); e.stopPropagation(); setOpen(false); setPinned(false); } }}>
     {children}
-    {showIcon && <button type="button" className="help-trigger" aria-label="More information" aria-expanded={open}
+    {showIcon && <button ref={trigger} type="button" className="help-trigger" aria-label="More information" aria-expanded={open}
       aria-controls={open ? id : undefined} aria-describedby={open ? id : undefined}
+      onMouseEnter={show} onMouseLeave={leave} onFocus={show}
       onClick={() => { if (pinned) { setPinned(false); setOpen(false); } else { setPinned(true); show(); } }}>ⓘ</button>}
-    {open && <span ref={bubble} popover="manual" id={id} className={`help-content${wide ? " help-wide" : ""}${!showIcon ? " help-passive" : ""}`} role="note" tabIndex={showIcon ? 0 : undefined} style={position}>{content ?? text}</span>}
+    {open && <span ref={bubble} onMouseEnter={show} onMouseLeave={leave} popover="manual" id={id} className={`help-content${wide ? " help-wide" : ""}${!showIcon ? " help-passive" : ""}`} role="note" tabIndex={showIcon ? 0 : undefined} style={position}>{content ?? text}</span>}
   </span>;
 }

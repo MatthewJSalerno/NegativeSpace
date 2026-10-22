@@ -35,6 +35,16 @@ permissions. The part that reads and writes your photos runs as your own user (t
 `PUID`/`PGID` you set), so every file it creates belongs to you. The web container that
 serves the pages has no access to your photo folders at all.
 
+After a job finishes its file work, **Backing up catalog…** appears until its backup
+finishes. You can browse during this step; photo-changing actions become available
+afterward. Nothing is queued to start automatically.
+
+If a backup fails, the notice below the top navigation explains what needs attention.
+Fix the reported problem, then choose **Retry backup**. This backs up the catalog
+without repeating the file work. **Back up now** also appears if changes were left
+without a backup after an interruption. Open **Details** for the last backup time and
+technical information.
+
 **NegativeSpace is not a backup of your photos.** It backs up its catalog, never the
 photos themselves. Keep your own backups. See [If something goes wrong](recovery.md).
 
@@ -207,7 +217,15 @@ your current primary source.
 ## 8. History, logs and stats
 
 Every photo keeps its full history: each file it has been, each copy made of it, and
-every job that touched it. **View lineage tree** in the panel shows it.
+every job that touched it. **View lineage tree** opens a timeline with a summary,
+then the jobs in order and the files they worked on. Identical files found together
+share an Index entry; files found later have their own entries. **Show all** reveals
+additional paths, and **Show events** expands repeated steps in a long history.
+Later edits don't change which files matched when they arrived. If an edit makes
+two files identical, the timeline shows their separate arrivals and the edit that
+joined their histories.
+**View in log** opens the related job. **Now** shows the last recorded locations,
+not a live check of your files. Hover or focus a path for its recorded details.
 
 **Logs** lists every job and everything it did, with any failures, their reasons, and
 **Retry**. Expand **Metadata choices** to see saved import decisions and the jobs that

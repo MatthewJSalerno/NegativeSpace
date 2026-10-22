@@ -333,8 +333,14 @@ with sync_playwright() as p:
     expect(inspector).not_to_contain_text("File created")
     expect(inspector).to_contain_text("File modified")
     # The file's time says what it is for, briefly; how it was recorded is on hover.
-    expect(inspector.locator(".row-tip", has_text="File modified")).to_have_attribute(
-        "title", "As recorded when NegativeSpace first indexed this file.")
+    modified = inspector.locator(".tip", has_text="File modified")
+    expect(modified).to_have_attribute("data-tip", "As recorded when NegativeSpace first indexed this file.")
+    modified.hover(position={"x": 2, "y": 2})
+    expect(modified.locator(".help-content")).to_have_count(0)
+    modified.get_by_role("button", name="More information").hover()
+    expect(modified.locator(".help-content")).to_contain_text("As recorded when NegativeSpace first indexed this file.")
+    page.mouse.move(5, 5)
+    expect(modified.locator(".help-content")).to_have_count(0)
     expect(inspector).to_contain_text("File modification year is used for Undated filing.")
     expect(inspector).not_to_contain_text("no EXIF date taken")
     # History, in a section of its own near the top, with the latest events.
@@ -658,12 +664,10 @@ with sync_playwright() as p:
     # The lineage tree, in its own window: the source, the copy made from it, their steps.
     page.locator(".inspector").get_by_role("button", name="View lineage tree").click()
     tree = page.get_by_role("dialog", name=re.compile(r"^Lineage of "))
-    expect(tree.locator(".lineage-node.lineage-indexed .lineage-kind").first).to_have_text("Source")
-    copy_node = tree.locator(".lineage-node.lineage-copy")
-    expect(copy_node).to_have_count(1)
-    expect(copy_node).to_contain_text("Copied here")
-    expect(tree.locator(".lineage-step", has_text="Skipped")).to_have_count(1)   # each step once
-    expect(copy_node).to_contain_text("Present")
+    expect(tree.locator(".lineage-discoveries")).to_contain_text("Source")
+    expect(tree.locator(".lineage-step", has_text="Copied and verified")).to_have_count(1)
+    expect(tree.locator(".lineage-step", has_text="Skipped")).to_have_count(1)
+    expect(tree.locator(".lineage-now")).to_contain_text("In Library")
     shot("3c-lineage")
     page.keyboard.press("Escape")
     expect(tree).to_have_count(0)
@@ -684,7 +688,7 @@ with sync_playwright() as p:
     expect(lightbox).to_have_count(0)
     # A step's job opens the log on that job.
     events.nth(0).click()
-    tree.get_by_role("link", name=re.compile(r"^Job #\d+ · Index")).click()
+    tree.get_by_role("link", name=re.compile(r"^Index #\d+")).click()
     expect(page).to_have_url(re.compile(r"/logs\?run=\d+&photo=\d+"))
     expect(page.locator(".job-head[aria-expanded=true]")).to_have_count(1)
     page.go_back()
@@ -815,12 +819,12 @@ with sync_playwright() as p:
     # Its lineage has a duplicate branch; the duplicate's path opens that photo.
     inspector.get_by_role("button", name="View lineage tree").click()
     tree = page.get_by_role("dialog", name=re.compile(r"^Lineage of "))
-    duplicate = tree.locator(".lineage-kind", has_text="Duplicate")
+    duplicate = tree.locator(".lineage-discoveries .section-note", has_text="Identical copy:")
     expect(duplicate).to_have_count(1)
     # The gallery shows the copy the catalog keeps as the original; the other is the duplicate.
     shown = inspector.locator(".inspector-head h2").inner_text()
     other = "photo-000.jpg" if shown == "copy-of-000.jpg" else "copy-of-000.jpg"
-    tree.get_by_role("button", name=re.compile(re.escape(other))).click()
+    tree.locator(".lineage-discoveries").get_by_role("button", name=re.compile(re.escape(other))).click()
     expect(tree).to_have_count(0)
     expect(inspector.locator(".inspector-head h2")).to_have_text(other)
     page.keyboard.press("Escape")

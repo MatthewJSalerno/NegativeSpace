@@ -34,7 +34,7 @@ export function StatsPage({ status, refreshStatus, onOpenSettings }: {
   const [dismissedId, dismissRun, dismissal] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
   const [refreshKey, setRefreshKey] = useState(0);
-  useJobCompletion(() => { setRefreshKey(k => k + 1); refreshStatus(); });
+  useJobCompletion(() => { setRefreshKey(k => k + 1); refreshStatus(); }, true);
   const header = useRef<HTMLElement>(null);
 
   // A job finishing changes the figures.

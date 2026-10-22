@@ -1,6 +1,7 @@
 """Catalog backups as the screens list and download them (webui-spec 9)."""
 
 import os
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -85,7 +86,46 @@ def backup_download(db_path: Path, backups_dir: Path, attempt_id: int) -> Option
 def newest_backup_attempt(db_path: Path) -> Optional[dict]:
     with catalog.connect(db_path) as conn:
         row = conn.execute(
-            "SELECT t.attempt_id, t.trigger_kind, t.started_at, t.outcome, t.error_category, t.error_detail, "
+            "SELECT t.attempt_id, t.trigger_kind, t.related_run_id, t.started_at, t.outcome, t.error_category, t.error_detail, "
             "a.relative_filename, a.size FROM backup_attempts t LEFT JOIN backup_artifacts a USING(attempt_id) "
             "ORDER BY t.attempt_id DESC LIMIT 1").fetchone()
     return dict(row) if row else None
+
+
+class BackupStatus:
+    """Compact shared-feed status, without listing or probing backup files.
+
+    Count uncovered records only when their append-only watermarks, the latest run
+    or backup attempt change. A transaction binds the token and count to one snapshot.
+    Never cache across catalog replacement. Active jobs defer this work until settled.
+    """
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._key = None
+        self._value = None
+
+    def snapshot(self, db_path, last):
+        try:
+            info = db_path.stat()
+            with self._lock, catalog.connect(db_path) as conn:
+                conn.execute('BEGIN')
+                row = conn.execute(
+                    'SELECT attempt_id,trigger_kind,related_run_id,started_at,outcome,error_category,error_detail '
+                    'FROM backup_attempts ORDER BY attempt_id DESC LIMIT 1').fetchone()
+                latest = dict(row) if row else None
+                marks = tuple(conn.execute(
+                    'SELECT (SELECT MAX(id) FROM operations),'
+                    '(SELECT MAX(id) FROM review_events),'
+                    '(SELECT MAX(arrival_id) FROM xmp_arrivals),'
+                    '(SELECT MAX(capture_id) FROM metadata_captures),'
+                    '(SELECT MAX(decision_id) FROM metadata_decisions)').fetchone())
+                key = (info.st_dev, info.st_ino, marks, tuple(row) if row else None,
+                       (last['id'], last['status'], last.get('ended_at')) if last else None)
+                if key != self._key:
+                    conn.row_factory = None
+                    count, since, _ = ns_db.unbacked_changes(conn)
+                    self._value = {'unbacked_count': count, 'last_success': since, 'latest': latest}
+                    self._key = key
+                return self._value
+        except (FileNotFoundError, catalog.CatalogUnavailable):
+            return None

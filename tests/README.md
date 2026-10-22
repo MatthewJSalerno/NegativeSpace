@@ -51,6 +51,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | --- | --- | --- |
 | `access_browser_drive.py` | PR / main / manual | — |
 | `appearance_browser_drive.py` | PR / main / manual | — |
+| `backup_browser_drive.py` | PR / main / manual | `BACKUP_FIXTURE=1` |
 | `attention_browser_drive.py` | PR / main / manual | `SIMILARITY_RECOVERY_FIXTURE=1` |
 | `copied_source_browser_drive.py` | PR / main / manual | — |
 | `sidebar_refinements_browser_drive.py` | PR / main / manual | — |
@@ -69,6 +70,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | `request_freshness_browser_drive.py` | PR / main / manual | — |
 | `review_browser_drive.py` | PR / main / manual | — |
 | `similar_browser_drive.py` | PR / main / manual | — |
+| `lineage_browser_drive.py` | PR / main / manual | — |
 | `same_name_browser_drive.py` | PR / main / manual | — |
 | `low_detail_browser_drive.py` | PR / main / manual | `LOW_DETAIL_FIXTURE=1` |
 | `source_scope_browser_drive.py` | PR / main / manual | — |
@@ -327,6 +329,8 @@ of the checkout, build that copy under another tag, and run with `IMAGE` set to 
 
 The default driver and `ui_browser_drive.py` run `ui_browser_checks.py` for shared control behavior: modal
 focus, menus, field errors, help, theme contrast, failed-page retry and narrow layouts.
+Help checks require icon-only activation when an information icon is present, preserve
+pointer access to open help, and verify keyboard focus, click and Escape dismissal.
 Selection checks preserve the toolbar height and navigation position while keeping
 the selection actions' full-height click targets.
 Single-photo Copy/Move confirms in a dialog without replacing the gallery or hiding
@@ -492,8 +496,8 @@ thresholds, paging, positioning, destination-only eligibility and no DB writes.
 Run the browser harness with `DRIVER=reference_sets_browser_drive.py` and
 `SIMILARITY_RECOVERY_FIXTURE=1`, specifying the built `IMAGE` and `WEB_IMAGE`.
 It uses only the harness's disposable generated catalog. Checks include grouping, the
-explanation of sets and its accurate diagram membership; hover, keyboard focus, the ⓘ
-button, Escape and scrollable viewport bounds at 200% text; set review, selection
+explanation of sets and its accurate diagram membership; icon hover (not label hover),
+keyboard focus, the ⓘ button, Escape and scrollable viewport bounds at 200% text; set review, selection
 preservation, a dense set's members paged in the gallery, and per-file recovery failure
 details in Logs.
 
@@ -2157,3 +2161,31 @@ objects and 4.20s using equivalent string parsing (three runs each). Ordinary
 browsing was 1.24s in the latter run. Query plans used status, SHA-1 and operation
 photo-ID indexes. This optional history filter remains heavier than ordinary browsing;
 these shared-host measurements are not a latency guarantee.
+
+## Lineage timeline
+
+`lineage_browser_drive.py` builds real generated histories for a simple Copy, five
+identical files in one Index, five later arrivals in separate Indexes, and repeated
+Reject/Return jobs. It checks grouped discovery paths, file-specific log links,
+unchanged re-Index behavior, long-history collapse, sticky summary/Now, scroll cues,
+keyboard dismissal/focus restoration, and narrow/200% text reflow. It runs in PR CI.
+The API suite checks first-Index identity, recorded places after Reject/Return and
+unchanged historical operation paths. The metadata consolidation suite retains
+both original fingerprints through later edits. Browser regressions verify that
+current hashes cannot rewrite discovery lanes, and that different sources join
+only at the edit that made them identical. Failure details and a refused retry
+remain accessible. The existing default and metadata-choice
+browser drivers retain their lineage navigation and metadata-history checks.
+Maintainer steps are in [manual validation](../docs/manual-validation.md#lineage-timeline).
+
+
+### Catalog backup status
+
+`webui_api_test.py` covers completed-run backup activity after API restart, interrupted
+attempts, failure/retry without repeating file work, prompt busy refusals without a
+queue, and reuse/invalidation of idle backup counts. The browser harness with
+`BACKUP_FIXTURE=1 DRIVER=backup_browser_drive.py` runs real jobs and snapshots, holding
+or failing only a generated fixture's backup. It checks Library/Logs/Stats progress,
+disabled actions, failure notices, repeated retry, interrupted snapshots and successful
+clearance. The fixture control lives only in the harness's disposable appdata.
+Manual steps are in [manual-validation.md](../docs/manual-validation.md#catalog-backup-status).

@@ -9,6 +9,12 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Catalog backup status:** [BK1–BK3](#catalog-backup-status) passed, including all
+lettered steps. No manual checks remain for this batch.
+
+**Lineage timeline:** LT1–LT7 passed, including the explicit LT7d confirmation on
+2026-10-22. No manual checks remain for this batch.
+
 **Photo names and rotation exits:** [Tests NR1–NR3](#photo-names-and-rotation-exits)
 passed, including [focused follow-ups NR1d–e, NR2d and NR3d](#photo-name-follow-ups).
 No manual checks remain for this batch. The existing IS, CA, SB and LI checks
@@ -36,6 +42,116 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Lineage timeline
+
+**Status:** LT1–LT6 passed maintainer validation. Comments: widen path help,
+clarify repeated discovery timestamps, and remove the Rejects line extending past
+Return. LT7a–c and LT7e subsequently passed; LT7d explicitly passed on 2026-10-22.
+All lineage manual checks are complete.
+Shared-help follow-up: build, spec checks, default/shared UI, reference sets, review,
+lineage and same-name browser workflows passed, including keyboard access and reflow.
+Docker validation: 51 Python suites (903 tests), 157 smoke tests including both RAW
+checks, 41 browser drivers and 11 supporting checks passed. No tests were skipped.
+The two browser selectors affected by the replacement were corrected and rerun;
+final focused checks cover enlarged-text headings and both consolidation workflows.
+Formatting follow-up: the timeline and metadata-choice browser checks, production
+build and spec check passed after moving related history above the timeline and
+adding lane dividers. LT1c, LT4b and LT5b cover this layout change.
+The fresh review catalog contains the generated filenames below, already indexed
+and copied. Each search finds one representative in Library; identical originals
+can appear under the representative's retained name.
+
+### Test LT1 — A simple Index and Copy
+
+a. In **Library**, search **`lineage-simple.jpg`**, open it, then choose
+**Photo information → View lineage tree**. Expect one Index discovery, one Copy,
+and **Now** reporting Library with one original remaining in the source. Two later
+Copy attempts show **Skipped** because the photo was already in Library.
+
+b. Hover or keyboard-focus the information icon beside a path. Expect its size, recorded SHA-1, content match
+and first-recorded time. **View in log** opens that job for this photo. Return and
+reopen lineage; Escape closes it and restores focus to its opener.
+
+c. **Formatting follow-up:** Metadata choices starts collapsed above the timeline,
+with View photo logs nearby. The four lane headings have vertical separators.
+Scroll to the bottom: the events lead into Now without those controls between them.
+
+d. **History links:** with **`lineage-simple.jpg`** open in Photo information,
+find History. View photo logs and View lineage tree sit immediately under its
+heading, before the recent events. Both still open the photo's corresponding history.
+
+### Test LT2 — Identical files found together
+
+a. Search **`lineage-one-index.jpg`** in Library. Open lineage. Expect one Index
+entry containing five source files, with three paths initially visible.
+
+b. Select **Show all 5**. Each file keeps its own path and its recorded time in
+path help. An
+identical-copy path opens that photo; **View in log** opens its job history.
+There are four labelled place lanes, regardless of the number of copies.
+
+### Test LT3 — Copies discovered in later Indexes
+
+a. Search **`lineage-later.jpg`** in Library and open lineage. The first Index
+and Copy are followed by a collapsed group of five later Index discoveries.
+
+b. Select **Show events**. Expect five separate later arrivals, each with a
+separate Index job and its own file path. **Hide events** collapses them again;
+the summary and Now still account for all six originals.
+
+### Test LT4 — Reject, Return and long-history scrolling
+
+a. Search **`lineage-long.jpg`** in Library and open lineage. Expect five
+Reject/Return pairs after Index and Copy. Now ends in Library.
+
+b. Scroll through its history. The summary/lane headings and Now remain visible,
+with More above/More below cues where content continues. Reject branches to
+Rejects; Return leads back to Library. A historical Copy path remains its original
+recorded path, regardless of later moves.
+
+### Test LT5 — Keyboard and larger text
+
+a. With **`lineage-long.jpg`** open, use Tab/Shift+Tab through the lineage
+window. Focus stays inside; paths, log links and disclosures are reachable.
+Escape returns to the opener.
+
+b. Reopen it at 200% text/browser zoom and resize the desktop window. Text wraps,
+controls remain usable and paths are not clipped. Return to normal zoom.
+
+### Test LT6 — Separate files joined by an edit
+
+a. In **Library**, search **`dedup-date-keep.jpg`** and open lineage. The two
+original files arrived in the same Index with different dates. Expect separate
+Index entries, including **Separate source file** for `dedup-date-edit.jpg`,
+rather than an identical-copy label.
+
+b. Scroll to the Metadata job after the two Copy entries. Expect **Date saved**
+and **Became identical; kept dedup-date-keep.jpg**. The join belongs to this edit;
+it does not change the earlier arrivals. The kept filename opens the survivor.
+**Now** reports Library and two originals remaining in the source.
+
+### Test LT7 — Validation comments
+
+a. In Library, search **`lineage-simple.jpg`**, open lineage and hover or focus the information icon beside a
+file path. The wider help keeps the SHA-1 readable, with file details on separate lines.
+
+b. Search **`lineage-long.jpg`** and open lineage. At each Return, the yellow
+Rejects line joins the blue curve without a yellow stub extending below the branch.
+
+c. Search **`lineage-one-index.jpg`** and open lineage. The discovery row has one
+visible timestamp on the left, with no repeated date beside each filename. Hover or
+focus the information icon beside an individual path to see its exact first-recorded time. Separate Index jobs
+for **`lineage-later.jpg`** still have their own dated rows.
+
+d. Search **`lineage-simple.jpg`** and open lineage. Hovering the filename should
+not open file help. Hover or keyboard-focus its adjacent information icon to open
+it; Escape dismisses the help while leaving lineage open.
+
+e. Open **Filters** and hover the **Show only** text: no help opens. Hover its
+information icon: help opens. Move onto the help to read it; keyboard focus and
+Escape still work. On **`lineage-simple.jpg`**, check the **File modified** icon in
+File information follows the same rule. Filename hovers without icons remain unchanged.
 
 ## Photo names and rotation exits
 
@@ -1875,3 +1991,42 @@ remain separate evidence. Representative 200,000+ photo capacity, dense matching
 and long-session performance remain outstanding; this sign-off does not establish
 those limits. The maintainer subsequently authorized documentation cleanup, merge
 into main and push.
+
+
+## Catalog backup status
+
+**Status:** automated checks passed; the maintainer passed BK1–BK3, including all
+lettered steps, on 2026-10-22. BK1a/b explicitly confirmed the backup progress
+message appeared before the intentional failure warning. No manual checks remain.
+The review uses the full demo library, already indexed, with a fresh destination.
+A test-only fixture delays each backup and simulates full backup storage once after
+Copy. This does not fill a disk or change source photos. Retry uses real backup storage.
+
+### Test BK1 — Busy through the final backup
+
+a. In **Not organized**, use **Jobs → Copy → Copy all** and confirm. When the
+file work finishes, expect its result followed by **Backing up catalog…** in the
+existing status area. The fixture keeps this stage visible for several seconds.
+
+b. During that stage, browse Library, Logs and Stats. The backup stage remains
+visible. Index and other photo-changing actions remain unavailable. There is no
+queued next job or automatic start when the backup finishes.
+
+### Test BK2 — A backup failure preserves the Copy result
+
+a. After Copy’s backup finishes, expect **Catalog backup failed** with the storage-full
+explanation and **Retry backup**. This is the intentionally generated failure. Copy’s
+notification and log still show its actual photo results, not a backup-induced failure.
+
+b. Visit Library, Logs and Stats, then refresh. The notice remains. Expand **Details**
+for the backup count, technical cause and job link. It explains that Retry backs up
+the catalog without repeating photo operations.
+
+### Test BK3 — Retry clears the warning
+
+a. Select **Retry backup**. Expect **Backing up catalog…** immediately; browsing
+remains available and photo-changing actions stay unavailable until it finishes.
+
+b. After success, the warning clears across pages and remains cleared after refresh.
+The original Copy log and its processed-photo count stay unchanged. Settings → Backups
+shows the failed attempt and the subsequent successful manual backup.

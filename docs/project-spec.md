@@ -310,9 +310,10 @@ on 2026-10-14 (tests M1–M3).
 Index summaries link to their exact source scopes and share a recorded file-type
 breakdown with Logs. Photo information offers Rename and recorded alternative names;
 the single-photo unsaved-rotation exit has a compact save/discard decision.
+The shared job-status area stays busy through the final catalog backup. At idle,
+unbacked changes and failed backups offer Back up now or Retry backup; no job queue.
 
 Specified but not yet on screen:
-*   The unbacked-changes line on every page, and Retry backup in a persistent backup notice.
 *   The Move/Copy preview grouped by destination folder, and the downloadable plan.
 *   The destination check, from a lineage tree's copy or on its own.
 *   Undated-photo evidence with a per-library back-test (`webui-spec.md` §3.1). Date taken editing/copying

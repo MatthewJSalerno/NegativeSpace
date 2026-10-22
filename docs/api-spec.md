@@ -561,9 +561,9 @@ Everything recorded about a photo's files, for the lineage tree (`webui-spec.md`
      "files": [{"file_id", "origin_file_id", "origin_kind": "indexed" | "copy" | "observed_destination",
                 "path", "role": "source" | "destination", "presence": "present" | "removed" | "missing",
                 "sha1_hash", "matches": true, "file_size", "indexed_path", "created_at",
-                "photo_id", "photo_status"}, ...],
+                "photo_id", "photo_status", "created_run_id", "indexed_sha1", "place": "source" | "library" | "rejects" | null}, ...],
      "operations": [{"id", "run_id", "mode", "action", "status", "timestamp", "error_message", "photo_id",
-                     "source_path", "dest_path", "recovery",
+                     "source_path", "dest_path", "recovery", "consolidated_into", "consolidated_path",
                      "files": [{"file_id", "role": "source" | "destination" | "retained_copy"}]}, ...],
      "selected_by": [{"run_id", "mode", "status", "started_at"}, ...]}
 
@@ -574,6 +574,19 @@ content is the photo's. `operations` is every operation that touched any of them
 first, with the role each file played. `selected_by` is every job the photo was chosen for
 in a selection (`run_selections`), whatever that job then did with it. A copy's size is
 its origin's: it was verified byte for byte when made. An unknown photo is `404 unknown_photo`.
+
+`created_run_id` identifies the first discovery, so later Index observations are not
+shown as new arrivals. `place` is the recorded source or destination place, resolved
+from participating catalog photos; unknown destination ownership returns null.
+`indexed_sha1` is the immutable original Index fingerprint, independent of the
+current `sha1_hash`/`matches` fields. Original fingerprints and recorded duplicate
+Index outcomes establish historical relationships; edits do not reclassify earlier
+arrivals. Sources with different original content stay separate until a recorded
+consolidation joins them. `consolidated_path` is the survivor path from that event,
+not the survivor's current name, and is null for other operations.
+These fields do not check disk presence. Operation paths remain historical even when
+the current file has been renamed, rejected or returned. The timeline groups identical first
+discoveries by Index while retaining each file and its operation-specific log link.
 
 ### `GET /api/v1/photos/{id}/thumbnail`
 
@@ -749,7 +762,8 @@ confirmation flags, return 400 rather than being silently ignored.
 Returns `{"state":"accepted","run":{...}}` for that exact durable acceptance,
 including completed jobs and jobs preceding newer submissions from other tabs.
 Otherwise returns `{"state":"unknown","run":null}`. A missing row is not proof
-that an in-flight request cannot still be accepted. No job is started by lookup.
+that an in-flight request cannot still be accepted. No job is started by lookup. Acceptance and lookup responses include `backup_stage`
+when a fast job has already entered its final backup; its true result is retained.
 Invalid request-ID syntax returns 400. Database read failures are errors, not an
 unknown/no-job answer.
 
@@ -764,14 +778,26 @@ file in hand and records the rest (`webui-spec.md` §4.1). Refusals:
 
 ### `GET /api/v1/jobs/active`
 
-    {"active": <Run or null>, "last": <Run or null>}
+    {"active": <Run or null>, "last": <Run or null>, "backup": <BackupStatus or null>}
 
-`last` is the newest run, finished or not. `active` has three special forms:
+`last` is the newest run, finished or not. `backup` is null during active work.
+At idle it contains `unbacked_count`, `last_success`, and `latest` (attempt_id,
+trigger_kind, related_run_id, started_at, outcome, error_category, error_detail), or
+null when the catalog is unavailable. An unfinished attempt with no engine remains
+unfinished in storage and is presented as interrupted; reads do not retry it. This
+compact status does not list/probe backup files. Counts are reused while catalog
+identity, append-only record watermarks, last run and latest backup attempt are unchanged.
+
+`active` has these special forms:
 *   **An engine holds the lock but no run is recorded yet**, while it is starting or
     when one was run by hand: `{"id": null, "status": "Preparing", "unrecorded": true}`.
 *   **A run is recorded active but no engine holds the lock**, so it died: it is
     presented with `presented_status: "Interrupted"` and `awaiting_reconciliation: true`.
     The API never writes that; the next engine run records it.
+*   **File work finished, backup still running:** the finished Run remains `active`
+    with `backup_stage: "post_job"`, its true terminal status/outcome and
+    `cancellable: false`. A manual backup has a null ID and `backup_stage: "manual"`.
+    Controls stay blocked until the lock releases; no next-job queue exists.
 *   **`cancellable`** says whether this server can signal the engine.
 
 ### `GET /api/v1/runs/{id}`

@@ -1,6 +1,6 @@
 // The job feed (WS /api/v1/ws/jobs) and the words the drawer uses for it.
 import { createContext, createElement, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { api, ApiError, subscribeJobAccepted, type JobState, type Outcome, type Phase, type Run } from "./api";
+import { api, ApiError, subscribeJobAccepted, subscribeBackupActivity, type JobState, type Outcome, type Phase, type Run } from "./api";
 import { count, plural } from "./format";
 
 export type Connection = "connecting" | "open" | "lost";
@@ -18,6 +18,7 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
   const [connection, setConnection] = useState<Connection>("connecting");
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [localBackup, setLocalBackup] = useState(false);
   useEffect(() => {
     let socket: WebSocket | null = null;
     let retryTimer: number | undefined;
@@ -30,7 +31,7 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
     let accepted: Run | null = null;
     const newestId = (state: JobState | null) => Math.max(state?.active?.id ?? 0, state?.last?.id ?? 0);
     const publish = (state: JobState) => { snapshot = state; setJobs(state); setError(null); };
-    const isActive = (run: Run) => ["Preparing", "Running", "Cancelling"].includes(run.status);
+    const isActive = (run: Run) => !!run.backup_stage || ["Preparing", "Running", "Cancelling"].includes(run.status);
     const receive = (state: JobState) => {
       // A snapshot computed before acceptance can arrive after the POST response.
       // Keep the confirmed job visible until the feed reaches that run or a newer one.
@@ -90,13 +91,25 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
         retryTimer = window.setTimeout(connect, 500 * 2 ** retry);
       };
     };
+    let wasBackingUp = false;
+    const unsubscribeBackup = subscribeBackupActivity(busy => {
+      if (busy) { wasBackingUp = true; setLocalBackup(true); return; }
+      if (!wasBackingUp) return;
+      wasBackingUp = false;
+      const startedRevision = revision;
+      void api.jobState().then(state => {
+        if (!stopped && revision === startedRevision) receive(state);
+      }, () => { if (!stopped) setConnection("lost"); }).finally(() => {
+        if (!stopped) setLocalBackup(false);
+      });
+    });
     connect();
     // The timer checks freshness only; healthy live feeds and idle connections
     // make no extra HTTP requests. At most one fallback request runs at a time.
     fallbackTimer = window.setInterval(() => void fallback(), 1000);
     return () => {
       stopped = true;
-      unsubscribe();
+      unsubscribe(); unsubscribeBackup();
       window.clearTimeout(retryTimer); window.clearInterval(fallbackTimer);
       fallbackController?.abort();
       socket?.close();
@@ -105,7 +118,10 @@ export function JobFeedProvider({ children }: { children: ReactNode }) {
   if (!jobs) return createElement("div", { className: "center-page", role: "status" },
     error ?? "Loading…",
     error && createElement("button", { onClick: () => { setError(null); setAttempt(n => n + 1); } }, "Retry"));
-  return createElement(JobFeedContext.Provider, { value: { jobs, connection } }, children);
+  const shown = localBackup && (!jobs.active || jobs.active.awaiting_reconciliation)
+    ? { ...jobs, active: { id: null, mode: "backup", status: "Preparing", backup_stage: "manual" as const, cancellable: false } }
+    : jobs;
+  return createElement(JobFeedContext.Provider, { value: { jobs: shown, connection } }, children);
 }
 
 export function useJobFeed(): JobFeed {
@@ -114,10 +130,14 @@ export function useJobFeed(): JobFeed {
   return feed;
 }
 
-export function useJobCompletion(onFinished: () => void) {
+export function useJobCompletion(onFinished: () => void, includeBackups = false) {
   const { jobs } = useJobFeed();
-  const key = jobs.last && !["Preparing", "Running", "Cancelling"].includes(jobs.last.status)
+  const jobKey = jobs.last && jobs.active?.id !== jobs.last.id && !["Preparing", "Running", "Cancelling"].includes(jobs.last.status)
     ? `${jobs.last.id}:${jobs.last.status}` : null;
+  const key = includeBackups
+    ? jobs.active && !jobs.active.awaiting_reconciliation ? null
+      : `${jobKey ?? "none"}:${jobs.backup?.latest?.attempt_id ?? "none"}:${jobs.backup?.latest?.outcome ?? "none"}:${jobs.backup?.unbacked_count ?? 0}`
+    : jobKey;
   const previous = useRef(key);
   const callback = useRef(onFinished); callback.current = onFinished;
   useEffect(() => {

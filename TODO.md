@@ -20,7 +20,7 @@ development until the maintainer decides.
 **Organizing**
 - Earlier versions arriving again — decided, not built (`docs/engine-spec.md` §10)
 - Copy/Move preview grouped by destination folder, and a downloadable plan
-- Start a requested job after the preceding backup — decided, not built (`docs/webui-spec.md` §5.7)
+- Backup busy period and persistent status/Retry — built; BK1–BK3 passed; no queue (`docs/webui-spec.md` §5.7 and §9)
 - 💬 Source-folder handling behind the scenes
 - 💬 A content-history link from a photo to its earlier versions
 
@@ -52,8 +52,8 @@ development until the maintainer decides.
 - 💬 Copying all metadata, or a wider choice of fields
 
 **Checking and maintenance**
+- Lineage timeline replacing the lineage tree window — built; LT1–LT7 passed (`docs/ui-design.md`, The lineage timeline)
 - Check my library and Repair in place — decided, not built (`docs/engine-spec.md` §9.2)
-- Unbacked-changes line on every page, and Retry backup
 - Import summary, and a filter for files that could not be previewed
 - Skip unreadable files at Index, counted by kind — decided, not built (`docs/engine-spec.md` §4.1)
 - Every warning offers a way out
@@ -161,7 +161,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 - [x] Same-named photo cards: built and maintainer validated ([spec](docs/webui-spec.md#telling-same-named-photos-apart)).
 
-- [ ] Requested job starts after the preceding backup: decided, not built (`docs/webui-spec.md` §5.7).
+- [x] Superseded requested-job waiting with blocking through the final backup; no queue (`docs/webui-spec.md` §5.7). BK1–BK3 passed.
 
 - [x] Location views, overlapping Needs review inbox, combined filter chips, cross-location
   filename search and first-visit default (`webui-spec.md` §2).

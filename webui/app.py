@@ -204,7 +204,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         if set(body) - {'scope','photo_id','request_id'}:
             raise HTTPException(400, {'error':'invalid_request', 'message':'Unknown recovery option.'})
         run_id = jobs.repair_similarity(body.get('scope'), body.get('photo_id'), body.get('request_id'))
-        return outcomes.get_run(cfg.db_path, run_id)
+        return jobs.accepted_run(run_id)
 
     @app.get("/api/v1/similar/{photo_id}/counts")
     def similarity_counts(photo_id: int, scope: str = "library"):
@@ -272,7 +272,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         if set(body) - {"scope", "request_id"}:
             raise HTTPException(400, {"error": "invalid_request", "message": "Send the scope and optional request ID only."})
         run_id = jobs.rebuild_thumbnails(body.get("scope"), body.get("request_id"))
-        return outcomes.get_run(cfg.db_path, run_id)
+        return jobs.accepted_run(run_id)
 
     @app.post("/api/v1/thumbnails/clear-previews")
     def clear_previews():
@@ -440,14 +440,14 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.post("/api/v1/pair-retries/start", status_code=202)
     def pair_retry_start(body: dict = Body(...)):
-        return outcomes.get_run(cfg.db_path,jobs.retry_pairs(body))
+        return jobs.accepted_run(jobs.retry_pairs(body))
 
     @app.post("/api/v1/issues/check", status_code=202)
     def check_issue(body: dict = Body(...)):
         if set(body) - {'issue_id','request_id'}:
             raise HTTPException(400, {'error':'invalid_request','message':'Send the issue ID and optional request ID only.'})
         run_id = jobs.check_issue(body.get('issue_id'), body.get('request_id'))
-        return outcomes.get_run(cfg.db_path, run_id)
+        return jobs.accepted_run(run_id)
 
     @app.get("/api/v1/photos/{photo_id}/names")
     def photo_names(photo_id: int):
@@ -465,7 +465,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.post("/api/v1/photos/{photo_id}/rename", status_code=202)
     def rename_photo(photo_id: int, body: dict = Body(...)):
-        return outcomes.get_run(cfg.db_path, jobs.rename_photo(photo_id, body))
+        return jobs.accepted_run(jobs.rename_photo(photo_id, body))
 
     @app.post("/api/v1/rotations/preview")
     def rotation_preview(body: dict = Body(...)):
@@ -476,7 +476,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.post("/api/v1/rotations/save", status_code=202)
     def rotation_save(body: dict = Body(...)):
-        return outcomes.get_run(cfg.db_path, jobs.save_rotations(body))
+        return jobs.accepted_run(jobs.save_rotations(body))
 
     @app.get("/api/v1/photos/{photo_id}/date-edit")
     def date_edit_context(photo_id: int):
@@ -497,7 +497,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
     @app.post("/api/v1/photos/{photo_id}/date-save", status_code=202)
     def date_edit_save(photo_id: int, body: dict = Body(...)):
         run = jobs.save_date(photo_id,body)
-        return outcomes.get_run(cfg.db_path,run)
+        return jobs.accepted_run(run)
 
     @app.post("/api/v1/photos/{photo_id}/primary-preview")
     def primary_preview(photo_id: int, body: dict = Body(...)):
@@ -510,7 +510,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.post("/api/v1/photos/{photo_id}/primary-save", status_code=202)
     def primary_save(photo_id: int, body: dict = Body(...)):
-        return outcomes.get_run(cfg.db_path, jobs.save_primary(photo_id, body))
+        return jobs.accepted_run(jobs.save_primary(photo_id, body))
 
     @app.get("/api/v1/photos/{photo_id}/metadata")
     def photo_metadata(photo_id: int):
@@ -680,20 +680,20 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             raise JobRefused(400, {"error": "invalid_request", "message": "Unsupported job fields. Answer safety questions through the original job."})
         run_id = jobs.start(body.get("mode"), body.get("file_ids"), body.get("source_subdir"), body.get("request_id"),
                             body.get("confirm_edited_sources", False), body.get("move_preview_token"))
-        return outcomes.get_run(cfg.db_path, run_id)
+        return jobs.accepted_run(run_id)
 
     @app.post("/api/v1/runs/{run_id}/answer", status_code=202)
     def answer_question(run_id: int, body: dict = Body(...)):
         if not {"question", "answer"} <= set(body) or set(body) - {"question", "answer", "request_id"}:
             raise JobRefused(400, {"error": "invalid_request", "message": "Provide question, answer and an optional request_id; the original job supplies the scope."})
         new_id = jobs.answer(run_id, body["question"], body["answer"], body.get("request_id"))
-        return outcomes.get_run(cfg.db_path, new_id)
+        return jobs.accepted_run(new_id)
 
     @app.get("/api/v1/job-requests/{request_id}")
     def lookup_request(request_id: str):
         job_commands.validate_request_id(request_id)
         record = outcomes.request_record(cfg.db_path, request_id)
-        return {"state": "accepted", "run": outcomes.get_run(cfg.db_path, record["run_id"])} if record else {"state": "unknown", "run": None}
+        return {"state": "accepted", "run": jobs.accepted_run(record["run_id"])} if record else {"state": "unknown", "run": None}
 
     @app.post("/api/v1/jobs/{run_id}/cancel", status_code=202)
     def cancel_job(run_id: int):
@@ -702,7 +702,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
 
     @app.get("/api/v1/jobs/active")
     def active_job():
-        return {"active": jobs.active(), "last": outcomes.last_run(cfg.db_path)}
+        return jobs.state()
 
     @app.get("/api/v1/runs/{run_id}")
     def get_run(run_id: int):
@@ -734,8 +734,7 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
                 if not security.request_host_allowed(ws.headers, access.effective(cfg)):
                     await ws.close(code=1008)
                     return
-                state = await run_in_threadpool(lambda: {"active": jobs.active(),
-                                                         "last": outcomes.last_run(cfg.db_path)})
+                state = await run_in_threadpool(jobs.state)
                 encoded = json.dumps(state, sort_keys=True, default=str)
                 if encoded != previous:
                     await ws.send_text(encoded)

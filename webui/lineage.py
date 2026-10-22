@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import catalog, operation_actions
+from engine.ns_db import REJECTED_STATUSES
 
 
 # --- A photo's lineage (webui-spec 6.3) ----------------------------------------
@@ -36,7 +37,7 @@ def photo_lineage(db_path: Path, photo_id: int) -> Optional[dict]:
         files = [dict(r) for r in conn.execute(
             tree + "SELECT t.file_id, o.origin_file_id, o.kind AS origin_kind, s.current_path AS path, "
             "s.location_role AS role, s.presence_state AS presence, s.sha1_hash, snap.file_size, "
-            "snap.source_path AS indexed_path, f.created_at, pf.photo_id, ph.status AS photo_status "
+            "snap.source_path AS indexed_path, snap.sha1_hash AS indexed_sha1, f.created_at, f.created_run_id, pf.photo_id, ph.status AS photo_status "
             "FROM tree t JOIN files f ON f.file_id = t.file_id "
             "LEFT JOIN file_origins o ON o.file_id = t.file_id LEFT JOIN file_states s ON s.file_id = t.file_id "
             "LEFT JOIN source_snapshots snap ON snap.file_id = t.file_id "
@@ -52,6 +53,28 @@ def photo_lineage(db_path: Path, photo_id: int) -> Optional[dict]:
             f"FROM operations o LEFT JOIN runs r ON r.id = o.run_id WHERE o.id IN ({','.join('?' * len(op_ids))}) "
             "ORDER BY o.id", op_ids)] if op_ids else []
         operation_actions.annotate(conn, operations)
+        # Use the survivor's name at the join, not a name it may have acquired later.
+        consolidated = [op["id"] for op in operations if op["consolidated_into"] is not None]
+        retained_paths = {}
+        for offset in range(0, len(consolidated), 500):
+            batch = consolidated[offset:offset + 500]
+            retained_paths.update(conn.execute(
+                "SELECT operation_id,json_extract(detail_json,'$.retained_path') FROM operation_events "
+                "WHERE step='metadata_consolidated' AND operation_id IN (" + ','.join('?' * len(batch)) + ")", batch))
+        for op in operations:
+            op["consolidated_path"] = retained_paths.get(op["id"])
+        # Resolve places through the small set of participating photo IDs. Looking
+        # up each path in photos would scan the whole catalog once per file.
+        owner_ids = sorted(set(photos) | {op["photo_id"] for op in operations if op["photo_id"] is not None})
+        places = {}
+        for offset in range(0, len(owner_ids), 500):
+            batch = owner_ids[offset:offset + 500]
+            for path, status in conn.execute(
+                    "SELECT dest_path, status FROM photos WHERE id IN (" + ",".join("?" * len(batch)) + ")", batch):
+                if path and (path not in places or status in REJECTED_STATUSES):
+                    # Duplicate rows can retain the same destination without carrying
+                    # its owner's curation status. They must not hide a recorded Reject.
+                    places[path] = "rejects" if status in REJECTED_STATUSES else "library"
         # The jobs this photo was chosen for by hand, whatever each then did with it.
         selected_by = [dict(r) for r in conn.execute(
             "SELECT r.id AS run_id, r.mode, r.status, r.started_at FROM run_selections s "
@@ -61,6 +84,7 @@ def photo_lineage(db_path: Path, photo_id: int) -> Optional[dict]:
         by_op.setdefault(r["operation_id"], []).append({"file_id": r["file_id"], "role": r["role"]})
     size = next((f["file_size"] for f in files if f["file_size"] is not None), None)
     for f in files:
+        f["place"] = "source" if f["role"] == "source" else places.get(f["path"])
         # A copy is byte-identical to its origin (verified when made), so it shares its size.
         f["file_size"] = f["file_size"] if f["file_size"] is not None else size
         f["matches"] = bool(photo["sha1_hash"]) and f["sha1_hash"] == photo["sha1_hash"]

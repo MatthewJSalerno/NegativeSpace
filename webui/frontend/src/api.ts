@@ -353,11 +353,19 @@ export interface Run {
   awaiting_reconciliation?: boolean;
   cancellable?: boolean;
   unrecorded?: boolean;
+  backup_stage?: "post_job" | "manual";
+}
+
+export interface BackupStatus {
+  unbacked_count: number;
+  last_success: string | null;
+  latest: Pick<BackupAttempt, "attempt_id" | "trigger_kind" | "related_run_id" | "started_at" | "outcome" | "error_category" | "error_detail"> | null;
 }
 
 export interface JobState {
   active: Run | null;
   last: Run | null;
+  backup?: BackupStatus | null;
 }
 
 export type SafetyQuestion = "source_empty" | "network_destination";
@@ -493,6 +501,9 @@ export interface Backups {
 }
 
 export interface LineageFile {
+  created_run_id: number;
+  indexed_sha1: string | null;
+  place: "source" | "library" | "rejects" | null;
   file_id: number;
   origin_file_id: number | null;
   origin_kind: "indexed" | "copy" | "observed_destination" | null;
@@ -509,6 +520,7 @@ export interface LineageFile {
 }
 
 export interface LineageOperation {
+  consolidated_path: string | null;
   consolidated_into: number | null;
   action: "rotation" | "date" | "metadata_source" | "metadata" | null;
   id: number;
@@ -612,6 +624,22 @@ export const subscribeJobAccepted = (listener: (run: Run) => void) => {
   acceptedJobListeners.add(listener);
   return () => { acceptedJobListeners.delete(listener); };
 };
+const backupListeners = new Set<(busy: boolean) => void>();
+let backupRequest: Promise<BackupAttempt> | null = null;
+export const subscribeBackupActivity = (listener: (busy: boolean) => void) => {
+  backupListeners.add(listener);
+  listener(backupRequest != null);
+  return () => { backupListeners.delete(listener); };
+};
+function backUpNow(): Promise<BackupAttempt> {
+  if (backupRequest) return backupRequest;
+  backupRequest = request<BackupAttempt>("POST", "/api/v1/backups").finally(() => {
+    backupRequest = null;
+    backupListeners.forEach(listener => listener(false));
+  });
+  backupListeners.forEach(listener => listener(true));
+  return backupRequest;
+}
 let submissionPromise: Promise<Run> | null = null;
 let resolveSubmission: ((run: Run) => void) | null = null;
 let rejectSubmission: ((error: ApiError) => void) | null = null;
@@ -823,7 +851,7 @@ export const api = {
     request<{ photo_ids: number[] }>(
       "GET", `/api/v1/operations/photo-ids?${logQuery(f)}${requestedOnly ? "&requested_only=true" : ""}`),
   backups: () => request<Backups>("GET", "/api/v1/backups"),
-  backupNow: () => request<BackupAttempt>("POST", "/api/v1/backups"),
+  backupNow: backUpNow,
   backupDownloadUrl: (id: number) => `/api/v1/backups/${id}/download`,
   thumbnails: () => request<ThumbnailCache>("GET", "/api/v1/thumbnails"),
   rebuildThumbnails: (scope: "missing" | "all") => submitJob("/api/v1/thumbnails/rebuild", { scope }),

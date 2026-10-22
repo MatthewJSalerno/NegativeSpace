@@ -88,6 +88,10 @@ themes. They occupy the browser's top layer so sticky sidebars and adjacent phot
 cannot clip or cover the text. Help is positioned using its rendered size, stays within
 the viewport when it resizes or scrolls, and scrolls internally if needed at larger text
 sizes. Its content is keyboard-focusable so arrow keys can scroll it; Escape dismisses it.
+When an information icon is present, only that icon opens the help by hover, focus or
+click; the surrounding text and row are not hover targets. Moving onto the open help
+keeps it available for reading. Help without an information icon keeps its existing
+hover/focus behavior, including native filename and control tooltips.
 
 Stats warning and failure tiles retain their semantic colored left borders so
 problems are easy to notice. Folder-table cells retain the shared spacing, including
@@ -119,7 +123,7 @@ preview and confirmation controls. Navigation goes to its named destination/tab.
 | Filter trees | Consistent rows, counts and focus. Folder/type labels filter; date-name buttons jump and carry an arrow cue. Parent/child inclusion rules remain those in the web spec. |
 | Menus | `ui/MenuButton.tsx` manages focus, item traversal, nested scopes and dismissal. Domain components provide labels, counts, reasons and callbacks. |
 | Dialogs | `ui/Modal.tsx` uses native modal dialogs and top-layer inertness. Desktop Inspector stays nonmodal; on narrow screens its covering panel becomes modal. |
-| Supplemental help | `Tip.tsx`: hover/focus plus an explicit information button for touch; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. Richer help, such as a small diagram drawn with theme tokens, uses `content` with `wide`; `text` stays its plain form. |
+| Supplemental help | `Tip.tsx`: the information icon is the hover/focus/click target when present; without an icon, retain label hover/focus; real text, a description relationship, Escape dismissal and pointer-accessible content. Essential guidance stays in the page. Richer help, such as a small diagram drawn with theme tokens, uses `content` with `wide`; `text` stays its plain form. |
 | Paged loading | `ui/PageBoundary.tsx` and `paged.ts`: idle/load, pending, failed/retry and end states. Keep already-loaded photos and selection on failure. |
 
 History and Logs use the action and outcome together: **Rotation saved** or **Date
@@ -473,6 +477,67 @@ duplicates): the photo panel shows the photo's information and leads to everythi
 it; the **lineage tree** traces the photo back to its origin through every file and copy;
 the **log** shows the jobs and the work each did. Keep each to its job rather than merging
 them.
+
+**The lineage timeline** (built; decided 2026-10-21; replaces the lineage tree's nested
+list in its window, `webui-spec.md` §6.3). It answers, in order: where the photo is now,
+what happened to it, and where its identical copies went.
+
+- **Related history at the top:** collapsed Metadata choices and View photo logs
+  sit below the title, before the timeline. They scroll away; they never interrupt
+  the path from events to Now. The four lane headings have subtle vertical separators
+  and use the shared strong text weight to read as column headings.
+- **A summary sentence above the events**, generated from the events: "Found in 5 places on 12 Oct:
+  identical copies. Moved to your library by Move #3 on 14 Oct; the other 4 were recorded,
+  not copied, and their originals removed from the source. Now: in Library." It covers
+  the whole history, collapsed parts included, and is the text equivalent of the graph.
+- **A vertical timeline below it, one row per event** in recorded order (`operations.id`):
+  date and local time (exact time on hover), the job (**Index #1**, **Copy #6**…), what it
+  did in plain words with the paths involved, and **View in log**. The existing behaviours
+  stay: a duplicate's path opens that photo, a job opens the log on that job for this
+  photo, a failed step shows its reason and **Retry this photo**, and the information
+  icon beside a path shows its size, content fingerprint, whether it matches and when
+  it was recorded. Only the icon triggers this help (hover, keyboard focus or click);
+  hovering the filename does not open it.
+  Use the shared wide help for file details, with each detail on a separate line. A
+  final **Now** row says where the photo is and what is left in the source.
+- **Beside the rows, four fixed lanes, one per place, never one per file:** Source (the
+  photo's own source file), Identical copies (every other file with the same content),
+  Library and Rejects. Twenty copies still make four columns; a lane is drawn only while
+  something is there. Dots mark events; a copy or move curves from its source lane into
+  Library; identical copies join with a dashed line (recorded, not copied); a Reject
+  branches out to Rejects and a Return back, the Library line dashed while the photo is
+  away; a Move ends the source line with an end mark; a ring marks where the photo is now.
+  Colours use the tokens (muted source, accent Library, warning Rejects) and never stand
+  alone: every lane is labelled and every event is written in its row. The graph is
+  decorative for assistive technology; the rows and the summary carry the content.
+- **Relationships belong to the event's time** (confirmed 2026-10-21). Later edits
+  never reclassify earlier identical discoveries using today's hash. Use original
+  Index fingerprints and recorded duplicate decisions. Sources with different
+  original content remain separate entries in Source, labelled **Separate source
+  file**. If an edit later consolidates them, that edit says **Became identical;
+  kept [filename]**, linking the survivor. Only that event joins their histories.
+- **Copies found by the same Index are one row** with a count on its dot ("and 4 identical
+  copies") and their paths listed under it, the first few then **Show all N**. **Copies
+  found by different Indexes are separate rows** ("Found an identical copy (3rd)…"),
+  because when they arrived is part of the story. The left timestamp identifies the
+  first recorded discovery in the row, not the Index job start. Each file's exact
+  first-recorded time stays in its path help; do not repeat dates beside filenames.
+- **Long histories:** the window scrolls inside itself with the summary and lane headings
+  pinned at the top and the Now row pinned at the bottom, using the shared More above /
+  More below cues. Three or more consecutive events of one kind collapse into one row
+  ("5 more identical copies found between 2 Nov and 3 Jan · Show"), with a counted dot. At
+  1440 × 900 about ten rows fit; most photos have three to ten (Index, Copy, Now, plus
+  edits, rejects or later copies). A re-Index of an unchanged photo adds no row (measured).
+- *Why this layout:* W3C PROV is the established provenance model (files as entities,
+  jobs as activities, the user or the app as agents) and its diagram conventions note that
+  a drawing conveys the gist, not the record ([PROV diagrams](https://www.w3.org/2011/prov/wiki/Diagrams));
+  preservation systems show PREMIS events as a per-object trail with a summary by type;
+  asset-management products use a vertical, chronological timeline; Git clients use
+  lanes for branching; and provenance research shows flow (merges) as a Sankey because a
+  plain graph loses it ([PROV-O-Viz](https://www.scitepress.org/Papers/2024/123547/123547.pdf)).
+  *Why not a horizontal lane graph:* compact for short histories, but it grows sideways
+  and hides the event details behind hovers. *Why not one lane per file:* four copies
+  already make six columns. *Undecided:* exporting a history as PROV-JSON.
 
 **One "Reject?" dialog everywhere** (built; decided 2026-10-05). Every reject question, from the
 gallery, the photo panel, the comparison or Needs review, is the same dialog with the same
@@ -1244,7 +1309,8 @@ infer a more specific source). **Edit metadata date…** opens the existing edit
 Metadata; **View metadata** opens that tab. Hide editing outside Library and disable
 it during a job with the shared explanation. Fold hashes and additional file
 properties under **Technical details** in Photo information. History remains directly
-available. Enlarged photos use the same information, Metadata and eligible Similar
+available. Place **View photo logs** and **View lineage tree** immediately below
+the History heading, before the recent events, using the shared aligned link row. Enlarged photos use the same information, Metadata and eligible Similar
 photos tabs beside the large preview, with the shared resize divider and navigation.
 Do not duplicate the Inspector or put another details layout below the image. Keep
 the active tab and matching threshold when opening/closing, retain gallery geometry
@@ -1449,3 +1515,21 @@ No primary means no invented comparison column; explain its absence. Unavailable
 historical evidence, loading and retry are explicit. There are no edit, copy or
 association actions. Closing restores focus to the history action; history still starts
 collapsed. This inspection does not change ownership or primary metadata.
+
+
+## Catalog backup status
+
+The existing job-status area below the top navigation is shared by Library, Logs and
+Stats. An operation stays busy through its final catalog backup: show its actual
+result followed by **Backing up catalog…**, keeping file-changing actions disabled
+until the engine releases its lock. Browsing remains available. No queue, remembered
+next action or automatic submission after backup; the user starts the next action.
+
+At idle, show one compact notice if catalog changes are unbacked or the latest backup
+failed/interrupted. Offer **Back up now** or **Retry backup**, using the warning surface
+and shared inline controls. Keep counts, backup time, technical details and the job
+link in a collapsed Details disclosure. During a job or manual backup, progress uses
+the same area rather than stacking an unbacked-changes banner. Successful coverage
+clears the notice; it cannot be dismissed. Retry only backs up the current catalog,
+never repeats photo operations. Catalog backups contain recorded metadata/history,
+not photo files. Surface known causes plainly without guessing unknown failures.

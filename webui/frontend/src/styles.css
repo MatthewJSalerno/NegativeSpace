@@ -330,7 +330,6 @@ body.dragging { cursor: col-resize; user-select: none; }
 .info th, .info td { padding: var(--space-1) var(--space-2); text-align: left; vertical-align: top; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
 .info tr:first-child th, .info tr:first-child td { border-top: 0; }
 .info th { width: 34%; font-weight: var(--weight-normal); color: var(--muted); }
-.row-tip { cursor: help; }
 /* Recorded file details expand inside their information section. */
 .info .meta-row > td { padding: var(--space-2) var(--space-2); }
 .info-empty { margin: 0; padding: var(--space-2) var(--space-2); border: 1px solid var(--border); border-radius: var(--control-radius); }
@@ -584,19 +583,52 @@ body.dragging { cursor: col-resize; user-select: none; }
 .history-event:hover strong, .history-event:focus-visible strong { color: var(--accent); text-decoration: underline; }
 .history-links { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); font-size: var(--type-sm); }
 
-/* The lineage tree, in its own window. */
-.lineage-dialog { width: min(900px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
-.lineage-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+/* A recorded event timeline: four fixed place lanes, independent of file count. */
+.lineage-dialog { --lineage-lanes: clamp(192px, 15rem, 40vw); width: min(1180px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; scroll-padding-block: 230px 130px; }
+.lineage-pinned-head { position: sticky; top: calc(var(--lineage-title-height, 44px) - 24px); z-index: 2; background: var(--surface); padding-block: var(--space-3); }
+.lineage-head { position: sticky; top: -24px; z-index: 3; background: var(--surface); padding-block: var(--space-3); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.lineage-tools { margin-top: var(--space-3); }
 .lineage-head h2 { margin: 0; font-size: var(--type-lg); overflow-wrap: anywhere; }
-.lineage-tree, .lineage-children { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
-.lineage-children { margin: var(--space-2) 0 0 var(--space-6); padding-left: var(--space-3); border-left: 2px dashed var(--border); }
-.lineage-node { display: grid; gap: var(--space-1); }
-.lineage-file { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); }
-.lineage-kind { font-weight: var(--weight-strong); }
-.lineage-path { overflow-wrap: anywhere; font-size: var(--type-sm); }
-.lineage-steps { margin-left: var(--space-1); }
+.lineage-summary { background: var(--surface-2); padding: var(--space-3); border-radius: var(--control-radius); margin-block: var(--space-3); }
+.lineage-lane-head { width: var(--lineage-lanes); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); text-align: center; font-size: var(--type-xs); color: var(--muted); overflow-wrap: anywhere; }
+.lineage-lane-head > span { padding: var(--space-1); font-weight: var(--weight-strong); }
+.lineage-lane-head > span + span { border-inline-start: 1px solid var(--border); }
+.lineage-timeline, .lineage-discoveries { list-style: none; margin: 0; padding: 0; }
+.lineage-timeline[hidden] { display: none; }
+.lineage-event { display: grid; grid-template-columns: var(--lineage-lanes) 6.25rem minmax(0, 1fr); column-gap: var(--space-3); min-height: 70px; }
+.lineage-event > time { color: var(--muted); font-size: var(--type-xs); padding-block: var(--space-4); }
+.lineage-event-content, .lineage-group-label { min-width: 0; padding-block: var(--space-3); border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.lineage-event-content p, .lineage-group-label p { margin: 0; }
+.lineage-group-label { grid-column: 2 / -1; }
+.lineage-path { overflow-wrap: anywhere; font-size: inherit; }
 .lineage-step { font-weight: var(--weight-strong); }
-.lineage-failure { display: grid; gap: var(--space-1); justify-items: start; margin-top: var(--space-1); }
+.lineage-discoveries li { padding-block: var(--space-1); }
+.lineage-operation-path { margin-block: var(--space-1); }
+.lineage-operation-path + .lineage-operation-path { border-top: 1px solid var(--border); padding-top: var(--space-1); }
+.lineage-failure { margin-block: var(--space-2); }
+.lineage-now { display: grid; grid-template-columns: var(--lineage-lanes) minmax(0, 1fr); gap: var(--space-3); position: sticky; bottom: -24px; background: var(--surface); border-top: 1px solid var(--border); padding-block: var(--space-3); z-index: 2; }
+.lineage-now p { margin: 0; }
+.lineage-now details { max-height: 25vh; overflow: auto; overflow-wrap: anywhere; }
+.lineage-graph { position: relative; min-height: 70px; }
+.lineage-graph svg { position: absolute; width: 100%; height: 100%; overflow: visible; }
+.lineage-graph path { fill: none; stroke: currentColor; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.lineage-lane-0, .lineage-lane-1 { color: var(--muted); }
+.lineage-lane-2 { color: var(--accent); }
+.lineage-lane-3 { color: var(--warn); }
+.lineage-dot { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 14px; height: 14px; border-radius: 50%; background: currentColor; }
+.lineage-dot:not(:empty) { width: auto; min-width: 22px; height: 22px; display: grid; place-items: center; background: var(--surface-2); border: 2px solid currentColor; font-size: var(--type-sm); padding-inline: 2px; }
+.lineage-dot.current { width: 20px; height: 20px; border: 2px solid currentColor; background: var(--surface); box-shadow: inset 0 0 0 4px var(--surface), inset 0 0 0 12px currentColor; }
+@media (max-width: 850px) {
+  .lineage-event { grid-template-columns: var(--lineage-lanes) minmax(0, 1fr); }
+  .lineage-event > time { grid-column: 2; padding-bottom: 0; }
+  .lineage-event > .lineage-graph { grid-row: span 2; }
+  .lineage-event-content { grid-column: 2; }
+}
+@media (max-height: 600px) {
+  .lineage-head, .lineage-pinned-head, .lineage-now { position: static; }
+  .lineage-dialog { scroll-padding-block: var(--space-4); }
+}
+
 .presence-removed, .presence-missing { color: var(--warn); }
 
 /* Nested windows use the native dialog top layer, not competing z-index values. */

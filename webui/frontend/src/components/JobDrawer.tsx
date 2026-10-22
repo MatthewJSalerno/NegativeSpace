@@ -1,6 +1,6 @@
 import type { DismissalState } from "../dismissal";
 import { useEffect, useState } from "react";
-import { api, ApiError, type JobState, type Run } from "../api";
+import { api, ApiError, type BackupStatus, type JobState, type Run } from "../api";
 import { duration, instant } from "../format";
 import { activeTitle, countsLine, currentPhase, reasonsText, phaseLabel, showsPhotos, summary, type Connection } from "../jobs";
 import { Tip } from "./Tip";
@@ -14,6 +14,8 @@ import { SafetyQuestions } from "./SafetyQuestions";
 // (webui-spec 4.1). Finished results appear in Notifications; safety decisions stay visible.
 export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Connection }) {
   const [now, setNow] = useState(Date.now());
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [cancelSent, setCancelSent] = useState<number | null>(null);
   const [waiting, setWaiting] = useState<{ id: number | null; since: number } | null>(null);
@@ -23,6 +25,10 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (jobs.backup?.latest?.outcome === "succeeded") setBackupError(null);
+  }, [jobs.backup?.latest?.attempt_id, jobs.backup?.latest?.outcome]);
+
   const active = jobs.active;
   if (connection === "lost") {
     return (
@@ -31,7 +37,19 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
       </aside>
     );
   }
-  if (!active) return null;
+  const retryBackup = async () => {
+    setBackupBusy(true); setBackupError(null);
+    try { await api.backupNow(); }
+    catch (error) { setBackupError(error instanceof ApiError ? error.message : "The backup request could not be confirmed. Check the connection and try again."); }
+    finally { setBackupBusy(false); }
+  };
+  if (!active) return <BackupNotice status={jobs.backup} error={backupError} busy={backupBusy} onRetry={retryBackup} />;
+  if (active.backup_stage) return <aside className="drawer drawer-backup" role="status" aria-live="polite">
+    <div className="drawer-row"><strong>{active.backup_stage === "post_job" && active.outcome
+      ? `${summary(active).headline} · Backing up catalog…` : "Backing up catalog…"}</strong></div>
+    <div className="bar bar-indeterminate"><div /></div>
+    <p className="muted">You can browse while this finishes. Photo changes become available afterward.</p>
+  </aside>;
 
     const phase = currentPhase(active);
     const interrupted = active.presented_status === "Interrupted";
@@ -53,6 +71,7 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
       }
     };
     return (
+      <>
       <aside className="drawer" role="status" aria-live="polite">
         <div className="drawer-row">
           <strong>
@@ -95,6 +114,8 @@ export function JobDrawer({ jobs, connection }: { jobs: JobState; connection: Co
           </>
         )}
       </aside>
+      {interrupted && <BackupNotice status={jobs.backup} error={backupError} busy={backupBusy} onRetry={retryBackup} />}
+      </>
     );
 
 }
@@ -141,4 +162,39 @@ export function FinishedBanner({ jobs, dismissedId, onDismiss, dismissal, onShow
       </span>
     </div>
   );
+}
+
+
+const BACKUP_REASON: Record<string, string> = {
+  insufficient_space: "The backup storage is full. Free some space, then retry.",
+  storage_unwritable: "The backup folder is not writable. Fix its permissions, then retry.",
+  storage_unavailable: "The backup location is unavailable. Restore access, then retry.",
+  storage_not_mounted: "The backup storage is not mounted. Connect it, then retry.",
+  storage_overlaps_appdata: "The backup folder overlaps the application data. Choose separate backup storage.",
+  verification_failed: "The backup could not be verified. Check the backup storage, then retry.",
+  write_failed: "The backup could not be written. Check free space, permissions and the storage connection, then retry.",
+};
+
+function BackupNotice({ status, error, busy, onRetry }: {
+  status?: BackupStatus | null; error: string | null; busy: boolean; onRetry: () => void;
+}) {
+  const latest = status?.latest;
+  const failed = latest && latest.outcome !== "succeeded";
+  if (!error && !failed && !status?.unbacked_count) return null;
+  const interrupted = failed && (latest.outcome == null || latest.outcome === "interrupted");
+  return <aside className="drawer drawer-lost backup-notice" role="status">
+    <div className="drawer-text">
+      <strong>{interrupted ? "Catalog backup did not finish." : failed ? "Catalog backup failed." : "Catalog changes haven’t been backed up."}</strong>
+      {failed && <span>{interrupted ? "Back up the current catalog when you’re ready." : BACKUP_REASON[latest.error_category ?? ""] ?? "Open the details, fix the reported problem, then retry."}</span>}
+      <button className="link" disabled={busy} onClick={onRetry}>{busy ? "Backing up…" : failed ? "Retry backup" : "Back up now"}</button>
+    </div>
+    {error && <p className="error">{error}</p>}
+    <details><summary>Details</summary>
+      <p>{status?.unbacked_count ?? 0} catalog changes are not backed up.
+        {status?.last_success ? ` Last successful backup: ${instant(status.last_success)}.` : " No successful backup is recorded."}</p>
+      <p>Catalog backups preserve metadata and history, not photo files. Retrying only backs up the catalog; it does not repeat file operations.</p>
+      {latest?.error_detail && <p>{latest.error_detail}</p>}
+      {latest?.related_run_id != null && <a href={logUrl({ run: latest.related_run_id })} onClick={follow}>View job details</a>}
+    </details>
+  </aside>;
 }

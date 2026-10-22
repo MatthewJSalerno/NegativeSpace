@@ -1,3 +1,4 @@
+import { Tip } from "./Tip";
 import { OtherNames, RenameDialog } from "./PhotoNames";
 import { RotationControls, useRotationSave } from "./RotationControls";
 import { useRotationExit } from "./RotationEditor";
@@ -422,8 +423,7 @@ function Details({ onRename, onImportChoices, detail: d, onLineage, refreshKey, 
               {IN_LIBRARY.includes(d.status) && !d.dest_path_is_projection && <OtherNames id={d.id} refreshKey={refreshKey} disabled={jobRunning} onChoose={onRename}/>}</>}]} />
         </td></tr>
         <Row label="Size">{bytes(d.file_size)}{d.width && d.height ? ` · ${d.width} × ${d.height}` : ""}</Row>
-        <Row label={<span className="row-tip" title="As recorded when NegativeSpace first indexed this file.">
-                      File modified <span aria-hidden="true">ⓘ</span></span>}>
+        <Row label={<Tip text="As recorded when NegativeSpace first indexed this file.">File modified</Tip>}>
           {epoch(d.file_modified)}
         </Row>
       </Section>
@@ -521,6 +521,10 @@ function PhotoHistory({ id, onLineage, refreshKey }: { id: number; onLineage: ()
   return (
     <section className="info-section photo-history">
       <h3>History{page && page.total > 0 ? ` (${page.total})` : ""}</h3>
+      {page && page.total > 0 && <div className="history-links">
+        <a href={logUrl({ photo: id })} onClick={follow}>View photo logs</a>
+        <button className="link" onClick={onLineage}>View lineage tree</button>
+      </div>}
       {!page ? <p className="muted info-empty">Loading…</p> : page.total === 0 ? (
         <p className="muted info-empty">Nothing recorded yet.</p>
       ) : (
@@ -536,10 +540,6 @@ function PhotoHistory({ id, onLineage, refreshKey }: { id: number; onLineage: ()
               </li>
             ))}
           </ol>
-          <div className="history-links">
-            <a href={logUrl({ photo: id })} onClick={follow}>View photo logs</a>
-            <button className="link" onClick={onLineage}>View lineage tree</button>
-          </div>
         </>
       )}
     </section>
