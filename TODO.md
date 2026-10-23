@@ -20,16 +20,13 @@ development until the maintainer decides.
 **Organizing**
 - Earlier versions arriving again — decided, not built (`docs/engine-spec.md` §10)
 - Copy/Move preview grouped by destination folder, and a downloadable plan
-- Backup busy period and persistent status/Retry — built; BK1–BK3 passed; no queue (`docs/webui-spec.md` §5.7 and §9)
 - 💬 Source-folder handling behind the scenes
 - 💬 A content-history link from a photo to its earlier versions
 
 **Review**
 - Answer many photos at once within one reason — decided, not built (`docs/webui-spec.md` §7.9)
-- Suspicious dates in the review queue, with "this date is correct"
 - "Looks like a reject" (decided)
 - Undated-photo evidence and per-library back-test — decided, not built (`docs/webui-spec.md` §3.1)
-- Record in history when a review reason clears itself
 - Review history speed with many decisions
 
 **Similar photos**
@@ -52,7 +49,6 @@ development until the maintainer decides.
 - 💬 Copying all metadata, or a wider choice of fields
 
 **Checking and maintenance**
-- Lineage timeline replacing the lineage tree window — built; LT1–LT7 passed (`docs/ui-design.md`, The lineage timeline)
 - Check my library and Repair in place — decided, not built (`docs/engine-spec.md` §9.2)
 - Import summary, and a filter for files that could not be previewed
 - Skip unreadable files at Index, counted by kind — decided, not built (`docs/engine-spec.md` §4.1)
@@ -191,8 +187,7 @@ Found 2026-10-05 looking for screens that do the same job twice.
 
 - [x] UX consistency batch: one toggle row per place, in-place Small images filter,
   closed Inspector on place changes, contextual/collapsible source summary, grouped
-  photo actions and the dedicated review layout. Date flags remain informational;
-  persistent date acknowledgments remain unbuilt. Single-photo date editing is tracked below.
+  photo actions and the dedicated review layout. Date facts remain independent of the review decisions tracked below. Single-photo date editing is tracked below.
 
 - [x] The in-tray for Small images and Review later (`docs/webui-spec.md` §7.9).
 - [x] Library-only review decisions, source exclusion from similarity, backend eligibility, separate source
@@ -208,12 +203,12 @@ Found 2026-10-05 looking for screens that do the same job twice.
 - [ ] Incoming-alternative decisions for already organized/rejected matches, with independent
   metadata/location choices. Durable BLOB storage and engine primitives are built;
   their decision UI remains unfinished. Import-pair retry is already built.
-- [ ] Add the remaining Library reasons to the shared inbox/workspace: suspicious dates with acknowledgment;
-  No capture date and sidecar/edit reasons with their respective workstreams.
+- [x] Suspicious-date acknowledgment and explicit saved-date confirmation: DR1–DR4 passed (`docs/webui-spec.md` §7.9).
+- [ ] Add No capture date and sidecar/edit reasons to the shared inbox with their respective workstreams.
 - [ ] Bulk review answers within one reason: decided, not built (`docs/webui-spec.md` §7.9).
-- [ ] Record automatic reason clearing in review history. Current small-image
-  eligibility is computed on read; explicit user decisions are recorded, but a
-  setting/dimension change that removes eligibility does not append an event.
+- [x] Automatic date/size clearing history: DR1–DR4 passed (`docs/webui-spec.md` §7.9).
+- [x] Date-save warnings and recorded job details — DR5 passed (`docs/ui-design.md`, Date-only metadata editing).
+- [ ] Automatic history for future review reasons: not built (`docs/webui-spec.md` §7.9).
 - [ ] Broader performance coverage with many accumulated review events. A 200k-photo
   generated catalog has been checked with an empty history; this does not model
   years of bookmarks and acknowledgments.
@@ -547,9 +542,7 @@ Saved orientation stays a separate action from temporary preview rotation.
   and metadata workflows should work together, alongside the deferred cross-photo
   metadata controls above. Scope and behavior are undecided; discussion only.
 
-- [ ] Extend date review to malformed/raw EXIF, conflicting capture tags and acknowledgment
-  of known-valid dates if needed. Current flags use the recorded gallery date;
-  the configurable earliest suspicious year is already built.
+- [ ] Malformed/raw EXIF and conflicting capture-tag review — unbuilt; recorded-date acknowledgment is tracked above (`docs/webui-spec.md`, Suspicious dates).
 - [ ] **Deferred by maintainer:** production metadata-independent image hashing,
   broader fingerprint formats and image-content duplicate consolidation. Retain the
   tested JPEG experiment; complete metadata preservation/editing first. Its intended use

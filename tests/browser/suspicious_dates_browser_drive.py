@@ -28,7 +28,7 @@ with sync_playwright() as p:
         ids = [r[0] for r in conn.execute("SELECT id FROM photos WHERE status='Copied' ORDER BY id LIMIT 2")]
         for photo,year,source in zip(ids,('0001','2218'),('exif','file_mtime')):
             conn.execute("UPDATE photos SET metadata_json=json_set(metadata_json,'$.date_taken',?,'$.date_source',?) WHERE id=?",(year+'-01-01 12:00:00',source,photo))
-    page = browser.new_page(viewport={'width':1440,'height':1000})
+    page = browser.new_page(viewport={'width':1440,'height':1000}, color_scheme='dark')
     errors=[]
     page.on('pageerror',lambda e: errors.append(str(e)))
     page.goto(sys.argv[1]+'/?view=organized')
@@ -66,6 +66,37 @@ with sync_playwright() as p:
     assert page.locator('body').evaluate('e => e.scrollWidth <= innerWidth'), 'narrow overflow'
     if os.environ.get('SHOTS'):
         page.screenshot(path=os.path.join(os.environ['SHOTS'],'suspicious-dates-narrow.png'))
+    # Date acknowledgment uses the shared review workspace, not the facts filter.
+    page.set_viewport_size({'width':1440,'height':900})
+    page.goto(sys.argv[1]+f'/?view=review&reason=date&review_photo={ids[1]}')
+    decision = page.get_by_role('group',name='Date decision',exact=True)
+    expect(decision.get_by_role('button',name='Edit date…',exact=True)).to_be_visible()
+    answer = decision.get_by_role('button',name='This date is correct',exact=True)
+    expect(answer).to_be_visible()
+    page.evaluate("document.documentElement.style.fontSize='200%'")
+    answer.scroll_into_view_if_needed()
+    assert answer.evaluate('e => { const r=e.getBoundingClientRect(); return r.left>=0 && r.right<=innerWidth; }')
+    if os.environ.get('SHOTS'):
+        page.screenshot(path=os.path.join(os.environ['SHOTS'],'date-review-large-text.png'))
+    answer.focus(); page.keyboard.press('Space')
+    expect(page).to_have_url(re.compile(f'review_photo={ids[0]}'))
+    page.evaluate("document.documentElement.style.fontSize=''")
+    expect(request.get(f'/api/v1/photos/{ids[0]}/review')).to_be_ok()
+    first = request.get(f'/api/v1/photos/{ids[1]}/review').json()
+    assert first['date_confirmed'] and not any(r['reason']=='date' for r in first['reasons']), first
+    page.get_by_role('button',name='This date is correct',exact=True).click()
+    expect(page.get_by_role('button',name='This date is correct',exact=True)).to_have_count(0)
+    expect(page.locator('.inspector')).to_have_count(0)
+    assert request.get('/api/v1/photos?view=review&reason=date').json()['total']==0
+    assert request.get('/api/v1/photos?view=organized&suspicious=true').json()['total']==2
+    page.goto(sys.argv[1]+'/?view=organized&suspicious=1')
+    expect(page.locator('.card')).to_have_count(2)
+    page.locator(f'.card[data-id="{ids[0]}"] .card-image').click()
+    expect(page.locator('.inspector').get_by_text('Date confirmed',exact=True)).to_be_visible()
+    page.locator('.inspector').get_by_text('Review history (1)',exact=True).click()
+    expect(page.locator('.inspector')).to_contain_text('Date confirmed correct: 0001-01-01 12:00:00')
+    if os.environ.get('SHOTS'):
+        page.screenshot(path=os.path.join(os.environ['SHOTS'],'date-confirmed-inspector.png'))
     assert not errors,errors
     browser.close()
 print('Suspicious date browser checks passed')

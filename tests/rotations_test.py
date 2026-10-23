@@ -182,7 +182,32 @@ class RecordedActionTests(unittest.TestCase):
     def test_old_metadata_and_transfer_rows_keep_distinct_fallbacks(self):
         import sqlite3
         with sqlite3.connect(':memory:') as conn:
-            conn.execute('CREATE TABLE operation_events(operation_id,step,detail_json)')
+            conn.execute('CREATE TABLE operation_events(operation_id,step,detail_json,outcome)')
             items=[{'id':1,'mode':'METADATA'},{'id':2,'mode':'MOVE'},{'id':3,'mode':'COPY'}]
             self.assertEqual([row['action'] for row in operation_actions.annotate(conn,items)],
                              ['metadata',None,None])
+
+
+    def test_date_details_require_verified_save_not_intent_or_success_label(self):
+        import json
+        import sqlite3
+        with sqlite3.connect(':memory:') as conn:
+            conn.execute('CREATE TABLE operation_events(operation_id,step,detail_json,outcome)')
+            preview={'changes':{'date_taken':'2399-01-01'},
+                     'target':{'source_id':'exif','kind':'embedded_exif'},
+                     'sources_before':{'exif':{'fields':{}}}}
+            for i in (1,2,3):
+                conn.execute('INSERT INTO operation_events VALUES(?,?,?,?)',
+                    (i,'intent',json.dumps({'kind':'metadata_edit','expected':{'preview':preview}}),'planned'))
+            # Even a failed relocation can have a verified metadata write. Conversely,
+            # a completed/skipped label alone does not prove anything was written.
+            receipt=json.dumps({'sources':{'exif':{'fields':{'date_taken':'2020-02-03T04:05:06'}}}})
+            conn.execute('INSERT INTO operation_events VALUES(?,?,?,?)',(1,'metadata_saved',receipt,'verified'))
+            conn.execute('INSERT INTO operation_events VALUES(?,?,?,?)',(2,'metadata_saved',receipt,'failed'))
+            result=operation_actions.annotate(conn,[{'id':i,'mode':'METADATA','status':status}
+                for i,status in ((1,'Failed'),(2,'Failed'),(3,'Completed'))])
+            self.assertEqual(result[0]['date_change'],{'target':'embedded_exif',
+                'before':{'present':False,'value':None},
+                'after':{'present':True,'value':'2020-02-03T04:05:06'}})
+            self.assertIsNone(result[1]['date_change'])
+            self.assertIsNone(result[2]['date_change'])

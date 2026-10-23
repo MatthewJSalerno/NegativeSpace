@@ -9,6 +9,9 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Date review and clearing history:** DR1–DR5 passed, including all lettered steps,
+on 2026-10-23. No manual checks remain for this batch.
+
 **Catalog backup status:** [BK1–BK3](#catalog-backup-status) passed, including all
 lettered steps. No manual checks remain for this batch.
 
@@ -42,6 +45,123 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Date review and clearing history
+
+**Status:** DR1–DR4 passed maintainer validation on 2026-10-23. The DR2 comments
+requested the focused DR5 follow-up below. Before that follow-up, Docker checks passed: 51 Python suites
+(926 tests), 157 engine smoke tests including both public RAW checks, 42 browser
+drivers and 11 supporting checks. No tests were skipped. The help-popup Home failure
+was reproduced on the unchanged application and fixed in the shared control; the
+existing strict test now passes. Dark-mode enlarged-text screenshots were inspected.
+
+The prepared review catalog contains
+both the demo library and generated cases, already indexed and copied. Start with
+small-image reminders on at **800** pixels and earliest expected year **1800**.
+Use **Library** and clear refinements before each filename search. Exact filenames
+below identify the generated cases; source paths are not needed.
+
+### Test DR1 — Confirm an unusual date without editing it
+
+a. In **Library**, search **`scn-date-future-generated-034.jpg`** and open it.
+Expect a suspicious date in **2031** and a small-image reminder. Choose
+**Bookmark…**, select **Other**, enter `Date review check`, and save the bookmark.
+
+b. Select **Needs review**, choose **Reason → Suspicious dates**, and select
+**Review one by one**. The date explanation has **Edit date…** beside
+**This date is correct**. Select **This date is correct**. Expect the photo to leave
+this date-review queue; with this one-photo search, the preview closes and the
+empty gallery shows completion.
+
+c. Select **Library** again and search the same filename. Open it. Expect
+**Date confirmed**, the unchanged 2031 date, and the small-image reminder and
+bookmark still present. Expand **Review history**: expect one **Date confirmed
+correct** entry. Reload the page; the confirmation remains.
+
+d. With the same search, select **Odd dates**. The photo still appears because
+its recorded date is outside the expected range. Select **Needs review** and
+**Reason → Suspicious dates**: it does not reappear as an unanswered date.
+
+### Test DR2 — Saving a chosen date confirms it
+
+a. In **Library**, clear refinements and search **`generated-000.jpg`**. Open
+**Metadata**, select its primary **EXIF** source, and choose **Edit date…** beside
+**Date taken**. Set the full Date taken value to **`2399-06-07T12:34:56`**;
+leave **Explicitly clear Date taken** unchecked.
+
+b. Preview and save the date and proposed file move. After the job completes,
+open **Photo information**. Expect **Date confirmed**, no unanswered suspicious-date
+reason, and **Chosen date saved and confirmed** in **Review history** with that
+job's link. Other review reasons may remain.
+
+c. Follow that job link and confirm it opens the date-save job. Return to Library,
+search the same filename and confirm its date is still 2399. **Odd dates** includes
+it; **Needs review → Reason → Suspicious dates** excludes it. Reloading preserves
+that distinction.
+
+### Test DR3 — Explain reminders cleared by a settings change
+
+a. In **Library**, search **`generated-000.jpg`**. It is **800 × 600** and has a
+small-image reminder under the 800-pixel rule. Add an **Other** bookmark with the
+note `Keep this bookmark`.
+
+b. In **Settings → Files**, set **Minimum shorter side (pixels)** to **500** and
+save. Reopen the same photo. Its small-image reminder is gone, its bookmark remains,
+and **Review history** says the small-image reminder cleared because the setting
+changed. Reload: that entry appears once.
+
+c. In the same Settings tab, set **Earliest expected year** to **2000** and
+save. In Library, search **`scn-date-old-generated-005.jpg`**. Its **1958** date is
+now suspicious. Set the earliest expected year back to **1800** and save. Reopen
+the photo: its date reminder is gone, and **Review history** says the expected date
+range changed. Do not confirm or edit this photo during this step.
+
+d. Restore the minimum shorter side to **800** and save. The small-image reminder
+returns for **`generated-000.jpg`**, because changing a rule was not an explicit
+Mark reviewed decision; the bookmark remains. Reopen
+**`scn-date-future-generated-034.jpg`** from DR1: its unchanged date remains confirmed.
+
+### Test DR4 — Enlarged text and scrollable help
+
+a. Reopen **`scn-date-old-generated-005.jpg`** after temporarily setting the
+earliest expected year to **2000**. Open **Inspect photo…** and increase browser
+zoom to **200%**. The date explanation and both date-action buttons remain readable,
+wrap without overlap, and are reachable with Tab. Return to normal zoom and restore
+the earliest year to **1800** without answering the date.
+
+b. Select **Similar photos**, turn on **Group similar photos**, and open the
+information icon beside the set explanation. At 200% zoom or in a short window,
+focus the help text with Tab. **End** reaches its bottom; **Home** returns to its
+top; **Escape** closes it. Only the information icon opens help on hover, not the
+whole explanation. Restore normal zoom afterward.
+
+### Test DR5 — Date confirmation warning and job details
+
+**Status:** DR5a–b passed maintainer validation on 2026-10-23. The existing review catalog and
+DR1–DR4 results are preserved. The follow-up passed 182 focused Python tests,
+five affected browser workflows, build/typecheck and all three contract checks.
+Dark-mode warning and job-details screenshots were inspected.
+
+Final pre-push Docker verification after DR5 acceptance passed: 51 Python suites
+(929 tests), 157 engine smoke tests, 42 browser workflows and 11 supporting checks,
+including all contract checks and 16 CI-routing tests. No tests were skipped.
+Both images built with frontend typechecking; documentation links, anchors and
+added-line privacy checks passed.
+
+a. In **Library**, clear refinements, search **`generated-000.jpg`**, and open
+**Metadata → EXIF**. Select **Edit metadata date…** beside Date taken. Note the
+current date, then enter **`2398-06-07T12:34:56`** and choose **Preview change**.
+Expect a yellow **This date looks unusual** warning explaining that the year is
+more than one year ahead. **Save date and move file** remains available. Choose
+**Back to edit**, enter **`2020-06-07T12:34:56`**, and preview: the warning disappears.
+Return to edit and preview **`2398-06-07T12:34:56`** again.
+
+b. Save that unusual date, then select **View job details**. In the expanded job's
+**Details** column, expect **Date taken written to EXIF**, **Before** with the date
+you noted, and **After: 2398-06-07T12:34:56**. The dates are shown directly; you do
+not need to infer them from the destination folder. Open the earlier date-save job
+from DR2: its recorded values still describe that earlier edit. Return to the photo:
+the chosen date remains confirmed despite being unusual.
 
 ## Lineage timeline
 

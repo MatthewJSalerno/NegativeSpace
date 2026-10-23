@@ -185,6 +185,18 @@ empty Rejects and the photo is gone. Every Move that includes rejected photos sa
 in **Settings › Files** to suit your collection. These are clues to investigate, not proof
 of a wrong date; NegativeSpace changes no date by itself.
 
+In **Library › Needs review**, choose **Reason › Suspicious dates** and **Inspect photo**.
+If the date is right, choose **This date is correct**. If it is wrong, choose **Edit date…**
+and save the date you want. Either answer clears the date reminder; other reminders and
+Bookmarks stay. A date you confirm can still appear under **Odd dates**, which shows all
+dates outside your expected range. Changing Settings does not undo your confirmation.
+The date confirmation warns when your chosen year looks unusual; you can still save
+it if it is correct. **View job details** shows the metadata source you edited and
+its date before and after that edit, even if you change the date again later.
+
+**Review history** records your answers and explains when a date or size reminder clears
+because its recorded facts or your settings changed.
+
 
 **No date** lists photos with no usable date in their metadata. A missing date alone does not prevent **Copy** or **Move**. A photo can also appear under **Not organized › need attention** if a separate issue prevents organizing it; open its information pane for the specific reason. They are filed
 under `library/Undated/<year>/`, where the year comes from the file's modification time,

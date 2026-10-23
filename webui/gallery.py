@@ -6,25 +6,18 @@ import posixpath
 from pathlib import Path
 from typing import Optional
 
-from engine import ns_db, review, attention, metadata_choices
+from engine import ns_db, review, review_history, attention, metadata_choices
 from engine import ns_similarity_cache
 from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
 from . import photo_orientation, catalog, metadata_view, card_names, discovery
 
 
-# An uncorrelated settings lookup is evaluated once per statement, not per photo.
-_DATE_MIN_YEAR_SQL = f"COALESCE((SELECT CAST(value_json AS INTEGER) FROM settings WHERE key='suspicious_min_year'),{ns_db.SUSPICIOUS_MIN_YEAR_DEFAULT})"
+# Shared with the engine so facts, review membership and history use one rule.
+_DATE_MIN_YEAR_SQL = review_history.MIN_YEAR_SQL
 
 
 def _date_warning_sql():
-    # Inspect only the recorded gallery date. Do not reinterpret timezones or
-    # mutate EXIF. SQL keeps membership, counts and pagination in agreement.
-    value = "json_extract(p.metadata_json, '$.date_taken')"
-    year = f"CAST(substr({value},1,4) AS INTEGER)"
-    latest = "(CAST(strftime('%Y','now') AS INTEGER) + 1)"
-    return (f"CASE WHEN p.status!='Failed' AND {value} GLOB '[0-9][0-9][0-9][0-9]-*' THEN CASE "
-            f"WHEN {year}<{_DATE_MIN_YEAR_SQL} THEN 'Recorded year is before your earliest expected year (' || {_DATE_MIN_YEAR_SQL} || ').' "
-            f"WHEN {year}>{latest} THEN 'Recorded year is more than one year ahead of the current year.' END END")
+    return review_history.date_warning_sql()
 
 
 _FILENAME_SQL = f"""basename(COALESCE(CASE WHEN p.status IN ({ns_db.sql_values(catalog.AT_DESTINATION)}) THEN p.dest_path END, p.source_path))"""
@@ -238,6 +231,7 @@ def _review_cards(conn, rows):
     found = conn.execute(f"""SELECT p.id, p.status, c.width, c.height,
         {review.LIMIT_SQL} AS minimum,
         ({review.predicate('small')}) AS small,
+        ({review.predicate('date')}) AS date_review,
         ({review.predicate('later')}) AS later,
         ({review.predicate('issues')}) AS issues,
         (SELECT e.note FROM review_events e WHERE e.photo_id=p.id AND e.reason='later'
@@ -252,6 +246,8 @@ def _review_cards(conn, rows):
         if row['small']:
             reasons.append({'reason': 'small', 'label': 'Small image',
                 'message': f"{row['width']} × {row['height']} — below your {row['minimum']}-pixel minimum on the shorter side."})
+        if row['date_review']:
+            reasons.append({'reason':'date','label':'Suspicious date','message':'Check the recorded date.'})
         if row['later']:
             reasons.append({'reason': 'later', 'label': review.BOOKMARK_REASONS.get(row['bookmark_reason'], 'Check the date'),
                 'message': row['note'] or '', 'bookmark_reason': row['bookmark_reason'] or 'date'})

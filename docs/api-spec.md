@@ -528,8 +528,9 @@ Body: `{"capture_id": 12, "value": "2020-06-15T14:30:00.123+02:00"}` or
 `{"capture_id": 12, "donor_id": "exif"}`. An explicit empty string proposes a clear;
 absent donor dates cannot be copied. A donor must be a recorded source of this photo.
 Return `edit`, `token`, `target`, `before` (`present`, `value`), `after`, `filing`
-(`current`, `proposed`, `change`, optional `collision_renamed`), `no_change`, and
-`duplicate` (null or `{photo_id, filename, path}` for the existing survivor; path is
+(`current`, `proposed`, `change`, optional `collision_renamed`), `no_change`,
+`date_warning` (null or an advisory from the current expected-year policy, also for
+partial XMP dates; never a save gate), and `duplicate` (null or `{photo_id, filename, path}` for the existing survivor; path is
 relative to the destination). Its preview token binds that verified survivor; display
 its path and confirmation rather than the discarded edited file's proposed name. The
 read-only engine preview validates writer support and retains source provenance. For
@@ -875,6 +876,12 @@ One page, newest first (`page`, and `page_size` from 1 to 500, default 100):
 *   **`action`** identifies recorded metadata intent: `rotation`, `date`,
     `metadata_source` or `metadata`; other operations return null. Lineage and exports
     carry the same value. This does not change stored outcomes or status filters.
+*   **`date_change`** is null without a verified date write; otherwise it contains
+    `target` (metadata kind), `before` and `after` (each `{present, value}`). It reads
+    the immutable intent and verified saved sources, not current photo metadata.
+    Missing, explicitly empty and recorded date strings remain distinct. A failed
+    refiling can still carry a verified date change; status is never overridden.
+    Exports carry the same value (JSON-encoded in the CSV column).
 *   **`consolidated_into`** is the surviving photo ID for a completed confirmed
     exact-result edit, otherwise null. Logs, lineage and exports carry it. A job's
     gallery includes this survivor even though the edited duplicate has left Library.
@@ -1311,14 +1318,18 @@ it does not accidentally drop the reference through the Has similar photos filte
 ### `GET /api/v1/photos/{photo_id}/review`
 
 Returns current `reasons` (reason, label, message), location, content SHA-1,
-`revision` and descending review `history`. Reasons currently implemented: `small`
-and `later`. A missing photo returns 404 `unknown_photo`. This endpoint only reads.
+`revision` and descending review `history`. Reasons currently implemented: `small`, `later` and `date`.
+Date details include `date_taken`, `date_confirmed`, `date_warning` and `date_message`.
+History can include `cause`, the confirmed `date_taken`, and `run_id` for explicit date
+saves. `cleared` records an automatic resolution; `date_saved` records a verified chosen date. A missing photo returns 404 `unknown_photo`. This endpoint only reads.
 
 ### `POST /api/v1/photos/{photo_id}/review`
 
 Body: `photo_id`, `sha1` (string or null), `revision` (nonnegative integer), `reason`,
 `action`, `note` (up to 60 characters), `request_id` (1–128 alphanumeric, underscore
-or hyphen characters). Optional `bookmark_reason` selects a preset. Actions: small/reviewed, later/later, later/done, later/keep. The engine
+or hyphen characters). Optional `bookmark_reason` selects a preset. Actions: small/reviewed, later/later, later/done, later/keep,
+and date/correct. Date confirmation additionally requires the exact current `date_taken`;
+other reasons reject that field. The engine
 records the decision under its lock; no photo files or selection are changed.
 Returns the current review detail on success. Identical request replay is idempotent.
 400 `invalid_request` rejects malformed input; 409 `review_changed` refuses stale
@@ -1329,7 +1340,7 @@ reload before retrying. Success is shown only after acknowledgement.
 ### Composable review browsing
 
 Gallery listing, IDs, position, types, folders and timeline accept `similar` and
-`suspicious` booleans and `reason` (all/small/later/issues/attention). These combine with existing
+`suspicious` booleans and `reason` (all/small/later/date/issues/attention). These combine with existing
 filters. `view=review` selects distinct active Library photos with an unresolved supported reason. Reminders on source/rejected files do not contribute. History remains readable; new decisions require a delivered active photo.
 Refinement counts in `chips` and `reasons` combine search and other active filters;
 exclusive Reason choices replace only that reason. Pins and `filter_pins` are removed.

@@ -15,6 +15,7 @@ import stat
 from pathlib import Path
 import uuid
 
+from engine import review_history
 from engine import (constants, durable, metadata_edits, metadata_incoming_apply, metadata_relocate,
                     metadata_transfer, metadata_writer, metadata_photo_save, ns_db, relocate, runtime,
                     xmp_store)
@@ -333,6 +334,7 @@ def _record_saved(conn, op, pid, m):
             f'metadata:{op}:primary', json.dumps({'operation_id':op}), json.dumps(value), ns_db.utc_now())).lastrowid
         receipt['primary_revision'] = decision
         ns_db.advance_revision(conn, pid, m['revision'])
+        review_history.record_saved_date(conn, pid, op, preview, metadata, m['sha1'])
         conn.execute('UPDATE photos SET metadata_json=? WHERE id=?', (json.dumps(metadata), pid))
         ns_db.record_evidence(conn, operation_id=op, location_role='destination', observed_path=m['sidecar'],
             observation_kind='sha256', result='match', details={'sha256': m['sha256'], 'photo_sha1': m['sha1']})

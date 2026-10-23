@@ -87,7 +87,8 @@ Help popups use the subdued `--surface-2` background and normal text color in bo
 themes. They occupy the browser's top layer so sticky sidebars and adjacent photos
 cannot clip or cover the text. Help is positioned using its rendered size, stays within
 the viewport when it resizes or scrolls, and scrolls internally if needed at larger text
-sizes. Its content is keyboard-focusable so arrow keys can scroll it; Escape dismisses it.
+sizes. Its content is keyboard-focusable so arrow keys can scroll it; Home/End reach
+the top/bottom of the focused help, and Escape dismisses it.
 When an information icon is present, only that icon opens the help by hover, focus or
 click; the surrounding text and row are not hover targets. Moving onto the open help
 keeps it available for reading. Help without an information icon keeps its existing
@@ -129,6 +130,13 @@ preview and confirmation controls. Navigation goes to its named destination/tab.
 History and Logs use the action and outcome together: **Rotation saved** or **Date
 saved**, rather than calling every completed operation a Move. Failed or skipped
 attempts must retain their outcome. Use the shared operation label in every timeline.
+The log keeps stable Time/Status widths and shares the remaining space between File
+and Details, so paths cannot squeeze change details into a narrow strip.
+A date edit's Logs Details column shows its write target and exact Before/After values
+from the verified saved receipt. Keep fractions and offsets as recorded; distinguish
+Not recorded from Explicitly cleared. Later edits must not rewrite this history.
+A verified write may appear beside a failed refiling outcome; an unverified proposal
+must never be presented as a saved change.
 
 Keep filters and viewing controls in their own groups. File-changing actions (Keep,
 Reject, edits) belong with the affected photo; exports belong in the page action group,
@@ -1155,8 +1163,20 @@ The dedicated review workspace names its task (Small-image review, Bookmarked ph
 or the date filter), queue position and Previous/Next in the shared header. A large
 photo and compact rotation/zoom controls occupy the main area. A side panel groups
 why the photo needs review, relevant facts and one action row. Explain that Mark
-reviewed clears only the size reminder; Remove bookmark clears only the bookmark. Date warnings
-provide information, not unbuilt date-edit/acknowledgment controls.
+reviewed clears only the size reminder; Remove bookmark clears only the bookmark.
+For a suspicious date, **Edit date…** and **This date is correct** sit together beside
+that reason in the workspace. The Inspector keeps Inspect photo… as its route to this
+answer. Confirming changes no date or file; a successfully saved date explicitly chosen
+by the user also counts as correct, even outside the configured expected range. Settings
+and unrelated edits do not ask again about an unchanged confirmed date. A different date
+from another source must be assessed again. Odd dates remains a factual filter and can
+still show confirmed dates; the Inspector labels these **Date confirmed** rather than
+showing an unresolved date reminder.
+
+Review history includes automatic date/size concern clearing with its cause, and chosen
+date saves with their job link. A resolved concern does not remove a Bookmark or another
+review reason. The Reason selector offers Suspicious dates for outstanding date decisions;
+the existing Odd dates refinement continues to show all matching recorded dates.
 
 When the current review queue becomes empty, return directly to the filtered gallery
 with a completion message. Close its preview and remove stale photo/review URL state;
@@ -1381,7 +1401,10 @@ A primary missing Date taken can point to recorded dates in other sources, with 
 link to inspect each source before deliberately copying. Do not suggest replacing an
 explicitly cleared value. A repeated clear with no metadata or filing change previews
 No changes needed and disables Save. The completion dialog has one Date saved heading
-and a shared action footer for View job details and Close.
+and a shared action footer for View job details and Close. In the confirmation,
+an unusual chosen year gets the shared yellow warning treatment, with its reason
+and reassurance that it can still be saved. Use the catalog's expected-year policy;
+do not block Save or add a second confirmation.
 Other fields remain unchanged except required date companions. No permanent consent
 or automatic save. Failure and recovery reuse the shared job/issue controls.
 

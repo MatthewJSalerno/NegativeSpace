@@ -1164,7 +1164,13 @@ Logs, recent History and lineage name saved metadata actions from recorded inten
 **Rotation saved**, **Date saved**, **Metadata source changed**, or **Metadata saved**.
 Failed, skipped, cancelled and unfinished attempts retain those outcomes; they never
 claim a save. A metadata completion is not labelled as a Move. The shared Completed
-status filter includes completed moves and metadata operations.
+status filter includes completed moves and metadata operations. For date edits, the
+job Details column shows the target metadata source and recorded Before/After dates,
+including fractions and offsets. Missing and explicitly cleared values are distinct.
+These come from the verified write receipt, never the photo's current metadata or
+an unverified intent. A later filing failure retains its failed outcome even when
+the date write is recorded. Date-preview confirmation warns in yellow when the chosen
+year is outside the expected range; it neither blocks saving nor asks twice.
 
 **The lineage tree** opens the lineage timeline (`ui-design.md`, The lineage timeline;
 `GET /photos/{id}/lineage`, §6.3). A summary and four place lanes accompany recorded
@@ -1972,7 +1978,7 @@ The practical consequence for the UI: rebuilding loses recorded history and sett
 **Status values are enforced by the database, not by convention.** Each `status` column carries a `CHECK` constraint listing exactly its vocabulary, generated from the same tuples the engine uses. An API write of `'copied'` or a filter on `'Complete'` fails loudly at write time rather than silently disagreeing with the engine — a mismatch whose only symptom would otherwise be photos that never appear. Treat the constraint as the contract and do not hardcode a parallel list; read it from the engine's constants or from `sqlite_master` if the API needs to enumerate.
 
 **The API layer must use engine-owned schema initialization and validation.**
-`engine/ns_db.py` stamps schema version 31 and refuses incompatible catalogs. Settings saves
+`engine/ns_db.py` stamps schema version 32 and refuses incompatible catalogs. Settings saves
 use its scoped revision-checked functions; the browser never accesses SQLite.
 Preserve an incompatible catalog and explain the version mismatch. Index cannot
 repair a schema mismatch or reconstruct lost history; do not suggest deleting a
@@ -3041,13 +3047,13 @@ duplicates of the reject, `engine-spec.md` §10), is never rejected automaticall
 
 ### 7.9 Needs review
 
-**Built for Small images, Bookmarked photos and Files needing verification**; additional decision workflows below remain planned. **Needs review** lists organized Library photos waiting for a decision. Each carries a **note**: a reason, the job that raised it, when, and optionally a
+**Built for Small images, suspicious dates, Bookmarked photos and Files needing verification**; additional decision workflows below remain planned. **Needs review** lists organized Library photos waiting for a decision. Each carries a **note**: a reason, the job that raised it, when, and optionally a
 related photo, opened side by side in comparison. **Notes are for decisions only**, not a
 general tagging system: personal labels (people, albums) belong to gallery applications.
 
 * **Each reason brings its own actions,** e.g. old version of a photo you fixed: Don't keep
   it · Keep it as its own photo; looks like a reject: Reject it too · Keep it · Keep the old one instead; suspicious
-  date: Edit date · It's correct;
+  date: Edit date… · This date is correct;
   bookmarked: Remove bookmark. A new kind of review is a new reason, not a new screen.
 * **Where it lives:** a **Needs review** refinement in Library and Similar photos,
   reached directly from Library’s **n to review** sidebar note. Each note’s reason and buttons show on the
@@ -3077,9 +3083,9 @@ general tagging system: personal labels (people, albums) belong to gallery appli
 * **A note exists only when a person must decide.** Facts the catalog can compute (every
   similar pair) stay live queries, so the list cannot grow into a copy of the library.
 * **A resolved note leaves the list;** the decision goes into the photo's history. **A note
-  that stops being true clears itself** (decided 2026-10-05; automatic history events
-  remain planned, while small-image eligibility already updates on read): a corrected date, a file
-  that now reads, a reject returned to the library. The next job or the screen notices,
+  that stops being true clears itself** (implemented for recorded-date, date-rule,
+  small-image rule and known-dimension changes): a corrected date, a file
+  that now reads, a reject returned to the library. The catalog change records the transition atomically,
   and the photo's history records the note and why it went ("cleared: the date was
   corrected in job #52"), as the engine's needs-attention issues clear only on evidence.
   *Why not make the user dismiss it:* answering something that is no longer a problem is
@@ -3097,7 +3103,7 @@ general tagging system: personal labels (people, albums) belong to gallery appli
 * **Review belongs after organization** (revised 2026-10-07). The inbox and its
   decision APIs accept only active Library photos. Source failures belong in import
   status and Logs, with external correction, not in this inbox. Bookmarks, small
-  images and future date acknowledgments do not block Copy/Move. Existing transfer
+  images and date acknowledgments do not block Copy/Move. Existing transfer
   durability/uncertain-recovery gates remain enforced separately. Planned sidecar
   association and old-version import decisions need a separate source workflow before
   implementation; they must not reintroduce source photos into Needs review.
@@ -3124,6 +3130,14 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   size setting do not re-open an acknowledged concern for unchanged content. A replaced
   content version is assessed independently. A bookmark remains until explicitly removed; clearing
   one reason does not clear another. Reading the inbox performs no catalog writes.
+* **Confirming a suspicious date** clears only its review reminder. **This date is
+  correct** is beside **Edit date…** in the workspace. A verified explicit date save also
+  confirms the chosen value; no second answer is required. Confirmations survive settings
+  and unrelated metadata edits while the recorded date stays unchanged. A changed date
+  from another source is assessed independently. **Odd dates** continues to show factual
+  range matches, including confirmed dates; **Reason › Suspicious dates** shows only
+  outstanding decisions. Confirmation is available only for active Library photos.
+  Calendar-year rollover is recorded at the next job; history for future reasons remains with those workstreams.
 * **One shared review workspace.** A task-specific title and queue navigation lead a
   large photo with compact viewing controls and a decision panel. Mark reviewed,
   Bookmark… and Reject… use consistent buttons in one action row, with the effect

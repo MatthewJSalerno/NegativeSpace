@@ -71,6 +71,15 @@ export function Tip({ text, content, wide = false, showIcon = true, children }: 
       aria-controls={open ? id : undefined} aria-describedby={open ? id : undefined}
       onMouseEnter={show} onMouseLeave={leave} onFocus={show}
       onClick={() => { if (pinned) { setPinned(false); setOpen(false); } else { setPinned(true); show(); } }}>ⓘ</button>}
-    {open && <span ref={bubble} onMouseEnter={show} onMouseLeave={leave} popover="manual" id={id} className={`help-content${wide ? " help-wide" : ""}${!showIcon ? " help-passive" : ""}`} role="note" tabIndex={showIcon ? 0 : undefined} style={position}>{content ?? text}</span>}
+    {open && <span ref={bubble} onMouseEnter={show} onMouseLeave={leave} popover="manual" id={id} className={`help-content${wide ? " help-wide" : ""}${!showIcon ? " help-passive" : ""}`} role="note" tabIndex={showIcon ? 0 : undefined} style={position}
+      onKeyDown={e => {
+        // Browser-native Home can target the page instead of this top-layer scroller.
+        // Limit the shortcut to the help itself; never intercept a nested control.
+        if (e.target !== e.currentTarget || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        if (e.key === "Home" || e.key === "End") {
+          e.preventDefault(); e.stopPropagation();
+          e.currentTarget.scrollTop = e.key === "Home" ? 0 : e.currentTarget.scrollHeight;
+        }
+      }}>{content ?? text}</span>}
   </span>;
 }

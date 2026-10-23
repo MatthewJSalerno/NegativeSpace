@@ -445,6 +445,11 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
                       )}
                     </td>
                     <td>
+                      {op.date_change && <section aria-label="Recorded date change">
+                        <strong>Date taken written to {op.date_change.target === "sidecar_xmp" ? "XMP Sidecar" : op.date_change.target === "embedded_xmp" ? "Embedded XMP" : "EXIF"}</strong>
+                        <div>Before: {recordedDate(op.date_change.before)}</div>
+                        <div>After: {recordedDate(op.date_change.after)}</div>
+                      </section>}
                       {op.photo_id != null && op.issues?.length > 0 && <FileIssues photoId={op.photo_id} initialIssues={op.issues} operationId={op.id} />}
                       {op.consolidated_into != null && <p className="section-note">Duplicate removed; kept <a href={photoUrl(op.consolidated_into)} onClick={follow}>photo #{op.consolidated_into}</a>. Both histories are preserved.</p>}
                       {op.error_message && <div className="message">{op.error_message}</div>}
@@ -465,4 +470,8 @@ function JobEntries({ run, filters, refreshKey, activePhoto, indexButton, onPhot
       )}
     </div>
   );
+}
+
+function recordedDate(date: { present: boolean; value: string | null }): string {
+  return !date.present ? "Not recorded" : date.value === "" ? "Explicitly cleared" : date.value ?? "Not recorded";
 }

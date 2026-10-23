@@ -30,14 +30,14 @@ class ReviewTests(ApiCase):
 
     def test_choice_is_not_assumed_and_small_images_never_change_transfer_eligibility(self):
         before=self.client.get('/api/v1/status').json()['eligible']
-        self.assertEqual(self.client.get('/api/v1/photos?view=review').json()['total'],0)
+        self.assertEqual(self.client.get('/api/v1/photos?view=review').json()['total'],1)
         self.enable()
         result=self.client.get('/api/v1/photos?view=review').json()
         self.assertEqual([p['id'] for p in result['items']],[1])
-        self.assertEqual(result['reasons'],{'all':1,'issues':0,'small':1,'later':0})
+        self.assertEqual(result['reasons'],{'all':1,'issues':0,'small':1,'later':0,'date':1})
         self.assertEqual(self.client.get('/api/v1/status').json()['eligible'],before)
         self.enable(None)
-        self.assertEqual(self.client.get('/api/v1/photos?view=review').json()['total'],0)
+        self.assertEqual(self.client.get('/api/v1/photos?view=review').json()['total'],1)
 
     def test_reviewed_survives_rule_changes_and_does_not_clear_later(self):
         self.enable()
@@ -46,12 +46,12 @@ class ReviewTests(ApiCase):
         reviewed=self.decision()
         response=self.send(reviewed)
         self.assertEqual(response.status_code,200,response.text)
-        self.assertEqual([n['reason'] for n in response.json()['reasons']],['later'])
+        self.assertEqual([n['reason'] for n in response.json()['reasons']],['later','date'])
         self.enable(None); self.enable(1000)
         self.assertEqual(self.client.get('/api/v1/photos?view=review&reason=small').json()['total'],0)
         self.assertEqual(self.client.get('/api/v1/photos?view=review&reason=later').json()['total'],1)
         self.assertEqual(self.send(self.decision(reason='later',action='done')).status_code,200)
-        self.assertEqual(self.client.get('/api/v1/photos?view=review').json()['total'],0)
+        self.assertEqual(self.client.get('/api/v1/photos?view=review').json()['total'],1)
         with ns_db.connect(self.cfg.db_path) as c:
             self.assertEqual(c.execute('SELECT status FROM photos WHERE id=1').fetchone()[0],'Copied')
             self.assertEqual(c.execute('SELECT COUNT(*) FROM review_events').fetchone()[0],3)
@@ -137,12 +137,12 @@ class ReviewTests(ApiCase):
         self.assertEqual(self.send(self.decision(reason='later',action='later',note='Check this')).status_code,200)
         listing=self.client.get('/api/v1/photos?view=organized').json()
         card=next(p for p in listing['items'] if p['id']==1)
-        self.assertEqual([r['reason'] for r in card['review']['reasons']],['small','later'])
+        self.assertEqual([r['reason'] for r in card['review']['reasons']],['small','date','later'])
         self.assertNotIn('history',card['review'])
         self.assertEqual(self.send(self.decision()).status_code,200)
         listing=self.client.get('/api/v1/photos?view=organized').json()
         card=next(p for p in listing['items'] if p['id']==1)
-        self.assertEqual([r['reason'] for r in card['review']['reasons']],['later'])
+        self.assertEqual([r['reason'] for r in card['review']['reasons']],['date','later'])
         with ns_db.connect(self.cfg.db_path) as c:
             c.execute("UPDATE photos SET status='Rejected_Copied' WHERE id=1");c.commit()
         self.assertEqual([p['id'] for p in self.client.get('/api/v1/photos?view=organized').json()['items']],[2])
@@ -292,7 +292,7 @@ class ReviewTests(ApiCase):
         self.assertEqual(history[0]['action'], 'keep')
         self.assertEqual(history[0]['note'], 'Compare family copies')
         self.assertEqual(history[0]['bookmark_reason'], 'keep')
-        self.assertEqual([r['reason'] for r in result.json()['reasons']], ['small'])
+        self.assertEqual([r['reason'] for r in result.json()['reasons']], ['small','date'])
         self.assertEqual(self.send(keep).json()['history'], history)
         self.assertEqual(self.client.get('/api/v1/photos?view=organized').json()['total'], 2)
 
@@ -353,3 +353,160 @@ class ReviewTests(ApiCase):
         self.assertEqual(second['items'][0]['id'],1)
         position=self.client.post('/api/v1/photos/position',json={**params,'photo_id':2}).json()
         self.assertEqual(position['next_id'],1)
+
+
+    def date_answer(self):
+        body = self.decision(reason='date', action='correct')
+        body['date_taken'] = self.client.get('/api/v1/photos/1/review').json()['date_taken']
+        return body
+
+    def test_date_confirmation_clears_only_reminder_keeps_facts_and_replays(self):
+        self.enable()
+        self.assertEqual(self.send(self.decision(reason='later', action='later')).status_code, 200)
+        before = self.client.get('/api/v1/photos/1').json()
+        answer = self.date_answer()
+        result = self.send(answer)
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertTrue(result.json()['date_confirmed'])
+        self.assertEqual([r['reason'] for r in result.json()['reasons']], ['small','later'])
+        self.assertEqual(self.send(answer).json()['revision'], result.json()['revision'])
+        self.assertEqual(self.client.get('/api/v1/photos?view=review&reason=date').json()['total'], 0)
+        self.assertEqual(self.client.get('/api/v1/photos?view=organized&suspicious=true').json()['total'], 1)
+        after = self.client.get('/api/v1/photos/1').json()
+        for key in ('status','sha1_hash','date_taken','date_source','dest_path'):
+            self.assertEqual(before.get(key), after.get(key), key)
+
+    def test_confirmation_survives_rule_content_and_unrelated_metadata_changes(self):
+        self.assertEqual(self.send(self.date_answer()).status_code, 200)
+        with ns_db.connect(self.cfg.db_path) as c:
+            ns_db.save_settings(c, {'suspicious_min_year':2000}, expected_revisions={'suspicious_min_year':0})
+            c.execute("UPDATE photos SET sha1_hash=?,metadata_json=json_set(metadata_json,'$.orientation',6) WHERE id=1", ('e'*40,))
+            c.commit()
+        detail = self.client.get('/api/v1/photos/1/review').json()
+        self.assertTrue(detail['date_confirmed'])
+        self.assertNotIn('date', [r['reason'] for r in detail['reasons']])
+        self.assertEqual(len(detail['history']), 1)
+
+    def test_date_changed_outside_editor_requires_new_answer_even_if_changed_back(self):
+        answer = self.date_answer()
+        self.assertEqual(self.send(answer).status_code, 200)
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("UPDATE photos SET metadata_json=json_set(metadata_json,'$.date_taken','0002-01-01') WHERE id=1")
+            c.execute("UPDATE photos SET metadata_json=json_set(metadata_json,'$.date_taken','0001-01-01') WHERE id=1")
+            c.commit()
+        detail = self.client.get('/api/v1/photos/1/review').json()
+        self.assertFalse(detail['date_confirmed'])
+        self.assertIn('date', [r['reason'] for r in detail['reasons']])
+        # Replaying the old request returns current state, never re-confirms it.
+        self.assertFalse(self.send(answer).json()['date_confirmed'])
+
+    def test_stale_date_answer_and_ineligible_locations_are_refused(self):
+        body = self.date_answer()
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("UPDATE photos SET metadata_json=json_set(metadata_json,'$.date_taken','0002-01-01') WHERE id=1")
+            c.commit()
+        self.assertEqual(self.send(body).status_code, 409)
+        for status in ('Pending', 'Rejected_Copied', 'Failed'):
+            with ns_db.connect(self.cfg.db_path) as c:
+                c.execute('UPDATE photos SET status=? WHERE id=1', (status,)); c.commit()
+            self.assertEqual(self.send(self.date_answer()).status_code, 409)
+        with ns_db.connect(self.cfg.db_path) as c:
+            self.assertEqual(c.execute('SELECT COUNT(*) FROM review_date_confirmations').fetchone()[0], 0)
+
+    def test_date_confirmation_requires_exact_current_value(self):
+        good = self.date_answer()
+        for value in (None, [], '', '0002-01-01'):
+            result = self.send({**good, 'date_taken':value})
+            self.assertIn(result.status_code, (400,409), result.text)
+        self.assertEqual(self.send({k:v for k,v in good.items() if k!='date_taken'}).status_code, 400)
+
+    def test_automatic_date_clearing_is_atomic_once_and_reads_do_not_write(self):
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("UPDATE photos SET metadata_json=json_set(metadata_json,'$.date_taken','2020-01-01') WHERE id=1")
+            c.rollback()
+            self.assertEqual(c.execute('SELECT COUNT(*) FROM review_events').fetchone()[0], 0)
+            c.execute("UPDATE photos SET metadata_json=json_set(metadata_json,'$.date_taken','2020-01-01') WHERE id=1")
+            c.commit()
+            c.execute("UPDATE photos SET metadata_json=json_set(metadata_json,'$.date_taken','2020-01-01') WHERE id=1")
+            c.commit()
+        for _ in range(3):
+            detail = self.client.get('/api/v1/photos/1/review').json()
+            self.client.get('/api/v1/photos?view=review')
+        self.assertEqual(len(detail['history']), 1)
+        self.assertEqual(detail['history'][0]['cause'], 'date_changed')
+        self.assertEqual(detail['history'][0]['action'], 'cleared')
+
+    def test_size_setting_clears_once_and_can_raise_a_new_unanswered_concern(self):
+        self.enable()
+        self.assertEqual(self.send(self.decision(reason='later', action='later')).status_code,200)
+        self.enable(400)
+        self.enable(400)
+        detail = self.client.get('/api/v1/photos/1/review').json()
+        cleared = [e for e in detail['history'] if e['action']=='cleared']
+        self.assertEqual([e['cause'] for e in cleared], ['size_rule_changed'])
+        self.assertIn('later', [r['reason'] for r in detail['reasons']])
+        self.enable(800)
+        self.assertIn('small', [r['reason'] for r in self.client.get('/api/v1/photos/1/review').json()['reasons']])
+
+    def test_dimension_change_records_clearing_for_pending_size_only(self):
+        self.enable()
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("UPDATE contents SET width=2400,height=1600 WHERE digest=?", (f'{1:040x}',)); c.commit()
+            c.execute("UPDATE contents SET width=2400,height=1600 WHERE digest=?", (f'{1:040x}',)); c.commit()
+        events = self.client.get('/api/v1/photos/1/review').json()['history']
+        self.assertEqual([e['cause'] for e in events], ['dimensions_changed'])
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("UPDATE contents SET width=640,height=480 WHERE digest=?", (f'{1:040x}',)); c.commit()
+        self.assertEqual(self.send(self.decision()).status_code, 200)
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("UPDATE contents SET width=2400,height=1600 WHERE digest=?", (f'{1:040x}',)); c.commit()
+        self.assertEqual(len(self.client.get('/api/v1/photos/1/review').json()['history']), 2)
+
+    def test_date_setting_records_why_only_unconfirmed_concerns_clear(self):
+        with ns_db.connect(self.cfg.db_path) as c:
+            ns_db.save_settings(c, {'suspicious_min_year':2000}, expected_revisions={'suspicious_min_year':0})
+            ns_db.save_settings(c, {'suspicious_min_year':1}, expected_revisions={'suspicious_min_year':1})
+        detail = self.client.get('/api/v1/photos/1/review').json()
+        self.assertEqual([e['cause'] for e in detail['history']], ['date_rule_changed'])
+        self.assertFalse(detail['date_confirmed'])
+
+
+    def test_first_explicit_date_setting_uses_previous_default_for_history(self):
+        with ns_db.connect(self.cfg.db_path) as c:
+            ns_db.save_settings(c, {'suspicious_min_year':1}, expected_revisions={'suspicious_min_year':0})
+        history = self.client.get('/api/v1/photos/1/review').json()['history']
+        self.assertEqual([e['cause'] for e in history], ['date_rule_changed'])
+
+    def test_new_content_without_dimensions_does_not_claim_size_resolved(self):
+        self.enable()
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute('UPDATE photos SET sha1_hash=? WHERE id=1', ('d'*40,))
+            ns_db.content_for_digest(c, digest='d'*40, width=640, height=480)
+            c.commit()
+        detail = self.client.get('/api/v1/photos/1/review').json()
+        self.assertIn('small', [r['reason'] for r in detail['reasons']])
+        self.assertEqual(detail['history'], [])
+
+
+    def test_calendar_advance_records_clearing_once_at_next_job(self):
+        with ns_db.connect(self.cfg.db_path) as c:
+            year = int(c.execute("SELECT strftime('%Y','now')").fetchone()[0])
+            c.execute("UPDATE photos SET metadata_json=json_set(metadata_json,'$.date_taken',?) WHERE id=2", (f'{year+1}-01-01',))
+            c.execute('UPDATE review_calendar SET year=?', (year-1,)); c.commit()
+            first,_ = ns_db.create_run(c, mode='INDEX', source=str(self.cfg.source), destination=str(self.cfg.dest))
+            ns_db.create_run(c, mode='INDEX', source=str(self.cfg.source), destination=str(self.cfg.dest))
+        history = self.client.get('/api/v1/photos/2/review').json()['history']
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]['cause'], 'calendar_year_changed')
+        self.assertEqual(history[0]['run_id'], first)
+
+
+    def test_confirmed_date_changing_does_not_claim_an_unanswered_concern_cleared(self):
+        self.assertEqual(self.send(self.date_answer()).status_code, 200)
+        with ns_db.connect(self.cfg.db_path) as c:
+            c.execute("UPDATE photos SET metadata_json=json_set(metadata_json,'$.date_taken','2020-01-01') WHERE id=1")
+            c.commit()
+        detail = self.client.get('/api/v1/photos/1/review').json()
+        self.assertFalse(detail['date_confirmed'])
+        self.assertEqual(len(detail['history']), 1)
+        self.assertEqual(detail['history'][0]['action'], 'correct')

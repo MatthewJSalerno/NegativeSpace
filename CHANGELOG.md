@@ -9,6 +9,17 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Show verified date edits' before/after values and metadata target in job details.
+  Warn about unusual chosen years in confirmation while allowing the date to be saved.
+
+- Keep Home/End scrolling inside focused help popups at enlarged text sizes.
+
+- Confirm a suspicious date with **This date is correct** in photo review. A verified
+  date save also confirms the chosen date; Odd dates still shows the recorded facts.
+- Record when a date or small-image reminder stops applying, with the reason in
+  review history. Bookmarks remain until removed. Catalog schema 32 requires a fresh
+  development catalog.
+
 - Keep photo changes blocked through the final catalog backup, with visible progress
   and no next-job queue. Show persistent backup failures or unbacked changes across
   Library, Logs and Stats; Retry backs up the catalog without repeating photo work.

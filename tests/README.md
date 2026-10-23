@@ -2189,3 +2189,24 @@ or failing only a generated fixture's backup. It checks Library/Logs/Stats progr
 disabled actions, failure notices, repeated retry, interrupted snapshots and successful
 clearance. The fixture control lives only in the harness's disposable appdata.
 Manual steps are in [manual-validation.md](../docs/manual-validation.md#catalog-backup-status).
+
+### Date review and clearing history
+
+`review_test.py` covers date confirmation, stale/replayed requests, independent
+Bookmarks and size reminders, transactional clearing history, setting changes and
+calendar rollover. `metadata_save_test.py` and `metadata_photo_save_test.py` cover
+confirmation after verified XMP/JPEG date saves, interrupted-save recovery and
+preservation across re-indexing. `sidebar_refinements_test.py` checks the date reason
+and its counts. These suites run in the regular Python/metadata CI jobs.
+
+The regular CI driver `suspicious_dates_browser_drive.py` also checks the date-review
+queue, **This date is correct**, keyboard activation at 200% text, empty-queue cleanup,
+and confirmed dates remaining in the factual Odd dates filter. Maintainer steps and
+acceptance are recorded only in [manual validation](../docs/manual-validation.md#date-review-and-clearing-history).
+
+Date-edit follow-up: `metadata_dates_test.py` covers advisory year boundaries,
+verified job values, later edits and CSV/JSON exports; `rotations_test.py` checks
+that an intent alone never claims a saved date. `metadata_dates_browser_drive.py`
+covers the yellow confirmation warning, an enabled Save, and job Before/After details.
+See [DR5](../docs/manual-validation.md#test-dr5--date-confirmation-warning-and-job-details)
+for the only additional maintainer checks after DR1–DR4 acceptance.

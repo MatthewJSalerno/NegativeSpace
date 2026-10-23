@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import uuid
 
+from engine import review_history
 from engine import (constants, durable, fileinfo, metadata_capture, metadata_duplicates, metadata_embedded, metadata_relocate,
                     metadata_save, metadata_transfer, ns_db, relocate, thumbnails)
 
@@ -222,6 +223,7 @@ def _record_saved(conn, op, pid, m, output):
         before=ns_db.content_for_digest(conn,digest=m['sha1'])
         after=ns_db.content_for_digest(conn,digest=output['after_sha1'],phash=phash,
             phash_state='ok' if phash not in (None,'','error','not_supported') else 'error',width=width,height=height,**measures)
+        review_history.record_saved_date(conn, pid, op, preview, metadata, output['after_sha1'])
         conn.execute('UPDATE photos SET sha1_hash=?,metadata_json=?,file_size=?,file_mtime=?,phash=? WHERE id=?',
             (output['after_sha1'],json.dumps(metadata),info.st_size,info.st_mtime,phash,pid))
         conn.execute('UPDATE file_states SET sha1_hash=?,revision=revision+1 WHERE file_id=?',

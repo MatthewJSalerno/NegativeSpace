@@ -11,6 +11,7 @@ from unittest import mock
 from PIL import Image, ImageDraw
 
 import metadata_index_test
+from engine import review
 from engine import (constants, durable, fileinfo, metadata_command, metadata_decisions, metadata_edits, metadata_photo_save,
                     metadata_save, ns_db, ns_similarity, ns_similarity_cache, relocate, runtime, thumbnails)
 
@@ -424,6 +425,40 @@ class PhotoSaves(unittest.TestCase):
         self.run_engine('--move')
         self.assertEqual(self.photo.read_bytes(),self.original)
         self.assertEqual(self.current(),edited)
+
+
+    def test_saved_suspicious_date_is_confirmed_only_after_verified_save(self):
+        self.setup_catalog()
+        op = self.prepare({'date_taken':'2399-06-07T12:34:56'})
+        self.assertFalse(review.details(self.c, self.pid)['date_confirmed'])
+        self.assertEqual(metadata_save.execute(self.c, op)['outcome'], 'completed')
+        detail = review.details(self.c, self.pid)
+        self.assertTrue(detail['date_confirmed'])
+        self.assertIsNotNone(detail['date_warning'])
+        self.assertNotIn('date', [r['reason'] for r in detail['reasons']])
+        self.assertEqual(detail['history'][0]['action'], 'date_saved')
+        self.assertEqual(detail['history'][0]['date_taken'], '2399-06-07T12:34:56')
+        self.assertGreater(detail['history'][0]['run_id'], 0)
+        metadata_save.execute(self.c, op)
+        self.assertEqual(len(review.details(self.c, self.pid)['history']), len(detail['history']))
+        self.run_engine('--force-rehash')
+        self.assertTrue(review.details(self.c, self.pid)['date_confirmed'])
+        self.assertEqual(len(review.details(self.c, self.pid)['history']), len(detail['history']))
+
+
+    def test_interrupted_date_save_confirms_only_when_recorded_on_retry(self):
+        self.setup_catalog()
+        op = self.prepare({'date_taken':'2398-06-07T12:34:56'})
+        with mock.patch.object(metadata_photo_save, '_record_saved', side_effect=SystemExit('fixture interruption')):
+            with self.assertRaises(SystemExit):
+                metadata_save.execute(self.c, op)
+        self.assertFalse(review.details(self.c, self.pid)['date_confirmed'])
+        self.assertEqual(metadata_save.execute(self.c, op)['outcome'], 'completed')
+        detail = review.details(self.c, self.pid)
+        self.assertTrue(detail['date_confirmed'])
+        self.assertEqual([e['action'] for e in detail['history']], ['date_saved'])
+        metadata_save.execute(self.c, op)
+        self.assertEqual(review.details(self.c, self.pid)['history'], detail['history'])
 
 
 if __name__=='__main__':unittest.main()
