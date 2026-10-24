@@ -54,6 +54,10 @@ development until the maintainer decides.
 - Every warning offers a way out
 - Re-audit durability claims whenever a write path changes
 
+**Audit findings (2026-10-24)**
+- Documentation and screenshots behind main — see Audit findings below
+- Code audit: backup availability never refreshed, unused gallery counts, test-only functions — see Audit findings below
+
 **Before the first release**
 - Decide on catalog migration
 - Review every message the user sees
@@ -570,6 +574,65 @@ Saved orientation stays a separate action from temporary preview rotation.
   failures; absent EXIF is not proof of damage. Do not retry unchanged bad files.
 - [ ] Audit warnings throughout the app for a working action or a direct route to the
   affected items ([validation and feedback contract](docs/ui-design.md#validation-and-feedback)).
+
+## Audit findings (2026-10-24)
+
+A documentation and code sweep of main at `19e23c5`, after #137–#142. For review: confirm,
+fix or decide each item, then remove it from here. Automated checks passed at the time:
+`check-specs`, all 73 API routes documented, schema matches engine-spec 6.5.
+
+### Documentation
+
+- [ ] **README screenshot is stale.** `docs/images/library-sidebar.png` shows the old Look
+  into sidebar with pins and Review later (replaced in #137), and a feature-branch build
+  in its footer. Retake it from main, dark, 1440 × 900, NASA demo set
+  (`docs/user-docs-standard.md`), under a new name.
+- [ ] **Six orphaned screenshots** in `docs/images/` are referenced nowhere and also show
+  the old sidebar: `jobs-before-index-sidebar.png`, `logs-sidebar.png`,
+  `notifications-sidebar.png`, `rejects-sidebar.png`, `settings-performance-sidebar.png`,
+  `suspicious-dates-sidebar.png`. Delete them, or reuse their subjects in the refresh below.
+- [ ] **The user guide has two screenshots left** (`setup-files-disclosures.png`,
+  `side-by-side.png`). Its text is current, but no picture shows the new sidebar and
+  refinements, Bookmarks, the lineage timeline, the actionable Index summary or the backup
+  status. One screenshot per section, per the docs standard.
+- [ ] **`docs/project-spec.md`, "Specified but not yet on screen"** lists "unreadable-file
+  resolution" as a future Needs review reason; the decided design skips unreadable files
+  at Index and logs them by kind (`engine-spec.md` §4.1). It also says "the destination
+  check, from a lineage tree's copy", wording from the replaced tree window; the design is
+  now Check my library and Repair (`engine-spec.md` §9.2).
+- [ ] **`docs/engine-cli.md`, Catalog review decisions,** says the web interface submits
+  **Review later** and **Done**; the screens now say **Bookmark** and **Remove bookmark**
+  (the engine's internal reason is still `later`).
+- [ ] **`tests/README.md`, "Filter pin and gallery count follow-up",** describes pin tests
+  in `sidebar_refinements_browser_drive.py`; pins were removed in #137. Rewrite to what
+  the driver covers now, or remove.
+
+### Code
+
+- [ ] **Backup availability is never refreshed by the engine.** `ns_db.refresh_backup_availability`
+  is called only by `tests/database_test.py`, yet `webui/catalog_backups.py` (`backups()`
+  docstring) says recorded availability "is the engine's to update
+  (refresh_backup_availability)". The Settings list stays truthful because it checks each
+  file live, but `backup_artifacts.availability` goes stale. **Decision needed:** call it from
+  the engine (e.g. where backups are listed or pruned) or correct the docstring.
+- [ ] **Gallery computes per-view `matches` counts no screen reads.** `webui/gallery.py`
+  (gallery listing, comments "Legacy clients also receive filtered matches for each
+  location" and "Keep legacy per-view matches photo-based") runs one extra COUNT per view on
+  every `/photos` request. The frontend reads `elsewhere`, never `matches`; only
+  `tests/reference_sets_test.py` and `tests/webui_api_test.py` check it. With no older
+  clients to support, remove it (update `api-spec.md`, the `PhotoPage` type in `api.ts`
+  and those tests), and measure the request before and after.
+- [ ] **Functions used only by tests:** `ns_db.automatic_backups_beyond` and
+  `xmp_association.primary_candidates` — remove with their tests, or use them.
+  `ns_db.read_destination_check` is also test-only but likely needed by Check my library;
+  keep it for that.
+- [ ] **Unused loop variable** `rid` in `webui/stats.py` (`moved_run_bytes`): use `_`.
+- [ ] *No action:* nine frontend `export`s (`logQuery`, `MONTH_NAMES`, `TOP_FILES`,
+  `skipReasons`, `Palette`, `JobsState`, `WorkspaceStep`, `LaneState`, `PageResult`) are
+  used only inside their own files; harmless. No commented-out code, debug output or
+  stray TODO markers were found outside tests. Method: vulture (then each flagged name
+  checked across the repository, tests included), `tsc --noUnusedLocals
+  --noUnusedParameters`, knip, and a comment pattern scan.
 
 ## Durability claims: stated vs enforced
 
