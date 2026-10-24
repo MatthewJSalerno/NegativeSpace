@@ -610,14 +610,14 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
         with catalog.connect(cfg.db_path):               # refuse with 409 before streaming, not midway
             pass
         columns = ["id", "timestamp", "run_id", "mode", "status", "source_path", "dest_path", "error_message",
-                   "photo_id", "photo_status", "recovery", "run_level", "action", "consolidated_into"]
+                   "photo_id", "photo_status", "recovery", "run_level", "action", "consolidated_into", "date_change"]
 
         def rows_csv():
             out = io.StringIO()
             writer = csv.DictWriter(out, fieldnames=columns, extrasaction="ignore")
             writer.writeheader()
             for item in oplog.iter_operations(cfg.db_path, **filters):
-                writer.writerow(item)
+                writer.writerow({**item, "date_change": json.dumps(item["date_change"]) if item["date_change"] else ""})
                 if out.tell() > 64_000:
                     yield out.getvalue()
                     out.seek(0)

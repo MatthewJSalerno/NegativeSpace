@@ -560,7 +560,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .log-entries { table-layout: fixed; }
 .log-entries .col-time { width: 17rem; }
 .log-entries .col-status { width: 11rem; }
-.log-entries .col-file { width: 45%; }
+/* Share remaining space evenly so paths cannot crowd recorded change details. */
+.log-entries .col-file { width: calc((100% - 28rem) / 2); }
 .log-entries .log-status { overflow-wrap: normal; }
 @media (max-width: 700px) { .log-entries { table-layout: auto; } }
 

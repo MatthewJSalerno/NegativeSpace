@@ -154,8 +154,15 @@ with sync_playwright() as p:
     for width,height in ((1440,900),(1920,1080),(720,450)):
         page.set_viewport_size({'width':width,'height':height})
         expect(enlarged).to_be_visible()
-        # Wait for the shared resize observer to set the current preview extent.
-        page.wait_for_timeout(150)
+        # Viewport resize, media queries and the shared ResizeObserver settle
+        # asynchronously on loaded runners. Wait for containment, not a fixed
+        # sleep; a persistent layout overflow still fails this bounded wait.
+        page.wait_for_function("""height=>{
+            const preview=document.querySelector('.lightbox .inspector-preview');
+            if(!preview || window.innerHeight!==height)return false;
+            const box=preview.getBoundingClientRect();
+            return box.height>0 && box.y>=0 && box.bottom<=height+1;
+        }""", arg=height)
         assert_preview_fits()
         preview=enlarged.locator('.inspector-preview')
         box=preview.bounding_box()

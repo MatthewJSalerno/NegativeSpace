@@ -17,7 +17,7 @@ from pathlib import Path
 
 import zstandard
 
-SCHEMA_VERSION = 31
+SCHEMA_VERSION = 32
 
 # --- Status vocabularies -----------------------------------------------------
 #
@@ -831,7 +831,9 @@ def initialize(db_path):
             _create_core_tables(conn)
             for statement in FOUNDATION_DDL:
                 conn.execute(statement)
-            from engine import ns_similarity_cache
+            from engine import ns_similarity_cache, review_history
+            for statement in review_history.ddl():
+                conn.execute(statement)
             for statement in ns_similarity_cache.DDL:
                 conn.execute(statement)
             for table in ('files', 'file_origins', 'source_snapshots', 'file_observations', 'operation_files',
@@ -853,7 +855,7 @@ def require_schema(conn):
                     'file_origins','file_states','contents','operation_events','operation_evidence',
                     'attention_issues','attention_evidence','file_changes','content_similarity','similarity_hashes',
                     'similarity_count_cache','similarity_count_state',
-                    'review_events','thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state',
+                    'review_events','review_date_confirmations','review_calendar','thumbnail_cache','backup_attempts','backup_artifacts','run_discovery','ui_state',
                     'xmp_versions','xmp_arrivals','xmp_arrival_files','metadata_captures','metadata_decisions'}
         present = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if not required <= present:
@@ -1031,6 +1033,8 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
                         "Nothing was changed; choose photos from one location and submit again.")
         if request_id is not None:
             conn.execute("INSERT INTO job_requests VALUES(?,?,?)", (request_id, run_id, payload))
+        from engine import review_history
+        review_history.reconcile_calendar(conn, run_id)
         return run_id, True
 
 

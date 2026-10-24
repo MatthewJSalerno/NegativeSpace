@@ -1,5 +1,5 @@
 """Date-only web boundary over the engine's metadata preview/save contract."""
-from engine import metadata_command, metadata_edits, metadata_save
+from engine import metadata_command, metadata_edits, metadata_save, review_history
 from . import catalog, metadata_view
 
 
@@ -68,7 +68,13 @@ def preview(cfg, photo_id, body):
         raise ValueError('This recorded source differs from its original capture. Enter the intended date explicitly.')
     previous = planned['sources_before'].get(planned['target']['source_id'],{}).get('fields',{})
     after = planned['changes']['date_taken']
+    # The writer has validated this date. Check its recorded year without timezone
+    # conversion, including partial XMP dates; a clear has no year to warn about.
+    with catalog.connect(cfg.db_path) as conn:
+        warning = conn.execute(
+            f"SELECT {review_history.year_warning_sql('chosen.year', subject='This year')} "
+            "FROM (SELECT ? AS year) chosen", (int(after[:4]) if after else None,)).fetchone()[0]
     return dict(edit=edit,token=planned['token'],target=planned['target'],
         before=dict(present='date_taken' in previous,value=previous.get('date_taken')),
-        after=after,filing=planned['filing'],duplicate=duplicate_summary(planned),
+        after=after,date_warning=warning,filing=planned['filing'],duplicate=duplicate_summary(planned),
         no_change=not duplicate_summary(planned) and not planned['target']['create'] and 'date_taken' in previous and previous['date_taken']==after and not planned['filing']['change'])

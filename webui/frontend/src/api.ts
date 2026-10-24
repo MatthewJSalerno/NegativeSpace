@@ -74,7 +74,7 @@ export interface DateEditContext {
 }
 export interface DateEditPreview {
   edit: Record<string, unknown>; token: string; target: DateEditContext["target"];
-  before: DateEditContext["date"]; after: string; no_change: boolean; duplicate?: EditDuplicate | null;
+  before: DateEditContext["date"]; after: string; date_warning: string | null; no_change: boolean; duplicate?: EditDuplicate | null;
   filing: { current: string; proposed: string; change: boolean; collision_renamed?: boolean };
 }
 
@@ -129,7 +129,8 @@ export interface PhotoItem {
 
 export interface ReviewDetail {
   reasons: { reason: string; label: string; message: string; bookmark_reason?: string }[];
-  history: { id: number; reason: string; action: string; note: string; created_at: string; bookmark_reason?: string }[];
+  history: { id: number; reason: string; action: string; note: string; created_at: string; bookmark_reason?: string; cause?: string; date_taken?: string; run_id?: number }[];
+  date_taken: string | null; date_confirmed: boolean; date_warning: string | null; date_message: string;
   revision: number; sha1: string | null; location: string;
 }
 export interface PhotoPage {
@@ -417,6 +418,7 @@ export interface MetadataHistoryPage {
 }
 
 export interface Operation {
+  date_change: { target: string; before: DateEditContext["date"]; after: DateEditContext["date"] } | null;
   consolidated_into: number | null;
   action: "rotation" | "date" | "metadata_source" | "metadata" | null;
   issues: FileIssue[];
@@ -791,7 +793,7 @@ export const api = {
   review: (id: number) => request<ReviewDetail>("GET", `/api/v1/photos/${id}/review`),
   reviewDecision: (id: number, detail: ReviewDetail, reason: string, action: string, note: string, request_id: string, bookmark_reason?: string) =>
     request<ReviewDetail>("POST", `/api/v1/photos/${id}/review`, {
-      photo_id: id, sha1: detail.sha1, revision: detail.revision, reason, action, note, request_id, ...(bookmark_reason ? { bookmark_reason } : {}),
+      photo_id: id, sha1: detail.sha1, revision: detail.revision, reason, action, note, request_id, ...(reason === "date" ? {date_taken:detail.date_taken} : {}), ...(bookmark_reason ? { bookmark_reason } : {}),
     }),
   similarityRecovery: (page = 1, photoId?: number) => request<SimilarityRecoveryPage>("GET", `/api/v1/similar/recovery?page=${page}${photoId == null ? "" : `&photo_id=${photoId}`}`),
   repairSimilarity: (scope: "missing" | "comparisons", photo_id?: number) => submitJob("/api/v1/similar/recovery", { scope, ...(photo_id == null ? {} : { photo_id }) }),

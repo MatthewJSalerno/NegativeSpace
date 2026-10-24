@@ -122,6 +122,7 @@ export function DateEditor({ photoId, donor, onClose, onSaved }: {
           <dl><dt>Before</dt><dd>{recorded(preview.before)}</dd><dt>After</dt><dd>{preview.after === "" ? "Explicitly cleared" : preview.after}</dd>
             <dt>Current location</dt><dd><code>{preview.filing.current}</code></dd>
             <dt>Resulting location</dt><dd><code>{preview.duplicate?.path ?? preview.filing.proposed}</code></dd></dl>
+          {preview.date_warning && !preview.no_change && <p className="warning" role="status"><strong>This date looks unusual.</strong> {preview.date_warning} You can still save it if it is correct.</p>}
           {!preview.duplicate && preview.filing.collision_renamed && <p>The filename has been numbered to avoid an existing file. Nothing will be overwritten.</p>}
           {preview.duplicate && <DuplicateEditNotice duplicate={preview.duplicate}/>}
           <p>{preview.no_change ? "The date and filing location already match. Nothing will be written." : "Only Date taken and its time details are saved. Files and naming conflicts are checked before any changes."}</p>

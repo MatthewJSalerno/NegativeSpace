@@ -342,7 +342,7 @@ All seven are created on every startup with `CREATE INDEX IF NOT EXISTS`, so a d
 | `idx_operations_sha1` | `sha1_hash` | "Everything that ever happened to this content" — across its duplicates, and across catalog rebuilds where `photo_id` does not survive. |
 
 **The catalog preserves history, not just derived metadata.** Engine-owned `engine/ns_db.py`
-initializes schema version 31 and refuses incompatible catalogs before processing.
+initializes schema version 32 and refuses incompatible catalogs before processing.
 No migration exists while catalogs are disposable development data: an older catalog is
 refused, and the remedy is a new catalog and a new Copy. A recorded migration is
 planned before a release. Preserve the older catalog. Index cannot
@@ -883,6 +883,14 @@ CREATE TABLE review_events (
     created_at TEXT NOT NULL, request_id TEXT NOT NULL UNIQUE, payload TEXT NOT NULL
 );
 CREATE INDEX idx_review_photo ON review_events(photo_id, reason, id);
+CREATE TABLE review_calendar (
+    id INTEGER PRIMARY KEY CHECK(id=1), year INTEGER NOT NULL
+);
+CREATE TABLE review_date_confirmations (
+    photo_id INTEGER PRIMARY KEY REFERENCES photos(id),
+    date_taken TEXT NOT NULL,
+    event_id INTEGER NOT NULL REFERENCES review_events(id)
+);
 ```
 
 ## 7. Non-Functional Requirements
@@ -1910,7 +1918,28 @@ an optional note of at most 60 characters in the exact request payload. `done` r
 only the bookmark; `keep` is accepted only for a Decide whether to keep it bookmark
 and records the explicit decision. Completion preserves the original preset and note
 in history. Metadata edits never remove a bookmark automatically. Review events are included in catalog backups and
-unbacked-change accounting. Development catalogs require schema 31; no migration.
+unbacked-change accounting. Date confirmation is `date/correct`, bound to the exact
+recorded `date_taken` as well as the photo/review revision. It never changes metadata.
+The indexed `review_date_confirmations` row points to the immutable answer and survives
+settings, content-hash and other metadata changes while the date stays unchanged. A
+changed date invalidates that current confirmation; returning to an earlier date does
+not revive it. Index’s temporary source projection does not invalidate a confirmation
+when the restored destination still has the confirmed date. Exact request replay returns current state without reapplying an answer.
+
+A verified explicit JPEG/XMP date save records `date/date_saved` with the chosen date,
+operation and run, and confirms it in the same outcome transaction. Preview, failure,
+rotation, primary-source switching and clearing a date do not confirm a fallback date.
+Recovery uses the original operation identity and cannot duplicate the answer.
+
+Schema 32 adds current date confirmations, the last assessed calendar year and review-clearing triggers. Changes to
+the expected-date setting, recorded date, small-image setting or known dimensions append
+`cleared` events only when an unanswered concern ceases to apply. The event and its cause
+commit or roll back together. Unknown dimensions do not prove a size concern resolved.
+The history records the cause; explicit saved-date answers also link to their job.
+Neither reads nor repeated unchanged writes add history. Bookmarks are never cleared by
+these triggers. At the next job after a calendar-year advance, a once-per-year check records dates
+that have fallen within range, with that job ID; ordinary jobs only read the year marker.
+Automatic clearing for future unbuilt reasons remains with those workstreams. Development catalogs require schema 32; no migration.
 
 
 ## 11. Explicit uncertain-outcome verification

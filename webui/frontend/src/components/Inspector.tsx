@@ -318,8 +318,7 @@ export function Inspector({ id, enlarged, setEnlarged, leaveGuard, statusHint, s
           <div className="inspector-tab-panel" role="tabpanel" {...tabPanel(tabId, "information", activeTab)}>
             {detail && activeTab === "information" && <Details onRename={setRenameName} onImportChoices={() => setImportChoices(true)} onMetadata={openMetadata} onEdit={editDate} jobRunning={jobRunning} refreshKey={refreshKey} detail={detail} onLineage={() => setLineage(true)}
               review={inLibrary ? <ReviewNote key={`review:${id}`} id={id} refreshKey={refreshKey} disabled={jobRunning} compact onOpenReview={onReviewPhoto ? () => rotationExit.requestLeave(onReviewPhoto) : undefined}
-                concerns={detail.date_warning ? [{label:"Suspicious date",message:`${detail.date_warning} Recorded value: ${detail.date_taken}. Source: ${isFallbackDate(detail.date_source) ? "file modification fallback" : detail.date_source === "exif" ? "photo EXIF" : detail.date_source ?? "unknown"}. Use Edit date or the Metadata tab to correct the date.`}]
-                  : captureDateMessage(detail) ? [{label:"No usable capture date",message:captureDateMessage(detail)!}] : []}
+                concerns={captureDateMessage(detail) ? [{label:"No usable capture date",message:captureDateMessage(detail)!}] : []}
                 actions={IN_LIBRARY.includes(detail.status) && onReject
                   ? <button onClick={() => rotationExit.requestLeave(() => onReject(detail.filename))} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : "Move this photo to Rejects. Nothing is deleted."}>Reject…</button>
                   : null} /> : IN_REJECTS.includes(detail.status) && onReturn ? <div className="photo-actions"><button onClick={onReturn} disabled={jobRunning} title={jobRunning ? "Wait for the running job to finish." : undefined}>Return to library…</button></div> : null} />}

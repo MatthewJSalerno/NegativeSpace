@@ -45,7 +45,7 @@ const SCRUBBER = 48;
 const SOURCE_TREE = 300;
 const VIEW_LABEL: Record<View, string> = { all: "Search results", unorganized: "Not organized", organized: "Library", similar: "Has similar photos", suspicious: "Suspicious dates", rejects: "Rejects", review: "Needs review", source: "Everything still in the source" };
 const PLACE_VIEWS: View[] = ["unorganized", "organized", "review", "rejects", "similar"];
-const REASON_KEYS = ["small", "later", "issues", "attention"];
+const REASON_KEYS = ["small", "later", "issues", "attention", "date"];
 const filterApplies = (key: string, view: string) => key === "attention" ? view === "unorganized" : view === "organized" || view === "review";
 // The review bar's words for each job a selection can be reviewed for.
 // Why a review left selected photos out: what each action takes (catalog.ACTION_STATUSES).
@@ -94,7 +94,7 @@ function readUrl(hasLibrary = true) {
   const p = new URLSearchParams(window.location.search);
   const legacy = (p.get("view") || savedPlace(hasLibrary)) as View;
   const target = legacy === "similar" ? "organized" : legacy === "suspicious" ? "organized" : legacy || savedPlace(hasLibrary);
-  const view = target === "organized" && ["small","later","issues"].includes(p.get("reason") ?? "") ? "review" : target;
+  const view = target === "organized" && ["small","later","issues","date"].includes(p.get("reason") ?? "") ? "review" : target;
   const matchPage = Number(p.get("match_page"));
   const reason = p.get("reason") ?? "all";
   const similar = (view === "organized" || view === "review" || view === "all") && (legacy === "similar" || p.get("similar") === "1");
@@ -951,7 +951,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
     : grouped ? `${count(gallerySummary.total)} sets matching filters`
     : hasResultFilters ? `Showing ${count(gallerySummary.total)} of ${plural((data?.counts as Record<string, number> | undefined)?.[browseView === "review" ? "organized" : browseView] ?? 0, galleryNoun)}`
     : placeShown == null ? plural(gallerySummary.total, galleryNoun) : null;
-  const reasonLabels = { small: "Small images", later: "Bookmarked", issues: "Files needing verification", attention: "Needs attention" };
+  const reasonLabels = { date: "Suspicious dates", small: "Small images", later: "Bookmarked", issues: "Files needing verification", attention: "Needs attention" };
   const clearFilters = () => inspectorLeave.current(() => {
     setSuspicious(false); setUndated(false); setReason("all"); setSizeBelow(undefined); setSourceSummary(undefined); setOtherNames(false);
     if (sort === "bookmark") setSort(similar ? "matches" : "newest");
@@ -1017,7 +1017,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             {!focus && <h2>{sourceTree && folderShown ? folderLabel(folderShown.path) : sourceTree ? "Source folders" : similar ? "Similar photos" : view === "review" ? "Library" : VIEW_LABEL[view]}</h2>}
             {!focus && sourceTree && folderShown && <span className="folder-indexed" title={indexedExact(folderShown.last_indexed)}>{lastIndexed(folderShown.last_indexed)}</span>}
             {!focus && (otherNames || !!sourceSummary || undated || dates.length > 0 || types.length > 0 || (folders.length > 0 && !sourceTree) || !!q || similar || suspicious || reason !== "all" || sizeBelow != null) && <p className="section-note">
-              {[otherNames && "Has other names", sourceSummary && SOURCE_SUMMARY_LABELS[sourceSummary], sizeBelow != null && `Shorter side below ${sizeBelow} pixels`, similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No usable capture date", reason === "small" && "Small images", reason === "later" && "Bookmarked", reason === "issues" && "Files needing verification", reason === "attention" && "Needs attention", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
+              {[otherNames && "Has other names", sourceSummary && SOURCE_SUMMARY_LABELS[sourceSummary], sizeBelow != null && `Shorter side below ${sizeBelow} pixels`, similar && "Has similar photos", suspicious && "Suspicious dates", undated && "No usable capture date", reason === "small" && "Small images", reason === "date" && "Suspicious-date review", reason === "later" && "Bookmarked", reason === "issues" && "Files needing verification", reason === "attention" && "Needs attention", q && `Filenames matching “${q}”`, ...dates.map(dateLabel), ...types.map(typeLabel), ...(sourceTree ? [] : folders.map(folderLabel))].filter(Boolean).join(" · ")}
             </p>}
             <span className="gallery-tools">
               <FiltersButton active={filtersActive + (otherNames ? 1 : 0)} open={filtersOpen && !focus} onOpen={setFiltersOpen} disabled={!!focus}>
@@ -1055,6 +1055,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             {view === "review" && <label className="refinement-reason">Reason <select aria-label="Review reason" value={reason} onChange={e => changeReason(e.target.value)}>
               <option value="all">All ({data?.reasons?.all ?? "—"})</option>
               <option value="small">Small ({data?.reasons?.small ?? "—"})</option>
+              <option value="date">Suspicious dates ({data?.reasons?.date ?? "—"})</option>
               <option value="later">Bookmarked ({data?.reasons?.later ?? "—"})</option>
               {((data?.reasons?.issues ?? 0) > 0 || reason === "issues") && <option value="issues">Needs verification ({data?.reasons?.issues ?? "—"})</option>}
             </select></label>}
@@ -1208,8 +1209,9 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
             Counts may be incomplete: {plural(data.similarity.pending, "photo awaiting comparison", "photos awaiting comparison")};
             {" "}{plural(data.similarity.unavailable, "photo without a usable visual hash", "photos without a usable visual hash")}.
           </p>}
-          {!focus && <StableContent id="gallery-guidance" className="gallery-guidance" active={suspicious ? (similar && hasAdditionalFilters ? "filtered-dates" : "dates")
+          {!focus && <StableContent id="gallery-guidance" className="gallery-guidance" active={reason === "date" ? "date-review" : suspicious ? (similar && hasAdditionalFilters ? "filtered-dates" : "dates")
            : reason === "attention" ? (undated ? "attention-undated" : "attention") : undated ? "undated" : grouped ? "groups" : similar && hasAdditionalFilters ? "filtered" : "browse"} variants={{
+           "date-review": <p className="section-note">These recorded dates are outside your expected range and have not been confirmed. Inspect a photo to correct its date or confirm it is right.</p>,
            browse: <p className="section-note">Filters narrow the gallery. Checkboxes select photos for actions.</p>,
            undated: <p className="section-note">No complete date is available for filing. Missing dates alone do not prevent Copy or Move.</p>,
            attention: <p className="section-note">These source files have an issue that prevents organizing them. Open a file for the specific reason.</p>,

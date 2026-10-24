@@ -1536,6 +1536,11 @@ class JobsAndCatalog(ApiCase):
 
     def test_one_job_at_a_time_and_the_lock_decides(self):
         self.index_library()
+        # The worker releases its engine lock before Python finishes exiting.
+        # Finish that owned process before simulating a different, external owner;
+        # otherwise active() can correctly still report the owned post-job phase.
+        for proc in list(self.app_jobs()._procs.values()):
+            self.assertEqual(proc.wait(timeout=30), 0)
         with self.engine_lock_held():
             busy = self.client.post("/api/v1/jobs/start", json={"mode": "index"})
             self.assertEqual((busy.status_code, busy.json()["error"]), (409, "job_already_running"))

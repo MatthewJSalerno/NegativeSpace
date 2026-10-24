@@ -1,4 +1,7 @@
 """Date-only HTTP boundary with generated photos and the actual engine save path."""
+import csv
+import io
+import json
 import time
 import subprocess
 import unittest
@@ -64,6 +67,44 @@ class DateEditorTests(unittest.TestCase):
         self.assertEqual(replay.json()['id'],run['id'])
         body['edit']['changes']['date_taken']='2013-01-01T00:00:00'
         self.assertEqual(c.post(f'/api/v1/photos/{self.pid}/date-save',json=body).status_code,409)
+
+    def test_odd_date_preview_warns_at_configured_boundaries_without_blocking_save(self):
+        c=self.client()
+        with ns_db.connect(self.db) as conn:
+            year=int(conn.execute("SELECT strftime('%Y','now')").fetchone()[0])
+            ns_db.save_settings(conn, {'suspicious_min_year':2000}, expected_revisions={'suspicious_min_year':0})
+        for value, warning in [('1999-01-01T12:00:00',True), ('2000-01-01T12:00:00',False),
+                               (f'{year+1}-12-31T23:59:59',False), (f'{year+2}-01-01T00:00:00',True),
+                               ('1999',True), ('',False)]:
+            with self.subTest(value=value):
+                response=self.plan(c,value)
+                self.assertEqual(response.status_code,200,response.text)
+                self.assertEqual(bool(response.json()['date_warning']),warning)
+        plan=self.plan(c,'2399-06-07T12:34:56').json()
+        self.assertIn('ahead of the current year',plan['date_warning'])
+        run,_=self.save(c,plan)
+        self.assertEqual(run['status'],'Completed',run)
+        self.assertTrue(c.get(f'/api/v1/photos/{self.pid}/review').json()['date_confirmed'])
+
+    def test_job_details_keep_exact_dates_after_a_later_edit_and_export_them(self):
+        c=self.client()
+        value='2012-06-07T00:30:00.123+14:00'
+        run,_=self.save(c,self.plan(c,value).json())
+        def recorded():
+            return c.get('/api/v1/operations',params={'run':run['id']}).json()['items'][0]['date_change']
+        expected={'target':'sidecar_xmp',
+                  'before':{'present':True,'value':'2005-03-04T05:06:07'},
+                  'after':{'present':True,'value':value}}
+        self.assertEqual(recorded(),expected)
+        cleared,_=self.save(c,self.plan(c,'').json(),request='clear-after-save')
+        self.assertEqual(cleared['status'],'Completed',cleared)
+        self.assertEqual(recorded(),expected)
+        detail=c.get('/api/v1/operations',params={'run':cleared['id']}).json()['items'][0]['date_change']
+        self.assertEqual(detail['after'],{'present':True,'value':''})
+        exported=c.get('/api/v1/operations/export',params={'run':run['id'],'format':'json'}).json()
+        self.assertEqual(exported[0]['date_change'],expected)
+        exported=c.get('/api/v1/operations/export',params={'run':run['id'],'format':'csv'}).text
+        self.assertEqual(json.loads(next(csv.DictReader(io.StringIO(exported)))['date_change']),expected)
 
     def test_copy_captured_exif_date_keeps_primary_and_records_donor(self):
         c=self.client();p=self.plan(c,donor='exif')
