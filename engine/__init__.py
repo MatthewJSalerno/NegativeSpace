@@ -9,7 +9,7 @@ transfer (Copy and Move), relocate (Rename, Reject, Return to library), reconcil
 the fsync steps), store (catalog writes), fileinfo (dates, metadata, hashes), thumbnails,
 destinations, targeting (which photos a run acts on), jobs, maintenance, backups,
 runtime (shared run state), workers (cancellable read-only pools), constants and deps; ns_db (the catalog schema and its rules,
-shared with the web API), review (catalog-only review decisions), review_history (date confirmations and automatic reason-clearing history), attention (explicit
+shared with the web API), review (catalog-only review decisions), review_batch (bounded shared review answers), review_history (date confirmations and automatic reason-clearing history), attention (explicit
 read-only checks of uncertain file outcomes), metadata (source-aware resolution for the
 XMP pipeline), metadata_adapter (qualified EXIF/comparison views),
 xmp (bounded sidecar reads), xmp_association (pure ownership
@@ -73,6 +73,8 @@ deletion and are not reliably detected by the engine.
 
 - --import-choice (Optional) Confirm a source XMP ownership/version choice from JSON stdin,
   under the engine lock; source files stay unchanged.
+- --review-batch (Optional) Record a bounded batch of one shared review answer from JSON stdin,
+  under the engine lock; return saved IDs and stale-photo results without changing files.
 - --review-decision (Optional) Record one catalog-only review decision from JSON stdin,
   under the engine lock. Returns JSON; never changes photo bytes or transfer status.
 

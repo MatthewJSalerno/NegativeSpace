@@ -200,6 +200,7 @@ def main():
     mode_group.add_argument('--check-issue', type=positive_int, help='Verify one uncertain operation without modifying photo files.')
     mode_group.add_argument('--import-choice', action='store_true',
                             help='Confirm a source XMP import choice from bounded JSON stdin; changes no files.')
+    mode_group.add_argument('--review-batch', action='store_true', help='Record one bounded catalog-only batch of review answers from JSON stdin.')
     mode_group.add_argument('--review-decision', action='store_true',
                             help='Record a catalog-only review decision supplied as JSON on standard input; changes no photo files.')
     mode_group.add_argument('--metadata', choices=('preview','apply','retry','discard','source-cleanup-preview'),
@@ -264,7 +265,7 @@ def main():
 
     # 2. Configure Logging
     # --preview answers on stdout in JSON for the API, so its log goes to the file only.
-    answers_in_json = (args.import_choice or args.metadata or args.review_decision or args.preview is not None or args.clear_previews or args.rename_candidates is not None
+    answers_in_json = (args.import_choice or args.metadata or args.review_decision or args.review_batch or args.preview is not None or args.clear_previews or args.rename_candidates is not None
                        or (args.rename is not None and args.dry_run))
     runtime.configure_logging(log_dir, console=not answers_in_json)
     metadata_request = None
@@ -341,11 +342,14 @@ def main():
             runtime.release_single_instance_lock(lock_fd)
         sys.exit(code)
 
-    if args.review_decision:
-        from engine import review
+    if args.review_decision or args.review_batch:
+        from engine import review, review_batch
         try:
-            body = json.loads(sys.stdin.read(8193))
-            print(json.dumps(review.decide(db_path, body)))
+            raw = sys.stdin.read(review_batch.MAX_BYTES + 1 if args.review_batch else 8193)
+            if len(raw.encode()) > (review_batch.MAX_BYTES if args.review_batch else 8192):
+                raise ValueError('Review request is too large.')
+            body = json.loads(raw)
+            print(json.dumps((review_batch.decide if args.review_batch else review.decide)(db_path, body)))
             code = 0
         except ns_db.RevisionConflict as exc:
             print(json.dumps({'error': 'review_changed', 'message': str(exc)}))

@@ -66,7 +66,7 @@ def details(conn, photo_id):
             'Rejects' if row[1] in ns_db.REJECTED_STATUSES else 'Not organized'}
 
 
-def decide(db_path, body):
+def validate_decision(body):
     if not isinstance(body, dict) or set(body) - {'bookmark_reason','date_taken'} != {'photo_id','sha1','revision','reason','action','note','request_id'}:
         raise ValueError('Send the photo, content, revision, reason, action, note and request ID.')
     pid, reason, action = body['photo_id'], body['reason'], body['action']
@@ -89,34 +89,44 @@ def decide(db_path, body):
         raise ValueError('Invalid request ID')
     if body['sha1'] is not None and (not isinstance(body['sha1'], str) or not re.fullmatch(r'[0-9a-fA-F]{40}', body['sha1'])):
         raise ValueError('Invalid content hash')
+
+
+def _decide(conn, body):
+    pid, reason, action = body['photo_id'], body['reason'], body['action']
+    preset = body.get('bookmark_reason', 'date')
     payload = json.dumps(body, sort_keys=True)
+    prior = conn.execute('SELECT payload FROM review_events WHERE request_id=?', (body['request_id'],)).fetchone()
+    if prior:
+        if prior[0] != payload:
+            raise ns_db.RevisionConflict('Request ID already used for another decision')
+        return details(conn, pid)
+    current = details(conn, pid)
+    if current is None or current['sha1'] != body['sha1'] or current['revision'] != body['revision']:
+        raise ns_db.RevisionConflict('The photo or review changed. Reload before deciding.')
+    if reason == 'date' and current['date_taken'] != body['date_taken']:
+        raise ns_db.RevisionConflict('The date changed. Reload before confirming it.')
+    if current['location'] != 'Library':
+        raise ns_db.RevisionConflict('Only organized photos in Library can be reviewed.')
+    if action != 'later' and reason not in [n['reason'] for n in current['reasons']]:
+        raise ns_db.RevisionConflict('This reminder is no longer current. Reload the photo.')
+    note = body['note']
+    if reason == 'later' and action != 'later':
+        latest = next(e for e in current['history'] if e['reason'] == 'later')
+        preset, note = latest['bookmark_reason'], latest['note']
+        if action == 'keep' and preset != 'keep':
+            raise ValueError('Keep it applies to a keep-decision bookmark.')
+    # Payload remains exact request evidence for replay. Completion inherits the
+    # reason/note through history; creation records a validated preset.
+    event = conn.execute('INSERT INTO review_events(photo_id,sha1,reason,action,note,created_at,request_id,payload) VALUES(?,?,?,?,?,?,?,?)',
+                 (pid, body['sha1'], reason, action, note, ns_db.utc_now(), body['request_id'], payload)).lastrowid
+    if reason == 'date':
+        review_history.confirm_date(conn, pid, body['date_taken'], event)
+    return details(conn, pid)
+
+
+def decide(db_path, body):
+    validate_decision(body)
     with contextlib.closing(ns_db.connect(db_path, synchronous='FULL')) as conn:
         ns_db.require_schema(conn)
         with ns_db.transaction(conn):
-            prior = conn.execute('SELECT payload FROM review_events WHERE request_id=?', (body['request_id'],)).fetchone()
-            if prior:
-                if prior[0] != payload:
-                    raise ns_db.RevisionConflict('Request ID already used for another decision')
-                return details(conn, pid)
-            current = details(conn, pid)
-            if current is None or current['sha1'] != body['sha1'] or current['revision'] != body['revision']:
-                raise ns_db.RevisionConflict('The photo or review changed. Reload before deciding.')
-            if reason == 'date' and current['date_taken'] != body['date_taken']:
-                raise ns_db.RevisionConflict('The date changed. Reload before confirming it.')
-            if current['location'] != 'Library':
-                raise ns_db.RevisionConflict('Only organized photos in Library can be reviewed.')
-            if action != 'later' and reason not in [n['reason'] for n in current['reasons']]:
-                raise ns_db.RevisionConflict('This reminder is no longer current. Reload the photo.')
-            note = body['note']
-            if reason == 'later' and action != 'later':
-                latest = next(e for e in current['history'] if e['reason'] == 'later')
-                preset, note = latest['bookmark_reason'], latest['note']
-                if action == 'keep' and preset != 'keep':
-                    raise ValueError('Keep it applies to a keep-decision bookmark.')
-            # Payload remains exact request evidence for replay. Completion inherits the
-            # reason/note through history; creation records a validated preset.
-            event = conn.execute('INSERT INTO review_events(photo_id,sha1,reason,action,note,created_at,request_id,payload) VALUES(?,?,?,?,?,?,?,?)',
-                         (pid, body['sha1'], reason, action, note, ns_db.utc_now(), body['request_id'], payload)).lastrowid
-            if reason == 'date':
-                review_history.confirm_date(conn, pid, body['date_taken'], event)
-        return details(conn, pid)
+            return _decide(conn, body)

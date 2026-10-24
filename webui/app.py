@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
-from engine import constants, ns_db, review, attention, pair_retry, metadata_choices
+from engine import constants, ns_db, review, review_batch, attention, pair_retry, metadata_choices
 from engine import ns_similarity
 from engine import ns_similarity_recovery
 from . import catalog, catalog_backups, gallery, lineage, metadata_history, oplog, outcomes, stats
@@ -367,6 +367,23 @@ def create_app(cfg: Optional[Config] = None) -> FastAPI:
             return result
         except (ValueError, TypeError) as exc:
             raise _bad_request(ValueError(str(exc)))
+
+    @app.post("/api/v1/review-batch/preview")
+    def preview_review_batch(body: dict = Body(...)):
+        try:
+            if set(body) != {'ids', 'action'}:
+                raise ValueError('Send the selected photos and one review answer.')
+            with catalog.connect(cfg.db_path) as conn:
+                conn.execute('BEGIN')
+                return review_batch.preview(conn, body['ids'], body['action'])
+        except (ValueError, TypeError) as exc:
+            raise _bad_request(ValueError(str(exc)))
+
+    @app.post("/api/v1/review-batch")
+    def decide_review_batch(body: dict = Body(...)):
+        if len(json.dumps(body).encode()) > review_batch.MAX_BYTES:
+            raise _bad_request(ValueError('Review batch is too large.'))
+        return jobs.review_decision(body, batch=True)
 
     @app.get("/api/v1/photos/{photo_id}/review")
     def photo_review(photo_id: int):

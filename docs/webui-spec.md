@@ -3064,16 +3064,15 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   one consistent row of photo actions at the top of the information pane, before review reasons and File/capture information. *Why not a page of its own:* finding notes then works like the rest of the
   Library (filters, selection, bulk answers), and working through them reuses the
   workspace built for such tasks.
-* **Filter by reason; bulk within one reason** (decided 2026-10-18; not built beyond the
-  existing bulk Reject). While Needs review is filtered to one reason, ticked photos get
+* **Filter by reason; bulk within one reason** (catalog-only answers implemented;
+  future file-changing answers stay with their workflows). While Needs review is filtered to one reason, ticked photos get
   that reason's answers in the selection bar. Answers that change no file (**Mark
   reviewed**, **It's correct**, **Keep it**, **Remove bookmark**) take one confirmation with the count
   ("Mark 200 photos reviewed? Their files don't change."), and each photo's history
   records the answer. Answers that change files use their existing previews: Reject the
   Reject review, applying suggested dates a per-photo list of new dates and folders
   before the job runs. **Keep the old one instead** stays one photo at a time, since each
-  swap needs its comparison. To revisit once the maintainer's own library has been
-  organized. A mixed selection offers only shared actions. The Needs review refinement holds the Reason
+  swap needs its comparison. A mixed selection offers only shared actions. The Needs review refinement holds the Reason
   selector and counts; **Review one by one** stays above the photos. Type, date and
   independent image-size filters are in the Filters panel; folders belong to Source
   folders. Active filters toggle off, and no additional reason selected means the
@@ -3098,8 +3097,7 @@ general tagging system: personal labels (people, albums) belong to gallery appli
   and original reason/note, removes the bookmark and leaves the photo in Library.
   Reject uses its normal workflow. Date, comparison, rotation and metadata tools reuse
   existing components; automatic date evidence remains separate planned work.
-  Bulk removal is deferred, with one count confirmation and partial-result reporting
-  specified for when it is built. Bookmarks do not block organizing files.
+  Bulk removal uses one count confirmation and reports saved and stale photos separately. Bookmarks do not block organizing files.
 * **Review belongs after organization** (revised 2026-10-07). The inbox and its
   decision APIs accept only active Library photos. Source failures belong in import
   status and Logs, with external correction, not in this inbox. Bookmarks, small

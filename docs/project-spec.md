@@ -297,8 +297,9 @@ Sidebar place links clear optional restrictions; Back restores prior state. Smal
 reminders are opt-in and never block transfers. Mark reviewed acknowledges only the
 size concern. Bookmarks carry preset reasons and optional notes, sort by reason and
 open existing review tools. Removal and Keep it decisions retain review history without
-clearing unrelated concerns. Bulk bookmark removal and automatic date evidence are
-separate deferred work. The shared workspace preserves selection and normal Reject
+clearing unrelated concerns. Shared catalog-only answers also apply to a selection
+within one reason, with a count confirmation and per-photo stale results. Automatic
+date evidence remains separate planned work. The shared workspace preserves selection and normal Reject
 confirmation. See `ui-design.md` for the navigation and Bookmark contract.
 
 The read-only metadata source viewer is built: separate XMP Sidecar, Embedded XMP and

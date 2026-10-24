@@ -24,7 +24,6 @@ development until the maintainer decides.
 - 💬 A content-history link from a photo to its earlier versions
 
 **Review**
-- Answer many photos at once within one reason — decided, not built (`docs/webui-spec.md` §7.9)
 - "Looks like a reject" (decided)
 - Undated-photo evidence and per-library back-test — decided, not built (`docs/webui-spec.md` §3.1)
 - Review history speed with many decisions
@@ -205,7 +204,8 @@ Found 2026-10-05 looking for screens that do the same job twice.
   their decision UI remains unfinished. Import-pair retry is already built.
 - [x] Suspicious-date acknowledgment and explicit saved-date confirmation: DR1–DR4 passed (`docs/webui-spec.md` §7.9).
 - [ ] Add No capture date and sidecar/edit reasons to the shared inbox with their respective workstreams.
-- [ ] Bulk review answers within one reason: decided, not built (`docs/webui-spec.md` §7.9).
+- [x] Bulk catalog-only review answers: BR1–BR4 passed (`docs/webui-spec.md` §7.9).
+- [ ] Bulk answers for future file-changing review reasons: not built (`docs/webui-spec.md` §7.9).
 - [x] Automatic date/size clearing history: DR1–DR4 passed (`docs/webui-spec.md` §7.9).
 - [x] Date-save warnings and recorded job details — DR5 passed (`docs/ui-design.md`, Date-only metadata editing).
 - [ ] Automatic history for future review reasons: not built (`docs/webui-spec.md` §7.9).
@@ -720,7 +720,7 @@ and Bookmark contract is in `docs/ui-design.md`, Page frame.
   from recorded metadata intent, including existing operations. Date/source edits also
   avoid Move labels; status filters and stored outcomes remain intact.
 
-- Bulk bookmark removal — deferred, lower priority; single-photo completion first (`docs/ui-design.md`, Bookmarks).
+- [x] Bulk bookmark removal and Keep decisions — BR3–BR4 passed (`docs/ui-design.md`, Bulk review answers).
 
 - Guide screenshots for sidebar and Bookmarks — refresh in a separate documentation PR; stale sidebar images removed from the guide (`docs/user-docs-standard.md`, Screenshots).
 

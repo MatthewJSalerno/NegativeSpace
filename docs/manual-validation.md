@@ -9,6 +9,10 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Bulk review answers:** [BR1–BR4](#bulk-review-answers) passed, including all lettered
+steps, on 2026-10-24. No manual checks remain for this batch.
+Date-review DR1–DR5 remains accepted; do not repeat those checks.
+
 **Date review and clearing history:** DR1–DR5 passed, including all lettered steps,
 on 2026-10-23. No manual checks remain for this batch.
 
@@ -45,6 +49,76 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Bulk review answers
+
+**Status:** BR1–BR4 passed, including all lettered steps, on 2026-10-24.
+The maintainer asked whether the bookmark category and Keep action represented two
+bookmarks: each fixture has one keep-decision bookmark; Keep records its answer,
+while Remove bookmark only removes the reminder. Docker checks passed: 51 Python
+suites (935 tests), 157 smoke tests, all 43 browser workflows and 11 supporting
+checks, with no skips. App/web builds and typechecking passed. Dark-mode desktop
+and 200% text dialogs were inspected. A generated 5,000-photo batch measured
+9 ms for counts, 14 ms for preview and 248 ms to save on the test machine; this
+is a single measurement, not a large-history performance guarantee.
+
+Use the fresh review instance with
+its prepared demo library and eight generated `br-` photos. Index and Copy have
+already finished. The size reminder is 800 pixels and earliest expected year is 1800.
+Start each test in **Library**, clear refinements and selection, and replace the search.
+All filenames below are searchable destination names; no source paths are needed.
+
+### Test BR1 — Mark several small photos reviewed
+
+a. Search **`br-small-`**. Expect **`br-small-a.jpg`** and **`br-small-b.jpg`**,
+both 640 × 480. Enable **Needs review**, choose **Reason › Small images**, and select
+both photo checkboxes. The selection bar offers **Mark reviewed…**.
+
+b. Open **Mark reviewed…**. Expect a count of 2, an explanation that only the size
+reminders clear, and Cancel focused initially. Cancel once: both photos remain selected
+and no answer is saved. Open it again and confirm **Mark reviewed**.
+
+c. Expect 2 successful answers. Close the result: the selection clears and these
+photos leave that review view. Clear refinements, reopen either filename, and expand
+**Review history**: expect one small-image review entry. The photo is still in Library.
+
+### Test BR2 — Confirm different dates together
+
+a. Search **`br-date-`**: **`br-date-a.jpg`** is dated **2398-06-07** and
+**`br-date-b.jpg`** is dated **2399-07-08**. Enable **Needs review**, choose
+**Reason › Suspicious dates**, and select both. Choose **These dates are correct…**.
+
+b. Confirm once for 2 photos. Close the result. Both leave the suspicious-date
+review queue. Clear refinements, keeping the search, and enable **Odd dates**: both
+still appear, with their different dates unchanged.
+
+c. Open **`br-date-a.jpg`**: the date is confirmed, its small-image reminder and
+prepared bookmark remain, and **Review history** contains one date confirmation.
+
+### Test BR3 — Remove different bookmarks together
+
+a. Search **`br-bookmark-`**: **`br-bookmark-a.jpg`** has **Check the details**,
+and **`br-bookmark-b.jpg`** has **Ask someone**. Enable **Needs review**, choose
+**Reason › Bookmarked**, and select both. Expect **Remove bookmarks…** and no
+**Keep these photos…**, because these are not keep-decision bookmarks.
+
+b. Open **Remove bookmarks…**, check the count of 2, and confirm. Close the result:
+both leave Bookmarked. Clear refinements and reopen each filename. Both remain in
+Library; **Review history** preserves the original reason/note and records removal once.
+
+### Test BR4 — Record Keep decisions together and check layout
+
+a. Search **`br-keep-`**: **`br-keep-a.jpg`** and **`br-keep-b.jpg`** both have
+**Decide whether to keep it** bookmarks. Enable **Needs review**, choose
+**Reason › Bookmarked**, and select both. Expect **Keep these photos…** and
+**Remove bookmarks…** as distinct choices.
+
+b. Open **Keep these photos…**. Before saving, check at 200% browser zoom: text wraps
+without overlap, controls remain reachable, and Escape cancels. Return to normal zoom.
+
+c. Open it again and confirm for 2 photos. Close the result and clear refinements.
+Both photos remain in Library, their bookmarks are gone, and **Review history** records
+**Chose to keep this photo; bookmark removed**, retaining each original reason/note.
 
 ## Date review and clearing history
 

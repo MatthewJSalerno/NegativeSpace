@@ -90,3 +90,8 @@ The web interface submits **Mark reviewed**, **Review later** and **Done** throu
 its fields and replay/refusal behavior are documented in the review endpoints in
 [api-spec.md](api-spec.md). It changes catalog review history only, never photo files,
 EXIF, selection or transfer status. This is separate from the Index/Copy/Move modes.
+
+`--review-batch` accepts `items` containing one shared review answer from bounded JSON
+stdin (16 MiB, up to 50,000 photos). It holds the engine lock, records eligible answers
+in one transaction and reports saved IDs and stale photos separately. Exact request
+replay does not add events. See the batch endpoints in [api-spec.md](api-spec.md).

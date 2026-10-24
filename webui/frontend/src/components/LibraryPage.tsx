@@ -1,3 +1,5 @@
+import { BulkReviewActions } from "./BulkReview";
+import type { BulkReviewCounts } from "../api";
 import { DiscoverySummary } from "./DiscoverySummary";
 import { RotationEditor } from "./RotationEditor";
 import { useDismissedRun } from "../dismissal";
@@ -314,6 +316,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   }, [refreshKey]);
   // What each action would take of the selection, for the selection bar.
   const [pairRetryCount, setPairRetryCount] = useState(0);
+  const [reviewCounts, setReviewCounts] = useState<BulkReviewCounts | null>(null);
   const [selectionActions, setSelectionActions] = useState<SelectionCounts>(NO_ACTIONS);
   const [dismissedId, dismissRun, dismissal] = useDismissedRun();
   const { jobs, connection } = useJobFeed();
@@ -418,9 +421,10 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   useEffect(() => {
     let live = true;
     const ids = [...selected];
+    setReviewCounts(null);
     if (ids.length === 0) { setSelectionActions(NO_ACTIONS); setPairRetryCount(0); }
     else api.selection(ids, "newest", 1, 1, galleryMinimum)
-      .then((s) => { if(live) { setSelectionActions(s.actions ?? NO_ACTIONS); setPairRetryCount(s.pair_retries ?? 0); } }, () => { if(live) { setSelectionActions(NO_ACTIONS); setPairRetryCount(0); } });
+      .then((s) => { if(live) { setReviewCounts(s.review_actions ?? null); setSelectionActions(s.actions ?? NO_ACTIONS); setPairRetryCount(s.pair_retries ?? 0); } }, () => { if(live) { setSelectionActions(NO_ACTIONS); setPairRetryCount(0); } });
     return () => { live = false; };
   }, [selected, galleryMinimum, refreshKey]);
   useEffect(() => {
@@ -988,7 +992,9 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
               onIndex={start("index")}
               onTransfer={(mode, scope) => (scope === "folder" ? askFolder(mode) : askTransfer(mode))} />}
       selection={selected.size > 0 ? (
-        <SelectionBar pairRetryIds={[...selected]} pairRetryCount={pairRetryCount} capacity={status.photos} selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
+        <SelectionBar reviewActions={<BulkReviewActions ids={[...selected]} counts={reviewCounts} disabled={jobRunning}
+                      reason={view === "review" ? reason : reason === "later" && (view === "organized" || similar) ? "later" : null}
+                      onSaved={ids => { const saved = new Set(ids); setSelected(current => new Set([...current].filter(id => !saved.has(id)))); }} />} pairRetryIds={[...selected]} pairRetryCount={pairRetryCount} capacity={status.photos} selected={selected.size} outside={outside} focused={!!focus} reviewing={focus?.kind === "review"}
                       onRotate={selectionActions.reject > 0 ? () => setRotationIds([...selected]) : undefined} counts={selectionActions} place={place} jobRunning={jobRunning} search={searchField} onAction={transferSelected}
                       onShowSelected={showSelected} onBack={backToResults} onClear={clearSelection} />
       ) : undefined}

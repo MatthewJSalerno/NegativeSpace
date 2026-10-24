@@ -127,6 +127,19 @@ export interface PhotoItem {
   review?: Pick<ReviewDetail, "reasons" | "location">;
 }
 
+export type BulkReviewAction = "small" | "date" | "done" | "keep";
+export type BulkReviewCounts = Record<BulkReviewAction, number>;
+export interface ReviewDecision {
+  photo_id: number; sha1: string | null; revision: number; reason: string; action: string;
+  note: string; date_taken?: string; request_id?: string;
+}
+export interface BulkReviewPlan {
+  action: BulkReviewAction; total: number;
+  items: { filename: string; decision: ReviewDecision }[];
+  skipped: { photo_id: number; filename: string | null; message: string }[];
+}
+export interface BulkReviewResult { saved: number[]; skipped: { photo_id: number; message: string }[] }
+
 export interface ReviewDetail {
   reasons: { reason: string; label: string; message: string; bookmark_reason?: string }[];
   history: { id: number; reason: string; action: string; note: string; created_at: string; bookmark_reason?: string; cause?: string; date_taken?: string; run_id?: number }[];
@@ -219,6 +232,7 @@ function browseQuery(f: BrowseFilters): URLSearchParams {
 }
 
 export interface SelectionPage {
+  review_actions?: BulkReviewCounts;
   pair_retries?: number;
   items: PhotoItem[];
   page: number;
@@ -790,6 +804,8 @@ export const api = {
   access: () => request<AccessSettings>("GET", "/api/v1/access"),
   saveAccess: (hosts: string[], revision: number, confirm_current_host = false) =>
     request<AccessSettings>("PUT", "/api/v1/access", { hosts, revision, confirm_current_host }),
+  previewReviewBatch: (ids: number[], action: BulkReviewAction) => request<BulkReviewPlan>("POST", "/api/v1/review-batch/preview", { ids, action }),
+  reviewBatch: (items: ReviewDecision[]) => request<BulkReviewResult>("POST", "/api/v1/review-batch", { items }),
   review: (id: number) => request<ReviewDetail>("GET", `/api/v1/photos/${id}/review`),
   reviewDecision: (id: number, detail: ReviewDetail, reason: string, action: string, note: string, request_id: string, bookmark_reason?: string) =>
     request<ReviewDetail>("POST", `/api/v1/photos/${id}/review`, {
