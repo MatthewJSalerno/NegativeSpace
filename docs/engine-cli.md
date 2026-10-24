@@ -95,3 +95,11 @@ EXIF, selection or transfer status. This is separate from the Index/Copy/Move mo
 stdin (16 MiB, up to 50,000 photos). It holds the engine lock, records eligible answers
 in one transaction and reports saved IDs and stale photos separately. Exact request
 replay does not add events. See the batch endpoints in [api-spec.md](api-spec.md).
+
+### Destination folder confirmation
+
+`--transfer-preview-token TOKEN` accompanies Copy/Move with `--file-ids-from` and
+`--request-id`. It binds the job to the catalog state used for its destination-folder
+preview. The engine rechecks under its lock at acceptance and around reconciliation,
+before processing photos. It supplements Move's edited-original consent token.
+The token does not reserve names or replace live file verification.

@@ -88,6 +88,9 @@ jobs:
       - name: Move confirmation API and engine
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p move_confirmation_test.py -v
 
+      - name: Destination folder previews
+        run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p transfer_preview_test.py -v
+
       - name: Metadata source viewer API
         run: docker run --rm -e PUID=$(id -u) -e PGID=$(id -g) -v "$PWD":/app -w /app negativespace python3 -m unittest discover -s tests -p metadata_view_test.py -v
 
@@ -421,6 +424,9 @@ jobs:
 
       - name: Move confirmation browser
         run: MOVE_CONFIRMATION_FIXTURE=1 DRIVER=move_confirmation_browser_drive.py sh tests/browser/webui_browser_test.sh
+
+      - name: Destination folder preview browser
+        run: DRIVER=transfer_preview_browser_drive.py sh tests/browser/webui_browser_test.sh
 
       - name: Metadata source tabs in a browser
         run: METADATA_VIEW_FIXTURE=1 DRIVER=metadata_sources_browser_drive.py sh tests/browser/webui_browser_test.sh

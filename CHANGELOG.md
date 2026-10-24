@@ -9,6 +9,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Preview Copy/Move destination folders with counts and expandable, paged source
+  filenames inside the existing confirmation. Reject stale catalog previews before
+  starting; preserve Move's edited-original safeguards. CSV export remains deferred.
+
 - Answer selected small-image reminders, confirm selected dates, or finish bookmarks
   with one count confirmation. Each photo keeps its decision history; stale photos
   remain selected and are listed in the result. Photo files stay unchanged.

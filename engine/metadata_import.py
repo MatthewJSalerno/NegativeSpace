@@ -14,7 +14,7 @@ from pathlib import Path
 from engine import constants, metadata_capture, metadata_decisions, metadata_edits, metadata_save, ns_db
 
 
-def plan(conn, photo_id, run_id):
+def plan(conn, photo_id, run_id, *, config=None, destination_root=None):
     """Read-only plan from captured evidence and the job's frozen decisions."""
     row = conn.execute('SELECT p.source_path,p.dest_path,p.sha1_hash,p.status,p.metadata_json,pf.file_id '
         'FROM photos p JOIN photo_files pf ON pf.photo_id=p.id WHERE p.id=?',(photo_id,)).fetchone()
@@ -34,11 +34,12 @@ def plan(conn, photo_id, run_id):
     sidecars = [s for s in report['sidecars'] if s['state']!='ignored'
                 and (s['state']!='associated' or relative in s['candidates'])]
     if not sidecars:
-        return photo_plan(conn, photo_id, run_id, row, capture[0], report)
-    config_row = conn.execute('SELECT effective_config_json FROM run_configs WHERE run_id=?',(run_id,)).fetchone()
-    if not config_row:
-        raise ValueError('Photo/XMP import requires the job settings snapshot')
-    config = json.loads(config_row[0])
+        return photo_plan(conn, photo_id, run_id, row, capture[0], report, config=config, destination_root=destination_root)
+    if config is None:
+        config_row = conn.execute('SELECT effective_config_json FROM run_configs WHERE run_id=?',(run_id,)).fetchone()
+        if not config_row:
+            raise ValueError('Photo/XMP import requires the job settings snapshot')
+        config = json.loads(config_row[0])
     highwater = config.get('metadata_decision_highwater',0)
     primary = metadata_decisions.current(conn,'primary',str(file_id),highwater=highwater)
     blocking = [issue for issue in report['issues']
@@ -93,7 +94,7 @@ def plan(conn, photo_id, run_id):
     original_date = datetime.fromtimestamp(original[0])
     fields = resolution['proposed_effective']
     folder = metadata_edits._folder(fields,original_date.year)
-    dest_root = conn.execute('SELECT dest_path FROM runs WHERE id=?',(run_id,)).fetchone()[0]
+    dest_root = destination_root if destination_root is not None else conn.execute('SELECT dest_path FROM runs WHERE id=?',(run_id,)).fetchone()[0]
     destination = Path(dest_root)/folder/Path(row[0]).name
     # Copy -> Move and reimports keep the actual delivered name, including Rename.
     receipt = conn.execute("SELECT e.detail_json,f.current_path FROM operation_events e "
@@ -239,7 +240,7 @@ def restore_delivered(conn, photo_id):
             (json.dumps(activation['metadata'],ensure_ascii=False),str(path),status,photo_id))
 
 
-def photo_plan(conn, photo_id, run_id, row, capture_id, report):
+def photo_plan(conn, photo_id, run_id, row, capture_id, report, *, config=None, destination_root=None):
     """Frozen read precedence for a first photo-only import; no bytes or primary change."""
     if row[3] not in ('Pending','Copied') or Path(row[0]).suffix.lower() not in ns_db.SUPPORTED_EXTENSIONS:
         return None
@@ -248,10 +249,11 @@ def photo_plan(conn, photo_id, run_id, row, capture_id, report):
             if issue.get('code')=='read_error' and isinstance(issue.get('errno'),int):
                 raise OSError(issue['errno'],os.strerror(issue['errno']))
         raise ValueError('Embedded metadata needs attention before its priority can be applied; preserve the source and reindex after correction')
-    frozen=conn.execute('SELECT effective_config_json FROM run_configs WHERE run_id=?',(run_id,)).fetchone()
-    if not frozen:
-        raise ValueError('Metadata priority requires the job settings snapshot')
-    config=json.loads(frozen[0])
+    if config is None:
+        frozen=conn.execute('SELECT effective_config_json FROM run_configs WHERE run_id=?',(run_id,)).fetchone()
+        if not frozen:
+            raise ValueError('Metadata priority requires the job settings snapshot')
+        config=json.loads(frozen[0])
     primary=metadata_decisions.current(conn,'primary',str(row[5]),highwater=config.get('metadata_decision_highwater',0))
     chosen=primary['value']['primary_id'] if primary else None
     if chosen and chosen not in report['sources']:
@@ -260,7 +262,7 @@ def photo_plan(conn, photo_id, run_id, row, capture_id, report):
         old=conn.execute('SELECT catalog_sha1,report_json FROM metadata_captures WHERE capture_id=?',(primary['capture_id'],)).fetchone()
         if old[0]!=row[2] or json.loads(old[1])['sources'].get(chosen)!=report['sources'].get(chosen):
             raise ValueError('The selected embedded source changed; review its primary before importing')
-    root=conn.execute('SELECT dest_path FROM runs WHERE id=?',(run_id,)).fetchone()[0]
+    root=destination_root if destination_root is not None else conn.execute('SELECT dest_path FROM runs WHERE id=?',(run_id,)).fetchone()[0]
     recorded=photo_receipt(conn,photo_id)
     active=metadata_save.active(conn,photo_id)
     if row[3]=='Copied' and active and active['sha1_hash']==row[2] and active['primary_id']==chosen:

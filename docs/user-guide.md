@@ -115,6 +115,11 @@ folder, under `YYYY/MM/DD`, and never touches your source. **Move** does the sam
 removes each original once its copy is verified (it needs a writable source). Either can
 take everything or one folder from Jobs. Tick photos instead and the bar at the top
 offers what applies to them: Copy, Move, Reject, or Return to library. Each asks first.
+The Copy/Move confirmation groups proposed destinations by folder, using paths such
+as `library/2020/06/15` relative to your destination. Expand a folder to see source
+filenames and counts; this helps you spot unexpected dates or Undated folders before
+starting. Photos without a proposed delivery have their own explanations. The job
+checks files and available names, and its log records the actual results.
 A selection holds library photos or photos in Rejects, never both, so each action means
 one thing. When a job finishes, you are where you were, and the bell at the top right
 lists it under **Notifications**: **Show these photos** shows what it did, and you can

@@ -1012,6 +1012,13 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
                                      photo_ids=selection, mode=mode.lower())
                 except ValueError as exc:
                     raise SelectionRefused(str(exc)) from exc
+            folder_preview = mode in ('MOVE','COPY') and (submitted or {}).get('transfer_preview_token')
+            if folder_preview:
+                from engine import transfer_preview
+                try:
+                    transfer_preview.check(conn,folder_preview,source=source,destination=destination,photo_ids=selection)
+                except ValueError as exc:
+                    raise SelectionRefused(str(exc)) from exc
             previewed_transfer = mode in ('MOVE', 'COPY') and (submitted or {}).get('move_preview_token')
             if previewed_transfer:
                 from engine import move_confirmation
@@ -1019,7 +1026,7 @@ def create_run(conn, *, mode, source, destination, targeting=None, request_id=No
                     move_confirmation.check(conn, previewed_transfer, source=source, destination=destination, photo_ids=selection)
                 except ValueError as exc:
                     raise SelectionRefused(str(exc)) from exc
-            if mode in ('COPY', 'MOVE', 'REJECT', 'RETURN') and not previewed_transfer:
+            if mode in ('COPY', 'MOVE', 'REJECT', 'RETURN') and not (previewed_transfer or folder_preview):
                 # Runs are accepted only with the engine lock held. Check here,
                 # not at API preflight, so another tab/engine cannot change a
                 # selected photo's place between validation and acceptance.

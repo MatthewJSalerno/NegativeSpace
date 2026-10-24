@@ -493,6 +493,10 @@ with sync_playwright() as p:
     shot("5b-review-before-copy")
     history_photo = int(page.locator(".card").first.get_attribute("data-id"))
     review.get_by_role("button", name="Copy these 3 photos").click()
+    copy_dialog = page.get_by_role("alertdialog")
+    expect(copy_dialog.get_by_role("region", name="Destination folders", exact=True)).to_be_visible()
+    expect(copy_dialog.get_by_role("button", name="Copy", exact=True)).to_be_enabled()
+    copy_dialog.get_by_role("button", name="Copy", exact=True).click()
     # Back where it started (webui-spec 2, after a job), with nothing selected; the
     # banner opens the job's photos, where search and the sidebar still work.
     expect(review).to_have_count(0)
