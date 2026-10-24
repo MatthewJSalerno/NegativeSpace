@@ -11,6 +11,17 @@ behavior may remain, but it does not establish a mobile support commitment.
 Desktop zoom, text scaling, keyboard access and reflow remain accessibility concerns,
 including when zoom or a resized desktop window activates a narrow layout.
 
+## Feature proposals and scope
+
+Every suggested feature must state a concrete user use case: who needs it, what they
+are trying to do, and why the existing workflow does not meet that need. Review the
+use case and proposed scope with the maintainer before treating the suggestion as a
+requirement or implementing it. A backlog or specification entry alone does not
+establish that this review happened; distinguish proposals, approved work and deferred
+discussion. Put additional assistant-suggested features, with their use cases, in the
+discussion-only section at the end of TODO; do not add them to implementation batches
+before maintainer approval. Record decisions and deferrals in the relevant spec and TODO.
+
 ## Visual language
 
 Keep photographs prominent, with neutral surfaces, restrained borders, and one blue
@@ -353,6 +364,23 @@ Selection counts reserve text space based on catalog capacity, including the out
 count and each offered action count. Numbers use tabular digits. Selecting additional
 photos must not move adjacent actions; this adds no selection limit. Different available
 actions and narrow-window wrapping may still change the layout.
+
+## Copy/Move destination folders
+
+Inside the existing transfer confirmation, after its warnings and before its footer,
+show **Destination folders**, with source-file counts and native expandable disclosures.
+Counts include identical source files; identify duplicates in the expanded list so
+they are not mistaken for additional destination photos.
+Use actual destination-relative paths, including numeric date components, never
+translated month names or a different folder structure. Explain the path base.
+Expanded details identify source filenames and source-relative paths, distinguishing
+new deliveries, existing destination photos, duplicate originals and Rejects.
+Photos without a proposed delivery remain available in a separate disclosure with
+reasons. Page folders and filenames in groups of 20 so large selections do not render
+an unbounded list. Keep view controls separate from Cancel/Copy/Move; Cancel starts
+focused. Loading/failure blocks submission, and a stale preview offers an explicit
+refresh before another confirmation. Move retains its Include/Leave decision for
+edited originals. The CSV idea is deferred in TODO, not part of this confirmation.
 
 ## Move confirmation after embedded edits
 

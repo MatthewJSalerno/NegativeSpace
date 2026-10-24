@@ -637,6 +637,26 @@ Inspector/pair responses include `display_width`/`display_height` alongside file
 
 ## 5. Jobs
 
+### `POST /api/v1/jobs/transfer-preview`
+
+Read-only Copy/Move destination folders. Body: `mode` (`copy` or `move`) and optional
+`file_ids` or literal `source_subdir`, with the same source bounds as Start. Optional
+positive integer `page` pages folders; `file_page` pages filenames; both use 20 rows.
+Returns frozen `file_ids`, a SHA-256 `token`, `mode`, scope `total`, `planned` count,
+`group_total`, `page`, `page_size`, and `groups` with destination-relative `path`,
+`total` and the first 20 `items`. Items contain `photo_id`, source `filename`,
+source-relative `source`, and an explanatory `note`. `unplanned_total` and paged
+`unplanned` items retain photos without a proposed delivery and their reasons.
+
+A follow-up with `folder` (one exact returned path), `token`, and the frozen scope
+returns that folder's `items`, `total` and `page` from `file_page`. Folder-page requests
+also carry the token. Changed state returns `409 transfer_preview_changed`; invalid
+input returns `400 invalid_request`; a running engine returns `409 busy`. No files
+are read or changed, no filenames reserved, no job created. Catalog settings, metadata
+captures/decisions and matching destination records participate in the guard.
+Filing reuses the import metadata planner. Source filenames identify originals, not
+reserved destination names; live file checks and collision handling remain job work.
+
 ### `POST /api/v1/jobs/move-preview`
 
 Read-only confirmation snapshot. Body: `{}`, `{"file_ids":[101,102]}`, or
@@ -675,7 +695,14 @@ lock at acceptance and around startup reconciliation before processing files; fi
 live-file verification remains mandatory. A CLI request with explicit consent cannot
 replay as an ordinary unconfirmed web Move.
 
-The browser freezes Move all/folder to the previewed catalogued IDs; newly indexed
+A web Copy/Move also supplies `transfer_preview_token`, bound to the destination
+folder preview and included in request identity. It requires frozen `file_ids` and
+`request_id`. The API and engine under its lock refuse changed catalog evidence
+before file processing (`409 transfer_preview_changed` at API preflight). Accepted
+replay precedes these checks. A network Move's Copy alternative retains this guard
+and frozen scope while dropping deletion consent.
+
+The browser freezes Copy/Move all/folder to the previewed catalogued IDs; newly indexed
 photos are not silently added. Preview-confirmed Move (and its Copy-instead alternative) may span Library and Rejects
 (the existing whole-source Move behavior), with an explicit Rejects warning. Ordinary
 selection submissions still refuse mixed places. Source-empty/network answers carry

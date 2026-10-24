@@ -1191,3 +1191,10 @@ button.danger:hover:not(:disabled) { background: var(--danger-bg); color: var(--
 .file-location-value { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
 .other-names { margin-block-start: var(--space-2); }
 .other-names li { margin-block: var(--space-2); overflow-wrap: anywhere; }
+
+/* Destination previews use actual relative paths and bounded filename lists. */
+.destination-preview { border-top: 1px solid var(--border); margin-top: var(--space-4); padding-top: var(--space-4); }
+.destination-preview-folder { margin-block: var(--space-2); }
+.destination-preview summary, .destination-preview-files { overflow-wrap: anywhere; }
+.destination-preview-files { padding-left: var(--space-4); }
+.destination-preview-files li + li { margin-top: var(--space-3); }

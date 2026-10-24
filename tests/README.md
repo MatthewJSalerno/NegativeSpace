@@ -61,6 +61,7 @@ you supply a prebuilt `PLAYWRIGHT_IMAGE`; catalogs and containers remain isolate
 | `metadata_dates_browser_drive.py` | PR / main / manual | `METADATA_VIEW_FIXTURE=1` |
 | `metadata_settings_browser_drive.py` | PR / main / manual | `METADATA_SETTINGS_FIXTURE=1` |
 | `pair_retry_browser_drive.py` | PR / main / manual | `PAIR_RETRY_FIXTURE=1` |
+| `transfer_preview_browser_drive.py` | PR / main / manual | — |
 | `move_confirmation_browser_drive.py` | PR / main / manual | `MOVE_CONFIRMATION_FIXTURE=1` |
 | `metadata_sources_browser_drive.py` | PR / main / manual | `METADATA_VIEW_FIXTURE=1` |
 | `notifications_browser_drive.py` | PR / main / manual | — |
@@ -2221,3 +2222,15 @@ engine-lock refusal and transaction rollback. It runs in regular Python CI.
 bar, count confirmation, Cancel/Escape, 200% text, partial results, lost-response retry
 and Keep history. Use `DRIVER=bulk_review_browser_drive.py` with the standard harness.
 Manual checks and acceptance live in [manual validation](../docs/manual-validation.md#bulk-review-answers).
+
+## Destination folder previews
+
+`transfer_preview_test.py` covers actual date/Undated paths, source scoping, duplicate
+and Rejects treatment, paged results, read-only previews, API/engine stale-state
+checks, idempotent submission and XMP-primary filing against verified delivery.
+`transfer_preview_browser_drive.py` checks shared confirmation placement, bounded
+filename lists, Cancel/Escape/focus, enlarged text, stale refresh and confirmed Copy.
+Both run in regular CI. Maintainer steps and acceptance live in
+[manual validation](../docs/manual-validation.md).
+
+Destination-folder preview maintainer checks: [TP1–TP3](../docs/manual-validation.md#destination-folder-preview).

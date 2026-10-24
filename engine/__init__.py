@@ -4,7 +4,7 @@ Description: A backend engine for organizing large photo collections based on sp
 Run it as `python -m engine` from the folder holding this package.
 
 Package layout, by area: cli (arguments and the job each mode runs), scan (Index),
-transfer (Copy and Move), relocate (Rename, Reject, Return to library), reconcile
+transfer (Copy and Move), transfer_preview (read-only destination folders and stale-state guards), relocate (Rename, Reject, Return to library), reconcile
 (settling interrupted work at the start of every job), durable (copy-verify-delete and
 the fsync steps), store (catalog writes), fileinfo (dates, metadata, hashes), thumbnails,
 destinations, targeting (which photos a run acts on), jobs, maintenance, backups,
@@ -59,6 +59,10 @@ deletion and are not reliably detected by the engine.
   Never stored as a setting. Without it, these sources stay while other files proceed.
   --metadata source-cleanup-preview takes {"photo_ids":[...]} on stdin and reports
   affected originals read-only using --source and --dest; it grants no deletion consent.
+
+- --transfer-preview-token (Optional) With --copy or --move, --file-ids-from and
+  --request-id: bind the job to its recorded destination-folder preview; no names
+  are reserved and live verification remains required.
 
 - --move-preview-token (Optional) With --move or its --copy alternative,
   --file-ids-from and --request-id:
