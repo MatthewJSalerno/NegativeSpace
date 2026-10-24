@@ -1942,6 +1942,14 @@ that have fallen within range, with that job ID; ordinary jobs only read the yea
 Automatic clearing for future unbuilt reasons remains with those workstreams. Development catalogs require schema 32; no migration.
 
 
+Bulk review uses the same single-photo decision guards and history under one engine
+lock. It accepts one shared answer, bounded to 50,000 unique photos and 16 MiB of JSON.
+All request shapes are validated before writes; individual stale revisions/content,
+changed dates and non-Library locations produce skipped results. Remaining answers
+commit in one transaction. Unexpected errors roll back the whole batch. Retrying exact
+requests returns already recorded answers without duplicating events. No schema change
+is required, and no photo file or transfer status is changed.
+
 ## 11. Explicit uncertain-outcome verification
 
 `--check-issue ISSUE_ID` runs under the engine lock as CHECK, without normal startup

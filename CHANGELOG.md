@@ -9,6 +9,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Answer selected small-image reminders, confirm selected dates, or finish bookmarks
+  with one count confirmation. Each photo keeps its decision history; stale photos
+  remain selected and are listed in the result. Photo files stay unchanged.
+
 - Show verified date edits' before/after values and metadata target in job details.
   Warn about unusual chosen years in confirmation while allowing the date to be saved.
 

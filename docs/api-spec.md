@@ -1337,6 +1337,29 @@ content/revision, photos outside Library, or conflicting request reuse; 409 `job
 busy engine; 503 `review_unavailable` means the result could not be confirmed, so
 reload before retrying. Success is shown only after acknowledgement.
 
+### `POST /api/v1/review-batch/preview`
+
+Read-only body: `ids` (1–50,000 positive photo IDs), `action` (`small`, `date`,
+`done`, `keep`). Returns `total`, `action`, eligible `items` with filename and
+single-photo `decision` snapshots, and `skipped` with photo ID, filename and reason.
+The snapshot binds content, review revision and, for date confirmation, the exact
+recorded date. Source, rejected, missing or no-longer-eligible photos are excluded
+explicitly. No history is written. Selection responses also include `review_actions`
+counts for these four actions, computed over the whole selection, not its visible page.
+
+### `POST /api/v1/review-batch`
+
+Body: `items`, the preview's decisions plus a distinct `request_id` for each photo.
+Maximum 50,000 items and 16 MiB; all entries must use one supported reason/action.
+Malformed or repeated entries are rejected before writes. The engine lock excludes
+other jobs; all eligible answers commit together. Stale photos are left unchanged
+and reported as `{photo_id, message}` in `skipped`; successful IDs appear in `saved`.
+Exact request replay reports previously saved IDs without adding events. An unexpected
+failure rolls back the transaction; a lost reply can be retried with the same body.
+Bookmark completion preserves each original preset and note. No photo bytes, metadata,
+transfer status or other review reasons change. 400 rejects invalid input; 409 refuses
+busy work; 503 means the outcome could not be confirmed. UI retries retain request IDs.
+
 ### Composable review browsing
 
 Gallery listing, IDs, position, types, folders and timeline accept `similar` and

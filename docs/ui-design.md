@@ -243,7 +243,8 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   threshold controls. Check the date uses the existing editor and recorded metadata;
   future automatic evidence is not a dependency. Unavailable editing explains why.
   Presets sort in picker order, then photo ID, consistently across pages and navigation.
-  Bulk bookmark removal is deferred; it must not delay the single-photo workflow.
+  Bulk bookmark removal and Keep these photos use the selection bar when all selected
+  photos share that action. Keep applies only to keep-decision bookmarks.
 - **Independent size browsing:** Filters offers a shorter-side cutoff in Not organized,
   Library, Similar photos and Rejects. It includes previously reviewed photos and works
   with reminders off; it never changes Settings or creates review items. Needs review
@@ -258,6 +259,18 @@ Decided with the maintainer (2026-10-08), after Immich's web app and drawn in th
   Immich's "n selected" bar. *Why grouped:* spread across the bar, the count blended into
   the page and the actions sat at the far edge, easy to miss. *Why the search stays,
   unlike Immich's:* a selection is built across searches ("n outside this view").
+- **Bulk review answers** sit with actions in the selection bar, while Needs review
+  has one reason selected (including Bookmarked). Offer Mark reviewed, These dates are
+  correct, Remove bookmarks and Keep these photos only when the answer applies to every
+  selected photo, including photos outside the current view. One shared modal confirms
+  the eligible count and what will clear; Cancel has initial focus. Photo files never
+  change. A busy job disables saving with an explanation. Up to 50,000 photos can receive
+  one answer; larger selections explain the limit. Source and Rejects never offer these
+  answers. Mixed selections expose only shared answers; existing Reject previews remain.
+  After acknowledgment, show saved and unchanged counts, listing stale photos by name
+  with a reason. Closing removes only successful IDs from selection; other IDs stay
+  selected. Retry an uncertain response with the same request, never a new answer.
+  Selection, search and date navigation keep their established spacing and behavior.
 - **Filters** beside Sort, at the end of the place heading row, opens Size, Types, then
   Dates, in a panel under it over the photos (`FiltersButton.tsx`). It is a
   disclosure (`aria-expanded`), not a dialog: the gallery updates behind it; Esc, Close

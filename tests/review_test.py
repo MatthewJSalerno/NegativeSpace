@@ -510,3 +510,91 @@ class ReviewTests(ApiCase):
         self.assertFalse(detail['date_confirmed'])
         self.assertEqual(len(detail['history']), 1)
         self.assertEqual(detail['history'][0]['action'], 'correct')
+
+
+    def batch(self, ids, action):
+        response = self.client.post('/api/v1/review-batch/preview', json={'ids': ids, 'action': action})
+        self.assertEqual(response.status_code, 200, response.text)
+        plan = response.json()
+        return plan, {'items': [dict(row['decision'], request_id=uuid.uuid4().hex) for row in plan['items']]}
+
+    def bookmark(self, pid, preset='keep'):
+        body = self.decision(pid, 'later', 'later', 'Remember this')
+        body['bookmark_reason'] = preset
+        self.assertEqual(self.send(body).status_code, 200)
+
+    def test_bulk_preview_and_counts_do_not_offer_source_or_missing_photos(self):
+        self.enable()
+        plan, body = self.batch([1, 2, 3, 999], 'small')
+        self.assertEqual([row['decision']['photo_id'] for row in plan['items']], [1])
+        self.assertEqual({row['photo_id'] for row in plan['skipped']}, {2, 3, 999})
+        selection = self.client.post('/api/v1/photos/selection', json={'ids':[1,2,3,999]}).json()
+        self.assertEqual(selection['review_actions'], dict(small=1, date=1, done=0, keep=0))
+        saved = self.client.post('/api/v1/review-batch', json=body)
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertEqual(saved.json(), dict(saved=[1], skipped=[]))
+        self.assertEqual([r['reason'] for r in self.client.get('/api/v1/photos/1/review').json()['reasons']], ['date'])
+
+    def test_bulk_bookmarks_keep_notes_and_partial_stale_answers_can_replay(self):
+        self.bookmark(1); self.bookmark(2)
+        plan, body = self.batch([1,2], 'keep')
+        self.bookmark(2, 'ask')  # a different tab replaces one of the bookmarks
+        response = self.client.post('/api/v1/review-batch', json=body)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['saved'], [1])
+        self.assertEqual([r['photo_id'] for r in response.json()['skipped']], [2])
+        self.assertEqual(self.client.post('/api/v1/review-batch', json=body).json(), response.json())
+        one = self.client.get('/api/v1/photos/1/review').json()
+        self.assertEqual((one['history'][0]['action'],one['history'][0]['note'],one['history'][0]['bookmark_reason']), ('keep','Remember this','keep'))
+        self.assertEqual(sum(e['action']=='keep' for e in one['history']),1)
+        two = self.client.get('/api/v1/photos/2/review').json()
+        self.assertEqual(two['reasons'][0]['bookmark_reason'], 'ask')
+
+    def test_bulk_dates_keep_each_date_and_do_not_clear_other_reasons(self):
+        self.enable(); self.bookmark(1)
+        with ns_db.connect(self.cfg.db_path) as conn:
+            conn.execute("UPDATE photos SET metadata_json=? WHERE id=2", (json.dumps({'date_taken':'0002-02-03','date_source':'exif'}),)); conn.commit()
+        plan, body = self.batch([1,2], 'date')
+        self.assertEqual([r['decision']['date_taken'] for r in plan['items']], ['0001-01-01','0002-02-03'])
+        self.assertEqual(self.client.post('/api/v1/review-batch', json=body).json()['saved'], [1,2])
+        self.assertEqual(self.client.get('/api/v1/photos?view=review&reason=date').json()['total'], 0)
+        self.assertEqual(self.client.get('/api/v1/photos?view=organized&suspicious=true').json()['total'], 2)
+        self.assertEqual({r['reason'] for r in self.client.get('/api/v1/photos/1/review').json()['reasons']}, {'small','later'})
+
+    def test_bulk_date_and_location_changes_are_left_unchanged(self):
+        self.bookmark(1); self.bookmark(2)
+        _, body = self.batch([1,2], 'done')
+        with ns_db.connect(self.cfg.db_path) as conn:
+            conn.execute("UPDATE photos SET status='Rejected' WHERE id=2"); conn.commit()
+        result = self.client.post('/api/v1/review-batch', json=body).json()
+        self.assertEqual(result['saved'], [1]); self.assertEqual(result['skipped'][0]['photo_id'],2)
+        _, body = self.batch([1], 'date')
+        with ns_db.connect(self.cfg.db_path) as conn:
+            conn.execute("UPDATE photos SET metadata_json=? WHERE id=1", (json.dumps({'date_taken':'0003-01-01'}),)); conn.commit()
+        self.assertEqual(self.client.post('/api/v1/review-batch', json=body).json()['saved'], [])
+
+    def test_bulk_invalid_envelope_is_rejected_before_any_answer_and_busy_refuses(self):
+        self.bookmark(1); self.bookmark(2, 'ask')
+        self.assertEqual(self.batch([1,2], 'keep')[0]['skipped'][0]['photo_id'], 2)
+        _, body = self.batch([1,2], 'done')
+        invalid = json.loads(json.dumps(body)); invalid['items'][1]['request_id']='invalid!'
+        self.assertEqual(self.client.post('/api/v1/review-batch', json=invalid).status_code,400)
+        self.assertEqual(len(self.client.get('/api/v1/photos/1/review').json()['history']),1)
+        with self.engine_lock_held():
+            self.assertEqual(self.client.post('/api/v1/review-batch', json=body).status_code,409)
+        self.assertEqual(self.client.post('/api/v1/review-batch', json={'items':[body['items'][0]]*2}).status_code,400)
+        self.assertEqual(self.client.post('/api/v1/review-batch/preview',json={'ids':[], 'action':'done'}).status_code,400)
+
+    def test_bulk_transaction_rolls_back_on_unexpected_failure(self):
+        from unittest.mock import patch
+        from engine import review, review_batch
+        self.bookmark(1); self.bookmark(2)
+        _, body = self.batch([1,2], 'done')
+        original = review._decide
+        def fail_second(conn, item):
+            if item['photo_id']==2: raise OSError('generated failure')
+            return original(conn, item)
+        with patch.object(review, '_decide', side_effect=fail_second), self.assertRaises(OSError):
+            review_batch.decide(self.cfg.db_path, body)
+        self.assertEqual(len(self.client.get('/api/v1/photos/1/review').json()['history']),1)
+        self.assertEqual(review_batch.decide(self.cfg.db_path, body)['saved'],[1,2])

@@ -6,7 +6,7 @@ import posixpath
 from pathlib import Path
 from typing import Optional
 
-from engine import ns_db, review, review_history, attention, metadata_choices
+from engine import ns_db, review, review_batch, review_history, attention, metadata_choices
 from engine import ns_similarity_cache
 from engine.ns_db import PhotoStatus, IN_REJECTS_STATUSES
 from . import photo_orientation, catalog, metadata_view, card_names, discovery
@@ -526,6 +526,7 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, ma
         counts = conn.execute(
             "SELECT " + ", ".join(f"COALESCE(SUM(p.status IN ({ns_db.sql_values(v)})), 0)" for v in ACTION_STATUSES.values())
             + f" {join}", (json.dumps(wanted),)).fetchone()
+        review_counts = review_batch.counts(conn, wanted)
         # The photos one action takes, for its review: never the ones it would skip.
         takes = None
         if action is not None:
@@ -537,7 +538,7 @@ def photos_by_ids(db_path: Path, ids, *, sort="newest", page=1, page_size=60, ma
     return {"items": items, "page": page, "page_size": page_size, "total": len(found),
             "missing": [i for i in wanted if i not in found],
             "in_rejects": sorted(r[0] for r in places if r[1]),
-            "actions": dict(zip(ACTION_STATUSES, counts)),
+            "actions": dict(zip(ACTION_STATUSES, counts)), "review_actions": review_counts,
             **({"takes": takes} if takes is not None else {})}
 
 

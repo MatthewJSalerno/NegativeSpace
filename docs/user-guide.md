@@ -213,6 +213,13 @@ reminder for a photo you want to keep; select the ones you don't want and use
 **Reject…**. A larger look-alike is a hint, not an automatic choice. Change or turn off
 the small-image rule in **Settings › Files**.
 
+To answer several photos together, select one **Reason** under **Needs review**, then
+select the photos. The selection bar offers their shared answer: **Mark reviewed…**,
+**These dates are correct…**, **Remove bookmarks…**, or **Keep these photos…**.
+Confirm the count once. Each photo keeps its own decision in **Review history**;
+its files and other review reasons stay unchanged. If a photo changed while you were
+confirming, the result lists it by name and leaves it selected for another look.
+
 **Bookmark…** lets you choose why you want to return to a photo and add a short note.
 Find these photos through **Library › Needs review**, then **Reason › Bookmarked**.
 **Remove bookmark** clears the bookmark; editing a photo does not clear it automatically.

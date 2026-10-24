@@ -2210,3 +2210,14 @@ that an intent alone never claims a saved date. `metadata_dates_browser_drive.py
 covers the yellow confirmation warning, an enabled Save, and job Before/After details.
 See [DR5](../docs/manual-validation.md#test-dr5--date-confirmation-warning-and-job-details)
 for the only additional maintainer checks after DR1–DR4 acceptance.
+
+
+### Bulk review answers
+
+`review_test.py` covers shared-action eligibility, source/Rejects exclusion, content
+and revision guards, independent concerns, bookmark notes, partial results, replay,
+engine-lock refusal and transaction rollback. It runs in regular Python CI.
+`bulk_review_browser_drive.py` runs in regular browser CI with generated photos: selection
+bar, count confirmation, Cancel/Escape, 200% text, partial results, lost-response retry
+and Keep history. Use `DRIVER=bulk_review_browser_drive.py` with the standard harness.
+Manual checks and acceptance live in [manual validation](../docs/manual-validation.md#bulk-review-answers).
