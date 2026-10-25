@@ -842,7 +842,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   };
   const currentWidth = () => widthNow.current;
 
-  const start = (mode: "index" | ActionMode, fileIds?: number[]) => async (move?: import("../api").MoveSubmission) => {
+  const start = (mode: "index" | ActionMode, fileIds?: number[]) => async (move?: import("../api").TransferSubmission) => {
     setActionError(null);
     try {
       const run = await api.startJob(move ?? (fileIds ? { mode, file_ids: fileIds } : { mode }));
@@ -884,7 +884,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
   const [committing, setCommitting] = useState(false);
   const commit = async () => {
     if (!review) return;
-    if (review.move || review.reject) { setConfirm(review); return; }
+    if (review.transfer || review.reject) { setConfirm(review); return; }
     setCommitting(true);
     try { await review.run(); } finally { setCommitting(false); }
   };
@@ -910,7 +910,7 @@ export function LibraryPage({ status, refreshStatus, onOpenSettings }: {
       setActionError(e instanceof ApiError ? e.message : "The look-alikes could not be loaded.");
     }
   };
-  // Copy targets the folder; Move freezes its catalogued selection in the confirmation.
+  // Copy and Move freeze the folder’s catalogued selection in the confirmation.
   const folderShown = sourceTree ? shownFolder(folderTree, folders) : null;
   // Index changes no files, so like a full Index it starts without a confirmation.
   const startFolderIndex = async (path: string) => {

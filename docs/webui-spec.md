@@ -241,10 +241,21 @@ Users can select individual files or multiple files across grid views to run tar
   the selection. Revalidate before execution using the stale-preview policy (§7.1).
 
 **Move/Copy preview:** before confirmation, group projected destinations by folder
-with counts and expandable file details. Offer a downloadable operation plan for
-the full scope, as CSV like the log export. Label it a plan, not a log: subsequent execution can fail or detect
-changed state, and its actual outcomes belong in the job log. Apply the same
+with counts and expandable file details (implemented; TP1–TP3 maintainer validation passed).
+Use actual destination-relative paths with numeric date components, not month names.
+The use case is checking where photos will
+be filed, including unexpected years or Undated folders, before starting the job.
+Place a **Destination folders** section inside the existing Copy/Move confirmation;
+keep its warnings and confirmation buttons. These are proposed destinations, not
+completed operations; actual outcomes belong in the job log. Apply the same
 selection counts and stale-preview safeguards used by other confirmed actions.
+
+**Downloadable operation plan — deferred for discussion (2026-10-24):** do not build
+or offer a CSV download with the folder preview. Revisit only after every other
+requirement is built. The suggested use case is inspecting or saving a large proposed
+import in a spreadsheet, but the maintainer has not established a need beyond the
+in-app folder preview. Review that use case and obtain a decision before treating
+this as a feature requirement. Existing job-log exports are unchanged.
 
 **Scrolling a large library:** the gallery scrolls continuously. Near either end of
 what is loaded, the next or previous page loads, keeping the photos on screen where they

@@ -1,12 +1,14 @@
 import { Modal } from "./ui/Modal";
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, type ActionMode, type Status, type MoveScope, type MovePreview, type MoveSubmission } from "../api";
+import { api, ApiError, type ActionMode, type Status, type MoveScope, type MovePreview, type TransferSubmission } from "../api";
+import { DestinationPreview } from "./DestinationPreview";
+import type { TransferPreview } from "../api";
 import { Pager } from "./Pager";
 import { plural } from "../format";
 import { SubmissionStatus } from "./SubmissionStatus";
 
 type RejectComparison = { last: boolean; rejectedHere: number; onDontAskAgain: () => void };
-export type Confirm = { title: string; body: string[]; action: string; danger?: boolean; run: (move?: MoveSubmission) => Promise<void>; move?: MoveScope; onCancel?: () => void;
+export type Confirm = { title: string; body: string[]; action: string; danger?: boolean; run: (move?: TransferSubmission) => Promise<void>; move?: MoveScope; transfer?: { mode: "copy" | "move"; scope: MoveScope }; onCancel?: () => void;
   reject?: { comparison?: RejectComparison } };
 
 // Every Reject question uses this content and ConfirmDialog. Only an open comparison
@@ -30,7 +32,7 @@ export function rejectConfirm(total: number, run: () => Promise<void>, options: 
 // Move for all of them), asked the same way on every page. "All" counts what the engine
 // would take across the whole catalog (GET /status), never a view or search.
 export function transferConfirm(mode: ActionMode, status: Status, ids: number[] | { folder: string } | undefined,
-                                run: (move?: MoveSubmission) => Promise<void>, onCancel?: () => void, filename?: string,
+                                run: (move?: TransferSubmission) => Promise<void>, onCancel?: () => void, filename?: string,
                                 inRejects = false, sourceSubdir?: string): Confirm {
   const scope = Array.isArray(ids) ? (ids.length === 1 && (mode === "reject" || mode === "return") ? "this photo" : plural(ids.length, "selected photo"))
     : ids ? `the photos under ${ids.folder}`
@@ -49,6 +51,7 @@ export function transferConfirm(mode: ActionMode, status: Status, ids: number[] 
     title: mode === "move" ? `Move ${scope}?` : `Copy ${scope}?`,
     action: mode === "move" ? "Move" : "Copy",
     danger: mode === "move",
+    transfer: { mode, scope: Array.isArray(ids) ? { file_ids: ids } : sourceSubdir ? { source_subdir: sourceSubdir } : {} },
     move: mode === "move" ? (Array.isArray(ids) ? { file_ids: ids } : sourceSubdir ? { source_subdir: sourceSubdir } : {}) : undefined,
     body: [...(mode === "move" && inRejects ? [
       // A selection in Rejects (webui-spec 2): the warning first, as the review shows only it.
@@ -71,6 +74,7 @@ export function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose:
   const [dontAsk, setDontAsk] = useState(false);
   const comparison = confirm.reject?.comparison;
   const [error, setError] = useState<string | null>(null);
+  const [plan, setPlan] = useState<TransferPreview | null>(null);
   const [preview, setPreview] = useState<MovePreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
@@ -85,7 +89,7 @@ export function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose:
     return () => { alive = false; };
   }, [confirm.move, refresh]);
   const edited = preview?.edited_originals ?? [];
-  const waiting = !!confirm.move && (!preview || !preview.file_ids.length || (edited.length > 0 && !choice));
+  const waiting = (!!confirm.transfer && (!plan || !plan.planned)) || (!!confirm.move && (!preview || !preview.file_ids.length || (edited.length > 0 && !choice)));
   const cancel = useCallback(() => { confirm.onCancel?.(); onClose(); }, [confirm, onClose]);
   return (
     <Modal role="alertdialog" labelledBy="confirm-title" onClose={cancel} busy={busy}>
@@ -125,8 +129,12 @@ export function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose:
           </>}
           {(previewError || error) && <button className="primary" disabled={busy} onClick={() => setRefresh(n => n + 1)}>Refresh Move preview</button>}
         </section>}
+        {confirm.transfer && <DestinationPreview mode={confirm.transfer.mode} scope={confirm.transfer.scope}
+          refresh={refresh} busy={busy} onReady={setPlan} onRefresh={() => setRefresh(n => n + 1)} />}
         {busy && <SubmissionStatus />}
         {error && <p className="error" role="alert">{error}</p>}
+        {error && confirm.transfer && !confirm.move && <button className="primary" disabled={busy}
+          onClick={() => { setError(null); setRefresh(n => n + 1); }}>Refresh Copy preview</button>}
         <footer className="settings-actions">
           <button data-initial-focus onClick={cancel} disabled={busy}>Cancel</button>
           <button className={confirm.danger ? "danger" : "primary"} disabled={busy || waiting}
@@ -134,8 +142,9 @@ export function ConfirmDialog({ confirm, onClose }: { confirm: Confirm; onClose:
                     setBusy(true); setError(null);
                     try {
                       if (dontAsk && comparison && !comparison.last) comparison.onDontAskAgain();
-                      await confirm.run(preview ? { mode: "move", file_ids: preview.file_ids,
-                        move_preview_token: preview.token, confirm_edited_sources: choice === "include" } : undefined);
+                      await confirm.run(plan && confirm.transfer ? { mode: confirm.transfer.mode, file_ids: plan.file_ids,
+                        transfer_preview_token: plan.token, ...(preview ? { move_preview_token: preview.token,
+                        confirm_edited_sources: choice === "include" } : {}) } : undefined);
                       onClose();
                     }
                     catch (e) { setError(e instanceof ApiError ? e.message : "The action could not be completed. Check its status before trying again."); }

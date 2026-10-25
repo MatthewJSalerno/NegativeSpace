@@ -15,7 +15,7 @@ import time
 import uuid
 from typing import Optional
 
-from engine import move_confirmation, pair_retry, ns_db
+from engine import move_confirmation, transfer_preview, pair_retry, ns_db
 from . import catalog, catalog_backups, outcomes
 from .config import ENGINE_CWD, Config
 
@@ -248,8 +248,26 @@ class JobRunner:
                 except (ValueError, ns_db.SelectionRefused) as exc:
                     raise JobRefused(400, {'error':'invalid_request', 'message':str(exc)}) from exc
 
+    def preview_transfer(self, body):
+        mode = body.get('mode')
+        if mode not in ('copy','move'):
+            raise JobRefused(400, {'error':'invalid_request','message':'Choose Copy or Move.'})
+        _, selection = validate_request(self.cfg, mode, body.get('file_ids'), body.get('source_subdir'))
+        with self._start_lock:
+            if self._probe_lock(): raise self._busy()
+            with catalog.connect(self.cfg.db_path) as conn:
+                conn.execute('BEGIN')
+                try:
+                    return transfer_preview.preview(conn, source=self.cfg.source, destination=self.cfg.dest,
+                        mode=mode, photo_ids=selection, source_subdir=body.get('source_subdir'),
+                        **{k:body[k] for k in ('token','page','folder','file_page') if k in body})
+                except ns_db.RevisionConflict as exc:
+                    raise JobRefused(409, {'error':'transfer_preview_changed','message':str(exc)}) from exc
+                except (ValueError,ns_db.SelectionRefused) as exc:
+                    raise JobRefused(400, {'error':'invalid_request','message':str(exc)}) from exc
+
     def start(self, mode: str, file_ids=None, source_subdir=None, request_id=None,
-              confirm_edited_sources=False, move_preview_token=None) -> int:
+              confirm_edited_sources=False, move_preview_token=None, transfer_preview_token=None) -> int:
         validate_request_id(request_id)
         flags, selection = validate_request(self.cfg, mode, file_ids, source_subdir)
         if type(confirm_edited_sources) is not bool or (confirm_edited_sources and mode != 'move'):
@@ -259,6 +277,11 @@ class JobRunner:
                     not isinstance(move_preview_token, str) or not re.fullmatch('[0-9a-f]{64}', move_preview_token)):
                 raise JobRefused(400, {'error':'invalid_request', 'message':'Review the Move selection before confirming edited originals.'})
             flags += ['--move-preview-token', move_preview_token]
+        if transfer_preview_token is not None:
+            if (mode not in ('copy','move') or selection is None or not request_id or
+                    not isinstance(transfer_preview_token,str) or not re.fullmatch('[0-9a-f]{64}',transfer_preview_token)):
+                raise JobRefused(400, {'error':'invalid_request','message':'Refresh the destination preview before confirming.'})
+            flags += ['--transfer-preview-token',transfer_preview_token]
         if confirm_edited_sources:
             flags.append('--confirm-edited-sources')
         status = catalog.status(self.cfg.db_path)
@@ -282,6 +305,13 @@ class JobRunner:
                                                 destination=self.cfg.dest, photo_ids=selection)
                     except ValueError as exc:
                         raise JobRefused(409, {'error':'move_preview_changed', 'message':str(exc)}) from exc
+            if transfer_preview_token is not None:
+                with catalog.connect(self.cfg.db_path) as conn:
+                    try:
+                        transfer_preview.check(conn,transfer_preview_token,source=self.cfg.source,
+                                               destination=self.cfg.dest,photo_ids=selection)
+                    except ValueError as exc:
+                        raise JobRefused(409, {'error':'transfer_preview_changed','message':str(exc)}) from exc
             return self._launch(flags, request_id, selection)
 
     def import_choice(self, body):
@@ -518,6 +548,8 @@ class JobRunner:
                 flags += ['--pair-retry-token',submitted['pair_retry_token']]
             if mode == 'move' and submitted.get('confirm_edited_sources') is True:
                 flags.append('--confirm-edited-sources')
+            if mode in ('move', 'copy') and submitted.get('transfer_preview_token'):
+                flags += ['--transfer-preview-token', submitted['transfer_preview_token']]
             if mode in ('move', 'copy') and submitted.get('move_preview_token'):
                 flags += ['--move-preview-token', submitted['move_preview_token']]
             replay = self._replay(flags, request_id, selection)
@@ -547,6 +579,8 @@ class JobRunner:
                                   "confirm_edited_sources": "--confirm-edited-sources" in flags}}
         if '--pair-retry-token' in flags:
             expected['submitted']['pair_retry_token'] = argument('--pair-retry-token')
+        if '--transfer-preview-token' in flags:
+            expected['submitted']['transfer_preview_token'] = argument('--transfer-preview-token')
         if '--move-preview-token' in flags:
             expected['submitted']['move_preview_token'] = argument('--move-preview-token')
         for flag, mode in (("--reject", "REJECT"), ("--return-to-library", "RETURN")):
