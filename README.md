@@ -14,7 +14,7 @@ explains each safeguard.
 > **NegativeSpace is not a backup.** It backs up its own catalog, never your photos. Keep
 > your own backups of your photos. See [If something goes wrong](docs/recovery.md).
 
-![The Library, with the sidebar on the left and the years down the right](docs/images/library-sidebar.png)
+![The Library, with the sidebar on the left and the years down the right](docs/images/library-refinements.png)
 
 ## Install
 

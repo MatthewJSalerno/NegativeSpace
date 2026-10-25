@@ -55,8 +55,7 @@ development until the maintainer decides.
 - Re-audit durability claims whenever a write path changes
 
 **Audit findings (2026-10-24)**
-- Documentation and screenshots behind main — see Audit findings below
-- Code audit: backup availability never refreshed, unused gallery counts, test-only functions — see Audit findings below
+- Backup availability decision — see Audit findings below
 
 **Before the first release**
 - Decide on catalog migration
@@ -581,20 +580,6 @@ A documentation and code sweep of main at `19e23c5`, after #137–#142. For revi
 fix or decide each item, then remove it from here. Automated checks passed at the time:
 `check-specs`, all 73 API routes documented, schema matches engine-spec 6.5.
 
-### Documentation
-
-- [ ] **README screenshot is stale.** `docs/images/library-sidebar.png` shows the old Look
-  into sidebar with pins and Review later (replaced in #137), and a feature-branch build
-  in its footer. Retake it from main, dark, 1440 × 900, NASA demo set
-  (`docs/user-docs-standard.md`), under a new name.
-- [ ] **Six orphaned screenshots** in `docs/images/` are referenced nowhere and also show
-  the old sidebar: `jobs-before-index-sidebar.png`, `logs-sidebar.png`,
-  `notifications-sidebar.png`, `rejects-sidebar.png`, `settings-performance-sidebar.png`,
-  `suspicious-dates-sidebar.png`. Delete them, or reuse their subjects in the refresh below.
-- [ ] **The user guide has two screenshots left** (`setup-files-disclosures.png`,
-  `side-by-side.png`). Its text is current, but no picture shows the new sidebar and
-  refinements, Bookmarks, the lineage timeline, the actionable Index summary or the backup
-  status. One screenshot per section, per the docs standard.
 ### Code
 
 - [ ] **Backup availability is never refreshed by the engine.** `ns_db.refresh_backup_availability`
@@ -755,7 +740,7 @@ and Bookmark contract is in `docs/ui-design.md`, Page frame.
 
 - [x] Bulk bookmark removal and Keep decisions — BR3–BR4 passed (`docs/ui-design.md`, Bulk review answers).
 
-- Guide screenshots for sidebar and Bookmarks — refresh in a separate documentation PR; stale sidebar images removed from the guide (`docs/user-docs-standard.md`, Screenshots).
+- Guide screenshots for sidebar, Bookmarks and current workflows — refreshed from main with the NASA demo set (`docs/user-docs-standard.md`, Screenshots).
 
 - Date-bookmark entry — built; reason/note and metadata precede editing, SB5a recheck passed (`docs/manual-validation.md`, Sidebar and Bookmarks).
 

@@ -62,7 +62,7 @@ settings; they start collapsed to keep this step shorter. **Metadata** explains 
 handle shared XMP sidecars and where to save edits. **Backups** explains catalog backups, **Performance** sets how
 many photos are read at once, and **Access** saves additional addresses used to open the app.
 
-![The Files step: small-image reminders and the earliest expected year](images/setup-files-disclosures.png)
+![The Files step: small-image reminders and the earliest expected year](images/setup-files-review.png)
 
 ## 2. Index: read your photos
 
@@ -73,6 +73,8 @@ what it does, and why when it cannot run yet.
 **Index** reads every photo in your source: its date, a checksum of its content, and a
 small thumbnail. It moves and copies nothing, and never writes to your source. Its progress
 shows at the top of the page; closing the browser does not stop it.
+
+![The Jobs menu explains Index without moving or copying photos](images/jobs-index-menu.png)
 
 ## 3. Look around
 
@@ -108,12 +110,14 @@ explains that another photo already had that name.
 Click a photo to open it in the panel on the right: its file, its dates and where they came
 from, and its history.
 
+![The Index summary links to ready photos and files needing attention](images/source-index-summary.png)
+
 ## 4. Copy or Move
 
 **Jobs › Copy** files every photo not yet organized into the destination's `library/`
 folder, under `YYYY/MM/DD`, and never touches your source. **Move** does the same, then
 removes each original once its copy is verified (it needs a writable source). Either can
-take everything or one folder from Jobs. Tick photos instead and the bar at the top
+take everything or one folder from Jobs. Select photos instead and the bar at the top
 offers what applies to them: Copy, Move, Reject, or Return to library. Each asks first.
 The Copy/Move confirmation groups proposed destinations by folder, using paths such
 as `library/2020/06/15` relative to your destination. Expand a folder to see source
@@ -130,6 +134,8 @@ Which to use is your choice. If you would rather not give any app write access t
 originals, use Copy only: the source stays read-only, you check the library your own way,
 and you delete the originals yourself once you are confident. NegativeSpace never needs
 to delete anything for its library to be complete.
+
+![The Move confirmation shows actual destination folders before confirmation](images/transfer-folder-preview.png)
 
 ## 5. Similar photos
 
@@ -156,7 +162,7 @@ Only checked photos turn, reset or save; unchecked photos stay as they are.
 It saves Orientation to the photo’s metadata source without changing image pixels or your source files. A turn
 saved in an XMP sidecar needs a gallery that reads sidecar Orientation.
 
-![Two look-alikes side by side](images/side-by-side.png)
+![Two look-alikes side by side](images/similar-photo-comparison.png)
 
 To change a Library filename, open **Photo information** and choose **Rename…** beside
 the destination filename. **Also arrived as** lists recorded alternative names;
@@ -182,6 +188,8 @@ If you Move, a rejected photo's original in your source is deleted too, once its
 Rejects is verified, so the source can end up empty. That copy is then the only one:
 empty Rejects and the photo is gone. Every Move that includes rejected photos says so first.
 
+
+![Rejected photos remain separate from Library](images/rejects-library.png)
 
 ## 7. Check dates
 
@@ -238,6 +246,8 @@ folder changes before confirming. Future edits use that source; your other recor
 sources remain available. **Copy date to primary…** copies only the date and keeps
 your current primary source.
 
+![Library filtered to bookmarked photos](images/bookmarked-review.png)
+
 ## 8. History, logs and stats
 
 Every photo keeps its full history: each file it has been, each copy made of it, and
@@ -249,7 +259,7 @@ Later edits don't change which files matched when they arrived. If an edit makes
 two files identical, the timeline shows their separate arrivals and the edit that
 joined their histories.
 **View in log** opens the related job. **Now** shows the last recorded locations,
-not a live check of your files. Hover or focus a path for its recorded details.
+not a live check of your files. Hover over or focus its info icon for recorded details.
 
 **Logs** lists every job and everything it did, with any failures, their reasons, and
 **Retry**. Expand **Metadata choices** to see saved import decisions and the jobs that
@@ -258,6 +268,8 @@ compares a saved choice with the photo’s current primary source without changi
 
 
 **Stats**, under Logs in the sidebar, gives figures for the whole library.
+
+![The lineage timeline follows a photo from Index through Copy, Reject and Return](images/photo-history-timeline.png)
 
 ## 9. Settings
 
@@ -274,6 +286,8 @@ that have gone missing. **Rebuild all grid thumbnails** remakes every one.
 
 **Metadata** keeps the same choices you made during setup. Changing its defaults does
 not change photos that already have a primary metadata source.
+
+![Settings shows catalog backup availability and offers Back up now](images/catalog-backup-status.png)
 
 ## Next
 

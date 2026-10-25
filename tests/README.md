@@ -2230,3 +2230,11 @@ Both run in regular CI. Maintainer steps and acceptance live in
 [manual validation](../docs/manual-validation.md).
 
 Destination-folder preview maintainer checks: [TP1–TP3](../docs/manual-validation.md#destination-folder-preview).
+
+### October 2026 audit cleanup
+
+Gallery API tests assert the unused per-view `matches` field is absent, while retaining
+whole-place, filtered, grouped-set and cross-place search count coverage. The unused
+retention-preview and XMP primary-candidate helpers and helper-only assertions were
+removed with maintainer approval. Production retention and metadata-index/multiple-sidecar
+integration tests remain. `read_destination_check` stays for its specified workflow.
