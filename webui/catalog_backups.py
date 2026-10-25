@@ -28,8 +28,9 @@ def _backup_file(backups_dir: Path, name: str) -> Optional[Path]:
 
 def backups(db_path: Path, backups_dir: Path, appdata_dir: Path) -> dict:
     """Every recorded backup attempt, newest first, with its file's availability
-    observed now. Read-only: the recorded availability is the engine's to update
-    (refresh_backup_availability), so an unreachable /backups makes each file
+    observed now. Read-only: these live checks do not update recorded availability.
+    The engine records creation and pruning but does not routinely refresh missing
+    or unreachable files. An unreachable /backups makes each unpruned file
     'unknown' here rather than 'missing' - storage trouble is not deletion."""
     problem = ns_db.backup_storage_problem(backups_dir, appdata_dir)
     reachable = backups_dir.is_dir() and os.access(backups_dir, os.R_OK | os.X_OK)

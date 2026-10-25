@@ -741,7 +741,7 @@ FOUNDATION_DDL = (
         failure_category TEXT, failure_detail TEXT, updated_at TEXT NOT NULL,
         PRIMARY KEY(content_id, size))""",
     "CREATE INDEX idx_thumbnail_size ON thumbnail_cache(size, availability)",
-    # An attempt is history; an artifact's availability is current observed state.
+    # An attempt is history; an artifact's availability is last recorded state.
     # What a full Index walk found, by file type (webui-spec 5.1). Measured counts
     # only: a scoped run walks nothing and has no row. Excluded files are untouched
     # and are not failures. `unreadable` counts folders and entries the walk could

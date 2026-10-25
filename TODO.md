@@ -54,9 +54,6 @@ development until the maintainer decides.
 - Every warning offers a way out
 - Re-audit durability claims whenever a write path changes
 
-**Audit findings (2026-10-24)**
-- Backup availability decision — see Audit findings below
-
 **Before the first release**
 - Decide on catalog migration
 - Review every message the user sees
@@ -573,21 +570,6 @@ Saved orientation stays a separate action from temporary preview rotation.
   failures; absent EXIF is not proof of damage. Do not retry unchanged bad files.
 - [ ] Audit warnings throughout the app for a working action or a direct route to the
   affected items ([validation and feedback contract](docs/ui-design.md#validation-and-feedback)).
-
-## Audit findings (2026-10-24)
-
-A documentation and code sweep of main at `19e23c5`, after #137–#142. For review: confirm,
-fix or decide each item, then remove it from here. Automated checks passed at the time:
-`check-specs`, all 73 API routes documented, schema matches engine-spec 6.5.
-
-### Code
-
-- [ ] **Backup availability is never refreshed by the engine.** `ns_db.refresh_backup_availability`
-  is called only by `tests/database_test.py`, yet `webui/catalog_backups.py` (`backups()`
-  docstring) says recorded availability "is the engine's to update
-  (refresh_backup_availability)". The Settings list stays truthful because it checks each
-  file live, but `backup_artifacts.availability` goes stale. **Decision needed:** call it from
-  the engine (e.g. where backups are listed or pruned) or correct the docstring.
 
 ## Durability claims: stated vs enforced
 
