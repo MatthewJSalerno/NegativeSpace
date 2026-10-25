@@ -900,7 +900,7 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual(self.client.get("/api/v1/photos/ids", params={"view": "rejects"}).json()["in_rejects"], in_rejects,
                          "Select all cannot keep a selection to one place")
         searched = self.client.get("/api/v1/photos", params={"view": "rejects", "q": "IMG_0002"}).json()
-        self.assertEqual((searched["matches"]["rejects"], searched["matches"]["all"], searched["matches"]["undated"]),
+        self.assertEqual((searched["elsewhere"]["rejects"], searched["elsewhere"]["organized"], searched["chips"]["undated"]),
                          (1, 0, 1), "the places' counts do not follow the search")
 
         again = self.wait_for(self.start(mode="copy"))
@@ -1157,7 +1157,7 @@ class JobsAndCatalog(ApiCase):
         self.assertEqual(photos()["total"], 2)
         only_2023 = photos(date=["2023"])
         self.assertEqual([i["date_taken"][:7] for i in only_2023["items"]], ["2023-11"])
-        self.assertEqual((only_2023["counts"]["all"], only_2023["matches"]["all"]), (2, 1),
+        self.assertEqual((only_2023["counts"]["all"], only_2023["total"]), (2, 1),
                          "the places count the library; matches follow the filters")
         self.assertEqual(photos(date=["2020-09", "2023"])["total"], 2, "checked dates add up")
         self.assertEqual(photos(date=["none"])["total"], 0)
@@ -1184,7 +1184,7 @@ class JobsAndCatalog(ApiCase):
                          "only the types the library holds, most first")
         only_png = self.client.get("/api/v1/photos", params={"type": "png"}).json()
         self.assertEqual([i["filename"] for i in only_png["items"]], ["scan.png"])
-        self.assertEqual((only_png["counts"]["all"], only_png["matches"]["all"]), (3, 1),
+        self.assertEqual((only_png["counts"]["all"], only_png["total"]), (3, 1),
                          "the places count the library; matches follow the type filter")
         ids = self.client.get("/api/v1/photos/ids", params={"type": "jpg"}).json()
         self.assertEqual(ids["total"], 2, "Select all takes exactly the types shown")
@@ -2556,6 +2556,19 @@ class MatchingTests(ApiCase):
             self.conn.execute("UPDATE file_states SET presence_state='missing' WHERE sha1_hash='c'")
         self.assertEqual(self.client.get(f'/api/v1/similar/{pending}/counts').json()['availability'], 'not_available')
 
+    def test_gallery_omits_unused_per_view_matches(self):
+        self.photo('first', 'a', '0000000000000000')
+        self.refresh()
+        for view in ('organized', 'similar', 'unorganized', 'rejects'):
+            response = self.client.get('/api/v1/photos', params={'view': view, 'q': 'first'})
+            self.assertEqual(response.status_code, 200)
+            result = response.json()
+            self.assertNotIn('matches', result)
+            self.assertIn('counts', result)
+            self.assertIn('elsewhere', result)
+            self.assertIn('chips', result)
+            self.assertIn('reasons', result)
+
     def test_gallery_similarity_view_shares_scope_with_filters_and_selection(self):
         a = self.photo('first', 'a', '0000000000000000')
         self.photo('exact-copy', 'a', '0000000000000000')
@@ -2574,7 +2587,7 @@ class MatchingTests(ApiCase):
         for filters in ('q=first', 'date=2023', 'folder=trip'):
             got = self.client.get('/api/v1/photos?view=similar&'+filters).json()
             self.assertEqual([r['id'] for r in got['items']], [a], filters)
-            self.assertEqual(got['matches']['similar'], 1)
+            self.assertEqual(got['total'], 1)
             self.assertEqual(self.client.get('/api/v1/photos/ids?view=similar&'+filters).json()['ids'], [a])
         self.assertEqual(self.client.get('/api/v1/photos?view=similar&type=png').json()['total'], 0)
         self.assertEqual(self.client.get('/api/v1/photos?view=similar&undated=true').json()['total'], 1)

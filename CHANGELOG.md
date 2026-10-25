@@ -9,6 +9,10 @@ the middle number goes up with each feature. Before 1.0.0 a new catalog format i
 
 ## [Unreleased]
 
+- Remove unused per-view gallery count queries and obsolete retention/XMP helpers;
+  preserve current sidebar, refinement and cross-place search counts. Refresh the
+  README and guide screenshots and correct stale workflow documentation.
+
 - Preview Copy/Move destination folders with counts and expandable, paged source
   filenames inside the existing confirmation. Reject stale catalog previews before
   starting; preserve Move's edited-original safeguards. CSV export remains deferred.

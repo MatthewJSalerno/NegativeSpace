@@ -7,7 +7,7 @@ take precedence in the catalog capture layer. These pure helpers never save deci
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Sequence
 
 from engine import ns_db, xmp
 
@@ -81,28 +81,3 @@ class PhotoInventory:
             if len(chosen) == 1:
                 return Association(sidecar, 'associated', chosen, 'resolved', 'policy')
         return Association(sidecar, 'needs_choice', candidates, 'ambiguous_ownership')
-
-
-def primary_candidates(associations: Sequence[Association]) -> Mapping[str, tuple[str, ...]]:
-    """Suggest primary only for a NEW photo with fully resolved valid associations.
-
-    A sole full-name version wins and other associated versions remain alternatives.
-    Otherwise return all candidates: catalog/content comparison and an explicit decision
-    are required; never choose by incoming order. A blocked candidate prevents a suggestion.
-    Existing primary choices are outside this helper and must never be overwritten by it.
-    """
-    by_photo = defaultdict(list)
-    blocked = set()
-    for association in associations:
-        if association.state in ('needs_choice', 'needs_attention'):
-            blocked.update(association.photos)
-        elif association.state == 'associated':
-            for photo in association.photos:
-                by_photo[photo].append(association)
-    result = {}
-    for photo, versions in by_photo.items():
-        if photo in blocked:
-            continue
-        full = sorted({v.sidecar for v in versions if v.basis == 'full_name'})
-        result[photo] = tuple(full or sorted({v.sidecar for v in versions}))
-    return result

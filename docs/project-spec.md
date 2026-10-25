@@ -323,11 +323,11 @@ unbacked changes and failed backups offer Back up now or Retry backup; no job qu
 Specified but not yet on screen:
 *   A downloadable Copy/Move plan is deferred for discussion only after every other
     requirement is built (`webui-spec.md` §2); the grouped folder preview is implemented.
-*   The destination check, from a lineage tree's copy or on its own.
+*   Check my library and Repair (`engine-spec.md` §9.2).
 *   Undated-photo evidence with a per-library back-test (`webui-spec.md` §3.1). Date taken editing/copying
     with a filing preview is built and validated, as are saved rotations. Other fields
     remain read-only; broader engine capabilities do not imply a general-purpose web editor.
-*   Additional Needs review reasons (`webui-spec.md` §7.9), including unreadable-file resolution, and the similar-to-a-reject check
+*   Additional Needs review reasons (`webui-spec.md` §7.9), including the similar-to-a-reject check
     (`webui-spec.md` §7.8);
     the export-sidecar notice at Index.
 *   Videos and other non-photo formats are deliberately deferred until photo organizing

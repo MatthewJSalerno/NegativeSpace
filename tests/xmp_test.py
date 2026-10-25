@@ -446,21 +446,12 @@ class AssociationTests(unittest.TestCase):
         junk = xmp.parse_bytes(b'', source_id='s')
         self.assertEqual(self.inventory.associate('photo.xmp', junk, policy='ask').state, 'ignored')
 
-    def test_both_names_keep_all_associations_but_prefer_full_for_new_photo(self):
+    def test_both_names_keep_all_associations(self):
         short = self.inventory.associate('photo.xmp', self.good, policy='all')
         full = self.inventory.associate('photo.CR2.xmp', self.good, policy='ask')
-        self.assertEqual(xmp_association.primary_candidates([short, full]),
-                         {'photo.CR2': ('photo.CR2.xmp',), 'photo.jpg': ('photo.xmp',)})
         self.assertEqual(short.photos, ('photo.CR2', 'photo.jpg'))
-        unresolved = self.inventory.associate('photo.xmp', self.good, policy='ask')
-        self.assertNotIn('photo.CR2', xmp_association.primary_candidates([unresolved, full]))
-
-    def test_multiple_full_names_are_not_chosen_by_order(self):
-        a = self.inventory.associate('photo.CR2.xmp', self.good, policy='all')
-        b = self.inventory.associate('photo.CR2.XMP', self.good, policy='all')
-        self.assertEqual(xmp_association.primary_candidates([a, b]),
-                         xmp_association.primary_candidates([b, a]))
-        self.assertEqual(len(xmp_association.primary_candidates([a, b])['photo.CR2']), 2)
+        self.assertEqual(full.photos, ('photo.CR2',))
+        self.assertEqual(full.basis, 'full_name')
 
     def test_orphan_is_reconsidered_and_case_is_not_conflated(self):
         empty = xmp_association.PhotoInventory([])

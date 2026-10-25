@@ -523,14 +523,6 @@ class DatabaseTests(unittest.TestCase):
         states = [r[0] for r in self.conn.execute("SELECT availability FROM backup_artifacts ORDER BY artifact_id")]
         self.assertEqual(states, ['unknown', 'unknown'])
 
-    def test_lowering_retention_is_previewed_before_it_prunes(self):
-        store = self.backups()
-        for _ in range(3):
-            db.backup_catalog(self.path, store, Path(self.tmp.name) / 'appdata', trigger='post_job')
-        db.backup_catalog(self.path, store, Path(self.tmp.name) / 'appdata', trigger='manual')
-        self.assertEqual(db.automatic_backups_beyond(self.conn, 1), 2, 'manual backups must not count')
-        self.assertEqual(len(list(store.iterdir())), 4, 'previewing removed files')
-
     def test_backup_retention_setting_is_validated(self):
         for bad in (0, -1, '5', 2.0, True):
             with self.assertRaises(ValueError):

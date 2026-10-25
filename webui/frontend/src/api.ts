@@ -161,7 +161,6 @@ export interface PhotoPage {
   similarity: { threshold: number; pending: number; unavailable: number } | null;
   // Each view under every filter now on, for the sidebar's places and for suggesting another
   // view; `undated` is No usable capture date within this view under the other filters.
-  matches: Record<View | "undated", number>;
   // What Rejects holds now, with the Rejects view.
   rejects?: RejectsSummary | null;
 }

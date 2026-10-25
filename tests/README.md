@@ -1721,24 +1721,20 @@ old folder-popup expectations were replaced with the current source-only contrac
 No engine change or catalog reset was needed for those navigation checks. Final editor
 acceptance passed; GitHub checks remain a separate merge gate.
 
-### Filter pin and gallery count follow-up
+### Sidebar refinements and gallery counts
 
-`sidebar_refinements_browser_drive.py` covers pinning two filters and unpinning each one:
-active states, URL restrictions, chip counts and gallery rows update, and refresh keeps
-both off. Removing an unapplied pin preserves an explicit job link. The unfiltered
-place total appears in the sidebar, without another total above the gallery or in its
-pager. Filtered results show matching and whole-place counts; set, selection and job
-scopes retain their own totals. `layout_stability_browser_drive.py` checks unchanged
-control positions as the count summary appears/disappears at desktop and narrow widths.
-`review_browser_drive.py` retains zero/one-result and reminder-clearing coverage.
+`sidebar_refinements_browser_drive.py` covers combined refinements, reason and size
+controls, Bookmarks, place navigation clearing restrictions, and Back restoring the
+previous URL. It verifies that old stored pins do not restore removed controls.
+The unfiltered place total appears in the sidebar; filtered results show matching
+and whole-place counts. `layout_stability_browser_drive.py` checks control positions
+at desktop and narrow widths. `review_browser_drive.py` retains zero/one-result and
+reminder-clearing coverage. API tests cover cross-place search counts and grouped
+representatives independently of whole-place counts.
 
-Manual steps and recorded results: [Filter pin and gallery count follow-up](../docs/manual-validation.md#pin-count-followup).
-
-Automated follow-up validation: generated-photo filter-pin, layout-stability, review,
-reference-set, gallery-position, source-scope and full browser workflows all pass.
-The refinement fixture uses a date boundary that excludes some photos, so clearing filters must
-actually broaden results. Desktop/narrow light/dark screenshots inspected; build and
-specification checks pass. Maintainer acceptance passed (Test 1).
+Maintainer results: [Sidebar and Bookmarks](../docs/manual-validation.md#sidebar-bookmarks).
+The [earlier pin follow-up](../docs/manual-validation.md#pin-count-followup) is a
+historical acceptance record, not the current navigation contract.
 
 
 ### Completed date-editor branch acceptance after review-control cleanup
@@ -2234,3 +2230,11 @@ Both run in regular CI. Maintainer steps and acceptance live in
 [manual validation](../docs/manual-validation.md).
 
 Destination-folder preview maintainer checks: [TP1–TP3](../docs/manual-validation.md#destination-folder-preview).
+
+### October 2026 audit cleanup
+
+Gallery API tests assert the unused per-view `matches` field is absent, while retaining
+whole-place, filtered, grouped-set and cross-place search count coverage. The unused
+retention-preview and XMP primary-candidate helpers and helper-only assertions were
+removed with maintainer approval. Production retention and metadata-index/multiple-sidecar
+integration tests remain. `read_destination_check` stays for its specified workflow.

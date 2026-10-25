@@ -85,7 +85,7 @@ docker run --rm --stop-timeout 300 \
 
 ## Catalog review decisions
 
-The web interface submits **Mark reviewed**, **Review later** and **Done** through
+The web interface submits **Mark reviewed**, **Bookmark** and **Remove bookmark** through
 `--review-decision`. This mode takes a JSON decision on stdin under the engine lock;
 its fields and replay/refusal behavior are documented in the review endpoints in
 [api-spec.md](api-spec.md). It changes catalog review history only, never photo files,

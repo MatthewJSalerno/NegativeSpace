@@ -204,8 +204,7 @@ One page of the gallery. It lists photographs, not every copy: a `Duplicate` or
                 "filename": "IMG_0001.jpg", "duplicates": 1,
                 "failure": null | "Permission denied", "kept": null | "Read-only file system"}, ...],
      "page": 1, "page_size": 60, "total": 1160,
-     "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160},
-     "matches": {"all": 1160, "organized": 0, "unorganized": 1160}}
+     "counts": {"all": 1160, "organized": 0, "unorganized": 1160, "undated": 1160}}
 
 `source_summary` also applies to IDs, photo position, timeline, Types and Folders.
 `ready` is Pending without a source metadata hold; `indexed` is Pending;
@@ -244,11 +243,11 @@ whose latest delivery was a Move that could not delete the original, why (a run'
 
 `counts` are each view's whole library, whatever the search, `date`, `type`, `folder` and
 `undated` narrow the gallery to; `counts.undated` is how many photos in this view have no
-capture date. `total` is what this request shows, every filter applied. `matches` counts
-each view’s individual photos with every filter applied, even when `group_sets` makes
-`total` count representative sets. `matches.undated` counts this view’s photos with no
-capture date under the other filters: the sidebar's places show these on the Library (`webui-spec.md` §2),
-and they offer another view when a search finds nothing in this one. The date sorts put undatable rows last.
+capture date. `total` is what this request shows, every filter applied; with
+`group_sets`, it counts representative sets. `chips.undated` counts this view's
+photos with no capture date under the other refinements. `elsewhere` supplies
+search counts for organized, unorganized and rejected photos, independent of the
+current refinements. The date sorts put undatable rows last.
 
 For `view=similar`, each item includes `similar_count`, and the response includes
 `similarity: {threshold, pending, unavailable}`. The coverage counts describe all
@@ -342,7 +341,7 @@ integer, else 422), which keeps the photos that job recorded an outcome for, and
 `view=job`, which shows them wherever they are now, library or Rejects (copies a Move
 removed are left out, as in every view). Every other filter narrows them. `GET /photos`
 then also returns `counts.job`, the job's photos before any filter; the other `counts`
-and `matches` keep counting the views, which leave the job.
+keep counting the views, which leave the job.
 
 ### `POST /api/v1/photos/position`
 
@@ -1242,8 +1241,7 @@ of different content. One aggregate over stored pairs supplies all thresholds.
 The gallery's `view=similar` uses the same destination availability and content
 representation rules, at `match_min` (75% by default). Search/date/type/folder filters narrow the
 reference photos, not their potential matches. Timeline, type/folder counts, photo
-positions and selection IDs use the same view predicate. Gallery `counts` and
-`matches` include the `similar` key.
+positions and selection IDs use the same view predicate. Gallery `counts` includes the `similar` key.
 
 ### `GET /api/v1/similar/diagnostics`
 
@@ -1321,9 +1319,8 @@ references satisfying filters represents each identical set. Filtering never nar
 set membership. Different neighborhoods with equal counts stay separate.
 
 List `total` and returned IDs/positions describe representatives; per-photo
-`similar_count` still counts direct matches. `counts` remain uncollapsed library photo counts; filter-aware `matches`
-supply the sidebar's places. Filter-panel queries count representatives in their normal filter
-scope. `matches` for other views retains normal photo-filter semantics. No photo,
+`similar_count` still counts direct matches. `counts` remain uncollapsed library photo
+counts. Filter-panel queries count representatives in their normal filter scope. No photo,
 EXIF, persisted group, or catalog schema is changed. Without `group_sets`, existing
 API behavior is unchanged.
 

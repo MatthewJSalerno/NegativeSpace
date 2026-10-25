@@ -722,7 +722,7 @@ and Bookmark contract is in `docs/ui-design.md`, Page frame.
 
 - [x] Bulk bookmark removal and Keep decisions — BR3–BR4 passed (`docs/ui-design.md`, Bulk review answers).
 
-- Guide screenshots for sidebar and Bookmarks — refresh in a separate documentation PR; stale sidebar images removed from the guide (`docs/user-docs-standard.md`, Screenshots).
+- Guide screenshots for sidebar, Bookmarks and current workflows — refreshed from main with the NASA demo set (`docs/user-docs-standard.md`, Screenshots).
 
 - Date-bookmark entry — built; reason/note and metadata precede editing, SB5a recheck passed (`docs/manual-validation.md`, Sidebar and Bookmarks).
 

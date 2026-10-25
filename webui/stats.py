@@ -232,7 +232,7 @@ def library_stats(db_path: Path, backups_dir: Path, appdata_dir: Path, source_ro
     last_index = next((r["ended_at"] or r["started_at"] for r in reversed(runs) if r["mode"] == "INDEX"), None)
     moved_seconds = sum(s for r in runs if r["mode"] in ("COPY", "MOVE") and r["id"] in transfer_bytes
                         for s in [_seconds(r["started_at"], r["ended_at"])] if s)
-    moved_run_bytes = sum(b for rid, b in transfer_bytes.items() if b)
+    moved_run_bytes = sum(b for b in transfer_bytes.values() if b)
 
     catalog_bytes = 0
     for suffix in ("", "-wal"):
