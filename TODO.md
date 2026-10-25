@@ -18,6 +18,7 @@ this list in the same change that adds or finishes an item. 💬 marks discussio
 development until the maintainer decides.
 
 **Organizing**
+- Copy/Move preview names the Index it is based on, with Index source — decided, not built (`docs/webui-spec.md` §2)
 - Earlier versions arriving again — decided, not built (`docs/engine-spec.md` §10)
 - Copy/Move preview grouped by destination folder — implemented; TP1–TP3 passed (`docs/manual-validation.md`, Destination folder preview; `docs/webui-spec.md` §2)
 - 💬 Source-folder handling behind the scenes
