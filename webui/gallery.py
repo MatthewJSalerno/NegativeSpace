@@ -375,20 +375,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
             return count_results[key]
 
         # Location counts cover all photos there; total covers this filtered page.
-        # Legacy clients also receive filtered matches for each location.
-        raw_filtered, raw_params = _filters(q, undated, dates, types, folders, root,
-            match_min=match_min, set_reference=set_reference, similar=similar, suspicious=suspicious, reason=reason, size_below=size_below, source_summary=source_summary, other_names=other_names)
-        place_filtered, place_params = _filters(q, undated, dates, types, folders, root,
-            match_min=match_min, set_reference=set_reference, similar=similar, suspicious=suspicious, size_below=size_below, source_summary=source_summary, other_names=other_names)
-        counts, matches = {}, {}
-        for name in catalog.VIEWS:
-            base = _view_clause(name, match_min)
-            counts[name] = count(base)
-            extra, values = (raw_filtered, raw_params) if name == "review" else (place_filtered, place_params)
-            # Keep legacy per-view matches photo-based and preserve explicit run scope.
-            if name == view:
-                extra, values = run_sql + extra, run_params + values
-            matches[name] = count(base + extra, values)
+        counts = {name: count(_view_clause(name, match_min)) for name in catalog.VIEWS}
         total = count(_view_clause(view, match_min) + filtered, filtered_params)
         if view not in catalog.VIEWS:
             counts[view] = count(_view_clause(view, match_min) + run_sql, run_params)
@@ -415,7 +402,6 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
         for chip in ('similar', 'suspicious', 'undated', 'small', 'attention', 'size'):
             extra, values = count_filters(chip)
             chips[chip] = reasons['small'] if chip == 'small' and 'small' in reasons else count(_view_clause(view, match_min) + extra, values)
-        matches["undated"] = chips['undated']
         # How many photos in this view have no capture date, whatever else is on.
         counts["undated"] = count(_view_clause(view, match_min) + f" AND {_UNDATED}" + run_sql, run_params)
         prefix, columns, source = _counted_list(sort, match_min, include=view == "similar" or similar)
@@ -430,7 +416,7 @@ def list_photos(db_path: Path, *, view="all", sort="newest", q=None, page=1, pag
         date_min_year = conn.execute(f"SELECT {_DATE_MIN_YEAR_SQL}").fetchone()[0]
         index_summary = _index_summary(conn) if view == "unorganized" else None
     return {"date_min_year": date_min_year, "items": items, "page": page, "page_size": page_size, "total": total, "counts": counts,
-            "matches": matches, "similarity": {"threshold": match_min, **state} if state is not None else None,
+            "similarity": {"threshold": match_min, **state} if state is not None else None,
             "rejects": rejects, "chips": chips, "reasons": reasons, "elsewhere": elsewhere, "index_summary": index_summary}
 
 

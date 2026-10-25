@@ -679,7 +679,7 @@ case and Unicode; recognized extensions are case-insensitive. Filename-case vari
 are not silently merged. Declared RawFileName ownership must be a basename and match
 an existing candidate; conflicts are held. It never follows a path from metadata.
 
-`primary_candidates` suggests primary candidates only for newly organized photos
+The catalog capture layer chooses primary candidates for newly organized photos
 whose associations are resolved: a full-name version takes priority, but multiple
 full-name candidates remain unresolved. All associations remain available as alternatives.
 No helper modifies recorded ownership/primary, catalog rows or file content. First-import version reuse and catalog choices are integrated. Orphan-notice clearing

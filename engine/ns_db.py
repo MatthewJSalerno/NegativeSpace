@@ -1744,12 +1744,6 @@ def _retained_automatic(conn):
         "ORDER BY a.created_at DESC, a.artifact_id DESC").fetchall()
 
 
-def automatic_backups_beyond(conn, limit):
-    """How many automatic backups a retention limit of `limit` would remove now:
-    what Settings shows before a lower limit is applied."""
-    return max(0, len(_retained_automatic(conn)) - limit)
-
-
 def prune_automatic_backups(conn, backups_dir):
     """Removes the oldest automatic backups beyond the retention limit. Manual
     backups are never pruned. A file that cannot be removed stays recorded
