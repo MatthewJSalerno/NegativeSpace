@@ -899,8 +899,12 @@ export const api = {
   inspect: (id: number) => request<PhotoDetail>("GET", `/api/v1/photos/${id}/inspect`),
   answerQuestion: (id: number, question: SafetyQuestion, answer: SafetyAnswer) =>
     submitJob(`/api/v1/runs/${id}/answer`, { question, answer }),
+  previewTransfer: (body: MoveScope & { mode: "copy" | "move"; token?: string; page?: number; file_page?: number }) =>
+    request<TransferPreview>("POST", "/api/v1/jobs/transfer-preview", body),
+  previewTransferFolder: (body: MoveScope & { mode: "copy" | "move"; token: string; folder: string; file_page: number }) =>
+    request<{ items: TransferPreviewItem[] }>("POST", "/api/v1/jobs/transfer-preview", body),
   previewMove: (body: MoveScope) => request<MovePreview>("POST", "/api/v1/jobs/move-preview", body),
-  startJob: (body: { mode: "index" | ActionMode; file_ids?: number[]; source_subdir?: string; confirm_edited_sources?: boolean; move_preview_token?: string }) =>
+  startJob: (body: { mode: "index" | ActionMode; file_ids?: number[]; source_subdir?: string; confirm_edited_sources?: boolean; move_preview_token?: string; transfer_preview_token?: string }) =>
     submitJob("/api/v1/jobs/start", body),
   cancelJob: (id: number) => request<{ id: number }>("POST", `/api/v1/jobs/${id}/cancel`),
   thumbnailUrl: (id: number, size: "grid" | "preview" = "grid", revision?: number) =>
@@ -920,4 +924,10 @@ export const api = {
 export type MoveScope = { file_ids?: number[]; source_subdir?: string };
 export type MovePreview = { file_ids: number[]; token: string; rejected_originals: number;
   edited_originals: { photo_id: number; source: string; filename: string; in_rejects: boolean }[] };
-export type MoveSubmission = { mode: "move"; file_ids: number[]; move_preview_token: string; confirm_edited_sources: boolean };
+export type TransferSubmission = { mode: "copy" | "move"; file_ids: number[]; transfer_preview_token: string;
+  move_preview_token?: string; confirm_edited_sources?: boolean };
+export type TransferPreviewItem = { photo_id: number; filename: string; source: string; note: string };
+export type TransferPreview = { file_ids: number[]; token: string; mode: "copy" | "move"; total: number;
+  planned: number; group_total: number; page: number; page_size: number;
+  groups: { path: string; total: number; items: TransferPreviewItem[] }[];
+  unplanned_total: number; unplanned: TransferPreviewItem[] };

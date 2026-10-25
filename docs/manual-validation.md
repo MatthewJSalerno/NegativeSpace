@@ -9,6 +9,10 @@ or the [historical topic index](#historical-checklists-and-accepted-results).
 
 ## Pending checks
 
+**Destination folder preview:** [TP1–TP3](#destination-folder-preview) passed, including
+all lettered steps. No manual checks remain for this batch. The large-preview usability
+observation is recorded below for discussion.
+
 **Bulk review answers:** [BR1–BR4](#bulk-review-answers) passed, including all lettered
 steps, on 2026-10-24. No manual checks remain for this batch.
 Date-review DR1–DR5 remains accepted; do not repeat those checks.
@@ -49,6 +53,62 @@ including all lettered steps.
 After each maintainer report, update this queue and the batch's status; record partial
 passes by step. A relevant behavior change must explicitly identify the steps needing
 a retest. Do not infer manual acceptance from automated results.
+
+## Destination folder preview
+
+**Status:** TP1–TP3 passed, including all lettered steps.
+
+**Maintainer observation:** Copy all showed 114 pages of destination folders. Although
+functional checks passed, this volume may become noise rather than a useful review.
+Discuss a concise summary with optional folder details before changing the design;
+no alternative presentation has been approved or implemented.
+
+Automated Docker checks passed:
+52 Python suites (944 tests), 157 smoke checks, all 44 browser workflows and 11
+supporting checks, including every `tools/check-*.py`. The smoke run initially found
+one missing CLI documentation entry; that entry was added and its check passed on
+rerun. After fixing selected Copy to open the confirmation, six affected browser
+workflows passed again. Builds and typechecking passed. Desktop dark mode and 200%
+text were inspected. A single generated/public-demo catalog preview measured 0.38
+seconds for 4,866 source files in 2,269 destination folders; this is not a large-library
+performance guarantee.
+
+Use the fresh review instance. Index is complete, Library is empty, and the generated
+photos below are in **Not organized**. No initial Copy is needed. Before each test,
+clear selection and refinements and replace the search. Only the generated photo in
+TP3 is moved; do not run Move on the whole sample library.
+
+### Test TP1 — Folder details and cancellation
+
+- **TP1a:** Search `tp-dated-`, select `tp-dated-a.jpg` and `tp-dated-b.jpg`, choose
+  **Copy (2)…**, then **Copy these 2 photos**. In the confirmation, **Destination
+  folders** shows `library/2020/06/15` with two source files. Expand it and check both
+  names appear. These are actual paths relative to the configured destination.
+- **TP1b:** Increase browser zoom to 200%. The folder details wrap and the confirmation
+  scrolls; Cancel and Copy remain reachable. Restore normal zoom and choose **Cancel**.
+  No Copy job starts and both photos remain in Not organized. Leave the selection review.
+- **TP1c:** Open **Jobs › Copy › Copy all (count)**. The preview pages the destination
+  folders rather than listing thousands at once. Expand a folder, try the next page,
+  and expand the files without a proposed delivery to see their explanations. Cancel
+  this confirmation; do not start the whole-library Copy.
+
+### Test TP2 — The XMP filing date
+
+- **TP2a:** In **Not organized**, search `tp-xmp.jpg`, select it and choose **Copy (1)…**. The confirmation shows `library/2019/07/04`, using the
+  sidecar date rather than the embedded EXIF year 2000. Expand the folder and check
+  the XMP sidecar note.
+- **TP2b:** Confirm **Copy** and wait for completion. In **Library**, search
+  `tp-xmp.jpg`. Its **File information** destination is under `library/2019/07/04`;
+  its primary XMP remains associated.
+
+### Test TP3 — Undated Move
+
+- **TP3a:** In **Not organized**, search `tp-undated.jpg`, select it and choose
+  **Move (1)…**. The confirmation shows
+  `library/Undated/2022`, with the existing Move warning and confirmation controls.
+- **TP3b:** Confirm **Move** for this generated photo and wait for completion. Search
+  `tp-undated.jpg` in **Library**. Its destination is under `library/Undated/2022`
+  and its status reports a completed Move. It no longer appears in Not organized.
 
 ## Bulk review answers
 

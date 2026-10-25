@@ -321,7 +321,8 @@ The shared job-status area stays busy through the final catalog backup. At idle,
 unbacked changes and failed backups offer Back up now or Retry backup; no job queue.
 
 Specified but not yet on screen:
-*   The Move/Copy preview grouped by destination folder, and the downloadable plan.
+*   A downloadable Copy/Move plan is deferred for discussion only after every other
+    requirement is built (`webui-spec.md` §2); the grouped folder preview is implemented.
 *   Check my library and Repair (`engine-spec.md` §9.2).
 *   Undated-photo evidence with a per-library back-test (`webui-spec.md` §3.1). Date taken editing/copying
     with a filing preview is built and validated, as are saved rotations. Other fields

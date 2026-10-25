@@ -19,7 +19,7 @@ development until the maintainer decides.
 
 **Organizing**
 - Earlier versions arriving again — decided, not built (`docs/engine-spec.md` §10)
-- Copy/Move preview grouped by destination folder, and a downloadable plan
+- Copy/Move preview grouped by destination folder — implemented; TP1–TP3 passed (`docs/manual-validation.md`, Destination folder preview; `docs/webui-spec.md` §2)
 - 💬 Source-folder handling behind the scenes
 - 💬 A content-history link from a photo to its earlier versions
 
@@ -595,6 +595,8 @@ fix or decide each item, then remove it from here. Automated checks passed at th
   `side-by-side.png`). Its text is current, but no picture shows the new sidebar and
   refinements, Bookmarks, the lineage timeline, the actionable Index summary or the backup
   status. One screenshot per section, per the docs standard.
+### Code
+
 - [ ] **Backup availability is never refreshed by the engine.** `ns_db.refresh_backup_availability`
   is called only by `tests/database_test.py`, yet `webui/catalog_backups.py` (`backups()`
   docstring) says recorded availability "is the engine's to update
@@ -756,3 +758,14 @@ and Bookmark contract is in `docs/ui-design.md`, Page frame.
 - Guide screenshots for sidebar and Bookmarks — refresh in a separate documentation PR; stale sidebar images removed from the guide (`docs/user-docs-standard.md`, Screenshots).
 
 - Date-bookmark entry — built; reason/note and metadata precede editing, SB5a recheck passed (`docs/manual-validation.md`, Sidebar and Bookmarks).
+
+## Additional ideas — discuss and approve before building
+
+Append new assistant-suggested features here, after the existing backlog. Include a
+concrete use case and keep each idea unapproved until the maintainer discusses and
+approves it. Do not include these ideas in implementation batches without approval.
+Detailed proposals belong in the relevant specs; entries here remain one-line pointers.
+
+- 💬 Downloadable Copy/Move plan — possible use case: inspect or save a large proposed import in a spreadsheet; unapproved, discuss only after every other requirement is built (`docs/webui-spec.md` §2).
+
+- 💬 Large transfer preview — discuss reducing a 114-page folder list to a useful summary with optional details; use case: understand a large import without paging through every folder; not approved (`docs/manual-validation.md`, Destination folder preview).
